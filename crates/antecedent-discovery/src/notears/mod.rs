@@ -18,11 +18,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
-        clippy::cast_possible_truncation,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -38,7 +36,7 @@ use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
 use antecedent_stats::standardize_columns;
 
-use crate::constraints::{DiscoveryConstraints, forbidden_edge};
+use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::lingam::StaticDagDiscoveryResult;
@@ -49,7 +47,7 @@ use crate::result::{
     discovery_assumptions,
 };
 
-use solver::{NotearsWorkspace, SolverConfig, solve_notears};
+use solver::{NotearsWorkspace, SolveFailure, SolverConfig, solve_notears};
 
 /// NOTEARS discovery result: hard DAG review plus soft weight matrix for mechanism seeding.
 #[derive(Clone, Debug)]
@@ -151,14 +149,17 @@ impl Notears {
     ///
     /// Data, numerical non-convergence / non-finite values, or graph failures.
     /// Fail-closed: never returns an empty soft failure DAG on solver error.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<NotearsDiscoveryResult, DiscoveryError> {
-        let _ = workspace;
         self.constraints.validate()?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
@@ -200,12 +201,16 @@ impl Notears {
         for i in 0..d {
             frozen[i * d + i] = true;
         }
+        let index = crate::constraints::ConstraintIndex::compile(&self.constraints);
         for i in 0..d {
             for j in 0..d {
                 if i == j {
                     continue;
                 }
-                if forbidden_edge(&self.constraints, variables, i, j) {
+                if index.is_forbidden(
+                    &self.constraints,
+                    crate::constraints::contemp_link(variables[i], variables[j]),
+                ) {
                     frozen[i * d + j] = true;
                 }
             }
@@ -219,8 +224,13 @@ impl Notears {
             ..SolverConfig::default()
         };
         let mut solver_ws = NotearsWorkspace::default();
-        let soft_w = solve_notears(&x, n, d, &frozen, &cfg, &mut solver_ws)
-            .map_err(DiscoveryError::stats_msg)?;
+        let soft_w = solve_notears(&x, n, d, &frozen, &cfg, &mut solver_ws, &|| {
+            ctx.cancellation.is_cancelled()
+        })
+        .map_err(|failure| match failure {
+            SolveFailure::Cancelled => DiscoveryError::Cancelled,
+            SolveFailure::Message(message) => DiscoveryError::stats_msg(message),
+        })?;
 
         // Threshold → candidate edges (parent i → child j when |W_ij| >= threshold).
         let max_parents = self.constraints.max_parents.unwrap_or(d.saturating_sub(1));

@@ -1,5 +1,5 @@
 //! Prepared lifecycle, refresh and independent artifact consumption of one
-//! finite two-step temporal transport sequence (2.2A, X5).
+//! finite two-step temporal transport sequence.
 //!
 //! The fixture is the known temporal SCM shared with the estimate-crate tests:
 //! source and target differ at the initial state and at the step-2 covariate
@@ -37,11 +37,8 @@ fn ctx() -> ExecutionContext {
 fn prepare_with(seq: &[Value], data: ExactTransportData) -> PreparedTemporalTransport {
     StudyBuilder::temporal_transport_sequence(
         &spec(),
-        seq,
-        "source",
-        "target",
-        catalog(),
-        BUDGET,
+        antecedent::SequenceEndpoints { sequence: seq, source: "source", target: "target" },
+        antecedent::EvidenceSearch { catalog: catalog(), budget: BUDGET },
         data,
         ExactEvaluationLimits::default(),
         &ctx(),
@@ -299,11 +296,8 @@ fn a_new_period_or_a_changed_window_needs_a_new_preparation() {
     three.push(Value::f64(1.0));
     let error = StudyBuilder::temporal_transport_sequence(
         &spec(),
-        &three,
-        "source",
-        "target",
-        catalog(),
-        BUDGET,
+        antecedent::SequenceEndpoints { sequence: &three, source: "source", target: "target" },
+        antecedent::EvidenceSearch { catalog: catalog(), budget: BUDGET },
         laws(&source_scm(), &target_scm(), &[]),
         ExactEvaluationLimits::default(),
         &ctx(),
@@ -439,11 +433,12 @@ fn a_template_route_and_a_three_level_alphabet_round_trip_through_the_artifact()
     let (source, target) = (template::source(), template::target());
     let prepared = StudyBuilder::temporal_transport_sequence(
         &template::spec(),
-        &sequence(1.0, 0.0),
-        "source",
-        "target",
-        template::catalog(),
-        BUDGET,
+        antecedent::SequenceEndpoints {
+            sequence: &sequence(1.0, 0.0),
+            source: "source",
+            target: "target",
+        },
+        antecedent::EvidenceSearch { catalog: template::catalog(), budget: BUDGET },
         template::laws(&source, &target),
         ExactEvaluationLimits::default(),
         &ctx(),
@@ -458,11 +453,12 @@ fn a_template_route_and_a_three_level_alphabet_round_trip_through_the_artifact()
     let (source, target) = (categorical::source(), categorical::target());
     let prepared = StudyBuilder::temporal_transport_sequence(
         &categorical::spec(),
-        &sequence(2.0, 1.0),
-        "source",
-        "target",
-        categorical::evidence(),
-        BUDGET,
+        antecedent::SequenceEndpoints {
+            sequence: &sequence(2.0, 1.0),
+            source: "source",
+            target: "target",
+        },
+        antecedent::EvidenceSearch { catalog: categorical::evidence(), budget: BUDGET },
         categorical::laws(&source, &target),
         ExactEvaluationLimits::default(),
         &ctx(),

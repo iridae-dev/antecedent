@@ -24,7 +24,6 @@
 #![cfg_attr(
     test,
     allow(
-        clippy::cast_possible_truncation,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -170,6 +169,31 @@ pub(crate) fn grid_failure_text(what: &str, axis: &str, value: f64, threshold: f
     }
 }
 
+/// Grid verdict as a refutation report.
+///
+/// `informative` is always true. `failure` is rendered only when `passed` is false, and its
+/// text is stored unchanged. `comparison` is the robustness value the grid just computed.
+pub(crate) fn grid_report(
+    refuter: &str,
+    original_ate: f64,
+    refuted_ate: f64,
+    comparison: f64,
+    passed: bool,
+    failure: impl FnOnce() -> String,
+    replicates: u32,
+) -> RefutationReport {
+    let failure_condition = if passed { None } else { Some(Arc::from(failure())) };
+    RefutationReport::builder(refuter)
+        .original_ate(original_ate)
+        .refuted_ate(refuted_ate)
+        .comparison(comparison)
+        .informative(true)
+        .passed(passed)
+        .failure_condition(failure_condition)
+        .replicates(replicates)
+        .build()
+}
+
 /// Grid values as the sensitivity loops probe them (`r` clamped to `[0, 0.999]`).
 fn probed_partial_r2(grid: &[f64]) -> impl Iterator<Item = f64> + '_ {
     grid.iter().map(|r| r.clamp(0.0, 0.999))
@@ -225,10 +249,7 @@ impl GridSetup {
         let n = problem.data.row_count();
         let t0 = float64_full(problem.data, problem.treatment())?;
         let y0 = float64_full(problem.data, problem.outcome())?;
-        let mut ids = vec![problem.treatment(), problem.outcome()];
-        if problem.temporal.is_none() {
-            ids.extend_from_slice(&problem.estimand.adjustment_set);
-        }
+        let ids = problem.estimation_ids(problem.temporal.is_none());
         let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
         // The grid is a *partial* R² — the share of variance in `T` (and `Y`) left unexplained by
         // the adjustment set `Z` that the simulated confounder accounts for. Injecting
@@ -266,7 +287,7 @@ impl GridSetup {
         orthogonalize_confounder(&mut u, &mask, &columns);
 
         let mut sorted_grid = grid.to_vec();
-        sorted_grid.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        sorted_grid.sort_by(f64::total_cmp);
 
         let original_sign = problem.original.ate.signum();
         // Worst-case orientation: load the confounder on Y against the observed effect so the
@@ -632,7 +653,7 @@ impl LinearSensitivity {
             ctx,
             &self.estimator,
             &self.partial_r2_grid,
-            0xA7E0_000A_0000_u64,
+            crate::streams::LINEAR_SENSITIVITY,
             false,
         )?;
         let passed = robustness_passes(
@@ -640,25 +661,15 @@ impl LinearSensitivity {
             robustness_value,
             self.pass_threshold,
         );
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.linear"),
-            original_ate: problem.original.ate,
+        Ok(grid_report(
+            "sensitivity.linear",
+            problem.original.ate,
             refuted_ate,
-            comparison: robustness_value,
-            informative: true,
+            robustness_value,
             passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(grid_failure_text(
-                    "effect",
-                    "partial R²",
-                    robustness_value,
-                    self.pass_threshold,
-                )))
-            },
-            replicates: self.partial_r2_grid.len() as u32,
-        })
+            || grid_failure_text("effect", "partial R²", robustness_value, self.pass_threshold),
+            self.partial_r2_grid.len() as u32,
+        ))
     }
 }
 
@@ -728,7 +739,7 @@ impl PartialLinearSensitivity {
             ctx,
             &self.estimator,
             &self.partial_r2_grid,
-            0xA7E0_000B_0000_u64,
+            crate::streams::PARTIAL_LINEAR_SENSITIVITY,
             true,
         )?;
         let passed = robustness_passes(
@@ -736,25 +747,15 @@ impl PartialLinearSensitivity {
             robustness_value,
             self.pass_threshold,
         );
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.partial_linear"),
-            original_ate: problem.original.ate,
+        Ok(grid_report(
+            "sensitivity.partial_linear",
+            problem.original.ate,
             refuted_ate,
-            comparison: robustness_value,
-            informative: true,
+            robustness_value,
             passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(grid_failure_text(
-                    "effect",
-                    "partial R²",
-                    robustness_value,
-                    self.pass_threshold,
-                )))
-            },
-            replicates: self.partial_r2_grid.len() as u32,
-        })
+            || grid_failure_text("effect", "partial R²", robustness_value, self.pass_threshold),
+            self.partial_r2_grid.len() as u32,
+        ))
     }
 }
 
@@ -769,8 +770,9 @@ impl PartialLinearSensitivity {
 /// Rows are independent, so the outer loop runs on `ctx`'s pool (results come back in row order,
 /// each row summed in `j` order, so the output does not depend on the thread count). Distances are
 /// squared Euclidean, which is exact for covariates already on a common scale (the caller
-/// standardizes); the weight shift `exp(−½ (d² − min d²) / h²)` keeps the nearest observations
-/// at weight 1 even for a tiny bandwidth.
+/// standardizes). Each row stores those squared distances once and reuses the same `f64` values
+/// for the minimum and the weights; the weight shift `exp(−½ (d² − min d²) / h²)` keeps the
+/// nearest observations at weight 1 even for a tiny bandwidth.
 fn nw_loo_predict_pair(
     y1: &[f64],
     y2: &[f64],
@@ -786,9 +788,10 @@ fn nw_loo_predict_pair(
             return Err(ValidationError::Cancelled);
         }
         let xi = &cov_rowmajor[i * dim..(i + 1) * dim];
-        let mut squared = vec![f64::INFINITY; n];
+        // Slot `i` is unused; every other slot is the squared distance to that row.
+        let mut dist2 = vec![0.0; n];
         let mut nearest = f64::INFINITY;
-        for (j, slot) in squared.iter_mut().enumerate() {
+        for (j, slot) in dist2.iter_mut().enumerate() {
             if i == j {
                 continue;
             }
@@ -804,7 +807,7 @@ fn nw_loo_predict_pair(
         let mut num1 = 0.0;
         let mut num2 = 0.0;
         let mut den = 0.0;
-        for (j, &d2) in squared.iter().enumerate() {
+        for (j, &d2) in dist2.iter().enumerate() {
             if i == j {
                 continue;
             }
@@ -921,15 +924,9 @@ fn residual_sd_given_design(
     if fit.coefficients.iter().any(|c| !c.is_finite()) {
         return sample_sd(y);
     }
-    let residuals: Vec<f64> = (0..n)
-        .map(|r| {
-            let mut pred = fit.coefficients[0];
-            for c in 1..ncols {
-                pred += fit.coefficients[c] * design[c * n + r];
-            }
-            y[r] - pred
-        })
-        .collect();
+    let mut pred = vec![0.0; n];
+    crate::common::column_major_dot(design, n, &fit.coefficients, &mut pred);
+    let residuals: Vec<f64> = y.iter().zip(&pred).map(|(y, pred)| y - pred).collect();
     let sd = sample_sd(&residuals);
     if sd.is_finite() { sd } else { sample_sd(y) }
 }
@@ -1008,10 +1005,13 @@ impl NonparametricSensitivity {
     /// # Errors
     ///
     /// Data failures or empty `partial_r2_grid`.
-    #[allow(clippy::only_used_in_recursion)]
     #[allow(
         clippy::cast_possible_truncation,
         reason = "the refutation reports its grid size as u32, and a partial-R-squared grid is far below 2^32 points"
+    )]
+    #[allow(
+        clippy::only_used_in_recursion,
+        reason = "part of the shared refuter signature; the temporal branch re-enters with the aligned problem"
     )]
     pub fn refute(
         &self,
@@ -1058,24 +1058,23 @@ impl NonparametricSensitivity {
             });
         }
         let mut u = vec![0.0; n];
-        fill_gaussian(&mut u, ctx, 0xA7E0_000C_0000_u64);
+        fill_gaussian(&mut u, ctx, crate::streams::NONPARAMETRIC_SENSITIVITY);
         orthogonalize_confounder(&mut u, &vec![true; n], &[t_res.clone(), y_res.clone()]);
 
         let mut sorted_grid = self.partial_r2_grid.clone();
-        sorted_grid.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        sorted_grid.sort_by(f64::total_cmp);
         let original_sign = residual_ate.signum();
         // Worst-case orientation, as in `run_grid`: load U on Y against the observed sign.
         let dir = if residual_ate >= 0.0 { -1.0 } else { 1.0 };
+        let moments = PerturbMoments::new(&t_res, &y_res, &u);
         let mut last_ate = residual_ate;
         let mut explained_away_at = None;
         for &r in &sorted_grid {
             let r = r.clamp(0.0, 0.999);
             let scale = (r / (1.0 - r)).sqrt();
-            let t_pert: Vec<f64> =
-                t_res.iter().zip(&u).map(|(&tv, &uu)| tv + scale * sd_t * uu).collect();
-            let y_pert: Vec<f64> =
-                y_res.iter().zip(&u).map(|(&yv, &uu)| yv + dir * scale * sd_y * uu).collect();
-            last_ate = residual_ols_ate(&t_pert, &y_pert);
+            // `t' = t + a u`, `y' = y + b u`. The OLS slope is a function of the
+            // five raw second moments, so the grid does not rebuild the series.
+            last_ate = moments.slope(scale * sd_t, dir * scale * sd_y);
             #[allow(
                 clippy::float_cmp,
                 reason = "signum returns exactly +/-1 (or NaN), so comparing two signs for equality is exact"
@@ -1092,25 +1091,22 @@ impl NonparametricSensitivity {
             robustness_value,
             self.pass_threshold,
         );
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.nonparametric"),
-            original_ate: problem.original.ate,
-            refuted_ate: last_ate * treatment_delta,
-            comparison: robustness_value,
-            informative: true,
+        Ok(grid_report(
+            "sensitivity.nonparametric",
+            problem.original.ate,
+            last_ate * treatment_delta,
+            robustness_value,
             passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(grid_failure_text(
+            || {
+                grid_failure_text(
                     "nonparametric residual effect",
                     "partial R²",
                     robustness_value,
                     self.pass_threshold,
-                )))
+                )
             },
-            replicates: self.partial_r2_grid.len() as u32,
-        })
+            self.partial_r2_grid.len() as u32,
+        ))
     }
 }
 
@@ -1121,11 +1117,9 @@ fn kernel_residuals(
     bandwidth: Option<f64>,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<f64>, Vec<f64>, usize), ValidationError> {
-    // One complete-case mask (adjustment ∪ {T, Y}) shared by the covariate matrix and
-    // the residualization pulls below — the two call sites used the identical id list.
-    let mut ids = problem.estimand.adjustment_set.to_vec();
-    ids.push(problem.treatment());
-    ids.push(problem.outcome());
+    // Estimation complete cases (adjustment ∪ {T, Y} ∪ modifiers), shared by the
+    // covariate matrix and the residualization pulls.
+    let ids = problem.estimation_ids(true);
     let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
     let (cov, n, dim) = covariate_matrix(problem, &mask)?;
     let t =
@@ -1162,6 +1156,66 @@ fn kernel_residuals(
     Ok((t_res, y_res, n))
 }
 
+/// Raw moments of `(t, y, u)` so `slope(a, b)` is the OLS slope of
+/// `y + b u` on `t + a u` without another pass over the sample.
+struct PerturbMoments {
+    n: f64,
+    sum_t: f64,
+    sum_y: f64,
+    sum_u: f64,
+    tt: f64,
+    ty: f64,
+    tu: f64,
+    yu: f64,
+    uu: f64,
+}
+
+impl PerturbMoments {
+    fn new(t: &[f64], y: &[f64], u: &[f64]) -> Self {
+        let mut moments = Self {
+            n: t.len() as f64,
+            sum_t: 0.0,
+            sum_y: 0.0,
+            sum_u: 0.0,
+            tt: 0.0,
+            ty: 0.0,
+            tu: 0.0,
+            yu: 0.0,
+            uu: 0.0,
+        };
+        for i in 0..t.len() {
+            let (ti, yi, ui) = (t[i], y[i], u[i]);
+            moments.sum_t += ti;
+            moments.sum_y += yi;
+            moments.sum_u += ui;
+            moments.tt += ti * ti;
+            moments.ty += ti * yi;
+            moments.tu += ti * ui;
+            moments.yu += yi * ui;
+            moments.uu += ui * ui;
+        }
+        moments
+    }
+
+    fn slope(&self, a: f64, b: f64) -> f64 {
+        if self.n < 2.0 {
+            return f64::NAN;
+        }
+        let sum_t = self.sum_t + a * self.sum_u;
+        let sum_y = self.sum_y + b * self.sum_u;
+        let mean_t = sum_t / self.n;
+        let mean_y = sum_y / self.n;
+        let den = self.tt + 2.0 * a * self.tu + a * a * self.uu - self.n * mean_t * mean_t;
+        if den < 1e-15 {
+            0.0
+        } else {
+            let num =
+                self.ty + b * self.tu + a * self.yu + a * b * self.uu - self.n * mean_t * mean_y;
+            num / den
+        }
+    }
+}
+
 fn residual_ols_ate(t: &[f64], y: &[f64]) -> f64 {
     let n = t.len() as f64;
     if n < 2.0 {
@@ -1183,6 +1237,21 @@ fn residual_ols_ate(t: &[f64], y: &[f64]) -> f64 {
 mod gram_algebra {
     use super::assemble_perturbed_normal_eq;
     use antecedent_stats::{form_xtx, form_xty};
+
+    #[test]
+    fn perturb_moments_match_the_residual_ols_slope() {
+        let t = [0.0, 1.0, 0.2, 0.8, 0.4];
+        let y = [1.0, 3.0, 1.4, 2.2, 1.1];
+        let u = [0.3, -0.2, 0.5, -0.4, 0.1];
+        let moments = super::PerturbMoments::new(&t, &y, &u);
+        for (a, b) in [(0.0, 0.0), (0.4, -0.2), (1.5, 0.7)] {
+            let tp: Vec<f64> = t.iter().zip(&u).map(|(t, u)| t + a * u).collect();
+            let yp: Vec<f64> = y.iter().zip(&u).map(|(y, u)| y + b * u).collect();
+            let closed = moments.slope(a, b);
+            let direct = super::residual_ols_ate(&tp, &yp);
+            assert!((closed - direct).abs() < 1e-9, "a={a} b={b} closed={closed} direct={direct}");
+        }
+    }
 
     #[test]
     fn assemble_matches_explicit_perturbed_design() {

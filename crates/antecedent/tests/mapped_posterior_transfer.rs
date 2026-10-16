@@ -1,7 +1,7 @@
-//! F19: exact heterogeneous-design Gaussian transfer and independent replay.
+//! Exact heterogeneous-design Gaussian transfer and independent replay.
 
 use antecedent::inference::mapped_posterior_transfer;
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
@@ -236,7 +236,7 @@ fn incompatible_sources_and_mapping_refuse() {
 
 #[test]
 fn fresh_process_replays_mapped_prior() {
-    const PATH: &str = "ANTECEDENT_F19_REPLAY_PATH";
+    const PATH: &str = "ANTECEDENT_MAPPED_PRIOR_REPLAY_PATH";
     if let Ok(path) = std::env::var(PATH) {
         let bytes = std::fs::read(path).unwrap();
         let prior = mapped(&bytes, &identity(), &baseline(1.0)).unwrap();

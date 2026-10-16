@@ -1,10 +1,10 @@
-# Preflight diagnostics, rank-drop plans and estimates, and cost counts (2.2 E0/E1)
+# Preflight diagnostics, rank-drop plans and estimates, and cost counts
 
 Before a nuisance fit refuses a table, `antecedent` can say what is wrong with it.
 The diagnostics and the plan add no inferential claim; they are a diagnostic and
 planning layer over existing cells. The one entry point that estimates after a rank
 drop (`estimate_with_rank_drop`) does change what is computed, so it carries its own
-promotion record, `2.2E.E1.preflight_rank_drop_estimation`, `point_only`. Two kinds
+promotion record, `estimate.preflight_rank_drop`, `point_only`. Two kinds
 of check are kept in separate types so one is never read as the other.
 
 | Check | Rust | Python | Fits a model? |
@@ -213,7 +213,7 @@ estimators; absent otherwise, never zero), cross-fit folds, bootstrap replicates
 when it resamples. A batch sums per-claim counts; the fit total is an upper bound because
 identical cross-fitted AIPW nuisances are shared across queries.
 
-### Counts for the 2.2 fit routes
+### Counts for the fit routes
 
 Counts are read off the configuration the route executes (`CostEstimate.fit_route` names the
 counted route), never from a second copy of its loop:
@@ -302,7 +302,7 @@ on the machine you plan for.
 
 ## Current behavior (E0 reproducers)
 
-Recorded on branch 2.2.0 (crates 2.1.1) by the synthetic, bounded tests in
+Recorded by the synthetic, bounded tests in
 `crates/antecedent/tests/preflight_reproducers.rs` and `python/tests/test_preflight.py`,
 from reading the code paths they exercise.
 

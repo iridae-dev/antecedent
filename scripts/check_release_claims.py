@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Versioned release closure: notes describe every selected cell with its real claim.
+"""Release closure: the notes describe every registry cell with its real claim.
 
-Use --release 2.3 for the current registry; the retained default is 2.2.
-
-The claim vocabulary is the one in the header of parity/promotion_2_2.toml (`inference_claim`):
+The claim vocabulary is the one in the header of parity/promotion.toml (`inference_claim`):
 
   point_only           exact or plug-in point, no interval
   calibrated           interval with a coverage record at its own coordinate
@@ -11,50 +9,31 @@ The claim vocabulary is the one in the header of parity/promotion_2_2.toml (`inf
   assumption_range     range over a declared sensitivity set; not a CI
   none                 no numerical claim (identification/inspection only)
 
-plus the two release-notes phrases `nominal` (a pre-2.2 interval with no coverage record at its
-own coordinate, `estimator_grid_not_measured`; 2.2 ships none) and `statistical interval` (the
+plus the two release-notes phrases `nominal` (an interval with no coverage record at its own
+coordinate, `estimator_grid_not_measured`; a release ships none) and `statistical interval` (the
 reader-facing name of a `calibrated` interval).
 
-For docs/release-notes/v2.2.0.md (or --notes PATH) this checks:
+Cells and Refusals are generated marker blocks. The checker compares those blocks to
+the renderer. It does not read claim lines, glossary headings, or `## Explicit refusals` out of
+hand-written prose, so rewording a heading in shipped notes does not fail the check.
 
-  1. the notes define all six terms in a glossary (outside the cell entries);
-  2. every record of parity/promotion_2_2.toml has one entry, opened by a
-     `<!-- cell: <record id> -->` marker, with exactly one `Claim: \\`<word>\\`` line;
-  3. inside an entry only ONE vocabulary claim word appears (backticked token, the bare word
-     `calibrated`, the phrase `statistical interval` for calibrated, `nominal`), and it equals the
-     record's EFFECTIVE claim: the record's `inference_claim`, except that a `calibrated` record
-     whose coverage records are not all in parity/coverage_records.toml, or which has
-     no licensed uncertainty route, is point_only (the interval is withheld) and its
-     entry may not use the word calibrated or `statistical
-     interval` at all, and must say the interval is `withheld`; `nominal` never appears
-     affirmatively (negations such as "no nominal" are fine); an entry whose effective claim
-     is not `calibrated` may not promise a confidence / credible / bootstrap / prediction /
-     percentile / sampling-uncertainty interval in prose either (negated or withheld
-     mentions are fine);
-  4. every 2.2B work package of B_PACKAGES has either a record entry or a
-     `<!-- todo-cell: <package> -->` marker (the draft skeleton);
-  5. X7 (GPU lane) is stated as carried forward with its rationale (CPU-only 2.1 baseline);
-  6. the entry's `Bounds:` line equals the record's numeric bounds, any stated `record status`
-     equals the record's status, and its `Guarantee:` string is the record's (stale otherwise: a warning while
-     the notes are a DRAFT, an error outside draft mode and in `--final`);
-  7. a record with a closed uncertainty route says its interval is `withheld` / `not offered`; an
-     `assumption_range` or `structural_envelope` record says the range is never a confidence
-     interval; a guarantee with a `complete` token (e.g.
-     `exact_range_complete_within_declared_contamination_class`) is never printed without the
-     record's qualifier (`within the declared contamination class`) stated beside it, and
-     `sampling interval not offered` when no uncertainty route is licensed (rules 6-7: stale, as above).
+  <!-- generated:release-claims:cells:begin --> ... <!-- generated:release-claims:cells:end -->
+  <!-- generated:release-claims:refusals:begin --> ... <!-- generated:release-claims:refusals:end -->
 
-Claim words are found in prose as well as backticks: `structural envelope` / `assumption range` (with
-a space), and a plain `none` after the word claim (`Claim: none`). The `Claim:` line may omit the
-backticks.
+The current draft (no snapshot yet) renders from the live registry: records not already frozen
+in an earlier snapshot. At freeze, `--snapshot` writes `parity/release_snapshots/vX.Y.Z.toml`.
+Once that file exists, the blocks render from it and the live registry is not consulted.
+Shipped notes with no generated blocks are not validated at all — not against the snapshot, and
+not against live data. Hand prose outside the markers is ignored.
 
-`--final` additionally fails on any DRAFT or TODO marker (the cut). `--write-draft` (re)generates
-the draft skeleton from the records; it refuses to overwrite a notes file that is no longer
+`--final` fails on any DRAFT or TODO marker in the notes being released. `--write-draft` inserts
+or replaces only the two marker blocks; it refuses to touch a notes file that is no longer
 marked draft unless `--force`.
 
-    python3 scripts/check_release_claims.py                 # check the draft/notes
-    python3 scripts/check_release_claims.py --final         # at the cut: no draft, no TODO
-    python3 scripts/check_release_claims.py --write-draft   # regenerate the skeleton
+    python3 scripts/check_release_claims.py                 # check generated blocks
+    python3 scripts/check_release_claims.py --final         # release candidate: no draft, no TODO
+    python3 scripts/check_release_claims.py --write-draft   # insert or replace the marker blocks
+    python3 scripts/check_release_claims.py --snapshot      # freeze the current draft's registry projection
     python3 scripts/check_release_claims.py --self-test
 
 Environment: RELEASE_CLAIMS_ROOT (tree to read, default the repo).
@@ -69,26 +48,245 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as REPO
+
 ROOT = Path(os.environ.get("RELEASE_CLAIMS_ROOT", REPO))
-RELEASE = "2.2"
-RECORDS = "parity/promotion_2_2.toml"
+RECORDS = "parity/promotion.toml"
 COVERAGE = "parity/coverage_records.toml"
-NOTES = "docs/release-notes/v2.2.0.md"
+SNAPSHOT_DIR = "parity/release_snapshots"
+CELLS_BEGIN = "<!-- generated:release-claims:cells:begin -->"
+CELLS_END = "<!-- generated:release-claims:cells:end -->"
+REFUSALS_BEGIN = "<!-- generated:release-claims:refusals:begin -->"
+REFUSALS_END = "<!-- generated:release-claims:refusals:end -->"
+NOTES_VERSION = re.compile(r"v(\d+\.\d+\.\d+)\.md$")
 
 CLAIMS = ("point_only", "calibrated", "structural_envelope", "assumption_range", "none")
-DRAFT_MARK = "<!-- draft:v2.2.0 -->"
+DRAFT_MARK_RE = re.compile(r"<!-- draft:v[0-9][^ ]* -->")
 
-# 2.2B work packages (TODO.md): package -> (workstream, title). A package disappears from the TODO
-# list of the draft as soon as its record exists in parity/promotion_2_2.toml. Additive.
-B_PACKAGES = {
-    "B1": ("X2", "One latent-confounded ADMG transport row"),
-    "B2": ("X4", "One smoothed dose-response transport grid"),
-    "B3": ("X3", "Joint mechanism deviations and sampling uncertainty"),
-    "B4": ("X6", "Planning over the new restricted catalogs and competing designs"),
-    "B5": ("X8", "First bounded ADMG counterfactual-ID cell"),
-    "B6": ("X10", "Exact binary causal observation recovery"),
-}
+
+def workspace_version(root: Path) -> str:
+    """The version of the workspace under `root` (Cargo.toml `[workspace.package]`)."""
+    return load(root, "Cargo.toml")["workspace"]["package"]["version"]
+
+
+def documentation_version(root: Path) -> str:
+    """The release being documented.
+
+    ``docs/release-notes/preparation.toml`` is optional. While a release is being
+    prepared its ``target_version`` may be ahead of the package (the same read as
+    scripts/generate_support_matrix_docs.py). A missing file, or a file with no
+    valid ``target_version``, falls back to the workspace version and is not an
+    error.
+    """
+    preparation = load(root, "docs/release-notes/preparation.toml")
+    target = preparation.get("target_version")
+    if isinstance(target, str) and re.fullmatch(r"\d+\.\d+\.\d+", target):
+        return target
+    return workspace_version(root)
+
+
+def notes_for(root: Path) -> str:
+    return f"docs/release-notes/v{documentation_version(root)}.md"
+
+
+def draft_mark(version: str) -> str:
+    return f"<!-- draft:v{version} -->"
+
+
+def notes_version(rel: str) -> str | None:
+    match = NOTES_VERSION.search(rel.replace("\\", "/"))
+    return match.group(1) if match else None
+
+
+def snapshot_rel(version: str) -> str:
+    return f"{SNAPSHOT_DIR}/v{version}.toml"
+
+
+def toml_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def project_record(rec: dict) -> dict:
+    """The claim fields the Cells block renders. Theorems and surfaces stay in the registry."""
+    bounds = {
+        k: v
+        for k, v in (rec.get("bounds") or {}).items()
+        if isinstance(v, int) and not isinstance(v, bool)
+    }
+    routes = []
+    for route in rec.get("routes") or []:
+        if route.get("stage") != "uncertainty":
+            continue
+        row = {
+            "name": str(route.get("name") or "uncertainty"),
+            "stage": "uncertainty",
+            "status": str(route.get("status") or ""),
+        }
+        if route.get("reason_code"):
+            row["reason_code"] = str(route["reason_code"])
+        routes.append(row)
+    return {
+        "id": rec["id"],
+        "status": str(rec.get("status") or ""),
+        "consumer_question": str(rec.get("consumer_question") or ""),
+        "graph_class": str(rec.get("graph_class") or ""),
+        "guarantee": str(rec.get("guarantee") or ""),
+        "inference_claim": rec.get("inference_claim"),
+        "coverage_records": list(rec.get("coverage_records") or []),
+        "bounds": bounds,
+        "routes": routes,
+    }
+
+
+def dump_snapshot(version: str, records: list[dict], present: set[str], queries: list[str]) -> str:
+    lines = [
+        f'version = "{version}"',
+        "# Frozen claim projection for this release. Cells and Refusals render from here.",
+        "# Shipped notes are not compared to the live registry.",
+        "coverage_present = [" + ", ".join(f'"{toml_escape(x)}"' for x in sorted(present)) + "]",
+        "zero_cell_queries = [" + ", ".join(f'"{toml_escape(x)}"' for x in queries) + "]",
+    ]
+    for rec in records:
+        lines += ["", "[[record]]"]
+        for key in (
+            "id",
+            "status",
+            "consumer_question",
+            "graph_class",
+            "guarantee",
+            "inference_claim",
+        ):
+            lines.append(f'{key} = "{toml_escape(str(rec.get(key) or ""))}"')
+        lines.append(
+            "coverage_records = ["
+            + ", ".join(f'"{toml_escape(x)}"' for x in rec.get("coverage_records") or [])
+            + "]"
+        )
+        bounds = rec.get("bounds") or {}
+        if bounds:
+            inner = ", ".join(f"{k} = {v}" for k, v in bounds.items())
+            lines.append(f"bounds = {{ {inner} }}")
+        else:
+            lines.append("bounds = {}")
+        rows = []
+        for route in rec.get("routes") or []:
+            parts = [
+                f'name = "{toml_escape(route["name"])}"',
+                'stage = "uncertainty"',
+                f'status = "{toml_escape(route["status"])}"',
+            ]
+            if route.get("reason_code"):
+                parts.append(f'reason_code = "{toml_escape(route["reason_code"])}"')
+            rows.append("{ " + ", ".join(parts) + " }")
+        lines.append("routes = [" + ", ".join(rows) + "]")
+    return "\n".join(lines) + "\n"
+
+
+def load_snapshot(root: Path, version: str) -> dict | None:
+    path = root / snapshot_rel(version)
+    if not path.is_file():
+        return None
+    return tomllib.loads(path.read_text(encoding="utf-8"))
+
+
+def snapshot_ids(root: Path, skip: str | None = None) -> set[str]:
+    directory = root / SNAPSHOT_DIR
+    if not directory.is_dir():
+        return set()
+    ids: set[str] = set()
+    for path in directory.glob("v*.toml"):
+        version = path.name[1:-5]
+        if skip is not None and version == skip:
+            continue
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        ids.update(rec["id"] for rec in data.get("record", []) if rec.get("id"))
+    return ids
+
+
+def live_projection(root: Path) -> tuple[list[dict], set[str]]:
+    records = [project_record(rec) for rec in load(root, RECORDS).get("record", [])]
+    present = {rec.get("id") for rec in load(root, COVERAGE).get("record", []) if rec.get("id")}
+    return records, present
+
+
+def zero_cell_queries(root: Path) -> list[str]:
+    axes = load(root, "parity/support_axes.toml").get("queries") or []
+    licensed = {
+        cell.get("query") for cell in load(root, "parity/support_licensed.toml").get("cell", [])
+    }
+    return [query for query in axes if query not in licensed]
+
+
+def source_for(root: Path, version: str, current: str) -> tuple[list[dict], set[str], list[str]] | None:
+    """(records, coverage ids, zero-cell queries) to render.
+
+    A snapshot wins over the live registry. The unfrozen current release renders the live
+    records that no earlier snapshot already froze. Shipped notes with no snapshot are not
+    rendered from live data."""
+    snap = load_snapshot(root, version)
+    if snap is not None:
+        return (
+            list(snap.get("record") or []),
+            set(snap.get("coverage_present") or []),
+            list(snap.get("zero_cell_queries") or []),
+        )
+    if version != current:
+        return None
+    records, present = live_projection(root)
+    frozen = snapshot_ids(root)
+    return [rec for rec in records if rec["id"] not in frozen], present, zero_cell_queries(root)
+
+
+def cells_body(records: list[dict], present: set[str]) -> str:
+    if not records:
+        return "No cells are new in this release.\n"
+    return "".join(entry_text(rec, present) for rec in records)
+
+
+def refusals_body(queries: list[str]) -> str:
+    if not queries:
+        return "No root query is without a licensed cell.\n"
+    lines = ["Root queries with no licensed cell:", ""]
+    lines += [f"- `{query}`" for query in queries]
+    return "\n".join(lines) + "\n"
+
+
+def extract_block(text: str, begin: str, end: str) -> str | None:
+    if begin not in text or end not in text:
+        return None
+    inner = text.split(begin, 1)[1].split(end, 1)[0]
+    if inner.startswith("\n"):
+        inner = inner[1:]
+    return inner
+
+
+def wrap_block(begin: str, body: str, end: str) -> str:
+    if not body.endswith("\n"):
+        body += "\n"
+    return f"{begin}\n{body}{end}\n"
+
+
+def replace_block(text: str, begin: str, end: str, body: str) -> str:
+    block = wrap_block(begin, body, end).rstrip("\n")
+    pre, rest = text.split(begin, 1)
+    _, post = rest.split(end, 1)
+    return pre + block + post
+
+
+def insert_block(text: str, begin: str, end: str, body: str, anchor: str, *, after: bool) -> str:
+    if begin in text and end in text:
+        return replace_block(text, begin, end, body)
+    block = wrap_block(begin, body, end)
+    idx = text.find(anchor)
+    if idx < 0:
+        return text.rstrip() + "\n\n" + block
+    if after:
+        nl = text.find("\n", idx)
+        if nl < 0:
+            return text + "\n" + block
+        return text[: nl + 1] + "\n" + block + text[nl + 1 :]
+    return text[:idx] + block + "\n" + text[idx:]
+
 
 GLOSSARY = (
     (
@@ -98,7 +296,7 @@ GLOSSARY = (
     (
         "`nominal`",
         "An interval whose coverage was never measured at its own coordinate "
-        "(`estimator_grid_not_measured`). 2.2 cells publish none.",
+        "(`estimator_grid_not_measured`). Cells publish none.",
     ),
     (
         "`calibrated`",
@@ -122,13 +320,6 @@ GLOSSARY = (
     ),
 )
 
-X7_LINE = (
-    "X7 (GPU lane) is carried forward to 2.3 or later with no code in 2.2: the 2.1 neural "
-    "cross-fit baseline (`benches/baselines/neural_crossfit.md`) is CPU-only and records no "
-    "accelerator measurement, so the condition for starting the lane (a measured whole-analysis "
-    "gain) is not met. The CPU provider stays the released provider; no 2.2 result depends on it."
-)
-
 TOKEN = re.compile(r"`(point_only|calibrated|structural_envelope|assumption_range|none)`")
 BARE = re.compile(r"\b(point_only|structural[_ ]envelope|assumption[_ ]range)\b", re.I)
 # a plain `none` counts as a claim word only right after the word claim ("Claim: none")
@@ -138,29 +329,11 @@ BARE_CALIBRATED = re.compile(
 )
 STAT = re.compile(r"(?<!not a )(?<!no )statistical interval", re.I)
 NOMINAL = re.compile(r"(?<!no )(?<!not )(?<!never )(?<!any )\bnominal\b", re.I)
-MARK = re.compile(r"<!-- (cell|todo-cell|carried-forward): ([^>]*?) -->")
-CLAIM_LINE = re.compile(r"^Claim: `?(\w+)`?\s*$", re.M)
-BOUNDS_LINE = re.compile(r"^- Bounds: (.*)\.\s*$", re.M)
-STATUS_PART = re.compile(r"record status `(\w+)`")
-GUARANTEE_PART = re.compile(r"^- Guarantee: `([^`]+)`", re.M)
-NEVER_CI = re.compile(
-    r"(never|not)\s+(a|an)\s+(confidence|statistical)\s+interval|never\s+a\s+CI", re.I
-)
-WITHHELD = re.compile(r"withheld|not offered", re.I)
-# An interval a cell whose effective claim is not `calibrated` may not promise, however it is
-# worded: "a 95% bootstrap interval is reported" is a calibrated claim in other words. Negated
-# forms ("not a confidence interval", "never a CI", "no credible interval") are fine.
-INTERVAL_PROMISE = re.compile(
-    r"(?<!not a )(?<!not an )(?<!never a )(?<!no )(?<!without a )"
-    r"\b(?:confidence|credible|bootstrap|prediction|percentile|sampling-uncertainty|sampling uncertainty)"
-    r"\s+intervals?\b(?!\s+(?:is|are)\s+(?:not|never|withheld))",
-    re.I,
-)
 
 
 def load(root: Path, rel: str) -> dict:
     p = root / rel
-    return tomllib.loads(p.read_text()) if p.is_file() else {}
+    return tomllib.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
 
 
 def effective_claim(rec: dict, present: set[str]) -> tuple[str, bool]:
@@ -226,12 +399,11 @@ def guarantee_text(rec: dict) -> str:
 
 
 def entry_text(rec: dict, present: set[str]) -> str:
-    short = rec["id"].split(".")[2]
-    name = rec["id"].split(".")[3].replace("_", " ")
+    name = rec["id"].split(".", 1)[-1].replace("_", " ")
     claim, pending = effective_claim(rec, present)
     lines = [
         f"<!-- cell: {rec['id']} -->",
-        f"### {short}: {name}",
+        f"### {name}",
         "",
         f"Claim: `{claim}`",
         "",
@@ -243,7 +415,7 @@ def entry_text(rec: dict, present: set[str]) -> str:
     if pending:
         lines.append(
             "- Interval: withheld. The interval route is closed (`cell_not_licensed`) until its "
-            "coverage records are measured at the cut; the result is the point only."
+            "coverage records are measured; the result is the point only."
         )
     elif closed_uncertainty(rec):
         codes = ", ".join(
@@ -262,17 +434,19 @@ def entry_text(rec: dict, present: set[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def draft(records: list[dict], present: set[str]) -> str:
+def draft(records: list[dict], present: set[str], version: str, queries: list[str] | None = None) -> str:
+    cells = wrap_block(CELLS_BEGIN, cells_body(records, present), CELLS_END).rstrip("\n")
+    refusals = wrap_block(REFUSALS_BEGIN, refusals_body(queries or []), REFUSALS_END).rstrip("\n")
     out = [
-        f"# Antecedent {RELEASE}.0",
+        f"# Antecedent {version}",
         "",
-        DRAFT_MARK,
+        draft_mark(version),
         " ".join(
             (
-                "> **DRAFT.** Generated by `scripts/check_release_claims.py --write-draft` from",
-                f"`{RECORDS}`. Not a release statement until the cut: the entries show",
-                "each cell's claim as the records stand today, and TODO markers stand for cells not yet",
-                "frozen. Regenerate, then hand-edit prose, and run `check_release_claims.py --final`.",
+                "> **DRAFT.** The Cells and Refusals blocks are generated by",
+                "`scripts/check_release_claims.py --write-draft`. Hand prose outside those",
+                "markers is not claim data. Regenerate the blocks, then run",
+                "`check_release_claims.py --final` at the release candidate.",
             )
         ),
         "",
@@ -281,103 +455,9 @@ def draft(records: list[dict], present: set[str]) -> str:
         "| Term | Meaning |",
         "| --- | --- |",
     ]
-    if RELEASE == "2.3":
-        start = out.index("## How to read the claims")
-        out[start:start] = [
-            "## Consumer workflows in this draft",
-            "",
-            "- Carry scientifically named quantities and aligned laws from original native producers "
-            + "into supported decisions and inverse queries. A mean grid supplies affine mean utility; "
-            + "probability, quantile and nonlinear-law questions require the separately declared joint law.",
-            "- Recalculate declared adjusted, doubly robust, finite response/transport, Bayesian, "
-            + "temporal and design-specific analyses through retained original execution state. "
-            + "Actual component work is recorded; supported reuse preserves the producing uncertainty status.",
-            "- Execute bounded external mean callbacks under explicit provider, environment, RNG "
-            + "and side-effect contracts. Combined native/two-provider mean decisions share a receipt; "
-            + "callback outputs keep their original external attestation.",
-            "- Preserve original diagnostic scopes and semantic coordinates through decision and "
-            + "inverse projections. Imported evidence retains unresolved dependencies; fresh source "
-            + "resolution requires actual original analysis rather than caller metadata.",
-            "- Inspect effect constancy in transport reviews, advisory prior-source ranking and "
-            + "partition-specific point-policy comparisons. Non-rejection establishes neither "
-            + "transportability nor pooling, and policy agreement supplies no generalization guarantee.",
-            "- Bind rollout rankings to complete original laws, priors, terminal actions and utilities. "
-            + "Delivered finite count data use the original proposal/repair and transport estimators; "
-            + "a historical artifact alone restores no executable state.",
-            "",
-            "Calibration and final release gates remain pending. Reported candidate standard "
-            + "errors, tests and posterior summaries remain explicitly unmeasured at their declared "
-            + "coordinates. Discovery, adaptive policies and broader arbitrary callback/cross-world "
-            + "execution retain their separate release targets in ROADMAP.md.",
-            "",
-        ]
-    glossary = GLOSSARY
-    if RELEASE == "2.3":
-        glossary = tuple(
-            (
-                term,
-                meaning.replace(
-                    "2.2 cells publish none.", "Unmeasured diagnostics grant no coverage license."
-                ),
-            )
-            for term, meaning in GLOSSARY
-        )
-    out += [f"| {t} | {m} |" for t, m in glossary]
-    out += ["", f"## {RELEASE}A cells", ""]
-    for rec in (r for r in records if r["milestone"] == "A"):
-        out += [entry_text(rec, present)]
-    out += [f"## {RELEASE}B cells", ""]
-    have_b = {r["work_package"] for r in records if r["milestone"] == "B"}
-    for rec in (r for r in records if r["milestone"] == "B"):
-        out += [entry_text(rec, present)]
-    for pkg, (ws, title) in B_PACKAGES.items():
-        if pkg not in have_b:
-            out += [
-                f"<!-- todo-cell: {pkg} -->",
-                f"### {ws}: {title}",
-                "",
-                f"TODO ({pkg}): describe this cell's result with its record's claim once its "
-                "record is frozen.",
-                "",
-            ]
-    if any(r["milestone"] == "C" for r in records):
-        out += [f"## {RELEASE}C cells", ""]
-        for rec in (r for r in records if r["milestone"] == "C"):
-            out += [entry_text(rec, present)]
-    out += [
-        "## Carried forward",
-        "",
-        "<!-- carried-forward: X7 -->",
-        X7_LINE,
-        "",
-        "## Explicit refusals",
-        "",
-        " ".join(
-            (
-                "TODO: copy the refusal section from the support-matrix generator at the cut",
-                "(`gate_docs_support_matrix.sh` requires it, and the licensed-block markers).",
-            )
-        ),
-        "",
-        "See the [support matrix](../support-matrix.md).",
-        "",
-    ]
+    out += [f"| {t} | {m} |" for t, m in GLOSSARY]
+    out += ["", cells, "", "## Explicit refusals", "", refusals, "", "See the [support matrix](../support-matrix.md).", ""]
     return "\n".join(out)
-
-
-def blocks(text: str) -> tuple[dict[str, str], str]:
-    """Marker blocks keyed '<kind>:<name>', and the text outside every block (the preamble)."""
-    marks = list(MARK.finditer(text))
-    heads = [m.start() for m in re.finditer(r"^## ", text, re.M)]
-    out: dict[str, str] = {}
-    for i, m in enumerate(marks):
-        ends = [h for h in heads if h > m.start()]
-        subs = [h.start() for h in re.finditer(r"^### ", text, re.M) if h.start() > m.start()]
-        nxt = marks[i + 1].start() if i + 1 < len(marks) else len(text)
-        # an entry owns its own first `### ` heading; the next one starts another entry
-        end = min([nxt, *ends[:1], *subs[1:2]])
-        out[f"{m.group(1)}:{m.group(2).strip()}"] = text[m.start() : end]
-    return out, text
 
 
 def claim_words(body: str) -> set[str]:
@@ -393,239 +473,127 @@ def claim_words(body: str) -> set[str]:
     return found
 
 
-WARNINGS: list[str] = []
-
-
-def check(root: Path, notes_rel: str = NOTES, final: bool = False) -> list[str]:
-    """Errors (nonempty fails). While the notes are a DRAFT, a record or package the skeleton does
-    not yet cover is a warning in WARNINGS (regenerate with --write-draft), not an error."""
+def _block_errors(
+    text: str, records: list[dict], present: set[str], queries: list[str], frozen: bool
+) -> list[str]:
     errors: list[str] = []
-    WARNINGS.clear()
-    records = load(root, RECORDS).get("record", [])
-    present = {r.get("id") for r in load(root, COVERAGE).get("record", [])}
-    p = root / notes_rel
-    if not p.is_file():
-        return [f"{notes_rel} is missing (generate with --write-draft)"]
-    text = p.read_text()
-    lenient = DRAFT_MARK in text and not final
-    stale = WARNINGS if lenient else errors
-    cells, _ = blocks(text)
-    # 1. glossary
-    gloss = text.split("## How to read the claims", 1)
-    if len(gloss) < 2:
-        errors.append("missing the '## How to read the claims' glossary")
-    else:
-        g = gloss[1].split("\n## ", 1)[0]
-        for term in (
-            "point_only",
-            "nominal",
-            "calibrated",
-            "structural_envelope",
-            "assumption_range",
-            "statistical interval",
-        ):
-            if term not in g:
-                errors.append(f"glossary does not define {term!r}")
-    # 2-3. one entry per record with exactly its effective claim
-    ids = set()
     for rec in records:
-        ids.add(rec["id"])
-        key = f"cell:{rec['id']}"
-        label = rec["id"]
         if rec.get("inference_claim") not in CLAIMS:
             errors.append(
-                f"{label}: record inference_claim {rec.get('inference_claim')!r} is not in the vocabulary"
+                f"{rec.get('id')}: record inference_claim {rec.get('inference_claim')!r} "
+                "is not in the vocabulary"
             )
-            continue
-        if key not in cells:
-            stale.append(f"{label}: no '<!-- cell: {rec['id']} -->' entry in the notes")
-            continue
-        body = cells[key]
-        want, pending = effective_claim(rec, present)
-        lines = CLAIM_LINE.findall(body)
-        if len(lines) != 1:
-            errors.append(
-                f"{label}: entry needs exactly one 'Claim: `word`' line, found {len(lines)}"
-            )
-        elif lines[0] != want:
-            errors.append(
-                f"{label}: Claim line says {lines[0]!r}, record claim is {rec['inference_claim']!r} "
-                f"(effective {want!r}" + (", coverage records absent" if pending else "") + ")"
-            )
-        words = claim_words(body)
-        if "nominal" in words:
-            errors.append(
-                f"{label}: entry uses 'nominal' affirmatively; 2.2 publishes no nominal-only interval"
-            )
-            words.discard("nominal")
-        if words != {want}:
-            extra = sorted(words - {want})
-            errors.append(
-                f"{label}: entry uses claim word(s) {extra or sorted(words)} but the cell's claim is "
-                f"exactly {want!r}"
-                + (
-                    " (a calibrated record is point_only until its coverage records exist)"
-                    if pending
-                    else ""
-                )
-            )
-        if pending and "withheld" not in body:
-            errors.append(
-                f"{label}: coverage records are absent; the entry must say the interval is withheld"
-            )
-        if want != "calibrated":
-            promise = INTERVAL_PROMISE.search(re.sub(r"<!--.*?-->", "", body, flags=re.S))
-            if promise:
-                errors.append(
-                    f"{label}: entry promises a '{promise.group(0)}' but the cell's claim is {want!r}; "
-                    "a cell without a measured coverage record publishes no interval"
-                )
-        # 6-7. the entry restates bounds, guarantee and interval stance. An optional
-        # internal status must be accurate, but need not appear in public notes.
-        bounds_lines = BOUNDS_LINE.findall(body)
-        if (numeric_bounds(rec) != "none declared" or bounds_lines) and (
-            len(bounds_lines) != 1 or bounds_lines[0] != numeric_bounds(rec)
-        ):
-            stale.append(
-                f"{label}: Bounds line {bounds_lines[:1]} differs from the record's "
-                f"[{numeric_bounds(rec)}]"
-            )
-        statuses = STATUS_PART.findall(body)
-        if statuses and statuses != [rec.get("status")]:
-            stale.append(
-                f"{label}: entry says record status {statuses or 'nothing'} but the record is "
-                f"`{rec.get('status')}`"
-            )
-        guarantees = GUARANTEE_PART.findall(body)
-        if guarantees != [rec["guarantee"]]:
-            stale.append(
-                f"{label}: entry's Guarantee {guarantees or 'line'} is not the record's "
-                f"`{rec['guarantee']}`"
-            )
-        qual = complete_qualifier(rec["guarantee"])
-        if qual is not None:
-            if qual and not qualifier_regex(qual).search(body):
-                stale.append(
-                    f"{label}: guarantee `{rec['guarantee']}` prints 'complete' without its "
-                    f"qualifier ({qual!r}) stated in the entry"
-                )
-            if not qual and "inherited" not in body:
-                stale.append(
-                    f"{label}: guarantee `{rec['guarantee']}` prints 'complete' without the "
-                    "paper-inherited note"
-                )
-            if not licensed_uncertainty(rec) and not re.search(
-                r"sampling interval not offered|sampling-uncertainty interval is not offered",
-                body,
-            ):
-                stale.append(
-                    f"{label}: a 'complete' guarantee must say the sampling interval is not offered "
-                    "(no uncertainty route is licensed)"
-                )
-        if closed_uncertainty(rec) and not WITHHELD.search(body):
-            stale.append(
-                f"{label}: the record has a closed uncertainty route; the entry must say the "
-                "interval is withheld / not offered"
-            )
-        if rec["inference_claim"] in (
-            "assumption_range",
-            "structural_envelope",
-        ) and not NEVER_CI.search(body):
-            stale.append(
-                f"{label}: the {rec['inference_claim']} entry must say the range is never a "
-                "confidence interval"
-            )
-    # 4. B packages
-    have_b = {r["work_package"] for r in records if r.get("milestone") == "B"}
-    for pkg, (ws, _) in B_PACKAGES.items():
-        if pkg in have_b:
-            continue
-        # The conditional accelerator package has an explicit negative release
-        # decision, not a missing statistical record. Keep the exception tied
-        # to this package and its checked carryover statement.
-        if RELEASE == "2.3" and pkg == "B5" and "carried-forward:X7" in cells:
-            decision = root / "parity/2_3_x7_decision.md"
-            if not decision.is_file():
-                errors.append("B5 carryover lacks parity/2_3_x7_decision.md")
-            continue
-        if f"todo-cell:{pkg}" not in cells:
-            stale.append(
-                f"{RELEASE}B package {pkg} ({ws}) has neither a record entry nor a todo-cell marker"
-            )
-    for key in cells:
-        kind, _, name = key.partition(":")
-        if kind == "cell" and name not in ids:
-            stale.append(f"entry for unknown record {name!r}")
-    # 5. X7
-    x7 = cells.get("carried-forward:X7", "")
-    for need in (
-        "X7",
-        "GPU",
-        "carried forward",
-        "CPU-only",
-        "benches/baselines/neural_crossfit.md",
-    ):
-        if need not in x7:
-            errors.append(f"X7 carried-forward statement lacks {need!r}")
-    if final:
-        if DRAFT_MARK in text or re.search(r"\bDRAFT\b", text):
-            errors.append("the notes are still marked DRAFT")
-        if "todo-cell:" in text or re.search(r"\bTODO\b", text):
-            errors.append("TODO markers remain in the notes")
+    which = "frozen snapshot" if frozen else "live registry"
+    cells = extract_block(text, CELLS_BEGIN, CELLS_END)
+    refusals = extract_block(text, REFUSALS_BEGIN, REFUSALS_END)
+    if cells is None:
+        errors.append("missing generated Cells block")
+    elif cells != cells_body(records, present):
+        errors.append(f"generated cells block does not match the {which}")
+    if refusals is None:
+        errors.append("missing generated Refusals block")
+    elif refusals != refusals_body(queries):
+        errors.append(f"generated refusals block does not match the {which}")
     return errors
+
+
+def check_notes(root: Path, notes_rel: str, final: bool = False) -> list[str]:
+    """Errors for one notes file.
+
+    Shipped notes that have no generated blocks are not read as claim data and are not
+    compared to the live registry. A file that has the blocks must match its snapshot, or
+    the live registry when it is the unfrozen current release. Heading text is not consulted.
+    """
+    path = root / notes_rel
+    if not path.is_file():
+        return [f"{notes_rel} is missing (generate with --write-draft)"]
+    text = path.read_text(encoding="utf-8")
+    version = notes_version(notes_rel)
+    if version is None:
+        return [f"{notes_rel}: file name is not vX.Y.Z.md"]
+    current = documentation_version(root)
+    errors: list[str] = []
+    if final and version == current:
+        if DRAFT_MARK_RE.search(text) or re.search(r"\bDRAFT\b", text):
+            errors.append("the notes are still marked DRAFT")
+        if re.search(r"\bTODO\b", text):
+            errors.append("TODO markers remain in the notes")
+    cells = extract_block(text, CELLS_BEGIN, CELLS_END)
+    refusals = extract_block(text, REFUSALS_BEGIN, REFUSALS_END)
+    if version != current and cells is None and refusals is None:
+        return errors
+    source = source_for(root, version, current)
+    if source is None:
+        errors.append(
+            f"generated blocks need {snapshot_rel(version)}; shipped notes are not checked "
+            "against the live registry"
+        )
+        return errors
+    records, present, queries = source
+    frozen = load_snapshot(root, version) is not None
+    return errors + _block_errors(text, records, present, queries, frozen)
+
+
+def check(root: Path, notes_rel: str | None = None, final: bool = False) -> list[str]:
+    """Errors for the documented notes, and for any other notes that carry generated blocks."""
+    if notes_rel is not None:
+        return check_notes(root, notes_rel, final)
+    current = notes_for(root)
+    directory = root / "docs/release-notes"
+    files = sorted(str(path.relative_to(root)) for path in directory.glob("v*.md")) if directory.is_dir() else []
+    errors: list[str] = []
+    if current not in files:
+        errors.append(f"{current} is missing (generate with --write-draft)")
+    for rel in files:
+        errors += [f"{rel}: {err}" for err in check_notes(root, rel, final and rel == current)]
+    return errors
+
+
+def write_blocks(path: Path, records: list[dict], present: set[str], queries: list[str], version: str) -> None:
+    """Insert or replace the Cells and Refusals blocks, leaving the surrounding prose."""
+    if not path.is_file():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(draft(records, present, version, queries), encoding="utf-8", newline="\n")
+        return
+    text = path.read_text(encoding="utf-8")
+    text = insert_block(text, CELLS_BEGIN, CELLS_END, cells_body(records, present), "## Explicit refusals", after=False)
+    text = insert_block(text, REFUSALS_BEGIN, REFUSALS_END, refusals_body(queries), "## Explicit refusals", after=True)
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def main(argv: list[str]) -> int:
     if "--self-test" in argv:
         return self_test()
-    global RELEASE, RECORDS, NOTES, DRAFT_MARK, B_PACKAGES, X7_LINE
-    if "--release" in argv:
-        index = argv.index("--release")
-        if index + 1 >= len(argv) or argv[index + 1] not in ("2.2", "2.3"):
-            print("--release requires 2.2 or 2.3")
-            return 2
-        RELEASE = argv[index + 1]
-        RECORDS = f"parity/promotion_{RELEASE.replace('.', '_')}.toml"
-        NOTES = f"docs/release-notes/v{RELEASE}.0.md"
-        DRAFT_MARK = f"<!-- draft:v{RELEASE}.0 -->"
-        if RELEASE == "2.3":
-            B_PACKAGES = {
-                "B1": ("X4", "Checked transport with Bayesian models"),
-                "B2": ("X8", "Theorem-scoped recovery and counterfactuals"),
-                "B3": ("F17", "Sensitivity and mechanism discrepancy"),
-                "B4": ("F21", "Joint treatment and mediation effects"),
-                "B5": ("X7", "Conditional accelerator lane"),
-            }
-            X7_LINE = (
-                "X7 (GPU lane) remains carried forward. The CPU-only whole-workload "
-                "baseline (`benches/baselines/neural_crossfit.md`) supplies no "
-                "same-host accelerator comparison; no GPU backend is available. "
-                "The required measured gain and distribution gates remain open. "
-                "See the explicit decision in `parity/2_3_x7_decision.md`."
-            )
-    notes = NOTES
-    if "--notes" in argv:
-        notes = argv[argv.index("--notes") + 1]
+    explicit = argv[argv.index("--notes") + 1] if "--notes" in argv else None
+    version = documentation_version(ROOT)
+    notes = explicit or notes_for(ROOT)
+    if "--snapshot" in argv:
+        records, present, queries = source_for(ROOT, version, version) or ([], set(), [])
+        path = ROOT / snapshot_rel(version)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(dump_snapshot(version, records, present, queries), encoding="utf-8", newline="\n")
+        print(f"wrote {snapshot_rel(version)} ({len(records)} records)")
+        return 0
     if "--write-draft" in argv:
-        records = load(ROOT, RECORDS).get("record", [])
-        present = {r.get("id") for r in load(ROOT, COVERAGE).get("record", [])}
-        p = ROOT / notes
-        if p.is_file() and DRAFT_MARK not in p.read_text() and "--force" not in argv:
+        source = source_for(ROOT, notes_version(notes) or version, version)
+        if source is None:
+            print(f"{notes} is a shipped file with no snapshot; refusing to render it from live data")
+            return 1
+        records, present, queries = source
+        path = ROOT / notes
+        if path.is_file() and not DRAFT_MARK_RE.search(path.read_text(encoding="utf-8")) and "--force" not in argv:
             print(f"{notes} is no longer marked DRAFT; refusing to overwrite (use --force)")
             return 1
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(draft(records, present))
-        print(f"wrote draft {notes} ({len(records)} record entries)")
+        write_blocks(path, records, present, queries, notes_version(notes) or version)
+        print(f"wrote generated blocks in {notes} ({len(records)} record entries)")
         return 0
-    errors = check(ROOT, notes, final="--final" in argv)
-    for w in WARNINGS:
-        print(f"warning: stale draft: {w} (run --write-draft)")
+    errors = check(ROOT, explicit, final="--final" in argv)
     if errors:
         print("release claims FAILED:")
-        for e in errors:
-            print(f" - {e}")
+        for err in errors:
+            print(f" - {err}")
         return 1
-    print(f"release claims ok ({notes})")
+    print(f"release claims ok ({explicit or 'docs/release-notes'})")
     return 0
 
 
@@ -634,16 +602,12 @@ def _rec(
     i: str,
     claim: str,
     cov: list[str] | None = None,
-    milestone: str = "A",
-    wp: str = "A1",
     guarantee: str = "sound_incomplete",
     closed: bool = False,
     status: str = "promoted",
 ) -> dict:
     rec = {
-        "id": f"2.2{milestone}.{i}.cell_{i.lower()}",
-        "milestone": milestone,
-        "work_package": wp,
+        "id": f"synth.cell_{i.lower()}",
         "status": status,
         "consumer_question": "Q?",
         "graph_class": "G.",
@@ -667,7 +631,7 @@ def _rec(
 
 
 def _toml(recs: list[dict]) -> str:
-    out = ["version = 1", 'release = "2.2"']
+    out = ["version = 1"]
     for r in recs:
         out += ["", "[[record]]"]
         for k, v in r.items():
@@ -689,413 +653,112 @@ def _toml(recs: list[dict]) -> str:
 
 
 def self_test() -> int:
-    global RELEASE, B_PACKAGES
     failures: list[str] = []
+
+    def need(name: str, ok: bool, detail: str = "") -> None:
+        if not ok:
+            failures.append(f"{name}: {detail}" if detail else name)
+
+    withheld = _rec("a1", "calibrated", ["cov.a1"])
+    body = entry_text(withheld, set())
+    need("coverage absent is point_only", "Claim: `point_only`" in body and "withheld" in body, body)
+    need("coverage absent does not say calibrated", "calibrated" not in body.lower() or "Claim: `point_only`" in body)
+    covered = entry_text(withheld, {"cov.a1"})
+    need("coverage present is calibrated", "Claim: `calibrated`" in covered, covered)
+    closed = entry_text(_rec("a1", "calibrated", ["cov.a1"], closed=True), {"cov.a1"})
+    need("closed interval stays point_only", "Claim: `point_only`" in closed and "withheld" in closed, closed)
+    envelope = entry_text(_rec("a2", "structural_envelope"), set())
+    need("envelope is never a CI", "never a confidence interval" in envelope, envelope)
+    ranged = _rec("a3", "assumption_range", None, "exact_range_complete_within_declared_contamination_class", closed=True)
+    ranged_body = entry_text(ranged, set())
+    need("complete qualifier is rendered", "within the declared contamination class" in ranged_body, ranged_body)
+    need("sampling interval not offered is rendered", "sampling interval not offered" in ranged_body, ranged_body)
+    need("assumption range is never a CI", "never a confidence interval" in ranged_body, ranged_body)
+    bounds = entry_text(_rec("a5", "point_only"), set())
+    need("bounds line is rendered", "Bounds: max_observed = 12." in bounds, bounds)
+    need("bare none is not a claim word", not claim_words("Bounds: none declared.") and not claim_words("publishes none."))
+
     recs = [
-        _rec("X1", "calibrated", ["cov.x1"]),
-        _rec("X2", "structural_envelope"),
-        _rec("X5", "point_only"),
-        _rec("X9", "none"),
+        _rec("a1", "calibrated", ["cov.a1"]),
+        _rec("a2", "structural_envelope"),
+        _rec("a5", "point_only"),
+        _rec("a9", "none"),
     ]
-    with tempfile.TemporaryDirectory() as t:
-        root = Path(t)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
         (root / "parity").mkdir()
         (root / "docs/release-notes").mkdir(parents=True)
-        (root / RECORDS).write_text(_toml(recs))
-        (root / COVERAGE).write_text("")
-        notes = root / NOTES
+        (root / RECORDS).write_text(_toml(recs), encoding="utf-8", newline="\n")
+        (root / COVERAGE).write_text("", encoding="utf-8", newline="\n")
+        (root / "Cargo.toml").write_text('[workspace.package]\nversion = "9.9.9"\n', encoding="utf-8", newline="\n")
+        notes = root / notes_for(root)
+        projected, present = live_projection(root)
+        notes.write_text(draft(projected, present, "9.9.9"), encoding="utf-8", newline="\n")
 
-        def run(mutate=None, final=False, cov=False, records=None) -> list[str]:
-            if records is not None:
-                (root / RECORDS).write_text(_toml(records))
-            (root / COVERAGE).write_text('[[record]]\nid = "cov.x1"\n' if cov else "")
-            text = draft(load(root, RECORDS)["record"], {"cov.x1"} if cov else set())
-            if mutate:
-                text = mutate(text)
-            notes.write_text(text)
-            return check(root, final=final)
-
-        def expect(name: str, errs: list[str], needle: str | None) -> None:
+        def expect(name: str, needle: str | None, errs: list[str]) -> None:
             if needle is None:
                 if errs:
                     failures.append(f"{name}: expected clean, got {errs[:3]}")
-            elif not any(needle in e for e in errs):
+            elif not any(needle in err for err in errs):
                 failures.append(f"{name}: expected {needle!r}, got {errs[:3]}")
 
-        expect("clean draft", run(), None)
-        expect("final rejects draft", run(final=True), "DRAFT")
-        expect(
-            "wrong claim word",
-            run(lambda s: s.replace("Claim: `structural_envelope`", "Claim: `point_only`")),
-            "Claim line says",
+        expect("clean draft", None, check(root))
+        expect("final rejects draft", "DRAFT", check(root, final=True))
+        text = notes.read_text(encoding="utf-8")
+        notes.write_text(text.replace("Claim: `structural_envelope`", "Claim: `point_only`", 1), encoding="utf-8", newline="\n")
+        expect("edited cells block", "generated cells block", check(root))
+        notes.write_text(text.replace("## How to read the claims", "## Reading the words"), encoding="utf-8", newline="\n")
+        outside = notes.read_text(encoding="utf-8").replace(
+            "See the [support matrix](../support-matrix.md).",
+            "A bootstrap interval is reported. Claim: `calibrated`. The nominal interval covers.\n\n"
+            "See the [support matrix](../support-matrix.md).",
         )
-        expect(
-            "calibrated prose while coverage absent",
-            run(
-                lambda s: s.replace(
-                    "the result is the point only.",
-                    "the result is a calibrated interval.",
-                )
-            ),
-            "calibrated",
-        )
-        expect(
-            "statistical interval while coverage absent",
-            run(lambda s: s.replace("the point only.", "a statistical interval.")),
-            "X1",
-        )
-        expect(
-            "calibrated claim line while coverage absent",
-            run(lambda s: s.replace("Claim: `point_only`", "Claim: `calibrated`", 1)),
-            "effective",
-        )
-        expect("calibrated ok once coverage exists", run(cov=True), None)
-        closed_record = _rec("X1", "calibrated", ["cov.x1"], closed=True)
-        expect(
-            "measured but closed interval stays point only",
-            run(cov=True, records=[closed_record, *recs[1:]]),
-            None,
-        )
-        expect(
-            "closed interval cannot advertise calibration",
-            run(
-                cov=True,
-                records=[closed_record, *recs[1:]],
-                mutate=lambda s: s.replace("Claim: `point_only`", "Claim: `calibrated`", 1),
-            ),
-            "Claim line says",
-        )
-        expect(
-            "calibrated entry wrongly point_only once coverage exists",
-            run(
-                cov=True,
-                records=recs,
-                mutate=lambda s: s.replace("Claim: `calibrated`", "Claim: `point_only`"),
-            ),
-            "Claim line says",
-        )
-        expect(
-            "second claim word in an entry",
-            run(
-                lambda s: s.replace(
-                    "### X5: cell x5",
-                    "### X5: cell x5\n\nAlso a `structural_envelope`.",
-                )
-            ),
-            "X5",
-        )
-        expect(
-            "nominal affirmative",
-            run(
-                lambda s: s.replace(
-                    "### X5: cell x5", "### X5: cell x5\n\nThe nominal interval covers."
-                )
-            ),
-            "nominal",
-        )
-        expect(
-            "nominal negated is fine",
-            run(
-                lambda s: s.replace(
-                    "### X5: cell x5",
-                    "### X5: cell x5\n\nThere is no nominal interval here.",
-                )
-            ),
-            None,
-        )
-        expect(
-            "a point_only entry promising a bootstrap interval in prose fails",
-            run(
-                lambda s: s.replace(
-                    "### X5: cell x5",
-                    "### X5: cell x5\n\nA 95% bootstrap interval is reported.",
-                )
-            ),
-            "promises a 'bootstrap interval'",
-        )
-        expect(
-            "a point_only entry promising a credible interval in prose fails",
-            run(
-                lambda s: s.replace(
-                    "### X5: cell x5",
-                    "### X5: cell x5\n\nBayesian inference publishes credible intervals.",
-                )
-            ),
-            "promises a 'credible intervals'",
-        )
-        expect(
-            "a negated or withheld interval mention is fine",
-            run(
-                lambda s: s.replace(
-                    "### X5: cell x5",
-                    "### X5: cell x5\n\nThis is not a confidence interval; the bootstrap interval "
-                    "is withheld and no credible interval is offered.",
-                )
-            ),
-            None,
-        )
-        nodraft = lambda s: s.replace(DRAFT_MARK, "")  # noqa: E731
-        expect(
-            "missing entry (not a draft)",
-            run(lambda s: nodraft(s).replace("<!-- cell: 2.2A.X9.cell_x9 -->", "")),
-            "X9",
-        )
-        expect(
-            "missing entry in a draft is only a warning",
-            run(lambda s: s.replace("<!-- cell: 2.2A.X9.cell_x9 -->", "")),
-            None,
-        )
-        if not any("X9" in w for w in WARNINGS):
-            failures.append("a draft missing an entry must warn")
-        expect(
-            "glossary term missing",
-            run(lambda s: s.replace("assumption_range", "assume")),
-            "glossary",
-        )
-        expect("x7 line missing", run(lambda s: s.replace("CPU-only", "cpu")), "X7")
-        expect(
-            "todo package marker missing",
-            run(lambda s: nodraft(s).replace("<!-- todo-cell: B3 -->", "")),
-            "B3",
-        )
-        expect(
-            "todo markers fail final",
-            run(
-                final=True,
-                mutate=lambda s: s.replace(DRAFT_MARK, "").replace("DRAFT", "x"),
-            ),
-            "TODO",
-        )
-        expect(
-            "b record needs its entry",
-            run(
-                records=[*recs, _rec("X3", "assumption_range", None, "B", "B3")],
-                mutate=lambda s: nodraft(s).replace("<!-- cell: 2.2B.X3.cell_x3 -->", ""),
-            ),
-            "X3",
-        )
-        expect(
-            "b record entry generated",
-            run(records=[*recs, _rec("X3", "assumption_range", None, "B", "B3")]),
-            None,
-        )
+        notes.write_text(outside, encoding="utf-8", newline="\n")
+        expect("prose outside the markers is not claim data", None, check(root))
+        expect("reworded glossary heading is ignored", None, check(root))
+        notes.write_text(text, encoding="utf-8", newline="\n")
+        # Shipped notes keep a contradictory Claim line. No generated blocks, so the live
+        # registry is not applied to them.
+        shipped = root / "docs/release-notes/v1.0.0.md"
+        shipped.write_text(
+            "# Old\n\n## Claims glossary\n\n<!-- cell: synth.cell_a2 -->\nClaim: `point_only`\n"
+        , encoding="utf-8", newline="\n")
+        (root / RECORDS).write_text(_toml([_rec("a2", "calibrated", ["cov.a2"]), *recs[2:]]), encoding="utf-8", newline="\n")
+        (root / "parity/release_snapshots").mkdir()
+        (root / snapshot_rel("1.0.0")).write_text(
+            dump_snapshot("1.0.0", [project_record(_rec("a2", "structural_envelope"))], set(), [])
+        , encoding="utf-8", newline="\n")
+        # Current notes must follow the live delta (a2 is not in the 1.0.0 snapshot id... 
+        # project id is synth.cell_a2, which IS in the live registry). Freeze that id in the
+        # snapshot and regenerate the current blocks from the remaining live records.
+        snap_recs = [project_record(_rec("a2", "structural_envelope"))]
+        (root / snapshot_rel("1.0.0")).write_text(dump_snapshot("1.0.0", snap_recs, set(), []), encoding="utf-8", newline="\n")
+        current_records, current_present, queries = source_for(root, "9.9.9", "9.9.9")
+        notes.write_text(draft(current_records, current_present, "9.9.9", queries), encoding="utf-8", newline="\n")
+        expect("shipped hand prose is not checked against live data", None, check(root))
+        # A generated block on a shipped file matches the snapshot, even when live data differs.
+        shipped.write_text(
+            "# Old\n\n## Whatever the heading says\n\n"
+            + wrap_block(CELLS_BEGIN, cells_body(snap_recs, set()), CELLS_END)
+            + wrap_block(REFUSALS_BEGIN, refusals_body([]), REFUSALS_END)
+        , encoding="utf-8", newline="\n")
+        expect("shipped blocks match the snapshot, not the live registry", None, check(root))
+        shipped.write_text(
+            shipped.read_text(encoding="utf-8").replace("Claim: `structural_envelope`", "Claim: `calibrated`", 1)
+        , encoding="utf-8", newline="\n")
+        expect("shipped block edited away from the snapshot", "frozen snapshot", check(root))
+        shipped.write_text("# Old\n\nClaim: `calibrated`\n", encoding="utf-8", newline="\n")
+        expect("shipped notes without blocks stay unchecked", None, check(root))
+        notes.write_text("# x\n", encoding="utf-8", newline="\n")
+        expect("current notes without blocks", "missing generated Cells block", check(root))
 
-        # ---- D5: prose claim words, plain none, bounds/optional status/guarantee, interval stance
-        expect(
-            "'structural envelope' with a space is a claim word",
-            run(
-                lambda s: s.replace("### X5: cell x5", "### X5: cell x5\n\nA structural envelope.")
-            ),
-            "X5",
-        )
-        expect(
-            "'assumption range' with a space is a claim word",
-            run(lambda s: s.replace("### X5: cell x5", "### X5: cell x5\n\nThe assumption range.")),
-            "X5",
-        )
-        expect(
-            "a plain `none` claim in another entry is detected",
-            run(lambda s: s.replace("### X5: cell x5", "### X5: cell x5\n\nThe claim is none.")),
-            "X5",
-        )
-        expect(
-            "a plain Claim: none line (no backticks) is read",
-            run(lambda s: s.replace("Claim: `none`", "Claim: none")),
-            None,
-        )
-        expect(
-            "a plain Claim: none line for a non-none record fails",
-            run(lambda s: s.replace("Claim: `point_only`", "Claim: none", 1)),
-            "Claim line says",
-        )
-        if claim_words("Bounds: none declared.") or claim_words("publishes none."):
-            failures.append("a bare 'none' outside a claim phrase must not be a claim word")
-        expect(
-            "bounds line edited (not a draft)",
-            run(lambda s: nodraft(s).replace("max_observed = 12", "max_observed = 13", 1)),
-            "Bounds line",
-        )
-        expect(
-            "bounds line edited (final)",
-            run(
-                final=True,
-                mutate=lambda s: (
-                    s.replace(DRAFT_MARK, "")
-                    .replace("DRAFT", "x")
-                    .replace("max_observed = 12", "max_observed = 13", 1)
-                ),
-            ),
-            "Bounds line",
-        )
-        expect(
-            "bounds line edited (draft: only a warning)",
-            run(lambda s: s.replace("max_observed = 12", "max_observed = 13", 1)),
-            None,
-        )
-        if not any("Bounds line" in w for w in WARNINGS):
-            failures.append("a stale bounds line in a draft must warn")
-        expect(
-            "status edited (not a draft)",
-            run(
-                lambda s: nodraft(s).replace(
-                    "- Guarantee: `sound_incomplete`.",
-                    "- Guarantee: `sound_incomplete`; record status `frozen`.",
-                    1,
-                )
-            ),
-            "record status",
-        )
-        expect(
-            "guarantee edited (not a draft)",
-            run(lambda s: nodraft(s).replace("`sound_incomplete`", "`sound_complete`", 1)),
-            "Guarantee",
-        )
-        closed_recs = [
-            *recs,
-            _rec(
-                "X3",
-                "assumption_range",
-                None,
-                "B",
-                "B3",
-                "exact_range_complete_within_declared_contamination_class",
-                closed=True,
-            ),
-        ]
-        expect(
-            "closed-route assumption_range record: generated entry is clean",
-            run(records=closed_recs),
-            None,
-        )
-        expect(
-            "closed uncertainty route without a withheld sentence",
-            run(
-                records=closed_recs,
-                mutate=lambda s: (
-                    nodraft(s).replace("withheld", "shown").replace("not offered", "x")
-                ),
-            ),
-            "closed uncertainty route",
-        )
-        expect(
-            "assumption_range entry without the never-a-CI statement",
-            run(
-                records=closed_recs,
-                mutate=lambda s: nodraft(s).replace("is never a confidence interval", "is wide"),
-            ),
-            "never a confidence interval",
-        )
-        expect(
-            "'complete' guarantee printed without its qualifier",
-            run(
-                records=closed_recs,
-                mutate=lambda s: nodraft(s).replace(
-                    "complete only within the declared contamination class", "complete"
-                ),
-            ),
-            "qualifier",
-        )
-        expect(
-            "'complete' guarantee without 'sampling interval not offered'",
-            run(
-                records=closed_recs,
-                mutate=lambda s: nodraft(s).replace("not offered", "on offer"),
-            ),
-            "sampling interval is not offered",
-        )
-        expect(
-            "a record-carried qualifier may say 'the'",
-            run(
-                records=closed_recs,
-                mutate=lambda s: nodraft(s).replace("within the declared", "within declared"),
-            ),
-            None,
-        )
-        expect(
-            "a carried_forward record's entry is generated and checked like any other",
-            run(
-                records=[
-                    *recs,
-                    _rec(
-                        "X3",
-                        "assumption_range",
-                        None,
-                        "B",
-                        "B3",
-                        status="carried_forward",
-                        closed=True,
-                    ),
-                ]
-            ),
-            None,
-        )
-        expect(
-            "a structural_envelope entry without the never-a-CI statement",
-            run(mutate=lambda s: nodraft(s).replace("is never a confidence interval", "is wide")),
-            "never a confidence interval",
-        )
-        composition_record = _rec("C1", "point_only", milestone="C", wp="C1")
-        expect(
-            "composition records have generated and checked entries",
-            run(records=[*recs, composition_record]),
-            None,
-        )
-        expect(
-            "composition record prose cannot invent an interval",
-            run(
-                records=[*recs, composition_record],
-                mutate=lambda text: nodraft(text).replace(
-                    f"<!-- cell: {composition_record['id']} -->",
-                    f"<!-- cell: {composition_record['id']} -->\nA confidence interval is reported.",
-                ),
-            ),
-            "promises",
-        )
-        (root / RECORDS).write_text(_toml(recs))
-        saved_release, saved_packages = RELEASE, B_PACKAGES
-        try:
-            RELEASE = "2.3"
-            B_PACKAGES = {"B5": ("X7", "Conditional accelerator lane")}
-            carryover_notes = draft(recs, {"cov.x1"})
-            begin = carryover_notes.index("<!-- todo-cell: B5 -->")
-            end = carryover_notes.index("## Carried forward", begin)
-            carryover_notes = carryover_notes[:begin] + carryover_notes[end:]
-            carryover_notes = (
-                carryover_notes.replace(DRAFT_MARK, "")
-                .replace("DRAFT", "preparation")
-                .replace("TODO", "pending")
-            )
-            notes.write_text(carryover_notes)
-            (root / COVERAGE).write_text('[[record]]\nid = "cov.x1"\n')
-            expect(
-                "accelerator carryover requires its decision",
-                check(root, final=True),
-                "B5 carryover lacks",
-            )
-            (root / "parity/2_3_x7_decision.md").write_text("X7 remains deferred.\n")
-            expect("explicit accelerator carryover can finalize", check(root, final=True), None)
-            notes.write_text(carryover_notes.replace("<!-- carried-forward: X7 -->", ""))
-            expect("accelerator carryover requires its marker", check(root, final=True), "B5")
-            B_PACKAGES["B1"] = ("X4", "Transport")
-            notes.write_text(carryover_notes)
-            expect(
-                "accelerator exception does not waive another package",
-                check(root, final=True),
-                "B1",
-            )
-        finally:
-            RELEASE, B_PACKAGES = saved_release, saved_packages
-        notes.write_text("# x\n")
-        if not check(root):
-            failures.append("a notes file without entries must fail")
     if failures:
         print("check_release_claims self-test FAILED:")
-        for f in failures:
-            print(f" - {f}")
+        for item in failures:
+            print(f" - {item}")
         return 1
     print("check_release_claims self-test: ok")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

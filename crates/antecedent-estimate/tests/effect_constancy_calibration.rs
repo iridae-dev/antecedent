@@ -1,4 +1,4 @@
-//! Independent Gaussian experiment for F18's Q/Wald and Holm composition.
+//! Independent Gaussian experiment for the Q/Wald and Holm composition of `EffectConstancy`.
 //! Known covariance only: this does not calibrate a caller's estimated SEs,
 //! non-Gaussian effect estimator, or a different sampling design.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -21,8 +21,11 @@ fn normal(state: &mut u64) -> f64 {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One declared experiment and its per-cell acceptance rules.
-fn f18_known_gaussian_null_power_and_holm_grid() {
+#[allow(
+    clippy::too_many_lines,
+    reason = "one declared experiment and its per-cell acceptance rules"
+)]
+fn known_gaussian_null_power_and_holm_grid() {
     const REPLICATES: usize = 2000;
     for k in [2_usize, 3, 8] {
         for rho in [0.0_f64, 0.6, -0.5 / (k - 1) as f64] {
@@ -104,7 +107,7 @@ fn f18_known_gaussian_null_power_and_holm_grid() {
                 let (size, fwer, reference_fwer, power) =
                     (rate(rejected), rate(family_rejected), rate(reference_rejected), rate(power));
                 println!(
-                    "f18-gaussian n={n} k={k} rho={rho:.6} replicates={REPLICATES} type_i={size:.4} holm_all={fwer:.4} holm_reference={reference_fwer:.4} power={power:.4}"
+                    "constancy-gaussian n={n} k={k} rho={rho:.6} replicates={REPLICATES} type_i={size:.4} holm_all={fwer:.4} holm_reference={reference_fwer:.4} power={power:.4}"
                 );
                 // Fixed in advance: alpha=.05, roughly five binomial SEs at
                 // 2000 simulations. Holm may be conservative as k increases.

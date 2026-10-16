@@ -76,6 +76,31 @@ pub struct EstimandClaim {
     pub required_assumptions: AssumptionSet,
 }
 
+/// Fields of an [`IdentificationResult`], for building one outside this crate
+/// (the result type is `#[non_exhaustive]`). Per-estimand claims are attached afterwards with
+/// [`IdentificationResult::with_estimand_claims`].
+#[derive(Clone, Debug)]
+pub struct IdentificationResultParts {
+    /// Status.
+    pub status: IdentificationStatus,
+    /// Query.
+    pub query: CausalQuery,
+    /// Estimands (may be empty if not identified).
+    pub estimands: Vec<IdentifiedEstimand>,
+    /// Expression arena owning functionals.
+    pub arena: CausalExprArena,
+    /// Derivation.
+    pub derivation: DerivationTrace,
+    /// Assumptions required.
+    pub required_assumptions: AssumptionSet,
+    /// Diagnostics.
+    pub diagnostics: Vec<Diagnostic>,
+    /// Performance.
+    pub performance: IdentificationPerformanceRecord,
+    /// Hedge witness when [`IdentificationStatus::NotIdentified`] via general ID.
+    pub hedge: Option<HedgeCertificate>,
+}
+
 /// Full identification result.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -215,18 +240,18 @@ impl IdentificationResult {
 
     /// Full constructor (required outside this crate because the type is `#[non_exhaustive]`).
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_parts(
-        status: IdentificationStatus,
-        query: CausalQuery,
-        estimands: Vec<IdentifiedEstimand>,
-        arena: CausalExprArena,
-        derivation: DerivationTrace,
-        required_assumptions: AssumptionSet,
-        diagnostics: Vec<Diagnostic>,
-        performance: IdentificationPerformanceRecord,
-        hedge: Option<HedgeCertificate>,
-    ) -> Self {
+    pub fn from_parts(parts: IdentificationResultParts) -> Self {
+        let IdentificationResultParts {
+            status,
+            query,
+            estimands,
+            arena,
+            derivation,
+            required_assumptions,
+            diagnostics,
+            performance,
+            hedge,
+        } = parts;
         Self {
             status,
             query,

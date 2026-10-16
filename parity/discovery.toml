@@ -49,7 +49,7 @@ evidence_test = "crates/antecedent-data/src/lagged_frame.rs"
 evidence_assertion = "columns_borrow_source_windows_without_copying"
 limitations = "Covers SeriesOrigin and AbsoluteOrigin reference points on a LaggedFrame against source windows; other policies are not asserted."
 owner = "discovery"
-notes = "ReferencePointPolicy wired into LagMap / SamplePlan / LaggedFrame."
+notes = "ReferencePointPolicy wired into LagMap / LaggedSamplePlan / LaggedFrame."
 
 [[capabilities]]
 id = "discovery.data.vector_variables"
@@ -63,17 +63,6 @@ external_oracle = "tigramite 5.2.1.30"
 known_truth_fixture = "conformance/discovery/vector_vars_pcmci"
 owner = "ci"
 notes = "VectorVariableGroups + PairwiseMultivariateCi blocks on PCMCI; gate: conformance/discovery/vector_vars_pcmci"
-
-[[capabilities]]
-id = "discovery.data.transforms"
-group = "data_processing"
-description = "Transformations, smoothing, binning, ordinal patterns"
-status = "done"
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent-data/src/transforms.rs"
-evidence_assertion = "transforms_match_hand_derived_values"
-limitations = "Hand-derived values for equal-width binning, Bandt-Pompe ordinal codes for a monotone rise/fall, and the moving-average smoother; no external oracle."
-owner = "ci"
 
 [[capabilities]]
 id = "discovery.data.bootstrap"
@@ -237,7 +226,7 @@ evidence_test = "crates/antecedent-discovery/src/pc.rs"
 evidence_assertion = "oracle_collider_orients"
 limitations = "No external oracle: the static_oracle_matrix covers FCI/GES/DirectLiNGAM but has no PC case. Evidence is OracleCi skeleton tests on hand-built DAGs plus a locally measured null-FPR calibration gate."
 owner = "discovery"
-notes = "Order-dependent (not PC-stable; deterministic order) undirected skeleton + Meek on static Cpdag; retained-edge p is the maximum over every CI test of the edge, optional BH runs over edges (one hypothesis per edge), and constraint-required edges are reported without a fabricated test statistic; Rust discover_pc / Python antecedent.discovery.PC(...).run(...). Static FCI/RFCI, GES, and DirectLiNGAM ship. 1.10 class-path composition: composition_pc_and_ges_accepted_class_stays_cpdag (implementation_exists; does not inherit this row's evidence kind)."
+notes = "Order-dependent (not PC-stable; deterministic order) undirected skeleton + Meek on static Cpdag; retained-edge p is the maximum over every CI test of the edge, optional BH runs over edges (one hypothesis per edge), and constraint-required edges are reported without a fabricated test statistic; Rust discover_pc / Python antecedent.discovery.PC(...).run(...). Static FCI/RFCI, GES, and DirectLiNGAM ship. Class-path composition: composition_pc_and_ges_accepted_class_stays_cpdag (implementation_exists; does not inherit this row's evidence kind)."
 
 [[capabilities]]
 id = "discovery.ges"
@@ -251,7 +240,7 @@ oracle_components = ["discovery:Cpdag"]
 external_oracle = "causal-learn 0.1.4.3"
 known_truth_fixture = "conformance/discovery/static_oracle_matrix"
 owner = "discovery"
-notes = "Chickering Insert/Delete/Reverse on Cpdag; LocalScoreCache Gaussian BIC; Rust discover_ges / Python antecedent.discovery.GES(...).run(...) with screen_pc + max_subset (default 12); soft PC screening via with_pc_screening. 1.10 class-path composition: composition_pc_and_ges_accepted_class_stays_cpdag (implementation_exists; does not inherit this causal-learn pin)."
+notes = "Chickering Insert/Delete/Reverse on Cpdag; LocalScoreCache Gaussian BIC; Rust discover_ges / Python antecedent.discovery.GES(...).run(...) with screen_pc + max_subset (default 12); soft PC screening via with_pc_screening. Class-path composition: composition_pc_and_ges_accepted_class_stays_cpdag (implementation_exists; does not inherit this causal-learn pin)."
 
 [[capabilities]]
 id = "discovery.lingam"
@@ -292,7 +281,7 @@ oracle_components = ["discovery:TemporalCpdag"]
 external_oracle = "tigramite 5.2.1.30"
 known_truth_fixture = "conformance/discovery/pcmci_plus_lag0"
 owner = "ci"
-notes = "Black-box PCMCI+ edge-set equality pinned; ContempMeek R1–R4. 1.10 class-path composition: composition_pcmci_plus_accepted_temporal_cpdag_retains_class (implementation_exists; does not inherit this tigramite pin)."
+notes = "Black-box PCMCI+ edge-set equality pinned; ContempMeek R1–R4. Class-path composition: composition_pcmci_plus_accepted_temporal_cpdag_retains_class (implementation_exists; does not inherit this tigramite pin)."
 
 [[capabilities]]
 id = "discovery.lpcmci"
@@ -543,18 +532,6 @@ limitations = "Mediated-only DGP with true mediated effect 0.8*0.5=0.4; the asse
 known_truth_fixture = "conformance/context/temporal_mediation"
 owner = "context"
 notes = "temporal mediation/effects/prediction; gate_context.sh"
-
-[[capabilities]]
-id = "discovery.simulation"
-group = "simulation_and_presentation"
-description = "Structural process generators and toy models"
-status = "done"
-evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent-data/src/sim.rs"
-evidence_assertion = "lag1_pair_recovers_length_and_parent"
-limitations = "Asserts the generator's length and recorded true parent only; the simulated values' distribution is not tested."
-owner = "discovery"
-notes = "LaggedLinearPair process generator in antecedent-data::sim for fixtures/toys; full SCM registry is in gcm / bayesian inventory."
 
 [[capabilities]]
 id = "discovery.ux.artifact_first"

@@ -2,27 +2,63 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use antecedent_core::VariableId;
 
+use crate::admg::Admg;
 use crate::error::GraphError;
 use crate::marked_storage::{self, AdjEntry};
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
 use crate::workspace::GraphWorkspace;
 
-/// Static PAG over variables .
+/// More members than this are re-enumerated per query instead of being retained.
+const MAX_CACHED_CLASS_MEMBERS: usize = 1024;
+
+/// The MAGs a PAG's marks represent, as ADMGs.
 #[derive(Clone, Debug)]
+pub(crate) enum ClassMembers {
+    /// The completion audit refuses this graph (too many circles, or no valid member).
+    Refused,
+    Cached(Arc<[Admg]>),
+    /// Too many members to retain; enumerate again when needed.
+    Uncached,
+}
+
+/// Lazily built [`ClassMembers`]; it never takes part in equality and every mutation clears it.
+#[derive(Clone, Debug, Default)]
+struct ClassMembersCache(OnceLock<ClassMembers>);
+
+impl PartialEq for ClassMembersCache {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for ClassMembersCache {}
+
+/// Scratch and answers for [`Pag::possible_descendant_in`] across one query's paths.
+#[derive(Debug, Default)]
+pub(crate) struct DescendantMemo {
+    answer: Vec<Option<bool>>,
+    seen: Vec<bool>,
+    touched: Vec<DenseNodeId>,
+    stack: Vec<DenseNodeId>,
+}
+
+/// Static PAG over variables .
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pag {
     nodes: Vec<NodeRef>,
     adj: Vec<Vec<AdjEntry>>,
+    members: ClassMembersCache,
 }
 
 impl Pag {
     /// Empty PAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), adj: Vec::new() }
+        Self { nodes: Vec::new(), adj: Vec::new(), members: ClassMembersCache::default() }
     }
 
     /// One [`NodeRef::Unfolded`] node per slot of `indexer`, in dense order.
@@ -101,6 +137,7 @@ impl Pag {
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
         self.nodes.push(node);
         self.adj.push(Vec::new());
+        self.members.0.take();
         Ok(DenseNodeId::from_raw(id))
     }
 
@@ -137,6 +174,7 @@ impl Pag {
         if edge.a == edge.b {
             return Err(GraphError::InvalidEndpoints { message: "Pag rejects self-loops" });
         }
+        self.members.0.take();
         marked_storage::insert_marked_finish(&mut self.adj, edge)
     }
 
@@ -240,6 +278,7 @@ impl Pag {
         }
         let previous =
             marked_storage::edge_between(&self.adj, a, b).expect("edge present after has_edge");
+        self.members.0.take();
         marked_storage::set_marks_finish(&mut self.adj, a, b, at_a, at_b, previous)
     }
 
@@ -263,6 +302,7 @@ impl Pag {
         if self.edge_between(a, b).is_none() {
             return Err(GraphError::UnknownNode { id: a.raw() });
         }
+        self.members.0.take();
         marked_storage::remove_edge(&mut self.adj, a, b);
         Ok(())
     }
@@ -318,7 +358,8 @@ pub struct DefiniteStatusPathSearch {
 }
 
 impl Pag {
-    /// Enumerate definite-status paths from `x` to `y` up to `max_paths` (bounded).
+    /// Enumerate definite-status paths from `x` to `y`, examining at most `max_paths`
+    /// simple `x`-`y` paths (definite or not) of at most `max_len` nodes.
     ///
     /// # Errors
     ///
@@ -337,11 +378,13 @@ impl Pag {
             return Ok(DefiniteStatusPathSearch { paths: out, truncated: true });
         }
         let mut capped = false;
+        let mut examined = 0usize;
         let cut = self.walk_simple_paths(x, y, max_len, |path| {
-            if out.len() >= max_paths {
+            if examined >= max_paths {
                 capped = true;
                 return false;
             }
+            examined += 1;
             if self.path_is_definite_status(path) {
                 out.push(DefiniteStatusPath { nodes: path.to_vec() });
             }
@@ -350,9 +393,30 @@ impl Pag {
         Ok(DefiniteStatusPathSearch { paths: out, truncated: capped || cut })
     }
 
+    /// Every MAG the marks represent, enumerated once per graph state.
+    pub(crate) fn class_members(&self) -> ClassMembers {
+        self.members
+            .0
+            .get_or_init(|| match self.build_class_members() {
+                None => ClassMembers::Refused,
+                Some(members) if members.len() > MAX_CACHED_CLASS_MEMBERS => ClassMembers::Uncached,
+                Some(members) => ClassMembers::Cached(members.into()),
+            })
+            .clone()
+    }
+
+    /// Run the completion audit; `None` when it refuses the graph.
+    pub(crate) fn build_class_members(&self) -> Option<Vec<Admg>> {
+        let sampler = crate::completion::CompletionSampler::new(self.clone(), usize::MAX).ok()?;
+        Some(sampler.map(|member| crate::completion::as_admg(&member.graph)).collect())
+    }
+
     /// Depth-first walk over the simple paths from `x` to `y` of at most `max_len`
     /// nodes. `visit` returns `false` to stop. Returns whether `max_len` left a
     /// path unexplored.
+    ///
+    /// Paths are visited in the order of a stack search that pushes neighbours in
+    /// adjacency order, i.e. last neighbour first.
     pub(crate) fn walk_simple_paths(
         &self,
         x: DenseNodeId,
@@ -361,28 +425,56 @@ impl Pag {
         mut visit: impl FnMut(&[DenseNodeId]) -> bool,
     ) -> bool {
         let mut cut = false;
-        let mut stack = vec![vec![x]];
-        while let Some(path) = stack.pop() {
-            let last = *path.last().expect("nonempty");
-            if path.len() > 1 && last == y {
-                if !visit(&path) {
+        let mut on_path = vec![false; self.node_count()];
+        let mut path = vec![x];
+        on_path[x.as_usize()] = true;
+        // A node at the length limit is not expanded; it flags a cut when it has an
+        // onward neighbour.
+        let leaf_cut = |node: DenseNodeId, on_path: &[bool]| {
+            self.adj_of(node).iter().any(|e| !on_path[e.neighbor.as_usize()])
+        };
+        if max_len <= 1 {
+            return leaf_cut(x, &on_path);
+        }
+        // Next neighbour index to try per path node, counted down from the end.
+        let mut cursor = vec![self.adj_of(x).len()];
+        while let Some(&last) = path.last() {
+            let top = cursor.len() - 1;
+            if cursor[top] == 0 {
+                on_path[last.as_usize()] = false;
+                path.pop();
+                cursor.pop();
+                continue;
+            }
+            cursor[top] -= 1;
+            let nbr = self.adj_of(last)[cursor[top]].neighbor;
+            if on_path[nbr.as_usize()] {
+                continue;
+            }
+            path.push(nbr);
+            if nbr == y {
+                let keep_going = visit(&path);
+                path.pop();
+                if !keep_going {
                     break;
                 }
                 continue;
             }
-            let onward = self.neighbors(last).map(|(nbr, _, _)| nbr).filter(|n| !path.contains(n));
             if path.len() >= max_len {
-                // Neighbors exist that we refuse to expand → incomplete.
-                cut |= onward.count() > 0;
+                on_path[nbr.as_usize()] = true;
+                cut |= leaf_cut(nbr, &on_path);
+                on_path[nbr.as_usize()] = false;
+                path.pop();
                 continue;
             }
-            for nbr in onward {
-                let mut next = path.clone();
-                next.push(nbr);
-                stack.push(next);
-            }
+            on_path[nbr.as_usize()] = true;
+            cursor.push(self.adj_of(nbr).len());
         }
         cut
+    }
+
+    fn adj_of(&self, id: DenseNodeId) -> &[AdjEntry] {
+        self.adj.get(id.as_usize()).map_or(&[], Vec::as_slice)
     }
 
     /// Marks at `v` on the path edges from `pred` and to `succ`.
@@ -426,6 +518,7 @@ impl Pag {
         &self,
         path: &[DenseNodeId],
         z: &[DenseNodeId],
+        memo: &mut DescendantMemo,
     ) -> bool {
         let unknown = |m: Endpoint| matches!(m, Endpoint::Circle | Endpoint::Conflict);
         path.windows(3).all(|w| {
@@ -438,29 +531,53 @@ impl Pag {
             let may_collide = (from_pred == Endpoint::Arrow || unknown(from_pred))
                 && (from_succ == Endpoint::Arrow || unknown(from_succ))
                 && (arrows || conflict || self.has_edge(w[0], w[2]));
-            (!arrows && !in_z) || (may_collide && (in_z || self.possible_descendant_in(w[1], z)))
+            (!arrows && !in_z)
+                || (may_collide && (in_z || self.possible_descendant_in(w[1], z, memo)))
         })
     }
 
     /// True if some node of `z` is reachable from `v` along edges that no mark
     /// forbids reading as `a -> b` (no arrowhead at `a`, no tail at `b`).
-    fn possible_descendant_in(&self, v: DenseNodeId, z: &[DenseNodeId]) -> bool {
-        let mut seen = vec![false; self.node_count()];
-        let mut stack = vec![v];
-        seen[v.as_usize()] = true;
-        while let Some(a) = stack.pop() {
+    ///
+    /// `memo` must be used with one fixed `z`.
+    fn possible_descendant_in(
+        &self,
+        v: DenseNodeId,
+        z: &[DenseNodeId],
+        memo: &mut DescendantMemo,
+    ) -> bool {
+        if memo.answer.len() != self.node_count() {
+            memo.answer = vec![None; self.node_count()];
+            memo.seen = vec![false; self.node_count()];
+        }
+        if let Some(known) = memo.answer[v.as_usize()] {
+            return known;
+        }
+        let mut found = false;
+        memo.touched.clear();
+        memo.stack.clear();
+        memo.stack.push(v);
+        memo.seen[v.as_usize()] = true;
+        memo.touched.push(v);
+        'walk: while let Some(a) = memo.stack.pop() {
             for (b, at_a, at_b) in self.neighbors(a) {
-                if at_a == Endpoint::Arrow || at_b == Endpoint::Tail || seen[b.as_usize()] {
+                if at_a == Endpoint::Arrow || at_b == Endpoint::Tail || memo.seen[b.as_usize()] {
                     continue;
                 }
                 if z.contains(&b) {
-                    return true;
+                    found = true;
+                    break 'walk;
                 }
-                seen[b.as_usize()] = true;
-                stack.push(b);
+                memo.seen[b.as_usize()] = true;
+                memo.touched.push(b);
+                memo.stack.push(b);
             }
         }
-        false
+        for &t in &memo.touched {
+            memo.seen[t.as_usize()] = false;
+        }
+        memo.answer[v.as_usize()] = Some(found);
+        found
     }
 
     /// Whether a definite-status path is active given `z` (m-connecting).
@@ -544,6 +661,95 @@ mod tests {
         assert!(g.remove_edge(a, b).is_err());
     }
 
+    /// The stack search `walk_simple_paths` replaced, kept as an oracle.
+    fn reference_walk(
+        g: &Pag,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        max_len: usize,
+    ) -> (Vec<Vec<DenseNodeId>>, bool) {
+        let mut seen = Vec::new();
+        let mut cut = false;
+        let mut stack = vec![vec![x]];
+        while let Some(path) = stack.pop() {
+            let last = *path.last().unwrap();
+            if path.len() > 1 && last == y {
+                seen.push(path);
+                continue;
+            }
+            let onward: Vec<_> =
+                g.neighbors(last).map(|(n, _, _)| n).filter(|n| !path.contains(n)).collect();
+            if path.len() >= max_len {
+                cut |= !onward.is_empty();
+                continue;
+            }
+            for n in onward {
+                let mut next = path.clone();
+                next.push(n);
+                stack.push(next);
+            }
+        }
+        (seen, cut)
+    }
+
+    #[test]
+    fn simple_path_walk_matches_the_stack_search() {
+        let mut state = 0xD1B5_4A32_D192_ED03_u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..200 {
+            let n = 2 + (next() % 6) as u32;
+            let mut g = Pag::with_variables(n);
+            for u in 0..n {
+                for v in (u + 1)..n {
+                    if next() % 100 < 45 {
+                        let (a, b) = (DenseNodeId::from_raw(u), DenseNodeId::from_raw(v));
+                        let _ = match next() % 3 {
+                            0 => g.insert_directed(a, b),
+                            1 => g.insert_circle_circle(a, b),
+                            _ => g.insert_bidirected(a, b),
+                        };
+                    }
+                }
+            }
+            for _ in 0..4 {
+                let x = DenseNodeId::from_raw(u32::try_from(next() % u64::from(n)).unwrap());
+                let y = DenseNodeId::from_raw(u32::try_from(next() % u64::from(n)).unwrap());
+                let max_len = (next() % 8) as usize;
+                let mut seen = Vec::new();
+                let cut = g.walk_simple_paths(x, y, max_len, |p| {
+                    seen.push(p.to_vec());
+                    true
+                });
+                assert_eq!(
+                    (seen, cut),
+                    reference_walk(&g, x, y, max_len),
+                    "n={n} x={x:?} y={y:?} max_len={max_len}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn class_member_cache_follows_mutation() {
+        let n = DenseNodeId::from_raw;
+        let mut g = Pag::with_variables(3);
+        g.insert_circle_circle(n(0), n(1)).unwrap();
+        let before = g.class_members();
+        let ClassMembers::Cached(members) = before else { panic!("small class is cached") };
+        let cloned = g.clone();
+        g.insert_circle_circle(n(1), n(2)).unwrap();
+        let ClassMembers::Cached(after) = g.class_members() else { panic!("cached") };
+        assert_ne!(members.len(), after.len());
+        let ClassMembers::Cached(still) = cloned.class_members() else { panic!("cached") };
+        assert_eq!(members.len(), still.len());
+        assert_eq!(g, g.clone());
+    }
+
     #[test]
     fn definite_status_chain() {
         let mut g = Pag::with_variables(3);
@@ -581,7 +787,7 @@ impl PagReview {
     pub fn from_pag(graph: Pag, algorithm: impl Into<Arc<str>>) -> Self {
         let mut pending = Vec::new();
         for i in 0..graph.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for (b, at_a, at_b) in graph.neighbors(a) {
                 if b.raw() < a.raw() {
                     continue;

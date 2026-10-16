@@ -1,7 +1,17 @@
 //! Sealed Bayesian-bootstrap orthogonal ATE execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, CausalError, CausalPosterior, CausalQuery, Dag, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext, GraphClass,
+    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, PhysicalExecutionPlan, Strategy,
+    StudyResult, TableView, TabularData, VariableId, effect_from_posterior, elapsed_ns,
+    finish_identified_execute_with_context, identify_static_query_with_rd,
+    project_for_ate_estimate, select_claim,
+};
+use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
 use antecedent_estimate::bayesian_robust_ate::{
     BayesianRobustAteInput, BayesianRobustAteOptions, estimate_bayesian_robust_ate,
     plan_bayesian_robust_ate_folds,
@@ -12,10 +22,9 @@ use antecedent_estimate::bayesian_robust_ate::{
 pub(crate) struct CheckedBayesianRobustAteExecution {
     graph: Dag,
     query: AverageEffectQuery,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     context: IdentifiedResultContext,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     schema: Arc<[(VariableId, Arc<str>)]>,
     row_ids: Arc<[u64]>,
     fold_ids: Arc<[u16]>,
@@ -26,8 +35,8 @@ impl std::fmt::Debug for CheckedBayesianRobustAteExecution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CheckedBayesianRobustAteExecution")
             .field("query", &self.query)
-            .field("identification", &self.identification)
-            .field("estimand", &self.estimand)
+            .field("identification", &self.cache.identification)
+            .field("estimand", &self.cache.estimand)
             .field("row_count", &self.row_ids.len())
             .field("fold_count", &self.options.folds)
             .field("graph", &self.graph)
@@ -40,12 +49,12 @@ impl CheckedBayesianRobustAteExecution {
         data: &TabularData,
         graph: &Dag,
         query: AverageEffectQuery,
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
+        cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
         inference: InferenceMode,
         context: IdentifiedResultContext,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         let CausalQuery::AverageEffect(target) = &context.query else {
             return Err(CausalError::Compile {
                 message: "Bayesian robust ATE context has a different query family".into(),
@@ -55,10 +64,9 @@ impl CheckedBayesianRobustAteExecution {
             || physical.logical.query != context.query
             || context.graph_class != GraphClass::Dag
             || !matches!(context.structure_source, crate::support::StructureSource::Explicit)
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::BayesianRobustAte.as_str())
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::BackdoorAdjustment.as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianRobustAte)
         {
             return Err(CausalError::Compile {
                 message:
@@ -97,46 +105,15 @@ impl CheckedBayesianRobustAteExecution {
                 message: "bayesian.robust_ate uses a Bayesian-bootstrap row law and does not accept coefficient or transferred priors",
             });
         }
-        if identification.average_effect() != Some(&query)
-            || !identification.estimands.iter().any(|candidate| {
-                candidate.functional == estimand.functional
-                    && candidate.method == estimand.method
-                    && candidate.adjustment_set == estimand.adjustment_set
-            })
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian robust ATE estimand is not supplied by its retained proof"
-                    .into(),
-            });
-        }
-        let (checked_identification, checked_estimand) = select_claim(
-            identify_static_query_with_rd(
-                IdentifierId::BackdoorAdjustment,
-                graph,
-                &CausalQuery::AverageEffect(query.clone()),
-                None,
-            )?,
-            EstimatorId::BayesianRobustAte,
-        )?;
-        if checked_identification.status != identification.status
-            || checked_identification.query != identification.query
-            || checked_estimand.functional != estimand.functional
-            || checked_estimand.method != estimand.method
-            || checked_estimand.adjustment_set != estimand.adjustment_set
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian robust ATE proof is not justified by its retained graph".into(),
-            });
-        }
+        verify_robust_ate_proof(graph, &query, identification, estimand)?;
         let options = BayesianRobustAteOptions { draws: config.n_draws, ..Default::default() };
-        let input = make_input(data, &query, &estimand)?;
-        let fold_ids = plan_bayesian_robust_ate_folds(&input, options.folds)
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let input = make_input(data, &query, estimand)?;
+        let fold_ids =
+            plan_bayesian_robust_ate_folds(&input, options.folds).map_err(CausalError::rejected)?;
         Ok(Self {
             graph: graph.clone(),
             query,
-            identification,
-            estimand,
+            cache,
             context,
             physical,
             schema: Arc::from(
@@ -159,7 +136,7 @@ impl CheckedBayesianRobustAteExecution {
         self.options.draws
     }
     pub(crate) fn adjustment_set(&self) -> &[VariableId] {
-        &self.estimand.adjustment_set
+        &self.cache.estimand.adjustment_set
     }
     pub(crate) fn row_ids(&self) -> &[u64] {
         &self.row_ids
@@ -183,14 +160,14 @@ impl CheckedBayesianRobustAteExecution {
             });
         }
         let started = Instant::now();
-        let input = make_input(data, &self.query, &self.estimand)?;
+        let input = make_input(data, &self.query, &self.cache.estimand)?;
         if input.row_ids.as_slice() != self.row_ids.as_ref() {
             return Err(CausalError::Compile {
                 message: "Bayesian robust ATE refresh changed its prepared row identity set".into(),
             });
         }
         let rebound_folds = plan_bayesian_robust_ate_folds(&input, self.options.folds)
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            .map_err(CausalError::rejected)?;
         if rebound_folds.as_slice() != self.fold_ids.as_ref() {
             return Err(CausalError::Compile {
                 message: "Bayesian robust ATE refresh changed its fixed fold assignment".into(),
@@ -203,7 +180,7 @@ impl CheckedBayesianRobustAteExecution {
                 message: "Bayesian robust ATE kernel changed the retained fold assignment".into(),
             });
         }
-        let mut assumptions = self.identification.required_assumptions.clone();
+        let mut assumptions = self.cache.identification.required_assumptions.clone();
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
                 id: Arc::from("bayesian.robust_ate.modular_bootstrap_pushforward"),
@@ -221,12 +198,11 @@ impl CheckedBayesianRobustAteExecution {
             },
             kernel.draws.len(),
             Arc::<[f64]>::from(kernel.draws.clone()),
-        )
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        )?;
         let posterior = CausalPosterior {
             summaries: draws.summarize(),
             draws,
-            identification: self.identification.status,
+            identification: self.cache.identification.status,
             prior_sensitivity: None,
             conflict_summary: None,
             diagnostics: InferenceDiagnostics::analytic(super::ROBUST_ATE_BOOTSTRAP_BACKEND),
@@ -247,36 +223,61 @@ impl CheckedBayesianRobustAteExecution {
                 kernel.interval_interpretation
             ),
         );
-        let args = IdentifiedExecuteFinish {
-            physical: &self.physical,
-            identification: self.identification.clone(),
-            estimand: self.estimand.clone(),
+        let args = IdentifiedExecuteFinish::new(
+            &self.physical,
+            self.cache.identification.clone(),
+            self.cache.estimand.clone(),
             estimate,
-            identifier_id: IdentifierId::BackdoorAdjustment,
-            estimator_id: EstimatorId::BayesianRobustAte,
-            treatment: self.query.treatment,
-            outcome: self.query.outcome,
-            identify_cached: true,
-            extra_diagnostics: vec![diagnostic],
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                posterior: Some(posterior),
-                n_draws: Some(u32::try_from(kernel.draws.len()).unwrap_or(u32::MAX)),
-                estimate_provenance: Some((
-                    Arc::from("estimate.bayesian_robust_ate"),
-                    Arc::from("estimate.bayesian_robust_ate"),
-                )),
-                ..Default::default()
-            },
-        };
+            Strategy::new(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianRobustAte),
+            self.query.treatment,
+            self.query.outcome,
+        )
+        .identify_cached(true)
+        .extra_diagnostics(vec![diagnostic])
+        .wall_time_ns(elapsed_ns(started))
+        .cancelled(ctx.cancellation.is_cancelled())
+        .extras(IdentifiedExecuteExtras {
+            posterior: Some(posterior),
+            n_draws: Some(u32::try_from(kernel.draws.len()).unwrap_or(u32::MAX)),
+            estimate_provenance: Some((
+                Arc::from("estimate.bayesian_robust_ate"),
+                Arc::from("estimate.bayesian_robust_ate"),
+            )),
+            ..Default::default()
+        });
         Ok(finish_identified_execute_with_context(&self.context, Some(data), args))
     }
+}
+
+/// The retained identification supplies the query's estimand, and the back-door proof
+/// re-derives the same claim from the retained graph.
+fn verify_robust_ate_proof(
+    graph: &Dag,
+    query: &AverageEffectQuery,
+    identification: &antecedent_identify::IdentificationResult,
+    estimand: &IdentifiedEstimand,
+) -> Result<(), CausalError> {
+    if identification.average_effect() != Some(query) || !proof_supplies(identification, estimand) {
+        return Err(CausalError::Compile {
+            message: "Bayesian robust ATE estimand is not supplied by its retained proof".into(),
+        });
+    }
+    let (checked_identification, checked_estimand) = select_claim(
+        identify_static_query_with_rd(
+            IdentifierId::BackdoorAdjustment,
+            graph,
+            &CausalQuery::AverageEffect(query.clone()),
+            None,
+        )?,
+        EstimatorId::BayesianRobustAte,
+    )?;
+    verify_proof_against_graph(
+        &checked_identification,
+        &checked_estimand,
+        identification,
+        estimand,
+        "Bayesian robust ATE proof is not justified by its retained graph",
+    )
 }
 
 #[expect(clippy::float_cmp, reason = "the Bernoulli treatment contract requires exact 0/1 coding")]
@@ -309,4 +310,33 @@ fn input_and_folds_note(folds: &[u16]) -> String {
     format!(
         "linear weighted ridge outcome and logistic weighted ridge propensity nuisances, {count}"
     )
+}
+
+/// Target and fixed row/fold bindings for the checked robust Bayesian ATE.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedBayesianRobustAteInfo {
+    /// Mean binary ATE retained by preparation.
+    pub query: antecedent_core::AverageEffectQuery,
+    /// Number of bootstrap pushforward draws requested.
+    pub posterior_draws: usize,
+    /// Back-door adjustment variables bound to the nuisance design.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Stable row identities bound to the prepared fold plan.
+    pub row_ids: std::sync::Arc<[u64]>,
+    /// Treatment-stratified fold identity in row order.
+    pub fold_ids: std::sync::Arc<[u16]>,
+}
+
+impl Inspect for CheckedBayesianRobustAteExecution {
+    type Info = CheckedBayesianRobustAteInfo;
+
+    fn info(&self) -> CheckedBayesianRobustAteInfo {
+        CheckedBayesianRobustAteInfo {
+            query: self.query().clone(),
+            posterior_draws: self.posterior_draws(),
+            adjustment_set: Arc::from(self.adjustment_set()),
+            row_ids: Arc::from(self.row_ids()),
+            fold_ids: Arc::from(self.fold_ids()),
+        }
+    }
 }

@@ -8,13 +8,15 @@
 
 use std::fmt::Display;
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::native_claims::{
     NativeDecisionInput, NativeDecisionSource, NativeResponseClaim, NativeResponseContext,
 };
-use antecedent_core::{
-    ExternalProgramClaim, ExternalRefusal, ProgramBinding, ResponseUncertainty, ScientificQuantity,
+use antecedent_contract::{
+    ExternalProgramClaim, ExternalRefusal, ProgramBinding, ScientificQuantity,
     check_external_against_program,
 };
+use antecedent_core::ResponseUncertainty;
 use antecedent_design::decision_artifact::contract_from_json_refusal;
 use antecedent_design::decision_contract::SourceRepresentation;
 use antecedent_io::distribution_artifact::DistributionCalibration;
@@ -22,21 +24,19 @@ use antecedent_io::external_binding_wire::{
     ContractWire, MAX_BINDING_WIRE_BYTES, RefusalWire, ResponseWire, bind_response_to_program,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
 use crate::external_api::PyExternalClaimArtifact;
 
 fn malformed(error: impl Display) -> PyErr {
-    PyValueError::new_err(format!("invalid program declaration: {error}"))
+    crate::value_err(format!("invalid program declaration: {error}"))
 }
 
 fn check_size(parts: &[&str]) -> PyResult<()> {
-    if parts.iter().any(|part| part.len() > MAX_BINDING_WIRE_BYTES) {
-        return Err(PyValueError::new_err("program declaration is too large"));
-    }
-    Ok(())
+    parts
+        .iter()
+        .try_for_each(|part| check_declared_size(part, MAX_BINDING_WIRE_BYTES, "program binding"))
 }
 
 fn refusal_json(refusal: ExternalRefusal) -> PyResult<String> {

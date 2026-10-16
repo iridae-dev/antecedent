@@ -4,9 +4,9 @@
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StructureSource, Study,
 };
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, SlotAvailability,
-    VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
@@ -66,6 +66,10 @@ fn fixture() -> (TabularData, Dag, ConditionalEffectQuery) {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for three modifier bayesian cate is sealed refreshable and refuses unavailable artifact replay"
+)]
 fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_artifact_replay() {
     let (data, graph, query) = fixture();
     let context = ExecutionContext::for_tests(4221);
@@ -132,9 +136,9 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
             // Independent SCM truth is 2.0 because all three modifiers have
             // zero population mean and their treatment interactions are centered.
             assert!(
-                (result.estimate.ate - 2.0).abs() < 0.3,
+                (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.3,
                 "{coordinate}: {}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 96);
             if suite != RefuteSuite::None {
@@ -159,7 +163,12 @@ fn three_modifier_bayesian_cate_is_sealed_refreshable_and_refuses_unavailable_ar
             .unwrap();
             let refreshed = prepared.refresh(shifted, &context).unwrap();
             assert_eq!(prepared.checked_bayesian_conditional_operation().unwrap().query(), &query);
-            assert!((refreshed.estimate.ate - result.estimate.ate).abs() < 0.3);
+            assert!(
+                (refreshed.estimate.as_effect().unwrap().ate
+                    - result.estimate.as_effect().unwrap().ate)
+                    .abs()
+                    < 0.3
+            );
 
             let artifact =
                 prepared.encode_contracted_result(&refreshed, &coordinate, &context).unwrap();

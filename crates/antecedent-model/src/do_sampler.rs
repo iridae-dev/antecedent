@@ -2,16 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, Intervention, VariableId};
@@ -156,8 +146,7 @@ impl WeightingDoSampler {
         // adaptive). We surface that concentration here rather than staying silent about it,
         // because a caller reading only `weighted_mean` has no other way to tell a
         // well-supported estimate from one that is effectively a single observation.
-        let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-        let ess = if sum_sq > 0.0 { 1.0 / sum_sq } else { 0.0 };
+        let ess = antecedent_kernels::kish_ess(&weights);
         // Flag degeneracy as a note instead of a hard error: this is a diagnostic, not a
         // correctness failure, and different callers have different tolerance for a low-ESS
         // estimate (e.g. exploratory analysis vs. a gated production report). A note keeps
@@ -183,6 +172,9 @@ impl WeightingDoSampler {
     }
 
     /// Weighted mean of the sampler result.
+    ///
+    /// Empty outcomes, zero total weight, and a weight vector whose length differs
+    /// from the outcomes are all `NaN`.
     #[must_use]
     pub fn weighted_mean(result: &DoSampleResult) -> f64 {
         if result.values.is_empty() {
@@ -191,11 +183,10 @@ impl WeightingDoSampler {
         if result.weights.is_empty() {
             return result.values.iter().sum::<f64>() / result.values.len() as f64;
         }
-        let wsum: f64 = result.weights.iter().sum();
-        if wsum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-            return f64::NAN;
-        }
-        result.values.iter().zip(result.weights.iter()).map(|(v, w)| v * w).sum::<f64>() / wsum
+        antecedent_kernels::scalar::weighted_mean(&result.values, &result.weights)
+            .ok()
+            .flatten()
+            .unwrap_or(f64::NAN)
     }
 }
 
@@ -271,7 +262,6 @@ impl KdeDoSampler {
 /// The treatment mechanism's density cannot be evaluated at all (e.g. an unfitted slot):
 /// propagated rather than swallowed, since a bare kernel fallback would not be the
 /// requested importance-weighted estimate.
-#[allow(clippy::too_many_arguments)]
 fn confounded_ipw_weights(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -538,6 +528,20 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         (compiled.with_mechanisms(store), data)
+    }
+
+    #[test]
+    fn weighted_mean_of_a_short_weight_vector_is_nan() {
+        let result = DoSampleResult {
+            values: Arc::from([1.0, 2.0]),
+            weights: Arc::from([1.0]),
+            method: Arc::from("test"),
+            notes: Vec::new(),
+            accept_rate: None,
+            bandwidth: None,
+            ess: None,
+        };
+        assert!(WeightingDoSampler::weighted_mean(&result).is_nan());
     }
 
     #[test]

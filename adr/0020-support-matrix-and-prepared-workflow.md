@@ -155,9 +155,10 @@ refuse with a reason in the legacy-named `parity/support_closed.toml`.
 so the 2026-08-19 partition clause above is enforced by emptiness rather
 than by disjointness.
 
-`CellStatus::Allowlisted`, `allowed_reason`, `allowed_parent`, and the
-`allowed_unlicensed` wire value are retained so older artifacts and clients
-still decode, but no 0.9 matrix cell can produce that status. Every
+`CellStatus::Allowlisted` and the `allowed_unlicensed` wire value are
+retained so older artifacts and clients still decode, but no 0.9 matrix cell
+can produce that status. The Rust-side lookup (`allowed_reason`,
+`allowed_parent`, `ALLOWED_RULES`) was removed in 2.4.0. Every
 successful analysis reports `evidence_status == "licensed"`.
 
 ## Amendment (2026-09-06): prepared envelopes identify once

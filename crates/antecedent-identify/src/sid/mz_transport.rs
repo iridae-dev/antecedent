@@ -99,7 +99,7 @@ const INVALID_DERIVATION: &str = "mz_transport.invalid_derivation";
 const INVALID_OBSTRUCTION: &str = "mz_transport.invalid_obstruction";
 
 /// The frozen `(reason code, mz_transport.* detail)` pair of an error raised by
-/// the mz-transport route, as the X1 promotion record declares them:
+/// the mz-transport route, as the route declares them:
 /// `route_not_supported` for a bound, `invalid_argument` for an invalid query or
 /// catalog, `transport_not_certified` for a derivation, leaf or obstruction that
 /// does not check, `transport_missing_evidence` for an unbound cited regime and
@@ -326,7 +326,7 @@ pub enum MzTransportRoute {
     },
 }
 
-/// A checked positive derivation of an mz-transport query.
+/// A checked positive derivation of a mz-transport query.
 #[derive(Clone, Debug)]
 pub struct MzTransportDerivation {
     query: MzTransportQuery,
@@ -753,7 +753,7 @@ fn stage_names(query: &MzTransportQuery) -> Vec<String> {
 }
 
 /// Every stage of a validated decision, charged to `search`.
-#[allow(clippy::too_many_lines)] // One linear pass over the stages and their outcomes.
+#[allow(clippy::too_many_lines, reason = "One linear pass over the stages and their outcomes")]
 fn decide_charged(
     graph: &antecedent_graph::Admg,
     validated: ValidatedMzTransportQuery,
@@ -1003,7 +1003,7 @@ fn recursion_call<'q>(
     }
 }
 
-#[allow(clippy::too_many_arguments)] // The derivation's premises, each passed once.
+#[allow(clippy::too_many_arguments, reason = "The derivation's premises, each passed once")]
 fn recursive_derivation(
     query: &MzTransportQuery,
     signature: &str,
@@ -1375,9 +1375,7 @@ mod tests {
     };
     use antecedent_graph::{Admg, DenseNodeId};
 
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
+    use crate::test_support::v;
 
     /// A four-node chain Z1 -> X -> Z2 -> Y with Z1 <-> X and X <-> Y.
     fn graph() -> Admg {

@@ -1,0 +1,19 @@
+feature_id = "decision.functionals.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "A Dirichlet posterior on the finite law the decision functional already reads. The published number is the functional of the posterior mean. A wide concentration stays at the finite-law expectation 1.5. No interval.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/posterior_mean_decision.rs",
+]

@@ -3,15 +3,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::similar_names, clippy::trivially_copy_pass_by_ref)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{CausalRng, KernelPolicy};
 use antecedent_kernels::shuffle;
 
@@ -30,10 +21,9 @@ const TIE_REL_TOL: f64 = 1e-12;
 /// data, seed and query therefore draw the same permutations wherever the query sits in a
 /// batch.
 pub(crate) fn query_stream_salt(x: &[usize], y: &[usize], z: &[usize]) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325_u64;
+    let mut h = antecedent_core::Fnv1a64::new();
     let mut mix = |v: u64| {
-        h ^= v;
-        h = h.wrapping_mul(0x0100_0000_01b3);
+        h.fold(v);
     };
     for part in [x, y] {
         mix(part.len() as u64);
@@ -47,7 +37,7 @@ pub(crate) fn query_stream_salt(x: &[usize], y: &[usize], z: &[usize]) -> u64 {
     for c in zs {
         mix(c as u64);
     }
-    h
+    h.finish()
 }
 
 /// Row permutation `perm[dst] = src` that reorders `n` rows by contiguous blocks of
@@ -101,6 +91,10 @@ pub(crate) fn block_permute_contiguous(y: &mut [f64], block_size: usize, rng: &m
 /// # Errors
 ///
 /// [`StatsError::Shape`] when a residual has no variance.
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 pub(crate) fn residual_null_pvalue(
     policy: &KernelPolicy,
     rx: &[f64],
@@ -119,7 +113,7 @@ pub(crate) fn residual_null_pvalue(
         &ones
     };
     let degenerate = StatsError::Shape { message: "block-shuffle null: degenerate residual" };
-    let observed = weighted_pearson(policy, rx, ry, w).ok_or(degenerate)?.abs();
+    let observed = weighted_pearson(policy, rx, ry, w)?.ok_or(degenerate)?.abs();
     let mut perm = Vec::with_capacity(n);
     let mut shuffled = vec![0.0; n];
     let mut extreme = 0u32;
@@ -128,7 +122,7 @@ pub(crate) fn residual_null_pvalue(
         for (dst, &src) in perm.iter().enumerate() {
             shuffled[dst] = rx[src];
         }
-        let r = weighted_pearson(policy, &shuffled, ry, w)
+        let r = weighted_pearson(policy, &shuffled, ry, w)?
             .ok_or(StatsError::Shape { message: "block-shuffle null: degenerate residual" })?;
         if r.abs() >= observed * (1.0 - TIE_REL_TOL) {
             extreme += 1;

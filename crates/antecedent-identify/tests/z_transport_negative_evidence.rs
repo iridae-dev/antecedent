@@ -2,11 +2,6 @@
 //!
 //! These tests enumerate exogenous states directly. They do not use the
 //! identifier or expression evaluator to calculate any probability.
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    reason = "fixture sizes and indices are small integers well inside f64 and usize range"
-)]
 
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
@@ -203,7 +198,10 @@ fn full_experiment_catalog(
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One independent SCM fixture checks the full evidence and nonidentification claim.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One independent SCM fixture checks the full evidence and nonidentification claim"
+)]
 fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree_on_do_x() {
     let first = OutcomeMechanism::CopiesObservedTreatment;
     let second = OutcomeMechanism::CopiesTreatmentLatent;
@@ -238,7 +236,7 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
     };
     let record = obstruction.to_record();
     assert_eq!(record.terminal.c0, [1]);
-    assert_eq!(record.terminal.candidate_active, []);
+    assert!(record.terminal.candidate_active.is_empty());
     assert_eq!(record.terminal.rules.last().map(String::as_str), Some("ztr.line11.fail"));
     let replayed = antecedent_identify::ZTransportObstruction::from_record_checked(
         record.clone(),
@@ -367,7 +365,7 @@ fn parent_control_removed_by_do_treatment_still_reaches_checked_line11() {
         panic!("the parent control is removed from the reduced graph after do(X)")
     };
     assert_eq!(obstruction.to_record().terminal.vertices, [0, 1]);
-    assert_eq!(obstruction.to_record().terminal.candidate_active, []);
+    assert!(obstruction.to_record().terminal.candidate_active.is_empty());
 }
 
 #[test]

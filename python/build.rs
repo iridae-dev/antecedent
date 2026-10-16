@@ -2,16 +2,32 @@
 //!
 //! The wheel is a cdylib. On macOS it must allow unresolved Python symbols
 //! (`-undefined dynamic_lookup`); the interpreter that loads it provides them.
-//! `cargo test` builds a standalone harness of the same crate. 2.0's harness
-//! dropped unused Python calls. 2.1 keeps `PyInit__native` live, so the harness
-//! has to link libpython. `#[link]` under `cfg(test)` does that without
-//! recording the dependency on the cdylib. `rustc-link-arg-tests` does not
-//! apply to a cdylib's lib-test harness, so the rpath (Homebrew and framework
-//! builds install libpython as `@rpath/...`) is a normal link arg.
+//! `cargo test` builds a standalone harness of the same crate. A harness that
+//! drops unused Python calls would not link; `PyInit__native` is kept live, so the
+//! harness has to link libpython. `#[link]` under `cfg(test)` does that without
+//! recording the dependency on the cdylib.
+//!
+//! Homebrew and framework builds install libpython as `@rpath/...`, so the harness
+//! needs a run path. `cargo:rustc-link-arg` would stamp that absolute path onto
+//! the cdylib as well: cargo 1.85 passes it to both the cdylib and the lib-test
+//! harness. `cargo:rustc-link-arg-tests` is not a substitute here. Cargo 1.85
+//! rejects the instruction unless the package has an integration-test target
+//! (`Target::is_test`), and this crate's tests are `#[cfg(test)]` on the cdylib.
+//! There is no cfg(test)-only form of `rustc-link-arg`.
+//!
+//! The run path is added by a linker driver (`-fuse-ld`) that cargo already runs
+//! for every link of this package. The driver forwards a dylib link unchanged and
+//! appends `-rpath` only when the output is the test executable. `-undefined
+//! dynamic_lookup` stays `rustc-cdylib-link-arg`; cargo 1.85 does not pass those
+//! flags to the lib-test harness.
 
 use std::env;
 use std::fs;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+#[cfg(unix)]
+use std::process::Command;
 
 fn main() {
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
@@ -31,7 +47,12 @@ fn main() {
     }
     if let Some(dir) = config.lib_dir() {
         println!("cargo:rustc-link-search=native={dir}");
-        println!("cargo:rustc-link-arg=-Wl,-rpath,{dir}");
+        // Only macOS installs libpython as `@rpath/...`; GNU toolchains also reject a
+        // path in `-fuse-ld`, and the Linux harness finds libpython by its soname.
+        #[cfg(unix)]
+        if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+            emit_test_only_rpath(dir);
+        }
     }
     let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     let link = format!(
@@ -40,4 +61,72 @@ fn main() {
          unsafe extern \"C\" {{}}\n"
     );
     fs::write(out.join("python_test_link.rs"), link).expect("write python_test_link.rs");
+}
+
+/// Point the test executable at `dir` without recording that path on the cdylib.
+#[cfg(unix)]
+fn emit_test_only_rpath(dir: &str) {
+    let Some(ld) = linker_path() else {
+        println!(
+            "cargo:warning=antecedent-py could not find ld; cargo test may fail to load @rpath libpython in {dir}"
+        );
+        return;
+    };
+    let out = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
+    let wrapper = out.join("test_rpath_ld.sh");
+    // `-dylib` is what Apple's ld receives for a cdylib (`-dynamiclib` is the
+    // clang spelling). `-shared` is GNU ld. `-dynamic` is unrelated and must
+    // not be treated as a shared-library output.
+    let script = format!(
+        "#!/bin/sh\n\
+         shared=0\n\
+         for arg in \"$@\"; do\n\
+           case \"$arg\" in\n\
+             -dynamiclib|-bundle|-shared|-dylib) shared=1 ;;\n\
+           esac\n\
+         done\n\
+         if [ \"$shared\" -eq 0 ]; then\n\
+           exec {ld} \"$@\" -rpath {dir}\n\
+         else\n\
+           exec {ld} \"$@\"\n\
+         fi\n",
+        ld = shell_quote(&ld),
+        dir = shell_quote(dir),
+    );
+    fs::write(&wrapper, script).expect("write test rpath linker");
+    let mut perms = fs::metadata(&wrapper).expect("stat test rpath linker").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&wrapper, perms).expect("chmod test rpath linker");
+    println!("cargo:rustc-link-arg=-fuse-ld={}", wrapper.display());
+}
+
+#[cfg(unix)]
+fn linker_path() -> Option<String> {
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        if let Some(path) = command_stdout("xcrun", &["--find", "ld"]) {
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+    if let Some(path) = command_stdout("cc", &["-print-prog-name=ld"]) {
+        if path.contains('/') {
+            return Some(path);
+        }
+    }
+    command_stdout("which", &["ld"]).filter(|path| !path.is_empty())
+}
+
+#[cfg(unix)]
+fn command_stdout(program: &str, args: &[&str]) -> Option<String> {
+    let output = Command::new(program).args(args).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8(output.stdout).ok()?.trim().to_string())
+}
+
+#[cfg(unix)]
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
 }

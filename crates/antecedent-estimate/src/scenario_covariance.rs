@@ -33,19 +33,20 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 
 use crate::error::EstimationError;
 use crate::splitmix::{GOLDEN_GAMMA, mix64, seed_mix, splitmix64};
+use crate::util::refuse;
 
 /// Most scenarios one covariance may span.
 pub const MAX_SCENARIOS: usize = 64;
 /// Most bootstrap replicates one covariance may use.
 pub const MAX_REPLICATES: usize = 2000;
 /// Fewest bootstrap replicates (a covariance needs two).
-pub const MIN_REPLICATES: usize = 2;
+pub(crate) const MIN_REPLICATES: usize = 2;
 /// Fewest rows (one row cannot vary).
-pub const MIN_ROWS: usize = 2;
+pub(crate) const MIN_ROWS: usize = 2;
 /// Most rows the exact enumeration accepts (keeps `n^n` exact in `u128`).
 pub const MAX_EXACT_ROWS: usize = 24;
 /// Largest number of count vectors the exact enumeration will ever visit.
@@ -59,7 +60,7 @@ const PSD_RELATIVE_TOLERANCE: f64 = 1e-9;
 
 /// The boxed per-scenario estimator: a plug-in estimate from per-row multiplicities
 /// (`counts[i]` = times row `i` appears in the resampled multiset).
-pub type RowEstimatorFn = Box<dyn Fn(&[u32]) -> Result<f64, EstimationError> + Send + Sync>;
+pub(crate) type RowEstimatorFn = Box<dyn Fn(&[u32]) -> Result<f64, EstimationError> + Send + Sync>;
 
 /// How a scenario's estimator declares its sample relates to the family's.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -227,6 +228,13 @@ pub struct ScenarioCovariance {
     pub failed_mass: f64,
     /// Seed (bootstrap only).
     pub seed: Option<u64>,
+    /// Plug-in sampling variance of each covariance entry, row-major.
+    ///
+    /// `correction² * κ / n_rows`, where `κ` is the weighted second moment of the
+    /// centered replicate products `(θ_i - μ_i)(θ_j - μ_j)` the covariance already
+    /// averages. This is the variance of that covariance estimator. It is not the
+    /// spread of the covariance entries around their own mean.
+    pub entry_sampling_variance: Vec<f64>,
     /// Always [`COVARIANCE_INTERPRETATION`].
     pub interpretation: &'static str,
 }
@@ -250,10 +258,6 @@ impl ScenarioCovariance {
     pub fn position(&self, id: &str) -> Option<usize> {
         self.scenario_ids.iter().position(|s| &**s == id)
     }
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 fn unknown_dependence(message: &str) -> EstimationError {
@@ -291,34 +295,14 @@ fn widen(i: usize) -> u64 {
     u64::try_from(i).unwrap_or(u64::MAX)
 }
 
-/// Two-lane chained digest over 64-bit words (stable, not cryptographic).
-struct Digest {
-    a: u64,
-    b: u64,
-}
+/// Domain tag of the ordered unit-id digest.
+const ROW_DIGEST_TAG: &str = "antecedent.estimate.scenario_covariance.rows";
+/// Domain tag of the replicate digest (family identity, method, seed and every replicate).
+const REPLICATE_DIGEST_TAG: &str = "antecedent.estimate.scenario_covariance.replicates";
 
-impl Digest {
-    const fn new() -> Self {
-        Self { a: 0xcbf2_9ce4_8422_2325, b: 0x9E37_79B9_7F4A_7C15 }
-    }
-
-    fn word(&mut self, w: u64) {
-        self.a = mix64(self.a ^ w).wrapping_add(GOLDEN_GAMMA);
-        self.b = mix64(self.b.rotate_left(17) ^ w ^ GOLDEN_GAMMA);
-    }
-
-    fn text(&mut self, s: &str) {
-        self.word(widen(s.len()));
-        for chunk in s.as_bytes().chunks(8) {
-            let mut buf = [0_u8; 8];
-            buf[..chunk.len()].copy_from_slice(chunk);
-            self.word(u64::from_le_bytes(buf));
-        }
-    }
-
-    fn hex(&self) -> String {
-        format!("{:016x}{:016x}", self.a, self.b)
-    }
+/// Lowercase hex of a finished canonical digest.
+fn hex_digest(digest: &CanonicalWriter) -> String {
+    digest.finish_hex()
 }
 
 struct FamilyIdentity {
@@ -380,7 +364,7 @@ fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity,
         }
     }
     let mut units = HashSet::new();
-    let mut row_digest = Digest::new();
+    let mut row_digest = CanonicalWriter::new(ROW_DIGEST_TAG);
     for u in &first.unit_ids {
         if !units.insert(u) {
             return Err(unknown_dependence(&format!(
@@ -396,7 +380,11 @@ fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity,
             &format!("{n} rows; at least {MIN_ROWS} are needed to resample"),
         ));
     }
-    Ok(FamilyIdentity { n, row_digest: row_digest.hex(), snapshot: first.snapshot_digest.clone() })
+    Ok(FamilyIdentity {
+        n,
+        row_digest: hex_digest(&row_digest),
+        snapshot: first.snapshot_digest.clone(),
+    })
 }
 
 /// Deterministic replicate id of replicate `r` under `seed`.
@@ -407,7 +395,7 @@ pub fn replicate_id(seed: u64, r: u64) -> u64 {
 
 /// Draw `n` row indices with replacement from a replicate id, filling multiplicities
 /// and folding the index list into the digest.
-fn draw_counts(id: u64, counts: &mut [u32], digest: &mut Digest) {
+fn draw_counts(id: u64, counts: &mut [u32], digest: &mut CanonicalWriter) {
     counts.fill(0);
     let n = widen(counts.len());
     let mut state = id;
@@ -453,6 +441,91 @@ fn moments(values: &[f64], weights: &[f64], k: usize, correction: f64) -> (Vec<f
     (means, cov)
 }
 
+/// Sampling variance of each covariance entry the [`moments`] estimator reports.
+///
+/// `weights` sum to one. For entry `(i, j)`, with `c_r = (θ_{r i} - μ_i)(θ_{r j} - μ_j)`
+/// and `m = Σ_r w_r c_r`,
+///
+/// ```text
+/// κ = Σ_r w_r (c_r - m)²
+/// v = correction² * κ / n_rows
+/// ```
+///
+/// The covariance entry itself is `correction * m`. A matrix whose entries are
+/// equal still has a positive `v` when the replicate products vary.
+fn entry_sampling_variances(
+    values: &[f64],
+    weights: &[f64],
+    means: &[f64],
+    k: usize,
+    correction: f64,
+    n_rows: usize,
+) -> Vec<f64> {
+    let scale = correction * correction / n_rows as f64;
+    let mut variance = vec![0.0; k * k];
+    for i in 0..k {
+        for j in i..k {
+            let mut m = 0.0;
+            for (row, &w) in values.chunks_exact(k).zip(weights) {
+                m += w * (row[i] - means[i]) * (row[j] - means[j]);
+            }
+            let mut kappa = 0.0;
+            for (row, &w) in values.chunks_exact(k).zip(weights) {
+                let dev = (row[i] - means[i]) * (row[j] - means[j]) - m;
+                kappa += w * dev * dev;
+            }
+            let v = scale * kappa;
+            variance[i * k + j] = v;
+            variance[j * k + i] = v;
+        }
+    }
+    variance
+}
+
+/// Covariance of scenario-estimate replicates, and the sampling variance of each entry.
+///
+/// `replicates` is replicate-major (`k` estimates per replicate). `weights` are
+/// renormalized to sum to one. `correction` is the frequentist divisor (`R / (R - 1)`
+/// for the bootstrap, `1` for exact enumeration). `n_rows` is the row sample whose
+/// covariance is being estimated, not the replicate count.
+///
+/// Returns `(covariance, entry_sampling_variance)`, both row-major `k × k`.
+#[must_use]
+pub fn covariance_estimator_moments(
+    replicates: &[f64],
+    weights: &[f64],
+    k: usize,
+    correction: f64,
+    n_rows: usize,
+) -> Option<(Vec<f64>, Vec<f64>)> {
+    if k == 0 || n_rows == 0 || !(correction.is_finite() && correction > 0.0) {
+        return None;
+    }
+    let n_rep = weights.len();
+    if n_rep == 0 || replicates.len() != n_rep * k {
+        return None;
+    }
+    if replicates.iter().any(|value| !value.is_finite())
+        || weights.iter().any(|weight| !weight.is_finite() || *weight < 0.0)
+    {
+        return None;
+    }
+    let mass = weights.iter().sum::<f64>();
+    if !(mass.is_finite() && mass > 0.0) {
+        return None;
+    }
+    let weights: Vec<f64> = weights.iter().map(|weight| weight / mass).collect();
+    let (means, covariance) = moments(replicates, &weights, k, correction);
+    if covariance.iter().any(|value| !value.is_finite()) {
+        return None;
+    }
+    let variance = entry_sampling_variances(replicates, &weights, &means, k, correction, n_rows);
+    variance
+        .iter()
+        .all(|value| value.is_finite() && *value >= 0.0)
+        .then_some((covariance, variance))
+}
+
 /// Cholesky of `cov + jitter * I`; `false` if any pivot is not positive.
 fn is_psd(cov: &[f64], k: usize) -> bool {
     let trace: f64 = (0..k).map(|i| cov[i * k + i]).sum();
@@ -490,7 +563,7 @@ fn finish(
     identity: &FamilyIdentity,
     tally: &Tally,
     method: CovarianceMethod,
-    digest: &Digest,
+    digest: &CanonicalWriter,
 ) -> Result<ScenarioCovariance, EstimationError> {
     let k = scenarios.len();
     let kept_mass: f64 = tally.weights.iter().sum();
@@ -509,7 +582,12 @@ fn finish(
         CovarianceMethod::ExactEnumeration => 1.0,
     };
     let (means, covariance) = moments(&tally.values, &weights, k, correction);
-    if covariance.iter().any(|v| !v.is_finite()) || !is_psd(&covariance, k) {
+    let entry_sampling_variance =
+        entry_sampling_variances(&tally.values, &weights, &means, k, correction, identity.n);
+    if covariance.iter().any(|v| !v.is_finite())
+        || entry_sampling_variance.iter().any(|v| !v.is_finite())
+        || !is_psd(&covariance, k)
+    {
         return Err(numerical(
             "scenario_covariance.not_positive_semidefinite",
             "the estimated covariance is not finite and positive semidefinite within tolerance",
@@ -521,7 +599,7 @@ fn finish(
         covariance,
         replicate_ids: Vec::new(),
         failed_replicate_ids: Vec::new(),
-        replicate_digest: digest.hex(),
+        replicate_digest: hex_digest(digest),
         row_identity_digest: identity.row_digest.clone(),
         snapshot_digest: identity.snapshot.clone(),
         method,
@@ -531,12 +609,17 @@ fn finish(
         failed_replicates: tally.failed,
         failed_mass: tally.failed_mass / tally.total_mass,
         seed: None,
+        entry_sampling_variance,
         interpretation: COVARIANCE_INTERPRETATION,
     })
 }
 
-fn seed_digest(scenarios: &[ScenarioRowEstimator], identity: &FamilyIdentity, tag: &str) -> Digest {
-    let mut digest = Digest::new();
+fn seed_digest(
+    scenarios: &[ScenarioRowEstimator],
+    identity: &FamilyIdentity,
+    tag: &str,
+) -> CanonicalWriter {
+    let mut digest = CanonicalWriter::new(REPLICATE_DIGEST_TAG);
     digest.text(tag);
     digest.text(&identity.snapshot);
     digest.text(&identity.row_digest);
@@ -649,7 +732,7 @@ struct Enumerator<'a> {
     fact: Vec<u128>,
     denominator: f64,
     tally: Tally,
-    digest: Digest,
+    digest: CanonicalWriter,
 }
 
 impl Enumerator<'_> {

@@ -4,15 +4,13 @@ use std::sync::Arc;
 
 use antecedent_core::{
     CausalQuery, ContinuousDomain, GridSpec, ObservationAssumption, ObservationSpec,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    VariableId,
+    ResponseFunctional, ResponseQuery, VariableId,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::{
     ObservationEstimatorOptions, ObservationMechanismEstimator, SelectedOutcomeCorrection,
 };
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{columns_to_batch, dag_from_named_edges, detach_catch, py_err};
@@ -176,100 +174,6 @@ fn observation_adjusted_outcome(
     observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
     delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
-    censoring_survival_floor=0.01, crossfit_folds=5, accepted=false, seed=1
-))]
-#[allow(clippy::too_many_arguments)]
-fn analyze_observation_response(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
-    edges: Vec<(String, String)>,
-    treatment: String,
-    outcome: String,
-    grid: Vec<f64>,
-    observation_kind: String,
-    latent: String,
-    observed: Option<String>,
-    censoring: Option<String>,
-    event: Option<String>,
-    lower: Option<String>,
-    upper: Option<String>,
-    indicator: Option<String>,
-    assumption_kind: String,
-    assumption_variables: Vec<String>,
-    structural_model: Option<String>,
-    delayed_entry: Option<String>,
-    correction: &str,
-    observation_probability_floor: f64,
-    censoring_survival_floor: f64,
-    crossfit_folds: usize,
-    accepted: bool,
-    seed: u64,
-) -> PyResult<ObservationResponseResult> {
-    let batch = columns_to_batch(&names, &columns)?;
-    drop(columns);
-    let correction = parse_correction(correction)?;
-    let args = ObservationArgs {
-        kind: observation_kind,
-        latent,
-        observed,
-        censoring,
-        event,
-        lower,
-        upper,
-        indicator,
-        assumption_kind,
-        assumption_variables,
-        structural_model,
-    };
-    detach_catch(py, move || {
-        let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
-        let data = loaded.data;
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let query = build_query(data.schema(), &treatment, &outcome, &args, Arc::from(grid))?;
-        let delayed_entry = delayed_entry
-            .as_deref()
-            .map(|name| data.schema().id_of(name).map_err(py_err))
-            .transpose()?;
-        let builder = if accepted {
-            antecedent::Study::tabular(data.clone()).graph(antecedent::AcceptedGraph::from(dag))
-        } else {
-            antecedent::Study::tabular(data.clone()).graph(dag)
-        };
-        let mut builder = builder
-            .query(CausalQuery::Response(query))
-            .refute(antecedent::RefuteSuite::None)
-            .bootstrap_replicates(0)
-            .observation_options(ObservationEstimatorOptions {
-                selected_correction: correction,
-                observation_probability_floor,
-                censoring_survival_floor,
-                crossfit_folds,
-            });
-        if let Some(entry) = delayed_entry {
-            builder = builder.observation_delayed_entry(entry);
-        }
-        let study = builder.build().map_err(py_err)?;
-        let ctx = crate::py_execution_context(seed, crate::resolve_user_threads(None));
-        let prepared = study.prepare(&ctx).map_err(py_err)?;
-        let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
-        let adjustment_set =
-            result.estimand.adjustment_set.iter().map(|v| names[v.as_usize()].clone()).collect();
-        observation_response_result(
-            result.response.expect("response route"),
-            treatment,
-            outcome,
-            adjustment_set,
-        )
-    })
-}
-
-#[pyfunction]
-#[pyo3(signature = (
-    names, columns, edges, treatment, outcome, grid, observation_kind, latent, *,
-    observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
-    assumption_kind, assumption_variables=Vec::new(), structural_model=None,
-    delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
     censoring_survival_floor=0.01, crossfit_folds=5, accepted=false, seed=1, threads=None,
     options=None
 ))]
@@ -416,14 +320,14 @@ fn build_query(
     grid: Arc<[f64]>,
 ) -> PyResult<ResponseQuery> {
     if outcome != args.latent {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "response query outcome must equal the observation mechanism's latent outcome",
         ));
     }
     let treatment = schema.id_of(treatment).map_err(py_err)?;
     let latent = schema.id_of(&args.latent).map_err(py_err)?;
     if treatment == latent {
-        return Err(PyValueError::new_err("treatment and outcome must be distinct"));
+        return Err(crate::value_err("treatment and outcome must be distinct"));
     }
     let functional = ResponseFunctional::MeanCurve {
         outcome: latent,
@@ -434,107 +338,14 @@ fn build_query(
     Ok(ResponseQuery::new(functional).with_observation(observation, [assumption]))
 }
 
-fn observation_response_result(
-    response: antecedent_core::CausalResponse,
-    treatment: String,
-    outcome: String,
-    adjustment_set: Vec<String>,
-) -> PyResult<ObservationResponseResult> {
-    let ResponseIdentification::PointIdentified(ResponseValue::Surface {
-        grid,
-        dimension: 1,
-        mean,
-    }) = response.estimate
-    else {
-        return Err(PyValueError::new_err(
-            "observation-adjusted MeanCurve returned an invalid response shape",
-        ));
-    };
-    if grid.len() != mean.len() {
-        return Err(PyValueError::new_err(
-            "observation-adjusted MeanCurve grid/value lengths differ",
-        ));
-    }
-    if response.uncertainty != ResponseUncertainty::None {
-        return Err(PyValueError::new_err(
-            "observation-adjusted response unexpectedly carried unlicensed uncertainty",
-        ));
-    }
-    let support_status = response.support.status.as_str();
-    Ok(ObservationResponseResult {
-        treatments: vec![treatment],
-        outcomes: vec![outcome],
-        points: grid.iter().map(|value| vec![*value]).collect(),
-        values: mean.iter().map(|value| vec![*value]).collect(),
-        scalar: None,
-        matrix: None,
-        uncertainty_kind: "none".into(),
-        lower: None,
-        upper: None,
-        level: None,
-        standard_error: None,
-        replicates: None,
-        artifact_id: None,
-        support_status: support_status.into(),
-        support_minima: response.support.query_region.minima.to_vec(),
-        support_maxima: response.support.query_region.maxima.to_vec(),
-        support_point_status: response
-            .support
-            .point_status
-            .as_ref()
-            .map(|cells| cells.iter().map(|status| status.as_str().to_owned()).collect())
-            .unwrap_or_default(),
-        diagnostic_ids: response
-            .support
-            .diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.id.to_string())
-            .collect(),
-        diagnostic_values: response
-            .support
-            .diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.values.to_vec())
-            .collect(),
-        diagnostic_details: response
-            .support
-            .diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.detail.to_string())
-            .collect(),
-        diagnostic_scopes: response
-            .support
-            .diagnostics
-            .iter()
-            .map(|diagnostic| diagnostic.scope.as_str().to_owned())
-            .collect(),
-        warnings: response
-            .support
-            .warnings
-            .iter()
-            .map(|warning| format!("{}: {}", warning.code, warning.message))
-            .collect(),
-        identification: format!("{:?}", response.identification_status),
-        adjustment_set,
-        assumptions: response
-            .assumptions
-            .entries
-            .iter()
-            .map(|record| format!("{:?}", record.assumption))
-            .collect(),
-        provenance_id: response.provenance_id.to_string(),
-    })
-}
-
 pub(crate) fn build_observation(
     schema: &antecedent_core::CausalSchema,
     args: &ObservationArgs,
     latent: VariableId,
 ) -> PyResult<ObservationSpec> {
     let required = |value: &Option<String>, label: &str| -> PyResult<VariableId> {
-        let name = value
-            .as_deref()
-            .ok_or_else(|| PyValueError::new_err(format!("{label} is required")))?;
+        let name =
+            value.as_deref().ok_or_else(|| crate::value_err(format!("{label} is required")))?;
         schema.id_of(name).map_err(py_err)
     };
     let optional = |value: &Option<String>| -> PyResult<Option<VariableId>> {
@@ -570,7 +381,7 @@ pub(crate) fn build_observation(
             observed: required(&args.observed, "observed")?,
             indicator: required(&args.indicator, "indicator")?,
         }),
-        _ => Err(PyValueError::new_err("unknown observation mechanism")),
+        _ => Err(crate::value_err("unknown observation mechanism")),
     }
 }
 
@@ -593,9 +404,9 @@ pub(crate) fn build_assumption(
         "structural" => Ok(ObservationAssumption::Structural(Arc::from(
             args.structural_model
                 .as_deref()
-                .ok_or_else(|| PyValueError::new_err("structural_model is required"))?,
+                .ok_or_else(|| crate::value_err("structural_model is required"))?,
         ))),
-        _ => Err(PyValueError::new_err("unknown observation assumption")),
+        _ => Err(crate::value_err("unknown observation assumption")),
     }
 }
 
@@ -603,7 +414,7 @@ fn parse_correction(value: &str) -> PyResult<SelectedOutcomeCorrection> {
     match value {
         "ipw" => Ok(SelectedOutcomeCorrection::Ipw),
         "aipw" => Ok(SelectedOutcomeCorrection::Aipw),
-        _ => Err(PyValueError::new_err("correction must be 'ipw' or 'aipw'")),
+        _ => Err(crate::value_err("correction must be 'ipw' or 'aipw'")),
     }
 }
 
@@ -629,7 +440,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ObservationResponseResult>()?;
     m.add_function(wrap_pyfunction!(prepare_observation_response, m)?)?;
     m.add_function(wrap_pyfunction!(observation_adjusted_outcome, m)?)?;
-    m.add_function(wrap_pyfunction!(analyze_observation_response, m)?)?;
     m.add_function(wrap_pyfunction!(gaussian_observation_log_likelihood, m)?)?;
     Ok(())
 }

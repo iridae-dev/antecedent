@@ -108,6 +108,25 @@ impl ExactDistribution {
     }
 }
 
+/// The expression, outcome coordinates, concrete request and bounds an
+/// [`ExactEvaluationPlan`] is compiled from.
+#[derive(Clone, Debug)]
+pub struct ExactEvaluationSpec<'a> {
+    /// Arena holding `root`; the plan retains a copy.
+    pub arena: &'a CausalExprArena,
+    /// Functional to evaluate.
+    pub root: ExprId,
+    /// Outcome coordinates the distribution is over; non-empty, distinct, and not assigned
+    /// by `request`.
+    pub outcomes: Arc<[VariableId]>,
+    /// Concrete values of the treatment and conditioning coordinates.
+    pub request: Assignment,
+    /// Operation and depth limits.
+    pub limits: ExactEvaluationLimits,
+    /// Mass and normalization tolerance.
+    pub tolerance: LawTolerance,
+}
+
 /// A physical plan frozen to its expression, concrete request and provider snapshots.
 /// This layer evaluates expressions; causal authorization belongs to the identifier.
 #[derive(Clone, Debug)]
@@ -127,17 +146,12 @@ impl ExactEvaluationPlan {
     ///
     /// # Errors
     /// Missing providers/assignments, unsupported scope, or resource exhaustion.
-    #[allow(clippy::too_many_arguments)]
     pub fn compile(
-        arena: &CausalExprArena,
-        root: ExprId,
+        spec: ExactEvaluationSpec<'_>,
         data: ExactTransportData,
-        outcomes: impl Into<Arc<[VariableId]>>,
-        request: Assignment,
-        limits: ExactEvaluationLimits,
-        tolerance: LawTolerance,
         ctx: &ExecutionContext,
     ) -> Result<Self, EvalError> {
+        let ExactEvaluationSpec { arena, root, outcomes, request, limits, tolerance } = spec;
         if root.raw() as usize >= arena.len()
             || limits.depth == 0
             || limits.operations == 0
@@ -159,7 +173,6 @@ impl ExactEvaluationPlan {
         {
             return Err(EvalError::ProviderKind("exact request contains a nonfinite assignment"));
         }
-        let outcomes = outcomes.into();
         if outcomes.is_empty()
             || outcomes.iter().collect::<BTreeSet<_>>().len() != outcomes.len()
             || outcomes.iter().any(|v| request.get(*v).is_some())
@@ -591,11 +604,9 @@ impl DistributionProvider for BoundedProvider<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_variable as v;
     use crate::{DiscreteAxis, DomainRef, ExactDiscreteLaw, InterventionAssignment};
     use antecedent_core::RegimeId;
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
     fn law() -> ExactTransportData {
         let axes = [0, 1].map(|i| DiscreteAxis {
             variable: v(i),
@@ -637,13 +648,15 @@ mod tests {
         let (arena, root) = conditional();
         let ctx = ExecutionContext::for_tests(0);
         let plan = ExactEvaluationPlan::compile(
-            &arena,
-            root,
+            ExactEvaluationSpec {
+                arena: &arena,
+                root,
+                outcomes: [v(1)].into(),
+                request: Assignment::from_pairs([(v(0), Value::Int64(0))]),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             law(),
-            [v(1)],
-            Assignment::from_pairs([(v(0), Value::Int64(0))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();
@@ -662,13 +675,15 @@ mod tests {
         let (arena, root) = conditional();
         let ctx = ExecutionContext::for_tests(0);
         let plan = ExactEvaluationPlan::compile(
-            &arena,
-            root,
+            ExactEvaluationSpec {
+                arena: &arena,
+                root,
+                outcomes: [v(1)].into(),
+                request: Assignment::from_pairs([(v(0), Value::Float64(1.0))]),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             law(),
-            [v(1)],
-            Assignment::from_pairs([(v(0), Value::Float64(1.0))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();
@@ -706,13 +721,15 @@ mod tests {
         let root = arena.intern(ExprNode::SumOut { variables, expr: product });
         let ctx = ExecutionContext::for_tests(0);
         let result = ExactEvaluationPlan::compile(
-            &arena,
-            root,
+            ExactEvaluationSpec {
+                arena: &arena,
+                root,
+                outcomes: [v(1)].into(),
+                request: Assignment::new(),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             law(),
-            [v(1)],
-            Assignment::new(),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap()
@@ -726,13 +743,15 @@ mod tests {
         let root = arena.intern(ExprNode::SumOut { variables, expr: product });
         assert!(
             ExactEvaluationPlan::compile(
-                &arena,
-                root,
+                ExactEvaluationSpec {
+                    arena: &arena,
+                    root,
+                    outcomes: [v(1)].into(),
+                    request: Assignment::new(),
+                    limits: ExactEvaluationLimits::default(),
+                    tolerance: LawTolerance::default()
+                },
                 law(),
-                [v(1)],
-                Assignment::new(),
-                ExactEvaluationLimits::default(),
-                LawTolerance::default(),
                 &ctx
             )
             .unwrap()
@@ -771,13 +790,15 @@ mod tests {
         let request = Assignment::from_pairs([(v(0), Value::Int64(1))]);
         let compile = |ctx: &ExecutionContext, limits| {
             ExactEvaluationPlan::compile(
-                &arena,
-                root,
+                ExactEvaluationSpec {
+                    arena: &arena,
+                    root,
+                    outcomes: [v(1)].into(),
+                    request: request.clone(),
+                    limits,
+                    tolerance: LawTolerance::default(),
+                },
                 law(),
-                [v(1)],
-                request.clone(),
-                limits,
-                LawTolerance::default(),
                 ctx,
             )
         };
@@ -959,13 +980,15 @@ mod tests {
     ) -> Result<ExactDistribution, EvalError> {
         let ctx = ExecutionContext::for_tests(0);
         ExactEvaluationPlan::compile(
-            arena,
-            root,
+            ExactEvaluationSpec {
+                arena,
+                root,
+                outcomes: [v(0), v(1)].into(),
+                request: Assignment::new(),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data,
-            [v(0), v(1)],
-            Assignment::new(),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )?
         .evaluate(&ctx)
@@ -1145,13 +1168,15 @@ mod tests {
         }
         let ctx = ExecutionContext::for_tests(0);
         let refused = ExactEvaluationPlan::compile(
-            &arena,
-            node,
+            ExactEvaluationSpec {
+                arena: &arena,
+                root: node,
+                outcomes: [v(1)].into(),
+                request: Assignment::new(),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             law(),
-            [v(1)],
-            Assignment::new(),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap_err();

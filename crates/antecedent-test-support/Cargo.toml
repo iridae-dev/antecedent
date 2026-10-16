@@ -1,0 +1,16 @@
+[package]
+name = "antecedent-test-support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Shared test helpers for the Antecedent workspace's integration tests; not published"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde_json = { workspace = true }

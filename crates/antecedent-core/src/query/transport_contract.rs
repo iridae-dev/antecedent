@@ -8,6 +8,7 @@ use crate::VariableId;
 
 /// Named transport theorem family. Completeness is scoped per family.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum TheoremFamily {
     /// Classical single-source sID (Pearl & Bareinboim general transportability).
     ///
@@ -50,6 +51,7 @@ pub struct TheoremReference {
 
 /// Graph assumptions the theorem takes as given.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum GraphAssumptionSet {
     /// Semi-Markovian ADMG with explicit selection targets.
     SemiMarkovianSelectionAdmg,
@@ -67,6 +69,7 @@ impl GraphAssumptionSet {
 
 /// Experiments the theorem treats as available.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum ExperimentFamily {
     /// The theorem's own experimental-information setting.
     TheoremExperiments,
@@ -87,6 +90,7 @@ impl ExperimentFamily {
 
 /// Distributional family the theorem is stated over.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum TransportDistributionFamily {
     /// Positive discrete / density laws as in classical sID.
     PositiveLaws,
@@ -107,6 +111,7 @@ impl TransportDistributionFamily {
 
 /// Queries the theorem is stated for.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum TransportQueryScope {
     /// Interventional response in a named target population.
     TargetInterventionalResponse,
@@ -593,6 +598,7 @@ pub struct TransportUncertaintySupport {
 
 /// Stage-specific transport support. Do not collapse these into one analyze cell.
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum TransportSupportCoordinate {
     /// Identification support.
     Identify(TransportIdentifySupport),

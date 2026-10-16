@@ -6,6 +6,12 @@ producer's bytes or identity files.
 
 ## Generation (run from the repository root)
 
+    python3 scripts/regenerate_cross_surface_fixtures.py
+
+Python writers run first, then the ignored Rust fixture tests. `--dry-run`
+prints the commands and does not write. `--python-only` and `--rust-only` run
+one half. The command expands to:
+
 Python-built (`py_*`, consumed by Rust):
 
     python python/tests/generate_cross_surface_fixtures.py
@@ -46,7 +52,7 @@ and `safe` (policy, `max(x0, 0)`), expected utility, hard constraint `q-cap`
 - `py_decision.identities.json`: Python's contract identity and source digest
   (cross-check only).
 
-## Composition bundle (C3)
+## Composition bundle
 
 One bundle with two hand-derived decisions, nodes `contract`, `law`, `result`,
 `claim`, `mean_contract`, `mean_result` and edges `law -> result`,
@@ -62,7 +68,7 @@ One bundle with two hand-derived decisions, nodes `contract`, `law`, `result`,
 Files: `py_composition_bundle.bin` and `py_composition_bundle.identity.json`
 (bundle identity, cross-check only), `rust_composition_bundle.bin`.
 
-Generation (from the repository root):
+The same regenerator includes this bundle pair, after the fixtures above:
 
     python python/tests/generate_cross_surface_bundle_fixtures.py
     ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test cross_surface_bundle -- --ignored regenerate_rust_fixtures

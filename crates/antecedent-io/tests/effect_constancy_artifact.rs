@@ -1,7 +1,6 @@
-//! F18 `EffectConstancy` artifact: the frozen acceptance numbers through the container, a
+//! `EffectConstancy` artifact: the frozen acceptance numbers through the container, a
 //! recomputing consumer, resealed-mutation refusals against a retained identity, unknown
 //! versions and the unmeasured calibration coordinate.
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::effect_constancy_artifact::{
     DependenceWire, EFFECT_CONSTANCY_ARTIFACT_VERSION, EFFECT_CONSTANCY_CALIBRATION,
@@ -46,8 +45,11 @@ fn request(parts: Vec<PartitionWire>) -> EffectConstancyRequestWire {
     }
 }
 
+#[path = "common/mod.rs"]
+mod common;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    common::close(actual, expected, 1e-9, what);
 }
 
 fn dependent_request() -> EffectConstancyRequestWire {
@@ -62,12 +64,12 @@ fn dependent_request() -> EffectConstancyRequestWire {
 
 fn export(request: &EffectConstancyRequestWire) -> (EffectConstancyArtifact, Vec<u8>) {
     let artifact = EffectConstancyArtifact::seal(request).unwrap();
-    let bytes = artifact.to_bytes("f18-test").unwrap();
+    let bytes = artifact.to_bytes("constancy-test").unwrap();
     (artifact, bytes)
 }
 
 #[test]
-fn f18_artifact_frozen_acceptance_zero_difference_has_zero_statistic() {
+fn artifact_frozen_acceptance_zero_difference_has_zero_statistic() {
     // Effects 1 and 1, variance 1/4 each, zero covariance.
     let (artifact, bytes) = export(&request(vec![part("p1", 1.0, 0.5), part("p2", 1.0, 0.5)]));
     let consumed = EffectConstancyArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
@@ -86,7 +88,7 @@ fn f18_artifact_frozen_acceptance_zero_difference_has_zero_statistic() {
 }
 
 #[test]
-fn f18_artifact_frozen_acceptance_one_versus_two_has_statistic_two() {
+fn artifact_frozen_acceptance_one_versus_two_has_statistic_two() {
     // Q = (2 - 1)^2 / (1/4 + 1/4) = 2; df 1: sf = erfc(1).
     let (artifact, bytes) = export(&request(vec![part("p1", 1.0, 0.5), part("p2", 2.0, 0.5)]));
     let report =
@@ -103,7 +105,7 @@ fn f18_artifact_frozen_acceptance_one_versus_two_has_statistic_two() {
 }
 
 #[test]
-fn f18_artifact_dependent_covariance_gives_wald_four() {
+fn artifact_dependent_covariance_gives_wald_four() {
     // Var(e2 - e1) = 1/4 + 1/4 - 2/8 = 1/4, Wald = 1 / (1/4) = 4; sf = erfc(sqrt 2).
     let (artifact, bytes) = export(&dependent_request());
     let report =
@@ -117,7 +119,7 @@ fn f18_artifact_dependent_covariance_gives_wald_four() {
 }
 
 #[test]
-fn f18_artifact_three_partitions_keep_holm_values_and_canonical_order() {
+fn artifact_three_partitions_keep_holm_values_and_canonical_order() {
     let (artifact, bytes) =
         export(&request(vec![part("c", 2.0, 1.0), part("a", 0.0, 1.0), part("b", 1.0, 1.0)]));
     let report =
@@ -136,7 +138,7 @@ fn f18_artifact_three_partitions_keep_holm_values_and_canonical_order() {
 }
 
 #[test]
-fn f18_artifact_identity_is_invariant_to_partition_order() {
+fn artifact_identity_is_invariant_to_partition_order() {
     let parts = [part("a", 0.3, 0.4), part("b", 1.1, 0.6), part("c", -0.2, 0.5)];
     let forward = EffectConstancyArtifact::seal(&request(parts.to_vec())).unwrap();
     let reversed =
@@ -160,7 +162,7 @@ fn f18_artifact_identity_is_invariant_to_partition_order() {
 }
 
 #[test]
-fn f18_artifact_incompatible_partitions_refuse_with_the_core_detail() {
+fn artifact_incompatible_partitions_refuse_with_the_core_detail() {
     let mut changed = part("b", 1.0, 0.5);
     changed.estimand.regime = "other_regime".into();
     let error =
@@ -197,7 +199,7 @@ fn f18_artifact_incompatible_partitions_refuse_with_the_core_detail() {
 }
 
 #[test]
-fn f18_artifact_partition_count_is_bounded() {
+fn artifact_partition_count_is_bounded() {
     let many: Vec<PartitionWire> = (0..1025).map(|i| part(&format!("p{i:05}"), 1.0, 0.5)).collect();
     let error = EffectConstancyArtifact::seal(&request(many)).unwrap_err();
     assert_eq!(error, EffectConstancyArtifactError::LimitsExceeded("partitions"));
@@ -224,7 +226,7 @@ fn resealed_mutation_refuses(
 }
 
 #[test]
-fn f18_artifact_resealed_partition_identity_is_refused() {
+fn artifact_resealed_partition_identity_is_refused() {
     let original = dependent_request();
     let mut mutated = original.clone();
     mutated.partitions[0].coordinate = "period:elsewhere".into();
@@ -235,7 +237,7 @@ fn f18_artifact_resealed_partition_identity_is_refused() {
 }
 
 #[test]
-fn f18_artifact_resealed_estimand_is_refused() {
+fn artifact_resealed_estimand_is_refused() {
     let original = dependent_request();
     let mut mutated = original.clone();
     for p in &mut mutated.partitions {
@@ -245,7 +247,7 @@ fn f18_artifact_resealed_estimand_is_refused() {
 }
 
 #[test]
-fn f18_artifact_resealed_covariance_is_refused() {
+fn artifact_resealed_covariance_is_refused() {
     let original = dependent_request();
     let mut mutated = original.clone();
     mutated.dependence.covariance = vec![0.25, 0.0625, 0.0625, 0.25];
@@ -257,7 +259,7 @@ fn f18_artifact_resealed_covariance_is_refused() {
 }
 
 #[test]
-fn f18_artifact_resealed_multiplicity_family_is_refused() {
+fn artifact_resealed_multiplicity_family_is_refused() {
     let original = request(vec![part("a", 0.0, 1.0), part("b", 1.0, 1.0), part("c", 2.0, 1.0)]);
     let mut reference = original.clone();
     reference.family = FamilyWire { kind: "against_reference".into(), reference: Some("a".into()) };
@@ -268,7 +270,7 @@ fn f18_artifact_resealed_multiplicity_family_is_refused() {
 }
 
 #[test]
-fn f18_artifact_resealed_evidence_is_refused() {
+fn artifact_resealed_evidence_is_refused() {
     let original = dependent_request();
     let mut mutated = original.clone();
     mutated.partitions[1].effect = 2.5;
@@ -276,7 +278,7 @@ fn f18_artifact_resealed_evidence_is_refused() {
 }
 
 #[test]
-fn f18_artifact_unresealed_tampering_does_not_replay() {
+fn artifact_unresealed_tampering_does_not_replay() {
     let (artifact, bytes) = export(&dependent_request());
     let (meta, numbers) = decode_parts(&bytes).unwrap();
 
@@ -348,7 +350,7 @@ fn f18_artifact_unresealed_tampering_does_not_replay() {
 }
 
 #[test]
-fn f18_artifact_unknown_major_version_refuses() {
+fn artifact_unknown_major_version_refuses() {
     let (_, bytes) = export(&dependent_request());
     let (meta, numbers) = decode_parts(&bytes).unwrap();
     for version in [0_u16, 2, 7] {
@@ -370,7 +372,7 @@ fn f18_artifact_unknown_major_version_refuses() {
 }
 
 #[test]
-fn f18_artifact_corrupt_and_truncated_bytes_refuse() {
+fn artifact_corrupt_and_truncated_bytes_refuse() {
     let (_, bytes) = export(&dependent_request());
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;

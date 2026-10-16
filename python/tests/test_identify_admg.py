@@ -46,7 +46,7 @@ def test_the_same_graph_as_a_dag_adjusts_on_the_unmeasurable_node() -> None:
     """Documents why the ADMG path exists, and why callers should prefer it."""
     result = antecedent.identify(graph=_confounded_dag(), query=QUERY)
     assert bool(result)
-    assert result.adjustment_set == ["U"]
+    assert result.adjustment_set == tuple(["U"])
 
 
 def test_frontdoor_is_identified_through_an_admg() -> None:
@@ -65,7 +65,7 @@ def test_an_admg_without_bidirected_edges_is_treated_as_a_dag() -> None:
     dag_result = antecedent.identify(graph=_observed_dag(), query=QUERY)
     admg = _observed_dag().latent_project(["Z", "T", "Y"])
     admg_result = antecedent.identify(graph=admg, query=QUERY)
-    assert admg_result.adjustment_set == dag_result.adjustment_set == ["Z"]
+    assert admg_result.adjustment_set == dag_result.adjustment_set == tuple(["Z"])
     assert admg_result.method == dag_result.method
 
 
@@ -73,7 +73,7 @@ def test_an_explicit_identifier_survives_the_dag_coercion() -> None:
     admg = _observed_dag().latent_project(["Z", "T", "Y"])
     result = antecedent.identify(graph=admg, query=QUERY, identifier="backdoor.adjustment")
     assert result.method == "backdoor.adjustment"
-    assert result.adjustment_set == ["Z"]
+    assert result.adjustment_set == tuple(["Z"])
 
 
 def test_staged_identification_carries_the_admg_forward() -> None:
@@ -100,4 +100,4 @@ def test_projected_adjustment_names_follow_receiving_schema() -> None:
     graph = dag.latent_project(["Y", "T", "Z"])
     result = antecedent.identify(graph=graph, query=QUERY)
     assert bool(result)
-    assert result.adjustment_set == ["Z"]
+    assert result.adjustment_set == tuple(["Z"])

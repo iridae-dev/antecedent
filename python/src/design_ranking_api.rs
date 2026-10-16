@@ -1,4 +1,4 @@
-//! Bounded Python bridge for F11/F12/F14: candidate signals, EVSI with a cost mapping and the
+//! Bounded Python bridge for candidate signals, EVSI with a cost mapping and the
 //! durable design-ranking artifact.
 //!
 //! Python builds the declaration (decision, candidates, signal providers with attested values and
@@ -11,19 +11,18 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::design_ranking::{
     ConsumeExpectation, CostMapDeclWire, DesignRankingError, DesignRankingRequestWire,
     StructuralCandidateDeclWire, consume, evaluate, rank_structural,
 };
-use antecedent_core::ExternalRefusal;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
-use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err, with_reason_code};
 
 /// Largest declaration or expectation JSON accepted.
-const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
@@ -70,28 +69,8 @@ impl From<ExpectationWire> for ConsumeExpectation {
     }
 }
 
-fn refusal_json(value: &ExternalRefusal) -> String {
-    serde_json::json!({
-        "code": value.code,
-        "stage": value.stage,
-        "detail": value.detail,
-        "offending": value.offending,
-        "expected": value.expected,
-        "supplied": value.supplied,
-        "remedy": value.remedy,
-    })
-    .to_string()
-}
-
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
-}
-
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("design ranking declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "design ranking")
 }
 
 fn invalid_declaration(error: &serde_json::Error) -> PyErr {
@@ -103,7 +82,7 @@ fn invalid_declaration(error: &serde_json::Error) -> PyErr {
 
 /// A refusal becomes structured JSON; anything else is a serialization failure.
 fn payload_error(error: &DesignRankingError) -> Result<String, PyErr> {
-    error.refusal().map(|r| refusal_json(&r)).ok_or_else(|| serialization(error))
+    error.refusal().map(|r| external_refusal_json(&r)).ok_or_else(|| serialization(error))
 }
 
 /// Evaluate every declared candidate's EVSI and seal the ranking:
@@ -225,14 +204,14 @@ fn consume_design_ranking(
     })
 }
 
-/// The 2.2 structural ordering when no probabilistic model is licensed:
+/// The structural ordering when no probabilistic model is licensed:
 /// `(ranking json, refusal json)`.
 #[pyfunction]
-fn rank_structural_designs(candidates_json: &str) -> PyResult<ConsumePayload> {
+fn rank_structural_designs(py: Python<'_>, candidates_json: &str) -> PyResult<ConsumePayload> {
     check_size(candidates_json)?;
     let candidates: Vec<StructuralCandidateDeclWire> =
         serde_json::from_str(candidates_json).map_err(|e| invalid_declaration(&e))?;
-    match rank_structural(&candidates) {
+    detach_catch(py, move || match rank_structural(&candidates) {
         Ok(ranking) => {
             let entries: Vec<serde_json::Value> = ranking
                 .structural
@@ -260,7 +239,7 @@ fn rank_structural_designs(candidates_json: &str) -> PyResult<ConsumePayload> {
             ))
         }
         Err(error) => Ok((None, Some(payload_error(&error)?))),
-    }
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

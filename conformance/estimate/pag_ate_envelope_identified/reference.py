@@ -106,7 +106,7 @@ def mixture(d, atoms, fit):
     weights = np.asarray([a["weight"] for a in atoms], dtype=float)
     weights /= weights.sum()
     effects, phi = [], np.zeros(n)
-    for w, atom in zip(weights, atoms):
+    for w, atom in zip(weights, atoms, strict=True):
         est, psi = fit(atom["adjustment_set"])
         effects.append(est)
         phi += w * psi
@@ -118,7 +118,7 @@ def main() -> int:
     if "--table" in sys.argv:
         print(json.dumps(table()))
         return 0
-    pin = json.loads((HERE / "expected.json").read_text())
+    pin = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
     assert pin["contingency_table"] == table(), "contingency table drifted from LAW"
     d = expand(pin)
     atoms = pin["identified_completions"]
@@ -138,10 +138,19 @@ def main() -> int:
         freq = pin["frequentist"]
         cond = pin["conditional"]["frequentist"]
         tol = freq["absolute_tolerance"]
-        assert abs(ate - freq["expected_ate"]) <= tol, (ate, freq["expected_ate"])
-        assert abs(ate_se - freq["expected_se"]) <= tol, (ate_se, freq["expected_se"])
-        assert abs(cate - cond["expected_ate"]) <= tol, (cate, cond["expected_ate"])
-        assert abs(cate_se - cond["expected_se"]) <= tol, (cate_se, cond["expected_se"])
+
+        def close(left: float, right: float) -> bool:
+            return bool(np.isclose(left, right, rtol=0.0, atol=tol))
+
+        comparisons = (
+            (ate, freq["expected_ate"]),
+            (ate_se, freq["expected_se"]),
+            (cate, cond["expected_ate"]),
+            (cate_se, cond["expected_se"]),
+        )
+        for actual, expected in comparisons:
+            if not close(actual, expected):
+                raise AssertionError((actual, expected))
         print("reference matches expected.json")
     return 0
 

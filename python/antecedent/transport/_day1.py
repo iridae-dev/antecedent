@@ -10,6 +10,7 @@ from typing import Any, Literal, get_args
 
 import numpy as np
 
+from .._columns import coerce_fields
 from .._data import as_columns
 from ..errors import (
     CausalCancelledError,
@@ -127,16 +128,16 @@ class Source:
     snapshot: str | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "identity", _require_name("source identity", self.identity))
+        coerce_fields(self, identity=_require_name("source identity", self.identity))
         if self.kind not in get_args(RegimeKindName):
             raise CausalValueError(f"unknown regime kind {self.kind!r}")
         if self.sampling not in get_args(SamplingDesignName):
             raise CausalValueError(f"unknown sampling design {self.sampling!r}")
-        object.__setattr__(self, "interventions", tuple(self.interventions))
-        object.__setattr__(self, "selections", tuple(self.selections))
+        coerce_fields(self, interventions=tuple(self.interventions))
+        coerce_fields(self, selections=tuple(self.selections))
         if self.measured is not None:
-            object.__setattr__(self, "measured", tuple(self.measured))
-        object.__setattr__(self, "dependence", _dependence_for(self.sampling, self.dependence))
+            coerce_fields(self, measured=tuple(self.measured))
+        coerce_fields(self, dependence=_dependence_for(self.sampling, self.dependence))
         if self.kind == "experimental" and not self.interventions:
             raise CausalValueError("experimental sources require a non-empty intervention set")
         if self.kind == "observational" and self.interventions:
@@ -154,7 +155,7 @@ class Evidence:
     def __post_init__(self) -> None:
         if self.target_sampling not in get_args(TargetSamplingName):
             raise CausalValueError(f"unknown target sampling {self.target_sampling!r}")
-        object.__setattr__(self, "source", _as_sources(self.source))
+        coerce_fields(self, source=_as_sources(self.source))
 
     @property
     def sources(self) -> tuple[Source, ...]:
@@ -179,8 +180,8 @@ class Transport:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "target", _require_name("target", self.target))
-        object.__setattr__(self, "selections", tuple(self.selections))
+        coerce_fields(self, target=_require_name("target", self.target))
+        coerce_fields(self, selections=tuple(self.selections))
         if not isinstance(self.evidence, Evidence):
             raise CausalTypeError("evidence must be transport.Evidence")
         if not isinstance(self.question, (AverageEffect, *_RESPONSE_FAMILY)):

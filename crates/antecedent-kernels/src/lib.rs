@@ -7,11 +7,12 @@
 
 #![deny(missing_docs)]
 // Unsafe is confined to validated unchecked view indexing in hot loops.
-#![allow(unsafe_code)]
-#![cfg_attr(test, allow(clippy::cast_precision_loss))]
+#![allow(unsafe_code, reason = "unsafe boundary documented at each block")]
 
 pub mod cholesky;
 pub mod dispatch;
+pub mod gram;
+pub mod numeric;
 pub mod parcorr;
 pub mod portable;
 pub mod posterior_reduce;
@@ -19,26 +20,36 @@ pub mod rng;
 pub mod scalar;
 pub mod special;
 pub mod view;
+pub mod welford;
 
-pub use cholesky::{CholeskyError, cholesky_condition_lower_bound, cholesky_spd_into};
+pub use cholesky::{
+    CholeskyError, back_solve_into, chol_inverse, chol_solve_into, cholesky_condition_lower_bound,
+    cholesky_spd_into, forward_solve_into,
+};
 pub use dispatch::{
-    KernelImpl, accumulate_contingency, accumulate_contingency_rows, arch_simd_available, copy_vec,
-    gather, masked_covariance, masked_mean, masked_sum, masked_variance, pairwise_l1_fill,
-    partial_correlation, select_impl, standardize_inplace, weighted_dot, weighted_mean,
-    weighted_sum,
+    KernelImpl, accumulate_contingency, gather, select_impl, standardize_inplace, weighted_mean,
 };
-pub use parcorr::{
-    ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson,
+pub use gram::{
+    EQUILIBRATED_PIVOT_FLOOR, equilibrate_into, gauss_jordan_solve, invert_square, symmetric_scales,
 };
+pub use numeric::{
+    LogWeightError, dot, mean, median_sorted, midranks_into, normalize_log_weights,
+    normalize_log_weights_into, sample_std, sigmoid, softmax_in_place, softplus,
+};
+pub use parcorr::{ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch};
 pub use posterior_reduce::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
 pub use rng::{
-    box_muller, categorical_from_u, fill_standard_normal, sample_categorical, sample_gamma,
-    sample_inv_gamma, shuffle, shuffled_fold_assignment, standard_normal, standard_normal_pair,
+    bayesian_bootstrap_weights, categorical_from_u, fill_standard_normal, sample_categorical,
+    sample_gamma, sample_inv_gamma, shuffle, shuffled_fold_assignment, standard_normal,
     unbiased_index,
 };
-pub use scalar::sanitize_weight;
-pub use special::{erf, erfc, norm_cdf, norm_inv, norm_pdf, norm_sf};
+pub use scalar::{kish_ess, sanitize_weight};
+pub use special::{
+    NORMAL_Q975, erf, erfc, log_norm_cdf, log_norm_pdf, log_norm_sf, mills_left_tail, norm_cdf,
+    norm_inv, norm_pdf, norm_sf,
+};
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
+pub use welford::{Welford, update_scatter};
 
 #[cfg(test)]
 mod tests {
@@ -57,16 +68,16 @@ mod tests {
         let mask_bytes = vec![0b1010_1011u8; data.len().div_ceil(8)];
         let mask = BitMaskView::new(&mask_bytes, data.len()).unwrap();
 
-        let s_sum = scalar::masked_sum(x, Some(mask));
-        let p_sum = portable::masked_sum(x, Some(mask));
+        let s_sum = scalar::masked_sum(x, Some(mask)).unwrap();
+        let p_sum = portable::masked_sum(x, Some(mask)).unwrap();
         assert!(ToleranceClass::StableFloat.close(s_sum, p_sum));
 
-        let s_mean = scalar::masked_mean(x, Some(mask)).unwrap();
-        let p_mean = portable::masked_mean(x, Some(mask)).unwrap();
+        let s_mean = scalar::masked_mean(x, Some(mask)).unwrap().unwrap();
+        let p_mean = portable::masked_mean(x, Some(mask)).unwrap().unwrap();
         assert!(ToleranceClass::StableFloat.close(s_mean, p_mean));
 
-        let s_var = scalar::masked_variance(x, Some(mask)).unwrap();
-        let p_var = portable::masked_variance(x, Some(mask)).unwrap();
+        let s_var = scalar::masked_variance(x, Some(mask)).unwrap().unwrap();
+        let p_var = portable::masked_variance(x, Some(mask)).unwrap().unwrap();
         assert!(ToleranceClass::StableFloat.close(s_var, p_var));
     }
 
@@ -79,12 +90,12 @@ mod tests {
         let mask_bytes = vec![0b1111_0000u8; x_data.len().div_ceil(8)];
         let mask = BitMaskView::new(&mask_bytes, x_data.len()).unwrap();
 
-        let s = scalar::masked_covariance(x, y, Some(mask)).unwrap();
-        let p = portable::masked_covariance(x, y, Some(mask)).unwrap();
+        let s = scalar::masked_covariance(x, y, Some(mask)).unwrap().unwrap();
+        let p = portable::masked_covariance(x, y, Some(mask)).unwrap().unwrap();
         assert!(ToleranceClass::StableFloat.close(s, p));
 
-        let s_full = scalar::masked_covariance(x, y, None).unwrap();
-        let p_full = portable::masked_covariance(x, y, None).unwrap();
+        let s_full = scalar::masked_covariance(x, y, None).unwrap().unwrap();
+        let p_full = portable::masked_covariance(x, y, None).unwrap().unwrap();
         assert!(ToleranceClass::StableFloat.close(s_full, p_full));
     }
 
@@ -107,8 +118,8 @@ mod tests {
         let n = x.len();
         let mut out_s = vec![0.0; n * n];
         let mut out_p = vec![0.0; n * n];
-        scalar::pairwise_l1_fill(&x, &mut out_s);
-        portable::pairwise_l1_fill(&x, &mut out_p);
+        scalar::pairwise_l1_fill(&x, &mut out_s).unwrap();
+        portable::pairwise_l1_fill(&x, &mut out_p).unwrap();
         assert_eq!(out_s, out_p);
     }
 
@@ -118,26 +129,22 @@ mod tests {
         let y_codes: Vec<u32> = (0u32..64).map(|i| i % 3).collect();
         let mut out_s = vec![0.0; 4 * 3];
         let mut out_p = vec![0.0; 4 * 3];
-        scalar::accumulate_contingency(&x_codes, &y_codes, &mut out_s, 3);
-        portable::accumulate_contingency(&x_codes, &y_codes, &mut out_p, 3);
+        scalar::accumulate_contingency(&x_codes, &y_codes, &mut out_s, 3).unwrap();
+        portable::accumulate_contingency(&x_codes, &y_codes, &mut out_p, 3).unwrap();
         assert_eq!(out_s, out_p);
     }
 
     #[test]
     fn scalar_and_portable_agree_on_weighted() {
         let x = sample_data();
-        let y: Vec<f64> = x.iter().map(|v| v + 1.0).collect();
         let w: Vec<f64> =
             (0..x.len()).map(|i| if i % 5 == 0 { 0.0 } else { 1.0 + (i as f64) * 0.01 }).collect();
-        let s_sum = scalar::weighted_sum(&x, &w);
-        let p_sum = portable::weighted_sum(&x, &w);
+        let s_sum = scalar::weighted_sum(&x, &w).unwrap();
+        let p_sum = portable::weighted_sum(&x, &w).unwrap();
         assert!(ToleranceClass::StableFloat.close(s_sum, p_sum));
-        let s_mean = scalar::weighted_mean(&x, &w).unwrap();
-        let p_mean = portable::weighted_mean(&x, &w).unwrap();
+        let s_mean = scalar::weighted_mean(&x, &w).unwrap().unwrap();
+        let p_mean = portable::weighted_mean(&x, &w).unwrap().unwrap();
         assert!(ToleranceClass::StableFloat.close(s_mean, p_mean));
-        let s_dot = scalar::weighted_dot(&x, &y, &w);
-        let p_dot = portable::weighted_dot(&x, &y, &w);
-        assert!(ToleranceClass::StableFloat.close(s_dot, p_dot));
     }
 
     #[test]
@@ -150,8 +157,13 @@ mod tests {
         assert!(ToleranceClass::Exact.close(sanitize_weight(f64::NEG_INFINITY), 0.0));
         let x = [1.0, 2.0, 3.0];
         let w = [1.0, f64::NAN, -1.0];
-        assert!(ToleranceClass::StableFloat.close(scalar::weighted_mean(&x, &w).unwrap(), 1.0));
-        assert!(ToleranceClass::StableFloat.close(portable::weighted_mean(&x, &w).unwrap(), 1.0));
+        assert!(
+            ToleranceClass::StableFloat.close(scalar::weighted_mean(&x, &w).unwrap().unwrap(), 1.0)
+        );
+        assert!(
+            ToleranceClass::StableFloat
+                .close(portable::weighted_mean(&x, &w).unwrap().unwrap(), 1.0)
+        );
     }
 
     #[test]
@@ -162,15 +174,15 @@ mod tests {
         let indices: Vec<usize> = (0..32).collect();
         let mut out_s = vec![0.0; 32];
         let mut out_p = vec![0.0; 32];
-        scalar::gather(contiguous, &indices, &mut out_s);
-        portable::gather(contiguous, &indices, &mut out_p);
+        scalar::gather(contiguous, &indices, &mut out_s).unwrap();
+        portable::gather(contiguous, &indices, &mut out_p).unwrap();
         assert_eq!(out_s, out_p);
 
         let mut out_strided = vec![0.0; 16];
         let idx: Vec<usize> = (0..16).collect();
-        scalar::gather(strided, &idx, &mut out_strided);
+        scalar::gather(strided, &idx, &mut out_strided).unwrap();
         let mut out_strided_p = vec![0.0; 16];
-        portable::gather(strided, &idx, &mut out_strided_p);
+        portable::gather(strided, &idx, &mut out_strided_p).unwrap();
         assert_eq!(out_strided, out_strided_p);
     }
 
@@ -179,9 +191,9 @@ mod tests {
         let policy = KernelPolicy::scalar_only();
         assert_eq!(select_impl(&policy), KernelImpl::Scalar);
         let default = KernelPolicy::default_policy();
-        // Without simd-runtime, default selects portable even when allow_arch_simd is true.
+        // No arch-specific kernel is compiled in, so default selects portable even when
+        // allow_arch_simd is true.
         assert_eq!(select_impl(&default), KernelImpl::PortableOptimized);
-        assert!(!arch_simd_available());
     }
 
     #[test]
@@ -200,16 +212,17 @@ mod tests {
         let policy = KernelPolicy::scalar_only();
         let mut out = vec![0.0; 8];
         let idx = [0usize, 1, 2, 3, 4, 5, 6, 7];
-        gather(&policy, x, &idx, &mut out);
+        gather(&policy, x, &idx, &mut out).unwrap();
         let mut expected = vec![0.0; 8];
-        scalar::gather(x, &idx, &mut expected);
+        scalar::gather(x, &idx, &mut expected).unwrap();
         assert_eq!(out, expected);
 
-        let y: Vec<f64> = data.iter().map(|v| v * 2.0).collect();
-        let yv = F64VectorView::contiguous(&y);
-        let cov = masked_covariance(&policy, x, yv, None).unwrap();
-        let cov_s = scalar::masked_covariance(x, yv, None).unwrap();
-        assert!(ToleranceClass::StableFloat.close(cov, cov_s));
+        let mut std_d = data.clone();
+        let mut std_s = data.clone();
+        let (mean_d, sd_d) = standardize_inplace(&policy, &mut std_d, 1e-12);
+        let (mean_s, sd_s) = scalar::standardize_inplace(&mut std_s, 1e-12);
+        assert_eq!((mean_d, sd_d), (mean_s, sd_s));
+        assert_eq!(std_d, std_s);
     }
 
     /// : scalar ≡ portable under random lengths, strides/tails, masks, NaNs.
@@ -248,29 +261,29 @@ mod tests {
             }
             let mask = if use_mask { Some(BitMaskView::new(&bits, len).unwrap()) } else { None };
 
-            let s_sum = scalar::masked_sum(x, mask);
-            let p_sum = portable::masked_sum(x, mask);
+            let s_sum = scalar::masked_sum(x, mask).unwrap();
+            let p_sum = portable::masked_sum(x, mask).unwrap();
             assert!(
                 floats_agree(s_sum, p_sum),
                 "trial={trial} sum scalar={s_sum} portable={p_sum} len={len} stride={stride}"
             );
 
-            let s_mean = scalar::masked_mean(x, mask);
-            let p_mean = portable::masked_mean(x, mask);
+            let s_mean = scalar::masked_mean(x, mask).unwrap();
+            let p_mean = portable::masked_mean(x, mask).unwrap();
             assert!(
                 options_agree(s_mean, p_mean),
                 "trial={trial} mean scalar={s_mean:?} portable={p_mean:?}"
             );
 
-            let s_var = scalar::masked_variance(x, mask);
-            let p_var = portable::masked_variance(x, mask);
+            let s_var = scalar::masked_variance(x, mask).unwrap();
+            let p_var = portable::masked_variance(x, mask).unwrap();
             assert!(
                 options_agree(s_var, p_var),
                 "trial={trial} var scalar={s_var:?} portable={p_var:?}"
             );
 
-            let s_cov = scalar::masked_covariance(x, y, mask);
-            let p_cov = portable::masked_covariance(x, y, mask);
+            let s_cov = scalar::masked_covariance(x, y, mask).unwrap();
+            let p_cov = portable::masked_covariance(x, y, mask).unwrap();
             assert!(
                 options_agree(s_cov, p_cov),
                 "trial={trial} cov scalar={s_cov:?} portable={p_cov:?}"
@@ -301,7 +314,7 @@ mod tests {
         let ptr = out.as_ptr();
         let cap = out.capacity();
         for _ in 0..200 {
-            gather(&policy, src, &indices, &mut out);
+            gather(&policy, src, &indices, &mut out).unwrap();
             assert_eq!(out.as_ptr(), ptr);
             assert_eq!(out.capacity(), cap);
         }
@@ -315,7 +328,7 @@ mod tests {
         let ptr = out.as_ptr();
         let cap = out.capacity();
         for _ in 0..50 {
-            pairwise_l1_fill(&policy, &x, &mut out);
+            portable::pairwise_l1_fill(&x, &mut out).unwrap();
             assert_eq!(out.as_ptr(), ptr);
             assert_eq!(out.capacity(), cap);
         }
@@ -327,7 +340,7 @@ mod tests {
         let tcap = table.capacity();
         for _ in 0..50 {
             table.fill(0.0);
-            accumulate_contingency(&policy, &xc, &yc, &mut table, 4);
+            accumulate_contingency(&policy, &xc, &yc, &mut table, 4).unwrap();
             assert_eq!(table.as_ptr(), tptr);
             assert_eq!(table.capacity(), tcap);
         }

@@ -2,11 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(missing_docs, reason = "bench binaries are not public API")]
 
 use std::time::{Duration, Instant};
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{ExecutionContext, TemporalEffectQuery, TemporalPolicy, VariableId};
 use antecedent_data::TimeSeriesData;
@@ -32,9 +32,11 @@ fn posterior() -> GraphPosterior {
         vec![0, 0],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0 / (0.6 * 0.6 + 0.4 * 0.4),
-        InferenceDiagnostics::analytic("dbn_pulse_bench"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / (0.6 * 0.6 + 0.4 * 0.4),
+            diagnostics: InferenceDiagnostics::analytic("dbn_pulse_bench"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.0, 1.0, 0.0, 0.0])
@@ -61,7 +63,7 @@ fn bench_dbn_posterior_pulse(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function("dbn_posterior_pulse_n400_boot8", |b| {
-        b.iter(|| black_box(study.clone().run(&ctx).unwrap().estimate.ate));
+        b.iter(|| black_box(study.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
     });
     let started = Instant::now();
     let _ = study.run(&ctx).unwrap();

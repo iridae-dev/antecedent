@@ -13,6 +13,7 @@ import pytest
 from antecedent import _native
 from antecedent.errors import CausalCancelledError, CausalError, CausalTypeError
 from antecedent.inference import MeasuredInference
+from antecedent.recalc import RecalcRefusal
 from antecedent.recalc_temporal import (
     CheckedTemporalIntervalConfig,
     TemporalEffect,
@@ -21,7 +22,7 @@ from antecedent.recalc_temporal import (
 )
 from antecedent.transport.advanced import InitialStateLaw, temporal_dependent_interval
 
-from test_checked_temporal_interval import GAMMA, draw, fold, panel_digest, request, scores
+from test_checked_temporal_interval import draw, request, scores
 from test_temporal_interval_activation import independent_replicates, panel
 
 
@@ -84,6 +85,14 @@ def test_normal_checked_source_measured_scalar_independent_math_and_fresh_consum
     req = request(functional)
     session = TemporalSession()
     session.execute(req, seed=41)
+    if method == "percentile":
+        # Its record is a named boundary (measured below the level) over 128 to 512
+        # units, so no calibrated claim is reported at this size or any other.
+        with pytest.raises(RecalcRefusal, match="record_not_attesting"):
+            session.dependent_interval(
+                config=CheckedTemporalIntervalConfig(method=method, bootstrap_seed=9171)
+            )
+        return
     result = session.dependent_interval(
         config=CheckedTemporalIntervalConfig(method=method, bootstrap_seed=9171)
     )
@@ -105,8 +114,10 @@ def test_normal_checked_source_measured_scalar_independent_math_and_fresh_consum
         result.inspect()["validated_scope"]["functional"]
         == source["source"]["request"]["functional"]
     )
-    base = fold(fold(GAMMA, 9171), panel_digest(req))
-    selected = np.array([values[draw(len(values), fold(base, i))] for i in range(500)])
+    selected = np.array(
+        [values[draw(len(values), r["replicate_id"])] for r in source["result"]["replicates"]]
+    )
+    assert len(selected) == 500
     expected, per_draw, pivots = expected_interval(values, selected, method)
     assert scalar.point == pytest.approx(values.mean(), abs=1e-12)
     assert scalar.interval == pytest.approx(expected, abs=1e-12)

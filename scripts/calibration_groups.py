@@ -63,10 +63,12 @@ import time
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+from _repo import ensure_scripts_on_path
+
 GATE = ROOT / "scripts" / "gate_calibration.sh"
 LOG_DIR = ROOT / "target" / "calibration-records"
 PREVIOUS_LOG_DIR = ROOT / "target" / "calibration-records.previous"
@@ -174,25 +176,25 @@ def measures(head: str, test_filter: str, rec: dict) -> bool:
     return same_file and test_filter in fn
 
 
-@lru_cache(maxsize=None)
+@cache
 def _workspace_packages(root: Path) -> tuple[tuple[str, Path], ...]:
     """Actual Cargo member names and directories, including member globs."""
-    workspace = tomllib.loads((root / "Cargo.toml").read_text())["workspace"]
+    workspace = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]
     excluded = {path for pattern in workspace.get("exclude", []) for path in root.glob(pattern)}
     members = {path for pattern in workspace["members"] for path in root.glob(pattern)} - excluded
     packages = []
     for member in sorted(members):
-        manifest = tomllib.loads((member / "Cargo.toml").read_text())
+        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
         if "package" in manifest:
             packages.append((manifest["package"]["name"], member))
     return tuple(packages)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _suite_owner(root: Path, head: str) -> str | None:
     owners = []
     for package, member in _workspace_packages(root):
-        manifest = tomllib.loads((member / "Cargo.toml").read_text())
+        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
         explicit = any(
             test.get("name") == head
             and (member / test.get("path", f"tests/{head}.rs")).is_file()
@@ -206,6 +208,19 @@ def _suite_owner(root: Path, head: str) -> str | None:
     if len(owners) > 1:
         raise SystemExit(f"ambiguous calibration test target {head!r}: {', '.join(owners)}")
     return owners[0] if owners else None
+
+
+@cache
+def _suite_features(root: Path, package: str, suite: str) -> tuple[str, ...]:
+    """The Cargo features a test target declares as required, in manifest order."""
+    for name, member in _workspace_packages(root):
+        if name != package:
+            continue
+        manifest = tomllib.loads((member / "Cargo.toml").read_text(encoding="utf-8"))
+        for test in manifest.get("test", []):
+            if test.get("name") == suite:
+                return tuple(test.get("required-features", []))
+    return ()
 
 
 def _suite_file(head: str) -> bool:
@@ -227,7 +242,7 @@ def select(groups: list[Group], everything: bool) -> Selection:
     """The groups to run; see the module docstring for the rule."""
     if everything:
         return Selection(groups, 0, {g.index: "--all" for g in groups})
-    sys.path.insert(0, str(ROOT / "scripts"))
+    ensure_scripts_on_path()
     import calibration_facets as facets
 
     records = facets.load_records()
@@ -273,7 +288,7 @@ def pilot_timings() -> dict[str, float]:
     if not PILOT_TIMINGS.is_file():
         return out
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    for line in PILOT_TIMINGS.read_text().splitlines():
+    for line in PILOT_TIMINGS.read_text(encoding="utf-8").splitlines():
         parts = line.split("\t")
         if len(parts) != 7 or parts[3] != sha or parts[2] != "0":
             continue
@@ -316,7 +331,7 @@ def recheck_rates() -> dict[str, float]:
     if not REGISTRY.is_file():
         return {}
     counts: dict[str, list[int]] = {}
-    for rec in tomllib.loads(REGISTRY.read_text()).get("record", []):
+    for rec in tomllib.loads(REGISTRY.read_text(encoding="utf-8")).get("record", []):
         stem = Path(str(rec["test"]).rpartition("::")[0]).stem
         tally = counts.setdefault(stem, [0, 0])
         for point in rec.get("grid", []):
@@ -415,14 +430,21 @@ def prebuild(groups: list[Group]) -> int:
     packages = sorted({g.head for g in groups if _package(g.head)})
     for package in packages:
         commands.append(["cargo", "test", "--release", "-p", package, "--lib", "--no-run"])
-    suites_by_package: dict[str, set[str]] = {}
+    # A suite that declares required features is built with exactly those features,
+    # the way scripts/gate_calibration.sh runs it, so the binary is reused and the
+    # package's other suites are not rebuilt with a different feature set.
+    suites_by_package: dict[tuple[str, tuple[str, ...]], set[str]] = {}
     for group in groups:
         owner = _suite_owner(ROOT, group.head)
         if owner is not None:
-            suites_by_package.setdefault(owner, set()).add(group.head)
-    for package, suites in sorted(suites_by_package.items()):
+            features = _suite_features(ROOT, owner, group.head)
+            suites_by_package.setdefault((owner, features), set()).add(group.head)
+    for (package, features), suites in sorted(suites_by_package.items()):
         tests = [arg for suite in sorted(suites) for arg in ("--test", suite)]
-        commands.append(["cargo", "test", "--release", "-p", package, *tests, "--no-run"])
+        feature_args = ["--features", ",".join(features)] if features else []
+        commands.append(
+            ["cargo", "test", "--release", "-p", package, *feature_args, *tests, "--no-run"]
+        )
     for command in commands:
         print(f"== build: {' '.join(command)}", flush=True)
         if subprocess.run(command, cwd=ROOT).returncode != 0:
@@ -469,7 +491,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
         if point is not None:
             task_env["ANTECEDENT_CALIBRATION_GRID_POINTS"] = str(point)
         begin = time.monotonic()
-        with console.open("w") as out:
+        with console.open("w", encoding="utf-8", newline="\n") as out:
             status = subprocess.run(
                 ["bash", str(GATE)], cwd=ROOT, env=task_env,
                 stdout=out, stderr=subprocess.STDOUT,
@@ -479,7 +501,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
         test_seconds = sum(
             float(value) for value in re.findall(
                 r"^test result: ok\..*?finished in ([0-9.]+)s",
-                log.read_text() if log.is_file() else "",
+                log.read_text(encoding="utf-8") if log.is_file() else "",
                 re.M,
             )
         )
@@ -490,7 +512,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
             finished += 1
             if status != 0:
                 failed.append(label)
-            with PILOT_TIMINGS.open("a") as timings:
+            with PILOT_TIMINGS.open("a", encoding="utf-8", newline="\n") as timings:
                 timings.write(
                     f"{label}\t{elapsed:.2f}\t{status}\t{sha}\t1\t{PILOT_NSIM}"
                     f"\t{test_seconds:.2f}\n"
@@ -501,7 +523,7 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
                 flush=True,
             )
 
-    PILOT_TIMINGS.write_text("")
+    PILOT_TIMINGS.write_text("", encoding="utf-8", newline="\n")
     print(f"piloting {len(tasks)} grid job(s) with {PILOT_NSIM} smoke replicates; no coverage records")
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         list(pool.map(one, tasks))
@@ -578,7 +600,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
         begin = time.monotonic()
         with lock:
             print(f"[{_clock(begin - started)}] start group {group.index}: {label}")
-        with console.open("w") as out:
+        with console.open("w", encoding="utf-8", newline="\n") as out:
             status = subprocess.run(
                 ["bash", str(GATE)],
                 cwd=ROOT,
@@ -592,7 +614,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             done.append(group.index)
             if status != 0:
                 failed.append(label)
-            with TIMINGS.open("a") as timings:
+            with TIMINGS.open("a", encoding="utf-8", newline="\n") as timings:
                 timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{threads}\n")
             verdict = "ok" if status == 0 else f"FAILED (see {console.relative_to(ROOT)})"
             print(

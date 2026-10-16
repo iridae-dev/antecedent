@@ -69,8 +69,8 @@ impl LearnerFactory for ForestLearner {
         if matches!(self.task, PredictionTask::BinaryProbability) {
             require_binary_labels(&gathered_y)?;
         }
-        let matrix = dense_row_major(&design, nrows, ncols)?;
-        let mut rng = ctx.rng.stream_for(StreamDomain::Learner, 2);
+        let matrix = dense_column_major(&design, nrows, ncols)?;
+        let mut rng = ctx.rng.stream_for(StreamDomain::Learner, crate::streams::FOREST);
         let seed = rng.next_u64();
         let n_trees = self.spec.n_trees as usize;
         let leaf = self.spec.resolved_min_samples_leaf(self.task) as usize;
@@ -125,7 +125,7 @@ impl FittedPredictor for FittedForestPredictor {
         if out.len() != nrows {
             return Err(LearnError::Shape { message: "predict out length != logical rows" });
         }
-        let matrix = dense_row_major(&design, nrows, ncols)?;
+        let matrix = dense_column_major(&design, nrows, ncols)?;
         let preds = match &self.model {
             FittedForest::Rf(m) => {
                 m.predict(&matrix).map_err(|e| LearnError::Backend(e.to_string()))?
@@ -147,7 +147,7 @@ impl FittedPredictor for FittedForestPredictor {
             // only guards what remains: floating error and single-class leaves.
             PredictionTask::BinaryProbability => {
                 for (slot, p) in out.iter_mut().zip(preds) {
-                    *slot = p.clamp(1e-9, 1.0 - 1e-9);
+                    *slot = crate::learner::clip_probability(p);
                 }
             }
         }
@@ -227,18 +227,16 @@ impl FittedPredictor for FittedForestPredictor {
     }
 }
 
-fn dense_row_major(
+fn dense_column_major(
     colmajor: &[f64],
     nrows: usize,
     ncols: usize,
 ) -> Result<DenseMatrix<f64>, LearnError> {
-    let mut rows = Vec::with_capacity(nrows);
-    for r in 0..nrows {
-        let mut row = Vec::with_capacity(ncols);
-        for c in 0..ncols {
-            row.push(colmajor[c * nrows + r]);
-        }
-        rows.push(row);
+    // `from_2d_vec` rebuilt this column-major buffer as rows and then copied it back.
+    // `DenseMatrix::new(..., column_major: true)` keeps the same layout and values.
+    if nrows == 0 || ncols == 0 || colmajor.len() < nrows.saturating_mul(ncols) {
+        return Err(LearnError::Shape { message: "forest design must be non-empty" });
     }
-    DenseMatrix::from_2d_vec(&rows).map_err(|e| LearnError::Backend(e.to_string()))
+    DenseMatrix::new(nrows, ncols, colmajor[..nrows * ncols].to_vec(), true)
+        .map_err(|e| LearnError::Backend(e.to_string()))
 }

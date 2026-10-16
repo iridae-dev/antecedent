@@ -30,6 +30,7 @@ pub mod completion;
 pub mod cpdag;
 pub mod cpdag_completion;
 pub mod dag;
+mod directed;
 pub mod dsep;
 pub mod error;
 pub mod marked_storage;
@@ -41,6 +42,7 @@ pub mod pag;
 pub mod projection;
 pub mod selection;
 pub mod temporal;
+pub mod temporal_admg;
 pub mod temporal_cpdag_completion;
 pub mod temporal_pag;
 pub mod temporal_pag_completion;
@@ -50,11 +52,10 @@ pub mod unfold;
 pub mod unfold_pag;
 pub mod workspace;
 
-pub use admg::Admg;
+pub use admg::{Admg, CopyLabels};
 pub use antecedent_core::NodeRef;
 pub use completion::{
     CompletionSampler, CompletionValidationReport, PagCompletion, is_mag_completion,
-    is_maximal_ancestral_graph,
 };
 pub use cpdag::{Cpdag, CpdagReview, TemporalCpdag};
 pub use cpdag_completion::{CpdagCompletion, CpdagCompletionSampler, is_mec_member};
@@ -67,9 +68,8 @@ pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag, PagReview};
 pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use selection::SelectionDiagram;
 pub use temporal::TemporalDag;
-pub use temporal_cpdag_completion::{
-    TemporalCpdagCompletion, TemporalCpdagCompletionSampler, is_temporal_mec_member,
-};
+pub use temporal_admg::TemporalAdmg;
+pub use temporal_cpdag_completion::{TemporalCpdagCompletion, TemporalCpdagCompletionSampler};
 pub use temporal_pag::{TemporalPag, TemporalPagReview};
 pub use temporal_pag_completion::{TemporalPagCompletion, TemporalPagCompletionSampler};
 pub use tiered::{TieredBackground, WithinTier};

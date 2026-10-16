@@ -77,13 +77,16 @@ fn cluster_partial_interference_total_effect_passes_public_prepare_estimate_arti
         EstimatorId::InterferenceClusterNeyman
     );
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert!((direct.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    assert!(
+        (direct.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
     assert_eq!(direct.support_status, result.support_status);
     assert_eq!(result.support_status, None);
-    assert!((result.estimate.ate - 3.0).abs() < 1e-12);
-    assert!((result.estimate.se_analytic - 2.0_f64.sqrt()).abs() < 1e-12);
-    assert!(result.estimate.simultaneous_interval.is_none());
-    assert_eq!(result.interference.as_ref().unwrap().minimum_exposure_probability, 0.5);
+    assert!((result.estimate.as_effect().unwrap().ate - 3.0).abs() < 1e-12);
+    assert!((result.estimate.as_effect().unwrap().se_analytic() - 2.0_f64.sqrt()).abs() < 1e-12);
+    assert!(result.estimate.as_effect().unwrap().family.simultaneous_interval.is_none());
+    assert_eq!(result.interference().unwrap().minimum_exposure_probability, 0.5);
     let artifact =
         prepared.encode_contracted_result(&result, "cluster-total-effect", &ctx).unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
@@ -215,7 +218,7 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
 
     let result = prepared.estimate(&data, &context).unwrap();
     assert_eq!(result.support_status, Some(antecedent::CellStatus::Licensed));
-    let estimated = result.interference.as_ref().expect("design-based contrast");
+    let estimated = result.interference().expect("design-based contrast");
     let truth = &fixture["expected"];
     let tolerance = fixture["tolerance"]["atol"].as_f64().unwrap();
     assert!(
@@ -246,7 +249,7 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
     let shifted = shifted_outcomes(&data, 0.5);
     let refreshed = prepared.refresh(shifted, &context).unwrap();
     assert!(
-        (refreshed.interference.as_ref().unwrap().contrast.horvitz_thompson
+        (refreshed.interference().unwrap().contrast.horvitz_thompson
             - estimated.contrast.horvitz_thompson)
             .abs()
             <= tolerance
@@ -291,7 +294,7 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     );
     let truth = fixture["expected_contrast"].as_f64().unwrap();
     let tolerance = fixture["tolerance"].as_f64().unwrap();
-    assert!((result.estimate.ate - truth).abs() < tolerance);
+    assert!((result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance);
     assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 20_000);
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|record| {
         matches!(&record.assumption, antecedent_core::Assumption::ParametricRestriction(item)
@@ -308,7 +311,11 @@ fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scop
     assert!(!consumed.acceptance.accepts_as_verified_program());
 
     let refreshed = prepared.refresh(shifted_outcomes(&data, 0.5), &context).unwrap();
-    assert!((refreshed.estimate.ate - result.estimate.ate).abs() < tolerance);
+    assert!(
+        (refreshed.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+            .abs()
+            < tolerance
+    );
     assert_eq!(prepared.checked_interference_info().unwrap().unit_count, 4);
     let refreshed_artifact = prepared
         .encode_contracted_result(&refreshed, "checked-interference-bayesian-refresh", &context)

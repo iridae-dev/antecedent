@@ -1,4 +1,4 @@
-//! Independent artifact for the 2.3 B1 dose-grid functional row (X4).
+//! Independent artifact for the dose-grid functional row.
 //!
 //! Format version 1. The artifact binds the design attestation, the one named
 //! functional, the grid (or the two contrast doses), the fixed bandwidth with its
@@ -349,11 +349,6 @@ struct DataView {
     outcome: Vec<u64>,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 fn bits(values: &[f64]) -> Vec<u64> {
     values.iter().map(|v| v.to_bits()).collect()
 }
@@ -451,7 +446,7 @@ impl DoseGridRequestWire {
     }
 
     fn premises_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(IdentityDomain::Claim, &self.premises_view())?.to_hex())
+        crate::digest_hex(IdentityDomain::Claim, &self.premises_view())
     }
 
     fn data_digest(&self) -> Result<String, IoError> {
@@ -460,7 +455,7 @@ impl DoseGridRequestWire {
             dose: bits(&self.dose),
             outcome: bits(&self.outcome),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::DataSnapshot, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::DataSnapshot, &view)
     }
 
     fn evaluation_points(&self, functional: DoseFunctional) -> Vec<f64> {
@@ -711,11 +706,13 @@ impl DoseGridArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != DOSE_GRID_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == DOSE_GRID_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -746,12 +743,15 @@ impl DoseGridArtifactWire {
         })?;
         wire.request.check_limits(&limits)?;
         let undecodable = |e: IoError| DoseGridArtifactError::Undecodable(e.to_string());
-        if wire.request.premises_digest().map_err(undecodable)? != wire.premises_digest {
-            return Err(DoseGridArtifactError::PremisesMismatch);
-        }
-        if wire.request.data_digest().map_err(undecodable)? != wire.data_digest {
-            return Err(DoseGridArtifactError::DataMismatch);
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.request.premises_digest(),
+            undecodable,
+            || DoseGridArtifactError::PremisesMismatch,
+        )?;
+        crate::require_digest(&wire.data_digest, wire.request.data_digest(), undecodable, || {
+            DoseGridArtifactError::DataMismatch
+        })?;
         let fresh = wire.request.evaluate()?;
         let stored = crate::to_cbor(&wire.result).map_err(undecodable)?;
         let recomputed = crate::to_cbor(&fresh).map_err(undecodable)?;

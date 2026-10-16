@@ -162,7 +162,10 @@ fn refused(bytes: &[u8]) -> MzTransportArtifactError {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One artifact, every mutation of it.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for a mutated artifact fails independent consumption"
+)]
 fn a_mutated_artifact_fails_independent_consumption() {
     let (catalog, data) = evidence();
     let prepared = prepare(&catalog, data, false);
@@ -727,7 +730,7 @@ fn the_facade_error_reports_the_recorded_top_level_code() {
 }
 
 /// Compatibility: a reader refuses any other format version before reading the
-/// payload (so a 2.2 reader never half-reads a newer artifact, and an older
+/// payload (so an older reader never half-reads a newer artifact, and an older
 /// one never reads this), and refuses a required feature it does not know.
 #[test]
 fn another_format_version_or_an_unknown_required_feature_is_refused() {
@@ -764,7 +767,7 @@ fn another_format_version_or_an_unknown_required_feature_is_refused() {
     assert!(
         consume_mz_transport_artifact(&bytes, MzTransportConsumeLimits::default(), &ctx).is_ok()
     );
-    // Cross-format: the 2.2 mz artifact (version 1) is refused by the 2.1
+    // Cross-format: the mz artifact (version 1) is refused by the
     // z-transport reader (version 2) by version, before its payload is read.
     assert!(matches!(
         antecedent_io::z_transport_artifact::ZTransportArtifactWire::decode(&bytes),

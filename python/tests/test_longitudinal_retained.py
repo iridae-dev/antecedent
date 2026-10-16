@@ -40,13 +40,13 @@ def test_known_truth_regime_value_prepare_analyze_and_artifact():
     assert antecedent.analyze(data, query=query).longitudinal_regime == result.longitudinal_regime
 
     loaded = antecedent.load(prepared.export())
-    assert loaded.artifact.payload_kind == "analysis_result"
-    section = loaded.artifact.payload["longitudinal_regime"]
+    assert loaded.decoded_artifact.payload_kind == "analysis_result"
+    section = loaded.decoded_artifact.to_dict()["payload"]["longitudinal_regime"]
     assert section["value"] == pytest.approx(4.0)
     assert section["uncertainty"] == "point_only_no_interval"
     query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
     assert query_artifact.payload_kind == "query"
-    query_wire = query_artifact.payload["longitudinal_regime"]
+    query_wire = query_artifact.to_dict()["payload"]["longitudinal_regime"]
     assert query_wire["subject_ids"] == ["a", "b", "c", "d"]
     assert query_wire["fold_ids"] == [0, 0, 0, 0]
     with pytest.raises(ValueError, match="align with subject histories"):
@@ -74,9 +74,9 @@ def test_retained_ipw_interval_on_independent_subject_histories_round_trips():
     assert value.interval_reason is None
     assert value.support_status == "off_axis_pointwise_95"
     artifact = antecedent.load(result.export(artifact_id="regime-ipw-interval"))
-    assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(
-        value.value_interval_95
-    )
+    assert artifact.decoded_artifact.payload["longitudinal_regime"][
+        "value_interval_95"
+    ] == pytest.approx(value.value_interval_95)
 
 
 def test_retained_msm_intercept_and_period_intervals_round_trip():
@@ -102,7 +102,7 @@ def test_retained_msm_intercept_and_period_intervals_round_trip():
         assert interval[0] < effect < interval[1]
     artifact = antecedent.load(result.export(artifact_id="msm-interval"))
     for actual, expected in zip(
-        artifact.artifact.payload["longitudinal_regime"]["period_intervals_95"],
+        artifact.decoded_artifact.payload["longitudinal_regime"]["period_intervals_95"],
         value.period_intervals_95,
         strict=True,
     ):
@@ -146,11 +146,11 @@ def test_dynamic_rule_freezes_only_available_history_with_identity_and_point_val
     assert fit.uncertainty == "point_only_no_interval"
     assert fit.support_status == "unlicensed_point_utility"
     assert antecedent.analyze(data, query=query).longitudinal_regime == fit
-    result_wire = antecedent.load(prepared.export()).artifact.payload["longitudinal_regime"]
+    result_wire = antecedent.load(prepared.export()).decoded_artifact.payload["longitudinal_regime"]
     assert result_wire["rule_provenance"] == "study-protocol-7"
-    query_wire = antecedent.artifacts.loads(prepared.export_artifact(payload="query")).payload[
-        "longitudinal_regime"
-    ]
+    query_wire = antecedent.artifacts.loads(prepared.export_artifact(payload="query")).to_dict()[
+        "payload"
+    ]["longitudinal_regime"]
     assert query_wire["rule_id"] == "adaptive-threshold"
     assert query_wire["regime_actions"] == [True, True, True, True, False, False, False, False]
 
@@ -278,10 +278,10 @@ def test_g_formula_regime_uses_main_analysis_and_round_trips_method():
     assert result.longitudinal_regime.support_status == "unlicensed_point_utility"
     assert "conditional_period_reward_validity" in " ".join(result.assumptions or [])
     assert antecedent.analyze(data, query=query).longitudinal_regime == result.longitudinal_regime
-    artifact = antecedent.load(prepared.export()).artifact
-    assert artifact.payload["longitudinal_regime"]["method"] == "g_formula"
+    artifact = antecedent.load(prepared.export()).decoded_artifact
+    assert artifact.to_dict()["payload"]["longitudinal_regime"]["method"] == "g_formula"
     query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
-    assert query_artifact.payload["longitudinal_regime"]["method"] == "g_formula"
+    assert query_artifact.to_dict()["payload"]["longitudinal_regime"]["method"] == "g_formula"
 
 
 def test_g_formula_query_refuses_missing_or_nonfinite_predictions():
@@ -344,10 +344,10 @@ def test_sequential_dr_retained_matches_direct_kernel_and_artifact():
     )
     assert "subject_excluded_fold_predictions" in " ".join(result.assumptions or [])
     assert antecedent.analyze(data, query=query).longitudinal_regime == result.longitudinal_regime
-    artifact = antecedent.load(prepared.export()).artifact
-    assert artifact.payload["longitudinal_regime"]["method"] == "sequential_dr"
+    artifact = antecedent.load(prepared.export()).decoded_artifact
+    assert artifact.to_dict()["payload"]["longitudinal_regime"]["method"] == "sequential_dr"
     query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
-    assert query_artifact.payload["longitudinal_regime"]["q_predictions"] == [
+    assert query_artifact.to_dict()["payload"]["longitudinal_regime"]["q_predictions"] == [
         1.0,
         3.0,
         5.0,
@@ -387,8 +387,8 @@ def test_sequential_dr_supported_interval_keeps_q_fold_ownership_in_artifact():
     assert value.support_status == "unlicensed_point_utility"
     assert result.answer.detail == "longitudinal_regime_point_only"
     artifact = antecedent.load(result.export(artifact_id="sequential-dr-interval"))
-    assert artifact.artifact.payload["longitudinal_regime"].get("value_interval_95") is None
-    query_wire = artifact.artifact.payload["query"]["longitudinal_regime"]
+    assert artifact.decoded_artifact.payload["longitudinal_regime"].get("value_interval_95") is None
+    query_wire = artifact.decoded_artifact.to_dict()["payload"]["query"]["longitudinal_regime"]
     assert query_wire["prediction_fold_ids"] == query_wire["fold_ids"] == folds
     assert query_wire["excluded_fold_predictions"] is True
 
@@ -423,9 +423,9 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
     )
     assert "sequential_q_validity" in " ".join(result.assumptions or [])
     artifact = antecedent.load(result.export(artifact_id="three-period-dr"))
-    assert artifact.artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(
-        value.value_interval_95
-    )
+    assert artifact.decoded_artifact.payload["longitudinal_regime"][
+        "value_interval_95"
+    ] == pytest.approx(value.value_interval_95)
 
     four = dict(args)
     four.update(
@@ -470,7 +470,8 @@ def test_two_period_sequential_dr_graphless_license_requires_calibrated_subject_
     assert result.longitudinal_regime.support_status == "licensed"
     artifact = antecedent.load(result.export(artifact_id="two-period-dr-license"))
     assert (
-        artifact.artifact.payload["longitudinal_regime"]["graphless_support_status"] == "licensed"
+        artifact.decoded_artifact.payload["longitudinal_regime"]["graphless_support_status"]
+        == "licensed"
     )
     args["subject_ids"] = args["subject_ids"][:499]
     args["treatment_history"] = args["treatment_history"][:499]
@@ -536,10 +537,14 @@ def test_msm_retained_matches_direct_and_round_trips_pointwise_uncertainty():
     assert fit.support_status == "unlicensed_point_utility"
     assert "additive_marginal_structural_mean" in " ".join(result.assumptions or [])
     assert antecedent.analyze({"y": y}, query=query).longitudinal_regime == fit
-    artifact = antecedent.load(prepared.export()).artifact
-    assert artifact.payload["longitudinal_regime"]["period_effects"] == pytest.approx([2.0, 3.0])
+    artifact = antecedent.load(prepared.export()).decoded_artifact
+    assert artifact.to_dict()["payload"]["longitudinal_regime"]["period_effects"] == pytest.approx(
+        [2.0, 3.0]
+    )
     query_artifact = antecedent.artifacts.loads(prepared.export_artifact(payload="query"))
-    assert query_artifact.payload["longitudinal_regime"]["stabilizing_numerator_probabilities"] == [
+    assert query_artifact.to_dict()["payload"]["longitudinal_regime"][
+        "stabilizing_numerator_probabilities"
+    ] == [
         0.5,
         0.5,
     ]

@@ -1,6 +1,6 @@
-//! F11: typed candidate-signal providers (native families and an external signal).
+//! Typed candidate-signal providers (native families and an external signal).
 //!
-//! Oracle (frozen F11 record, enumerated by hand): a binary latent state
+//! Oracle (frozen signal-provider record, enumerated by hand): a binary latent state
 //! `theta in {0, 1}` with prior `P(theta = 1) = 1/2`, and one signal `y` with
 //! sensitivity `P(y = 1 | theta = 1) = 3/4` and specificity `P(y = 0 | theta = 0) = 3/4`.
 //! Then `P(y = 1) = 1/2 * 3/4 + 1/2 * 1/4 = 1/2`, and by Bayes
@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
+use antecedent_contract::{
     ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
     QuantityRole, ScientificQuantity, SignalProviderContract,
 };
@@ -21,18 +21,14 @@ use antecedent_design::signal::{
 };
 use antecedent_design::{CandidateDesign, DesignCost, SamplingPlan};
 
+mod common;
+
 fn quantity(role: QuantityRole, id: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: id.into(),
-        variable_name: id.into(),
         role,
         units: "dimensionless".into(),
-        population_id: "target".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(id)
     }
 }
 
@@ -84,7 +80,7 @@ const FACTOR_CAPS: [ExternalCapability; 3] =
 const UPDATE_CAPS: [ExternalCapability; 2] =
     [ExternalCapability::Sample, ExternalCapability::Update];
 
-/// The frozen F11 law as an externally computed posterior.
+/// The frozen signal-provider law as an externally computed posterior.
 fn frozen_posterior() -> ExternalLaw {
     ExternalLaw::Posterior {
         states: vec![0.0, 1.0],
@@ -121,7 +117,7 @@ fn posterior_of_one(signal: &dyn DecisionSignal<f64>, y: f64, n: u64) -> f64 {
 }
 
 #[test]
-fn f11_known_truth_external_posterior_reproduces_the_frozen_update() {
+fn known_truth_external_posterior_reproduces_the_frozen_update() {
     let req = request("study-a", 1);
     let prepared = external_posterior(&req).prepare(&req).unwrap();
     assert_eq!(prepared.receipt.update_mode, SignalUpdateMode::ExternalPosterior);
@@ -138,7 +134,7 @@ fn f11_known_truth_external_posterior_reproduces_the_frozen_update() {
 }
 
 #[test]
-fn f11_native_update_from_a_supplied_likelihood_reproduces_the_frozen_update() {
+fn native_update_from_a_supplied_likelihood_reproduces_the_frozen_update() {
     let req = request("study-a", 1);
     let law = ExternalLaw::Likelihood {
         states: vec![0.0, 1.0],
@@ -160,7 +156,7 @@ fn f11_native_update_from_a_supplied_likelihood_reproduces_the_frozen_update() {
 }
 
 #[test]
-fn f11_externally_computed_decision_values_are_tagged_and_not_native() {
+fn externally_computed_decision_values_are_tagged_and_not_native() {
     let req = request("study-a", 1);
     let values = ExternalDecisionValues {
         branch_probabilities: vec![0.5, 0.5],
@@ -183,7 +179,7 @@ fn f11_externally_computed_decision_values_are_tagged_and_not_native() {
 }
 
 #[test]
-fn f11_native_binomial_and_equivalent_external_law_agree_pointwise() {
+fn native_binomial_and_equivalent_external_law_agree_pointwise() {
     // One Bernoulli trial: P(y = 1 | theta) = theta, so at theta in {1/4, 3/4}:
     // y = 0 -> [3/4, 1/4], y = 1 -> [1/4, 3/4].
     let req = request("study-a", 1);
@@ -207,7 +203,7 @@ fn f11_native_binomial_and_equivalent_external_law_agree_pointwise() {
 }
 
 #[test]
-fn f11_native_receipts_are_native_and_differ_from_an_equivalent_external_receipt() {
+fn native_receipts_are_native_and_differ_from_an_equivalent_external_receipt() {
     let req = request("study-a", 1);
     let native = NativeBinomialSignal.prepare(&req).unwrap();
     assert_eq!(native.receipt.trust, SignalTrustLabel::NativeLicensed);
@@ -229,7 +225,7 @@ fn f11_native_receipts_are_native_and_differ_from_an_equivalent_external_receipt
 }
 
 #[test]
-fn f11_predictive_law_without_coherent_posterior_update_refuses() {
+fn predictive_law_without_coherent_posterior_update_refuses() {
     let req = request("study-a", 1);
     // Rows sum to one, but averaging over P(y) gives P(theta = 0) = 0.575, not the prior 1/2.
     let law = ExternalLaw::Posterior {
@@ -256,7 +252,7 @@ fn f11_predictive_law_without_coherent_posterior_update_refuses() {
 }
 
 #[test]
-fn f11_repeated_state_draws_require_one_conditional_law() {
+fn repeated_state_draws_require_one_conditional_law() {
     let req = request("study-a", 1);
     let states = vec![0.0, 0.0, 1.0];
     let law = ExternalLaw::Likelihood {
@@ -295,7 +291,7 @@ fn f11_repeated_state_draws_require_one_conditional_law() {
 }
 
 #[test]
-fn f11_wrong_candidate_prior_sample_size_or_fingerprint_refuses() {
+fn wrong_candidate_prior_sample_size_or_fingerprint_refuses() {
     let req = request("study-a", 1);
     let provider = external_posterior(&req);
     let mut other = request("study-b", 1);
@@ -336,7 +332,7 @@ fn f11_wrong_candidate_prior_sample_size_or_fingerprint_refuses() {
 }
 
 #[test]
-fn f11_returned_posterior_quantity_must_align_with_the_request() {
+fn returned_posterior_quantity_must_align_with_the_request() {
     let req = request("study-a", 1);
     let obj = object(&req, UPDATE_CAPS.to_vec());
     let trust = attested(&obj);
@@ -356,7 +352,7 @@ fn f11_returned_posterior_quantity_must_align_with_the_request() {
 }
 
 #[test]
-fn f11_native_trust_capability_and_object_claims_refuse() {
+fn native_trust_capability_and_object_claims_refuse() {
     let req = request("study-a", 1);
     let obj = object(&req, UPDATE_CAPS.to_vec());
     let error = ExternalSignal::new(
@@ -380,7 +376,7 @@ fn f11_native_trust_capability_and_object_claims_refuse() {
     assert_eq!(error.to_refusal().capability, Some(ExternalCapability::Factor));
 
     // A non-signal object is not a signal declaration.
-    let utility = ExternalScientificObject::Utility(antecedent_core::UtilityProviderContract {
+    let utility = ExternalScientificObject::Utility(antecedent_contract::UtilityProviderContract {
         identity: ProviderObjectIdentity {
             provider_id: "p".into(),
             object_id: "o".into(),
@@ -393,7 +389,7 @@ fn f11_native_trust_capability_and_object_claims_refuse() {
         action_ids: vec!["a".into()],
         stochastic: false,
         bounds: None,
-        monotonicity: vec![antecedent_core::UtilityMonotonicity::Unspecified],
+        monotonicity: vec![antecedent_contract::UtilityMonotonicity::Unspecified],
         capabilities: vec![ExternalCapability::EvaluateUtility],
     });
     let trust = ExternalTrustState::ExternallyAttested { attestor: "x".into() };
@@ -402,7 +398,7 @@ fn f11_native_trust_capability_and_object_claims_refuse() {
 }
 
 #[test]
-fn f11_request_declares_lineage_independence_sample_size_and_limits() {
+fn request_declares_lineage_independence_sample_size_and_limits() {
     let mut req = request("study-a", 1);
     req.evidence_lineage.clear();
     assert_eq!(req.validate(), Err(SignalError::MissingLineage));

@@ -54,6 +54,13 @@ pub(crate) const STRUCTURE_STREAM: u64 = 0x5C01;
 /// Stream domain of the per-unit Shapley permutation seeds.
 pub(crate) const UNIT_STREAM: u64 = 0x0117;
 
+/// Stream domain of the Shapley permutation sampler.
+pub(crate) const SHAPLEY_STREAM: u64 = 0x5A91;
+/// Stream domain of the robust (fit-uncertainty) linear and mechanism payoffs.
+pub(crate) const ROBUST_STREAM: u64 = 0x80B7;
+/// Stream domain of the kernel two-sample permutation null.
+pub(crate) const KERNEL_STREAM: u64 = 0x4E12;
+
 /// Stream tag for `(domain, seed)`.
 ///
 /// A `SplitMix64` finalizer over the seed shifted by the domain, so streams of different
@@ -62,10 +69,21 @@ pub(crate) const UNIT_STREAM: u64 = 0x0117;
 /// domain the map is a bijection of the seed, so distinct seeds keep distinct streams.
 #[must_use]
 pub(crate) fn stream_tag(domain: u64, seed: u64) -> u64 {
-    let mut z = seed.wrapping_add(domain.wrapping_mul(0x9E37_79B9_7F4A_7C15));
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
+    antecedent_core::mix64(seed.wrapping_add(domain.wrapping_mul(antecedent_core::GOLDEN_GAMMA)))
+}
+
+/// The context's attribution stream for `(domain, seed)`.
+///
+/// Every attribution Monte Carlo arm draws through this one function, so the result
+/// depends on the context's master seed and `domain`s cannot alias through a shared
+/// additive offset.
+#[must_use]
+pub(crate) fn attribution_stream(
+    ctx: &ExecutionContext,
+    domain: u64,
+    seed: u64,
+) -> antecedent_core::CausalRng {
+    ctx.rng.stream_for(StreamDomain::Attribution, stream_tag(domain, seed))
 }
 
 /// Mean and (floored) variance of the outcome under `model`, from `n_samples` ancestral
@@ -183,17 +201,25 @@ pub(crate) trait CachedOutcomeLawPayoff {
     }
 }
 
+/// What a change allocation divides, among whom, and by which method.
+#[derive(Clone, Copy)]
+pub(crate) struct ChangeAllocation<'a> {
+    pub outcome: VariableId,
+    pub players: &'a [ComponentId],
+    pub allocation: &'a AllocationMethod,
+    /// Model whose graph orders path-based allocation.
+    pub model_for_paths: Option<&'a antecedent_model::CompiledCausalModel>,
+}
+
 /// Run Shapley / sequential / path-based allocation and pack a [`ChangeAttributionResult`].
 pub(crate) fn run_change_allocation<P: CoalitionPayoff>(
-    outcome: VariableId,
-    players: &[ComponentId],
-    allocation: &AllocationMethod,
+    request: &ChangeAllocation<'_>,
     payoff: &mut P,
     total_change: f64,
     unidentified: Arc<[ComponentId]>,
     ctx: &ExecutionContext,
-    model_for_paths: Option<&antecedent_model::CompiledCausalModel>,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    let ChangeAllocation { outcome, players, allocation, model_for_paths } = *request;
     match allocation {
         AllocationMethod::Shapley { approximation } => {
             let estimate = estimate_shapley(players, approximation, payoff, ctx)?;
@@ -251,7 +277,6 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     unidentified: Arc<[ComponentId]>,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
-    use crate::path::path_decompose;
     use crate::result::ComponentContribution;
 
     // PathBased is the O(n) analogue of Shapley: instead of averaging each
@@ -285,9 +310,16 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
         raw_players.push(v_i - v0);
     }
 
+    // One coefficient map for every player. Rebuilding it per player repeated the
+    // same linear read; the path products below are unchanged.
+    if ctx.cancellation.is_cancelled() {
+        return Err(AttributionError::Cancelled);
+    }
+    let strengths = crate::path::edge_strength_map(model)?;
     let mut player_paths = Vec::with_capacity(players.len());
     for &comp in players {
-        let res = path_decompose(model, &[comp.variable()], outcome, 64, 16, ctx)?;
+        let res =
+            crate::path::path_shares(model, &[comp.variable()], outcome, 64, 16, ctx, &strengths)?;
         player_paths.push(res.path_breakdown.to_vec());
     }
 
@@ -417,15 +449,18 @@ mod tests {
         let players = [ComponentId::from_raw(1), ComponentId::from_raw(2)];
         let allocation =
             AllocationMethod::Sequential { order: Arc::from([ComponentId::from_raw(1)]) };
+        let request = ChangeAllocation {
+            outcome: VariableId::from_raw(9),
+            players: &players,
+            allocation: &allocation,
+            model_for_paths: None,
+        };
         let err = run_change_allocation(
-            VariableId::from_raw(9),
-            &players,
-            &allocation,
+            &request,
             &mut AdditivePayoff,
             2.0,
             Arc::from([]),
             &ExecutionContext::for_tests(1),
-            None,
         )
         .unwrap_err();
         assert!(matches!(err, AttributionError::InvalidInput { .. }));
@@ -437,15 +472,18 @@ mod tests {
         let allocation = AllocationMethod::Sequential {
             order: Arc::from([ComponentId::from_raw(1), ComponentId::from_raw(3)]),
         };
+        let request = ChangeAllocation {
+            outcome: VariableId::from_raw(9),
+            players: &players,
+            allocation: &allocation,
+            model_for_paths: None,
+        };
         let err = run_change_allocation(
-            VariableId::from_raw(9),
-            &players,
-            &allocation,
+            &request,
             &mut AdditivePayoff,
             2.0,
             Arc::from([]),
             &ExecutionContext::for_tests(1),
-            None,
         )
         .unwrap_err();
         assert_eq!(err, AttributionError::UnknownPlayer);

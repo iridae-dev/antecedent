@@ -1,4 +1,4 @@
-//! F21 composition parity for the aligned joint distribution.
+//! Composition parity for the aligned joint distribution.
 //!
 //! Both surfaces build the enumerated two-coordinate law of two equally weighted
 //! aligned draws (0, 0) and (1, 2): means (1/2, 1), covariance 1/2 and E[XY] = 1.
@@ -11,26 +11,25 @@
 //! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io --test
 //! cross_surface_joint_law -- --ignored regenerate_rust_fixtures`.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::{conformance_dir, read_fixture_bytes};
 
 fn fixture_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cross_surface")
+    conformance_dir("cross_surface")
 }
 
 fn read_fixture(name: &str) -> Vec<u8> {
-    let path = fixture_dir().join(name);
-    std::fs::read(&path).unwrap_or_else(|error| {
-        panic!(
-            "missing cross-surface fixture {} ({error}); run \
-             `python python/tests/generate_cross_surface_fixtures.py` from the repo root",
-            path.display()
-        )
-    })
+    read_fixture_bytes(
+        &fixture_dir(),
+        name,
+        "run \
+            `python python/tests/generate_cross_surface_fixtures.py` from the repo root",
+    )
 }
 
 fn near(a: f64, b: f64) -> bool {
@@ -105,10 +104,10 @@ fn assert_enumerated_truth(artifact: &DistributionArtifact) {
     assert!(near(artifact.joint_expectation(0, 1, |x, y| x * y).unwrap(), 1.0));
 }
 
-/// F21 positive: the Python-built law reports the enumerated truth under an identity
+/// Positive: the Python-built law reports the enumerated truth under an identity
 /// built here from constants, and the Rust-built twin has the same identity.
 #[test]
-fn f21_python_built_joint_law_reports_the_enumerated_truth_under_constants() {
+fn python_built_joint_law_reports_the_enumerated_truth_under_constants() {
     let loaded =
         DistributionArtifact::from_bytes(&read_fixture("py_joint_law.bin"), &expected_identity())
             .unwrap();
@@ -121,10 +120,10 @@ fn f21_python_built_joint_law_reports_the_enumerated_truth_under_constants() {
     assert_eq!(rust.draws(), loaded.draws());
 }
 
-/// F21 negative: a changed semantic ID or a wrong distribution meaning refuses, and
+/// Negative: a changed semantic ID or a wrong distribution meaning refuses, and
 /// independent marginals refuse the joint operations with the shared detail.
 #[test]
-fn f21_changed_semantic_id_wrong_meaning_and_marginals_refuse() {
+fn changed_semantic_id_wrong_meaning_and_marginals_refuse() {
     let bytes = read_fixture("py_joint_law.bin");
     for changed in [
         identity(DistributionMeaningWire::InterventionalPredictive, DrawAlignment::Joint, "z"),
@@ -143,10 +142,10 @@ fn f21_changed_semantic_id_wrong_meaning_and_marginals_refuse() {
     assert!(error.to_string().contains("aligned_joint_draws.marginals_not_joint"), "{error}");
 }
 
-/// F21 artifact: both directions round-trip through the one bounded wire format; the
+/// Artifact: both directions round-trip through the one bounded wire format; the
 /// Rust-built bytes are written for Python and the Python-built bytes survive here.
 #[test]
-fn f21_both_directions_round_trip_through_one_wire_format() {
+fn both_directions_round_trip_through_one_wire_format() {
     let python = read_fixture("py_joint_law.bin");
     let loaded = DistributionArtifact::from_bytes(&python, &expected_identity()).unwrap();
     let again = loaded.to_bytes("joint-law").unwrap();

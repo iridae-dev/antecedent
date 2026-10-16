@@ -20,10 +20,10 @@ from antecedent.joint_distribution import (
     ScientificQuantity,
 )
 
+from _repo_text import REPO_ROOT
+
 PIN = json.loads(
-    (
-        Path(__file__).resolve().parents[2] / "conformance/composition/rollout/expected.json"
-    ).read_text(encoding="utf-8")
+    (REPO_ROOT / "conformance/composition/rollout/expected.json").read_text(encoding="utf-8")
 )
 
 
@@ -228,7 +228,7 @@ def test_rollout_native_byte_budget_refuses_before_owned_copy_and_parse() -> Non
 
     _, _, rollout = fixture()
     expected = json.dumps(rollout.expectation())
-    with pytest.raises(ValueError, match="exceeds its byte bound"):
+    with pytest.raises(ValueError, match="is too large"):
         _native.consume_rollout(bytes(32 * 1024 * 1024 + 1), expected)
-    with pytest.raises(ValueError, match="exceeds its byte bound"):
+    with pytest.raises(ValueError, match="is too large"):
         _native.export_rollout(bytes(16 * 1024 * 1024 + 1), b"", "{}", "rollout")

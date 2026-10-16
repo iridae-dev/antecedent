@@ -1,7 +1,7 @@
-//! Typed conversions from the 2.2 estimate-crate claim types into decision atoms.
+//! Typed conversions from the estimate-crate claim types into decision atoms.
 //!
 //! The design crate cannot depend on the estimate crate, so the conversions live
-//! here, beside [`BoundDecisionContract`]. Each reads a real 2.2 result and
+//! here, beside [`BoundDecisionContract`]. Each reads a real estimate-crate result and
 //! produces what the design adapters consume:
 //!
 //! - a [`ScenarioSetReport`] becomes one structural atom per scenario, keeping
@@ -29,13 +29,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::result_large_err)]
+#![allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-claim refusal path; boxing it would change every claim-source signature"
+)]
 
 use std::collections::HashSet;
 
-use antecedent_core::{
-    ExternalRefusal, IdentifiedSet, ScientificQuantity, SupportStatus, VariableId,
-};
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+use antecedent_core::{CanonicalWriter, IdentifiedSet, SupportStatus, VariableId};
 use antecedent_design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, AdapterError, ClaimKind, ClaimProbability, IdentifiedUtility,
     SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims, utility_interval,
@@ -63,10 +65,16 @@ use super::decision_contract_facade::{BoundDecisionContract, DecisionFacadeRefus
 /// Atom identity of the completions a stop never enumerated.
 pub const NOT_ENUMERATED_ATOM: &str = "cpdag.not_enumerated";
 
+/// Domain tags of the three digests below. Each is a distinct stream, so a
+/// scenario digest cannot be replayed as a source or not-enumerated digest.
+const SCENARIO_DOMAIN: &str = "antecedent.decision_claims.scenario.v1";
+const SOURCE_DOMAIN: &str = "antecedent.decision_claims.source.v1";
+const NOT_ENUMERATED_DOMAIN: &str = "antecedent.decision_claims.not_enumerated.v1";
+
 /// Why a conversion refused.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ClaimError {
-    /// The 2.2 result cannot be read as the requested claim.
+    /// The result cannot be read as the requested claim.
     UnsupportedClaimShape(&'static str),
     /// An action input has no bound outcome or range to read a utility from.
     MissingScenarioUtility {
@@ -172,7 +180,7 @@ pub struct OutcomeBinding {
     pub quantity: ScientificQuantity,
 }
 
-/// What the conversion needs beyond the 2.2 report: the quantity each outcome
+/// What the conversion needs beyond the report: the quantity each outcome
 /// answers, the lineage of the laws, and the support of each scenario.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScenarioClaimBinding {
@@ -294,63 +302,54 @@ pub struct ClaimSource {
     pub identity: String,
 }
 
-const HEX: &[u8; 16] = b"0123456789abcdef";
-
-fn hex(bytes: &[u8; 32]) -> String {
-    bytes
-        .iter()
-        .flat_map(|b| [HEX[usize::from(b >> 4)] as char, HEX[usize::from(b & 0x0f)] as char])
-        .collect()
-}
-
-fn put_len(bytes: &mut Vec<u8>, len: usize) {
-    bytes.extend(u64::try_from(len).unwrap_or(u64::MAX).to_le_bytes());
-}
-
-fn put_str(bytes: &mut Vec<u8>, text: &str) {
-    put_len(bytes, text.len());
-    bytes.extend(text.as_bytes());
-}
-
-fn put_f64(bytes: &mut Vec<u8>, value: f64) {
-    bytes.extend(value.to_bits().to_le_bytes());
-}
-
 fn scenario_digest(result: &ScenarioResult) -> String {
-    let mut bytes = Vec::new();
-    put_str(&mut bytes, &result.name);
-    put_str(&mut bytes, result.status);
-    match result.weight {
-        Some(weight) => {
-            bytes.push(1);
-            put_f64(&mut bytes, weight);
-        }
-        None => bytes.push(0),
-    }
+    let mut stream = CanonicalWriter::new(SCENARIO_DOMAIN);
+    stream.text(&result.name).text(result.status).opt_real(result.weight);
     match &result.distribution {
         Some(law) => {
-            bytes.push(1);
-            put_len(&mut bytes, law.outcomes.len());
+            stream.word(1).word(law.outcomes.len() as u64);
             for outcome in law.outcomes.iter() {
-                bytes.extend(outcome.raw().to_le_bytes());
+                stream.word(u64::from(outcome.raw()));
             }
-            put_len(&mut bytes, law.atoms.len());
+            stream.word(law.atoms.len() as u64);
             for (atom, probability) in law.atoms.iter().zip(law.probabilities.iter()) {
                 for value in atom.iter() {
-                    match value.as_f64() {
-                        Some(x) => {
-                            bytes.push(1);
-                            put_f64(&mut bytes, x);
-                        }
-                        None => bytes.push(0),
-                    }
+                    stream.opt_real(value.as_f64());
                 }
-                put_f64(&mut bytes, *probability);
+                stream.real(*probability);
             }
         }
-        None => bytes.push(0),
+        None => {
+            stream.word(0);
+        }
     }
-    hex(&antecedent_io::payload_digest("decision_claims_scenario", &bytes))
+    stream.finish_hex()
+}
+
+/// Digest of the scenarios that were not enumerated, bound to their count.
+fn not_enumerated_digest(count: usize) -> String {
+    CanonicalWriter::new(NOT_ENUMERATED_DOMAIN).word(count as u64).finish_hex()
+}
+
+/// Digest of a claim source: kind, CPDAG, bound digests and every scenario.
+fn source_identity(
+    kind: &str,
+    cpdag_identity: Option<&str>,
+    premises_digest: &str,
+    data_digest: &str,
+    scenarios: &[ScenarioDigest],
+) -> String {
+    let mut stream = CanonicalWriter::new(SOURCE_DOMAIN);
+    stream
+        .text(kind)
+        .text(cpdag_identity.unwrap_or(""))
+        .text(premises_digest)
+        .text(data_digest)
+        .word(scenarios.len() as u64);
+    for scenario in scenarios {
+        stream.text(&scenario.id).text(&scenario.status).text(&scenario.digest);
+    }
+    stream.finish_hex()
 }
 
 impl ClaimSource {
@@ -360,18 +359,13 @@ impl ClaimSource {
         binding: &ScenarioClaimBinding,
         scenarios: Vec<ScenarioDigest>,
     ) -> Self {
-        let mut bytes = Vec::new();
-        put_str(&mut bytes, kind);
-        put_str(&mut bytes, cpdag_identity.as_deref().unwrap_or(""));
-        put_str(&mut bytes, &binding.premises_digest);
-        put_str(&mut bytes, &binding.data_digest);
-        put_len(&mut bytes, scenarios.len());
-        for scenario in &scenarios {
-            put_str(&mut bytes, &scenario.id);
-            put_str(&mut bytes, &scenario.status);
-            put_str(&mut bytes, &scenario.digest);
-        }
-        let identity = hex(&antecedent_io::payload_digest("decision_claims_source", &bytes));
+        let identity = source_identity(
+            kind,
+            cpdag_identity.as_deref(),
+            &binding.premises_digest,
+            &binding.data_digest,
+            &scenarios,
+        );
         Self {
             kind,
             cpdag_identity,
@@ -617,12 +611,10 @@ fn digests_of(input: &Input<'_>) -> Result<Vec<ScenarioDigest>, ClaimError> {
         });
     }
     if input.not_enumerated > 0 {
-        let mut bytes = Vec::new();
-        put_len(&mut bytes, input.not_enumerated);
         digests.push(ScenarioDigest {
             id: NOT_ENUMERATED_ATOM.to_owned(),
             status: "unevaluated".to_owned(),
-            digest: hex(&antecedent_io::payload_digest("decision_claims_not_enumerated", &bytes)),
+            digest: not_enumerated_digest(input.not_enumerated),
         });
     }
     Ok(digests)
@@ -962,7 +954,7 @@ pub enum IntervalReading {
     CoverageInterval,
 }
 
-/// Interval of each action's utility from one 2.2 identified-set interval per
+/// Interval of each action's utility from one identified-set interval per
 /// input quantity.
 ///
 /// # Errors
@@ -1007,4 +999,58 @@ pub fn interval_identified_utilities(
             IntervalReading::CoverageInterval => (interval.lower, interval.upper),
         })
     })
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::Value;
+    use antecedent_expr::ExactDistribution;
+
+    use super::*;
+
+    fn scenario(weight: Option<f64>, probabilities: [f64; 2]) -> ScenarioResult {
+        let atoms: Vec<Arc<[Value]>> = vec![
+            Arc::from(vec![Value::Float64(0.0)]),
+            Arc::from(vec![Value::Label(Arc::from("tag"))]),
+        ];
+        ScenarioResult {
+            name: Arc::from("s0"),
+            weight,
+            status: "identified",
+            detail: None,
+            distribution: Some(ExactDistribution {
+                outcomes: Arc::from(vec![VariableId::from_raw(3)]),
+                atoms: atoms.into(),
+                probabilities: Arc::from(probabilities.to_vec()),
+                support: Arc::from(Vec::new()),
+            }),
+        }
+    }
+
+    #[test]
+    fn scenario_digest_is_a_pinned_golden_vector_over_every_field() {
+        let base = scenario(Some(0.5), [0.25, 0.75]);
+        assert_eq!(
+            scenario_digest(&base),
+            "38435ffb163f7d369d46455dcb9d602891c606f600935287741e083dcf1efe98"
+        );
+        assert_ne!(scenario_digest(&scenario(None, [0.25, 0.75])), scenario_digest(&base));
+        assert_ne!(scenario_digest(&scenario(Some(0.5), [0.75, 0.25])), scenario_digest(&base));
+    }
+
+    #[test]
+    fn source_and_not_enumerated_digests_are_pinned_and_domain_separated() {
+        let scenarios =
+            [ScenarioDigest { id: "s0".into(), status: "identified".into(), digest: "d0".into() }];
+        let source = source_identity("scenario_set", Some("cpdag"), "premises", "data", &scenarios);
+        assert_eq!(source, "ff20502b94d199a74e8a473aecee3adc8de05d81f42d97d9d1fcd744783e5c57");
+        assert_ne!(source, source_identity("scenario_set", None, "premises", "data", &scenarios));
+        assert_eq!(
+            not_enumerated_digest(3),
+            "762397853b4cdf4b1cff8ad840ecbdfeb94a650e258e4292c7ca4bfb0a6d8f71"
+        );
+        assert_ne!(not_enumerated_digest(3), not_enumerated_digest(4));
+    }
 }

@@ -8,7 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -24,7 +23,7 @@ use antecedent_expr::{Assignment, DistributionProvider, EvalContext, EvalError, 
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
     IdIdentifier, IdcIdentifier, IdentificationResult, IdentificationStatus,
-    IdentificationWorkspace,
+    IdentificationWorkspace, ScheduleContrast,
 };
 
 fn v(i: usize) -> VariableId {
@@ -756,9 +755,7 @@ fn overlapping_outcome_and_intervention_is_refused() {
     let schedule = id.identify_schedule_contrast(
         &prep,
         v(0),
-        &[v(0)],
-        &level(1),
-        &level(0),
+        &ScheduleContrast { schedule: &[v(0)], active_level: &level(1), control_level: &level(0) },
         distribution_query(&[0], &[0]),
         &mut ws,
     );

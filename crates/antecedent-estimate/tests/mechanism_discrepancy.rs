@@ -1,4 +1,4 @@
-//! B3 mechanism discrepancy diagnostic: hand-derived OLS fits, summed covariances, the Wald
+//! Mechanism discrepancy diagnostic: hand-derived OLS fits, summed covariances, the Wald
 //! statistic with df 1 and 2 closed-form tails, the minimal detectable differences, the
 //! comparability and dependence refusals, and the never-certifies-invariance fields. Type I error
 //! and power are deliberately NOT measured here.
@@ -26,6 +26,9 @@ use antecedent_estimate::mechanism_discrepancy::{
 };
 use antecedent_kernels::erfc;
 
+#[path = "common/checks.rs"]
+mod checks;
+
 const X: [f64; 4] = [0.0, 1.0, 2.0, 3.0];
 const YS: [f64; 4] = [1.0, 3.0, 2.0, 4.0];
 /// `YS + 0.5 x`: slope shifted by 0.5, intercept unchanged.
@@ -42,14 +45,11 @@ const Y6: [f64; 6] = [3.0, 2.0, 5.0, 1.0, 0.0, 4.0];
 const Y6_TARGET: [f64; 6] = [4.5, 2.5, 6.5, 1.0, 0.0, 5.0];
 
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    checks::close_abs_1e9(actual, expected, what);
 }
 
 fn refusal(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 fn measurement(protocol: &str, node_unit: &str, parents: &[(&str, &str)]) -> MechanismMeasurement {
@@ -103,7 +103,7 @@ fn two_parents(label: &str, y: &[f64]) -> PopulationSample {
 }
 
 #[test]
-fn b3_discrepancy_ols_fits_and_summed_covariance_match_hand_algebra() {
+fn discrepancy_ols_fits_and_summed_covariance_match_hand_algebra() {
     let r = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_BOTH),
@@ -127,7 +127,7 @@ fn b3_discrepancy_ols_fits_and_summed_covariance_match_hand_algebra() {
 
 #[test]
 #[allow(clippy::float_cmp, reason = "identical sufficient statistics give bitwise-equal fits")]
-fn b3_discrepancy_identical_fits_give_statistic_zero_exactly() {
+fn discrepancy_identical_fits_give_statistic_zero_exactly() {
     let same = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YS),
@@ -147,7 +147,7 @@ fn b3_discrepancy_identical_fits_give_statistic_zero_exactly() {
 }
 
 #[test]
-fn b3_discrepancy_slope_shift_matches_df1_closed_form() {
+fn discrepancy_slope_shift_matches_df1_closed_form() {
     let r = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_SLOPE),
@@ -173,7 +173,7 @@ fn b3_discrepancy_slope_shift_matches_df1_closed_form() {
 }
 
 #[test]
-fn b3_discrepancy_intercept_and_slope_shift_matches_df2_closed_form() {
+fn discrepancy_intercept_and_slope_shift_matches_df2_closed_form() {
     let r = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_BOTH),
@@ -197,7 +197,7 @@ fn b3_discrepancy_intercept_and_slope_shift_matches_df2_closed_form() {
 }
 
 #[test]
-fn b3_discrepancy_two_parent_statistic_matches_slope_block_algebra() {
+fn discrepancy_two_parent_statistic_matches_slope_block_algebra() {
     let r = test_mechanism_discrepancy(
         &two_parents("source", &Y6),
         &two_parents("target", &Y6_TARGET),
@@ -218,7 +218,7 @@ fn b3_discrepancy_two_parent_statistic_matches_slope_block_algebra() {
 }
 
 #[test]
-fn b3_discrepancy_minimal_detectable_difference_uses_normal_quantiles() {
+fn discrepancy_minimal_detectable_difference_uses_normal_quantiles() {
     // The six-decimal constants are the quantiles of the standard normal (checked against erfc).
     let tail = |z: f64| 0.5 * erfc(z / 2.0_f64.sqrt());
     assert!((tail(Z_ALPHA_TWO_SIDED_05) - 0.025).abs() < 1e-7);
@@ -250,7 +250,7 @@ fn b3_discrepancy_minimal_detectable_difference_uses_normal_quantiles() {
 }
 
 #[test]
-fn b3_discrepancy_non_rejection_never_certifies_invariance() {
+fn discrepancy_non_rejection_never_certifies_invariance() {
     let r = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_SLOPE),
@@ -282,7 +282,7 @@ fn b3_discrepancy_non_rejection_never_certifies_invariance() {
 }
 
 #[test]
-fn b3_discrepancy_parent_order_is_irrelevant() {
+fn discrepancy_parent_order_is_irrelevant() {
     let base = test_mechanism_discrepancy(
         &two_parents("source", &Y6),
         &two_parents("target", &Y6_TARGET),
@@ -304,7 +304,7 @@ fn b3_discrepancy_parent_order_is_irrelevant() {
 }
 
 #[test]
-fn b3_discrepancy_incomparable_measurements_refuse() {
+fn discrepancy_incomparable_measurements_refuse() {
     let incomparable = reason_code!("route_not_supported");
     let detail = "mechanism_discrepancy.incomparable_measurements:";
     let source = one_parent("source", &YS);
@@ -337,7 +337,7 @@ fn b3_discrepancy_incomparable_measurements_refuse() {
 }
 
 #[test]
-fn b3_discrepancy_dependence_unknown_refuses() {
+fn discrepancy_dependence_unknown_refuses() {
     let source = one_parent("source", &YS);
     let target = one_parent("target", &YT_BOTH);
     for dependence in [SampleDependence::Unknown, SampleDependence::SharedUnits] {
@@ -363,7 +363,7 @@ fn b3_discrepancy_dependence_unknown_refuses() {
 }
 
 #[test]
-fn b3_discrepancy_degenerate_inputs_refuse() {
+fn discrepancy_degenerate_inputs_refuse() {
     let invalid = reason_code!("invalid_argument");
     let detail_of = |error: EstimationError| {
         let (code, message) = refusal(error);
@@ -424,7 +424,7 @@ fn b3_discrepancy_degenerate_inputs_refuse() {
 
 #[test]
 #[allow(clippy::float_cmp, reason = "the summary entries are integer-valued sums")]
-fn b3_discrepancy_summaries_replay_the_raw_data_result() {
+fn discrepancy_summaries_replay_the_raw_data_result() {
     let source = one_parent("source", &YS);
     let target = one_parent("target", &YT_BOTH);
     let raw = test_mechanism_discrepancy(&source, &target, &opts(true)).unwrap();
@@ -444,4 +444,59 @@ fn b3_discrepancy_summaries_replay_the_raw_data_result() {
         refusal(test_mechanism_discrepancy_from_summaries(&broken, &t, &opts(true)).unwrap_err());
     assert_eq!(code, reason_code!("invalid_argument"));
     assert!(message.starts_with("mechanism_discrepancy.inconsistent_summary:"), "{message}");
+}
+
+#[test]
+fn mechanism_posterior_mean_stays_at_the_hand_coefficients() {
+    let result = test_mechanism_discrepancy(
+        &one_parent("source", &YS),
+        &one_parent("target", &YT_BOTH),
+        &opts(true),
+    )
+    .unwrap();
+    let posterior = antecedent_estimate::posterior_mean::mechanism_coefficient_posterior(
+        &result.source_summary,
+        antecedent_estimate::posterior_mean::PosteriorRequest::IndependentNormal { scale: 1.0e6 },
+    )
+    .unwrap();
+    close(posterior[0], 1.3, "source intercept posterior");
+    close(posterior[1], 0.8, "source slope posterior");
+}
+
+#[test]
+fn mechanism_posterior_refuses_an_unmeasured_band() {
+    let result = test_mechanism_discrepancy(
+        &one_parent("source", &YS),
+        &one_parent("target", &YT_BOTH),
+        &opts(true),
+    )
+    .unwrap();
+    let err = antecedent_estimate::posterior_mean::mechanism_coefficient_posterior(
+        &result.source_summary,
+        antecedent_estimate::posterior_mean::PosteriorRequest::UnmeasuredBand,
+    )
+    .unwrap_err();
+    let (_, message) = refusal(err);
+    assert!(message.contains("mechanism_posterior.unmeasured_band"), "{message}");
+}
+
+#[test]
+fn mechanism_posterior_consumer_replays_the_normal_equations() {
+    use antecedent_estimate::posterior_mean::{PosteriorRequest, mechanism_coefficient_posterior};
+    let summary = MechanismSummary {
+        label: "source".into(),
+        measurement: measurement("protocol-1", "mg", &[("x", "cm")]),
+        n: 4,
+        xtx: vec![4.0, 6.0, 6.0, 14.0],
+        xty: vec![10.0, 19.0],
+        yty: 30.0,
+    };
+    let request = PosteriorRequest::IndependentNormal { scale: 1.0 };
+    let produced = mechanism_coefficient_posterior(&summary, request).unwrap();
+    let penalty = 0.9;
+    let det = 4.0 * (14.0 + penalty) - 36.0;
+    let beta0 = ((14.0 + penalty) * 10.0 - 6.0 * 19.0) / det;
+    let beta1 = (-6.0 * 10.0 + 4.0 * 19.0) / det;
+    close(produced[0], beta0, "hand intercept");
+    close(produced[1], beta1, "hand slope");
 }

@@ -1,0 +1,21 @@
+feature_id = "discovery.selective_reuse_guarantees_closed"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: a closed variant. A recovery or error-control statement about the graph
+# discovered on one dataset cannot be licensed (faithfulness and causal sufficiency are not
+# testable from that dataset), and no interval is licensed for rows that discovery used, so
+# there is nothing to cite. The interval that is licensed, on disjoint rows, is its own record.
+papers = [
+]
+implementation_deviations = [
+  "Intentionally publishes nothing: per-dataset recovery and error-control claims stay closed with cell_not_licensed because faithfulness and causal sufficiency are untestable; an interval on the rows discovery used stays closed because that construction has no measured coverage. Recovery over a declared family is published only as a measured table in the documentation. A discovered structure supplies no selection diagram, and no envelope across an equivalence class is offered.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-discovery/tests/selective_discovery.rs",
+  "crates/antecedent/tests/selective_discovery_facade.rs",
+]

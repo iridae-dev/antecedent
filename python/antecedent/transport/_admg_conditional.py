@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._columns import coerce_fields
 from .._native import (
     consume_admg_conditional_obstruction_artifact as _consume_admg_conditional_obstruction,
 )
@@ -63,9 +64,9 @@ class ConditionalTransportQuery:
             raise CausalValueError(
                 "outcomes, treatments and conditioned variables must be distinct and disjoint"
             )
-        object.__setattr__(self, "outcomes", outcomes)
-        object.__setattr__(self, "conditioned_on", conditioned)
-        object.__setattr__(self, "treatments", treatments)
+        coerce_fields(self, outcomes=outcomes)
+        coerce_fields(self, conditioned_on=conditioned)
+        coerce_fields(self, treatments=treatments)
 
 
 def identify_admg_conditional_transport(

@@ -1,6 +1,5 @@
 //! Conditional censoring response truth, including refusal of marginal substitution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ObservationAssumption,
@@ -12,6 +11,10 @@ use antecedent_graph::{Dag, DenseNodeId};
 use std::sync::Arc;
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for conditional response known truth"
+)]
 fn conditional_response_known_truth() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/response/conditional_ipcw/response_truth.json"
@@ -83,7 +86,7 @@ fn conditional_response_known_truth() {
                 .bootstrap_replicates(0)
                 .build()
                 .unwrap();
-            study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().response.unwrap()
+            study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().into_response().unwrap()
         };
         let response = run(query.clone());
         assert!(matches!(response.uncertainty, ResponseUncertainty::None));

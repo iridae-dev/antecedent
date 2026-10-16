@@ -19,12 +19,13 @@
 //! Every consumer-side identity is built here from constants: the expected bundle is
 //! assembled from Rust builders, and the identity file Python writes is only compared.
 
-use antecedent_core::{
+use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
     ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
-    ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract, ProviderObjectIdentity,
-    QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
+    ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity, QuantityRole,
+    ScientificQuantity, bind_external_result,
 };
+use antecedent_core::{IdentificationStatus, SupportStatus};
 use antecedent_design::composition_bundle::{
     BundleLimits, BundleNode, ClaimLabel, CompositionBundle, ConsumedBundle, FACT_LAW,
     FACT_REQUIRES_LAW, FACT_TRUST, LAW_JOINT, LAW_MEAN_ONLY, NodeStatus, SuppliedSources,
@@ -38,12 +39,13 @@ use antecedent_design::decision_contract::{
     StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::evaluate_contract;
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::external_claim_artifact::ExternalClaimArtifact;
-use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::external_claim_artifact::ExternalClaimArtifact;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::{conformance_dir, read_fixture_bytes};
 
 const PY_COMMAND: &str = "python python/tests/generate_cross_surface_bundle_fixtures.py";
 const EDGES: [(&str, &str); 4] = [
@@ -54,19 +56,19 @@ const EDGES: [(&str, &str); 4] = [
 ];
 
 fn fixture_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cross_surface")
+    conformance_dir("cross_surface")
 }
 
 fn read_fixture(name: &str) -> Vec<u8> {
-    let path = fixture_dir().join(name);
-    std::fs::read(&path).unwrap_or_else(|error| {
-        panic!(
-            "missing cross-surface fixture {} ({error}); run `{PY_COMMAND}` from the repo root \
-             (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design \
-             --test cross_surface_bundle -- --ignored regenerate_rust_fixtures)",
-            path.display()
-        )
-    })
+    read_fixture_bytes(
+        &fixture_dir(),
+        name,
+        &format!(
+            "run `{PY_COMMAND}` from the repo root \
+            (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design \
+            --test cross_surface_bundle -- --ignored regenerate_rust_fixtures)"
+        ),
+    )
 }
 
 fn close(a: f64, b: f64) {
@@ -328,7 +330,7 @@ fn assert_hand_derived_truth(consumed: &ConsumedBundle) {
 /// The Python-built bundle verifies under an identity assembled here from constants,
 /// and reads the hand-derived values.
 #[test]
-fn c3_xsurface_python_built_bundle_verifies_under_the_constants_identity() {
+fn xsurface_python_built_bundle_verifies_under_the_constants_identity() {
     let expected = rust_bundle();
     let consumed = consume(&read_fixture("py_composition_bundle.bin"), expected.identity());
     assert_eq!(consumed.identity(), expected.identity());
@@ -342,7 +344,7 @@ fn c3_xsurface_python_built_bundle_verifies_under_the_constants_identity() {
 
 /// The identity file Python writes agrees with the constants but is never trusted.
 #[test]
-fn c3_xsurface_python_identity_file_agrees_with_the_constants_but_is_never_trusted() {
+fn xsurface_python_identity_file_agrees_with_the_constants_but_is_never_trusted() {
     let json: serde_json::Value =
         serde_json::from_slice(&read_fixture("py_composition_bundle.identity.json")).unwrap();
     assert_eq!(json["bundle_identity"], rust_bundle().identity());
@@ -355,7 +357,7 @@ fn c3_xsurface_python_identity_file_agrees_with_the_constants_but_is_never_trust
 
 /// Another retained identity or a changed byte refuses the Python-built bundle.
 #[test]
-fn c3_xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() {
+fn xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() {
     let bytes = read_fixture("py_composition_bundle.bin");
     let identity = rust_bundle().identity().to_owned();
 
@@ -383,7 +385,7 @@ fn c3_xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() 
 /// The Rust-assembled bundle round-trips through its own bytes, so the Python
 /// consumer is handed bytes this side already verifies.
 #[test]
-fn c3_xsurface_rust_built_bundle_round_trips_in_process() {
+fn xsurface_rust_built_bundle_round_trips_in_process() {
     let bundle = rust_bundle();
     let bytes = bundle.to_bytes("composition-bundle", &BundleLimits::default()).unwrap();
     assert_hand_derived_truth(&consume(&bytes, bundle.identity()));

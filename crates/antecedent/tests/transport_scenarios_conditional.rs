@@ -1,5 +1,5 @@
 //! Conditional ADMG transport questions inside the finite scenario envelope
-//! (X2: the 2.2B B1 row promoted into the 2.2A A2 scenario system).
+//! (the bounded ADMG conditional row inside the finite scenario system).
 //!
 //! Every scenario is a latent-confounded selection ADMG over `x(0)`, `y(1)`,
 //! `w(2)` and the question is `P*(y | do(x), w)`:
@@ -106,8 +106,7 @@ fn try_prepare(
     StudyBuilder::conditional_transport_scenarios(
         &TransportScenarioSet::try_new(set).unwrap(),
         query(&[1], &[0], &[2]),
-        catalog,
-        budget,
+        antecedent::EvidenceSearch { catalog, budget },
         data,
         at,
         ExactEvaluationLimits::default(),
@@ -156,7 +155,7 @@ fn conditional_scenarios_enter_the_envelope_and_the_truth_lies_inside_it() {
     let mean = &envelope.means[0];
     assert!(mean.lower <= truth[1] && truth[1] <= mean.upper, "{mean:?} vs {}", truth[1]);
     assert!(mean.upper - mean.lower > 1e-3, "the scenarios disagree: {mean:?}");
-    // Status accounting is A2's: the s-hedge scenario is retained under its own
+    // Status accounting belongs to the scenario system: the s-hedge scenario is retained under its own
     // status, outside the envelope.
     assert_eq!(count(&report, "identified"), 3);
     assert_eq!(count(&report, negative), 1);
@@ -192,7 +191,7 @@ fn conditional_scenarios_enter_the_envelope_and_the_truth_lies_inside_it() {
         ]
     );
     assert!(matches!(prepared.prepared().decision().question, ScenarioQuestion::Conditional(_)));
-    // No cross-scenario inference with shared data (2.3A).
+    // No cross-scenario inference with shared data.
     let refusal = prepared.aggregate_interval().unwrap_err();
     assert!(refusal.to_string().contains("scenario_aggregate_not_licensed"), "{refusal}");
 }
@@ -467,8 +466,7 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
     let result = StudyBuilder::conditional_transport_scenarios(
         &TransportScenarioSet::try_new(scenarios(&ALL, None)).unwrap(),
         outside,
-        catalog.clone(),
-        BUDGET,
+        antecedent::EvidenceSearch { catalog: catalog.clone(), budget: BUDGET },
         data.clone(),
         request(&[0], &[2], LEVEL),
         ExactEvaluationLimits::default(),
@@ -507,7 +505,7 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
 
 #[test]
 fn a_graph_beyond_the_conditional_class_refuses_the_whole_set() {
-    // Seven observed variables: inside A2's 12-variable bound, outside B1's 6.
+    // Seven observed variables: inside the scenario system's 12-variable bound, outside the conditional row's 6.
     let mut graph = antecedent_graph::Admg::with_variables(7);
     graph
         .insert_directed(
@@ -535,8 +533,7 @@ fn a_graph_beyond_the_conditional_class_refuses_the_whole_set() {
     let result = StudyBuilder::conditional_transport_scenarios(
         &set,
         query(&[1], &[0], &[2]),
-        catalog,
-        BUDGET,
+        antecedent::EvidenceSearch { catalog, budget: BUDGET },
         data,
         request(&[0], &[2], LEVEL),
         ExactEvaluationLimits::default(),
@@ -563,7 +560,6 @@ fn typed(result: Result<ScenarioSetReport, IoError>) -> TransportScenarioArtifac
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One round trip, then each mutation it must refuse.
 fn a_conditional_artifact_is_version_two_replays_and_fails_on_mutation() {
     let prepared = prepare(&ALL, "chain");
     let ctx = ExecutionContext::for_tests(1);
@@ -675,8 +671,7 @@ fn a_classical_question_still_writes_and_reads_the_version_one_artifact() {
             source: Arc::from("source"),
             target: Arc::from("target"),
         },
-        catalog,
-        BUDGET,
+        antecedent::EvidenceSearch { catalog, budget: BUDGET },
         data,
         Assignment::from_pairs([(VariableId::from_raw(0), antecedent_core::Value::Int64(1))]),
         ExactEvaluationLimits::default(),

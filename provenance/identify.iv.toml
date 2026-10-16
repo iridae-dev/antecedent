@@ -7,12 +7,12 @@ copied_tests = false
 
 implementation_deviations = [
  "Searches only singleton, unconditional instruments for a single-treatment, single-outcome AverageEffect query; conditioned instruments and instrumental sets are not implemented.",
- "The emitted estimand is a Wald ratio, but the recorded assumptions contain only graphical exclusion and do not require the homogeneous linear-effect assumptions needed for an ATE or the monotonicity assumptions needed for a LATE.",
+ "The emitted estimand is a Wald ratio with status IdentifiedUnderParametricRestrictions. The identifier records per-instrument exclusion and a non-zero first stage, plus iv.constant_linear_effect_or_monotonicity: a constant linear structural effect for an average effect, or monotonicity for a complier local effect under the corresponding IV premises. These are declared restrictions, not tests of instrument strength or effect homogeneity; monotonicity alone does not identify a general heterogeneous ATE.",
 ]
 
 papers = [
- { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["7.2 Instrumental variables"] },
- { title = "Instrumental Variables in Causal Inference and Machine Learning: A Survey", doi = "10.48550/arXiv.2212.05778", sections = ["graphical IV criteria"] },
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Section 5.4.3: graphical instrumental-variable criteria", "Section 7.4.5: counterfactual definitions of exogeneity and instrumental variables"] },
+ { title = "Identification and Estimation of Local Average Treatment Effects", doi = "10.2307/2951620", sections = ["Condition 2: monotonicity", "Theorem 1: local average treatment effect under the instrumental-variable conditions; not a general ATE theorem"] },
 ]
 
 upstream_implementations_observed = [
@@ -20,5 +20,5 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
- "independently generated synthetic SCMs with unmeasured T-Y confounders",
+ "crates/antecedent-identify/src/iv.rs (synthetic graphs and each_instrument_claims_its_own_exclusion_and_the_wald_restriction)",
 ]

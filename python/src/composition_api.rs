@@ -1,5 +1,5 @@
-//! Bounded Python bridge for the 2.3 composition boundary (C1), the decision
-//! adapters over real 2.2 scenario claims (B) and the X6 per-proposal receipt.
+//! Bounded Python bridge for the composition boundary, the decision
+//! adapters over real scenario claims and the per-proposal receipt.
 //!
 //! Python builds declarations and hands over library-produced objects; every
 //! identity, trust decision, support decision and refusal rule is Rust's. A
@@ -8,20 +8,29 @@
 //!
 //! Trust is never asserted from Python. A [`DecisionInput`] built from artifact
 //! metadata alone is `Unverified`: the only evidence Python can state is `none`
-//! or an external attestation, and the native execution record or the
-//! exact-request verification receipt is minted by the library object that
-//! produced the input (see [`PyTrustEvidence::native`] and
-//! [`PyTrustEvidence::verified`]), never by a caller.
+//! or an external attestation. A bound external claim that
+//! already retains an exact-request verification receipt is carried into
+//! [`PyTrustEvidence::verified`] by [`composition_input_from_external_claim`];
+//! a caller still cannot mint that receipt.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::decision_claims::{
-    ClaimError, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims, scenario_claims,
+    ClaimError, IntervalReading, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims,
+    envelope_identified_utilities, interval_identified_utilities, report_identified_utilities,
+    scenario_claims, weighted_identified_utilities,
+};
+use antecedent_contract::{
+    DistributionMeaning, ExternalCapability, ExternalRefusal, ExternalScientificObject,
+    ExternalTrustState, LawProviderContract, ProviderObjectIdentity, ProviderTrust,
+    ScientificQuantity, VerificationProbe, capability_from_name, probe_from_name,
+    verify_external_object,
 };
 use antecedent_core::{
-    DistributionAvailability, EvidenceKind, EvidenceRegime, ExternalCapability, ExternalRefusal,
-    ExternalTrustState, RegimeId, RegimeKind, ScientificQuantity, SupportStatus, VariableId,
+    DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeId, RegimeKind, SupportStatus,
+    VariableId,
 };
 use antecedent_design::composition_boundary::{
     ActionDisposition, ActionStatus, AtomCombination, AtomPlan, BoundaryError, CalibrationStatus,
@@ -32,6 +41,7 @@ use antecedent_design::composition_boundary::{
     check_atom_combination, check_composition, check_paired_draws, evaluate_functional_on_input,
     evaluate_with_support,
 };
+use antecedent_design::decision_adapters::IdentifiedUtility;
 use antecedent_design::decision_adapters::evaluate_adapted;
 use antecedent_design::decision_artifact::{
     MAX_DECISION_ARTIFACT_BYTES, contract_from_json_refusal,
@@ -50,51 +60,38 @@ use antecedent_design::proposal_receipt::{
     ProposalReceipt, ProposalReceiptError, ValuationBinding, on_arrival, verify as verify_bundle,
 };
 use antecedent_design::repair_artifact::RepairReportArtifact;
+use antecedent_estimate::transport_scenarios::ScenarioSetReport;
 use antecedent_io::distribution_artifact::{DistributionCalibration, DistributionTrust};
+use antecedent_io::external_claim_artifact::ExternalClaimTrust;
+use antecedent_io::quantity_wire::DistributionMeaningWire;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::cpdag_scenario_api::CpdagScenarioRun;
+use crate::detach_catch;
 use crate::distribution_api::PyJointDistributionArtifact;
 use crate::repair_api::{REPAIR_PREFIX, RepairContractStage, parse_candidates};
 use crate::transport_common::{execution_context, resolve, unframe_named_artifact};
 use crate::transport_scenario_api::PreparedTransportScenariosStage;
 use crate::transport_z_api::intervention_assignments;
-use crate::{CausalSerializationError, value_err};
+use crate::value_err;
 
 /// A result JSON paired with a refusal JSON; exactly one is present.
 type Pair = (Option<String>, Option<String>);
 
-fn refusal_json(value: &ExternalRefusal) -> String {
-    json!({
-        "code": value.code,
-        "stage": value.stage,
-        "detail": value.detail,
-        "offending": value.offending,
-        "expected": value.expected,
-        "supplied": value.supplied,
-        "remedy": value.remedy,
-    })
-    .to_string()
-}
-
 fn boundary_refusal(error: &BoundaryError) -> String {
-    refusal_json(&error.to_refusal())
+    external_refusal_json(&error.to_refusal())
 }
 
 fn check_size(json: &str) -> PyResult<()> {
-    if json.len() > MAX_DECISION_ARTIFACT_BYTES {
-        return Err(PyValueError::new_err("composition declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(json, MAX_DECISION_ARTIFACT_BYTES, "composition")
 }
 
 /// Refusal JSON for a malformed argument that never reached Rust validation.
 fn invalid_json(detail: &str, offending: Option<String>) -> String {
-    refusal_json(&ExternalRefusal {
+    external_refusal_json(&ExternalRefusal {
         code: antecedent_core::reason_code!("invalid_argument"),
         stage: "adapt",
         detail: detail.to_owned(),
@@ -109,25 +106,23 @@ fn invalid_json(detail: &str, offending: Option<String>) -> String {
 fn parse_quantity(json: &str) -> PyResult<ScientificQuantity> {
     check_size(json)?;
     let wire: ScientificQuantityWire = serde_json::from_str(json)
-        .map_err(|e| PyValueError::new_err(format!("invalid coordinate: {e}")))?;
-    ScientificQuantity::try_from(wire).map_err(|e| PyValueError::new_err(e.to_owned()))
+        .map_err(|e| crate::value_err(format!("invalid coordinate: {e}")))?;
+    ScientificQuantity::try_from(wire).map_err(crate::value_err)
 }
 
 fn parse_quantities(json: &str) -> PyResult<Vec<ScientificQuantity>> {
     check_size(json)?;
     let wires: Vec<ScientificQuantityWire> = serde_json::from_str(json)
-        .map_err(|e| PyValueError::new_err(format!("invalid coordinates: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid coordinates: {e}")))?;
     wires
         .into_iter()
-        .map(|wire| {
-            ScientificQuantity::try_from(wire).map_err(|e| PyValueError::new_err(e.to_owned()))
-        })
+        .map(|wire| ScientificQuantity::try_from(wire).map_err(crate::value_err))
         .collect()
 }
 
 fn parse_support(name: &str) -> PyResult<SupportStatus> {
     SupportStatus::from_name(name)
-        .ok_or_else(|| PyValueError::new_err(format!("unknown support status {name:?}")))
+        .ok_or_else(|| crate::value_err(format!("unknown support status {name:?}")))
 }
 
 fn parse_requirement(name: &str) -> PyResult<TrustRequirement> {
@@ -135,7 +130,7 @@ fn parse_requirement(name: &str) -> PyResult<TrustRequirement> {
         "unrestricted" => Ok(TrustRequirement::Unrestricted),
         "native" => Ok(TrustRequirement::Native),
         "exact_request_verified" => Ok(TrustRequirement::ExactRequestVerified),
-        other => Err(PyValueError::new_err(format!("unknown trust requirement {other:?}"))),
+        other => Err(crate::value_err(format!("unknown trust requirement {other:?}"))),
     }
 }
 
@@ -152,16 +147,9 @@ pub(crate) struct PyTrustEvidence {
 }
 
 impl PyTrustEvidence {
-    /// Evidence that Antecedent itself executed the route behind an input; for
-    /// library producers only. No Python constructor exists.
-    #[allow(dead_code, reason = "minted by native producers as they adopt the boundary")]
-    pub(crate) fn native(record: NativeExecutionRecord) -> Self {
-        Self { inner: DesignTrust::NativeExecution(record) }
-    }
-
-    /// Evidence from an exact-request verification receipt the library issued;
-    /// for library producers only. No Python constructor exists.
-    #[allow(dead_code, reason = "minted by native producers as they adopt the boundary")]
+    /// Evidence from an exact-request verification receipt the library issued.
+    /// No Python constructor exists; [`composition_input_from_external_claim`] carries
+    /// the receipt a bound claim already retained.
     pub(crate) fn verified(state: ExternalTrustState) -> Self {
         Self { inner: DesignTrust::External(state) }
     }
@@ -175,11 +163,18 @@ impl PyTrustEvidence {
         Self { inner: DesignTrust::None }
     }
 
+    /// Evidence from a Rust-issued provider verification receipt. The input's
+    /// provider and snapshot must be ones the receipt verified, or it proves nothing.
+    #[staticmethod]
+    fn from_verification(receipt: &crate::provider_api::PyProviderVerificationReceipt) -> Self {
+        Self::verified(ExternalTrustState::ExactRequestVerified(Box::new(receipt.inner.clone())))
+    }
+
     /// An external party's attestation; never native, never verified.
     #[staticmethod]
     fn attested(attestor: &str) -> PyResult<Self> {
         if attestor.trim().is_empty() {
-            return Err(PyValueError::new_err("an attestation names its attestor"));
+            return Err(crate::value_err("an attestation names its attestor"));
         }
         Ok(Self {
             inner: DesignTrust::External(ExternalTrustState::ExternallyAttested {
@@ -193,13 +188,10 @@ impl PyTrustEvidence {
         match &self.inner {
             DesignTrust::None => "none",
             DesignTrust::NativeExecution(_) => "native_execution",
-            DesignTrust::External(ExternalTrustState::ExternallyAttested { .. }) => {
-                "externally_attested"
-            }
-            DesignTrust::External(ExternalTrustState::ExactRequestVerified(_)) => {
-                "exact_request_verified"
-            }
-            DesignTrust::External(ExternalTrustState::NativeLicensed) => "native_label",
+            DesignTrust::External(state) => match ProviderTrust::from_external_state(state) {
+                ProviderTrust::NativeLicensed => "native_label",
+                other => other.as_wire(),
+            },
         }
     }
 }
@@ -270,17 +262,17 @@ impl PyDecisionInput {
 const fn provider_kind_name(kind: ProviderKind) -> &'static str {
     match kind {
         ProviderKind::Native => "native",
-        ProviderKind::ExternalAttested => "external_attested",
-        ProviderKind::ExternalExactRequestVerified => "external_exact_request_verified",
+        ProviderKind::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
+        ProviderKind::ExternalExactRequestVerified => ProviderTrust::ExactRequestVerified.as_wire(),
     }
 }
 
 const fn trust_name(trust: DistributionTrust) -> &'static str {
     match trust {
-        DistributionTrust::NativeLicensed => "native_licensed",
-        DistributionTrust::ExternalAttested => "external_attested",
-        DistributionTrust::VerifiedExtension => "verified_extension",
-        DistributionTrust::Unverified => "unverified",
+        DistributionTrust::NativeLicensed => ProviderTrust::NativeLicensed.as_wire(),
+        DistributionTrust::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
+        DistributionTrust::VerifiedExtension => ProviderTrust::ExactRequestVerified.as_wire(),
+        DistributionTrust::Unverified => ProviderTrust::Unverified.as_wire(),
     }
 }
 
@@ -390,7 +382,7 @@ fn composition_input_from_native_claim(
     use antecedent::analysis::native_claims::NativeDecisionSource;
     use antecedent_io::external_binding_wire::RefusalWire;
     if contract_json.len() > MAX_DECISION_ARTIFACT_BYTES {
-        return Err(PyValueError::new_err("native composition contract exceeds bounds"));
+        return Err(crate::value_err("native composition contract exceeds bounds"));
     }
     let refused = |refusal| -> PyResult<(Option<PyDecisionInput>, Option<String>)> {
         Ok((None, Some(serde_json::to_string(&RefusalWire::from(refusal)).map_err(serialization)?)))
@@ -402,7 +394,7 @@ fn composition_input_from_native_claim(
     let requirement = match contract.source_requirement() {
         Ok(Some(requirement)) => requirement,
         Ok(None) => {
-            return Err(PyValueError::new_err("native composition requires a source criterion"));
+            return Err(crate::value_err("native composition requires a source criterion"));
         }
         Err(error) => return refused(error.to_refusal()),
     };
@@ -489,6 +481,135 @@ fn composition_input_from_distribution(
         result.source_claim.clone_from(&artifact.source_claim);
     }
     Ok((result, refusal))
+}
+
+fn evidence_from_external_claim(
+    claim: &crate::external_api::PyExternalClaimArtifact,
+) -> Result<DesignTrust, String> {
+    let identity = &claim.artifact.metadata().identity;
+    match identity.trust {
+        ExternalClaimTrust::ExternallyAttested => {
+            Ok(DesignTrust::External(ExternalTrustState::ExternallyAttested {
+                attestor: identity.provider_id.clone(),
+            }))
+        }
+        ExternalClaimTrust::ExactRequestVerified => {
+            let probes = identity.verification.as_ref().ok_or_else(|| {
+                invalid_json(
+                    "external_object_verification.missing_probe",
+                    Some(identity.provider_id.clone()),
+                )
+            })?;
+            let probes = probes
+                .iter()
+                .map(|probe| {
+                    Ok(VerificationProbe {
+                        kind: probe_from_name(&probe.kind).ok_or_else(|| {
+                            invalid_json(
+                                "external_object_verification.missing_probe",
+                                Some(probe.kind.clone()),
+                            )
+                        })?,
+                        observed: probe.observed,
+                        expected: probe.expected,
+                        tolerance: probe.tolerance,
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let capabilities = identity
+                .capabilities
+                .iter()
+                .map(|name| {
+                    capability_from_name(name).ok_or_else(|| {
+                        invalid_json(
+                            "external_response_binding.malformed_capability",
+                            Some(name.clone()),
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let quantities = identity
+                .quantities
+                .iter()
+                .cloned()
+                .map(ScientificQuantity::try_from)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| {
+                    invalid_json(
+                        "external_response_binding.malformed_quantity",
+                        Some(error.to_owned()),
+                    )
+                })?;
+            let meaning = serde_json::from_value::<DistributionMeaningWire>(
+                serde_json::Value::String(identity.provider_meaning.clone()),
+            )
+            .map(DistributionMeaning::from)
+            .map_err(|error| {
+                invalid_json("external_response_binding.malformed_meaning", Some(error.to_string()))
+            })?;
+            let object = ExternalScientificObject::Law(LawProviderContract {
+                identity: ProviderObjectIdentity {
+                    provider_id: identity.provider_id.clone(),
+                    object_id: identity.object_id.clone(),
+                    version_id: identity.version_id.clone(),
+                    snapshot_id: identity.snapshot_id.clone(),
+                    request_id: identity.request_id.clone(),
+                },
+                quantities,
+                meaning,
+                capabilities,
+            });
+            let receipt = verify_external_object(&object, &probes)
+                .map_err(|error| external_refusal_json(&error.to_refusal()))?;
+            Ok(PyTrustEvidence::verified(ExternalTrustState::ExactRequestVerified(Box::new(
+                receipt,
+            )))
+            .inner)
+        }
+    }
+}
+
+/// An input from a bound external claim. Attested claims stay attested. A claim
+/// that retains a passing exact-request receipt is carried as that receipt.
+#[pyfunction]
+fn composition_input_from_external_claim(
+    input_id: &str,
+    claim: &crate::external_api::PyExternalClaimArtifact,
+    requirement: &str,
+) -> PyResult<(Option<PyDecisionInput>, Option<String>)> {
+    let requirement = parse_requirement(requirement)?;
+    let evidence = match evidence_from_external_claim(claim) {
+        Ok(evidence) => evidence,
+        Err(refusal) => return Ok((None, Some(refusal))),
+    };
+    let identity = &claim.artifact.metadata().identity;
+    let coordinates = identity
+        .quantities
+        .iter()
+        .cloned()
+        .map(ScientificQuantity::try_from)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(crate::value_err)?;
+    let statuses = identity
+        .point_status
+        .iter()
+        .map(|status| parse_support(status))
+        .collect::<PyResult<Vec<_>>>()?;
+    let source = MeanSource {
+        coordinates,
+        means: claim.artifact.values().to_vec(),
+        provider_id: identity.provider_id.clone(),
+        snapshot_id: identity.snapshot_id.clone(),
+        causal_contract_id: identity.causal_contract_id.clone(),
+        rng_id: "none:mean_grid".to_owned(),
+    };
+    Ok(input_pair(DecisionInput::from_mean_source(
+        input_id,
+        source,
+        &statuses,
+        &evidence,
+        requirement,
+    )))
 }
 
 /// An input from a mean source: one mean per coordinate, one support status each.
@@ -653,7 +774,7 @@ fn parse_unsupported(name: &str) -> PyResult<UnsupportedActionPolicy> {
     match name {
         "compare_supported" => Ok(UnsupportedActionPolicy::CompareSupported),
         "require_all" => Ok(UnsupportedActionPolicy::RequireAllActions),
-        other => Err(PyValueError::new_err(format!("unknown unsupported-action policy {other:?}"))),
+        other => Err(crate::value_err(format!("unknown unsupported-action policy {other:?}"))),
     }
 }
 
@@ -674,7 +795,7 @@ fn composition_evaluate(
     };
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     let owned: Vec<DecisionInput> = inputs.iter().map(|input| input.inner.clone()).collect();
     Ok(match evaluate_with_support(&contract, &owned, &policy) {
@@ -724,8 +845,8 @@ fn functional_from(wire: &FunctionalWire) -> Option<DecisionFunctional> {
 pub(crate) fn parsed_functional(json: &str) -> PyResult<DecisionFunctional> {
     check_size(json)?;
     let wire: FunctionalWire =
-        serde_json::from_str(json).map_err(|error| PyValueError::new_err(error.to_string()))?;
-    functional_from(&wire).ok_or_else(|| PyValueError::new_err("unknown functional"))
+        serde_json::from_str(json).map_err(|error| crate::value_err(error.to_string()))?;
+    functional_from(&wire).ok_or_else(|| crate::value_err("unknown functional"))
 }
 
 /// One functional of one action's utility from one input. A mean or scalar
@@ -743,12 +864,12 @@ fn composition_functional(
     check_size(functional_json)?;
     let weakest = parse_support(weakest_support)?;
     let wire: FunctionalWire = serde_json::from_str(functional_json)
-        .map_err(|e| PyValueError::new_err(format!("invalid functional: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid functional: {e}")))?;
     let functional = functional_from(&wire)
-        .ok_or_else(|| PyValueError::new_err("an unknown or incomplete functional"))?;
+        .ok_or_else(|| crate::value_err("an unknown or incomplete functional"))?;
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     Ok(
         match evaluate_functional_on_input(&contract, action_id, functional, &input.inner, weakest)
@@ -922,13 +1043,13 @@ struct AtomWire {
 fn composition_check_atoms(atoms_json: &str, combination: &str) -> PyResult<Pair> {
     check_size(atoms_json)?;
     let wires: Vec<AtomWire> = serde_json::from_str(atoms_json)
-        .map_err(|e| PyValueError::new_err(format!("invalid atoms: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid atoms: {e}")))?;
     let combination = match combination {
         "report_each" => AtomCombination::ReportEach,
         "worst_case" => AtomCombination::WorstCase,
         "weighted_by_declared_probabilities" => AtomCombination::WeightedByDeclaredProbabilities,
         other => {
-            return Err(PyValueError::new_err(format!("unknown atom combination {other:?}")));
+            return Err(crate::value_err(format!("unknown atom combination {other:?}")));
         }
     };
     let atoms: Vec<StructuralAtom> = wires
@@ -950,7 +1071,7 @@ fn composition_check_atoms(atoms_json: &str, combination: &str) -> PyResult<Pair
 }
 
 // ---------------------------------------------------------------------------
-// Decisions over real 2.2 scenario and CPDAG-completion claims.
+// Decisions over real scenario and CPDAG-completion claims.
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
@@ -1081,7 +1202,7 @@ const fn policy_name(policy: StructuralPolicy) -> &'static str {
 }
 
 fn claim_refusal(error: &ClaimError) -> String {
-    refusal_json(&error.to_refusal())
+    external_refusal_json(&error.to_refusal())
 }
 
 /// Declared weights must be the scenario set's own: all of them, equal to the
@@ -1124,6 +1245,7 @@ fn structural_verdict_json(verdict: &StructuralVerdict) -> Value {
         StructuralVerdict::WorstCaseChoice(id) => {
             json!({"kind": "worst_case_choice", "action": id})
         }
+        StructuralVerdict::Tied(actions) => json!({"kind": "tied", "actions": actions}),
         StructuralVerdict::BayesChoice { action, evaluated_mass } => {
             json!({"kind": "bayes_choice", "action": action, "evaluated_mass": evaluated_mass})
         }
@@ -1212,6 +1334,7 @@ fn robust_verdict_json(verdict: &RobustVerdict) -> Value {
         }
         RobustVerdict::NoAdmissibleAction => json!({"kind": "no_admissible_action"}),
         RobustVerdict::WorstCaseChoice(id) => json!({"kind": "worst_case_choice", "action": id}),
+        RobustVerdict::Tied(actions) => json!({"kind": "tied", "actions": actions}),
         RobustVerdict::BayesChoice { action, evaluated_mass } => {
             json!({"kind": "bayes_choice", "action": action, "evaluated_mass": evaluated_mass})
         }
@@ -1219,7 +1342,7 @@ fn robust_verdict_json(verdict: &RobustVerdict) -> Value {
     }
 }
 
-/// Decide over the claims of a real 2.2 scenario or CPDAG-completion result.
+/// Decide over the claims of a real scenario or CPDAG-completion result.
 ///
 /// `kind` is `transport` (a prepared scenario stage after `estimate()`) or
 /// `cpdag` (a completion run). `weights_json`, when given, is the
@@ -1230,6 +1353,7 @@ fn robust_verdict_json(verdict: &RobustVerdict) -> Value {
 #[pyo3(signature = (declaration_json, kind, result, binding_json, policy, weights_json=None, expected_causal=None))]
 #[allow(clippy::too_many_lines)]
 fn decide_scenario_claims(
+    py: Python<'_>,
     declaration_json: &str,
     kind: &str,
     result: &Bound<'_, PyAny>,
@@ -1243,9 +1367,9 @@ fn decide_scenario_claims(
     if let Some(text) = weights_json {
         check_size(text)?;
     }
-    let run = || -> Result<String, String> {
+    let run = || -> Result<String, DecisionStop> {
         let contract = admissible_contract_from_json_refusal(declaration_json)
-            .map_err(|refusal| refusal_json(&refusal))?;
+            .map_err(|refusal| external_refusal_json(&refusal))?;
         let policy = policy_from(policy)?;
         let weights: Option<BTreeMap<String, f64>> = weights_json
             .map(serde_json::from_str)
@@ -1266,7 +1390,11 @@ fn decide_scenario_claims(
                 check_declared_weights(Some(scenarios.as_slice()), weights.as_ref())?;
                 let binding = binding_from(binding_json, names)?;
                 check_causal(&binding, expected_causal)?;
-                scenario_claims(report, &binding, policy, None).map_err(|e| claim_refusal(&e))?
+                detach_catch(py, || {
+                    Ok(scenario_claims(report, &binding, policy, None)
+                        .map_err(|e| claim_refusal(&e)))
+                })
+                .map_err(DecisionStop::Python)??
             }
             "cpdag" => {
                 let completions =
@@ -1275,14 +1403,22 @@ fn decide_scenario_claims(
                 check_declared_weights(None, weights.as_ref())?;
                 let binding = binding_from(binding_json, names)?;
                 check_causal(&binding, expected_causal)?;
-                cpdag_claims(report, &binding, policy, None).map_err(|e| claim_refusal(&e))?
+                detach_catch(py, || {
+                    Ok(cpdag_claims(report, &binding, policy, None).map_err(|e| claim_refusal(&e)))
+                })
+                .map_err(DecisionStop::Python)??
             }
             other => {
-                return Err(invalid_json("scenario_decision.unknown_kind", Some(other.into())));
+                return Err(
+                    invalid_json("scenario_decision.unknown_kind", Some(other.into())).into()
+                );
             }
         };
-        let decision = evaluate_adapted(&contract, &claims.adapted)
-            .map_err(|e| refusal_json(&e.to_refusal()))?;
+        let decision = detach_catch(py, || {
+            Ok(evaluate_adapted(&contract, &claims.adapted)
+                .map_err(|e| external_refusal_json(&e.to_refusal())))
+        })
+        .map_err(DecisionStop::Python)??;
         let leaders = atom_leaders(&decision);
         let atoms: Vec<Value> = claims
             .atoms
@@ -1333,10 +1469,181 @@ fn decide_scenario_claims(
         })
         .to_string())
     };
+    match run() {
+        Ok(json) => Ok((Some(json), None)),
+        Err(DecisionStop::Refusal(refusal)) => Ok((None, Some(refusal))),
+        Err(DecisionStop::Python(error)) => Err(error),
+    }
+}
+
+fn identified_utilities_json(utilities: &[IdentifiedUtility]) -> String {
+    let items: Vec<Value> = utilities
+        .iter()
+        .map(|u| {
+            json!({
+                "action_id": u.action_id,
+                "lower": u.utility.lower,
+                "upper": u.utility.upper,
+                "hard_exclusions": u.hard_exclusions,
+                "support": {
+                    "overall": u.support.overall.as_str(),
+                    "per_input": u.support.per_input.iter().map(|p| json!({
+                        "action_id": p.action_id,
+                        "input": p.input,
+                        "status": p.status.as_str(),
+                    })).collect::<Vec<_>>(),
+                },
+            })
+        })
+        .collect();
+    Value::Array(items).to_string()
+}
+
+fn support_of(json: &str) -> Result<AtomSupport, String> {
+    let wire: SupportWire = serde_json::from_str(json)
+        .map_err(|e| invalid_json("scenario_decision.invalid_support", Some(e.to_string())))?;
+    support_from(wire)
+}
+
+/// Per-action utility intervals from the report of a scenario set or a CPDAG completion run.
+///
+/// `kind` is `transport` or `cpdag`; `route` is `report` (the weighted range when the
+/// report carries one, else the envelope), `envelope` or `weighted`. The interval covers the
+/// identified scenarios only. Returns the utilities as JSON, or a refusal.
+#[pyfunction]
+#[pyo3(signature = (declaration_json, kind, result, binding_json, support_json, route))]
+fn scenario_identified_utilities(
+    declaration_json: &str,
+    kind: &str,
+    result: &Bound<'_, PyAny>,
+    binding_json: &str,
+    support_json: &str,
+    route: &str,
+) -> PyResult<Pair> {
+    check_size(declaration_json)?;
+    check_size(binding_json)?;
+    check_size(support_json)?;
+    let run = || -> Result<String, String> {
+        let contract = admissible_contract_from_json_refusal(declaration_json)
+            .map_err(|refusal| external_refusal_json(&refusal))?;
+        let wrong =
+            |slot: &str| invalid_json("scenario_decision.wrong_result_type", Some(slot.to_owned()));
+        let (report, names): (Option<ScenarioSetReport>, Vec<String>) = match kind {
+            "transport" => {
+                let stage = result
+                    .extract::<PyRef<'_, PreparedTransportScenariosStage>>()
+                    .map_err(|_| wrong("transport"))?;
+                let (report, names) = stage.last_report().ok_or_else(|| {
+                    invalid_json("scenario_decision.not_estimated", Some("estimate() first".into()))
+                })?;
+                (Some(report.clone()), names.to_vec())
+            }
+            "cpdag" => {
+                let run =
+                    result.extract::<PyRef<'_, CpdagScenarioRun>>().map_err(|_| wrong("cpdag"))?;
+                let (report, names) = run.report_and_names();
+                (report.report.clone(), names.to_vec())
+            }
+            other => {
+                return Err(invalid_json("scenario_decision.unknown_kind", Some(other.into())));
+            }
+        };
+        let binding = binding_from(binding_json, &names)?;
+        let support = support_of(support_json)?;
+        let unavailable = || claim_refusal(&ClaimError::RangeUnavailable);
+        let report = report.ok_or_else(unavailable)?;
+        let utilities = match route {
+            "report" => report_identified_utilities(&contract, &report, &binding, &support),
+            "envelope" => {
+                let envelope = report.envelope.as_ref().ok_or_else(unavailable)?;
+                envelope_identified_utilities(&contract, envelope, &binding, &support)
+            }
+            "weighted" => {
+                let weighted = report.weighted.as_ref().ok_or_else(unavailable)?;
+                weighted_identified_utilities(&contract, weighted, &binding, &support)
+            }
+            other => {
+                return Err(invalid_json(
+                    "scenario_decision.unknown_utility_route",
+                    Some(other.into()),
+                ));
+            }
+        }
+        .map_err(|e| claim_refusal(&e))?;
+        Ok(identified_utilities_json(&utilities))
+    };
     Ok(match run() {
         Ok(json) => (Some(json), None),
         Err(refusal) => (None, Some(refusal)),
     })
+}
+
+#[derive(Deserialize)]
+struct IntervalWire {
+    quantity: ScientificQuantityWire,
+    interval: antecedent_io::IdentifiedSetIntervalWire,
+}
+
+/// Per-action utility intervals from one identified-set interval per input quantity.
+///
+/// `intervals_json` is a list of `{quantity, interval}`; `reading` is `estimated_bounds` or
+/// `coverage_interval`. Returns the utilities as JSON, or a refusal.
+#[pyfunction]
+#[pyo3(signature = (declaration_json, intervals_json, reading, support_json))]
+fn interval_identified_action_utilities(
+    declaration_json: &str,
+    intervals_json: &str,
+    reading: &str,
+    support_json: &str,
+) -> PyResult<Pair> {
+    check_size(declaration_json)?;
+    check_size(intervals_json)?;
+    check_size(support_json)?;
+    let run = || -> Result<String, String> {
+        let contract = admissible_contract_from_json_refusal(declaration_json)
+            .map_err(|refusal| external_refusal_json(&refusal))?;
+        let reading = match reading {
+            "estimated_bounds" => IntervalReading::EstimatedBounds,
+            "coverage_interval" => IntervalReading::CoverageInterval,
+            other => {
+                return Err(invalid_json("scenario_decision.unknown_reading", Some(other.into())));
+            }
+        };
+        let wires: Vec<IntervalWire> = serde_json::from_str(intervals_json)
+            .map_err(|e| invalid_json("scenario_decision.invalid_interval", Some(e.to_string())))?;
+        let mut intervals = Vec::with_capacity(wires.len());
+        for wire in wires {
+            let quantity = ScientificQuantity::try_from(wire.quantity).map_err(|e| {
+                invalid_json("scenario_decision.invalid_quantity", Some(e.to_owned()))
+            })?;
+            let interval = antecedent_io::identified_set_interval_from_wire(&wire.interval)
+                .map_err(|e| {
+                    invalid_json("scenario_decision.invalid_interval", Some(e.to_string()))
+                })?;
+            intervals.push((quantity, interval));
+        }
+        let support = support_of(support_json)?;
+        let utilities = interval_identified_utilities(&contract, &intervals, reading, &support)
+            .map_err(|e| claim_refusal(&e))?;
+        Ok(identified_utilities_json(&utilities))
+    };
+    Ok(match run() {
+        Ok(json) => (Some(json), None),
+        Err(refusal) => (None, Some(refusal)),
+    })
+}
+
+/// Why a scenario decision stopped: a structured refusal, or an interrupt raised while the native
+/// work had released the GIL.
+enum DecisionStop {
+    Refusal(String),
+    Python(PyErr),
+}
+
+impl From<String> for DecisionStop {
+    fn from(refusal: String) -> Self {
+        Self::Refusal(refusal)
+    }
 }
 
 /// The binding must answer the causal identification the caller expects.
@@ -1350,7 +1657,7 @@ fn check_causal(binding: &ScenarioClaimBinding, expected: Option<&str>) -> Resul
 }
 
 // ---------------------------------------------------------------------------
-// X6 per-proposal receipt.
+// Per-proposal receipt.
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize)]
@@ -1544,10 +1851,6 @@ fn proposal_refusal_json(error: &ProposalReceiptError) -> String {
         "message": error.message,
     })
     .to_string()
-}
-
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
 }
 
 /// Decode the two retained artifacts: the framed repair report and the design
@@ -1840,6 +2143,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(composition_input_from_native_claim, m)?)?;
     m.add_function(wrap_pyfunction!(composition_input_from_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(composition_input_from_means, m)?)?;
+    m.add_function(wrap_pyfunction!(composition_input_from_external_claim, m)?)?;
     m.add_function(wrap_pyfunction!(composition_input_from_scalar, m)?)?;
     m.add_function(wrap_pyfunction!(composition_evaluate, m)?)?;
     m.add_function(wrap_pyfunction!(composition_functional, m)?)?;
@@ -1848,6 +2152,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(composition_check_paired_draws, m)?)?;
     m.add_function(wrap_pyfunction!(composition_check_atoms, m)?)?;
     m.add_function(wrap_pyfunction!(decide_scenario_claims, m)?)?;
+    m.add_function(wrap_pyfunction!(scenario_identified_utilities, m)?)?;
+    m.add_function(wrap_pyfunction!(interval_identified_action_utilities, m)?)?;
     m.add_function(wrap_pyfunction!(proposal_bundle_build, m)?)?;
     m.add_function(wrap_pyfunction!(proposal_ranked_candidates, m)?)
 }

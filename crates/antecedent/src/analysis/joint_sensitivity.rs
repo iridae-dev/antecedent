@@ -1,5 +1,5 @@
 //! Joint mechanism deviations of the registered surrogate z formula on the
-//! prepared z stage, and their portable replay artifact (2.2B B3, X3).
+//! prepared z stage, and their portable replay artifact.
 //!
 //! The prepared stage evaluates the exact joint assumption range on its
 //! retained laws without re-identifying. The artifact is format version 3 of
@@ -28,9 +28,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExecutionContext, SearchStop, reason_code};
+use antecedent_core::{CanonicalWriter, ExecutionContext, SearchStop, reason_code};
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
-use antecedent_io::{IoError, from_cbor, to_cbor};
+use antecedent_io::{IoError, decode_with_version, to_cbor};
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
     JointSensitivityError, JointSensitivityLimits, TippingStatus,
@@ -125,7 +125,7 @@ pub struct JointTippingWire {
     pub parent_fraction: Option<f64>,
     /// Factor searched.
     pub factor: String,
-    /// 2.1 analytic value on an axis.
+    /// One-factor analytic value on an axis.
     pub analytic: Option<f64>,
     /// Search status.
     pub status: String,
@@ -244,21 +244,10 @@ impl Default for JointSensitivityConsumeLimits {
     }
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
-fn hex(domain: &str, bytes: &[u8]) -> String {
-    use std::fmt::Write as _;
-    antecedent_io::identity::payload_digest(domain, bytes).iter().fold(
-        String::new(),
-        |mut out, byte| {
-            let _ = write!(out, "{byte:02x}");
-            out
-        },
-    )
-}
+/// Domain tags of the three identity digests of a joint sensitivity artifact.
+const BASELINE_DOMAIN: &str = "antecedent.joint_sensitivity.baseline.v1";
+const PREMISES_DOMAIN: &str = "antecedent.joint_sensitivity.premises.v1";
+const DATA_DOMAIN: &str = "antecedent.joint_sensitivity.data.v1";
 
 fn stop_name(stop: SearchStop) -> String {
     stop.code().to_owned()
@@ -278,6 +267,75 @@ fn tipping_wire(
         status: status.name().to_owned(),
         bracket: bracket.map(|b| [b.lower, b.upper]),
         iterations: bracket.map_or(0, |b| b.iterations),
+    }
+}
+
+/// The sealed perturbation box: factor bounds, decision threshold, tolerance, frontier size and search limits.
+fn perturbation_wire(
+    result: &JointMechanismSensitivityResult,
+    spec: &JointDeviationSpec,
+) -> JointPerturbationWire {
+    JointPerturbationWire {
+        factors: result
+            .factors
+            .iter()
+            .map(|b| JointFactorWire {
+                factor: b.factor.name().to_owned(),
+                max_fraction: b.max_fraction,
+            })
+            .collect(),
+        decision_threshold: spec.decision_threshold,
+        tolerance: spec.tolerance,
+        frontier_points: spec.frontier_points,
+        operations: spec.limits.operations,
+        depth: spec.limits.depth,
+        memory_bytes: spec.limits.memory_bytes,
+    }
+}
+
+/// The sealed outcome range, minimizing and maximizing strata, axis tipping and frontier points.
+fn outcome_wire(result: &JointMechanismSensitivityResult) -> JointOutcomeWire {
+    JointOutcomeWire {
+        baseline: result.baseline,
+        range: [result.range.minimum, result.range.maximum],
+        minimizing_outcome_by_stratum: result.range.minimizing_outcome_by_stratum.clone(),
+        maximizing_outcome_by_stratum: result.range.maximizing_outcome_by_stratum.clone(),
+        minimizing_parent_level: result.range.minimizing_parent_level,
+        maximizing_parent_level: result.range.maximizing_parent_level,
+        axis: result
+            .axis_tipping
+            .iter()
+            .map(|a| tipping_wire(None, a.factor, a.analytic, a.status, a.bracket))
+            .collect(),
+        frontier: result
+            .frontier
+            .iter()
+            .map(|p| {
+                tipping_wire(
+                    Some(p.parent_fraction),
+                    JointFactor::OutcomeKernel,
+                    None,
+                    p.status,
+                    p.bracket,
+                )
+            })
+            .collect(),
+        unresolved_detail: result.unresolved_detail.map(str::to_owned),
+    }
+}
+
+/// The sealed search receipt: method, box, budget consumption, stop reason and explored sets.
+fn receipt_wire(result: &JointMechanismSensitivityResult) -> JointReceiptWire {
+    JointReceiptWire {
+        method: result.receipt.method.to_owned(),
+        fraction_box: result.receipt.fraction_box,
+        memory_limit_bytes: result.receipt.memory_limit_bytes,
+        operations_consumed: result.receipt.operations_consumed,
+        depth_reached: result.receipt.depth_reached,
+        live_state_bytes: result.receipt.live_state_bytes,
+        stop: result.receipt.stop.map(stop_name),
+        explored: result.receipt.explored.clone(),
+        unevaluated: result.receipt.unevaluated.clone(),
     }
 }
 
@@ -328,24 +386,12 @@ impl JointSensitivityArtifactWire {
             });
         }
         let body = JointSensitivityBodyWire {
-            perturbation: JointPerturbationWire {
-                factors: result
-                    .factors
-                    .iter()
-                    .map(|b| JointFactorWire {
-                        factor: b.factor.name().to_owned(),
-                        max_fraction: b.max_fraction,
-                    })
-                    .collect(),
-                decision_threshold: spec.decision_threshold,
-                tolerance: spec.tolerance,
-                frontier_points: spec.frontier_points,
-                operations: spec.limits.operations,
-                depth: spec.limits.depth,
-                memory_bytes: spec.limits.memory_bytes,
-            },
+            perturbation: perturbation_wire(&result, spec),
             provenance: JointProvenanceWire {
-                baseline_artifact_digest: hex("joint_sensitivity_baseline", &baseline_artifact),
+                baseline_artifact_digest: CanonicalWriter::digest_bytes_hex(
+                    BASELINE_DOMAIN,
+                    &baseline_artifact,
+                ),
                 baseline_premises_digest: consumed.wire.premises_digest.clone(),
                 provider_snapshots: consumed
                     .data
@@ -356,44 +402,8 @@ impl JointSensitivityArtifactWire {
                 source_regime: result.source_regime.raw(),
                 query_binding: result.query_binding.clone(),
             },
-            outcome: JointOutcomeWire {
-                baseline: result.baseline,
-                range: [result.range.minimum, result.range.maximum],
-                minimizing_outcome_by_stratum: result.range.minimizing_outcome_by_stratum.clone(),
-                maximizing_outcome_by_stratum: result.range.maximizing_outcome_by_stratum.clone(),
-                minimizing_parent_level: result.range.minimizing_parent_level,
-                maximizing_parent_level: result.range.maximizing_parent_level,
-                axis: result
-                    .axis_tipping
-                    .iter()
-                    .map(|a| tipping_wire(None, a.factor, a.analytic, a.status, a.bracket))
-                    .collect(),
-                frontier: result
-                    .frontier
-                    .iter()
-                    .map(|p| {
-                        tipping_wire(
-                            Some(p.parent_fraction),
-                            JointFactor::OutcomeKernel,
-                            None,
-                            p.status,
-                            p.bracket,
-                        )
-                    })
-                    .collect(),
-                unresolved_detail: result.unresolved_detail.map(str::to_owned),
-            },
-            receipt: JointReceiptWire {
-                method: result.receipt.method.to_owned(),
-                fraction_box: result.receipt.fraction_box,
-                memory_limit_bytes: result.receipt.memory_limit_bytes,
-                operations_consumed: result.receipt.operations_consumed,
-                depth_reached: result.receipt.depth_reached,
-                live_state_bytes: result.receipt.live_state_bytes,
-                stop: result.receipt.stop.map(stop_name),
-                explored: result.receipt.explored.clone(),
-                unevaluated: result.receipt.unevaluated.clone(),
-            },
+            outcome: outcome_wire(&result),
+            receipt: receipt_wire(&result),
             interpretation: result.interpretation.to_owned(),
             inference_claim: result.inference_claim.to_owned(),
             sampling: JointSamplingWire {
@@ -437,7 +447,7 @@ impl JointSensitivityArtifactWire {
                 &self.body.sampling.reason_code,
             ),
         );
-        Ok(hex("joint_sensitivity_premises", &to_cbor(&premises)?))
+        Ok(CanonicalWriter::digest_bytes_hex(PREMISES_DOMAIN, &to_cbor(&premises)?))
     }
 
     /// Digest of the data identity: the baseline bytes, provider snapshots
@@ -448,12 +458,12 @@ impl JointSensitivityArtifactWire {
     /// Serialization failure.
     pub fn computed_data_digest(&self) -> Result<String, IoError> {
         let data = (
-            hex("joint_sensitivity_baseline", &self.baseline_artifact),
+            CanonicalWriter::digest_bytes_hex(BASELINE_DOMAIN, &self.baseline_artifact),
             &self.body.provenance.baseline_artifact_digest,
             &self.body.provenance.provider_snapshots,
             self.body.provenance.source_regime,
         );
-        Ok(hex("joint_sensitivity_data", &to_cbor(&data)?))
+        Ok(CanonicalWriter::digest_bytes_hex(DATA_DOMAIN, &to_cbor(&data)?))
     }
 
     /// Export as a portable CBOR item.
@@ -492,11 +502,13 @@ impl JointSensitivityArtifactWire {
         limits: JointSensitivityConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        let peek: VersionPeek = from_cbor(bytes)?;
-        if peek.version != JOINT_SENSITIVITY_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = from_cbor(bytes)?;
+        let wire: Self = decode_with_version(bytes, |version: u32| {
+            if version == JOINT_SENSITIVITY_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         let declared = &wire.body.perturbation;
         let effective = wire.body.receipt.memory_limit_bytes;
         let affordable = ctx.memory.hard_limit_bytes.is_none_or(|hard| hard >= effective);
@@ -613,5 +625,21 @@ impl JointSensitivityArtifactWire {
                 memory_bytes: self.body.receipt.memory_limit_bytes,
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::CanonicalWriter;
+
+    use super::{BASELINE_DOMAIN, DATA_DOMAIN, PREMISES_DOMAIN};
+
+    #[test]
+    fn the_identity_domains_are_distinct_and_pinned() {
+        let digests = [BASELINE_DOMAIN, PREMISES_DOMAIN, DATA_DOMAIN]
+            .map(|domain| CanonicalWriter::digest_bytes_hex(domain, b"bytes"));
+        assert_eq!(digests[0], "c6656142fe2d4f75d9b3232b154aa964fabc5711b7b9fa4e42c359bae6a1d062");
+        assert_eq!(digests[1], "648397a45d24351ac76f930f5c354b1e9d6dd962ecc7b2f9286cb770465c4d2e");
+        assert_eq!(digests[2], "d0c7caccfeebe3f7bb2674d9bd495e2909870d411701d1ec103513d603b1dd8c");
     }
 }

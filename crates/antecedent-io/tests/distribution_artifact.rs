@@ -1,6 +1,6 @@
-//! Independent-process consumption of a bounded 2.3 joint distribution artifact.
+//! Independent-process consumption of a bounded joint distribution artifact.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
@@ -107,7 +107,7 @@ fn enumerated_metadata(identity: DistributionIdentity) -> DistributionMetadata {
 const ENUMERATED_DRAWS: [f64; 4] = [0.0, 0.0, 1.0, 2.0];
 
 #[test]
-fn f15_joint_moments_match_the_enumerated_law() {
+fn joint_moments_match_the_enumerated_law() {
     let artifact = DistributionArtifact::new(
         enumerated_metadata(expected_identity()),
         ENUMERATED_DRAWS.to_vec(),
@@ -123,7 +123,7 @@ fn f15_joint_moments_match_the_enumerated_law() {
 }
 
 #[test]
-fn f15_independent_marginals_cannot_supply_covariance() {
+fn independent_marginals_cannot_supply_covariance() {
     let mut identity = expected_identity();
     identity.alignment = DrawAlignment::IndependentMarginals;
     let marginals =
@@ -149,7 +149,7 @@ fn f15_independent_marginals_cannot_supply_covariance() {
 }
 
 #[test]
-fn f15_resealed_axes_alignment_and_meaning_changes_are_refused() {
+fn resealed_axes_alignment_and_meaning_changes_are_refused() {
     let expected = expected_identity();
     let reseal = |metadata: DistributionMetadata| {
         DistributionArtifact::new(metadata, ENUMERATED_DRAWS.to_vec())

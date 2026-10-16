@@ -48,8 +48,10 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
+from .._columns import coerce_fields
 from .._native import composition_lineage as _composition_lineage
 from .._native import consume_design_ranking as _consume
+from .._refusal import raise_refusal
 from ..decision import Contract
 from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
 from ..external import LineageLink
@@ -118,12 +120,6 @@ def _refusal_type(refusal: Mapping[str, Any]) -> type[DesignRankingRefusal]:
     if detail.split(".", 1)[0] == "signal_provider":
         return SignalProviderRefusal
     return DesignRankingRefusal
-
-
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        wire = json.loads(refusal)
-        raise _refusal_type(wire)(wire)
 
 
 def _floats(values: Sequence[float], what: str) -> list[float]:
@@ -299,7 +295,7 @@ class DesignDecision:
             raise CausalTypeError("contract must be a decision.Contract or its identity string")
         if not isinstance(self.prior, StatePrior):
             raise CausalTypeError("prior must be a design.StatePrior")
-        object.__setattr__(self, "actions", tuple(self.actions))
+        coerce_fields(self, actions=tuple(self.actions))
         if not all(isinstance(action, ActionUtility) for action in self.actions):
             raise CausalTypeError("actions must contain design.ActionUtility values")
 
@@ -574,7 +570,7 @@ class SignalSpec:
     max_support: int | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "evidence_lineage", tuple(self.evidence_lineage))
+        coerce_fields(self, evidence_lineage=tuple(self.evidence_lineage))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -745,7 +741,7 @@ class Candidate:
     plan: DesignPlan | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "reused_observations", tuple(self.reused_observations))
+        coerce_fields(self, reused_observations=tuple(self.reused_observations))
         if self.plan is not None and not isinstance(self.plan, PLAN_TYPES):
             raise CausalTypeError(
                 "plan must be a design.Measurement, Experiment, Environment or Sampling"
@@ -1061,7 +1057,7 @@ def consume(
     consumed, refusal = _consume(
         bytes(data), json.dumps(expectation, allow_nan=False) if expectation is not None else None
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert consumed is not None
     return _consumed_from_wire(json.loads(consumed))
 

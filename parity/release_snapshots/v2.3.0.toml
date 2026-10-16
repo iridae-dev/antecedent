@@ -1,0 +1,951 @@
+version = "2.3.0"
+# Frozen claim projection for this release. Cells and Refusals render from here.
+# Shipped notes are not compared to the live registry.
+coverage_present = ["cov.average_effect.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_beta2_l95.contrast", "cov.average_effect.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_uniform_l95.contrast", "cov.average_effect.admg.frequentist.analytic_se.l95.nested_fisher_iid_latent_verma_l95.contrast", "cov.average_effect.admg.frequentist.analytic_se.l95.nested_fisher_iid_markov_submodel_l95.contrast", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_one_source_intercept_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_independent_intercepts_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_shared_intercepts_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_varying_covariates_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_one_source_intercept_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_two_independent_intercepts_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_two_shared_intercepts_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_two_varying_covariates_l95", "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_beta2_l95.mean0", "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_beta2_l95.mean1", "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_uniform_l95.mean0", "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_uniform_l95.mean1", "cov.intervention_response.admg.frequentist.analytic_se.l95.nested_fisher_iid_latent_verma_l95.mean0", "cov.intervention_response.admg.frequentist.analytic_se.l95.nested_fisher_iid_latent_verma_l95.mean1", "cov.intervention_response.admg.frequentist.analytic_se.l95.nested_fisher_iid_markov_submodel_l95.mean0", "cov.intervention_response.admg.frequentist.analytic_se.l95.nested_fisher_iid_markov_submodel_l95.mean1", "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95", "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95", "cov.temporal_transport.selection_admg.frequentist.bootstrap_percentile.l95.temporal_checked_effect_percentile_l95", "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95", "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_response_studentized_l95", "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95"]
+zero_cell_queries = []
+
+[[record]]
+id = "distribution.joint_alignment"
+status = "promoted"
+consumer_question = "Can a consumer tell whether supplied draws represent one aligned joint realization, and which causal quantity each axis means?"
+graph_class = "A previously identified, finite coordinate causal claim; graph identification belongs to its prerequisite record."
+guarantee = "checked_joint_alignment_and_axis_identity_semantics_only_no_identification_or_coverage"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_draws = 100000, max_coordinates = 1024 }
+routes = []
+
+[[record]]
+id = "transport.cpdag_completion"
+status = "promoted"
+consumer_question = "Does a target effect remain identified and invariant across every DAG completion of a supplied CPDAG when each completion receives evidence bound to its own assumptions?"
+graph_class = "Supplied CPDAG of at most six fully observed static nodes whose completions number at most 64, each consistent DAG completion retained separately under a canonical BLAKE3 identity over its sorted parent-child edges; selection edges and latent (bidirected) pairs are refused, never projected away. A completion is decided by the classical catalog route with that row's scope inherited unchanged."
+guarantee = "bounded_completion_enumeration_per_completion_decision_structural_envelope_no_graph_probability"
+inference_claim = "structural_envelope"
+coverage_records = []
+bounds = { max_nodes = 6, max_completions = 64 }
+routes = []
+
+[[record]]
+id = "transport.shared_scenario_covariance"
+status = "promoted"
+consumer_question = "How correlated are effect estimates from identified DAG completions that reuse the same observed units?"
+graph_class = "No graph claim of its own: the scenario estimates are supplied plug-in functionals of one complete-row table (a linear score of per-row terms, or a stratified adjusted contrast), typically those of the identified completions of the bounded CPDAG cell. Identification of each scenario's estimand belongs to its own record."
+guarantee = "shared_row_resampling_covariance_point_only_no_interval"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_completions = 64, max_replicates = 2000, max_exact_rows = 24, max_exact_compositions = 4000000, max_table_rows = 10000, max_table_columns = 64 }
+routes = [{ name = "antecedent.scenarios.scenario_shared_covariance", stage = "uncertainty", status = "licensed" }]
+
+[[record]]
+id = "transport.joint_bayesian"
+status = "promoted"
+consumer_question = "What target effect posterior follows from a declared joint source and target model and the supplied transport evidence?"
+graph_class = "The fixed DAG and selection assumptions of a separately licensed transport derivation; no ADMG or graph-class posterior in this cell."
+guarantee = "original_native_method_replay_exact_scoped_measured_scalar_authorization"
+inference_claim = "calibrated"
+coverage_records = ["cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_one_source_intercept_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_independent_intercepts_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_shared_intercepts_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_two_varying_covariates_l95"]
+bounds = { max_draws = 100000, max_model_parameters = 256 }
+routes = [{ name = "antecedent.transport.joint_bayesian", stage = "uncertainty", status = "licensed" }]
+
+[[record]]
+id = "identify.binary_nested_markov"
+status = "promoted"
+consumer_question = "Can one bounded binary ADMG transport functional be evaluated through a correctly normalized nested-Markov likelihood?"
+graph_class = "Exactly the Verma ADMG X1 -> X2 -> X3 -> X4, X2 <-> X4 over four binary observed variables (at most 6 observed variables admitted by the scope check, only this graph fits); every other ADMG, regime or non-binary domain is outside the pilot and refuses."
+guarantee = "original_native_method_replay_exact_scoped_measured_scalar_authorization"
+inference_claim = "calibrated"
+coverage_records = ["cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_uniform_l95.mean0", "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_uniform_l95.mean1", "cov.average_effect.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_uniform_l95.contrast", "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_beta2_l95.mean0", "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_beta2_l95.mean1", "cov.average_effect.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_beta2_l95.contrast"]
+bounds = { max_observed = 6, max_iterations = 1000000 }
+routes = [{ name = "antecedent.transport.binary_nested_markov", stage = "uncertainty", status = "licensed" }]
+
+[[record]]
+id = "temporal.dependent_interval"
+status = "promoted"
+consumer_question = "What sampling interval surrounds a target two-step sequence effect when observations share a repeated unit?"
+graph_class = "The fixed two-slice selection ADMG and horizon-two query of the licensed temporal transport cell; no longer sequence."
+guarantee = "original_native_method_replay_exact_scoped_measured_scalar_authorization"
+inference_claim = "calibrated"
+coverage_records = ["cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95"]
+bounds = { max_horizon = 2, max_replicates = 2000, max_units = 100000 }
+routes = [{ name = "antecedent.transport.temporal_dependent_interval", stage = "uncertainty", status = "licensed" }]
+
+[[record]]
+id = "temporal.uncertain_initial_state"
+status = "promoted"
+consumer_question = "How does uncertainty in the pre-action state change the two-step target response?"
+graph_class = "The existing fixed two-slice selection ADMG, with one finite observed pre-action state."
+guarantee = "point_marginalization_over_supplied_target_initial_state_law_exact_finite_sum"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_initial_states = 64, max_horizon = 2 }
+routes = []
+
+[[record]]
+id = "temporal.new_period_refresh"
+status = "promoted"
+consumer_question = "Can a prepared two-step result accept a new observation period without reusing stale time or selection premises?"
+graph_class = "The existing fixed two-slice graph when the window advances without extending horizon; a third slice requires a separate cell."
+guarantee = "semantic_refresh_identity_decision_and_receipt_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_horizon = 2, max_history_states = 4096 }
+routes = []
+
+[[record]]
+id = "counterfactual.temporal_fixed_population"
+status = "promoted"
+consumer_question = "What would the same observed unit's final outcome have been under a different two-step action history?"
+graph_class = "Fully observed two-slice Markovian temporal DAG with one ordered action per slice and one final outcome; no latent confounding."
+guarantee = "shared_exogenous_history_counterfactual_linear_additive_noise_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_horizon = 2, max_units = 100000 }
+routes = []
+
+[[record]]
+id = "counterfactual.transported_path_specific"
+status = "carried_forward"
+consumer_question = "Can a static path-specific counterfactual answer be transported to a named target using a checked source-to-target derivation?"
+graph_class = "A selected static fully observed Markovian DAG with a finite source/target selection diagram, inside the intersection of the two existing prerequisite graph classes; no ADMG or temporal path-specific claim."
+guarantee = "composition_closed_joint_theorem_not_derived_gate_reports_missing_prerequisites_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "recovery.sampled_observation"
+status = "promoted"
+consumer_question = "What sampling uncertainty surrounds an effect computed from the exact binary observation-recovery formula?"
+graph_class = "The binary m-graph class and exact recoverable effect query of the licensed binary observation recovery row, with at most 6 binary substantive variables; the recovery derivation is re-checked by the identification engine, and adjacent or non-recoverable m-graphs refuse. Other missingness graphs need separate formulas."
+guarantee = "original_native_method_replay_exact_scoped_measured_scalar_authorization"
+inference_claim = "calibrated"
+coverage_records = ["cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95"]
+bounds = { min_replicates = 2000, max_replicates = 2000, max_rows = 1000000, max_binary_variables = 6 }
+routes = [{ name = "antecedent.transport.sampled_observation_recovery", stage = "uncertainty", status = "licensed" }]
+
+[[record]]
+id = "distribution.meanings"
+status = "promoted"
+consumer_question = "Can a consumer refuse a distribution whose draws represent the wrong random quantity before evaluating it?"
+graph_class = "A previously identified claim, whose graph and proof are checked outside this representation cell."
+guarantee = "checked_distribution_meaning_operation_compatibility_only_no_identification_or_calibration"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "distribution.aligned_joint_draws"
+status = "promoted"
+consumer_question = "Can a fresh consumer recover the same joint covariance and nonlinear functional from exported, aligned multivariate draws?"
+graph_class = "An already identified finite-coordinate claim; this representation cannot establish a graph theorem."
+guarantee = "checked_finite_joint_draw_values_and_artifact_identity_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_draws = 100000, max_coordinates = 1024, max_payload_bytes = 16777216 }
+routes = []
+
+[[record]]
+id = "distribution.mapped_posterior_transfer"
+status = "promoted"
+consumer_question = "Can a posterior over named coefficients become a prior for a changed design without losing covariance, identities or residual-variance meaning?"
+graph_class = "A fixed identified Gaussian linear design with stable named coefficient identities; causal identification belongs to the source and target claims."
+guarantee = "checked_named_known_variance_point_transfer_with_dense_covariance"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_draws = 100000, max_coordinates = 1024, max_payload_bytes = 16777216 }
+routes = []
+
+[[record]]
+id = "external.scientific_providers"
+status = "promoted"
+consumer_question = "Can typed external law and posterior provider contracts be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "typed_provider_contract_declaration_only_no_causal_or_interval_claim"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "external.response_binding"
+status = "promoted"
+consumer_question = "Can checked external result binding be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "checked_external_response_binding_point_only_no_interval_no_native_claim"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "external.capability_negotiation"
+status = "promoted"
+consumer_question = "Can provider capability negotiation be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "exact_operation_negotiation_only_no_approximation_license"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "external.object_verification"
+status = "promoted"
+consumer_question = "Can object-level exact-request verification be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "object_verification_at_exact_request_fingerprint_only_not_general_trust"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "external.trust_receipt"
+status = "promoted"
+consumer_question = "Can external trust and provenance boundary be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "trust_tier_preserved_without_upgrade_never_native_licensed"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "support.coordinate"
+status = "promoted"
+consumer_question = "Can finite coordinate support be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "per_coordinate_support_labels_and_worst_label_summary_only"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "composition.provenance"
+status = "promoted"
+consumer_question = "Can composition provenance chain be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "ordered_predecessor_digest_lineage_only_no_causal_or_interval_claim"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "composition.structured_refusals"
+status = "promoted"
+consumer_question = "Can structured cross-stage refusals be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "typed_refusal_envelope_validated_and_preserved_across_surfaces_only"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "composition.language_parity"
+status = "promoted"
+consumer_question = "Can Rust and Python composition parity be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "cross_language_joint_law_parity_point_only_no_interval"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "temporal.effect_constancy"
+status = "promoted"
+consumer_question = "Can effect constancy across a declared time partition be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "global_effect_heterogeneity_test_under_frozen_null_point_only_non_rejection_never_proves_constancy"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_partitions = 1024 }
+routes = [{ name = "antecedent.temporal.effect_constancy", stage = "uncertainty", status = "licensed" }]
+
+[[record]]
+id = "transport.scenario_invariance"
+status = "promoted"
+consumer_question = "For each scenario of a finite transport scenario set, which selection differences does it assume, which invariances does its identified formula rely on, and what stands behind each extreme of the range over scenarios?"
+graph_class = "The static selection diagrams the classical catalog transport route decides (fully observed static nodes with directed and bidirected edges and selection targets); a non-static node refuses. Scope is inherited unchanged from that route."
+guarantee = "report_read_from_the_verified_derivation_selection_differences_invariances_obstruction_structural_no_new_decision"
+inference_claim = "structural_envelope"
+coverage_records = []
+bounds = { max_scenarios = 64 }
+routes = []
+
+[[record]]
+id = "counterfactual.transported_additive"
+status = "promoted"
+consumer_question = "Can a static path-specific counterfactual contrast (a natural direct or indirect effect, or any edge assignment) be transported to a named target population under a stated affine additive-noise structural class?"
+graph_class = "Static fully observed Markovian DAG with affine additive-noise mechanisms and selection only on covariates or the treatment; no latent confounding, no selection on a mediator or outcome mechanism, no temporal structure."
+guarantee = "affine_additive_markovian_class_target_contrast_sum_over_target_covariate_law_declared_noise_premises_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_covariates = 64, max_mechanisms = 256, max_support_points = 65536, max_declarations = 256, max_artifact_bytes = 67108864 }
+routes = []
+
+[[record]]
+id = "transport.learned_joint"
+status = "promoted"
+consumer_question = "What target effect posterior follows from a declared joint source and target model whose outcome mechanism is fitted through the antecedent-learn polynomial basis provider?"
+graph_class = "The fixed DAG and selection assumptions of a separately licensed transport derivation (direct or baseline standardization); an ADMG or a graph posterior refuses."
+guarantee = "original_native_method_replay_exact_scoped_measured_scalar_authorization"
+inference_claim = "calibrated"
+coverage_records = ["cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_one_source_intercept_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_two_independent_intercepts_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_two_shared_intercepts_l95", "cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_two_varying_covariates_l95"]
+bounds = { max_draws = 100000, max_model_parameters = 256, max_basis_degree = 6 }
+routes = [{ name = "antecedent.learned.joint_transport", stage = "uncertainty", status = "licensed" }]
+
+[[record]]
+id = "identify.binary_nested_markov_fisher"
+status = "promoted"
+consumer_question = "Can the selected binary nested-Markov model propagate its entire constrained likelihood covariance into both intervention means and their contrast?"
+graph_class = "Exactly the Verma ADMG X1 -> X2 -> X3 -> X4, X2 <-> X4 over four binary observed variables (at most 6 observed variables admitted by the scope check, only this graph fits); every other ADMG, regime or non-binary domain is outside the pilot and refuses."
+guarantee = "original_native_method_replay_exact_scoped_measured_scalar_authorization"
+inference_claim = "calibrated"
+coverage_records = ["cov.intervention_response.admg.frequentist.analytic_se.l95.nested_fisher_iid_latent_verma_l95.mean0", "cov.intervention_response.admg.frequentist.analytic_se.l95.nested_fisher_iid_latent_verma_l95.mean1", "cov.average_effect.admg.frequentist.analytic_se.l95.nested_fisher_iid_latent_verma_l95.contrast", "cov.intervention_response.admg.frequentist.analytic_se.l95.nested_fisher_iid_markov_submodel_l95.mean0", "cov.intervention_response.admg.frequentist.analytic_se.l95.nested_fisher_iid_markov_submodel_l95.mean1", "cov.average_effect.admg.frequentist.analytic_se.l95.nested_fisher_iid_markov_submodel_l95.contrast"]
+bounds = { max_observed = 6, max_iterations = 1000000 }
+routes = [{ name = "antecedent.transport.binary_nested_markov_fisher_interval", stage = "uncertainty", status = "licensed" }]
+
+[[record]]
+id = "composition.native_authority"
+status = "promoted"
+consumer_question = "Can caller-supplied arrays or historical trust labels acquire native execution authority?"
+graph_class = "A previously identified, finite coordinate causal claim; graph identification belongs to its prerequisite record."
+guarantee = "generic_distribution_labels_never_mint_native_execution_authority"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_draws = 100000, max_coordinates = 1024 }
+routes = []
+
+[[record]]
+id = "temporal.effect_constancy_consumers"
+status = "promoted"
+consumer_question = "Can independently verified original effect-constancy evidence feed real transport review, prior-source filtering/ranking and affine point-policy comparisons without changing its uncertainty standing?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "original_constancy_evidence_real_downstream_advisory_consumers_no_inference_upgrade"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_partitions = 1024, max_catalog_sources = 1024, max_actions = 64, max_inputs = 16, max_utility_nodes = 2048, max_utility_depth = 64, max_artifact_bytes = 67108864, max_prior_artifact_bytes = 16777216 }
+routes = []
+
+[[record]]
+id = "composition.source_evidence"
+status = "promoted"
+consumer_question = "Can actual original source diagnostics and semantic lineage survive decisions and inverse artifacts without conflating recognition with verification or importing native execution authority?"
+graph_class = "Original native response graph and checked identification are preserved; no new identification license."
+guarantee = "original_scoped_diagnostics_and_actual_native_operation_resolution_without_authority_upgrade"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_artifact_bytes = 16777216, max_logical_bytes = 16777216, max_projection_bytes = 1048576, max_actions = 4096 }
+routes = []
+
+[[record]]
+id = "composition.source_lineage"
+status = "promoted"
+consumer_question = "Can finite-law functional requests retain original diagnostics, full law rows and scientifically named contributors through independent replay without importing native authority?"
+graph_class = "Original checked native/source graphs retained; generic finite-law declarations retain their original declared provenance."
+guarantee = "original_source_ancestry_and_complete_scientific_request_replay_without_authority_upgrade"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_functional_artifact_bytes = 16777216 }
+routes = []
+
+[[record]]
+id = "sensitivity.source_lineage"
+status = "promoted"
+consumer_question = "Can a sensitivity surface retain and independently replay its full original v3 source baseline, proof, laws and condition before publishing source lineage?"
+graph_class = "Original checked native/source graphs retained; generic finite-law declarations retain their original declared provenance."
+guarantee = "original_source_ancestry_and_complete_scientific_request_replay_without_authority_upgrade"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_artifact_bytes = 16777216 }
+routes = []
+
+[[record]]
+id = "decision.contract"
+status = "promoted"
+consumer_question = "Can durable decision contracts be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "checked_decision_contract_expected_utility_and_hard_constraint_exclusion_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_actions = 1024, max_inputs = 256, max_utility_depth = 64, max_effect_unit_bytes = 256 }
+routes = []
+
+[[record]]
+id = "decision.functionals"
+status = "promoted"
+consumer_question = "Can typed expectation, probability and quantile functionals be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "typed_functionals_on_aligned_finite_laws_with_stated_conventions_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_actions = 1024, max_inputs = 256, max_utility_depth = 64 }
+routes = []
+
+[[record]]
+id = "decision.structural_policy"
+status = "promoted"
+consumer_question = "Can structural decision policy and robustness be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "declared_structural_policies_over_supplied_structures_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "design.evidence_obligations"
+status = "promoted"
+consumer_question = "Can machine-readable evidence obligations be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "typed_evidence_obligations_with_exact_population_regime_variables_and_proof_step_a_request_never_a_verdict_no_claim"
+inference_claim = "none"
+coverage_records = []
+bounds = { max_coordinates = 1024 }
+routes = []
+
+[[record]]
+id = "design.study_candidate"
+status = "promoted"
+consumer_question = "Can durable study candidate be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "durable_study_candidate_declares_expected_evidence_with_sample_timing_unit_and_cost_identities_never_claims_evidence_it_cannot_collect_no_claim"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "design.identification_repair"
+status = "promoted"
+consumer_question = "Can theorem-scoped identification repair facade be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "theorem_scoped_repair_classification_by_each_family_checker_with_budgeted_subset_search_exhaustion_never_impossibility_no_claim"
+inference_claim = "none"
+coverage_records = []
+bounds = { max_candidates = 16, max_subset_size = 4, max_operations = 100000, max_memory_bytes = 268435456 }
+routes = []
+
+[[record]]
+id = "design.repair_search_receipt"
+status = "promoted"
+consumer_question = "Can a stored repair search receipt be replayed by a fresh consumer under its own bounds?"
+graph_class = "A back-door or classical transport contract over a graph on dense static variables 0..n; other graphs are not exportable."
+guarantee = "replayable_repair_search_receipt_recomputed_by_the_family_checker_from_the_stored_delta_no_claim"
+inference_claim = "none"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "estimate.dose_grid_functional"
+status = "promoted"
+consumer_question = "What are the level, derivative or contrast of a randomized-dose response curve at named doses, and where is the data too thin to say?"
+graph_class = "A randomized dose, attested by the caller: the dose is independent of the potential-outcome process, so no adjustment is needed. An observational dose is refused (dose_grid.graph_not_certified); this row does not adjust and re-derives no graph."
+guarantee = "randomized_dose_gaussian_local_quadratic_named_functional_point_values_with_per_dose_support_pointwise_calibration_unmeasured_band_closed"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "recovery.chain_observation"
+status = "promoted"
+consumer_question = "Is the full law P(X1, X2) of two binary variables recoverable from the observed pattern law when one response indicator causes the other, and if self-censoring forbids it, is there an exact witness?"
+graph_class = "A two-variable binary m-graph: optional X1-X2 edge, proxy wiring X_i -> X*_i <- R_i, exactly one response edge R_h -> R_t and optionally X_h -> R_t; no bidirected edge and no other edge. A self-censoring edge is nonrecoverable with a witness; every other graph is route_not_supported. The existing row, which refuses every R -> R edge, is unchanged."
+guarantee = "exact_ordered_response_recovery_of_a_two_variable_binary_mgraph_with_a_verified_nonrecoverability_witness_point_values_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "design.external_signal"
+status = "promoted"
+consumer_question = "Can external candidate signal and update be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "checked_signal_request_receipt_and_posterior_update_with_external_trust_never_native_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "design.evsi"
+status = "promoted"
+consumer_question = "Can preposterior EVSI and cost mapping be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "exact_integration_evsi_evpi_and_net_value_under_declared_cost_map_point_only_monte_carlo_error_and_rank_uncertainty_unlicensed_diagnostics"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "design.ranking_artifact"
+status = "promoted"
+consumer_question = "Can portable design ranking artifact be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "sealed_design_ranking_with_graded_replay_native_exact_recomputed_external_values_retained_as_attested_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "decision.sensitivity_composition"
+status = "promoted"
+consumer_question = "Can sensitivity result in durable decisions be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "assumption_dependent_decision_over_declared_grid_points_only_range_never_probability_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "decision.functional_inverse"
+status = "promoted"
+consumer_question = "Can generalized finite inverse decision query be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "finite_declared_grid_inverse_query_with_distinct_feasibility_fields_point_only_no_global_feasibility"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "decision.admissibility"
+status = "promoted"
+consumer_question = "Can declared admissibility rules, per-input support rules and an uncertainty requirement be consumed as part of a durable decision contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "declared_admissibility_support_and_uncertainty_requirements_remove_actions_never_penalize_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "decision.structural_robustness"
+status = "promoted"
+consumer_question = "Can structural claims (point, graph-dependent, weighted graph atoms, finite scenarios) and identified-set partial identification be adapted into a decision under a declared policy?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "claim_adapters_and_identified_set_decisions_over_supplied_sets_no_probability_no_coverage_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "decision.robust_verdicts"
+status = "promoted"
+consumer_question = "Can the robustness verdict of a decision under structural uncertainty, and its replayable result with retained external-callback receipts, be consumed under a checked semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "robustness_verdicts_over_supplied_structures_with_replayable_result_and_retained_external_receipts_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "design.prior_signal_planning"
+status = "promoted"
+consumer_question = "Can a prior bank and a candidate signal be combined into a checked decision-planning input under a declared semantic contract?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "checked_prior_to_candidate_signal_adaptation_with_declared_pooling_and_observation_reuse_refusal_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "estimate.vector_treatment"
+status = "promoted"
+consumer_question = "Can the joint coefficients of several treatments estimated together on one adjustment set and one row snapshot be consumed with their full covariance under a checked semantic contract?"
+graph_class = "No graph is identified or checked: the caller owns that the shared adjustment set is valid for every treatment. The route reports regression coefficients of the declared design."
+guarantee = "joint_ols_treatment_coefficients_with_full_covariance_point_only_standard_errors_and_p_values_unmeasured_diagnostics"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_treatments = 64, hc_replay_row_cap = 4096 }
+routes = []
+
+[[record]]
+id = "estimate.categorical_treatment"
+status = "promoted"
+consumer_question = "Can level-versus-reference and pairwise contrasts of a categorical (ordered or unordered) treatment, with an omnibus test and a declared monotonicity test, be consumed under a checked semantic contract?"
+graph_class = "No graph is identified or checked: the caller owns that the declared adjustment set is valid for the categorical treatment."
+guarantee = "categorical_treatment_level_and_pairwise_contrasts_point_only_tests_and_standard_errors_unmeasured_diagnostics"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { hc_replay_row_cap = 4096 }
+routes = []
+
+[[record]]
+id = "estimate.compact_runtime_export"
+status = "promoted"
+consumer_question = "Can a fitted linear-in-coefficients effect model be exported as a compact, identity-bound runtime object that evaluates a point prediction only inside its declared support and outside its refusal mask?"
+graph_class = "No graph is identified: the export carries whatever coefficients and covariance it is given and only checks their shape, finiteness and positive semidefiniteness."
+guarantee = "compact_export_point_prediction_inside_declared_support_point_only_model_based_se_unmeasured_diagnostic"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "estimate.nonlinear_mediation"
+status = "promoted"
+consumer_question = "Can natural direct and indirect effects of a binary treatment through a continuous mediator with a nonlinear outcome be consumed under a checked semantic contract, with the interventional estimand refused?"
+graph_class = "Binary treatment, one continuous mediator and measured covariates under declared sequential ignorability, cross-world independence and no treatment-induced mediator-outcome confounding; these are declared premises recorded as declared, never verified."
+guarantee = "nonlinear_mediation_natural_effects_point_only_bootstrap_se_unmeasured_diagnostic_interval_closed"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "estimate.latent_class_effects"
+status = "promoted"
+consumer_question = "Can per-class treatment effects of a K-class finite mixture of linear outcome models be consumed under a checked semantic contract?"
+graph_class = "Treatment is as-if randomized within each latent class given the measured covariates; this is a declared premise, recorded as declared and never verified. No graph is identified."
+guarantee = "latent_class_effects_point_only_local_em_maximum_standard_errors_unmeasured_diagnostics"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_classes = 4 }
+routes = []
+
+[[record]]
+id = "decision.scenario_claims"
+status = "promoted"
+consumer_question = "Can the real scenario, weighted-scenario and CPDAG-completion reports be adapted into decision atoms and per-action identified-set intervals without renormalizing unresolved mass or reading completion counts as probabilities?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; each scenario or completion keeps the status the existing report gave it and this adapter does not identify a graph."
+guarantee = "scenario_and_completion_reports_adapted_to_atoms_and_intervals_unrenormalized_counts_never_probabilities_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "design.proposal_receipt"
+status = "promoted"
+consumer_question = "Can the evidence a failed identification contract owes be linked, per proposed study, to the design ranking that values that study, with a verifiable bundle and a re-identification on arrived evidence that never treats a hypothetical derivation as available evidence?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract (the failed back-door or transport contract of the repair); this receipt does not identify a graph and does not execute a study."
+guarantee = "per_proposal_receipt_binds_repair_and_ranking_by_identity_hypothetical_never_evidence_family_checker_on_arrival_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "sensitivity.mechanism_discrepancy"
+status = "promoted"
+consumer_question = "Do an independent source sample and an independent target sample, measured on comparable scales, show a detectable difference between the linear conditional mechanism of one node given its parents, and which coefficient differences could this comparison have detected?"
+graph_class = "No graph is identified: the diagnostic compares the linear conditional mechanism of one declared node given its declared parents between two samples; it informs only a selection node on that node and does not identify, orient or test a graph."
+guarantee = "asymptotic_wald_discrepancy_diagnostic_non_rejection_never_certifies_invariance_point_only_error_rates_unmeasured"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_bytes = 16777216 }
+routes = []
+
+[[record]]
+id = "sensitivity.marginal_structural_model"
+status = "promoted"
+consumer_question = "How far can the stratified average treatment effect move if unmeasured confounding shifts the odds of treatment by a factor within [1/Lambda, Lambda], at which Lambda does it cross a decision threshold, and which action does the sensitivity decision composition choose over the declared Lambda range, with the sampling interval kept withheld?"
+graph_class = "No graph is identified: the caller supplies an adjustment set as finite strata with exact masses, propensities and outcome laws, and the sensitivity model perturbs the treatment odds given the strata and the potential outcome."
+guarantee = "msm_sharp_assumption_range_exact_population_inputs_lambda_one_identified_sampling_interval_withheld_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_strata = 4096, max_grid_points = 1024, max_sample_rows = 1000000, max_outcomes_per_arm = 256 }
+routes = []
+
+[[record]]
+id = "estimate.quadratic_dose"
+status = "promoted"
+consumer_question = "What is the randomized-dose level, derivative or contrast under a declared exact quadratic conditional mean, with zero smoothing bias at fixed bandwidth?"
+graph_class = "A randomized dose, attested by the caller: the dose is independent of the potential-outcome process, so no adjustment is needed. An observational dose is refused (dose_grid.graph_not_certified); this row does not adjust and re-derives no graph."
+guarantee = "declared_exact_quadratic_mean_zero_smoothing_bias_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "design.proposal_arrival"
+status = "promoted"
+consumer_question = "Can an actual independent finite study arrival, tied to the planned sample size and original physical/proof coordinates, execute the original checked transport/z-transport evaluator and independently replay from original artifacts and complete raw count providers?"
+graph_class = "Original failed classical catalog transport or checked missing-evidence z-transport selection ADMG; no new graph identifier or arbitrary analysis callback."
+guarantee = "original_checked_transport_program_executes_actual_count_laws_and_replays_all_raw_providers_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_artifact_bytes = 33554432, max_laws = 64, max_cells_per_law = 65536, max_variables = 12, default_evaluation_operations = 100000, default_evaluation_depth = 128, max_evaluation_operations = 1000000, max_evaluation_depth = 256 }
+routes = []
+
+[[record]]
+id = "composition.program_binding"
+status = "promoted"
+consumer_question = "Can an external claim be bound to the actual identified program and request it answers, so that a graph-only identity, an incompatible quantities override, a treatment or outcome substitution, a population mismatch or a dose-grid change is refused?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this binding cell does not identify a graph and does not execute or estimate anything."
+guarantee = "external_claim_bound_to_full_identified_program_and_request_identity_point_only_no_native_upgrade"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "composition.native_response_claims"
+status = "promoted"
+consumer_question = "Can a native mean-curve response be consumed by decision and inverse flows as a typed claim whose scientific coordinates, support, trust and calibration travel with it, without a mean ever becoming an outcome law?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this adapter does not identify a graph and does not estimate the response."
+guarantee = "native_mean_response_as_typed_claim_with_coordinates_support_trust_never_an_outcome_law_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "composition.boundary"
+status = "promoted"
+consumer_question = "Can a decision input carry its support, trust, calibration and capabilities from evidence only, can each action be judged on its own coordinates, and can sources be combined only under a declared operation that refuses shared or unknown dependence?"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+guarantee = "decision_input_trust_from_evidence_only_per_action_support_and_declared_dependence_boundary_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "recalculation.selective"
+status = "promoted"
+consumer_question = "Can a causal workflow be recalculated selectively, reusing the stage artifacts whose declared inputs and upstream identities are unchanged, recomputing only what changed, refusing what a fresh process cannot supply, and proving the reuse by counted cross-fitted fold fits rather than by the plan alone?"
+graph_class = "No new graph is identified: the planner compares declared stage identities, and the executor runs the existing identify-and-estimate route for a binary treatment under the caller's accepted graph and adjustment set. The retarget licence and the declared inputs are caller declarations, recorded and never verified here."
+guarantee = "selective_recalculation_stage_plan_and_counted_fold_fit_reuse_point_only_no_interval_no_persistent_cache"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_external_branches = 8 }
+routes = []
+
+[[record]]
+id = "recalculation.receipt"
+status = "promoted"
+consumer_question = "Can the receipt of a selective recalculation be exported as a portable, identity-bound artifact that a fresh consumer verifies by recomputing the plan, and that never certifies cache reuse across a process boundary?"
+graph_class = "No graph is identified: the artifact carries stage identities and counts for a workflow and checks their consistency with the planner only."
+guarantee = "recalc_receipt_artifact_recomputed_plan_and_counts_no_fresh_process_reuse_point_only_no_interval"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_bytes = 262144, max_stages = 64 }
+routes = []
+
+[[record]]
+id = "composition.bundle"
+status = "promoted"
+consumer_question = "Can a composed decision be exported as one portable bundle of typed nodes and Merkle-bound edges that an independent consumer verifies node by node, labels point-only or joint-draw from ancestor facts, and never claims to have replayed a referenced provider or study?"
+graph_class = "No graph is identified. The bundle's own graph is the dependency graph of its nodes; the causal contract or program a node carries is verified only to the extent its own artifact consumer verifies it, and a bundle never claims that a serialized result recreates an executable study."
+guarantee = "portable_composed_result_merkle_bound_nodes_verified_by_per_kind_verifiers_references_never_replayed_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_nodes = 1024, max_edges = 8192 }
+routes = []
+
+[[record]]
+id = "composition.verifiers"
+status = "promoted"
+consumer_question = "Can each embedded artifact of a composition bundle be verified through that artifact's own consumer, publishing the binding facts from the decoded fields, with external mean decisions kept point-only attested and joint-draw decisions kept to the aligned-law requirement?"
+graph_class = "No graph is identified: a verifier checks one artifact against its declared neighbours; the graph, snapshot or contract an artifact states is compared, not discovered."
+guarantee = "per_kind_node_verifiers_through_own_consumers_facts_from_decoded_fields_external_mean_point_only_attested"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "composition.multi_source"
+status = "promoted"
+consumer_question = "Can one decision over a three-action program be answered from a native response claim and two external studies, with each action's support reported, shared data and overlapping evidence refused as independent, a design ranked, the whole composed into one portable bundle, and every mutation of a binding fact either refused or recalculated only where it matters?"
+graph_class = "Graph x -> a, x -> y, a -> y with program y under do(a) over a three-dose grid. The acceptance identifies nothing itself: the program binding, the native claim and the external bindings each carry their own graph facts, and a changed graph or premise is refused at the program binding."
+guarantee = "multi_source_acceptance_composed_only_from_licensed_routes_hand_derived_values_refusals_and_selective_recalculation_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "recalculation.frozen_scores"
+status = "promoted"
+consumer_question = "Can the cell-saturated AIPW route be recalculated selectively with the fits counted by the estimator's own instrument, and can a fresh session resume from a frozen-score artifact alone and retarget it with zero fits while refusing everything that needs data or a fit?"
+graph_class = "No new graph is identified: the planner compares declared stage identities and the executor runs the existing cell-saturated AIPW estimator for jointly intervened binary treatments under the caller's graph and declared adjustment set, screened against descendants of the treatments. The retarget licence and the declared inputs are caller declarations, recorded and never verified here."
+guarantee = "cell_recalculation_and_portable_score_resume_counted_fits_zero_fit_retarget_point_only_no_interval"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "recalculation.frozen_scores_artifact"
+status = "promoted"
+consumer_question = "Can the frozen cross-fitted or cell AIPW score table of one run be exported as a portable, identity-bound artifact that a fresh consumer verifies by recomputing its fit identity and artifact identity and that carries scores but no data and no model?"
+graph_class = "No graph is identified: the artifact carries scores and stage identities for one workflow and checks their consistency only."
+guarantee = "frozen_score_artifact_recomputed_fit_and_artifact_identity_bit_exact_scores_no_data_no_model_point_only_no_interval"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_bytes = 134217728, max_rows = 2097152, max_columns = 64 }
+routes = []
+
+[[record]]
+id = "recalculation.operation_inventory"
+status = "promoted"
+consumer_question = "Which declared recalculation operation has a real adapter for the actual retained state, and which remains explicitly unavailable?"
+graph_class = "No graph is identified by inventory inspection."
+guarantee = "six_family_ten_operation_retained_state_capability_inspection_no_execution_no_numeric_claim"
+inference_claim = "none"
+coverage_records = []
+bounds = { max_external_branches = 8 }
+routes = []
+
+[[record]]
+id = "recalculation.adjusted"
+status = "promoted"
+consumer_question = "Can checked adjusted regression retain its actual fit and covariance for supported contrasts, fixed-row target standardization, utility changes and point predictions, while invalidating changed model/data/causal roles and explaining real work?"
+graph_class = "Fully observed static DAG; one or multiple joint treatment roles, one outcome and a checked common adjustment set. No latent graph, temporal regime or external provider is licensed."
+guarantee = "checked_adjusted_fit_reuse_counted_model_solves_full_covariance_supported_mean_contrasts_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_rows = 100000, max_columns = 256, max_values = 1000000, max_glm_iterations = 1000, max_json_bytes = 1048576 }
+routes = []
+
+[[record]]
+id = "recalculation.doubly_robust"
+status = "promoted"
+consumer_question = "Can checked DML AIPW and DR-Learner retain their own marginal scores and CATE model for compatible target/utility operations and point prediction, while measuring actual work and refusing unavailable state?"
+graph_class = "Fully observed static DAG, one binary treatment and mean outcome, checked adjustment-shaped identification. No latent, temporal, design-specific or external provider contract."
+guarantee = "checked_dr_score_and_cate_reuse_actual_learner_counts_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_rows = 100000, max_columns = 256, max_values = 1000000, max_json_bytes = 1048576, max_folds = 20 }
+routes = []
+
+[[record]]
+id = "recalculation.static_response"
+status = "promoted"
+consumer_question = "Can the checked static analysis retain compatible executed state, invalidate only changed scientific dependencies, and independently consume its results?"
+graph_class = "Finite identified ADMG response grids and bounded multi-source transport with exact discrete source laws."
+guarantee = "checked_static_reuse_actual_work_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_rows = 100000, max_values = 1000000, max_factor_cells = 1000000, max_variables = 12, max_levels_per_axis = 64, min_support_points = 2, max_support_points = 64, max_selected_actions = 64 }
+routes = []
+
+[[record]]
+id = "recalculation.design_specific"
+status = "promoted"
+consumer_question = "Can the checked design analysis retain compatible executed state, invalidate only changed scientific dependencies, and independently consume its results?"
+graph_class = "Existing checked IV2SLS, sharp linear RD and linear front-door design-specific study engines."
+guarantee = "checked_design_reuse_actual_work_point_only"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_rows = 100000, max_values = 1000000 }
+routes = []
+
+[[record]]
+id = "recalculation.bayesian"
+status = "promoted"
+consumer_question = "Can the original checked bayesian engine retain compatible executed state and independently replay its actual scientific result?"
+graph_class = "Observed fixed DAG with the original Gaussian linear or declared quadratic-basis causal ATE engine; bounded coefficient prior, known residual variance or NIG as supported by the original engine."
+guarantee = "checked_bayesian_retention_actual_work_no_new_inference_guarantee"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_rows = 100000, max_values = 1000000, max_variables = 128, min_draws = 2, max_draws = 100000, max_workspace_values = 16000000, max_prior_artifact_bytes = 16000000 }
+routes = []
+
+[[record]]
+id = "recalculation.temporal"
+status = "promoted"
+consumer_question = "Can the original checked temporal engine retain compatible executed state and independently replay its actual scientific result?"
+graph_class = "Observed five-variable binary longitudinal DAG S0,A1,L2,A2,Y; selection confined to unconfounded root S0, invariant remaining mechanisms, two actual intervention periods."
+guarantee = "checked_temporal_retention_and_exact_scoped_measured_scalar_authorization"
+inference_claim = "calibrated"
+coverage_records = ["cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_response_studentized_l95", "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95", "cov.temporal_transport.selection_admg.frequentist.bootstrap_percentile.l95.temporal_checked_effect_percentile_l95", "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95"]
+bounds = { max_variables = 5, max_periods = 2, max_units_rust = 8192, max_units_python = 4096, max_histories_rust = 131072, max_histories_python = 100000, max_source_support_rows = 4096 }
+routes = [{ name = "antecedent.recalc_temporal.TemporalSession.dependent_interval", stage = "uncertainty", status = "licensed" }]
+
+[[record]]
+id = "composition.rollout_state"
+status = "promoted"
+consumer_question = "Can a fresh consumer establish that a study ranking used the actual supplied finite state law and exact terminal decision, retaining the source trust and uncertainty standing?"
+graph_class = "No new identification claim; the independently supplied state law retains its own scientific scope."
+guarantee = "actual_finite_source_prior_terminal_ranking_binding_preserves_source_standing"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_artifact_bytes = 33554432, max_states = 65536, max_quantities = 1024, max_actions = 65536, max_utility_cells = 4194304 }
+routes = []
+
+[[record]]
+id = "recalculation.external_callback"
+status = "promoted"
+consumer_question = "Can a bounded actual foreign mean callback execute only its changed declared branch, retain attested output and independently replay with a real compatible provider?"
+graph_class = "Caller-declared original external ProgramBinding; foreign execution does not independently identify it."
+guarantee = "actual_bounded_foreign_mean_execution_with_attested_output_and_counted_branch_replay"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_rows = 100000, max_values = 1000000, max_variables = 64, max_actions = 64, max_model_parameters = 128, max_branches = 8, max_attempts = 256, max_artifact_bytes = 6291456, max_response_bytes = 1048576 }
+routes = []
+
+[[record]]
+id = "recalculation.composite"
+status = "promoted"
+consumer_question = "Can one actual retained native response and two real attested providers execute a supported mean decision with one shared measured dependency receipt, selective invalidation and fresh scientific revalidation?"
+graph_class = "Selected finite front-door ADMG T→M→Y with T↔Y, original ordinary ID and empirical whole finite factors."
+guarantee = "actual_native_two_provider_shared_selective_mean_execution_and_scientific_revalidation"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_native_variables = 12, max_rows = 100000, max_values = 1000000, max_actions = 64, max_utility_nodes = 2048, external_branches = 2, utility_depth_exclusive = 64 }
+routes = []
+
+[[record]]
+id = "composition.source_projection"
+status = "promoted"
+consumer_question = "Can original causal contracts, external attestations, scientific coordinates and affine transformations be independently replayed inside a composition bundle, with actual native source execution required to resolve dependencies?"
+graph_class = "Original checked source graph retained; no new identification."
+guarantee = "original_source_replay_and_exact_affine_utility_without_execution_or_calibration_upgrade"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_artifact_bytes = 18874368, max_action_id_bytes = 256 }
+routes = []
+
+[[record]]
+id = "design.conditional_study_ranking"
+status = "promoted"
+consumer_question = "Can an actually executed native/two-provider point decision route explicit conditional candidate declarations through original structural study ranking and replay the full handoff against actual fresh scientific state?"
+graph_class = "Selected finite front-door ADMG T→M→Y with T↔Y, original ordinary ID and empirical whole finite factors."
+guarantee = "source_bound_conditional_point_structural_ranking_and_actual_fresh_replay"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_actions = 64, max_candidates_per_action = 128, max_candidates = 512, max_name_bytes = 256, max_artifact_bytes = 4194304, max_policy_json_bytes = 262144 }
+routes = []
+
+[[record]]
+id = "recalculation.native_execution_attempts"
+status = "promoted"
+consumer_question = "Can actual attempted/completed/failed native component work be inspected on an original success, refusal or cancellation without fabricating a successful receipt or losing retained scientific state?"
+graph_class = "Original source family graph/identification contracts unchanged; observer itself identifies no causal graph."
+guarantee = "actual_original_component_lifecycle_diagnostics_without_authority_or_retry"
+inference_claim = "point_only"
+coverage_records = []
+bounds = {}
+routes = []
+
+[[record]]
+id = "inference.measured_scalar"
+status = "promoted"
+consumer_question = "Can a fresh consumer independently replay the original native source and verify current method-specific scalar evidence without trusting a serialized coverage assertion?"
+graph_class = "Exactly the graph classes of the six method prerequisites; the carrier adds no graph support."
+guarantee = "factory_only_original_source_replay_and_current_exact_scalar_evidence_authorization"
+inference_claim = "point_only"
+coverage_records = []
+bounds = { max_bytes = 67108864 }
+routes = []

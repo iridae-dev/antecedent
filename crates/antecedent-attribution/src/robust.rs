@@ -27,6 +27,7 @@ use antecedent_model::{
     MechanismWorkspace, ParentBatch, SelectionPolicy, evaluate_column, sample_noise_column,
 };
 
+use crate::change_common::{ROBUST_STREAM, attribution_stream};
 use crate::coalition::full_coalition_mask;
 use crate::distribution_change::mechanism_players;
 use crate::error::AttributionError;
@@ -109,6 +110,14 @@ pub fn distribution_change_robust(
         &query.allocation,
         "distribution_change_robust currently supports Shapley allocation",
     )?;
+    // `n_samples` is the budget the caller declared for each coalition. The
+    // linear payoff does not draw, but a declared budget past the ceiling is
+    // still refused, the same rule `distribution_change` uses.
+    crate::shapley::check_coalition_sample_budget(
+        players.len(),
+        &query.allocation,
+        options.n_samples.max(1),
+    )?;
 
     let (v0, v_full, estimate) = if all_linear {
         let mut payoff = RobustLinearPayoff {
@@ -117,8 +126,7 @@ pub fn distribution_change_robust(
             players: players.clone(),
             outcome: query.outcome,
             fitted: Vec::new(),
-            columns: Vec::new(),
-            node_pred: Vec::new(),
+            column_means: Vec::new(),
             outcome_idx: None,
             n_rows: 0,
         };
@@ -135,8 +143,7 @@ pub fn distribution_change_robust(
             comparison_mechs,
             &players,
             outcome_dense,
-            options.n_samples,
-            options.seed,
+            McSampling { n_samples: options.n_samples, seed: options.seed },
             ctx,
         );
         let v0 = payoff.value(0)?;
@@ -180,7 +187,7 @@ fn model_slot_is_linear(
 enum ParentSource {
     /// Predicted column of an earlier player (index into the player list).
     Player(usize),
-    /// Owned baseline data column (index into `RobustLinearPayoff::columns`).
+    /// Mean of a non-player parent column (index into `column_means`).
     Column(usize),
 }
 
@@ -198,10 +205,9 @@ struct RobustLinearPayoff<'a> {
     players: Vec<ComponentId>,
     outcome: VariableId,
     fitted: Vec<NodeRegression>,
-    /// Non-player parent columns from the baseline population, fetched once.
-    columns: Vec<Vec<f64>>,
-    /// Flat `k × n` prediction scratch reused across coalitions.
-    node_pred: Vec<f64>,
+    /// Mean of each non-player parent column. An affine mechanism's mean is the
+    /// mechanism of the parent means, so the row loop is not required.
+    column_means: Vec<f64>,
     /// Index of the outcome among the players, if present.
     outcome_idx: Option<usize>,
     n_rows: usize,
@@ -221,7 +227,7 @@ impl RobustLinearPayoff<'_> {
         comparison_mechs: &CompiledMechanismStore,
     ) -> Result<(), AttributionError> {
         self.fitted.clear();
-        self.columns.clear();
+        self.column_means.clear();
         self.n_rows = self.baseline.row_count();
         self.outcome_idx = self.players.iter().position(|c| c.variable() == self.outcome);
         let mut column_vars: Vec<VariableId> = Vec::new();
@@ -244,15 +250,25 @@ impl RobustLinearPayoff<'_> {
                 if let Some(pj) = self.players.iter().position(|c| c.variable() == p) {
                     // Players come from `mechanism_players` in topological order,
                     // so a parent that is itself a player always precedes `i`.
-                    assert!(pj < i, "player parent must precede its child in topo order");
+                    if pj >= i {
+                        return Err(AttributionError::unsupported(
+                            "robust linear payoff: player parent is not in topological order",
+                        ));
+                    }
                     sources.push(ParentSource::Player(pj));
                 } else {
                     let ci = if let Some(ci) = column_vars.iter().position(|&v| v == p) {
                         ci
                     } else {
                         column_vars.push(p);
-                        self.columns.push(self.baseline.float64_values(p)?);
-                        self.columns.len() - 1
+                        let col = self.baseline.float64_values(p)?;
+                        let mean = if col.is_empty() {
+                            0.0
+                        } else {
+                            col.iter().sum::<f64>() / col.len() as f64
+                        };
+                        self.column_means.push(mean);
+                        self.column_means.len() - 1
                     };
                     sources.push(ParentSource::Column(ci));
                 }
@@ -263,7 +279,6 @@ impl RobustLinearPayoff<'_> {
                 linear_beta(&comparison_mechs.slots[dense.as_usize()], parents.len())?;
             self.fitted.push(NodeRegression { baseline_beta, comparison_beta, sources });
         }
-        self.node_pred = vec![0.0; self.players.len() * self.n_rows];
         Ok(())
     }
 }
@@ -300,33 +315,32 @@ fn linear_beta(slot: &MechanismSlot, n_parents: usize) -> Result<Vec<f64>, Attri
 
 impl CoalitionPayoff for RobustLinearPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
-        let n = self.n_rows;
         let Some(outcome_idx) = self.outcome_idx else {
             return Err(AttributionError::unsupported(
                 "robust payoff: outcome is not among Shapley players",
             ));
         };
+        // An empty population has no outcome mean. A positive row count is linear,
+        // so the column mean is the composition of parent means.
+        if self.baseline.row_count() == 0 {
+            return Ok(0.0);
+        }
+        let mut means = vec![0.0; self.players.len()];
         for i in 0..self.players.len() {
             let fit = &self.fitted[i];
             let beta =
                 if mask & (1u64 << i) != 0 { &fit.comparison_beta } else { &fit.baseline_beta };
-            // Earlier players' predictions (`done`) feed the current column (`col`).
-            let (done, rest) = self.node_pred.split_at_mut(i * n);
-            let col = &mut rest[..n];
-            for r in 0..n {
-                let mut yhat = beta[0];
-                for (pi, src) in fit.sources.iter().enumerate() {
-                    let x = match *src {
-                        ParentSource::Player(pj) => done[pj * n + r],
-                        ParentSource::Column(ci) => self.columns[ci][r],
-                    };
-                    yhat += beta.get(pi + 1).copied().unwrap_or(0.0) * x;
-                }
-                col[r] = yhat;
+            let mut yhat = beta[0];
+            for (pi, src) in fit.sources.iter().enumerate() {
+                let x = match *src {
+                    ParentSource::Player(pj) => means[pj],
+                    ParentSource::Column(ci) => self.column_means[ci],
+                };
+                yhat += beta.get(pi + 1).copied().unwrap_or(0.0) * x;
             }
+            means[i] = yhat;
         }
-        let col = &self.node_pred[outcome_idx * n..(outcome_idx + 1) * n];
-        Ok(col.iter().sum::<f64>() / n.max(1) as f64)
+        Ok(means[outcome_idx])
     }
 }
 
@@ -351,11 +365,11 @@ impl CoalitionPayoff for RobustLinearPayoff<'_> {
 /// baseline/comparison store — the same slot the hybrid store would have held (players
 /// here are all mechanism-kind).
 ///
-/// The RNG is reseeded to the *same* stream at the start of every [`CoalitionPayoff::value`]
-/// call (common random numbers), so two coalitions differ only in which mechanisms were
-/// swapped, not in which random draws were used — this is what keeps the Shapley
-/// differences of two Monte Carlo estimates numerically usable at a practical sample count,
-/// the same technique `distribution_change`'s `MechanismSwapPayoff` uses.
+/// Every node gets its own stream, keyed by its dense id, and that stream is restarted for
+/// every [`CoalitionPayoff::value`] call. Thus changing one node's mechanism cannot shift
+/// the noise draws for later nodes (common random numbers across coalitions), which keeps
+/// Monte Carlo Shapley differences from acquiring artificial interactions merely because
+/// two mechanism families consume different numbers of random draws.
 struct RobustMechanismPayoff<'a> {
     template: CompiledCausalModel,
     baseline: CompiledMechanismStore,
@@ -375,6 +389,13 @@ struct RobustMechanismPayoff<'a> {
     ctx: &'a ExecutionContext,
 }
 
+/// Monte Carlo sample count and stream seed of a robust mechanism payoff.
+#[derive(Clone, Copy)]
+struct McSampling {
+    n_samples: usize,
+    seed: u64,
+}
+
 impl<'a> RobustMechanismPayoff<'a> {
     fn new(
         template: CompiledCausalModel,
@@ -382,10 +403,10 @@ impl<'a> RobustMechanismPayoff<'a> {
         comparison: CompiledMechanismStore,
         players: &[ComponentId],
         outcome: DenseNodeId,
-        n_samples: usize,
-        seed: u64,
+        sampling: McSampling,
         ctx: &'a ExecutionContext,
     ) -> Self {
+        let McSampling { n_samples, seed } = sampling;
         let n_nodes = template.n_nodes();
         let n_samples = n_samples.max(1);
         let mut node_player = vec![None; n_nodes];
@@ -412,11 +433,25 @@ impl<'a> RobustMechanismPayoff<'a> {
 }
 
 impl CoalitionPayoff for RobustMechanismPayoff<'_> {
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        Some(Box::new(RobustMechanismPayoff {
+            template: self.template.clone(),
+            baseline: self.baseline.clone(),
+            comparison: self.comparison.clone(),
+            outcome: self.outcome,
+            ws: MechanismWorkspace::default(),
+            node_player: self.node_player.clone(),
+            values: vec![0.0; self.values.len()],
+            parent_scratch: Vec::new(),
+            noise_scratch: vec![0.0; self.noise_scratch.len()],
+            n_samples: self.n_samples,
+            seed: self.seed,
+            ctx: self.ctx,
+        }))
+    }
+
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let n = self.n_samples;
-        // Common random numbers: fresh stream from the same seed every call, so
-        // only the swapped mechanisms (via `mask`) differ between coalitions.
-        let mut rng = self.ctx.rng.stream(0x526F_6275_7374_4D43_u64.wrapping_add(self.seed));
         // Ancestral Monte Carlo walk (`parent_gathers` is aligned with `node_order`,
         // so this iteration is the `node_order` + `gather_for` walk without the O(n)
         // lookups): every node, root or not, draws real noise and is evaluated on it.
@@ -437,6 +472,12 @@ impl CoalitionPayoff for RobustMechanismPayoff<'_> {
                 matches!(self.node_player[node.as_usize()], Some(i) if mask & (1u64 << i) != 0);
             let slot =
                 if use_comparison { self.comparison.get(node) } else { self.baseline.get(node) };
+            // A node-local stream prevents an upstream mechanism's draw count from
+            // shifting every downstream node's noise when comparing coalitions.
+            let node_seed = self
+                .seed
+                .wrapping_add((node.as_usize() as u64).wrapping_mul(antecedent_core::GOLDEN_GAMMA));
+            let mut rng = attribution_stream(self.ctx, ROBUST_STREAM, node_seed);
             sample_noise_column(slot, n, &mut rng, &mut self.noise_scratch)?;
             let out = &mut self.values[node.as_usize() * n..(node.as_usize() + 1) * n];
             evaluate_column(slot, parents, &self.noise_scratch[..n], out, &mut self.ws)?;
@@ -644,6 +685,74 @@ mod tests {
         assert!(result.total_change.abs() > 0.5);
     }
 
+    /// `.robust(true)` used to drop `with_sampling`. A non-mean measure is refused,
+    /// and an explicit mean-diff sample budget does not change the exact linear result
+    /// or replace the robust default when sampling was not set.
+    #[test]
+    fn robust_builder_honors_sampling_without_changing_the_linear_mean() {
+        let (model, data) = deterministic_linear_chain();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&model, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let model = model.with_mechanisms(store);
+        let ctx = ExecutionContext::for_tests(1);
+        let baseline = PopulationSelector::Rows(Arc::from((0..30).collect::<Vec<_>>()));
+        let comparison = PopulationSelector::Rows(Arc::from((30..60).collect::<Vec<_>>()));
+        let run = |sampling: Option<(DifferenceMeasure, usize, u64)>| {
+            let mut built = crate::builder::ChangeAttribution::new()
+                .outcome(VariableId::from_raw(1))
+                .baseline(baseline.clone())
+                .comparison(comparison.clone())
+                .robust(true);
+            if let Some((measure, n, seed)) = sampling {
+                built = built.with_sampling(measure, n, seed);
+            }
+            built.run(&model, &data, &ctx)
+        };
+        let refused = run(Some((DifferenceMeasure::GaussianKl, 10, 1))).unwrap_err();
+        assert!(matches!(refused, AttributionError::Unsupported { .. }), "{refused:?}");
+        let plain = run(None).unwrap();
+        let sampled = run(Some((DifferenceMeasure::MeanDiff, 1_000, 9))).unwrap();
+        assert_eq!(plain.total_change.to_bits(), sampled.total_change.to_bits());
+    }
+
+    /// Swapping a zero-effect root from a constant to a Gaussian family must not change
+    /// the downstream mechanism's Monte Carlo noise. The structural truth is zero: Y has
+    /// coefficient 0 on X and identical noise under both populations. This catches a
+    /// sequential-stream bug where X's family consumes a different number of random draws
+    /// and shifts Y's sample, creating a spurious finite-sample Shapley interaction.
+    #[test]
+    fn robust_node_noise_is_stable_when_another_family_changes_draw_count() {
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let template = CompiledCausalModel::compile(graph).unwrap();
+        let x_constant = MechanismSlot::Constant { value: 0.0 };
+        let x_gaussian =
+            MechanismSlot::LinearGaussian { intercept: 0.0, coeffs: Arc::from([]), sigma: 1.0 };
+        let y =
+            MechanismSlot::LinearGaussian { intercept: 0.0, coeffs: Arc::from([0.0]), sigma: 1.0 };
+        let baseline = CompiledMechanismStore { slots: Arc::from([x_constant, y.clone()]) };
+        let comparison = CompiledMechanismStore { slots: Arc::from([x_gaussian, y]) };
+        let players = [
+            ComponentId::from_variable(VariableId::from_raw(0)),
+            ComponentId::from_variable(VariableId::from_raw(1)),
+        ];
+        let ctx = ExecutionContext::for_tests(17);
+        let mut payoff = RobustMechanismPayoff::new(
+            template,
+            baseline,
+            comparison,
+            &players,
+            DenseNodeId::from_raw(1),
+            McSampling { n_samples: 128, seed: 23 },
+            &ctx,
+        );
+
+        let unchanged_x = payoff.value(0).unwrap();
+        let changed_x_only = payoff.value(1).unwrap();
+        assert_eq!(unchanged_x.to_bits(), changed_x_only.to_bits());
+    }
+
     /// `X -> Y`, `Y = X²` exactly (zero-noise quadratic mechanism), `X`'s mean held
     /// fixed at 0 while its standard deviation moves 1 → 2 between baseline and
     /// comparison. Independent truth: `f(x) = x²` is exactly quadratic, so for *any*
@@ -697,7 +806,13 @@ mod tests {
         let outcome = DenseNodeId::from_raw(1);
         let ctx = ExecutionContext::for_tests(7);
         let mut payoff = RobustMechanismPayoff::new(
-            template, baseline, comparison, &players, outcome, 20_000, 11, &ctx,
+            template,
+            baseline,
+            comparison,
+            &players,
+            outcome,
+            McSampling { n_samples: 20_000, seed: 11 },
+            &ctx,
         );
 
         let v_baseline = payoff.value(0).unwrap();
@@ -712,5 +827,39 @@ mod tests {
             "nonlinear payoff should integrate E[f(X)] over X's actual (changed) \
              variance, not plug in a single point: observed Δ={observed}, true Δ={true_delta}"
         );
+    }
+
+    #[test]
+    fn robust_builder_honors_sampling_and_refuses_other_measures() {
+        use crate::builder::ChangeAttribution;
+        let (model, data) = deterministic_linear_chain();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&model, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let model = model.with_mechanisms(store);
+        let ctx = ExecutionContext::for_tests(1);
+        let outcome = VariableId::from_raw(1);
+        let baseline = PopulationSelector::Rows(Arc::from((0..30).collect::<Vec<_>>()));
+        let comparison = PopulationSelector::Rows(Arc::from((30..60).collect::<Vec<_>>()));
+        let err = ChangeAttribution::new()
+            .outcome(outcome)
+            .baseline(baseline.clone())
+            .comparison(comparison.clone())
+            .robust(true)
+            .with_sampling(DifferenceMeasure::VarianceDiff, 10, 1)
+            .run(&model, &data, &ctx)
+            .unwrap_err();
+        assert!(matches!(err, AttributionError::Unsupported { .. }), "{err:?}");
+
+        let err = ChangeAttribution::new()
+            .outcome(outcome)
+            .baseline(baseline)
+            .comparison(comparison)
+            .allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() })
+            .robust(true)
+            .with_sampling(DifferenceMeasure::MeanDiff, 30_000_000, 1)
+            .run(&model, &data, &ctx)
+            .unwrap_err();
+        assert!(matches!(err, AttributionError::SizeLimit { .. }), "{err:?}");
     }
 }

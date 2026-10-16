@@ -1,14 +1,13 @@
-//! 2.2 E0 reproducers and E1 preflight, rank-drop and cost checks on bounded synthetic data.
+//! Reproducers and preflight, rank-drop and cost checks on bounded synthetic data.
 //!
 //! The reproducer tests document what the branch does today for the reported workloads
 //! (rank 174 of 175, duplicate columns, near-separation, a retargeted overlap refusal) and
-//! the E1 tests pin what the new fit-free diagnostics add. Every numeric expectation is
+//! the preflight tests pin what the new fit-free diagnostics add. Every numeric expectation is
 //! derived by hand in the test or from an independent implementation, not from the code
 //! under test.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact counts and exact copies of columns"
@@ -59,7 +58,7 @@ fn codes(report: &antecedent::PreflightReport, code: &str) -> Vec<antecedent::Pr
     report.findings.iter().filter(|f| f.code == code).cloned().collect()
 }
 
-/// E0, rank 174 of 175: one exact duplicate among 175 design columns. The QR backend refuses
+/// Rank 174 of 175: one exact duplicate among 175 design columns. The QR backend refuses
 /// it with the rank and column count only (no column name); preflight names the dependent
 /// column and its exact relation, and the two ranks agree.
 #[test]
@@ -135,7 +134,7 @@ fn rank_174_of_175_is_refused_by_the_backend_and_named_by_preflight() {
     assert!(fields.propensity_min.is_none() && fields.arm_ess.is_empty());
 }
 
-/// E0, 175 columns with near-separation: with more design columns than half the rows, random
+/// 175 columns with near-separation: with more design columns than half the rows, random
 /// arm labels are linearly separable (Cover), so the strict propensity fit refuses, while the
 /// fit-free preflight sees a full-rank design with no single separating column. Only the fit
 /// shows the joint separation, and it is reported flagged rather than as a clean fit.
@@ -185,7 +184,7 @@ fn a_175_column_propensity_separates_jointly_and_only_the_fit_shows_it() {
     }
 }
 
-/// E0, near-separation by one column: a single covariate that splits the arms is flagged for
+/// Near-separation by one column: a single covariate that splits the arms is flagged for
 /// review by the fit-free check (a positivity warning, not a verdict), and the diagnostic fit
 /// reports flagged scores instead of hiding the saturation behind a ridge.
 #[test]
@@ -218,7 +217,7 @@ fn one_column_that_separates_the_arms_is_flagged_without_a_fit() {
     }
 }
 
-/// E1, duplicate aliases and nearly deterministic but nonidentical columns stay separate: an
+/// Duplicate aliases and nearly deterministic but nonidentical columns stay separate: an
 /// exact alias is blocking and named with its relation; a column that differs from another by
 /// `1e-4` noise is only a review flag, and neither changes the adjustment set.
 #[test]
@@ -265,7 +264,7 @@ fn exact_aliases_block_and_near_duplicates_only_flag() {
     assert_eq!(report.adjustment_set, vec!["z0", "alias", "z3"]);
 }
 
-/// E1, exact collinearity: a column `3a - 2b + 5` is named dependent with coefficients
+/// Exact collinearity: a column `3a - 2b + 5` is named dependent with coefficients
 /// computed by hand, a constant covariate is explained by the intercept, and the rank
 /// matches the backend QR on the same columns.
 #[test]
@@ -319,7 +318,7 @@ fn exact_collinearity_names_the_relation_in_original_units() {
     assert!(matches!(error, StatsError::RankDeficient { rank: 3, ncols: 5 }), "{error}");
 }
 
-/// E1, near-determinism review flags: a covariate that near-deterministically predicts the
+/// Near-determinism review flags: a covariate that near-deterministically predicts the
 /// outcome, and one that is an exact copy of the treatment, are flagged for human review (with
 /// the measure and threshold) and neither blocks nor changes the adjustment set.
 #[test]
@@ -353,7 +352,7 @@ fn leakage_like_columns_are_flagged_for_review_only() {
     assert_eq!(report.adjustment_set, vec!["z", "treated_copy"]);
 }
 
-/// E1, zero overlap: an arm with no rows blocks with `arm_not_populated` and structured
+/// Zero overlap: an arm with no rows blocks with `arm_not_populated` and structured
 /// per-arm counts; no propensity fit is attempted (absent, with the reason).
 #[test]
 fn an_empty_arm_is_a_typed_refusal_with_arm_counts() {
@@ -386,7 +385,7 @@ fn an_empty_arm_is_a_typed_refusal_with_arm_counts() {
     ));
 }
 
-/// E1, missingness: rows with a missing cell leave the complete-case set, per-column counts
+/// Missingness: rows with a missing cell leave the complete-case set, per-column counts
 /// are exact, and the arm counts are over complete rows only.
 #[test]
 fn missing_cells_are_counted_per_column_and_leave_the_complete_cases() {
@@ -415,7 +414,7 @@ fn missing_cells_are_counted_per_column_and_leave_the_complete_cases() {
     assert_eq!(report.rows_other_levels, 0);
 }
 
-/// E1, the opt-in rank drop declares a priority first: with `b = 2a` the column that goes is
+/// The opt-in rank drop declares a priority first: with `b = 2a` the column that goes is
 /// the lower-priority one, with the exact relation recorded, and the same data under the other
 /// priority drops the other column. The design identity records the outcome.
 #[test]
@@ -461,7 +460,7 @@ fn the_rank_drop_follows_the_declared_priority_and_records_the_relation() {
     assert_eq!(plan, plan_rank_drop(&input, &declared, &ctx).unwrap());
 }
 
-/// E1, the rank drop refuses (and drops nothing) when the priority does not cover the
+/// The rank drop refuses (and drops nothing) when the priority does not cover the
 /// adjustment set, when a dependent column is a protected query column, and when an
 /// adjustment column aliases the treatment.
 #[test]
@@ -567,7 +566,7 @@ fn kish(weights: &[f64]) -> f64 {
     sum * sum / weights.iter().map(|w| w * w).sum::<f64>()
 }
 
-/// E1 on a prepared plan: the report reads the certified adjustment set and the retained
+/// On a prepared plan: the report reads the certified adjustment set and the retained
 /// table, the fitted diagnostics match an independent propensity fit and hand-computed Kish
 /// ESS, and the cost counts match the hand derivation for cross-fitted AIPW.
 #[test]
@@ -669,7 +668,7 @@ fn a_prepared_plan_diagnoses_fit_free_then_fitted_and_counts_its_cost() {
     assert!(!cost.seconds_basis.is_empty());
 }
 
-/// E1 on a prepared batch: one report and cost per claim, the shared covariate design is
+/// On a prepared batch: one report and cost per claim, the shared covariate design is
 /// reported, and cost grows with the number of claims.
 #[test]
 fn a_prepared_batch_diagnoses_and_costs_every_claim() {
@@ -711,7 +710,7 @@ fn a_prepared_batch_diagnoses_and_costs_every_claim() {
     assert_eq!(both.diagnose_fit(&ctx).unwrap().len(), 2);
 }
 
-/// E0, retargeted overlap refusal: a row-weight retarget onto a region the treated arm never
+/// Retargeted overlap refusal: a row-weight retarget onto a region the treated arm never
 /// reaches refuses as a support failure (class and text as before) and now carries structured
 /// fields (the per-site checks are in `refusal_fields_existing_sites.rs`).
 #[test]

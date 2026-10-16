@@ -1,0 +1,22 @@
+feature_id = "discovery.per_population"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# One declared discovery contract run separately on each population's rows, with the
+# per-population structures lined up edge by edge. There is no primary paper: the module is
+# orchestration over the existing selective discovery adapter and pools nothing. The
+# cross-population invariance literature is deliberately not cited because none of it is
+# implemented (pooled and context-variable searches are refused).
+papers = []
+implementation_deviations = [
+  "Not a pooled search, not a selection diagram and not an invariance test: agreement and difference are reported, never tested, and no error rate attaches to either. A difference between two discovered structures is a difference between two estimates, not a statement that a mechanism differs.",
+  "Pooled-data confusion: two populations with content-identical searched columns, row counts, mask, weights and types are refused (selective_discovery.pooled_population_data); partial overlap is not visible from content identities, so the caller declares disjoint populations.",
+  "Per-population error control is whatever the single-population route records; no whole-method calibration is stated for agreement between populations.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-discovery/tests/selective_discovery.rs",
+]

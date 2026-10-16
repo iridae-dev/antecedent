@@ -3,9 +3,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use numpy::{PyReadonlyArray1, PyReadonlyArray2};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashSet;
+
+use crate::detach_catch;
 
 /// Retained sequential randomized regime value with bounded IPW inference.
 #[pyclass(get_all, skip_from_py_object)]
@@ -73,6 +74,7 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
 /// Point-only Horvitz--Thompson value of a static or dynamic regime.
 #[pyfunction]
 fn evaluate_longitudinal_regime_value(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     treatment: PyReadonlyArray2<'_, bool>,
     regime: PyReadonlyArray2<'_, bool>,
@@ -95,25 +97,35 @@ fn evaluate_longitudinal_regime_value(
         || p.dim() != (n, periods)
         || g.dim() != (n, periods)
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "regime arrays must have matching subject and period dimensions",
         ));
     }
-    let summary = antecedent_estimate::longitudinal_regime::evaluate_regime_value(
-        &y.iter().copied().collect::<Vec<_>>(),
-        &a.iter().copied().collect::<Vec<_>>(),
-        &d.iter().copied().collect::<Vec<_>>(),
-        &p.iter().copied().collect::<Vec<_>>(),
-        &r.iter().copied().collect::<Vec<_>>(),
-        &g.iter().copied().collect::<Vec<_>>(),
-        periods,
-        f64::EPSILON,
-    )
-    .map_err(|message| {
-        PyValueError::new_err(if message.contains("no observed subjects") {
-            "no observed trajectories followed the requested regime"
-        } else {
-            message
+    let y = y.iter().copied().collect::<Vec<_>>();
+    let a = a.iter().copied().collect::<Vec<_>>();
+    let p = p.iter().copied().collect::<Vec<_>>();
+    let r = r.iter().copied().collect::<Vec<_>>();
+    let g = g.iter().copied().collect::<Vec<_>>();
+    let d = d.iter().copied().collect::<Vec<_>>();
+    let summary = detach_catch(py, move || {
+        antecedent_estimate::longitudinal_regime::evaluate_regime_value(
+            &y,
+            &antecedent_estimate::longitudinal_regime::SubjectHistories {
+                treatment: &a,
+                treatment_probability: &p,
+                outcome_observed: &r,
+                censoring_probability: &g,
+                periods,
+                minimum_probability: f64::EPSILON,
+            },
+            &d,
+        )
+        .map_err(|message| {
+            crate::value_err(if message.contains("no observed subjects") {
+                "no observed trajectories followed the requested regime"
+            } else {
+                message
+            })
         })
     })?;
     Ok((
@@ -127,6 +139,7 @@ fn evaluate_longitudinal_regime_value(
 /// Plug-in sequential g-formula value for caller-supplied conditional rewards.
 #[pyfunction]
 fn evaluate_sequential_gformula(
+    py: Python<'_>,
     period_outcome_predictions: PyReadonlyArray2<'_, f64>,
     regime_actions: PyReadonlyArray2<'_, bool>,
     treatment_probability: PyReadonlyArray2<'_, f64>,
@@ -148,38 +161,44 @@ fn evaluate_sequential_gformula(
         || subject_ids.len() != n
         || fold_ids.len() != n
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "prediction, regime, probability, subject, and fold inputs must have matching non-zero subject-period dimensions",
         ));
     }
     if !minimum_probability.is_finite() || minimum_probability <= 0.0 || minimum_probability > 0.5 {
-        return Err(PyValueError::new_err("minimum_probability must be finite and in (0, 0.5]"));
+        return Err(crate::value_err("minimum_probability must be finite and in (0, 0.5]"));
     }
     if subject_ids.iter().any(|id| id.trim().is_empty()) {
-        return Err(PyValueError::new_err("subject_ids must be non-empty strings"));
+        return Err(crate::value_err("subject_ids must be non-empty strings"));
     }
     let unique_subjects: HashSet<&str> = subject_ids.iter().map(String::as_str).collect();
     if unique_subjects.len() != n {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "g-formula inputs require one row per unique subject to preserve fold ownership",
         ));
     }
     if fold_ids.iter().any(|&fold| fold < 0) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "fold_ids must be non-negative to preserve subject-level fold ownership",
         ));
     }
 
-    let summary = antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
-        &q.iter().copied().collect::<Vec<_>>(),
-        &actions.iter().copied().collect::<Vec<_>>(),
-        &p.iter().copied().collect::<Vec<_>>(),
-        &g.iter().copied().collect::<Vec<_>>(),
-        n,
-        periods,
-        minimum_probability,
-    )
-    .map_err(PyValueError::new_err)?;
+    let q = q.iter().copied().collect::<Vec<_>>();
+    let actions = actions.iter().copied().collect::<Vec<_>>();
+    let p = p.iter().copied().collect::<Vec<_>>();
+    let g = g.iter().copied().collect::<Vec<_>>();
+    let summary = detach_catch(py, move || {
+        antecedent_estimate::longitudinal_regime::evaluate_g_formula_value(
+            &q,
+            &actions,
+            &p,
+            &g,
+            n,
+            periods,
+            minimum_probability,
+        )
+        .map_err(crate::value_err)
+    })?;
     Ok((
         summary.value,
         n,
@@ -191,6 +210,7 @@ fn evaluate_sequential_gformula(
 /// Sequentially augmented regime value from caller-supplied cross-fitted Q predictions.
 #[pyfunction]
 fn evaluate_sequential_doubly_robust(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     outcome_observed: PyReadonlyArray1<'_, bool>,
     observation_history: PyReadonlyArray2<'_, bool>,
@@ -226,48 +246,62 @@ fn evaluate_sequential_doubly_robust(
         || fold_ids.len() != n
         || prediction_fold_ids.len() != n
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "outcome, history, regime, Q, probability, subject, and fold inputs must have matching non-zero dimensions",
         ));
     }
     if !minimum_probability.is_finite() || minimum_probability <= 0.0 || minimum_probability > 0.5 {
-        return Err(PyValueError::new_err("minimum_probability must be finite and in (0, 0.5]"));
+        return Err(crate::value_err("minimum_probability must be finite and in (0, 0.5]"));
     }
     if subject_ids.iter().any(|id| id.trim().is_empty()) {
-        return Err(PyValueError::new_err("subject_ids must be non-empty strings"));
+        return Err(crate::value_err("subject_ids must be non-empty strings"));
     }
     let unique_subjects: HashSet<&str> = subject_ids.iter().map(String::as_str).collect();
     if unique_subjects.len() != n {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "doubly robust inputs require one row per unique subject to preserve fold ownership",
         ));
     }
     if fold_ids.iter().any(|&fold| fold < 0)
         || fold_ids.iter().zip(&prediction_fold_ids).any(|(fold, owner)| fold != owner)
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "Q prediction fold ownership must match the non-negative subject fold IDs",
         ));
     }
     if !observed_y.iter().any(|&is_observed| is_observed) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "at least one terminal outcome must be observed for sequential augmentation",
         ));
     }
 
-    let summary = antecedent_estimate::longitudinal_regime::evaluate_sequential_dr_value(
-        &y.iter().copied().collect::<Vec<_>>(),
-        &observed_y.iter().copied().collect::<Vec<_>>(),
-        &observed.iter().copied().collect::<Vec<_>>(),
-        &a.iter().copied().collect::<Vec<_>>(),
-        &d.iter().copied().collect::<Vec<_>>(),
-        &q.iter().copied().collect::<Vec<_>>(),
-        &p.iter().copied().collect::<Vec<_>>(),
-        &g.iter().copied().collect::<Vec<_>>(),
-        periods,
-        minimum_probability,
-    )
-    .map_err(PyValueError::new_err)?;
+    let y = y.iter().copied().collect::<Vec<_>>();
+    let a = a.iter().copied().collect::<Vec<_>>();
+    let p = p.iter().copied().collect::<Vec<_>>();
+    let observed_y = observed_y.iter().copied().collect::<Vec<_>>();
+    let g = g.iter().copied().collect::<Vec<_>>();
+    let d = d.iter().copied().collect::<Vec<_>>();
+    let observed = observed.iter().copied().collect::<Vec<_>>();
+    let q = q.iter().copied().collect::<Vec<_>>();
+    let summary = detach_catch(py, move || {
+        antecedent_estimate::longitudinal_regime::evaluate_sequential_dr_value(
+            &y,
+            &antecedent_estimate::longitudinal_regime::SubjectHistories {
+                treatment: &a,
+                treatment_probability: &p,
+                outcome_observed: &observed_y,
+                censoring_probability: &g,
+                periods,
+                minimum_probability,
+            },
+            &antecedent_estimate::longitudinal_regime::SequentialDrInputs {
+                actions: &d,
+                observation_history: &observed,
+                q_predictions: &q,
+            },
+        )
+        .map_err(crate::value_err)
+    })?;
     Ok((
         summary.value,
         n,

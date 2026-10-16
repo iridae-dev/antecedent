@@ -41,9 +41,12 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, Literal, Protocol, cast
 
 from . import _native
+from ._columns import coerce_fields
+from ._validate import count, names, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .graph import Admg, Dag
 from .joint_distribution import ScientificQuantity
@@ -199,31 +202,11 @@ def _call(function: Any, *args: Any, **kwargs: Any) -> Any:
         raise kind(parsed["message"], reason_code=parsed["code"], detail=detail) from error
 
 
-def _text(name: str, value: object) -> str:
-    if not isinstance(value, str):
-        raise CausalTypeError(f"{name} must be a string")
-    if not value.strip():
-        raise CausalValueError(f"{name} must be non-empty")
-    return value
+_text = partial(text, non_empty=True)
 
+_names = names
 
-def _names(name: str, values: Sequence[str], *, allow_empty: bool = True) -> tuple[str, ...]:
-    if isinstance(values, str):
-        raise CausalTypeError(f"{name} must be a sequence of names, not a single string")
-    out = tuple(values)
-    if any(not isinstance(v, str) or not v.strip() for v in out):
-        raise CausalTypeError(f"{name} must be non-empty strings")
-    if len(set(out)) != len(out):
-        raise CausalValueError(f"{name} must be distinct")
-    if not allow_empty and not out:
-        raise CausalValueError(f"{name} must not be empty")
-    return out
-
-
-def _count(name: str, value: object) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise CausalTypeError(f"{name} must be an integer")
-    return value
+_count = count
 
 
 def _semantics(name: str, text: object) -> str:
@@ -336,11 +319,11 @@ class ExpectedEvidence:
     joint: bool = True
 
     def __post_init__(self) -> None:
-        _text("population", self.population)
-        object.__setattr__(self, "measured", _names("measured", self.measured, allow_empty=False))
-        object.__setattr__(self, "interventions", _names("interventions", self.interventions))
-        object.__setattr__(self, "conditioned_on", _names("conditioned_on", self.conditioned_on))
-        object.__setattr__(self, "levels", {str(k): float(v) for k, v in self.levels.items()})
+        _text(self.population, "population")
+        coerce_fields(self, measured=_names(self.measured, "measured", allow_empty=False))
+        coerce_fields(self, interventions=_names(self.interventions, "interventions"))
+        coerce_fields(self, conditioned_on=_names(self.conditioned_on, "conditioned_on"))
+        coerce_fields(self, levels={str(k): float(v) for k, v in self.levels.items()})
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -392,13 +375,13 @@ class StudyCandidate:
     provider: str | None = None
 
     def __post_init__(self) -> None:
-        _text("label", self.label)
+        _text(self.label, "label")
         if self.kind not in _KINDS:
             raise CausalValueError(f"kind must be one of {', '.join(_KINDS)}")
-        _text("population", self.population)
-        object.__setattr__(self, "measured", _names("measured", self.measured))
-        object.__setattr__(self, "interventions", _names("interventions", self.interventions))
-        object.__setattr__(self, "notes", tuple(_text("notes", n) for n in self.notes))
+        _text(self.population, "population")
+        coerce_fields(self, measured=_names(self.measured, "measured"))
+        coerce_fields(self, interventions=_names(self.interventions, "interventions"))
+        coerce_fields(self, notes=tuple(_text(n, "notes") for n in self.notes))
         if self.kind != "sample_increase" and self.evidence is None and not self.measured:
             raise CausalValueError("an experiment or observation measures at least one variable")
         for name in ("recruitment", "timing", "unit", "cost_unit"):
@@ -408,19 +391,19 @@ class StudyCandidate:
         if self.provider is not None:
             _semantics("a non-blank provider", self.provider)
         for name in ("sample_size", "cost"):
-            if _count(name, getattr(self, name)) <= 0:
+            if _count(getattr(self, name), name) <= 0:
                 raise StudyCandidateRefusal(
                     f"a candidate needs a positive {name.replace('_', ' ')}",
                     reason_code="design_signal_invalid",
                     detail="study_candidate.wrong_contract",
                 )
-        if self.sample_budget is not None and _count("sample_budget", self.sample_budget) < 0:
+        if self.sample_budget is not None and _count(self.sample_budget, "sample_budget") < 0:
             raise CausalValueError("sample_budget must be non-negative")
         if self.evidence is not None:
             evidence = tuple(self.evidence)
             if any(not isinstance(e, ExpectedEvidence) for e in evidence):
                 raise CausalTypeError("evidence must be ExpectedEvidence values")
-            object.__setattr__(self, "evidence", evidence)
+            coerce_fields(self, evidence=evidence)
 
     @classmethod
     def experiment(
@@ -486,8 +469,8 @@ class UnresolvedAssumption:
     required_check: str | None = None
 
     def __post_init__(self) -> None:
-        _text("id", self.id)
-        _text("description", self.description)
+        _text(self.id, "id")
+        _text(self.description, "description")
 
 
 @dataclass(frozen=True, slots=True)
@@ -517,24 +500,22 @@ class TransportContract:
             raise CausalTypeError("TransportContract requires graph=Admg(...)")
         if not isinstance(self.catalog, EvidenceCatalog):
             raise CausalTypeError("catalog must be an EvidenceCatalog")
-        object.__setattr__(self, "selections", _names("selections", self.selections))
-        object.__setattr__(self, "outcomes", _names("outcomes", self.outcomes, allow_empty=False))
-        object.__setattr__(
-            self, "treatments", _names("treatments", self.treatments, allow_empty=False)
-        )
+        coerce_fields(self, selections=_names(self.selections, "selections"))
+        coerce_fields(self, outcomes=_names(self.outcomes, "outcomes", allow_empty=False))
+        coerce_fields(self, treatments=_names(self.treatments, "treatments", allow_empty=False))
         stage = _call(
             _native.repair_transport_contract,
             self.graph,
             list(self.selections),
-            _text("source", self.source),
-            _text("target", self.target),
+            _text(self.source, "source"),
+            _text(self.target, "target"),
             list(self.outcomes),
             list(self.treatments),
             self.catalog,
-            max_steps=_count("max_steps", self.max_steps),
-            max_depth=_count("max_depth", self.max_depth),
+            max_steps=_count(self.max_steps, "max_steps"),
+            max_depth=_count(self.max_depth, "max_depth"),
         )
-        object.__setattr__(self, "_stage", stage)
+        coerce_fields(self, _stage=stage)
 
     @property
     def family(self) -> str:
@@ -570,21 +551,21 @@ class BackdoorContract:
     def __post_init__(self) -> None:
         if not isinstance(self.graph, Dag):
             raise CausalTypeError("BackdoorContract requires graph=Dag(...)")
-        object.__setattr__(self, "observed", _names("observed", self.observed))
+        coerce_fields(self, observed=_names(self.observed, "observed"))
         assumptions = tuple(self.assumptions)
         if any(not isinstance(a, UnresolvedAssumption) for a in assumptions):
             raise CausalTypeError("assumptions must be UnresolvedAssumption values")
-        object.__setattr__(self, "assumptions", assumptions)
+        coerce_fields(self, assumptions=assumptions)
         stage = _call(
             _native.repair_backdoor_contract,
             self.graph,
-            _text("treatment", self.treatment),
-            _text("outcome", self.outcome),
-            _text("population", self.population),
+            _text(self.treatment, "treatment"),
+            _text(self.outcome, "outcome"),
+            _text(self.population, "population"),
             list(self.observed),
             [(a.id, a.description, a.required_check) for a in assumptions],
         )
-        object.__setattr__(self, "_stage", stage)
+        coerce_fields(self, _stage=stage)
 
     @classmethod
     def from_identification(
@@ -649,19 +630,18 @@ class ZTransportContract:
     _stage: Any = field(init=False, repr=False, compare=False, default=None)
 
     def __post_init__(self) -> None:
-        names = _names("names", self.names, allow_empty=False)
+        names = _names(self.names, "names", allow_empty=False)
         if not isinstance(self.failure_snapshot, bytes):
             raise CausalTypeError("failure_snapshot must be bytes from a z-transport stage")
-        object.__setattr__(self, "names", names)
-        object.__setattr__(
+        coerce_fields(self, names=names)
+        coerce_fields(
             self,
-            "_stage",
-            _call(
+            _stage=_call(
                 _native.repair_z_transport_contract,
                 list(names),
                 self.failure_snapshot,
-                max_steps=_count("max_steps", self.max_steps),
-                max_depth=_count("max_depth", self.max_depth),
+                max_steps=_count(self.max_steps, "max_steps"),
+                max_depth=_count(self.max_depth, "max_depth"),
                 memory_bytes=self.memory_bytes,
             ),
         )
@@ -1066,8 +1046,8 @@ def repair(
         contract._stage.repair,
         json.dumps([c._wire() for c in candidates]),
         objective,
-        max_operations=_count("max_operations", limits.max_operations),
-        max_depth=_count("max_depth", limits.max_depth),
+        max_operations=_count(limits.max_operations, "max_operations"),
+        max_depth=_count(limits.max_depth, "max_depth"),
         memory_bytes=limits.memory_bytes,
         cancel=cancel,
     )
@@ -1101,8 +1081,8 @@ def consume(
     stage = _call(
         _native.consume_repair_artifact,
         artifact,
-        max_operations=_count("max_operations", max_operations),
-        max_depth=_count("max_depth", max_depth),
+        max_operations=_count(max_operations, "max_operations"),
+        max_depth=_count(max_depth, "max_depth"),
         memory_bytes=memory_bytes,
         cancel=cancel,
     )

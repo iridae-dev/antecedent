@@ -36,7 +36,6 @@ pub mod event;
 pub mod lagged_frame;
 pub mod materialize;
 pub mod multi_env;
-pub mod multi_env_plan;
 pub mod network;
 pub mod panel;
 pub mod pooled_frame;
@@ -45,21 +44,17 @@ pub mod reference;
 pub mod resample;
 pub mod sample;
 pub mod sample_policy;
-pub mod sample_request;
 pub mod selection;
-pub mod sim;
 pub mod split;
 pub mod storage;
 pub mod surrogate;
 pub mod table;
 pub mod temporal;
-pub mod transforms;
 pub mod vector_vars;
 
 #[cfg(test)]
 mod testing;
 
-pub use aligned_buffer::AlignedBuffer;
 #[cfg(feature = "arrow")]
 pub use arrow_adapter::{ArrowLoadResult, tabular_from_arrow_c_columns, tabular_from_record_batch};
 #[cfg(feature = "arrow")]
@@ -78,9 +73,7 @@ pub use discrete::DiscreteColumn;
 pub use error::DataError;
 pub use event::EventData;
 pub use lagged_frame::{LaggedFrame, LaggedFrameOptions};
-pub use materialize::{MaterializationReason, materialization_diagnostic};
 pub use multi_env::MultiEnvironmentData;
-pub use multi_env_plan::{MultiEnvSamplePlan, PanelSamplePlan, plans_for_series_lengths};
 pub use network::{NetworkData, NetworkEdge};
 pub use panel::{PanelData, PanelUnit, PanelUnitView};
 pub use pooled_frame::{
@@ -90,36 +83,22 @@ pub use pooled_frame::{
 pub use project::{IdRemap, dedupe_variable_ids};
 pub use reference::ReferencePointPolicy;
 pub use resample::{
-    PermutationScheme, RaggedResampleIndexBatch, ResamplingPlan, circular_block_length,
-    fill_circular_block_indexes, fill_resample_index_batch, fill_resample_indexes,
-    fill_resample_indexes_grouped, fill_resample_weight_batch, fill_resample_weights,
-    integer_cube_root_ceil, resample_index_batch_ragged, resample_timeseries,
-    resample_timeseries_grouped, resample_timeseries_with_policy,
+    PermutationScheme, ResamplingPlan, circular_block_length, fill_circular_block_indexes,
+    fill_resample_index_batch, fill_resample_indexes, resample_timeseries,
 };
 pub use sample::{
     DropSummary, LagMap, LaggedColumn, LaggedPreparedSample, LaggedSamplePlan,
     LaggedSampleWorkspace,
 };
-pub use sample_policy::{MaskPolicy, MissingPolicy, WeightPolicy};
-pub use sample_request::{
-    MatrixRef, PreparedColumn, PreparedRowSelector, PreparedSample, RowSelectionRef,
-    SampleCacheKey, SampleLayout, SamplePartitions, SamplePlan, SampleRequest, SampleWorkspace,
-};
-pub use sim::{KnownLaggedParent, LaggedLinearPair};
-pub use split::{
-    BlockedTemporalSplit, ClusterSplit, DiscoveryEstimationSplit, EnvHoldoutSplit, GroupedSplit,
-    RandomIidSplit, RegimeHoldoutSplit, RollingOriginSplit, RowSplit, TemporalFold,
-    TemporalRandomPolicy, TimeRange, ensure_random_allowed_on_temporal,
-};
+pub use sample_policy::{MaskPolicy, MissingPolicy};
+pub use split::{DiscoveryEstimationSplit, EnvHoldoutSplit, TimeRange};
 pub use storage::OwnedColumnarStorage;
 pub use surrogate::{surrogate_permute_columns, surrogate_phase_randomize};
 pub use table::TableView;
 pub use temporal::{SamplingRegularity, TemporalIndexer, TemporalNodeKey, TimeIndex};
-pub use transforms::{equal_width_bin, moving_average, ordinal_patterns};
-pub use vector_vars::{VectorVariableGroups, column_blocks_for_frame, expand_fixed_vector_columns};
+pub use vector_vars::{VectorVariableGroups, column_blocks_for_frame};
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use std::sync::Arc;
 

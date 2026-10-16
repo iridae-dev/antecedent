@@ -42,6 +42,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
+from ._columns import coerce_fields
 from ._native import admissible_contract_normalize as _normalize
 from ._native import evaluate_identified_set_decision as _evaluate_sets
 from ._native import evaluate_robust_decision as _evaluate_robust
@@ -50,6 +51,8 @@ from ._native import export_robust_decision as _export_robust
 from ._native import identified_utility_interval as _interval
 from ._native import load_admissible_contract as _load_contract
 from ._native import replay_robust_decision as _replay_robust
+from ._refusal import raise_refusal
+from ._validate import choice
 from .decision import Contract, DecisionRefusal
 from .errors import CausalValueError
 from .external import BoundExternalClaim, LineageLink
@@ -90,16 +93,6 @@ RESULT_LINK_ID = "robust_decision"
 _CLAIM_KINDS = ("point", "graph_dependent", "weighted_graph_posterior", "finite_scenarios")
 
 
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise DecisionRefusal(json.loads(refusal))
-
-
-def _check_label(value: str, allowed: Sequence[str], what: str) -> None:
-    if value not in allowed:
-        raise CausalValueError(f"{what} is one of {', '.join(allowed)}; got {value!r}")
-
-
 _SUPPORT_LABELS = (
     "supported",
     "weak_overlap",
@@ -122,7 +115,7 @@ class SupportRule:
     weakest_allowed: SupportLabel
 
     def __post_init__(self) -> None:
-        _check_label(self.weakest_allowed, _SUPPORT_LABELS, "weakest_allowed")
+        choice(self.weakest_allowed, "weakest_allowed", _SUPPORT_LABELS)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -160,11 +153,11 @@ class AdmissibilityRules:
     uncertainty: UncertaintyRequirement = "none"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "support_rules", tuple(self.support_rules))
-        object.__setattr__(self, "declared_exclusions", tuple(self.declared_exclusions))
+        coerce_fields(self, support_rules=tuple(self.support_rules))
+        coerce_fields(self, declared_exclusions=tuple(self.declared_exclusions))
         if self.default_weakest_support is not None:
-            _check_label(self.default_weakest_support, _SUPPORT_LABELS, "default_weakest_support")
-        _check_label(self.uncertainty, _UNCERTAINTY_LABELS, "uncertainty")
+            choice(self.default_weakest_support, "default_weakest_support", _SUPPORT_LABELS)
+        choice(self.uncertainty, "uncertainty", _UNCERTAINTY_LABELS)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -203,7 +196,7 @@ class AdmissibleContract:
 
     def _normalized(self) -> dict[str, Any]:
         normalized, refusal = _normalize(self._declaration())
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert normalized is not None
         return dict(json.loads(normalized))
 
@@ -220,6 +213,26 @@ class AdmissibleContract:
     def with_admissibility(self, rules: AdmissibilityRules) -> AdmissibleContract:
         """The same decision under different rules."""
         return AdmissibleContract(self.contract, rules)
+
+    def evaluate_transported(
+        self,
+        response: Any,
+        *,
+        analysis: Any,
+        demand: Literal["expected_utility", "law", "interval"] = "expected_utility",
+        support_policy: Any = None,
+    ) -> Any:
+        """Decide on a transported response under these admissibility rules.
+
+        Declared exclusions remove their action, a support rule the transported label does not
+        meet refuses, and an uncertainty requirement a point cannot meet refuses. See
+        :func:`antecedent.transported_response.evaluate_transported`.
+        """
+        from .transported_response import evaluate_transported
+
+        return evaluate_transported(
+            self, response, analysis=analysis, demand=demand, support_policy=support_policy
+        )
 
     def export(self, *, artifact_id: str = "admissible-decision-contract") -> bytes:
         """The contract and its rules as a portable artifact.
@@ -261,9 +274,9 @@ class Support:
     per_input: Mapping[tuple[str, int], SupportLabel] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        _check_label(self.overall, _SUPPORT_LABELS, "overall")
+        choice(self.overall, "overall", _SUPPORT_LABELS)
         for label in self.per_input.values():
-            _check_label(label, _SUPPORT_LABELS, "per-input support")
+            choice(label, "per-input support", _SUPPORT_LABELS)
 
     @classmethod
     def unassessed(cls) -> Support:
@@ -402,7 +415,7 @@ class ExternalReceipt:
 
 
 def _claims_payload(claims: Sequence[Claim], kind: str) -> tuple[str, list[Any]]:
-    _check_label(kind, _CLAIM_KINDS, "kind")
+    choice(kind, "kind", _CLAIM_KINDS)
     sources = [None if c.source is None else c.source._native for c in claims]
     return json.dumps([c._wire() for c in claims]), sources
 
@@ -704,7 +717,7 @@ class RobustDecision:
             json.dumps([r._wire() for r in self._receipts_in]),
             artifact_id,
         )
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert data is not None
         return bytes(data)
 
@@ -821,7 +834,7 @@ def robust(
         sources,
         json.dumps([r._wire() for r in receipts]),
     )
-    _raise(refusal)
+    raise_refusal(refusal, DecisionRefusal)
     assert result is not None
     return RobustDecision(contract, claims, kind, json.loads(result), receipts=receipts)
 
@@ -870,7 +883,7 @@ def replay(
     """
     payload, sources = _claims_payload(claims, kind)
     result, refusal = _replay_robust(data, contract._declaration(), kind, payload, sources)
-    _raise(refusal)
+    raise_refusal(refusal, DecisionRefusal)
     assert result is not None
     body = json.loads(result)
     # A replay re-derives the robustness result; per-structure answers and
@@ -910,7 +923,7 @@ class IdentifiedUtility:
     support: Support | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "hard_exclusions", tuple(self.hard_exclusions))
+        coerce_fields(self, hard_exclusions=tuple(self.hard_exclusions))
 
     @classmethod
     def from_inputs(
@@ -930,7 +943,7 @@ class IdentifiedUtility:
         bounds, refusal = _interval(
             contract._declaration(), action_id, [(float(lo), float(hi)) for lo, hi in inputs]
         )
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert bounds is not None
         return cls(action_id, bounds[0], bounds[1], tuple(hard_exclusions), support)
 
@@ -1069,7 +1082,7 @@ def identified_sets(
     result, refusal = _evaluate_sets(
         contract._declaration(), json.dumps([u._wire() for u in utilities])
     )
-    _raise(refusal)
+    raise_refusal(refusal, DecisionRefusal)
     assert result is not None
     wire = json.loads(result)
     verdict = wire["verdict"]

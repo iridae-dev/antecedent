@@ -20,15 +20,11 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
 use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_test_support::{conformance_dir, load_expected_json};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/estimate/linear_gaussian_ate")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("estimate/linear_gaussian_ate")
 }
 
 fn load_csv(expected: &JsonValue) -> (TabularData, Dag, AverageEffectQuery) {
@@ -122,7 +118,7 @@ fn load_csv(expected: &JsonValue) -> (TabularData, Dag, AverageEffectQuery) {
 
 #[test]
 fn estimate_linear_gaussian_ate_stable_float() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     assert_eq!(expected["tolerance_class"].as_str().unwrap(), "StableFloat");
     let true_ate = expected["true_ate"].as_f64().unwrap();
     let reference_ate = expected["reference_ate"].as_f64().unwrap();
@@ -142,15 +138,15 @@ fn estimate_linear_gaussian_ate_stable_float() {
     let result = analysis.run(&ctx).unwrap();
 
     assert!(
-        ToleranceClass::StableFloat.close(result.estimate.ate, true_ate),
+        ToleranceClass::StableFloat.close(result.estimate.as_effect().unwrap().ate, true_ate),
         "ate={} vs true {}",
-        result.estimate.ate,
+        result.estimate.as_effect().unwrap().ate,
         true_ate
     );
     assert!(
-        ToleranceClass::StableFloat.close(result.estimate.ate, reference_ate),
+        ToleranceClass::StableFloat.close(result.estimate.as_effect().unwrap().ate, reference_ate),
         "ate={} vs estimate-parity/reference {}",
-        result.estimate.ate,
+        result.estimate.as_effect().unwrap().ate,
         reference_ate
     );
     // When the fixture was generated against pinned estimate-parity, also require the
@@ -159,9 +155,9 @@ fn estimate_linear_gaussian_ate_stable_float() {
     if dw["available"].as_bool() == Some(true) {
         let bb = dw["outputs"]["estimate"].as_f64().expect("estimate.estimate");
         assert!(
-            ToleranceClass::StableFloat.close(result.estimate.ate, bb),
+            ToleranceClass::StableFloat.close(result.estimate.as_effect().unwrap().ate, bb),
             "ate={} vs estimate-parity black-box {}",
-            result.estimate.ate,
+            result.estimate.as_effect().unwrap().ate,
             bb
         );
         assert!(
@@ -172,7 +168,7 @@ fn estimate_linear_gaussian_ate_stable_float() {
     assert_eq!(result.estimand.adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
     assert_eq!(result.refutations.len(), 2);
     assert!(result.refutations.iter().all(|r| r.passed));
-    assert!(!result.estimate.assumptions.is_empty());
+    assert!(!result.estimate.as_effect().unwrap().provenance.assumptions.is_empty());
     assert!(!result.identification.derivation.steps.is_empty());
 
     let trace = result.analysis_trace_wire();

@@ -1,0 +1,1669 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_counterfactual::CounterfactualError
+#[non_exhaustive] pub enum antecedent_counterfactual::selective::CrossWorldExecutionError
+#[non_exhaustive] pub enum antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::CounterfactualEngine [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::CounterfactualEngine [auto]
+impl core::clone::Clone for antecedent_counterfactual::AbductionMissingPolicy
+impl core::clone::Clone for antecedent_counterfactual::CompiledCounterfactualPlan
+impl core::clone::Clone for antecedent_counterfactual::CounterfactualEngine
+impl core::clone::Clone for antecedent_counterfactual::CounterfactualError
+impl core::clone::Clone for antecedent_counterfactual::CounterfactualResult
+impl core::clone::Clone for antecedent_counterfactual::CounterfactualWorld
+impl core::clone::Clone for antecedent_counterfactual::ExogenousPosterior
+impl core::clone::Clone for antecedent_counterfactual::NoiseInferenceKind
+impl core::clone::Clone for antecedent_counterfactual::cross_world::CrossWorldEvaluation
+impl core::clone::Clone for antecedent_counterfactual::selective::CapabilityStatus
+impl core::clone::Clone for antecedent_counterfactual::selective::ConditioningKind
+impl core::clone::Clone for antecedent_counterfactual::selective::CouplingKind
+impl core::clone::Clone for antecedent_counterfactual::selective::CrossWorldExecutionError
+impl core::clone::Clone for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::clone::Clone for antecedent_counterfactual::selective::EvidenceKind
+impl core::clone::Clone for antecedent_counterfactual::selective::ExecutionReceipt
+impl core::clone::Clone for antecedent_counterfactual::selective::ExecutionStage
+impl core::clone::Clone for antecedent_counterfactual::selective::ExogenousInference
+impl core::clone::Clone for antecedent_counterfactual::selective::ExogenousVariable
+impl core::clone::Clone for antecedent_counterfactual::selective::FactualUnit
+impl core::clone::Clone for antecedent_counterfactual::selective::FiniteExecutionRequest
+impl core::clone::Clone for antecedent_counterfactual::selective::FiniteExecutionResult
+impl core::clone::Clone for antecedent_counterfactual::selective::FiniteQuantity
+impl core::clone::Clone for antecedent_counterfactual::selective::FiniteScm
+impl core::clone::Clone for antecedent_counterfactual::selective::FiniteVariable
+impl core::clone::Clone for antecedent_counterfactual::selective::FiniteWorld
+impl core::clone::Clone for antecedent_counterfactual::selective::HistoryKind
+impl core::clone::Clone for antecedent_counterfactual::selective::InterventionKind
+impl core::clone::Clone for antecedent_counterfactual::selective::MatrixRefusal
+impl core::clone::Clone for antecedent_counterfactual::selective::MatrixRequest
+impl core::clone::Clone for antecedent_counterfactual::selective::MatrixRow
+impl core::clone::Clone for antecedent_counterfactual::selective::ModelClass
+impl core::clone::Clone for antecedent_counterfactual::selective::NoiseCoupling
+impl core::clone::Clone for antecedent_counterfactual::selective::PopulationKind
+impl core::clone::Clone for antecedent_counterfactual::selective::QuantityClass
+impl core::clone::Clone for antecedent_counterfactual::selective::RetainedAbduction
+impl core::clone::Clone for antecedent_counterfactual::selective::StageReceipt
+impl core::clone::Clone for antecedent_counterfactual::selective::StageStatus
+impl core::clone::Clone for antecedent_counterfactual::selective::TemporalExecution
+impl core::clone::Clone for antecedent_counterfactual::selective::UnitAnswer
+impl core::clone::Clone for antecedent_counterfactual::selective::WorkCounters
+impl core::clone::Clone for antecedent_counterfactual::selective::WorldAtom
+impl core::clone::Clone for antecedent_counterfactual::selective::WorldRoute
+impl core::clone::Clone for antecedent_counterfactual::selective::finite_scm::Posterior
+impl core::clone::Clone for antecedent_counterfactual::selective::finite_scm::WorldPlan
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+impl core::clone::Clone for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::HistoryId
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::NamedActionHistory
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::NodeMechanism
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::RefusingWitness
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::SnapshotId
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::TemporalGraph
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::TemporalNode
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::TemporalRefusal
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
+impl core::clone::Clone for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::clone::Clone for antecedent_counterfactual::transported_gate::PopulationRole
+impl core::clone::Clone for antecedent_counterfactual::transported_gate::RegimeFactorKey
+impl core::clone::Clone for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+impl core::clone::Clone for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
+impl core::clone::Clone for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::Affine
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::CovariateLaw
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::EdgeAssignment
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::LinearMechanism
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::PathSpecificQuery
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::SelectionNode
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::TransportedDerivation
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult
+impl core::clone::Clone for antecedent_counterfactual::transported_path_specific::UnitContrast
+impl core::cmp::Eq for antecedent_counterfactual::AbductionMissingPolicy
+impl core::cmp::Eq for antecedent_counterfactual::CounterfactualError
+impl core::cmp::Eq for antecedent_counterfactual::NoiseInferenceKind
+impl core::cmp::Eq for antecedent_counterfactual::selective::CapabilityStatus
+impl core::cmp::Eq for antecedent_counterfactual::selective::ConditioningKind
+impl core::cmp::Eq for antecedent_counterfactual::selective::CouplingKind
+impl core::cmp::Eq for antecedent_counterfactual::selective::CrossWorldExecutionError
+impl core::cmp::Eq for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::cmp::Eq for antecedent_counterfactual::selective::EvidenceKind
+impl core::cmp::Eq for antecedent_counterfactual::selective::ExecutionReceipt
+impl core::cmp::Eq for antecedent_counterfactual::selective::ExecutionStage
+impl core::cmp::Eq for antecedent_counterfactual::selective::ExogenousInference
+impl core::cmp::Eq for antecedent_counterfactual::selective::FactualUnit
+impl core::cmp::Eq for antecedent_counterfactual::selective::FiniteQuantity
+impl core::cmp::Eq for antecedent_counterfactual::selective::FiniteVariable
+impl core::cmp::Eq for antecedent_counterfactual::selective::FiniteWorld
+impl core::cmp::Eq for antecedent_counterfactual::selective::HistoryKind
+impl core::cmp::Eq for antecedent_counterfactual::selective::InterventionKind
+impl core::cmp::Eq for antecedent_counterfactual::selective::MatrixRefusal
+impl core::cmp::Eq for antecedent_counterfactual::selective::MatrixRequest
+impl core::cmp::Eq for antecedent_counterfactual::selective::ModelClass
+impl core::cmp::Eq for antecedent_counterfactual::selective::NoiseCoupling
+impl core::cmp::Eq for antecedent_counterfactual::selective::PopulationKind
+impl core::cmp::Eq for antecedent_counterfactual::selective::QuantityClass
+impl core::cmp::Eq for antecedent_counterfactual::selective::StageReceipt
+impl core::cmp::Eq for antecedent_counterfactual::selective::StageStatus
+impl core::cmp::Eq for antecedent_counterfactual::selective::WorkCounters
+impl core::cmp::Eq for antecedent_counterfactual::selective::WorldAtom
+impl core::cmp::Eq for antecedent_counterfactual::selective::WorldRoute
+impl core::cmp::Eq for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::cmp::Eq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::HistoryId
+impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt
+impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::SnapshotId
+impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::TemporalGraph
+impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::TemporalNode
+impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
+impl core::cmp::Eq for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::cmp::Eq for antecedent_counterfactual::transported_gate::PopulationRole
+impl core::cmp::Eq for antecedent_counterfactual::transported_gate::RegimeFactorKey
+impl core::cmp::Eq for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+impl core::cmp::Eq for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
+impl core::cmp::Eq for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
+impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
+impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::EdgeAssignment
+impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
+impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::SelectionNode
+impl core::cmp::Eq for antecedent_counterfactual::transported_path_specific::TransportedDerivation
+impl core::cmp::Ord for antecedent_counterfactual::selective::CapabilityStatus
+impl core::cmp::Ord for antecedent_counterfactual::selective::ConditioningKind
+impl core::cmp::Ord for antecedent_counterfactual::selective::CouplingKind
+impl core::cmp::Ord for antecedent_counterfactual::selective::EvidenceKind
+impl core::cmp::Ord for antecedent_counterfactual::selective::ExecutionStage
+impl core::cmp::Ord for antecedent_counterfactual::selective::HistoryKind
+impl core::cmp::Ord for antecedent_counterfactual::selective::InterventionKind
+impl core::cmp::Ord for antecedent_counterfactual::selective::ModelClass
+impl core::cmp::Ord for antecedent_counterfactual::selective::PopulationKind
+impl core::cmp::Ord for antecedent_counterfactual::selective::QuantityClass
+impl core::cmp::Ord for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::cmp::Ord for antecedent_counterfactual::temporal_cross_world::HistoryId
+impl core::cmp::Ord for antecedent_counterfactual::temporal_cross_world::SnapshotId
+impl core::cmp::Ord for antecedent_counterfactual::temporal_cross_world::TemporalNode
+impl core::cmp::Ord for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::cmp::Ord for antecedent_counterfactual::transported_gate::PopulationRole
+impl core::cmp::Ord for antecedent_counterfactual::transported_gate::RegimeFactorKey
+impl core::cmp::Ord for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+impl core::cmp::PartialEq for antecedent_counterfactual::AbductionMissingPolicy
+impl core::cmp::PartialEq for antecedent_counterfactual::CounterfactualError
+impl core::cmp::PartialEq for antecedent_counterfactual::NoiseInferenceKind
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::CapabilityStatus
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::ConditioningKind
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::CouplingKind
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::CrossWorldExecutionError
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::EvidenceKind
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExecutionReceipt
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExecutionStage
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExogenousInference
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExogenousVariable
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::FactualUnit
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteExecutionRequest
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteExecutionResult
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteQuantity
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteScm
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteVariable
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteWorld
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::HistoryKind
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::InterventionKind
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::MatrixRefusal
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::MatrixRequest
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::ModelClass
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::NoiseCoupling
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::PopulationKind
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::QuantityClass
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::RetainedAbduction
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::StageReceipt
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::StageStatus
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::TemporalExecution
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::UnitAnswer
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::WorkCounters
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::WorldAtom
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::WorldRoute
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::finite_scm::Posterior
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::HistoryId
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::NamedActionHistory
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::NodeMechanism
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::RefusingWitness
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::SnapshotId
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::TemporalGraph
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::TemporalNode
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::TemporalRefusal
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
+impl core::cmp::PartialEq for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_gate::PopulationRole
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_gate::RegimeFactorKey
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::Affine
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::CovariateLaw
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::EdgeAssignment
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::LinearMechanism
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::PathSpecificQuery
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::SelectionNode
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::TransportedDerivation
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult
+impl core::cmp::PartialEq for antecedent_counterfactual::transported_path_specific::UnitContrast
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::CapabilityStatus
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::ConditioningKind
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::CouplingKind
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::EvidenceKind
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::ExecutionStage
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::HistoryKind
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::InterventionKind
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::ModelClass
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::PopulationKind
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::QuantityClass
+impl core::cmp::PartialOrd for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::cmp::PartialOrd for antecedent_counterfactual::temporal_cross_world::HistoryId
+impl core::cmp::PartialOrd for antecedent_counterfactual::temporal_cross_world::SnapshotId
+impl core::cmp::PartialOrd for antecedent_counterfactual::temporal_cross_world::TemporalNode
+impl core::cmp::PartialOrd for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::cmp::PartialOrd for antecedent_counterfactual::transported_gate::PopulationRole
+impl core::cmp::PartialOrd for antecedent_counterfactual::transported_gate::RegimeFactorKey
+impl core::cmp::PartialOrd for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+impl core::convert::From<antecedent_model::error::ModelError> for antecedent_counterfactual::CounterfactualError
+impl core::convert::From<bool> for antecedent_counterfactual::AbductionMissingPolicy
+impl core::default::Default for antecedent_counterfactual::selective::FiniteScmExecutor
+impl core::default::Default for antecedent_counterfactual::selective::TemporalExecutor
+impl core::default::Default for antecedent_counterfactual::selective::WorkCounters
+impl core::default::Default for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
+impl core::default::Default for antecedent_counterfactual::transported_path_specific::Affine
+impl core::default::Default for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
+impl core::default::Default for antecedent_counterfactual::transported_path_specific::EdgeAssignment
+impl core::default::Default for antecedent_counterfactual::transported_path_specific::LinearMechanism
+impl core::default::Default for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
+impl core::error::Error for antecedent_counterfactual::CounterfactualError
+impl core::error::Error for antecedent_counterfactual::selective::CrossWorldExecutionError
+impl core::error::Error for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError
+impl core::fmt::Debug for antecedent_counterfactual::AbductionMissingPolicy
+impl core::fmt::Debug for antecedent_counterfactual::CompiledCounterfactualPlan
+impl core::fmt::Debug for antecedent_counterfactual::CounterfactualEngine
+impl core::fmt::Debug for antecedent_counterfactual::CounterfactualError
+impl core::fmt::Debug for antecedent_counterfactual::CounterfactualResult
+impl core::fmt::Debug for antecedent_counterfactual::CounterfactualWorld
+impl core::fmt::Debug for antecedent_counterfactual::ExogenousPosterior
+impl core::fmt::Debug for antecedent_counterfactual::NoiseInferenceKind
+impl core::fmt::Debug for antecedent_counterfactual::cross_world::CrossWorldEvaluation
+impl core::fmt::Debug for antecedent_counterfactual::selective::CapabilityStatus
+impl core::fmt::Debug for antecedent_counterfactual::selective::ConditioningKind
+impl core::fmt::Debug for antecedent_counterfactual::selective::CouplingKind
+impl core::fmt::Debug for antecedent_counterfactual::selective::CrossWorldExecutionError
+impl core::fmt::Debug for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::fmt::Debug for antecedent_counterfactual::selective::EvidenceKind
+impl core::fmt::Debug for antecedent_counterfactual::selective::ExecutionReceipt
+impl core::fmt::Debug for antecedent_counterfactual::selective::ExecutionStage
+impl core::fmt::Debug for antecedent_counterfactual::selective::ExogenousInference
+impl core::fmt::Debug for antecedent_counterfactual::selective::ExogenousVariable
+impl core::fmt::Debug for antecedent_counterfactual::selective::FactualUnit
+impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteExecutionRequest
+impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteExecutionResult
+impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteQuantity
+impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteScm
+impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteScmExecutor
+impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteVariable
+impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteWorld
+impl core::fmt::Debug for antecedent_counterfactual::selective::HistoryKind
+impl core::fmt::Debug for antecedent_counterfactual::selective::InterventionKind
+impl core::fmt::Debug for antecedent_counterfactual::selective::MatrixRefusal
+impl core::fmt::Debug for antecedent_counterfactual::selective::MatrixRequest
+impl core::fmt::Debug for antecedent_counterfactual::selective::MatrixRow
+impl core::fmt::Debug for antecedent_counterfactual::selective::ModelClass
+impl core::fmt::Debug for antecedent_counterfactual::selective::NoiseCoupling
+impl core::fmt::Debug for antecedent_counterfactual::selective::PopulationKind
+impl core::fmt::Debug for antecedent_counterfactual::selective::QuantityClass
+impl core::fmt::Debug for antecedent_counterfactual::selective::RetainedAbduction
+impl core::fmt::Debug for antecedent_counterfactual::selective::StageReceipt
+impl core::fmt::Debug for antecedent_counterfactual::selective::StageStatus
+impl core::fmt::Debug for antecedent_counterfactual::selective::TemporalExecution
+impl core::fmt::Debug for antecedent_counterfactual::selective::TemporalExecutor
+impl core::fmt::Debug for antecedent_counterfactual::selective::UnitAnswer
+impl core::fmt::Debug for antecedent_counterfactual::selective::WorkCounters
+impl core::fmt::Debug for antecedent_counterfactual::selective::WorldAtom
+impl core::fmt::Debug for antecedent_counterfactual::selective::WorldRoute
+impl core::fmt::Debug for antecedent_counterfactual::selective::finite_scm::Posterior
+impl core::fmt::Debug for antecedent_counterfactual::selective::finite_scm::WorldPlan
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+impl core::fmt::Debug for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::HistoryId
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::NamedActionHistory
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::NodeMechanism
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::RefusingWitness
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::SnapshotId
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::TemporalGraph
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::TemporalNode
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::TemporalRefusal
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
+impl core::fmt::Debug for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::fmt::Debug for antecedent_counterfactual::transported_gate::PopulationRole
+impl core::fmt::Debug for antecedent_counterfactual::transported_gate::RegimeFactorKey
+impl core::fmt::Debug for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+impl core::fmt::Debug for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
+impl core::fmt::Debug for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::Affine
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::CovariateLaw
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::EdgeAssignment
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::LinearMechanism
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::PathSpecificQuery
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::SelectionNode
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::TransportedDerivation
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult
+impl core::fmt::Debug for antecedent_counterfactual::transported_path_specific::UnitContrast
+impl core::fmt::Display for antecedent_counterfactual::CounterfactualError
+impl core::fmt::Display for antecedent_counterfactual::selective::CrossWorldExecutionError
+impl core::fmt::Display for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError
+impl core::hash::Hash for antecedent_counterfactual::AbductionMissingPolicy
+impl core::hash::Hash for antecedent_counterfactual::NoiseInferenceKind
+impl core::hash::Hash for antecedent_counterfactual::selective::CapabilityStatus
+impl core::hash::Hash for antecedent_counterfactual::selective::ConditioningKind
+impl core::hash::Hash for antecedent_counterfactual::selective::CouplingKind
+impl core::hash::Hash for antecedent_counterfactual::selective::EvidenceKind
+impl core::hash::Hash for antecedent_counterfactual::selective::ExecutionStage
+impl core::hash::Hash for antecedent_counterfactual::selective::HistoryKind
+impl core::hash::Hash for antecedent_counterfactual::selective::InterventionKind
+impl core::hash::Hash for antecedent_counterfactual::selective::ModelClass
+impl core::hash::Hash for antecedent_counterfactual::selective::PopulationKind
+impl core::hash::Hash for antecedent_counterfactual::selective::QuantityClass
+impl core::hash::Hash for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::hash::Hash for antecedent_counterfactual::temporal_cross_world::HistoryId
+impl core::hash::Hash for antecedent_counterfactual::temporal_cross_world::SnapshotId
+impl core::hash::Hash for antecedent_counterfactual::temporal_cross_world::TemporalNode
+impl core::hash::Hash for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::hash::Hash for antecedent_counterfactual::transported_gate::PopulationRole
+impl core::hash::Hash for antecedent_counterfactual::transported_gate::RegimeFactorKey
+impl core::hash::Hash for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+impl core::marker::Copy for antecedent_counterfactual::AbductionMissingPolicy
+impl core::marker::Copy for antecedent_counterfactual::NoiseInferenceKind
+impl core::marker::Copy for antecedent_counterfactual::selective::CapabilityStatus
+impl core::marker::Copy for antecedent_counterfactual::selective::ConditioningKind
+impl core::marker::Copy for antecedent_counterfactual::selective::CouplingKind
+impl core::marker::Copy for antecedent_counterfactual::selective::EvidenceKind
+impl core::marker::Copy for antecedent_counterfactual::selective::ExecutionStage
+impl core::marker::Copy for antecedent_counterfactual::selective::ExogenousInference
+impl core::marker::Copy for antecedent_counterfactual::selective::HistoryKind
+impl core::marker::Copy for antecedent_counterfactual::selective::InterventionKind
+impl core::marker::Copy for antecedent_counterfactual::selective::MatrixRequest
+impl core::marker::Copy for antecedent_counterfactual::selective::MatrixRow
+impl core::marker::Copy for antecedent_counterfactual::selective::ModelClass
+impl core::marker::Copy for antecedent_counterfactual::selective::NoiseCoupling
+impl core::marker::Copy for antecedent_counterfactual::selective::PopulationKind
+impl core::marker::Copy for antecedent_counterfactual::selective::QuantityClass
+impl core::marker::Copy for antecedent_counterfactual::selective::StageStatus
+impl core::marker::Copy for antecedent_counterfactual::selective::WorkCounters
+impl core::marker::Copy for antecedent_counterfactual::selective::WorldAtom
+impl core::marker::Copy for antecedent_counterfactual::selective::WorldRoute
+impl core::marker::Copy for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::marker::Copy for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::marker::Copy for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::marker::Copy for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::marker::Copy for antecedent_counterfactual::temporal_cross_world::TemporalNode
+impl core::marker::Copy for antecedent_counterfactual::transported_gate::PopulationRole
+impl core::marker::Copy for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+impl core::marker::Copy for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
+impl core::marker::Copy for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
+impl core::marker::Freeze for antecedent_counterfactual::AbductionMissingPolicy [auto]
+impl core::marker::Freeze for antecedent_counterfactual::CompiledCounterfactualPlan [auto]
+impl core::marker::Freeze for antecedent_counterfactual::CounterfactualEngine [auto]
+impl core::marker::Freeze for antecedent_counterfactual::CounterfactualError [auto]
+impl core::marker::Freeze for antecedent_counterfactual::CounterfactualResult [auto]
+impl core::marker::Freeze for antecedent_counterfactual::CounterfactualWorld [auto]
+impl core::marker::Freeze for antecedent_counterfactual::ExogenousPosterior [auto]
+impl core::marker::Freeze for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::marker::Freeze for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::CapabilityStatus [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::ConditioningKind [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::CouplingKind [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::EvidenceKind [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::ExecutionReceipt [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::ExecutionStage [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::ExogenousVariable [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteQuantity [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteScm [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteVariable [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::HistoryKind [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::InterventionKind [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::MatrixRefusal [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::MatrixRequest [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::MatrixRow [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::ModelClass [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::PopulationKind [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::QuantityClass [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::RetainedAbduction [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::StageReceipt [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::StageStatus [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::TemporalExecution [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::TemporalExecutor [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::WorkCounters [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::WorldAtom [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::WorldRoute [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::NodeMechanism [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::RefusingWitness [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::SnapshotId [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::TemporalGraph [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::TemporalNode [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::TemporalRefusal [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
+impl core::marker::Freeze for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_gate::PopulationRole [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::Affine [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::CovariateLaw [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::EdgeAssignment [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult [auto]
+impl core::marker::Freeze for antecedent_counterfactual::transported_path_specific::UnitContrast [auto]
+impl core::marker::Send for antecedent_counterfactual::AbductionMissingPolicy [auto]
+impl core::marker::Send for antecedent_counterfactual::CompiledCounterfactualPlan [auto]
+impl core::marker::Send for antecedent_counterfactual::CounterfactualEngine [auto]
+impl core::marker::Send for antecedent_counterfactual::CounterfactualError [auto]
+impl core::marker::Send for antecedent_counterfactual::CounterfactualResult [auto]
+impl core::marker::Send for antecedent_counterfactual::CounterfactualWorld [auto]
+impl core::marker::Send for antecedent_counterfactual::ExogenousPosterior [auto]
+impl core::marker::Send for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::marker::Send for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::CapabilityStatus [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::ConditioningKind [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::CouplingKind [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::EvidenceKind [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::ExecutionReceipt [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::ExecutionStage [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::ExogenousVariable [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::FiniteQuantity [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::FiniteScm [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::FiniteVariable [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::HistoryKind [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::InterventionKind [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::MatrixRefusal [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::MatrixRequest [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::MatrixRow [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::ModelClass [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::PopulationKind [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::QuantityClass [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::RetainedAbduction [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::StageReceipt [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::StageStatus [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::TemporalExecution [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::TemporalExecutor [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::WorkCounters [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::WorldAtom [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::WorldRoute [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::NodeMechanism [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::RefusingWitness [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::SnapshotId [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::TemporalGraph [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::TemporalNode [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::TemporalRefusal [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
+impl core::marker::Send for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_gate::PopulationRole [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::Affine [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::CovariateLaw [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::EdgeAssignment [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult [auto]
+impl core::marker::Send for antecedent_counterfactual::transported_path_specific::UnitContrast [auto]
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::AbductionMissingPolicy
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::CounterfactualError
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::NoiseInferenceKind
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CapabilityStatus
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ConditioningKind
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CouplingKind
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CrossWorldExecutionError
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CrossWorldRefusal
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::EvidenceKind
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExecutionReceipt
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExecutionStage
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExogenousInference
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExogenousVariable
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FactualUnit
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteExecutionRequest
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteExecutionResult
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteQuantity
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteScm
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteVariable
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteWorld
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::HistoryKind
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::InterventionKind
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::MatrixRefusal
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::MatrixRequest
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ModelClass
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::NoiseCoupling
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::PopulationKind
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::QuantityClass
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::RetainedAbduction
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::StageReceipt
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::StageStatus
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::TemporalExecution
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::UnitAnswer
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::WorkCounters
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::WorldAtom
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::WorldRoute
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::finite_scm::Posterior
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::HistoryId
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::NamedActionHistory
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::NodeMechanism
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::RefusingWitness
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::SnapshotId
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::TemporalGraph
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::TemporalNode
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::TemporalRefusal
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::temporal_cross_world::UnitId
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_gate::PopulationRole
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_gate::RegimeFactorKey
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::Affine
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::CovariateLaw
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::EdgeAssignment
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::LinearMechanism
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::PathSpecificQuery
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::SelectionNode
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::TransportedDerivation
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::transported_path_specific::UnitContrast
+impl core::marker::Sync for antecedent_counterfactual::AbductionMissingPolicy [auto]
+impl core::marker::Sync for antecedent_counterfactual::CompiledCounterfactualPlan [auto]
+impl core::marker::Sync for antecedent_counterfactual::CounterfactualEngine [auto]
+impl core::marker::Sync for antecedent_counterfactual::CounterfactualError [auto]
+impl core::marker::Sync for antecedent_counterfactual::CounterfactualResult [auto]
+impl core::marker::Sync for antecedent_counterfactual::CounterfactualWorld [auto]
+impl core::marker::Sync for antecedent_counterfactual::ExogenousPosterior [auto]
+impl core::marker::Sync for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::marker::Sync for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::CapabilityStatus [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::ConditioningKind [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::CouplingKind [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::EvidenceKind [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::ExecutionReceipt [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::ExecutionStage [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::ExogenousVariable [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::FiniteQuantity [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::FiniteScm [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::FiniteVariable [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::HistoryKind [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::InterventionKind [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::MatrixRefusal [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::MatrixRequest [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::MatrixRow [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::ModelClass [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::PopulationKind [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::QuantityClass [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::RetainedAbduction [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::StageReceipt [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::StageStatus [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::TemporalExecution [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::TemporalExecutor [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::WorkCounters [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::WorldAtom [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::WorldRoute [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::NodeMechanism [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::RefusingWitness [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::SnapshotId [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::TemporalGraph [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::TemporalNode [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::TemporalRefusal [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
+impl core::marker::Sync for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_gate::PopulationRole [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::Affine [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::CovariateLaw [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::EdgeAssignment [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult [auto]
+impl core::marker::Sync for antecedent_counterfactual::transported_path_specific::UnitContrast [auto]
+impl core::marker::Unpin for antecedent_counterfactual::AbductionMissingPolicy [auto]
+impl core::marker::Unpin for antecedent_counterfactual::CompiledCounterfactualPlan [auto]
+impl core::marker::Unpin for antecedent_counterfactual::CounterfactualEngine [auto]
+impl core::marker::Unpin for antecedent_counterfactual::CounterfactualError [auto]
+impl core::marker::Unpin for antecedent_counterfactual::CounterfactualResult [auto]
+impl core::marker::Unpin for antecedent_counterfactual::CounterfactualWorld [auto]
+impl core::marker::Unpin for antecedent_counterfactual::ExogenousPosterior [auto]
+impl core::marker::Unpin for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::marker::Unpin for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::CapabilityStatus [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::ConditioningKind [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::CouplingKind [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::EvidenceKind [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::ExecutionReceipt [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::ExecutionStage [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::ExogenousVariable [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteQuantity [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteScm [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteVariable [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::HistoryKind [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::InterventionKind [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::MatrixRefusal [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::MatrixRequest [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::MatrixRow [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::ModelClass [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::PopulationKind [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::QuantityClass [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::RetainedAbduction [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::StageReceipt [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::StageStatus [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::TemporalExecution [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::TemporalExecutor [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::WorkCounters [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::WorldAtom [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::WorldRoute [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::NodeMechanism [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::RefusingWitness [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::SnapshotId [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::TemporalGraph [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::TemporalNode [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::TemporalRefusal [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
+impl core::marker::Unpin for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_gate::PopulationRole [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::Affine [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::CovariateLaw [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::EdgeAssignment [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult [auto]
+impl core::marker::Unpin for antecedent_counterfactual::transported_path_specific::UnitContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::AbductionMissingPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::CompiledCounterfactualPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::CounterfactualError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::CounterfactualResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::CounterfactualWorld [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::ExogenousPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CapabilityStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ConditioningKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CouplingKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::EvidenceKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExecutionReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExecutionStage [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExogenousVariable [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteQuantity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteScm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteVariable [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::HistoryKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::InterventionKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::MatrixRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::MatrixRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::MatrixRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ModelClass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::PopulationKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::QuantityClass [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::RetainedAbduction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::StageReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::StageStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::TemporalExecution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::TemporalExecutor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::WorkCounters [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::WorldAtom [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::WorldRoute [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::NodeMechanism [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::RefusingWitness [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::SnapshotId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalGraph [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalNode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_gate::PopulationRole [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::Affine [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::CovariateLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::EdgeAssignment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::UnitContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::AbductionMissingPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::CompiledCounterfactualPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::CounterfactualError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::CounterfactualResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::CounterfactualWorld [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::ExogenousPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::NoiseInferenceKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::cross_world::CrossWorldEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CapabilityStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ConditioningKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CouplingKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::EvidenceKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExecutionReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExecutionStage [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExogenousInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExogenousVariable [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteQuantity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteScm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteScmExecutor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteVariable [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteWorld [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::HistoryKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::InterventionKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::MatrixRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::MatrixRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::MatrixRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ModelClass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::PopulationKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::QuantityClass [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::RetainedAbduction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::StageReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::StageStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::TemporalExecution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::TemporalExecutor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::WorkCounters [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::WorldAtom [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::WorldRoute [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::finite_scm::Posterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::finite_scm::WorldPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::FactualUnitHistory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::HistoryId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::NamedActionHistory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::NodeMechanism [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::RefusingWitness [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::SnapshotId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalGraph [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalNode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::TemporalRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitCounterfactual [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitDrawDigest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::temporal_cross_world::UnitId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_gate::PopulationRole [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_gate::RegimeFactorKey [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_gate::TransportedCounterfactualGate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::AdditiveLinearScm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::Affine [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::CovariateLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::DeclaredAssumptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::EdgeAssignment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::LinearMechanism [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::NonRecoverableWitness [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::PathSpecificQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::SelectionNode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedDerivation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::UnitContrast [auto]
+impl<'a> core::clone::Clone for antecedent_counterfactual::NestedSpec<'a>
+impl<'a> core::clone::Clone for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a>
+impl<'a> core::fmt::Debug for antecedent_counterfactual::NestedSpec<'a>
+impl<'a> core::fmt::Debug for antecedent_counterfactual::selective::finite_scm::CompiledScm<'a>
+impl<'a> core::fmt::Debug for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a>
+impl<'a> core::marker::Copy for antecedent_counterfactual::NestedSpec<'a>
+impl<'a> core::marker::Copy for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a>
+impl<'a> core::marker::Freeze for antecedent_counterfactual::NestedSpec<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_counterfactual::selective::finite_scm::CompiledScm<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a> [auto]
+impl<'a> core::marker::Send for antecedent_counterfactual::NestedSpec<'a> [auto]
+impl<'a> core::marker::Send for antecedent_counterfactual::selective::finite_scm::CompiledScm<'a> [auto]
+impl<'a> core::marker::Send for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_counterfactual::NestedSpec<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_counterfactual::selective::finite_scm::CompiledScm<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_counterfactual::NestedSpec<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_counterfactual::selective::finite_scm::CompiledScm<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::NestedSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::finite_scm::CompiledScm<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::NestedSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::finite_scm::CompiledScm<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a> [auto]
+pub const <antecedent_counterfactual::selective::ExecutionStage>::ALL: [antecedent_counterfactual::selective::ExecutionStage; 5]
+pub const <antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource>::ALL: [antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource; 4]
+pub const <antecedent_counterfactual::temporal_cross_world::TemporalNode>::ALL: [antecedent_counterfactual::temporal_cross_world::TemporalNode; 5]
+pub const antecedent_counterfactual::RANK_PRESERVING_ASSUMPTION: &str
+pub const antecedent_counterfactual::VERSION: &str
+pub const antecedent_counterfactual::selective::finite_executor::INFERENCE_LABEL: &str
+pub const antecedent_counterfactual::selective::finite_executor::MAX_RETAINED: usize
+pub const antecedent_counterfactual::selective::finite_scm::MAX_ABDUCTION_WORK: usize
+pub const antecedent_counterfactual::selective::finite_scm::MAX_EXOGENOUS_STATES: usize
+pub const antecedent_counterfactual::selective::finite_scm::MAX_JOINT_STATES: usize
+pub const antecedent_counterfactual::selective::finite_scm::MAX_LEVELS: usize
+pub const antecedent_counterfactual::selective::finite_scm::MAX_UNITS: usize
+pub const antecedent_counterfactual::selective::finite_scm::MAX_VARIABLES: usize
+pub const antecedent_counterfactual::selective::finite_scm::MAX_WORLDS: usize
+pub const antecedent_counterfactual::selective::refusal::EXECUTE_STAGE: &str
+pub const antecedent_counterfactual::selective::stages::PURPOSE_POSTERIOR_STATE: &str
+pub const antecedent_counterfactual::selective::whole_path_uncertainty::WHOLE_PATH_UNCERTAINTY_VERSION: u32
+pub const antecedent_counterfactual::temporal_cross_world::MAX_HORIZON: usize
+pub const antecedent_counterfactual::temporal_cross_world::MAX_UNITS: usize
+pub const antecedent_counterfactual::temporal_cross_world::MAX_WORLDS: usize
+pub const antecedent_counterfactual::temporal_cross_world::MECHANISM_CLASS: &str
+pub const antecedent_counterfactual::temporal_cross_world::staged::MAX_RETAINED: usize
+pub enum antecedent_counterfactual::AbductionMissingPolicy
+pub enum antecedent_counterfactual::NoiseInferenceKind
+pub enum antecedent_counterfactual::selective::CapabilityStatus
+pub enum antecedent_counterfactual::selective::ConditioningKind
+pub enum antecedent_counterfactual::selective::CouplingKind
+pub enum antecedent_counterfactual::selective::EvidenceKind
+pub enum antecedent_counterfactual::selective::ExecutionStage
+pub enum antecedent_counterfactual::selective::ExogenousInference
+pub enum antecedent_counterfactual::selective::FiniteQuantity
+pub enum antecedent_counterfactual::selective::HistoryKind
+pub enum antecedent_counterfactual::selective::InterventionKind
+pub enum antecedent_counterfactual::selective::ModelClass
+pub enum antecedent_counterfactual::selective::NoiseCoupling
+pub enum antecedent_counterfactual::selective::PopulationKind
+pub enum antecedent_counterfactual::selective::QuantityClass
+pub enum antecedent_counterfactual::selective::StageStatus
+pub enum antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+pub enum antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+pub enum antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+pub enum antecedent_counterfactual::temporal_cross_world::TemporalNode
+pub enum antecedent_counterfactual::transported_gate::PopulationRole
+pub enum antecedent_counterfactual::transported_gate::TransportedCounterfactualGate
+pub field antecedent_counterfactual::CompiledCounterfactualPlan::node_order: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
+pub field antecedent_counterfactual::CounterfactualEngine::compiled: antecedent_counterfactual::CompiledCounterfactualPlan
+pub field antecedent_counterfactual::CounterfactualEngine::model: alloc::sync::Arc<antecedent_model::compile::CompiledCausalModel>
+pub field antecedent_counterfactual::CounterfactualResult::n_nodes: usize
+pub field antecedent_counterfactual::CounterfactualResult::n_units: usize
+pub field antecedent_counterfactual::CounterfactualResult::n_worlds: usize
+pub field antecedent_counterfactual::CounterfactualResult::noise_kind: antecedent_counterfactual::NoiseInferenceKind
+pub field antecedent_counterfactual::CounterfactualResult::notes: alloc::vec::Vec<alloc::sync::Arc<str>>
+pub field antecedent_counterfactual::CounterfactualResult::outcomes: alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>
+pub field antecedent_counterfactual::CounterfactualResult::retained_nodes: core::option::Option<alloc::sync::Arc<[antecedent_graph::types::DenseNodeId]>>
+pub field antecedent_counterfactual::CounterfactualResult::values: alloc::sync::Arc<[f64]>
+pub field antecedent_counterfactual::CounterfactualWorld::interventions: alloc::sync::Arc<[antecedent_core::intervention::Intervention]>
+pub field antecedent_counterfactual::CounterfactualWorld::unit_rows: core::option::Option<alloc::sync::Arc<[usize]>>
+pub field antecedent_counterfactual::ExogenousPosterior::assumed_columns: alloc::sync::Arc<[bool]>
+pub field antecedent_counterfactual::ExogenousPosterior::kind: antecedent_counterfactual::NoiseInferenceKind
+pub field antecedent_counterfactual::ExogenousPosterior::n_nodes: usize
+pub field antecedent_counterfactual::ExogenousPosterior::n_units: usize
+pub field antecedent_counterfactual::ExogenousPosterior::noise: alloc::sync::Arc<[f64]>
+pub field antecedent_counterfactual::NestedSpec::frozen: &'a [antecedent_core::ids::VariableId]
+pub field antecedent_counterfactual::NestedSpec::inner: &'a [antecedent_core::intervention::Intervention]
+pub field antecedent_counterfactual::NestedSpec::outcome: antecedent_core::ids::VariableId
+pub field antecedent_counterfactual::NestedSpec::outer: &'a [antecedent_core::intervention::Intervention]
+pub field antecedent_counterfactual::cross_world::CrossWorldEvaluation::minus: alloc::sync::Arc<[f64]>
+pub field antecedent_counterfactual::cross_world::CrossWorldEvaluation::noise: antecedent_counterfactual::NoiseInferenceKind
+pub field antecedent_counterfactual::cross_world::CrossWorldEvaluation::plus: alloc::sync::Arc<[f64]>
+pub field antecedent_counterfactual::selective::CrossWorldRefusal::missing: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_counterfactual::selective::CrossWorldRefusal::refusal: antecedent_contract::external_refusal::StructuredRefusal
+pub field antecedent_counterfactual::selective::ExecutionReceipt::abduction_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::ExecutionReceipt::coupling: alloc::string::String
+pub field antecedent_counterfactual::selective::ExecutionReceipt::digest: alloc::string::String
+pub field antecedent_counterfactual::selective::ExecutionReceipt::exogenous_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::ExecutionReceipt::mechanism_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::ExecutionReceipt::prediction_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::ExecutionReceipt::summary_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::ExecutionReceipt::world_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::ExogenousVariable::name: alloc::string::String
+pub field antecedent_counterfactual::selective::ExogenousVariable::pmf: alloc::vec::Vec<f64>
+pub field antecedent_counterfactual::selective::FactualUnit::observed: alloc::vec::Vec<(usize, u8)>
+pub field antecedent_counterfactual::selective::FactualUnit::unit: alloc::string::String
+pub field antecedent_counterfactual::selective::FiniteExecutionRequest::coupling: antecedent_counterfactual::selective::NoiseCoupling
+pub field antecedent_counterfactual::selective::FiniteExecutionRequest::evidence_history: alloc::string::String
+pub field antecedent_counterfactual::selective::FiniteExecutionRequest::exogenous: antecedent_counterfactual::selective::ExogenousInference
+pub field antecedent_counterfactual::selective::FiniteExecutionRequest::quantity: antecedent_counterfactual::selective::FiniteQuantity
+pub field antecedent_counterfactual::selective::FiniteExecutionRequest::reading: antecedent_contract::joint_law_rule::RequestedReading
+pub field antecedent_counterfactual::selective::FiniteExecutionRequest::scm: antecedent_counterfactual::selective::FiniteScm
+pub field antecedent_counterfactual::selective::FiniteExecutionRequest::target_population: core::option::Option<alloc::string::String>
+pub field antecedent_counterfactual::selective::FiniteExecutionRequest::units: alloc::vec::Vec<antecedent_counterfactual::selective::FactualUnit>
+pub field antecedent_counterfactual::selective::FiniteExecutionRequest::worlds: alloc::vec::Vec<antecedent_counterfactual::selective::FiniteWorld>
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::label: &'static str
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::matrix_row: &'static str
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::receipt: antecedent_counterfactual::selective::ExecutionReceipt
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::stages: alloc::vec::Vec<antecedent_counterfactual::selective::StageReceipt>
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::units: alloc::vec::Vec<antecedent_counterfactual::selective::UnitAnswer>
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::value: f64
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::work: antecedent_counterfactual::selective::WorkCounters
+pub field antecedent_counterfactual::selective::FiniteScm::exogenous: alloc::vec::Vec<antecedent_counterfactual::selective::ExogenousVariable>
+pub field antecedent_counterfactual::selective::FiniteScm::history: alloc::string::String
+pub field antecedent_counterfactual::selective::FiniteScm::population: alloc::string::String
+pub field antecedent_counterfactual::selective::FiniteScm::variables: alloc::vec::Vec<antecedent_counterfactual::selective::FiniteVariable>
+pub field antecedent_counterfactual::selective::FiniteVariable::exogenous: usize
+pub field antecedent_counterfactual::selective::FiniteVariable::levels: usize
+pub field antecedent_counterfactual::selective::FiniteVariable::name: alloc::string::String
+pub field antecedent_counterfactual::selective::FiniteVariable::parents: alloc::vec::Vec<usize>
+pub field antecedent_counterfactual::selective::FiniteVariable::table: alloc::vec::Vec<u8>
+pub field antecedent_counterfactual::selective::FiniteWorld::interventions: alloc::vec::Vec<(usize, u8)>
+pub field antecedent_counterfactual::selective::FiniteWorld::name: alloc::string::String
+pub field antecedent_counterfactual::selective::FiniteWorld::routes: alloc::vec::Vec<antecedent_counterfactual::selective::WorldRoute>
+pub field antecedent_counterfactual::selective::MatrixRefusal::code: &'static str
+pub field antecedent_counterfactual::selective::MatrixRefusal::detail: &'static str
+pub field antecedent_counterfactual::selective::MatrixRefusal::missing: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_counterfactual::selective::MatrixRefusal::remedy: &'static str
+pub field antecedent_counterfactual::selective::MatrixRefusal::subject: &'static str
+pub field antecedent_counterfactual::selective::MatrixRequest::conditioning: antecedent_counterfactual::selective::ConditioningKind
+pub field antecedent_counterfactual::selective::MatrixRequest::evidence: antecedent_counterfactual::selective::EvidenceKind
+pub field antecedent_counterfactual::selective::MatrixRequest::history: antecedent_counterfactual::selective::HistoryKind
+pub field antecedent_counterfactual::selective::MatrixRequest::interventions: antecedent_counterfactual::selective::InterventionKind
+pub field antecedent_counterfactual::selective::MatrixRequest::model: antecedent_counterfactual::selective::ModelClass
+pub field antecedent_counterfactual::selective::MatrixRequest::population: antecedent_counterfactual::selective::PopulationKind
+pub field antecedent_counterfactual::selective::MatrixRequest::quantity: antecedent_counterfactual::selective::QuantityClass
+pub field antecedent_counterfactual::selective::MatrixRow::conditioning: &'static [antecedent_counterfactual::selective::ConditioningKind]
+pub field antecedent_counterfactual::selective::MatrixRow::coupling: antecedent_counterfactual::selective::CouplingKind
+pub field antecedent_counterfactual::selective::MatrixRow::evidence: &'static [antecedent_counterfactual::selective::EvidenceKind]
+pub field antecedent_counterfactual::selective::MatrixRow::history: &'static [antecedent_counterfactual::selective::HistoryKind]
+pub field antecedent_counterfactual::selective::MatrixRow::id: &'static str
+pub field antecedent_counterfactual::selective::MatrixRow::model: antecedent_counterfactual::selective::ModelClass
+pub field antecedent_counterfactual::selective::MatrixRow::population: antecedent_counterfactual::selective::PopulationKind
+pub field antecedent_counterfactual::selective::MatrixRow::quantity: antecedent_counterfactual::selective::QuantityClass
+pub field antecedent_counterfactual::selective::MatrixRow::refusal_code: core::option::Option<&'static str>
+pub field antecedent_counterfactual::selective::MatrixRow::refusal_detail: core::option::Option<&'static str>
+pub field antecedent_counterfactual::selective::MatrixRow::remedy: &'static str
+pub field antecedent_counterfactual::selective::MatrixRow::route: &'static str
+pub field antecedent_counterfactual::selective::MatrixRow::status: antecedent_counterfactual::selective::CapabilityStatus
+pub field antecedent_counterfactual::selective::MatrixRow::theorem: &'static str
+pub field antecedent_counterfactual::selective::RetainedAbduction::draws_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::RetainedAbduction::evidence_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::RetainedAbduction::identity: alloc::string::String
+pub field antecedent_counterfactual::selective::RetainedAbduction::mechanism_digest: alloc::string::String
+pub field antecedent_counterfactual::selective::RetainedAbduction::posterior: antecedent_counterfactual::selective::finite_scm::Posterior
+pub field antecedent_counterfactual::selective::RetainedAbduction::unit: alloc::string::String
+pub field antecedent_counterfactual::selective::StageReceipt::identity: alloc::string::String
+pub field antecedent_counterfactual::selective::StageReceipt::stage: antecedent_counterfactual::selective::ExecutionStage
+pub field antecedent_counterfactual::selective::StageReceipt::status: antecedent_counterfactual::selective::StageStatus
+pub field antecedent_counterfactual::selective::TemporalExecution::result: antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult
+pub field antecedent_counterfactual::selective::TemporalExecution::stages: alloc::vec::Vec<antecedent_counterfactual::selective::StageReceipt>
+pub field antecedent_counterfactual::selective::TemporalExecution::work: antecedent_counterfactual::selective::WorkCounters
+pub field antecedent_counterfactual::selective::UnitAnswer::evidence_probability: f64
+pub field antecedent_counterfactual::selective::UnitAnswer::unit: alloc::string::String
+pub field antecedent_counterfactual::selective::UnitAnswer::value: f64
+pub field antecedent_counterfactual::selective::WorkCounters::abduction_states_enumerated: u64
+pub field antecedent_counterfactual::selective::WorkCounters::abductions: u64
+pub field antecedent_counterfactual::selective::WorkCounters::abductions_reused: u64
+pub field antecedent_counterfactual::selective::WorkCounters::mechanism_fits: u64
+pub field antecedent_counterfactual::selective::WorkCounters::posterior_states_predicted: u64
+pub field antecedent_counterfactual::selective::WorkCounters::shared_draws: u64
+pub field antecedent_counterfactual::selective::WorkCounters::summaries: u64
+pub field antecedent_counterfactual::selective::WorkCounters::world_predictions: u64
+pub field antecedent_counterfactual::selective::WorldAtom::level: u8
+pub field antecedent_counterfactual::selective::WorldAtom::variable: usize
+pub field antecedent_counterfactual::selective::WorldAtom::world: usize
+pub field antecedent_counterfactual::selective::WorldRoute::child: usize
+pub field antecedent_counterfactual::selective::WorldRoute::parent: usize
+pub field antecedent_counterfactual::selective::WorldRoute::source: usize
+pub field antecedent_counterfactual::selective::finite_scm::CompiledScm::joint_states: usize
+pub field antecedent_counterfactual::selective::finite_scm::Posterior::evidence_probability: f64
+pub field antecedent_counterfactual::selective::finite_scm::Posterior::states: alloc::vec::Vec<(u32, f64)>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount::source: antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount::treatment: antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread::predictive_variance: f64
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread::unit: alloc::string::String
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread::value: f64
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::identity: alloc::string::String
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::label: &'static str
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::realized_mean_predictive_variance: f64
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::routes: alloc::vec::Vec<&'static str>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::sources: alloc::vec::Vec<antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::unit_mean_sampling_variance: core::option::Option<f64>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::units: alloc::vec::Vec<antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread>
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::value: f64
+pub field antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty::work: antecedent_counterfactual::selective::WorkCounters
+pub field antecedent_counterfactual::temporal_cross_world::FactualUnitHistory::history: antecedent_counterfactual::temporal_cross_world::HistoryId
+pub field antecedent_counterfactual::temporal_cross_world::FactualUnitHistory::times: [u32; 2]
+pub field antecedent_counterfactual::temporal_cross_world::FactualUnitHistory::unit: antecedent_counterfactual::temporal_cross_world::UnitId
+pub field antecedent_counterfactual::temporal_cross_world::FactualUnitHistory::values: [f64; 5]
+pub field antecedent_counterfactual::temporal_cross_world::NamedActionHistory::actions: [f64; 2]
+pub field antecedent_counterfactual::temporal_cross_world::NamedActionHistory::name: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::NamedActionHistory::times: [u32; 2]
+pub field antecedent_counterfactual::temporal_cross_world::NamedActionHistory::units: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::UnitId>
+pub field antecedent_counterfactual::temporal_cross_world::NodeMechanism::intercept: f64
+pub field antecedent_counterfactual::temporal_cross_world::NodeMechanism::node: antecedent_counterfactual::temporal_cross_world::TemporalNode
+pub field antecedent_counterfactual::temporal_cross_world::NodeMechanism::noise_halfwidth: core::option::Option<f64>
+pub field antecedent_counterfactual::temporal_cross_world::NodeMechanism::parent_coefficients: alloc::vec::Vec<(antecedent_counterfactual::temporal_cross_world::TemporalNode, f64)>
+pub field antecedent_counterfactual::temporal_cross_world::RefusingWitness::bound: core::option::Option<f64>
+pub field antecedent_counterfactual::temporal_cross_world::RefusingWitness::history: core::option::Option<antecedent_counterfactual::temporal_cross_world::HistoryId>
+pub field antecedent_counterfactual::temporal_cross_world::RefusingWitness::node: core::option::Option<antecedent_counterfactual::temporal_cross_world::TemporalNode>
+pub field antecedent_counterfactual::temporal_cross_world::RefusingWitness::residual: core::option::Option<f64>
+pub field antecedent_counterfactual::temporal_cross_world::RefusingWitness::unit: core::option::Option<antecedent_counterfactual::temporal_cross_world::UnitId>
+pub field antecedent_counterfactual::temporal_cross_world::RefusingWitness::world: core::option::Option<alloc::string::String>
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::exogenous_digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::factual_digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::fit_digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::graph_digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::horizon: usize
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::minus_digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::n_units: usize
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::n_worlds: usize
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::plus_digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::shared_by_both_worlds: bool
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::snapshot: antecedent_counterfactual::temporal_cross_world::SnapshotId
+pub field antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt::unit_draws: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::UnitDrawDigest>
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult::mean_contrast: f64
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult::mean_minus: f64
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult::mean_plus: f64
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult::mechanism_class: &'static str
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult::receipt: antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult::units: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::UnitCounterfactual>
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec::factual: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::FactualUnitHistory>
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec::fit: antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec::graph: antecedent_counterfactual::temporal_cross_world::TemporalGraph
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec::minus: antecedent_counterfactual::temporal_cross_world::NamedActionHistory
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec::plus: antecedent_counterfactual::temporal_cross_world::NamedActionHistory
+pub field antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec::snapshot: antecedent_counterfactual::temporal_cross_world::SnapshotId
+pub field antecedent_counterfactual::temporal_cross_world::TemporalGraph::edges: alloc::vec::Vec<(antecedent_counterfactual::temporal_cross_world::TemporalNode, antecedent_counterfactual::temporal_cross_world::TemporalNode)>
+pub field antecedent_counterfactual::temporal_cross_world::TemporalGraph::horizon: usize
+pub field antecedent_counterfactual::temporal_cross_world::TemporalGraph::latent_confounding: bool
+pub field antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit::fit_id: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit::mechanisms: alloc::vec::Vec<antecedent_counterfactual::temporal_cross_world::NodeMechanism>
+pub field antecedent_counterfactual::temporal_cross_world::TemporalRefusal::refusal: antecedent_contract::external_refusal::StructuredRefusal
+pub field antecedent_counterfactual::temporal_cross_world::TemporalRefusal::witness: core::option::Option<antecedent_counterfactual::temporal_cross_world::RefusingWitness>
+pub field antecedent_counterfactual::temporal_cross_world::UnitCounterfactual::factual_outcome: f64
+pub field antecedent_counterfactual::temporal_cross_world::UnitCounterfactual::history: antecedent_counterfactual::temporal_cross_world::HistoryId
+pub field antecedent_counterfactual::temporal_cross_world::UnitCounterfactual::minus_outcome: f64
+pub field antecedent_counterfactual::temporal_cross_world::UnitCounterfactual::plus_outcome: f64
+pub field antecedent_counterfactual::temporal_cross_world::UnitCounterfactual::unit: antecedent_counterfactual::temporal_cross_world::UnitId
+pub field antecedent_counterfactual::temporal_cross_world::UnitDrawDigest::digest: alloc::string::String
+pub field antecedent_counterfactual::temporal_cross_world::UnitDrawDigest::history: antecedent_counterfactual::temporal_cross_world::HistoryId
+pub field antecedent_counterfactual::temporal_cross_world::UnitDrawDigest::unit: antecedent_counterfactual::temporal_cross_world::UnitId
+pub field antecedent_counterfactual::transported_gate::RegimeFactorKey::regime: alloc::string::String
+pub field antecedent_counterfactual::transported_gate::RegimeFactorKey::role: antecedent_counterfactual::transported_gate::PopulationRole
+pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites::cross_population_assumptions: bool
+pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites::fixed_population_license: bool
+pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites::transport_license: bool
+pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal::missing_factors: alloc::vec::Vec<antecedent_counterfactual::transported_gate::RegimeFactorKey>
+pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal::missing_gates: alloc::vec::Vec<antecedent_counterfactual::transported_gate::TransportedCounterfactualGate>
+pub field antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal::refusal: antecedent_contract::external_refusal::StructuredRefusal
+pub field antecedent_counterfactual::transported_path_specific::AdditiveLinearScm::covariates: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_counterfactual::transported_path_specific::AdditiveLinearScm::mechanisms: alloc::vec::Vec<(alloc::string::String, antecedent_counterfactual::transported_path_specific::LinearMechanism)>
+pub field antecedent_counterfactual::transported_path_specific::AdditiveLinearScm::treatment: alloc::string::String
+pub field antecedent_counterfactual::transported_path_specific::Affine::constant: f64
+pub field antecedent_counterfactual::transported_path_specific::Affine::covariate_slopes: alloc::vec::Vec<(alloc::string::String, f64)>
+pub field antecedent_counterfactual::transported_path_specific::CovariateLaw::points: alloc::vec::Vec<(alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>, f64)>
+pub field antecedent_counterfactual::transported_path_specific::DeclaredAssumptions::additive_noise: bool
+pub field antecedent_counterfactual::transported_path_specific::DeclaredAssumptions::cross_world_independence: bool
+pub field antecedent_counterfactual::transported_path_specific::DeclaredAssumptions::noise_laws_shared: bool
+pub field antecedent_counterfactual::transported_path_specific::EdgeAssignment::treated: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub field antecedent_counterfactual::transported_path_specific::LinearMechanism::intercept: antecedent_counterfactual::transported_path_specific::Affine
+pub field antecedent_counterfactual::transported_path_specific::LinearMechanism::parents: alloc::vec::Vec<(alloc::string::String, antecedent_counterfactual::transported_path_specific::Affine)>
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::perturbation: f64
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::perturbed_parent: alloc::string::String
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::perturbed_slope_covariate: core::option::Option<alloc::string::String>
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::selected_node: alloc::string::String
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::source_contrast: f64
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::source_model: antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::target_contrast_a: f64
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::target_contrast_b: f64
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::target_model_a: antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
+pub field antecedent_counterfactual::transported_path_specific::NonRecoverableWitness::target_model_b: antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
+pub field antecedent_counterfactual::transported_path_specific::PathSpecificQuery::control_value: f64
+pub field antecedent_counterfactual::transported_path_specific::PathSpecificQuery::minus: antecedent_counterfactual::transported_path_specific::EdgeAssignment
+pub field antecedent_counterfactual::transported_path_specific::PathSpecificQuery::outcome: alloc::string::String
+pub field antecedent_counterfactual::transported_path_specific::PathSpecificQuery::plus: antecedent_counterfactual::transported_path_specific::EdgeAssignment
+pub field antecedent_counterfactual::transported_path_specific::PathSpecificQuery::treated_value: f64
+pub field antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram::selections: alloc::vec::Vec<antecedent_counterfactual::transported_path_specific::SelectionNode>
+pub field antecedent_counterfactual::transported_path_specific::SelectionNode::label: alloc::string::String
+pub field antecedent_counterfactual::transported_path_specific::SelectionNode::target: alloc::string::String
+pub field antecedent_counterfactual::transported_path_specific::TransportedDerivation::checked: alloc::vec::Vec<&'static str>
+pub field antecedent_counterfactual::transported_path_specific::TransportedDerivation::claim: &'static str
+pub field antecedent_counterfactual::transported_path_specific::TransportedDerivation::declared: alloc::vec::Vec<&'static str>
+pub field antecedent_counterfactual::transported_path_specific::TransportedDerivation::theorem: &'static str
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::assumptions: antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::diagram: &'a antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::model: &'a antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::query: &'a antecedent_counterfactual::transported_path_specific::PathSpecificQuery
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::source_law: &'a antecedent_counterfactual::transported_path_specific::CovariateLaw
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::supplied_factors: &'a alloc::collections::btree::map::BTreeMap<antecedent_counterfactual::transported_gate::RegimeFactorKey, alloc::string::String>
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput::target_law: &'a antecedent_counterfactual::transported_path_specific::CovariateLaw
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal::missing_factors: alloc::vec::Vec<antecedent_counterfactual::transported_gate::RegimeFactorKey>
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal::refusal: antecedent_contract::external_refusal::StructuredRefusal
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal::witness: core::option::Option<antecedent_counterfactual::transported_path_specific::NonRecoverableWitness>
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult::derivation: antecedent_counterfactual::transported_path_specific::TransportedDerivation
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult::source_contrast: f64
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult::target_contrast: f64
+pub field antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult::unit_contrasts: alloc::vec::Vec<antecedent_counterfactual::transported_path_specific::UnitContrast>
+pub field antecedent_counterfactual::transported_path_specific::UnitContrast::contrast: f64
+pub field antecedent_counterfactual::transported_path_specific::UnitContrast::point: alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>
+pub field antecedent_counterfactual::transported_path_specific::UnitContrast::target_weight: f64
+pub fn <antecedent_counterfactual::AbductionMissingPolicy>::const fn allows_missing(self) -> bool
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn abduct(&self, data: &antecedent_data::dataset::TabularData, missing: antecedent_counterfactual::AbductionMissingPolicy, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::ExogenousPosterior, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn abduct_with_rng(&self, data: &antecedent_data::dataset::TabularData, missing: antecedent_counterfactual::AbductionMissingPolicy, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_counterfactual::ExogenousPosterior, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn from_ref(model: &antecedent_model::compile::CompiledCausalModel) -> Self
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn individual_treatment_effect(&self, exo: &antecedent_counterfactual::ExogenousPosterior, outcome: antecedent_core::ids::VariableId, active: antecedent_core::intervention::Intervention, control: antecedent_core::intervention::Intervention, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::sync::Arc<[f64]>, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn new(model: antecedent_model::compile::CompiledCausalModel) -> Self
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict(&self, exo: &antecedent_counterfactual::ExogenousPosterior, worlds: &[antecedent_counterfactual::CounterfactualWorld], outcomes: &[antecedent_core::ids::VariableId], allow_nested: bool, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::CounterfactualResult, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn predict_retaining_outcomes(&self, exo: &antecedent_counterfactual::ExogenousPosterior, worlds: &[antecedent_counterfactual::CounterfactualWorld], outcomes: &[antecedent_core::ids::VariableId], allow_nested: bool, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::CounterfactualResult, antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualEngine>::fn shared(model: alloc::sync::Arc<antecedent_model::compile::CompiledCausalModel>) -> Self
+pub fn <antecedent_counterfactual::CounterfactualError>::fn model_msg(message: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn finite_outcome_count(&self, world: usize, outcome: antecedent_graph::types::DenseNodeId) -> usize
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn get(&self, world: usize, node: antecedent_graph::types::DenseNodeId, unit: usize) -> f64
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn outcome_column(&self, world: usize, outcome: antecedent_graph::types::DenseNodeId) -> core::result::Result<&[f64], antecedent_counterfactual::CounterfactualError>
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn slot_of(&self, node: antecedent_graph::types::DenseNodeId) -> core::option::Option<usize>
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn stored_width(&self) -> usize
+pub fn <antecedent_counterfactual::CounterfactualResult>::fn streaming_outcome_mean(&self, world: usize, outcome: antecedent_graph::types::DenseNodeId) -> f64
+pub fn <antecedent_counterfactual::cross_world::CrossWorldEvaluation>::fn n_units(&self) -> usize
+pub fn <antecedent_counterfactual::cross_world::CrossWorldEvaluation>::fn point(&self) -> f64
+pub fn <antecedent_counterfactual::cross_world::CrossWorldEvaluation>::fn unit_effects(&self) -> alloc::vec::Vec<f64>
+pub fn <antecedent_counterfactual::selective::CapabilityStatus>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::ConditioningKind>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::CouplingKind>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::CrossWorldExecutionError>::fn missing(&self) -> &[alloc::string::String]
+pub fn <antecedent_counterfactual::selective::CrossWorldExecutionError>::fn refusal(&self) -> core::option::Option<&antecedent_contract::external_refusal::StructuredRefusal>
+pub fn <antecedent_counterfactual::selective::EvidenceKind>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::ExecutionStage>::const fn dependencies(self) -> &'static [&'static str]
+pub fn <antecedent_counterfactual::selective::ExecutionStage>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::FactualUnit>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn at_state(&self, values: &[alloc::vec::Vec<u8>]) -> f64
+pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn involved_worlds(&self, worlds: &[antecedent_counterfactual::selective::FiniteWorld]) -> alloc::vec::Vec<usize>
+pub fn <antecedent_counterfactual::selective::FiniteQuantity>::fn validate(&self, scm: &antecedent_counterfactual::selective::FiniteScm, n_worlds: usize) -> core::result::Result<(), antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn <antecedent_counterfactual::selective::FiniteScm>::fn compile(&self) -> core::result::Result<antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn <antecedent_counterfactual::selective::FiniteScm>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn clear(&mut self)
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn execute(&mut self, request: &antecedent_counterfactual::selective::FiniteExecutionRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::FiniteExecutionResult, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn new() -> Self
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained(&self, identity: &str) -> core::option::Option<&antecedent_counterfactual::selective::RetainedAbduction>
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained_all(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_counterfactual::selective::RetainedAbduction>
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained_len(&self) -> usize
+pub fn <antecedent_counterfactual::selective::FiniteWorld>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::selective::HistoryKind>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::MatrixRow>::const fn needs_shared_exogenous(&self) -> bool
+pub fn <antecedent_counterfactual::selective::ModelClass>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::NoiseCoupling>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::PopulationKind>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::QuantityClass>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
+pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn execute(&mut self, spec: &antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::TemporalExecution, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
+pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn new() -> Self
+pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn retained_len(&self) -> usize
+pub fn <antecedent_counterfactual::selective::WorkCounters>::fn since(self, earlier: Self) -> Self
+pub fn <antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>>::fn decode(&self, joint: usize) -> alloc::vec::Vec<usize>
+pub fn <antecedent_counterfactual::selective::finite_scm::WorldPlan>::fn new(scm: &antecedent_counterfactual::selective::FiniteScm, worlds: &[antecedent_counterfactual::selective::FiniteWorld], index: usize) -> Self
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty>::fn realized_mean_standard_error(&self) -> f64
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty>::fn source(&self, source: antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource) -> core::option::Option<&antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount>
+pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty>::fn unit_mean_standard_error(&self) -> core::option::Option<f64>
+pub fn <antecedent_counterfactual::temporal_cross_world::HistoryId>::fn as_str(&self) -> &str
+pub fn <antecedent_counterfactual::temporal_cross_world::HistoryId>::fn new(id: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt>::fn is_self_consistent(&self) -> bool
+pub fn <antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt>::fn recompute_digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::temporal_cross_world::SnapshotId>::fn as_str(&self) -> &str
+pub fn <antecedent_counterfactual::temporal_cross_world::SnapshotId>::fn new(id: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>::fn refusal(&self) -> core::option::Option<&antecedent_contract::external_refusal::StructuredRefusal>
+pub fn <antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>::fn witness(&self) -> core::option::Option<&antecedent_counterfactual::temporal_cross_world::RefusingWitness>
+pub fn <antecedent_counterfactual::temporal_cross_world::TemporalNode>::const fn index(self) -> usize
+pub fn <antecedent_counterfactual::temporal_cross_world::TemporalNode>::const fn is_action(self) -> bool
+pub fn <antecedent_counterfactual::temporal_cross_world::TemporalNode>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::temporal_cross_world::UnitId>::fn as_str(&self) -> &str
+pub fn <antecedent_counterfactual::temporal_cross_world::UnitId>::fn new(id: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_counterfactual::transported_gate::RegimeFactorKey>::fn label(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::transported_gate::TransportedCounterfactualGate>::const fn name(self) -> &'static str
+pub fn <antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites>::fn missing_gates(&self) -> alloc::vec::Vec<antecedent_counterfactual::transported_gate::TransportedCounterfactualGate>
+pub fn <antecedent_counterfactual::transported_path_specific::Affine>::fn constant(value: f64) -> Self
+pub fn <antecedent_counterfactual::transported_path_specific::EdgeAssignment>::fn all_control() -> Self
+pub fn <antecedent_counterfactual::transported_path_specific::EdgeAssignment>::fn treated_on<I, S>(children: I) -> Self where I: core::iter::traits::collect::IntoIterator<Item = S>, S: core::convert::Into<alloc::string::String>
+pub fn antecedent_counterfactual::cross_world::evaluate_cross_world(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::cross_world::CrossWorldEvaluation, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::engine::nested_counterfactual(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, spec: &antecedent_counterfactual::NestedSpec<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::engine::nested_counterfactual_with_exo(engine: &antecedent_counterfactual::CounterfactualEngine, exo: &antecedent_counterfactual::ExogenousPosterior, spec: &antecedent_counterfactual::NestedSpec<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::engine::nested_hard_counterfactual(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, spec: &antecedent_counterfactual::NestedSpec<'_>, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::engine::simultaneous_hard_counterfactual(engine: &antecedent_counterfactual::CounterfactualEngine, data: &antecedent_data::dataset::TabularData, outer: &[antecedent_core::intervention::Intervention], inner: &[antecedent_core::intervention::Intervention], outcome: antecedent_core::ids::VariableId, ws: &mut antecedent_model::batch::MechanismWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<f64, antecedent_counterfactual::CounterfactualError>
+pub fn antecedent_counterfactual::selective::decide(request: &antecedent_counterfactual::selective::MatrixRequest) -> antecedent_counterfactual::selective::MatrixDecision
+pub fn antecedent_counterfactual::selective::finite_scm::abduct_unit(compiled: &antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, unit: &antecedent_counterfactual::selective::FactualUnit, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::finite_scm::Posterior, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn antecedent_counterfactual::selective::finite_scm::evaluate_worlds(compiled: &antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>, plans: &[antecedent_counterfactual::selective::finite_scm::WorldPlan], joint: usize, out: &mut [alloc::vec::Vec<u8>])
+pub fn antecedent_counterfactual::selective::finite_scm::validate_units(scm: &antecedent_counterfactual::selective::FiniteScm, units: &[antecedent_counterfactual::selective::FactualUnit]) -> core::result::Result<alloc::vec::Vec<antecedent_counterfactual::selective::FactualUnit>, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn antecedent_counterfactual::selective::finite_scm::validate_worlds(scm: &antecedent_counterfactual::selective::FiniteScm, worlds: &[antecedent_counterfactual::selective::FiniteWorld]) -> core::result::Result<(), antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn antecedent_counterfactual::selective::matrix::rows() -> &'static [antecedent_counterfactual::selective::MatrixRow]
+pub fn antecedent_counterfactual::selective::stages::stream_identity(unit: &str, node: &str, purpose: &str) -> alloc::string::String
+pub fn antecedent_counterfactual::selective::whole_path_uncertainty::derive_whole_path_uncertainty(request: &antecedent_counterfactual::selective::FiniteExecutionRequest, result: &antecedent_counterfactual::selective::FiniteExecutionResult, unit_sampling: antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn antecedent_counterfactual::temporal_cross_world::evaluate_temporal_counterfactual(spec: &antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
+pub fn antecedent_counterfactual::transported_gate::refuse_transported_counterfactual(prerequisites: &antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites, required_factors: &[antecedent_counterfactual::transported_gate::RegimeFactorKey], supplied: &alloc::collections::btree::map::BTreeMap<antecedent_counterfactual::transported_gate::RegimeFactorKey, alloc::string::String>) -> antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
+pub fn antecedent_counterfactual::transported_path_specific::evaluate_transported_path_specific(input: &antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'_>) -> core::result::Result<antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult, alloc::boxed::Box<antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal>>
+pub mod antecedent_counterfactual::cross_world
+pub mod antecedent_counterfactual::engine
+pub mod antecedent_counterfactual::error
+pub mod antecedent_counterfactual::selective
+pub mod antecedent_counterfactual::selective::finite_executor
+pub mod antecedent_counterfactual::selective::finite_scm
+pub mod antecedent_counterfactual::selective::matrix
+pub mod antecedent_counterfactual::selective::refusal
+pub mod antecedent_counterfactual::selective::stages
+pub mod antecedent_counterfactual::selective::whole_path_uncertainty
+pub mod antecedent_counterfactual::temporal_cross_world
+pub mod antecedent_counterfactual::temporal_cross_world::staged
+pub mod antecedent_counterfactual::transported_gate
+pub mod antecedent_counterfactual::transported_path_specific
+pub static antecedent_counterfactual::selective::matrix::ROWS: [antecedent_counterfactual::selective::MatrixRow; 11]
+pub struct antecedent_counterfactual::CompiledCounterfactualPlan
+pub struct antecedent_counterfactual::CounterfactualEngine
+pub struct antecedent_counterfactual::CounterfactualResult
+pub struct antecedent_counterfactual::CounterfactualWorld
+pub struct antecedent_counterfactual::ExogenousPosterior
+pub struct antecedent_counterfactual::NestedSpec<'a>
+pub struct antecedent_counterfactual::cross_world::CrossWorldEvaluation
+pub struct antecedent_counterfactual::selective::CrossWorldRefusal
+pub struct antecedent_counterfactual::selective::ExecutionReceipt
+pub struct antecedent_counterfactual::selective::ExogenousVariable
+pub struct antecedent_counterfactual::selective::FactualUnit
+pub struct antecedent_counterfactual::selective::FiniteExecutionRequest
+pub struct antecedent_counterfactual::selective::FiniteExecutionResult
+pub struct antecedent_counterfactual::selective::FiniteScm
+pub struct antecedent_counterfactual::selective::FiniteScmExecutor
+pub struct antecedent_counterfactual::selective::FiniteScmExecutor has private fields
+pub struct antecedent_counterfactual::selective::FiniteVariable
+pub struct antecedent_counterfactual::selective::FiniteWorld
+pub struct antecedent_counterfactual::selective::MatrixRefusal
+pub struct antecedent_counterfactual::selective::MatrixRequest
+pub struct antecedent_counterfactual::selective::MatrixRow
+pub struct antecedent_counterfactual::selective::RetainedAbduction
+pub struct antecedent_counterfactual::selective::StageReceipt
+pub struct antecedent_counterfactual::selective::TemporalExecution
+pub struct antecedent_counterfactual::selective::TemporalExecutor
+pub struct antecedent_counterfactual::selective::TemporalExecutor has private fields
+pub struct antecedent_counterfactual::selective::UnitAnswer
+pub struct antecedent_counterfactual::selective::WorkCounters
+pub struct antecedent_counterfactual::selective::WorldAtom
+pub struct antecedent_counterfactual::selective::WorldRoute
+pub struct antecedent_counterfactual::selective::finite_scm::CompiledScm has private fields
+pub struct antecedent_counterfactual::selective::finite_scm::CompiledScm<'a>
+pub struct antecedent_counterfactual::selective::finite_scm::Posterior
+pub struct antecedent_counterfactual::selective::finite_scm::WorldPlan
+pub struct antecedent_counterfactual::selective::finite_scm::WorldPlan has private fields
+pub struct antecedent_counterfactual::selective::whole_path_uncertainty::SourceAccount
+pub struct antecedent_counterfactual::selective::whole_path_uncertainty::UnitSpread
+pub struct antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty
+pub struct antecedent_counterfactual::temporal_cross_world::FactualUnitHistory
+pub struct antecedent_counterfactual::temporal_cross_world::HistoryId
+pub struct antecedent_counterfactual::temporal_cross_world::HistoryId has private fields
+pub struct antecedent_counterfactual::temporal_cross_world::NamedActionHistory
+pub struct antecedent_counterfactual::temporal_cross_world::NodeMechanism
+pub struct antecedent_counterfactual::temporal_cross_world::RefusingWitness
+pub struct antecedent_counterfactual::temporal_cross_world::SharedAbductionReceipt
+pub struct antecedent_counterfactual::temporal_cross_world::SnapshotId
+pub struct antecedent_counterfactual::temporal_cross_world::SnapshotId has private fields
+pub struct antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualResult
+pub struct antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualSpec
+pub struct antecedent_counterfactual::temporal_cross_world::TemporalGraph
+pub struct antecedent_counterfactual::temporal_cross_world::TemporalMechanismFit
+pub struct antecedent_counterfactual::temporal_cross_world::TemporalRefusal
+pub struct antecedent_counterfactual::temporal_cross_world::UnitCounterfactual
+pub struct antecedent_counterfactual::temporal_cross_world::UnitDrawDigest
+pub struct antecedent_counterfactual::temporal_cross_world::UnitId
+pub struct antecedent_counterfactual::temporal_cross_world::UnitId has private fields
+pub struct antecedent_counterfactual::transported_gate::RegimeFactorKey
+pub struct antecedent_counterfactual::transported_gate::TransportedCounterfactualPrerequisites
+pub struct antecedent_counterfactual::transported_gate::TransportedCounterfactualRefusal
+pub struct antecedent_counterfactual::transported_path_specific::AdditiveLinearScm
+pub struct antecedent_counterfactual::transported_path_specific::Affine
+pub struct antecedent_counterfactual::transported_path_specific::CovariateLaw
+pub struct antecedent_counterfactual::transported_path_specific::DeclaredAssumptions
+pub struct antecedent_counterfactual::transported_path_specific::EdgeAssignment
+pub struct antecedent_counterfactual::transported_path_specific::LinearMechanism
+pub struct antecedent_counterfactual::transported_path_specific::NonRecoverableWitness
+pub struct antecedent_counterfactual::transported_path_specific::PathSpecificQuery
+pub struct antecedent_counterfactual::transported_path_specific::PathSpecificSelectionDiagram
+pub struct antecedent_counterfactual::transported_path_specific::SelectionNode
+pub struct antecedent_counterfactual::transported_path_specific::TransportedDerivation
+pub struct antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'a>
+pub struct antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal
+pub struct antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult
+pub struct antecedent_counterfactual::transported_path_specific::UnitContrast
+pub type antecedent_counterfactual::selective::MatrixDecision = core::result::Result<&'static antecedent_counterfactual::selective::MatrixRow, antecedent_counterfactual::selective::MatrixRefusal>
+pub use antecedent_counterfactual::engine::AbductionMissingPolicy = antecedent_counterfactual::AbductionMissingPolicy
+pub use antecedent_counterfactual::engine::CompiledCounterfactualPlan = antecedent_counterfactual::CompiledCounterfactualPlan
+pub use antecedent_counterfactual::engine::CounterfactualEngine = antecedent_counterfactual::CounterfactualEngine
+pub use antecedent_counterfactual::engine::CounterfactualResult = antecedent_counterfactual::CounterfactualResult
+pub use antecedent_counterfactual::engine::CounterfactualWorld = antecedent_counterfactual::CounterfactualWorld
+pub use antecedent_counterfactual::engine::ExogenousPosterior = antecedent_counterfactual::ExogenousPosterior
+pub use antecedent_counterfactual::engine::NestedSpec = antecedent_counterfactual::NestedSpec
+pub use antecedent_counterfactual::engine::NoiseInferenceKind = antecedent_counterfactual::NoiseInferenceKind
+pub use antecedent_counterfactual::engine::RANK_PRESERVING_ASSUMPTION = antecedent_counterfactual::RANK_PRESERVING_ASSUMPTION
+pub use antecedent_counterfactual::error::CounterfactualError = antecedent_counterfactual::CounterfactualError
+pub use antecedent_counterfactual::nested_counterfactual = antecedent_counterfactual::engine::nested_counterfactual
+pub use antecedent_counterfactual::nested_counterfactual_with_exo = antecedent_counterfactual::engine::nested_counterfactual_with_exo
+pub use antecedent_counterfactual::nested_hard_counterfactual = antecedent_counterfactual::engine::nested_hard_counterfactual
+pub use antecedent_counterfactual::selective::finite_executor::ExecutionReceipt = antecedent_counterfactual::selective::ExecutionReceipt
+pub use antecedent_counterfactual::selective::finite_executor::ExogenousInference = antecedent_counterfactual::selective::ExogenousInference
+pub use antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest = antecedent_counterfactual::selective::FiniteExecutionRequest
+pub use antecedent_counterfactual::selective::finite_executor::FiniteExecutionResult = antecedent_counterfactual::selective::FiniteExecutionResult
+pub use antecedent_counterfactual::selective::finite_executor::FiniteScmExecutor = antecedent_counterfactual::selective::FiniteScmExecutor
+pub use antecedent_counterfactual::selective::finite_executor::NoiseCoupling = antecedent_counterfactual::selective::NoiseCoupling
+pub use antecedent_counterfactual::selective::finite_executor::RetainedAbduction = antecedent_counterfactual::selective::RetainedAbduction
+pub use antecedent_counterfactual::selective::finite_executor::UnitAnswer = antecedent_counterfactual::selective::UnitAnswer
+pub use antecedent_counterfactual::selective::finite_scm::ExogenousVariable = antecedent_counterfactual::selective::ExogenousVariable
+pub use antecedent_counterfactual::selective::finite_scm::FactualUnit = antecedent_counterfactual::selective::FactualUnit
+pub use antecedent_counterfactual::selective::finite_scm::FiniteQuantity = antecedent_counterfactual::selective::FiniteQuantity
+pub use antecedent_counterfactual::selective::finite_scm::FiniteScm = antecedent_counterfactual::selective::FiniteScm
+pub use antecedent_counterfactual::selective::finite_scm::FiniteVariable = antecedent_counterfactual::selective::FiniteVariable
+pub use antecedent_counterfactual::selective::finite_scm::FiniteWorld = antecedent_counterfactual::selective::FiniteWorld
+pub use antecedent_counterfactual::selective::finite_scm::WorldAtom = antecedent_counterfactual::selective::WorldAtom
+pub use antecedent_counterfactual::selective::finite_scm::WorldRoute = antecedent_counterfactual::selective::WorldRoute
+pub use antecedent_counterfactual::selective::matrix::CapabilityStatus = antecedent_counterfactual::selective::CapabilityStatus
+pub use antecedent_counterfactual::selective::matrix::ConditioningKind = antecedent_counterfactual::selective::ConditioningKind
+pub use antecedent_counterfactual::selective::matrix::CouplingKind = antecedent_counterfactual::selective::CouplingKind
+pub use antecedent_counterfactual::selective::matrix::EvidenceKind = antecedent_counterfactual::selective::EvidenceKind
+pub use antecedent_counterfactual::selective::matrix::HistoryKind = antecedent_counterfactual::selective::HistoryKind
+pub use antecedent_counterfactual::selective::matrix::InterventionKind = antecedent_counterfactual::selective::InterventionKind
+pub use antecedent_counterfactual::selective::matrix::MatrixDecision = antecedent_counterfactual::selective::MatrixDecision
+pub use antecedent_counterfactual::selective::matrix::MatrixRefusal = antecedent_counterfactual::selective::MatrixRefusal
+pub use antecedent_counterfactual::selective::matrix::MatrixRequest = antecedent_counterfactual::selective::MatrixRequest
+pub use antecedent_counterfactual::selective::matrix::MatrixRow = antecedent_counterfactual::selective::MatrixRow
+pub use antecedent_counterfactual::selective::matrix::ModelClass = antecedent_counterfactual::selective::ModelClass
+pub use antecedent_counterfactual::selective::matrix::PopulationKind = antecedent_counterfactual::selective::PopulationKind
+pub use antecedent_counterfactual::selective::matrix::QuantityClass = antecedent_counterfactual::selective::QuantityClass
+pub use antecedent_counterfactual::selective::matrix::decide = antecedent_counterfactual::selective::decide
+pub use antecedent_counterfactual::selective::refusal::CrossWorldExecutionError = antecedent_counterfactual::selective::CrossWorldExecutionError
+pub use antecedent_counterfactual::selective::refusal::CrossWorldRefusal = antecedent_counterfactual::selective::CrossWorldRefusal
+pub use antecedent_counterfactual::selective::rows = antecedent_counterfactual::selective::matrix::rows
+pub use antecedent_counterfactual::selective::stages::ExecutionStage = antecedent_counterfactual::selective::ExecutionStage
+pub use antecedent_counterfactual::selective::stages::StageReceipt = antecedent_counterfactual::selective::StageReceipt
+pub use antecedent_counterfactual::selective::stages::StageStatus = antecedent_counterfactual::selective::StageStatus
+pub use antecedent_counterfactual::selective::stages::WorkCounters = antecedent_counterfactual::selective::WorkCounters
+pub use antecedent_counterfactual::selective::stream_identity = antecedent_counterfactual::selective::stages::stream_identity
+pub use antecedent_counterfactual::simultaneous_hard_counterfactual = antecedent_counterfactual::engine::simultaneous_hard_counterfactual
+pub use antecedent_counterfactual::temporal_cross_world::staged::TemporalExecution = antecedent_counterfactual::selective::TemporalExecution
+pub use antecedent_counterfactual::temporal_cross_world::staged::TemporalExecutor = antecedent_counterfactual::selective::TemporalExecutor
+pub variant antecedent_counterfactual::AbductionMissingPolicy::Error
+pub variant antecedent_counterfactual::AbductionMissingPolicy::ZeroFill
+pub variant antecedent_counterfactual::CounterfactualError::AbductionNotExact { message: alloc::string::String }
+pub variant antecedent_counterfactual::CounterfactualError::Cancelled
+pub variant antecedent_counterfactual::CounterfactualError::MissingFactual { message: alloc::string::String }
+pub variant antecedent_counterfactual::CounterfactualError::Model(antecedent_model::error::ModelError)
+pub variant antecedent_counterfactual::CounterfactualError::NestedNotAllowed
+pub variant antecedent_counterfactual::CounterfactualError::Numerical { message: alloc::string::String }
+pub variant antecedent_counterfactual::NoiseInferenceKind::AssumedNoise
+pub variant antecedent_counterfactual::NoiseInferenceKind::Invertible
+pub variant antecedent_counterfactual::NoiseInferenceKind::PosteriorNoise
+pub variant antecedent_counterfactual::selective::CapabilityStatus::Closed
+pub variant antecedent_counterfactual::selective::CapabilityStatus::Executed
+pub variant antecedent_counterfactual::selective::CapabilityStatus::ExistingTheoremRoute
+pub variant antecedent_counterfactual::selective::ConditioningKind::FactualEvidence
+pub variant antecedent_counterfactual::selective::ConditioningKind::NoEvidence
+pub variant antecedent_counterfactual::selective::CouplingKind::NotRequired
+pub variant antecedent_counterfactual::selective::CouplingKind::SharedAbducedExogenous
+pub variant antecedent_counterfactual::selective::CrossWorldExecutionError::Cancelled
+pub variant antecedent_counterfactual::selective::CrossWorldExecutionError::Refused(alloc::boxed::Box<antecedent_counterfactual::selective::CrossWorldRefusal>)
+pub variant antecedent_counterfactual::selective::EvidenceKind::DataToFit
+pub variant antecedent_counterfactual::selective::EvidenceKind::DeclaredMechanisms
+pub variant antecedent_counterfactual::selective::EvidenceKind::SuppliedFittedIdentity
+pub variant antecedent_counterfactual::selective::ExecutionStage::ActionPrediction
+pub variant antecedent_counterfactual::selective::ExecutionStage::ExogenousDraws
+pub variant antecedent_counterfactual::selective::ExecutionStage::FactualAbduction
+pub variant antecedent_counterfactual::selective::ExecutionStage::MechanismFitting
+pub variant antecedent_counterfactual::selective::ExecutionStage::SummaryDecision
+pub variant antecedent_counterfactual::selective::ExogenousInference::ExactEnumeration
+pub variant antecedent_counterfactual::selective::ExogenousInference::PosteriorSampling
+pub variant antecedent_counterfactual::selective::FiniteQuantity::JointProbability(alloc::vec::Vec<antecedent_counterfactual::selective::WorldAtom>)
+pub variant antecedent_counterfactual::selective::FiniteQuantity::MeanContrast { plus: (usize, usize), minus: (usize, usize) }
+pub variant antecedent_counterfactual::selective::FiniteQuantity::Probability(antecedent_counterfactual::selective::WorldAtom)
+pub variant antecedent_counterfactual::selective::HistoryKind::FixedPopulationTwoSlice
+pub variant antecedent_counterfactual::selective::HistoryKind::Incompatible
+pub variant antecedent_counterfactual::selective::HistoryKind::NoHistory
+pub variant antecedent_counterfactual::selective::InterventionKind::Hard
+pub variant antecedent_counterfactual::selective::InterventionKind::Soft
+pub variant antecedent_counterfactual::selective::ModelClass::AdditiveLinearStaticTransported
+pub variant antecedent_counterfactual::selective::ModelClass::AdditiveLinearTwoSlice
+pub variant antecedent_counterfactual::selective::ModelClass::FiniteMarkovianScm
+pub variant antecedent_counterfactual::selective::ModelClass::NonparametricAdmg
+pub variant antecedent_counterfactual::selective::ModelClass::SemiMarkovian
+pub variant antecedent_counterfactual::selective::NoiseCoupling::IndependentWorldNoise
+pub variant antecedent_counterfactual::selective::NoiseCoupling::SharedAbducedExogenous
+pub variant antecedent_counterfactual::selective::NoiseCoupling::Undeclared
+pub variant antecedent_counterfactual::selective::PopulationKind::Single
+pub variant antecedent_counterfactual::selective::PopulationKind::Transported
+pub variant antecedent_counterfactual::selective::QuantityClass::CounterfactualJoint
+pub variant antecedent_counterfactual::selective::QuantityClass::CounterfactualMarginal
+pub variant antecedent_counterfactual::selective::QuantityClass::NaturalPathSpecific
+pub variant antecedent_counterfactual::selective::QuantityClass::Temporal
+pub variant antecedent_counterfactual::selective::QuantityClass::TransportedCrossWorld
+pub variant antecedent_counterfactual::selective::StageStatus::Computed
+pub variant antecedent_counterfactual::selective::StageStatus::Declared
+pub variant antecedent_counterfactual::selective::StageStatus::Reused
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::Exact { observed_weight_defect: f64 }
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::NotApplicable(&'static str)
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::Premise
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::Propagated { variance: f64 }
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::SourceTreatment::Unavailable(&'static str)
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource::Numerical
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource::Posterior
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource::Sampling
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource::Structural
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling::FixedUnits
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling::IndependentSample
+pub variant antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling::Undeclared
+pub variant antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError::Cancelled
+pub variant antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError::Refused(alloc::boxed::Box<antecedent_counterfactual::temporal_cross_world::TemporalRefusal>)
+pub variant antecedent_counterfactual::temporal_cross_world::TemporalNode::Action0
+pub variant antecedent_counterfactual::temporal_cross_world::TemporalNode::Action1
+pub variant antecedent_counterfactual::temporal_cross_world::TemporalNode::Covariate0
+pub variant antecedent_counterfactual::temporal_cross_world::TemporalNode::Covariate1
+pub variant antecedent_counterfactual::temporal_cross_world::TemporalNode::Outcome
+pub variant antecedent_counterfactual::transported_gate::PopulationRole::Source
+pub variant antecedent_counterfactual::transported_gate::PopulationRole::Target
+pub variant antecedent_counterfactual::transported_gate::TransportedCounterfactualGate::CrossPopulationAssumptionsMissing
+pub variant antecedent_counterfactual::transported_gate::TransportedCounterfactualGate::FixedPopulationTemporalLicenseMissing
+pub variant antecedent_counterfactual::transported_gate::TransportedCounterfactualGate::TransportLicenseMissing

@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -209,7 +208,7 @@ fn inferences() -> [InferenceMode; 2] {
 }
 
 fn class_surface(result: &antecedent::StudyResult) -> Vec<f64> {
-    let response = result.response.as_ref().expect("class sequence response");
+    let response = result.response().expect("class sequence response");
     match &response.estimate {
         ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(env)) => {
             env.lower.to_vec()

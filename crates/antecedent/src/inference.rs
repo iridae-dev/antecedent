@@ -7,8 +7,8 @@ use std::sync::Arc;
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::BayesianBackendKind;
 use antecedent_estimate::{
-    HydrateMapping, PreparedBayesianProblem, coefficient_covariance_from_draws,
-    hydrate_prior_with_coefficient_covariance, is_temporal_coefficient_name,
+    HydrateMapping, HydrateSource, HydrateTarget, PreparedBayesianProblem,
+    coefficient_covariance_from_draws, hydrate_prior, is_temporal_coefficient_name,
 };
 use antecedent_io::PosteriorQuantityWire;
 use antecedent_io::PriorMapping;
@@ -16,7 +16,9 @@ use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionIdentity, DrawAlignment,
 };
 use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
-use antecedent_io::{decode_posterior_artifact, extract_prior_source_meta, read_and_migrate};
+use antecedent_io::{
+    CausalPosteriorWire, decode_posterior_artifact, extract_prior_source_meta, read_and_migrate,
+};
 use antecedent_prob::{
     BayesLikelihood, ComposedPrior, ConflictSummary, ExternalPriorSource, PosteriorQuantityKind,
     PriorSet,
@@ -33,6 +35,20 @@ pub enum InferenceMode {
     Frequentist,
     /// Bayesian g-computation / posterior path.
     Bayesian(BayesianConfig),
+}
+
+impl InferenceMode {
+    /// Whether this is the Bayesian mode.
+    #[must_use]
+    pub(crate) const fn is_bayesian(&self) -> bool {
+        matches!(self, Self::Bayesian(_))
+    }
+
+    /// Whether this is the frequentist mode.
+    #[must_use]
+    pub(crate) const fn is_frequentist(&self) -> bool {
+        matches!(self, Self::Frequentist)
+    }
 }
 
 impl Default for InferenceMode {
@@ -83,6 +99,21 @@ pub struct BayesianConfig {
 }
 
 impl BayesianConfig {
+    /// Whether the config carries any coefficient prior beyond the isotropic
+    /// scale: an explicit prior, a mapped posterior artifact, or an external
+    /// compose.
+    #[must_use]
+    pub(crate) const fn has_transfer(&self) -> bool {
+        self.prior.is_some() || self.has_transferred_source()
+    }
+
+    /// Whether the config carries a transferred prior source (posterior
+    /// artifact or external compose) rather than an explicit prior.
+    #[must_use]
+    pub(crate) const fn has_transferred_source(&self) -> bool {
+        self.prior_artifact.is_some() || self.external_compose.is_some()
+    }
+
     /// Laplace Gaussian defaults.
     #[must_use]
     pub fn laplace() -> Self {
@@ -271,35 +302,75 @@ fn designs_compatible(
         .all(|(src, tgt)| src.is_some_and(|name| name == tgt.as_ref()))
 }
 
+/// How [`decode_prior_source`] treats an artifact's declared mapping.
+#[derive(Clone, Copy)]
+enum MappingDeclaration {
+    /// Caller supplied `prior_mapping`; leave `prior_source.meta` unread.
+    CallerSupplied,
+    /// Caller left `prior_mapping` unset; honor a declaration on the artifact.
+    FromArtifact,
+}
+
+/// One migrated decode of a posterior artifact for prior hydration.
+struct DecodedPriorSource {
+    wire: CausalPosteriorWire,
+    /// Column-major draws. Empty for a summary-only artifact.
+    draws: Vec<f64>,
+    /// Mapping from `prior_source.meta` when [`MappingDeclaration::FromArtifact`]
+    /// found one. Unset when that section was not read or declared no mapping.
+    declared_mapping: Option<HydrateMapping>,
+}
+
+impl DecodedPriorSource {
+    fn coefficient_names(&self) -> Vec<Option<&str>> {
+        self.wire
+            .quantities
+            .iter()
+            .filter_map(|q| match q {
+                PosteriorQuantityWire::Coefficient { name, .. } => Some(name.as_deref()),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+/// Decode a posterior artifact once for the hydration checks that share it.
+///
+/// # Errors
+///
+/// Migration, prior-source metadata, or posterior decode failures.
+fn decode_prior_source(
+    bytes: &[u8],
+    declaration: MappingDeclaration,
+) -> Result<DecodedPriorSource, CausalError> {
+    let artifact = read_and_migrate(bytes)?;
+    let declared_mapping = match declaration {
+        MappingDeclaration::CallerSupplied => None,
+        MappingDeclaration::FromArtifact => extract_prior_source_meta(&artifact)?
+            .and_then(|meta| meta.declared_mapping.as_ref().map(hydrate_mapping_from_io)),
+    };
+    let (wire, draws) = decode_posterior_artifact(&artifact)?;
+    Ok(DecodedPriorSource { wire, draws, declared_mapping })
+}
+
 /// Choose hydrate mapping when the caller left `prior_mapping` unset.
 ///
 /// Same-design sequential Bayes keeps identical subspace. Heterogeneous designs
 /// default to effect-functional transfer when an `Effect` quantity exists;
 /// otherwise the caller must supply an explicit mapping.
 fn default_hydrate_mapping(
-    bytes: &[u8],
+    source: &DecodedPriorSource,
     prep: &PreparedBayesianProblem,
 ) -> Result<HydrateMapping, CausalError> {
-    let artifact = read_and_migrate(bytes)?;
-    if let Some(meta) = extract_prior_source_meta(&artifact)? {
-        if let Some(mapping) = &meta.declared_mapping {
-            return Ok(hydrate_mapping_from_io(mapping));
-        }
+    if let Some(mapping) = &source.declared_mapping {
+        return Ok(mapping.clone());
     }
-    let (wire, _) = decode_posterior_artifact(&artifact)?;
-    let source_coef_names: Vec<Option<&str>> = wire
-        .quantities
-        .iter()
-        .filter_map(|q| match q {
-            PosteriorQuantityWire::Coefficient { name, .. } => Some(name.as_deref()),
-            _ => None,
-        })
-        .collect();
+    let source_coef_names = source.coefficient_names();
     let target_names = coef_names_for_problem(prep);
     if designs_compatible(&source_coef_names, prep.design.ncols, &target_names) {
         return Ok(HydrateMapping::IdenticalCoefficientSubspace);
     }
-    let source_quantity = wire.quantities.iter().find_map(|q| match q {
+    let source_quantity = source.wire.quantities.iter().find_map(|q| match q {
         PosteriorQuantityWire::Effect { name } => Some(name.clone()),
         _ => None,
     });
@@ -366,29 +437,24 @@ pub fn resolve_bayesian_prior_with_conflict(
     let Some(bytes) = cfg.prior_artifact.as_ref() else {
         return Ok((None, None));
     };
+    let declaration = if cfg.prior_mapping.is_some() {
+        MappingDeclaration::CallerSupplied
+    } else {
+        MappingDeclaration::FromArtifact
+    };
+    let source = decode_prior_source(bytes, declaration)?;
     let mapping = match cfg.prior_mapping.as_ref() {
         Some(m) => hydrate_mapping_from_io(m),
-        None => default_hydrate_mapping(bytes, prep)?,
+        None => default_hydrate_mapping(&source, prep)?,
     };
     let names = coef_names_for_problem(prep);
-    // A static coefficient transfer needs evidence that the source quantity was
-    // an identity-link treatment contrast. Non-Gaussian effect draws live on
-    // the response scale, so equal coefficient labels alone do not make their
-    // slopes interchangeable with a Gaussian outcome model.
-    if !names.iter().any(|name| is_temporal_coefficient_name(name)) {
-        let (source, _) = decode_causal_posterior_bytes(bytes)?;
-        if source.treatment_contrast.is_none() {
-            return Err(CausalError::Unsupported {
-                message: "static prior transfer requires an identity-link source contrast and matching coefficient meaning",
-            });
-        }
-    }
+    require_identity_link_static_transfer(&source, &names)?;
     let baseline = PriorSet::weakly_informative(prep.design.ncols);
     let treatment_col = prep.design.treatment_column();
-    require_lag_aware_transfer(bytes, &mapping, &names, treatment_col)?;
+    require_lag_aware_transfer(&source, &mapping, &names, treatment_col)?;
     Ok((
-        Some(hydrate_prior_from_posterior_bytes(
-            bytes,
+        Some(hydrate_prior_from_decoded(
+            &source,
             &mapping,
             &baseline,
             &names,
@@ -397,6 +463,27 @@ pub fn resolve_bayesian_prior_with_conflict(
         )?),
         None,
     ))
+}
+
+/// A static coefficient transfer needs evidence that the source quantity was
+/// an identity-link treatment contrast. Non-Gaussian effect draws live on
+/// the response scale, so equal coefficient labels alone do not make their
+/// slopes interchangeable with a Gaussian outcome model.
+///
+/// Temporal targets skip this check; [`require_lag_aware_transfer`] covers them.
+fn require_identity_link_static_transfer(
+    source: &DecodedPriorSource,
+    target_names: &[Arc<str>],
+) -> Result<(), CausalError> {
+    if target_names.iter().any(|name| is_temporal_coefficient_name(name)) {
+        return Ok(());
+    }
+    if source.wire.treatment_contrast.is_none() {
+        return Err(CausalError::Unsupported {
+            message: "static prior transfer requires an identity-link source contrast and matching coefficient meaning",
+        });
+    }
+    Ok(())
 }
 
 /// Fail closed when a transfer onto a temporal (lag-named) design cannot be verified
@@ -416,7 +503,7 @@ pub fn resolve_bayesian_prior_with_conflict(
 ///
 /// Static (non-temporal) targets keep the legacy rules.
 fn require_lag_aware_transfer(
-    bytes: &[u8],
+    source: &DecodedPriorSource,
     mapping: &HydrateMapping,
     target_names: &[Arc<str>],
     treatment_col: Option<usize>,
@@ -427,15 +514,7 @@ fn require_lag_aware_transfer(
     if matches!(mapping, HydrateMapping::NamedParameters { .. }) {
         return Ok(());
     }
-    let (wire, _) = decode_causal_posterior_bytes(bytes)?;
-    let source_names: Vec<Option<&str>> = wire
-        .quantities
-        .iter()
-        .filter_map(|q| match q {
-            PosteriorQuantityWire::Coefficient { name, .. } => Some(name.as_deref()),
-            _ => None,
-        })
-        .collect();
+    let source_names = source.coefficient_names();
     let target_list = target_names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
     if source_names.iter().any(Option::is_none) {
         return Err(CausalError::Compile {
@@ -527,6 +606,30 @@ pub fn decode_prior_hydrate_source(
     }))
 }
 
+/// Hydrate from an already decoded posterior. See [`hydrate_prior_from_posterior_bytes`].
+fn hydrate_prior_from_decoded(
+    source: &DecodedPriorSource,
+    mapping: &HydrateMapping,
+    baseline: &PriorSet,
+    target_coef_names: &[Arc<str>],
+    treatment_col: Option<usize>,
+    fallback_contrast: Option<f64>,
+) -> Result<PriorSet, CausalError> {
+    let quantities = wire_quantities_to_kinds(&source.wire.quantities);
+    let source_contrast = source.wire.treatment_contrast.or(fallback_contrast);
+    let covariance =
+        coefficient_covariance_from_draws(&quantities, &source.draws, source.wire.n_draws as usize)
+            .map_err(CausalError::from)?;
+    hydrate_prior(
+        mapping,
+        &HydrateSource::summaries(&quantities, &source.wire.mean, &source.wire.sd)
+            .with_coefficient_covariance(covariance.as_deref())
+            .with_source_contrast(source_contrast),
+        &HydrateTarget { baseline, coef_names: target_coef_names, treatment_col },
+    )
+    .map_err(CausalError::from)
+}
+
 /// Hydrate a [`PriorSet`] from posterior artifact bytes under a [`HydrateMapping`].
 ///
 /// Identical-subspace hydration reads the coefficient covariance from the
@@ -544,23 +647,15 @@ pub fn hydrate_prior_from_posterior_bytes(
     treatment_col: Option<usize>,
     fallback_contrast: Option<f64>,
 ) -> Result<PriorSet, CausalError> {
-    let (wire, draws) = decode_causal_posterior_bytes(bytes)?;
-    let quantities = wire_quantities_to_kinds(&wire.quantities);
-    let source_contrast = wire.treatment_contrast.or(fallback_contrast);
-    let covariance = coefficient_covariance_from_draws(&quantities, &draws, wire.n_draws as usize)
-        .map_err(CausalError::from)?;
-    hydrate_prior_with_coefficient_covariance(
+    let source = decode_prior_source(bytes, MappingDeclaration::CallerSupplied)?;
+    hydrate_prior_from_decoded(
+        &source,
         mapping,
-        &quantities,
-        &wire.mean,
-        &wire.sd,
-        covariance.as_deref(),
         baseline,
         target_coef_names,
         treatment_col,
-        source_contrast,
+        fallback_contrast,
     )
-    .map_err(CausalError::from)
 }
 
 /// Transfer an aligned parameter posterior into a known-variance Gaussian prior.
@@ -576,7 +671,7 @@ pub fn hydrate_prior_from_posterior_bytes(
 /// Incompatible meaning, source identity, mapping, scale, or draw alignment.
 #[allow(
     clippy::too_many_lines,
-    reason = "keep the complete F19 refusal and transfer boundary together"
+    reason = "keep the complete refusal and transfer boundary together"
 )]
 pub fn mapped_posterior_transfer(
     bytes: &[u8],
@@ -723,16 +818,11 @@ pub fn mapped_posterior_transfer(
             .map(|(_, _, source, target)| (source.clone(), target.clone()))
             .collect(),
     };
-    let mut prior = hydrate_prior_with_coefficient_covariance(
+    let mut prior = hydrate_prior(
         &mapping,
-        &quantities,
-        &mean,
-        &sd,
-        Some(&covariance),
-        baseline,
-        &names,
-        None,
-        None,
+        &HydrateSource::summaries(&quantities, &mean, &sd)
+            .with_coefficient_covariance(Some(&covariance)),
+        &HydrateTarget { baseline, coef_names: &names, treatment_col: None },
     )
     .map_err(CausalError::from)?;
     prior.restrictions.push(antecedent_core::PriorAssumption {

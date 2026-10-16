@@ -30,7 +30,6 @@ use antecedent_estimate::{
     TwoStageLeastSquares, WaldIv,
 };
 use antecedent_stats::{GlmFamily, GlmOptions};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict};
 
@@ -220,7 +219,7 @@ pub(crate) struct ParsedEstimatorConfig {
 ///
 /// # Errors
 ///
-/// Returns [`PyValueError`] when: a key is unknown for the resolved estimator (message lists
+/// Returns a value error when: a key is unknown for the resolved estimator (message lists
 /// the valid keys for that estimator); a key is valid but for a *different* estimator
 /// (message names which one); a value has the wrong Python type or shape; or the resolved
 /// estimator has no configuration surface at all (the temporal / conditional / mediation /
@@ -239,7 +238,7 @@ pub(crate) fn parse_estimator_config(
     }
     let resolved_id = estimator.unwrap_or(DEFAULT_ESTIMATOR_ID);
     let Some(valid_keys) = valid_keys_for(resolved_id) else {
-        return Err(PyValueError::new_err(format!(
+        return Err(crate::value_err(format!(
             "estimator_config is not supported for estimator {resolved_id:?}; no per-estimator \
              configuration surface exists for it yet. estimator_config currently supports: {}",
             format_id_list(&supported_estimator_ids()),
@@ -249,9 +248,8 @@ pub(crate) fn parse_estimator_config(
     // Validate every key up front, so the error always names the actual offending key
     // rather than whichever field extraction happened to run first.
     for (key_obj, _val) in dict.iter() {
-        let key: String = key_obj
-            .extract()
-            .map_err(|_| PyValueError::new_err("estimator_config keys must be str"))?;
+        let key: String =
+            key_obj.extract().map_err(|_| crate::value_err("estimator_config keys must be str"))?;
         if FLEXIBLE_LEARNER_IDS.contains(&resolved_id) && DEPENDENCE_KEYS.contains(&key.as_str()) {
             let message =
                 antecedent_estimate::flexible_learner_dependence_refusal(resolved_id, &key)
@@ -260,13 +258,13 @@ pub(crate) fn parse_estimator_config(
                 antecedent_core::reason_code!("route_not_supported"),
                 message.as_str(),
             ));
-            return Err(crate::with_reason_code(PyValueError::new_err(tail.to_string()), code));
+            return Err(crate::value_err_code(code, tail));
         }
         if !valid_keys.contains(&key.as_str()) {
             let owners = estimators_accepting(&key);
             if owners.is_empty() {
                 return Err(crate::with_reason_code(
-                    PyValueError::new_err(format!(
+                    crate::value_err(format!(
                         "unknown estimator_config key {key:?} for estimator {resolved_id:?}; \
                          valid keys for {resolved_id:?} are: {}",
                         format_id_list(valid_keys),
@@ -275,7 +273,7 @@ pub(crate) fn parse_estimator_config(
                 ));
             }
             return Err(crate::with_reason_code(
-                PyValueError::new_err(format!(
+                crate::value_err(format!(
                     "estimator_config key {key:?} is not valid for estimator {resolved_id:?}; it \
                      belongs to estimator(s) {}. valid keys for {resolved_id:?} are: {}",
                     format_id_list(&owners),
@@ -310,7 +308,7 @@ pub(crate) fn parse_estimator_config(
 ///
 /// # Errors
 ///
-/// Returns [`PyValueError`] when the same field is set to different values by the loose kwarg
+/// Returns a value error when the same field is set to different values by the loose kwarg
 /// and by `estimator_config`.
 pub(crate) fn merge_rd_triple(
     loose_running_variable: Option<String>,
@@ -357,7 +355,7 @@ fn merge_rd_field<T: std::fmt::Display>(
             if eq(&a, &b) {
                 Ok(Some(a))
             } else {
-                Err(PyValueError::new_err(format!(
+                Err(crate::value_err(format!(
                     "conflicting rd.sharp {name}: the loose {name}={a} kwarg disagrees with \
                      estimator_config[{name:?}]={b}; supply it in only one place",
                 )))
@@ -378,7 +376,7 @@ fn type_name(v: &Bound<'_, PyAny>) -> String {
 fn get_u32(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<u32>> {
     let Some(v) = dict.get_item(key)? else { return Ok(None) };
     v.extract::<u32>().map(Some).map_err(|_| {
-        PyValueError::new_err(format!(
+        crate::value_err(format!(
             "estimator_config[{key:?}] must be a non-negative int, got {}",
             type_name(&v)
         ))
@@ -388,7 +386,7 @@ fn get_u32(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<u32>> {
 fn get_f64(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<f64>> {
     let Some(v) = dict.get_item(key)? else { return Ok(None) };
     v.extract::<f64>().map(Some).map_err(|_| {
-        PyValueError::new_err(format!(
+        crate::value_err(format!(
             "estimator_config[{key:?}] must be a float, got {}",
             type_name(&v)
         ))
@@ -398,27 +396,21 @@ fn get_f64(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<f64>> {
 fn get_bool(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<bool>> {
     let Some(v) = dict.get_item(key)? else { return Ok(None) };
     v.extract::<bool>().map(Some).map_err(|_| {
-        PyValueError::new_err(format!(
-            "estimator_config[{key:?}] must be a bool, got {}",
-            type_name(&v)
-        ))
+        crate::value_err(format!("estimator_config[{key:?}] must be a bool, got {}", type_name(&v)))
     })
 }
 
 fn get_string(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<String>> {
     let Some(v) = dict.get_item(key)? else { return Ok(None) };
     v.extract::<String>().map(Some).map_err(|_| {
-        PyValueError::new_err(format!(
-            "estimator_config[{key:?}] must be a str, got {}",
-            type_name(&v)
-        ))
+        crate::value_err(format!("estimator_config[{key:?}] must be a str, got {}", type_name(&v)))
     })
 }
 
 fn get_u32_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<u32>>> {
     let Some(v) = dict.get_item(key)? else { return Ok(None) };
     v.extract::<Vec<u32>>().map(Some).map_err(|_| {
-        PyValueError::new_err(format!(
+        crate::value_err(format!(
             "estimator_config[{key:?}] must be a list of non-negative ints, got {}",
             type_name(&v)
         ))
@@ -428,7 +420,7 @@ fn get_u32_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<u32>
 fn get_u32_list_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<Vec<u32>>>> {
     let Some(v) = dict.get_item(key)? else { return Ok(None) };
     v.extract::<Vec<Vec<u32>>>().map(Some).map_err(|_| {
-        PyValueError::new_err(format!(
+        crate::value_err(format!(
             "estimator_config[{key:?}] must be a list of lists of non-negative ints, got {}",
             type_name(&v)
         ))
@@ -438,7 +430,7 @@ fn get_u32_list_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec
 fn get_i64_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<i64>>> {
     let Some(v) = dict.get_item(key)? else { return Ok(None) };
     v.extract::<Vec<i64>>().map(Some).map_err(|_| {
-        PyValueError::new_err(format!(
+        crate::value_err(format!(
             "estimator_config[{key:?}] must be a list of ints, got {}",
             type_name(&v)
         ))
@@ -451,7 +443,7 @@ fn build_se_kind(dict: &Bound<'_, PyDict>) -> PyResult<Option<AnalyticSeKind>> {
     let lag = get_u32(dict, "se_lag")?;
     let needs_lag = matches!(tag.as_str(), "newey_west" | "panel_cluster_hac");
     if !needs_lag && lag.is_some() {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "estimator_config['se_lag'] is only valid when se_kind is \"newey_west\" or \
              \"panel_cluster_hac\"",
         ));
@@ -466,7 +458,7 @@ fn build_se_kind(dict: &Bound<'_, PyDict>) -> PyResult<Option<AnalyticSeKind>> {
         "multiway" => AnalyticSeKind::Multiway,
         "newey_west" => {
             let lag = lag.ok_or_else(|| {
-                PyValueError::new_err(
+                crate::value_err(
                     "estimator_config['se_lag'] is required when se_kind is \"newey_west\"",
                 )
             })?;
@@ -474,7 +466,7 @@ fn build_se_kind(dict: &Bound<'_, PyDict>) -> PyResult<Option<AnalyticSeKind>> {
         }
         "panel_cluster_hac" => {
             let lag = lag.ok_or_else(|| {
-                PyValueError::new_err(
+                crate::value_err(
                     "estimator_config['se_lag'] is required when se_kind is \
                      \"panel_cluster_hac\"",
                 )
@@ -482,7 +474,7 @@ fn build_se_kind(dict: &Bound<'_, PyDict>) -> PyResult<Option<AnalyticSeKind>> {
             AnalyticSeKind::PanelClusterHac { lag: lag as usize }
         }
         other => {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "estimator_config['se_kind'] {other:?} is not recognized; use homoskedastic|\
                  hc0|hc1|hc2|hc3|cluster|multiway|newey_west|panel_cluster_hac",
             )));
@@ -506,7 +498,7 @@ fn build_rd_se_kind(dict: &Bound<'_, PyDict>) -> PyResult<Option<AnalyticSeKind>
         "hc2" => AnalyticSeKind::Hc2,
         "hc3" => AnalyticSeKind::Hc3,
         other => {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "estimator_config['se_kind'] {other:?} is not supported for rd.sharp; use \
                  hc1 (default)|homoskedastic|hc0|hc2|hc3",
             )));
@@ -524,27 +516,25 @@ fn build_fit_kind(dict: &Bound<'_, PyDict>) -> PyResult<Option<LinearFitKind>> {
         "ols" => LinearFitKind::Ols,
         "ridge" => LinearFitKind::Ridge {
             lambda: lambda.ok_or_else(|| {
-                PyValueError::new_err(
+                crate::value_err(
                     "estimator_config['fit_lambda'] is required when fit_kind is \"ridge\"",
                 )
             })?,
         },
         "lasso" => LinearFitKind::Lasso {
             lambda: lambda.ok_or_else(|| {
-                PyValueError::new_err(
+                crate::value_err(
                     "estimator_config['fit_lambda'] is required when fit_kind is \"lasso\"",
                 )
             })?,
         },
         "huber" => LinearFitKind::Huber {
             c: c.ok_or_else(|| {
-                PyValueError::new_err(
-                    "estimator_config['fit_c'] is required when fit_kind is \"huber\"",
-                )
+                crate::value_err("estimator_config['fit_c'] is required when fit_kind is \"huber\"")
             })?,
         },
         other => {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "estimator_config['fit_kind'] {other:?} is not recognized; use ols|ridge|lasso|\
                  huber",
             )));
@@ -563,7 +553,7 @@ fn build_family(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmFamily>> {
         "poisson_log" => GlmFamily::PoissonLog,
         "negative_binomial" => GlmFamily::NegativeBinomial,
         other => {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "estimator_config['family'] {other:?} is not recognized; use binomial_logit|\
                  binomial_probit|gaussian_identity|poisson_log|negative_binomial",
             )));
@@ -577,17 +567,17 @@ fn build_family(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmFamily>> {
 fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
     let Some(v) = dict.get_item("glm_options")? else { return Ok(None) };
     let sub = v.cast::<PyDict>().map_err(|_| {
-        PyValueError::new_err(format!(
+        crate::value_err(format!(
             "estimator_config['glm_options'] must be a dict, got {}",
             type_name(&v)
         ))
     })?;
     for (key_obj, _val) in sub.iter() {
-        let key: String = key_obj.extract().map_err(|_| {
-            PyValueError::new_err("estimator_config['glm_options'] keys must be str")
-        })?;
+        let key: String = key_obj
+            .extract()
+            .map_err(|_| crate::value_err("estimator_config['glm_options'] keys must be str"))?;
         if !GLM_OPTION_KEYS.contains(&key.as_str()) {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "unknown estimator_config['glm_options'] key {key:?}; valid keys are: {}",
                 GLM_OPTION_KEYS.join(", "),
             )));
@@ -605,7 +595,7 @@ fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
             None
         } else {
             Some(raw.extract::<f64>().map_err(|_| {
-                PyValueError::new_err(
+                crate::value_err(
                     "estimator_config['glm_options']['ridge_on_separation'] must be a float or \
                      None",
                 )
@@ -872,7 +862,7 @@ pub(crate) fn get_learner(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Optio
 
 fn invalid(message: String) -> PyErr {
     crate::with_reason_code(
-        PyValueError::new_err(message),
+        crate::value_err(message),
         antecedent_core::reason_code!("invalid_argument"),
     )
 }
@@ -948,7 +938,7 @@ fn build_configured_spec(
                     "logit" => CaliperScale::Logit,
                     "raw" => CaliperScale::Raw,
                     other => {
-                        return Err(PyValueError::new_err(format!(
+                        return Err(crate::value_err(format!(
                             "caliper_scale must be \"logit\" or \"raw\", got {other:?}"
                         )));
                     }
@@ -1114,7 +1104,7 @@ fn build_configured_spec(
             }
             if let Some(score) = get_string(dict, "score")? {
                 est = est.with_score(
-                    DmlScore::parse(&score).map_err(|e| PyValueError::new_err(e.to_string()))?,
+                    DmlScore::parse(&score).map_err(|e| crate::value_err(e.to_string()))?,
                 );
             }
             if let Some(folds) = get_u32(dict, "folds")? {
@@ -1166,7 +1156,7 @@ fn build_configured_spec(
         other => {
             // Unreachable in practice: `resolved_id` already passed `valid_keys_for` above,
             // and every non-`rd.sharp` row in `ESTIMATOR_KEYS` has a matching arm here.
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "internal error: estimator_config resolved id {other:?} is not table-driven"
             )));
         }

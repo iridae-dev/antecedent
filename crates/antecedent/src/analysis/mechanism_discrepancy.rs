@@ -1,4 +1,4 @@
-//! 2.3 B3: the source-target mechanism discrepancy diagnostic and its artifact.
+//! The source-target mechanism discrepancy diagnostic and its artifact.
 //!
 //! The facade routes and owns no scientific rule of its own:
 //!
@@ -90,29 +90,6 @@ pub fn summarize_sample(sample: &PopulationSample) -> Result<MechanismSummary, E
     summarize_population(sample)
 }
 
-/// The wire declaration of one population's summary.
-#[must_use]
-pub fn population_wire(summary: &MechanismSummary) -> PopulationWire {
-    PopulationWire {
-        label: summary.label.clone(),
-        measurement: MeasurementWire {
-            node: summary.measurement.node.clone(),
-            node_unit: summary.measurement.node_unit.clone(),
-            parents: summary
-                .measurement
-                .parents
-                .iter()
-                .map(|p| ParentWire { name: p.name.clone(), unit: p.unit.clone() })
-                .collect(),
-            protocol_id: summary.measurement.protocol_id.clone(),
-        },
-        n: summary.n as u64,
-        xtx: summary.xtx.clone(),
-        xty: summary.xty.clone(),
-        yty: summary.yty,
-    }
-}
-
 /// Run the diagnostic on a declared request and seal it into an artifact.
 ///
 /// `source_ids` and `target_ids` are optional row identities (empty when not supplied) used
@@ -177,7 +154,7 @@ mod tests {
     }
 
     #[test]
-    fn b3_discrepancy_shared_row_identities_refuse_before_the_fit() {
+    fn discrepancy_shared_row_identities_refuse_before_the_fit() {
         let request = MechanismDiscrepancyRequestWire {
             source: wire("source", 30.0),
             target: wire("target", 30.0),

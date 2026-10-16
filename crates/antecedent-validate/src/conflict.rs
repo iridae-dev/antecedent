@@ -147,7 +147,7 @@ pub fn apply_conflict_and_compose(
 /// # Errors
 ///
 /// PPC failures.
-pub fn estimate_conflict_signals(
+fn estimate_conflict_signals(
     sources: &[ExternalPriorSource],
     baseline: &PriorSet,
     problem: &PreparedBayesianProblem,

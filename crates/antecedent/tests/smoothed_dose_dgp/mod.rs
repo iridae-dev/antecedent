@@ -1,4 +1,4 @@
-//! Known-truth structural models for the smoothed dose-response transport cell (2.2B X4).
+//! Known-truth structural models for the smoothed dose-response transport cell.
 //!
 //! One baseline covariate `z` (graph coordinate 0), a randomized continuous dose `a`
 //! (coordinate 1) and a continuous outcome `y` (coordinate 2); the selection diagram marks
@@ -44,7 +44,10 @@
 //! exactly `n_trial` trial rows then `n_target` target rows.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "each integration test binary includes this module and uses a subset of it"
+)]
 
 use antecedent_core::{SmoothedDoseTransportQuery, SmoothingKernel, VariableId};
 use antecedent_estimate::{SmoothedDoseInput, TrialSampling};

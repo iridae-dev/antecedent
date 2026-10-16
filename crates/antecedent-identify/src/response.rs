@@ -47,7 +47,10 @@ impl ResponseIdentifier {
     }
 
     /// Identify every treatment/outcome pair required by a response functional.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per response functional, each assembling its own estimand from the shared prepared graph"
+    )]
     pub fn identify(
         &self,
         prepared: &PreparedIdentificationGraph,

@@ -1,4 +1,4 @@
-//! Python bridge for the 2.3.0 A1 selection-invariance report.
+//! Python bridge for the selection-invariance report.
 //!
 //! The report is derived, never stored: it is a function of the decided scenario set
 //! (read from each checked derivation) and the estimated report, so it is recomputed
@@ -6,6 +6,7 @@
 //! invariance and obstruction is Rust's; this module only names the variables and
 //! hands the structure to Python as JSON.
 
+use crate::bridge::RefusalJson;
 use antecedent_core::{VariableId, reason_code};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::scenario_invariance_report::{EnvelopeSide, ScenarioSetInvarianceReport};
@@ -15,6 +16,7 @@ use antecedent_identify::sid::scenario_invariance::{
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 
+use crate::detach_catch;
 use crate::transport_scenario_api::PreparedTransportScenariosStage;
 
 /// `(report json, refusal json)`.
@@ -123,22 +125,14 @@ fn set_json(names: &[String], set: &ScenarioSetInvarianceReport) -> Value {
 }
 
 fn refusal_json(code: &str, detail: &str, message: &str) -> String {
-    json!({
-        "code": code,
-        "stage": "scenario_invariance",
-        "detail": detail,
-        "message": message,
-        "offending": Value::Null,
-        "remedy": Value::Null,
-    })
-    .to_string()
+    RefusalJson::new(code, "scenario_invariance", detail, message).json()
 }
 
 /// The invariance report of an estimated transport-scenario stage:
 /// `(report json, refusal json)`. A stage that was not estimated, or an object that
 /// is not a scenario stage, is a refusal value for Python to raise.
 #[pyfunction]
-fn scenario_invariance_report(stage: &Bound<'_, PyAny>) -> PyResult<Payload> {
+fn scenario_invariance_report(py: Python<'_>, stage: &Bound<'_, PyAny>) -> PyResult<Payload> {
     let Ok(stage) = stage.extract::<PyRef<'_, PreparedTransportScenariosStage>>() else {
         return Ok((
             None,
@@ -159,7 +153,7 @@ fn scenario_invariance_report(stage: &Bound<'_, PyAny>) -> PyResult<Payload> {
             )),
         ));
     };
-    match prepared.invariance_report(report) {
+    match detach_catch(py, || Ok(prepared.invariance_report(report)))? {
         Ok(set) => Ok((Some(set_json(names, &set).to_string()), None)),
         Err(EstimationError::Refused { code, message }) => {
             let (detail, text) = message

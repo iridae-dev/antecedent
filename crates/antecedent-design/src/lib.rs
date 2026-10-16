@@ -4,23 +4,9 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(
-    clippy::module_name_repetitions,
-    clippy::missing_errors_doc,
-    clippy::missing_panics_doc,
-    clippy::type_complexity,
-    clippy::neg_cmp_op_on_partial_ord,
-    clippy::unnecessary_literal_bound
-)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
 
 pub mod candidate;
+pub mod cohort_decision_input;
 pub mod composition_boundary;
 pub mod composition_bundle;
 pub mod composition_verifiers;
@@ -30,6 +16,7 @@ pub mod decision_artifact;
 pub mod decision_contract;
 pub mod decision_eval;
 pub mod decision_refusal;
+pub mod decision_reliability;
 pub mod decision_robust_artifact;
 pub mod decision_robustness;
 pub mod decision_structural;
@@ -46,6 +33,7 @@ mod plan_common;
 pub mod preposterior;
 pub mod prior_signal;
 pub mod proposal_receipt;
+mod rank_rows;
 pub mod ranker;
 pub mod ranking;
 pub mod repair;
@@ -53,7 +41,10 @@ pub mod repair_artifact;
 pub mod result;
 pub mod rollout_artifact;
 pub mod sensitivity_decision;
+pub mod sequential_evaluation;
+pub mod sequential_evaluation_artifact;
 pub mod signal;
+pub(crate) mod structure_aggregator;
 pub mod study_candidate;
 pub mod study_plan_artifact;
 pub mod study_planner;
@@ -81,7 +72,7 @@ pub use decision_contract::{
 };
 pub use decision_structural_artifact::StructuralResultArtifact;
 pub use error::DesignError;
-pub use objective::DesignObjective;
+pub use objective::{DesignObjective, ObjectiveChannel, ObjectiveScorer};
 pub use preposterior::{
     BinomialSignal, DecisionPrior, DecisionSignal, GaussianMeanSignal, PreposteriorAnalysis,
 };
@@ -96,37 +87,41 @@ pub use repair::{
     TransportRepairFamily, repair,
 };
 pub use repair_artifact::{
-    REPAIR_ARTIFACT_KIND, REPAIR_ARTIFACT_VERSION, RepairArtifactError, RepairConsumeLimits,
-    RepairFamilyRef, RepairReportArtifact,
+    RepairArtifactError, RepairConsumeLimits, RepairFamilyRef, RepairReportArtifact,
 };
-pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
+pub use result::{ConstraintViolation, RankedCandidate, ScoreEvaluation, ScoredDesignRanking};
 pub use study_candidate::{
     DurableStudyCandidate, ExpectedEvidence, StudyCandidateError, StudyCostDeclaration, StudyKind,
     UnitRules,
 };
 pub use study_plan_artifact::{
-    STUDY_PLAN_ARTIFACT_KIND, STUDY_PLAN_ARTIFACT_VERSION, StudyBaseFailureWire,
-    StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire, StudyPlanConsumeLimits,
-    StudyPlanDataWire, StudyPlanLimitsWire, StudyPlanOutcomeWire, StudyPlanPremisesWire,
-    StudyPlanStopWire, StudyProposalWire, StudyRepairWire, StudySubsetWire,
+    StudyBaseFailureWire, StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire,
+    StudyPlanConsumeLimits, StudyPlanDataWire, StudyPlanLimitsWire, StudyPlanOutcomeWire,
+    StudyPlanPremisesWire, StudyPlanStopWire, StudyProposalWire, StudyRepairWire, StudySubsetWire,
 };
 pub use study_planner::{
     StudyArrival, StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlanError,
     StudyPlanProposal, StudyPlanResult, plan_studies,
 };
-pub use transport_planner::{
-    TransportCandidateAssessment, TransportCandidateOutcome, TransportEvidenceCandidate,
-    TransportPlanResult, TransportPlanSpec, TransportPlanningError, TransportProposal,
-    plan_transport_evidence,
-};
+pub use transport_planner::TransportEvidenceCandidate;
 pub use z_transport_planner::{
     ZTransportArrival, ZTransportCandidateAssessment, ZTransportCandidateOutcome,
     ZTransportFailureSnapshot, ZTransportFailureSnapshotWire, ZTransportFailureStatus,
     ZTransportPlanResult, ZTransportPlanSpec, ZTransportPlanningError, ZTransportProposal,
     ZTransportProposalWire, ZTransportQueryWire, plan_z_transport_evidence,
-    propose_z_transport_evidence, snapshot_z_transport_failure, validate_z_transport_candidate,
+    snapshot_z_transport_failure,
 };
 
+pub mod adaptive_trial_transport;
+pub mod decision_transported_source;
+pub mod inverse_forward_source;
+pub mod inverse_observational_scenarios;
 /// Independently consumed original source diagnostics and semantic mappings.
 pub mod source_evidence;
 pub mod source_projection_artifact;
+pub mod temporal_policy_transport;
+pub mod transport_sensitivity;
+pub mod transported_bridge;
+pub mod transported_decision_artifact;
+pub mod transported_policy;
+pub mod transported_synthesis;

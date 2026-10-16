@@ -6,10 +6,9 @@ use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
 
-use super::parcorr_variants::MultivariatePartialCorrelation;
+use super::parcorr_variants::{BlockTest, MultivariatePartialCorrelation};
 use super::types::{
-    CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    PreparedCiTest, SignificanceMethod,
+    CiBatchRequest, CiBatchResult, CiWorkspace, ConditionalIndependenceTest, PreparedCiTest,
 };
 use crate::error::StatsError;
 
@@ -103,9 +102,7 @@ impl ConditionalIndependenceTest for PairwiseMultivariateCi {
                 .collect();
             let r = self.inner.test_blocks(
                 request.columns,
-                &x_cols,
-                &y_cols,
-                &z,
+                &BlockTest { x_cols: &x_cols, y_cols: &y_cols, z_flat: &z },
                 request.significance,
                 workspace,
                 ctx,
@@ -115,37 +112,15 @@ impl ConditionalIndependenceTest for PairwiseMultivariateCi {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        super::parcorr::block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 
-/// Convenience: one block-pair test.
-pub fn pairwise_multivariate_test(
-    columns: &[&[f64]],
-    x_cols: &[usize],
-    y_cols: &[usize],
-    z_flat: &[usize],
-    significance: SignificanceMethod,
-    workspace: &mut CiWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<CiResult, StatsError> {
-    MultivariatePartialCorrelation::new().test_blocks(
-        columns,
-        x_cols,
-        y_cols,
-        z_flat,
-        significance,
-        workspace,
-        ctx,
-    )
-}
-
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use super::*;
-    use crate::ci::types::{CiQuery, ConfidenceMethod};
+    use crate::ci::types::{CiQuery, ConfidenceMethod, SignificanceMethod};
 
     #[test]
     fn column_block_expands_x_endpoint() {

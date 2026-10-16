@@ -1,0 +1,135 @@
+//! Logical and physical plan *records* (structs only; planner is).
+//!
+//! These types attach to diagnostics and results so execution choices remain
+//! inspectable.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use antecedent_core::ids::VariableId;
+
+/// Data modality classification used by the logical planner.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DataClassification {
+    /// IID tabular.
+    Tabular,
+    /// Temporal / time series.
+    Temporal,
+    /// Panel (unit × time).
+    Panel,
+    /// Multi-environment.
+    MultiEnvironment,
+    /// Irregular event data.
+    Event,
+}
+
+/// Record of logical analysis semantics (no execution choices).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LogicalAnalysisPlanRecord {
+    /// Stable plan identifier.
+    pub plan_id: Arc<str>,
+    /// Data classification.
+    pub data_classification: DataClassification,
+    /// Requested discovery algorithm id, if any.
+    pub discovery_algorithm: Option<Arc<str>>,
+    /// Whether graph review is required before estimation.
+    pub graph_review_required: bool,
+    /// Identifier algorithm id, if any.
+    pub identifier: Option<Arc<str>>,
+    /// Estimator / inference method id, if any.
+    pub estimator: Option<Arc<str>>,
+    /// Validation suite id, if any.
+    pub validation_suite: Option<Arc<str>>,
+    /// Variables involved in the primary query.
+    pub query_variables: Arc<[VariableId]>,
+}
+
+/// How a column or buffer is supplied to a kernel.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum BufferMaterialization {
+    /// Borrowed without copy.
+    Borrowed,
+    /// Copied to contiguous storage.
+    CopiedContiguous,
+    /// Transposed layout.
+    Transposed,
+    /// Chunked / streaming.
+    Chunked,
+}
+
+/// Selected kernel implementation class.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum KernelSelection {
+    /// Portable scalar reference.
+    Scalar,
+    /// Portable optimized (e.g. auto-vectorized).
+    PortableOptimized,
+    /// External dense backend (e.g. faer).
+    DenseBackend,
+}
+
+/// One parallel work dimension in a physical task schedule.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParallelTaskSpec {
+    /// Primary parallel dimension (e.g. `serial`, `bootstrap.replicate`).
+    pub dimension: Arc<str>,
+    /// Number of scheduled units along that dimension.
+    pub units: u32,
+}
+
+/// Record of physical execution choices derived from a logical plan.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PhysicalExecutionPlanRecord {
+    /// Stable plan identifier (may match logical).
+    pub plan_id: Arc<str>,
+    /// Materialization choices by logical buffer name.
+    pub materializations: Arc<[(Arc<str>, BufferMaterialization)]>,
+    /// Selected kernels by kernel name.
+    pub kernels: Arc<[(Arc<str>, KernelSelection)]>,
+    /// Batch size chosen for the primary work unit.
+    pub batch_size: Option<usize>,
+    /// Declared workspace bytes.
+    pub workspace_bytes: Option<u64>,
+    /// Estimated peak memory bytes.
+    pub estimated_peak_memory_bytes: Option<u64>,
+    /// Estimated bytes copied for materializations (`0` if all borrowed).
+    pub estimated_copy_bytes: Option<u64>,
+    /// Coarse parallel task schedule (one primary dimension).
+    pub task_schedule: Arc<[ParallelTaskSpec]>,
+    /// Worker threads assigned (0 = serial).
+    pub worker_threads: u32,
+    /// Whether reductions must be deterministic.
+    pub deterministic_reductions: bool,
+    /// Expected Python boundary crossings for the plan.
+    pub expected_python_crossings: u32,
+}
+
+/// Lightweight performance summary attached to results.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ExecutionPerformanceRecord {
+    /// Wall time in nanoseconds, if measured.
+    pub wall_time_ns: Option<u64>,
+    /// Peak resident memory bytes, if measured.
+    pub peak_rss_bytes: Option<u64>,
+    /// Number of recorded buffer copies.
+    pub copy_count: u64,
+    /// Number of scalar kernel fallbacks.
+    pub scalar_fallback_count: u64,
+    /// Latency tier label (`interactive` / `standard` / `report`), if set.
+    pub latency_mode: Option<Arc<str>>,
+    /// Per-stage wall times `(stage_id, nanos)` — e.g. `identify`, `estimate_point`.
+    pub stage_timings_ns: Vec<(Arc<str>, u64)>,
+    /// Bootstrap replicates requested by the analysis budget.
+    pub bootstrap_replicates_requested: Option<u32>,
+    /// Bootstrap replicates that produced a finite estimate.
+    pub bootstrap_replicates_ok: Option<u32>,
+    /// Posterior draws used (Bayesian paths).
+    pub n_draws: Option<u32>,
+    /// Cooperative cancellation was observed (partial result possible).
+    pub cancelled: bool,
+    /// Adaptive early-stop (bootstrap SE and/or Bayesian draws).
+    pub early_stopped: bool,
+    /// Bytes borrowed zero-copy from Arrow C Data Interface ingest, if known.
+    pub bytes_borrowed: Option<u64>,
+}

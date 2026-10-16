@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value)]
 #![cfg_attr(
     test,
     allow(
@@ -76,7 +75,7 @@ impl LearnerFactory for GbtLearner {
         // Forust exposes a global-pool boolean, not a bounded thread lease.
         // Outer folds own the ExecutionContext parallelism budget.
         let parallel = false;
-        let mut seed_rng = ctx.rng.stream_for(StreamDomain::Learner, 1);
+        let mut seed_rng = ctx.rng.stream_for(StreamDomain::Learner, crate::streams::GBT);
         let objective = match self.task {
             PredictionTask::Regression => ObjectiveType::SquaredLoss,
             PredictionTask::BinaryProbability => ObjectiveType::LogLoss,
@@ -97,9 +96,9 @@ impl LearnerFactory for GbtLearner {
                 return Err(LearnError::Shape { message: "weights length != physical rows" });
             }
             let gathered_w = gather_physical(w, x, x.nrows())?;
-            model.fit(&matrix, &gathered_y, &gathered_w, None).map_err(forust_err)?;
+            model.fit(&matrix, &gathered_y, &gathered_w, None).map_err(|err| forust_err(&err))?;
         } else {
-            model.fit_unweighted(&matrix, &gathered_y, None).map_err(forust_err)?;
+            model.fit_unweighted(&matrix, &gathered_y, None).map_err(|err| forust_err(&err))?;
         }
         Ok(Box::new(GbtPredictor { model, task: self.task, columns: x.ncols() }))
     }
@@ -134,7 +133,7 @@ impl FittedPredictor for GbtPredictor {
             PredictionTask::Regression => out.copy_from_slice(&preds),
             PredictionTask::BinaryProbability => {
                 for (slot, raw) in out.iter_mut().zip(preds) {
-                    *slot = (1.0 / (1.0 + (-raw).exp())).clamp(1e-9, 1.0 - 1e-9);
+                    *slot = crate::learner::clip_probability(antecedent_kernels::sigmoid(raw));
                 }
             }
         }
@@ -197,6 +196,6 @@ impl FittedPredictor for GbtPredictor {
     }
 }
 
-fn forust_err(err: forust_ml::errors::ForustError) -> LearnError {
+fn forust_err(err: &forust_ml::errors::ForustError) -> LearnError {
     LearnError::Backend(format!("{err}"))
 }

@@ -1,4 +1,4 @@
-//! B4 joint vector-treatment artifact: hand-derived coefficients and full covariance through the
+//! Joint vector-treatment artifact: hand-derived coefficients and full covariance through the
 //! container, a recomputing consumer (summary replay for the model-based covariance, row replay
 //! for a robust one), the row cap, resealed-mutation refusals against a retained identity,
 //! unresealed tampering, unknown versions and the unmeasured calibration coordinate.
@@ -26,8 +26,11 @@ const W: [f64; 6] = [0.0, 1.0, 1.0, 0.0, 1.0, 0.0];
 const Y: [f64; 6] = [3.0, 2.0, 5.0, 1.0, 0.0, 4.0];
 const S: f64 = 3.25 / 36.0;
 
+#[path = "common/mod.rs"]
+mod common;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    common::close(actual, expected, 1e-9, what);
 }
 
 fn treatment(name: &str, values: &[f64], adjustment: &[&str]) -> TreatmentRequest {
@@ -70,12 +73,12 @@ fn adjusted_request() -> VectorTreatmentRequest {
 
 fn export(request: &VectorTreatmentRequest) -> (VectorTreatmentArtifact, Vec<u8>) {
     let artifact = VectorTreatmentArtifact::seal(request).unwrap();
-    let bytes = artifact.to_bytes("b4-vector-test").unwrap();
+    let bytes = artifact.to_bytes("vector-test").unwrap();
     (artifact, bytes)
 }
 
 #[test]
-fn b4_vector_artifact_round_trip_matches_hand_algebra_and_full_covariance() {
+fn vector_artifact_round_trip_matches_hand_algebra_and_full_covariance() {
     let (artifact, bytes) = export(&request());
     let report =
         VectorTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap().report();
@@ -103,7 +106,7 @@ fn b4_vector_artifact_round_trip_matches_hand_algebra_and_full_covariance() {
 }
 
 #[test]
-fn b4_vector_artifact_joint_wald_and_holm_match_closed_forms() {
+fn vector_artifact_joint_wald_and_holm_match_closed_forms() {
     let report = export(&request()).0.report();
     // Wald = b' V^-1 b = 85.5 / (72 s) = 85.5 / 6.5; df 2 so p = exp(-stat / 2).
     let statistic = 85.5 / 6.5;
@@ -128,7 +131,7 @@ fn b4_vector_artifact_joint_wald_and_holm_match_closed_forms() {
 }
 
 #[test]
-fn b4_vector_artifact_calibration_is_unmeasured_and_says_so() {
+fn vector_artifact_calibration_is_unmeasured_and_says_so() {
     let report = export(&request()).0.report();
     assert_eq!(report.calibration, VECTOR_TREATMENT_CALIBRATION);
     assert_eq!(report.calibration, "unmeasured");
@@ -140,7 +143,7 @@ fn b4_vector_artifact_calibration_is_unmeasured_and_says_so() {
 }
 
 #[test]
-fn b4_vector_artifact_summary_replay_is_bit_identical_to_the_core_fit() {
+fn vector_artifact_summary_replay_is_bit_identical_to_the_core_fit() {
     let artifact = VectorTreatmentArtifact::seal(&adjusted_request()).unwrap();
     let input = VectorTreatmentInput {
         outcome: Y.to_vec(),
@@ -179,7 +182,7 @@ fn b4_vector_artifact_summary_replay_is_bit_identical_to_the_core_fit() {
 }
 
 #[test]
-fn b4_vector_artifact_robust_covariance_replays_from_the_rows() {
+fn vector_artifact_robust_covariance_replays_from_the_rows() {
     let mut hc = request();
     hc.covariance = "hc1".into();
     let (artifact, bytes) = export(&hc);
@@ -212,7 +215,7 @@ fn b4_vector_artifact_robust_covariance_replays_from_the_rows() {
 }
 
 #[test]
-fn b4_vector_artifact_robust_replay_above_the_row_cap_is_refused() {
+fn vector_artifact_robust_replay_above_the_row_cap_is_refused() {
     let n = VECTOR_TREATMENT_HC_ROW_CAP + 1;
     let column = |shift: usize| -> Vec<f64> { (0..n).map(|i| ((i + shift) % 7) as f64).collect() };
     let big = VectorTreatmentRequest {
@@ -235,7 +238,7 @@ fn b4_vector_artifact_robust_replay_above_the_row_cap_is_refused() {
 }
 
 #[test]
-fn b4_vector_artifact_incompatible_treatments_refuse_with_the_core_detail() {
+fn vector_artifact_incompatible_treatments_refuse_with_the_core_detail() {
     let mut other_set = adjusted_request();
     other_set.treatments[1].adjustment_set = vec![];
     let (code, detail, _) =
@@ -308,7 +311,7 @@ fn resealed_mutation_refuses(
 }
 
 #[test]
-fn b4_vector_artifact_resealed_identity_changes_are_refused() {
+fn vector_artifact_resealed_identity_changes_are_refused() {
     let original = adjusted_request();
     let mut snapshot = original.clone();
     snapshot.row_snapshot = "snap-2".into();
@@ -345,7 +348,7 @@ fn b4_vector_artifact_resealed_identity_changes_are_refused() {
 }
 
 #[test]
-fn b4_vector_artifact_coefficient_order_is_part_of_the_identity() {
+fn vector_artifact_coefficient_order_is_part_of_the_identity() {
     let forward = VectorTreatmentArtifact::seal(&request()).unwrap();
     let mut swapped = request();
     swapped.treatments.reverse();
@@ -360,7 +363,7 @@ fn b4_vector_artifact_coefficient_order_is_part_of_the_identity() {
 }
 
 #[test]
-fn b4_vector_artifact_unresealed_tampering_does_not_replay() {
+fn vector_artifact_unresealed_tampering_does_not_replay() {
     let (artifact, bytes) = export(&request());
     let (meta, numbers) = decode_parts(&bytes).unwrap();
 
@@ -437,7 +440,7 @@ fn b4_vector_artifact_unresealed_tampering_does_not_replay() {
 }
 
 #[test]
-fn b4_vector_artifact_unknown_major_version_and_corrupt_bytes_refuse() {
+fn vector_artifact_unknown_major_version_and_corrupt_bytes_refuse() {
     let (_, bytes) = export(&request());
     let (meta, numbers) = decode_parts(&bytes).unwrap();
     for version in [0_u16, 2, 7] {

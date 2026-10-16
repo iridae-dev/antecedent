@@ -1,4 +1,4 @@
-//! B4 latent-class (finite mixture) regime effects: class-specific effects, class weights, the
+//! Latent-class (finite mixture) regime effects: class-specific effects, class weights, the
 //! mixture-average effect and the per-unit posterior class responsibilities, with a portable,
 //! independently consumable artifact.
 //!

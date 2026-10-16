@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use antecedent::discovery::{GraphPosterior, GraphPosteriorAtomKind, InferenceDiagnostics};
+use antecedent::discovery::{
+    GraphPosterior, GraphPosteriorAtomKind, InferenceDiagnostics, SamplingSummary,
+};
 use antecedent::estimate::ContinuousResponseOptions;
 use antecedent::graph::{Lag, ensure_lagged};
 use antecedent::prelude::*;
@@ -39,7 +41,7 @@ fn response_and_temporal_queries_are_constructible_through_facade() {
         .run(&ExecutionContext::for_tests(731))
         .unwrap();
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &result.response.unwrap().estimate
+        &result.response().unwrap().estimate
     else {
         panic!("expected identified curve");
     };
@@ -73,9 +75,11 @@ fn response_and_temporal_queries_are_constructible_through_facade() {
         vec![2],
         vec![0.0, 1.0, 0.0, 0.0],
         vec![0.0, 1.0, 0.0, 0.0],
-        1.0,
-        InferenceDiagnostics::analytic("practitioner"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("practitioner"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap();
     posterior.atom_kind = GraphPosteriorAtomKind::Cpdag;

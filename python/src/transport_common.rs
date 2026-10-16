@@ -18,10 +18,9 @@ pub(crate) fn error<E: TransportPyErr>(e: E) -> PyErr {
     e.into_transport_py_err()
 }
 
-/// A failure that can only mean the bytes do not describe what they claim.
-pub(crate) fn serialization_error(e: impl std::fmt::Display) -> PyErr {
-    crate::CausalSerializationError::new_err(e.to_string())
-}
+/// The transport bindings' name for [`crate::bridge::serialization`], the one mapping of a
+/// failure that can only mean the bytes do not describe what they claim.
+pub(crate) use crate::bridge::serialization as serialization_error;
 
 /// One native transport failure kind, mapped to its `Causal*` class.
 pub(crate) trait TransportPyErr {
@@ -611,7 +610,7 @@ pub(crate) fn unframe_named_artifact(
 /// A native support slot for an inspection payload: its matrix status and
 /// coordinate and its empirical support, or the reason it is unavailable.
 pub(crate) fn support_slot_json(
-    slot: &antecedent_core::SlotAvailability<antecedent_core::SupportSlot>,
+    slot: &antecedent_contract::SlotAvailability<antecedent_contract::SupportSlot>,
 ) -> serde_json::Value {
     match slot.as_ref() {
         Some(support) => serde_json::json!({
@@ -625,7 +624,7 @@ pub(crate) fn support_slot_json(
 
 /// Obligation ids of a native assumption slot, empty when it is unavailable.
 pub(crate) fn obligation_ids(
-    slot: &antecedent_core::SlotAvailability<antecedent_core::AssumptionSlot>,
+    slot: &antecedent_contract::SlotAvailability<antecedent_contract::AssumptionSlot>,
 ) -> Vec<String> {
     slot.as_ref().map_or_else(Vec::new, |assumptions| {
         assumptions.obligations.iter().map(|obligation| obligation.id.to_string()).collect()

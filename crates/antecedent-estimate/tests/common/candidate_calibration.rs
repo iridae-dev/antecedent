@@ -1,5 +1,5 @@
 //! Binding and independent sampling shared only by closed-candidate measurement suites.
-#![allow(dead_code)]
+#![allow(dead_code, reason = "shared by several test binaries, each of which uses a subset")]
 use super::calibration::{Construction, CoverageTally, ScopeFacts};
 use antecedent_core::CalibrationBasis;
 

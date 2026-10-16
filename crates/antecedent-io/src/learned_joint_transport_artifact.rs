@@ -1,5 +1,5 @@
-//! Independent artifact of the learned joint source-target transport row (2.3A cell X4
-//! remainder and 2.3B B1 model-provider row `learned_joint_transport`). The original
+//! Independent artifact of the learned joint source-target transport row
+//! (`learned_joint_transport`). The original
 //! candidate format and its posterior quantities retain their `unmeasured` standing.
 //! Separate `build_measured` / `consume_measured` adapters authorize only the
 //! target-effect scalar when the actual native execution satisfies the frozen
@@ -7,7 +7,7 @@
 //!
 //! Format version 1. The artifact carries the model declaration (graph class, polynomial
 //! basis degree, varying block, sharing, dependence, bounds), both priors with their
-//! provenance, the checked 2.2 transport identification the model reads, the draw request,
+//! provenance, the checked transport identification the model reads, the draw request,
 //! the source and target identities with the observations themselves, and the result: the
 //! exact posterior moments of the `antecedent-learn` fit, the aligned joint draws with their
 //! RNG identity, the diagnostics (including the basis rank), the graph / provider / query
@@ -27,7 +27,7 @@
 //! The artifact embeds the observations (units), not sufficient statistics, because the
 //! core's fit entry takes units and a re-fit from units reproduces the draws bit for bit.
 //! What replay does not protect against: a producer that supplies fabricated observations
-//! consistently, and the 2.2 derivation the identification record copies, which is a
+//! consistently, and the derivation the identification record copies, which is a
 //! declared premise bound into the premises digest, not re-derived here.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -37,6 +37,9 @@ use crate::joint_bayesian_transport_artifact::{
     DataIdentityWire, GaussianPriorWire, JointDrawsWire, JointOptionsWire, JointSourceWire,
     JointTargetWire, PriorProvenanceWire,
 };
+use crate::model_codes::{
+    GraphClassCode, SourceDependenceCode, SourceSharingCode, VaryingBlockCode,
+};
 use crate::transport_interference_wire::{
     TransportIdentificationWire, transport_identification_from_wire,
     transport_identification_to_wire,
@@ -45,8 +48,7 @@ use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS,
     JointPriors, JointTransportCalibration, JointTransportOptions, JointTransportRefusal,
-    PriorProvenance, SourceData, SourceDependence, SourceSharing, TargetData, TransportGraphClass,
-    VaryingBlock,
+    PriorProvenance, SourceData, TargetData,
 };
 use antecedent_estimate::learned_joint_transport::{
     LearnedJointFit, LearnedJointModel, fit_learned_joint_transport,
@@ -102,37 +104,9 @@ fn engine_refusal(refusal: &JointTransportRefusal) -> IoError {
 }
 
 /// Bounds a consumer imposes. Nothing the artifact stores raises them.
-#[derive(Clone, Copy, Debug)]
-pub struct LearnedJointConsumeLimits {
-    /// Most sources.
-    pub max_sources: usize,
-    /// Most source units over all sources.
-    pub max_source_rows: usize,
-    /// Most target units.
-    pub max_target_rows: usize,
-    /// Most covariates.
-    pub max_features: usize,
-    /// Most posterior draws.
-    pub max_draws: usize,
-    /// Most stored draw values (`draws * coordinates`).
-    pub max_draw_cells: usize,
-    /// Most stored datum ids over all identities.
-    pub max_datum_ids: usize,
-}
-
-impl Default for LearnedJointConsumeLimits {
-    fn default() -> Self {
-        Self {
-            max_sources: 64,
-            max_source_rows: 200_000,
-            max_target_rows: 200_000,
-            max_features: 32,
-            max_draws: JOINT_TRANSPORT_MAX_DRAWS,
-            max_draw_cells: 4_000_000,
-            max_datum_ids: 400_000,
-        }
-    }
-}
+///
+/// The same bounds as a joint Bayesian transport artifact, including the defaults.
+pub use crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits as LearnedJointConsumeLimits;
 
 /// An identity a consumer expects the artifact to carry; `None` skips that check.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -148,17 +122,17 @@ pub struct LearnedJointExpectation {
 #[serde(deny_unknown_fields)]
 pub struct LearnedModelWire {
     /// `fixed_dag`, `admg` or `graph_posterior`.
-    pub graph: String,
+    pub graph: GraphClassCode,
     /// Raw covariate variable ids.
     pub features: Vec<u32>,
     /// Polynomial degree of the basis in every covariate.
     pub basis_degree: usize,
     /// `intercept` or `intercept_and_covariates`.
-    pub varying: String,
+    pub varying: VaryingBlockCode,
     /// `independent_varying_blocks` or `shared_varying_block`.
-    pub sharing: String,
+    pub sharing: SourceSharingCode,
     /// `independent_samples`, `overlapping_units` or `unknown`.
-    pub dependence: String,
+    pub dependence: SourceDependenceCode,
     /// Prior of the invariant block.
     pub invariant_prior: GaussianPriorWire,
     /// Prior of every varying block.
@@ -233,45 +207,15 @@ fn source_from_wire(wire: &JointSourceWire) -> SourceData {
     }
 }
 
-fn graph_name(graph: TransportGraphClass) -> &'static str {
-    match graph {
-        TransportGraphClass::FixedDag => "fixed_dag",
-        TransportGraphClass::Admg => "admg",
-        TransportGraphClass::GraphPosterior => "graph_posterior",
-    }
-}
-
-fn varying_name(varying: VaryingBlock) -> &'static str {
-    match varying {
-        VaryingBlock::Intercept => "intercept",
-        VaryingBlock::InterceptAndCovariates => "intercept_and_covariates",
-    }
-}
-
-fn sharing_name(sharing: SourceSharing) -> &'static str {
-    match sharing {
-        SourceSharing::IndependentVaryingBlocks => "independent_varying_blocks",
-        SourceSharing::SharedVaryingBlock => "shared_varying_block",
-    }
-}
-
-fn dependence_name(dependence: SourceDependence) -> &'static str {
-    match dependence {
-        SourceDependence::IndependentSamples => "independent_samples",
-        SourceDependence::OverlappingUnits => "overlapping_units",
-        SourceDependence::Unknown => "unknown",
-    }
-}
-
 impl LearnedModelWire {
     fn from_model(model: &LearnedJointModel) -> Self {
         Self {
-            graph: graph_name(model.graph).into(),
+            graph: GraphClassCode::from_class(model.graph),
             features: model.features.clone(),
             basis_degree: model.basis_degree,
-            varying: varying_name(model.varying).into(),
-            sharing: sharing_name(model.sharing).into(),
-            dependence: dependence_name(model.dependence).into(),
+            varying: VaryingBlockCode::from_block(model.varying),
+            sharing: SourceSharingCode::from_sharing(model.sharing),
+            dependence: SourceDependenceCode::from_dependence(model.dependence),
             invariant_prior: prior_to_wire(&model.priors.invariant),
             varying_prior: prior_to_wire(&model.priors.varying),
             max_unsupported_mass: model.max_unsupported_mass,
@@ -279,44 +223,21 @@ impl LearnedModelWire {
         }
     }
 
-    fn to_model(&self) -> Result<LearnedJointModel, LearnedJointArtifactError> {
-        let unsupported = LearnedJointArtifactError::UnsupportedSemantics;
-        let graph = match self.graph.as_str() {
-            "fixed_dag" => TransportGraphClass::FixedDag,
-            "admg" => TransportGraphClass::Admg,
-            "graph_posterior" => TransportGraphClass::GraphPosterior,
-            _ => return Err(unsupported("graph class")),
-        };
-        let varying = match self.varying.as_str() {
-            "intercept" => VaryingBlock::Intercept,
-            "intercept_and_covariates" => VaryingBlock::InterceptAndCovariates,
-            _ => return Err(unsupported("varying block")),
-        };
-        let sharing = match self.sharing.as_str() {
-            "independent_varying_blocks" => SourceSharing::IndependentVaryingBlocks,
-            "shared_varying_block" => SourceSharing::SharedVaryingBlock,
-            _ => return Err(unsupported("source sharing")),
-        };
-        let dependence = match self.dependence.as_str() {
-            "independent_samples" => SourceDependence::IndependentSamples,
-            "overlapping_units" => SourceDependence::OverlappingUnits,
-            "unknown" => SourceDependence::Unknown,
-            _ => return Err(unsupported("source dependence")),
-        };
-        Ok(LearnedJointModel {
-            graph,
+    fn to_model(&self) -> LearnedJointModel {
+        LearnedJointModel {
+            graph: self.graph.to_class(),
             features: self.features.clone(),
             basis_degree: self.basis_degree,
-            varying,
-            sharing,
-            dependence,
+            varying: self.varying.to_block(),
+            sharing: self.sharing.to_sharing(),
+            dependence: self.dependence.to_dependence(),
             priors: JointPriors {
                 invariant: prior_from_wire(&self.invariant_prior),
                 varying: prior_from_wire(&self.varying_prior),
             },
             max_unsupported_mass: self.max_unsupported_mass,
             conflict_z_threshold: self.conflict_z_threshold,
-        })
+        }
     }
 }
 
@@ -486,7 +407,7 @@ pub struct LearnedJointArtifactWire {
     pub required_features: Vec<String>,
     /// Model declaration with basis and priors.
     pub model: LearnedModelWire,
-    /// The checked 2.2 transport identification the model reads.
+    /// The checked transport identification the model reads.
     pub identification: TransportIdentificationWire,
     /// Draw request.
     pub options: JointOptionsWire,
@@ -519,11 +440,6 @@ struct DataView<'a> {
     tag: &'static str,
     sources: &'a [JointSourceWire],
     target: &'a JointTargetWire,
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
 }
 
 impl LearnedJointArtifactWire {
@@ -585,7 +501,7 @@ impl LearnedJointArtifactWire {
                 .collect(),
             bounds: (JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// The data-identity digest the stored observations should carry.
@@ -598,7 +514,7 @@ impl LearnedJointArtifactWire {
             sources: &self.sources,
             target: &self.target,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// Encode as CBOR.
@@ -614,11 +530,13 @@ impl LearnedJointArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure or a foreign feature or claim.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != LEARNED_JOINT_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == LEARNED_JOINT_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         let unsupported = LearnedJointArtifactError::UnsupportedSemantics;
         if wire.required_features != [LEARNED_JOINT_ARTIFACT_FEATURE] {
             return Err(unsupported("required features").into());
@@ -714,12 +632,18 @@ impl LearnedJointArtifactWire {
     ) -> Result<(Self, LearnedJointFit), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(LearnedJointArtifactError::PremisesMismatch.into());
-        }
-        if wire.expected_data_digest()? != wire.data_digest {
-            return Err(LearnedJointArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || LearnedJointArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            wire.expected_data_digest(),
+            std::convert::identity,
+            || LearnedJointArtifactError::DataIdentityMismatch.into(),
+        )?;
         if expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest) {
             return Err(LearnedJointArtifactError::ExpectationMismatch("premises").into());
         }
@@ -727,7 +651,7 @@ impl LearnedJointArtifactWire {
             return Err(LearnedJointArtifactError::ExpectationMismatch("data identity").into());
         }
         let id = transport_identification_from_wire(&wire.identification);
-        let model = wire.model.to_model()?;
+        let model = wire.model.to_model();
         let sources: Vec<SourceData> = wire.sources.iter().map(source_from_wire).collect();
         let target = TargetData {
             identity: identity_from_wire(&wire.target.identity),
@@ -750,7 +674,6 @@ impl LearnedJointArtifactWire {
     /// measured target-effect scalar. Other posterior quantities remain unmeasured.
     /// # Errors
     /// Out-of-protocol inputs, original native refusal, or non-attesting evidence.
-    #[allow(clippy::too_many_arguments)]
     pub fn build_measured(
         id: &TransportIdentification,
         model: &LearnedJointModel,
@@ -771,11 +694,11 @@ impl LearnedJointArtifactWire {
         };
         crate::measured_inference::transport::protocol(
             &crate::measured_inference::transport::Model {
-                graph: &declaration.graph,
+                graph: declaration.graph,
                 features: &declaration.features,
-                varying: &declaration.varying,
-                sharing: &declaration.sharing,
-                dependence: &declaration.dependence,
+                varying: declaration.varying,
+                sharing: declaration.sharing,
+                dependence: declaration.dependence,
                 invariant: &declaration.invariant_prior,
                 varying_prior: &declaration.varying_prior,
                 unsupported: declaration.max_unsupported_mass,
@@ -831,11 +754,11 @@ impl LearnedJointArtifactWire {
     ) -> Result<crate::measured_inference::MeasuredInference, IoError> {
         let scope = crate::measured_inference::transport::protocol(
             &crate::measured_inference::transport::Model {
-                graph: &self.model.graph,
+                graph: self.model.graph,
                 features: &self.model.features,
-                varying: &self.model.varying,
-                sharing: &self.model.sharing,
-                dependence: &self.model.dependence,
+                varying: self.model.varying,
+                sharing: self.model.sharing,
+                dependence: self.model.dependence,
                 invariant: &self.model.invariant_prior,
                 varying_prior: &self.model.varying_prior,
                 unsupported: self.model.max_unsupported_mass,
@@ -898,11 +821,11 @@ impl LearnedJointArtifactWire {
         preliminary.check_limits(&limits)?;
         crate::measured_inference::transport::protocol(
             &crate::measured_inference::transport::Model {
-                graph: &preliminary.model.graph,
+                graph: preliminary.model.graph,
                 features: &preliminary.model.features,
-                varying: &preliminary.model.varying,
-                sharing: &preliminary.model.sharing,
-                dependence: &preliminary.model.dependence,
+                varying: preliminary.model.varying,
+                sharing: preliminary.model.sharing,
+                dependence: preliminary.model.dependence,
                 invariant: &preliminary.model.invariant_prior,
                 varying_prior: &preliminary.model.varying_prior,
                 unsupported: preliminary.model.max_unsupported_mass,

@@ -7,17 +7,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
-use std::num::NonZeroU32;
 use std::sync::Arc;
 
-use antecedent_core::{CausalSchemaBuilder, Lag, MeasurementSpec, ValueType, VariableId};
+use antecedent_core::{Lag, VariableId};
 
-use crate::column::{Float64Column, OwnedColumn};
-use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
 use crate::lagged_frame::LaggedFrame;
-use crate::storage::OwnedColumnarStorage;
-use crate::table::TableView;
 
 /// Ordered groups of component variable ids (a vector-variable grouping for multivariate CI).
 ///
@@ -140,132 +135,9 @@ pub fn column_blocks_for_frame(
     Ok(Arc::from(blocks))
 }
 
-/// Expand every [`FixedVectorColumn`](crate::FixedVectorColumn) in `data` into `dim` Float64 columns and
-/// register them as vector-variable groups.
-///
-/// The original vector variable id becomes the first (logical) component; additional
-/// component ids are appended to the schema as `{name}__c{k}`.
-///
-/// Naming convention: component 0 keeps the bare vector name and components `k >= 1` are
-/// `{name}__c{k}`, so a result reported for `name` describes component 0 only; the other
-/// components appear under their own `__c{k}` names and are tested jointly only through the
-/// registered group blocks.
-///
-/// # Errors
-///
-/// Schema construction failure, width mismatch, or unsupported non-float companion columns.
-pub fn expand_fixed_vector_columns(
-    data: &TimeSeriesData,
-) -> Result<(TimeSeriesData, VectorVariableGroups), DataError> {
-    let storage = data.storage();
-    let n = storage.row_count();
-    let schema = storage.schema();
-    let mut builder = CausalSchemaBuilder::new();
-    let mut new_cols: Vec<OwnedColumn> = Vec::new();
-    let mut groups: Vec<Arc<[VariableId]>> = Vec::new();
-    let mut next_id = 0u32;
-
-    for old in storage.columns() {
-        match old {
-            OwnedColumn::FixedVector(fv) => {
-                let width = NonZeroU32::new(u32::try_from(fv.dim).map_err(|_| {
-                    DataError::InvalidArgument { message: "fixed vector dim overflow".into() }
-                })?)
-                .ok_or_else(|| DataError::InvalidArgument {
-                    message: "fixed vector dim must be > 0".into(),
-                })?;
-                let old_schema = schema.get(fv.id).map_err(|e| DataError::Schema(e.to_string()))?;
-                if let ValueType::Vector { width: declared, .. } = &old_schema.value_type {
-                    if declared != &width {
-                        return Err(DataError::InvalidArgument {
-                            message: format!(
-                                "FixedVector dim {} != schema Vector width {}",
-                                fv.dim,
-                                declared.get()
-                            ),
-                        });
-                    }
-                }
-                let mut comp_ids = Vec::with_capacity(fv.dim);
-                for k in 0..fv.dim {
-                    let name = if k == 0 {
-                        Arc::clone(&old_schema.name)
-                    } else {
-                        Arc::<str>::from(format!("{}__c{k}", old_schema.name))
-                    };
-                    builder
-                        .add_variable(
-                            name,
-                            ValueType::Continuous,
-                            old_schema.role_hints,
-                            old_schema.unit.clone(),
-                            None,
-                            MeasurementSpec::default(),
-                        )
-                        .map_err(|e| DataError::Schema(e.to_string()))?;
-                    let id = VariableId::from_raw(next_id);
-                    next_id += 1;
-                    comp_ids.push(id);
-                    let mut values = vec![0.0; n];
-                    for (row, slot) in values.iter_mut().enumerate() {
-                        *slot = fv.values[row * fv.dim + k];
-                    }
-                    new_cols.push(OwnedColumn::Float64(Float64Column::new(
-                        id,
-                        Arc::from(values),
-                        fv.validity.clone(),
-                    )?));
-                }
-                groups.push(Arc::from(comp_ids));
-            }
-            OwnedColumn::Float64(c) => {
-                let old_schema = schema.get(c.id).map_err(|e| DataError::Schema(e.to_string()))?;
-                builder
-                    .add_variable(
-                        Arc::clone(&old_schema.name),
-                        old_schema.value_type.clone(),
-                        old_schema.role_hints,
-                        old_schema.unit.clone(),
-                        old_schema.category_domain,
-                        old_schema.measurement.clone(),
-                    )
-                    .map_err(|e| DataError::Schema(e.to_string()))?;
-                let new_id = VariableId::from_raw(next_id);
-                next_id += 1;
-                new_cols.push(OwnedColumn::Float64(Float64Column::new(
-                    new_id,
-                    c.values.clone(),
-                    c.validity.clone(),
-                )?));
-            }
-            other => {
-                return Err(DataError::InvalidArgument {
-                    message: format!(
-                        "expand_fixed_vector_columns: unsupported column kind for id {}",
-                        other.id()
-                    ),
-                });
-            }
-        }
-    }
-
-    let new_schema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
-    let new_storage = OwnedColumnarStorage::try_new(
-        new_schema,
-        new_cols,
-        storage.analysis_mask().cloned(),
-        storage.weights().map(Arc::from),
-    )?;
-    let series = TimeSeriesData::try_new(new_storage, data.time_index().clone())?;
-    let groups = VectorVariableGroups::try_new(Arc::from(groups))?;
-    Ok((series, groups))
-}
-
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use super::*;
-    use crate::column::{FixedVectorColumn, ValidityBitmap};
     use crate::testing::float_series;
 
     #[test]
@@ -310,76 +182,5 @@ mod tests {
             VariableId::from_raw(2),
         ]);
         assert_eq!(search, vec![VariableId::from_raw(0), VariableId::from_raw(2)]);
-    }
-
-    #[test]
-    fn expand_fixed_vector_round_trip() {
-        use crate::temporal::{SamplingRegularity, TimeIndex};
-        use antecedent_core::{
-            CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-        };
-
-        let n = 10usize;
-        let dim = 2usize;
-        let mut b = CausalSchemaBuilder::new();
-        b.add_variable(
-            "v",
-            ValueType::Vector {
-                width: NonZeroU32::new(2).unwrap(),
-                element: antecedent_core::ScalarType::Float64,
-            },
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        b.add_variable(
-            "y",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-        let schema = b.build().unwrap();
-        let mut fv_vals = vec![0.0; n * dim];
-        let mut y = vec![0.0; n];
-        for t in 0..n {
-            fv_vals[t * dim] = t as f64;
-            fv_vals[t * dim + 1] = (t as f64) + 100.0;
-            y[t] = t as f64;
-        }
-        let cols = vec![
-            OwnedColumn::FixedVector(
-                FixedVectorColumn::new(
-                    VariableId::from_raw(0),
-                    dim,
-                    Arc::from(fv_vals),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(1),
-                    Arc::from(y),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        let data = TimeSeriesData::try_new(
-            storage,
-            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
-        )
-        .unwrap();
-        let (expanded, groups) = expand_fixed_vector_columns(&data).unwrap();
-        assert_eq!(expanded.storage().columns().len(), 3);
-        assert_eq!(groups.groups().len(), 1);
-        assert_eq!(groups.groups()[0].len(), 2);
-        assert_eq!(groups.logical_ids(), vec![VariableId::from_raw(0)]);
     }
 }

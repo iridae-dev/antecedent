@@ -2,13 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 
 use antecedent_core::KernelPolicy;
-use antecedent_kernels::{
-    F64VectorView, accumulate_contingency, masked_covariance, pairwise_l1_fill,
-    standardize_inplace, weighted_sum,
-};
+use antecedent_kernels::{F64VectorView, accumulate_contingency, portable, standardize_inplace};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn bench_reductions(criterion: &mut Criterion) {
@@ -21,7 +21,7 @@ fn bench_reductions(criterion: &mut Criterion) {
     let yv = F64VectorView::contiguous(&y);
 
     criterion.bench_function("masked_covariance_n10k", |b| {
-        b.iter(|| masked_covariance(black_box(&policy), black_box(xv), black_box(yv), None));
+        b.iter(|| portable::masked_covariance(black_box(xv), black_box(yv), None).unwrap());
     });
 
     criterion.bench_function("standardize_inplace_n10k", |b| {
@@ -33,7 +33,7 @@ fn bench_reductions(criterion: &mut Criterion) {
     });
 
     criterion.bench_function("weighted_sum_n10k", |b| {
-        b.iter(|| weighted_sum(black_box(&policy), black_box(&x), black_box(&w)));
+        b.iter(|| portable::weighted_sum(black_box(&x), black_box(&w)).unwrap());
     });
 
     let pair_len = 256usize;
@@ -41,7 +41,7 @@ fn bench_reductions(criterion: &mut Criterion) {
     let mut pair_out = vec![0.0; pair_len * pair_len];
     criterion.bench_function("pairwise_l1_n256", |b| {
         b.iter(|| {
-            pairwise_l1_fill(black_box(&policy), black_box(&xp), black_box(&mut pair_out));
+            portable::pairwise_l1_fill(black_box(&xp), black_box(&mut pair_out)).unwrap();
         });
     });
 
@@ -57,7 +57,8 @@ fn bench_reductions(criterion: &mut Criterion) {
                 black_box(&yc),
                 black_box(&mut table),
                 5,
-            );
+            )
+            .unwrap();
         });
     });
 }

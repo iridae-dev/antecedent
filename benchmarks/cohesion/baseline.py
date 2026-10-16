@@ -7,21 +7,29 @@ allocator measurements live in the companion native-release.json report.
 import importlib.util
 import json
 import os
-from pathlib import Path
 import platform
 import resource
 import statistics
 import time
 import tracemalloc
+from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location(
-    "cohesion_example", ROOT / "examples/python/cohesive_ml_transport.py"
-)
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
 import antecedent as ac
 from antecedent.prediction import FittedEffectModel
+from antecedent.transport import advanced as tr
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def load_cohesion_example():
+    spec = importlib.util.spec_from_file_location(
+        "cohesion_example", ROOT / "examples/python/cohesive_ml_transport.py"
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cohesion example could not be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def measure(fn, repeats=15):
@@ -45,9 +53,6 @@ def measure(fn, repeats=15):
         native_allocations=None,
         repeats=repeats,
     )
-
-
-from antecedent import transport as tr
 
 
 def grid_preparer():
@@ -98,43 +103,55 @@ def grid_preparer():
     return lambda: tr.prepare(request, data)
 
 
-prepare_grid = grid_preparer()
-grid = prepare_grid()
-grid_result = grid.estimate()
-assert [grid_result.mean(i, "y") for i in range(2)] == [0.2, 0.8]
+def require_grid_means(grid_result) -> None:
+    means = [grid_result.mean(i, "y") for i in range(2)]
+    if means != [0.2, 0.8]:
+        raise RuntimeError(f"cohesion grid means were {means}, expected [0.2, 0.8]")
 
-study, result, model = module.ml_example()
-trial, trial_result = module.transport_example()
-blob = model.export()
-workloads = {
-    "ml_prepare_fit_export_load": module.ml_example,
-    "ml_cold_preparation": module.ml_prepare,
-    "grid_cold_preparation": prepare_grid,
-    "grid_repeated_evaluation": grid.estimate,
-    "grid_inspection": grid.inspect,
-    "grid_export": grid_result.export,
-    "grid_load": lambda: ac.load(grid_result.export()),
-    "ml_repeated_estimation_nuisance_reuse": study.estimate,
-    "ml_inspection": study.inspect,
-    "loaded_model_prediction": lambda: model.predict({"z": [-1.0, 0.0, 1.0] * 100}),
-    "model_load": lambda: FittedEffectModel.load(blob),
-    "trial_prepare_and_bootstrap": module.transport_example,
-    "trial_repeated_joint_bootstrap": trial.estimate,
-    "trial_inspection": trial.inspect,
-    "trial_export": trial_result.export,
-    "trial_load": lambda: ac.load(trial_result.export()),
-}
-report = dict(
-    platform=platform.platform(),
-    python=platform.python_version(),
-    cpu_count=os.cpu_count(),
-    ml_threads=1,
-    transport_threads="ExecutionContext.production_default",
-    extension_profile="release (build separately with maturin develop --release)",
-    comparison="current working tree only; no speedup estimate",
-    workloads={name: measure(fn) for name, fn in workloads.items()},
-)
-report["process_peak_rss_bytes"] = resource.getrusage(
-    resource.RUSAGE_SELF
-).ru_maxrss * (1 if platform.system() == "Darwin" else 1024)
-print(json.dumps(report, indent=2))
+
+def main() -> None:
+    module = load_cohesion_example()
+    prepare_grid = grid_preparer()
+    grid = prepare_grid()
+    grid_result = grid.estimate()
+    require_grid_means(grid_result)
+
+    study, result, model = module.ml_example()
+    trial, trial_result = module.transport_example()
+    blob = model.export()
+    workloads = {
+        "ml_prepare_fit_export_load": module.ml_example,
+        "ml_cold_preparation": module.ml_prepare,
+        "grid_cold_preparation": prepare_grid,
+        "grid_repeated_evaluation": grid.estimate,
+        "grid_inspection": grid.inspect,
+        "grid_export": grid_result.export,
+        "grid_load": lambda: ac.load(grid_result.export()),
+        "ml_repeated_estimation_nuisance_reuse": study.estimate,
+        "ml_inspection": study.inspect,
+        "loaded_model_prediction": lambda: model.predict({"z": [-1.0, 0.0, 1.0] * 100}),
+        "model_load": lambda: FittedEffectModel.load(blob),
+        "trial_prepare_and_bootstrap": module.transport_example,
+        "trial_repeated_joint_bootstrap": trial.estimate,
+        "trial_inspection": trial.inspect,
+        "trial_export": trial_result.export,
+        "trial_load": lambda: ac.load(trial_result.export()),
+    }
+    report = dict(
+        platform=platform.platform(),
+        python=platform.python_version(),
+        cpu_count=os.cpu_count(),
+        ml_threads=1,
+        transport_threads="ExecutionContext.production_default",
+        extension_profile="release (build separately with maturin develop --release)",
+        comparison="current working tree only; no speedup estimate",
+        workloads={name: measure(fn) for name, fn in workloads.items()},
+    )
+    report["process_peak_rss_bytes"] = resource.getrusage(
+        resource.RUSAGE_SELF
+    ).ru_maxrss * (1 if platform.system() == "Darwin" else 1024)
+    print(json.dumps(report, indent=2))
+
+
+if __name__ == "__main__":
+    main()

@@ -2,13 +2,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::{HashMap, HashSet};
+use std::convert::Infallible;
+use std::sync::Mutex;
+
 use antecedent_core::{
-    AllocationMethod, CausalRng, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode,
+    AllocationMethod, ComponentId, ExecutionContext, ShapleyConfig, ShapleyMode,
 };
 use antecedent_kernels::shuffle;
 use antecedent_stats::{Welford, student_t_ppf};
 
-use crate::coalition::{CoalitionCache, CoalitionKey};
+use crate::change_common::{SHAPLEY_STREAM, attribution_stream};
+use crate::coalition::{CoalitionCache, CoalitionKey, MAX_COALITION_PLAYERS, ensure_player_bitset};
 use crate::error::AttributionError;
 use crate::result::{CacheStats, ComponentContribution, ComputeBudget, InteractionTerm};
 
@@ -20,6 +25,16 @@ pub trait CoalitionPayoff {
     ///
     /// Model / sampling failures.
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError>;
+
+    /// An independent evaluator of the same `v(S)`, which [`estimate_shapley`] may run
+    /// on worker threads to evaluate several coalitions at once.
+    ///
+    /// A fork's `value(mask)` must be bit-identical to `self.value(mask)` for every
+    /// mask regardless of what either evaluated before, i.e. the payoff is a pure
+    /// function of the mask. The default `None` keeps every evaluation on `self`.
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        None
+    }
 }
 
 /// Shapley estimation output.
@@ -65,7 +80,6 @@ impl ShapleyEstimate {
     #[must_use]
     pub fn into_contributions(self) -> Vec<ComponentContribution> {
         let stderrs = self.component_mc_stderr;
-        #[allow(clippy::cast_precision_loss)]
         let df = self.budget.samples.saturating_sub(1) as f64;
         let t_crit = student_t_ppf(0.975, df);
         self.players
@@ -92,22 +106,19 @@ impl ShapleyEstimate {
 ///
 /// [`AttributionError::ExactShapleyRejected`] when Exact exceeds the limit
 /// without override, or component count exceeds 64 (bitset width).
-pub fn check_shapley_size(
+pub(crate) fn check_shapley_size(
     n_components: usize,
     config: &ShapleyConfig,
 ) -> Result<(), AttributionError> {
-    if n_components > 64 {
-        return Err(AttributionError::SizeLimit {
-            kind: "components",
-            requested: n_components,
-            max: 64,
-        });
-    }
-    if matches!(config.mode, ShapleyMode::Exact) && n_components >= 64 {
+    ensure_player_bitset(n_components)?;
+    // Exact mode enumerates `2^k` masks. `k == 64` is a legal Monte Carlo width
+    // and an illegal exact width: `1u64 << 64` does not fit, so the refusal is
+    // the next-smaller cap, not the bitset cap.
+    if matches!(config.mode, ShapleyMode::Exact) && n_components >= MAX_COALITION_PLAYERS {
         return Err(AttributionError::SizeLimit {
             kind: "exact Shapley components",
             requested: n_components,
-            max: 63,
+            max: MAX_COALITION_PLAYERS - 1,
         });
     }
     if matches!(config.mode, ShapleyMode::Exact)
@@ -138,7 +149,7 @@ pub fn check_shapley_size(
 /// permutations plans `200 × 65 × 2_000 = 2.6e7`), while an exact override at
 /// `k = 20` (`2^20 × 2_000 ≈ 2.1e9`) or an oversized Monte Carlo schedule is
 /// refused up front instead of silently running for hours.
-pub const MAX_COALITION_SAMPLE_BUDGET: u64 = 100_000_000;
+pub(crate) const MAX_COALITION_SAMPLE_BUDGET: u64 = 100_000_000;
 
 /// Fail-closed guard on the planned sampling volume of a coalition game.
 ///
@@ -164,13 +175,12 @@ pub(crate) fn check_coalition_sample_budget(
         return Ok(());
     };
     let planned: u128 = match approximation.mode {
-        // Distinct coalitions; `check_shapley_size` separately rejects k >= 64.
-        ShapleyMode::Exact => 1u128 << n_players.min(64),
-        ShapleyMode::MonteCarlo { n_samples } => {
+        // Distinct coalitions. Exact mode rejects `k >= MAX_COALITION_PLAYERS`
+        // in `check_shapley_size`; the shift stays inside the mask width.
+        ShapleyMode::Exact => 1u128 << n_players.min(MAX_COALITION_PLAYERS),
+        ShapleyMode::MonteCarlo { n_samples }
+        | ShapleyMode::Permutation { n_permutations: n_samples } => {
             (n_samples as u128).saturating_mul(n_players as u128 + 1)
-        }
-        ShapleyMode::Permutation { n_permutations } => {
-            (n_permutations as u128).saturating_mul(n_players as u128 + 1)
         }
         // Unknown modes are rejected later by `estimate_shapley`.
         _ => return Ok(()),
@@ -207,6 +217,111 @@ fn evaluate_coalition<P: CoalitionPayoff>(
     Ok(v)
 }
 
+/// Coalition values the serial estimator is about to request, computed ahead of it on
+/// worker threads from forks of the payoff.
+///
+/// The estimator's own loop is untouched: it still requests every value in its original
+/// order through the cache, so budgets, cache statistics, error ordering and the numbers
+/// themselves match a serial run exactly. A mask that was not (or could not be)
+/// prefetched falls through to the wrapped payoff.
+struct Prefetched<'p, P: CoalitionPayoff> {
+    inner: &'p mut P,
+    known: HashMap<u64, f64>,
+}
+
+/// Prefetched values kept at once; the table is dropped when it grows past this.
+const MAX_PREFETCHED: usize = 1 << 20;
+/// Fewest distinct unevaluated coalitions worth a thread hand-off.
+const MIN_PARALLEL_COALITIONS: usize = 8;
+
+impl<'p, P: CoalitionPayoff> Prefetched<'p, P> {
+    fn new(inner: &'p mut P) -> Self {
+        Self { inner, known: HashMap::new() }
+    }
+
+    /// Worker threads the estimator may use for coalition values under `ctx`.
+    fn threads(ctx: &ExecutionContext) -> usize {
+        ctx.parallelism.max_threads.get() as usize
+    }
+
+    /// Evaluate the distinct, not yet known `masks` in parallel into [`Self::known`].
+    ///
+    /// Best effort: a payoff that cannot fork, a cancelled context, or a failing
+    /// coalition leaves the affected masks to the serial path, which then reports the
+    /// failure at the same point a serial run would.
+    fn prefetch(&mut self, masks: impl IntoIterator<Item = u64>, ctx: &ExecutionContext) {
+        let threads = Self::threads(ctx);
+        if threads < 2 || ctx.cancellation.is_cancelled() {
+            return;
+        }
+        if self.known.len() > MAX_PREFETCHED {
+            self.known.clear();
+        }
+        let mut seen = HashSet::new();
+        let todo: Vec<u64> =
+            masks.into_iter().filter(|m| !self.known.contains_key(m) && seen.insert(*m)).collect();
+        if todo.len() < MIN_PARALLEL_COALITIONS {
+            return;
+        }
+        if self.inner.fork().is_none() {
+            return;
+        }
+        // The first value is computed on the payoff itself so that its memoized state
+        // (fitted mechanisms, baseline law) is built once and then cloned into the forks.
+        let Ok(head) = self.inner.value(todo[0]) else { return };
+        self.known.insert(todo[0], head);
+        let rest = &todo[1..];
+        let chunk_len = rest.len().div_ceil(threads.min(rest.len()));
+        let mut forks = Vec::new();
+        for _ in rest.chunks(chunk_len) {
+            let Some(fork) = self.inner.fork() else { return };
+            forks.push(Mutex::new(Some(fork)));
+        }
+        let evaluated = ctx.map_indexed(forks.len(), |t, _| {
+            let Some(mut fork) = forks[t].lock().ok().and_then(|mut slot| slot.take()) else {
+                return Ok(Vec::new());
+            };
+            let mut out = Vec::new();
+            for &mask in rest.chunks(chunk_len).nth(t).unwrap_or(&[]) {
+                match fork.value(mask) {
+                    Ok(v) => out.push((mask, v)),
+                    Err(_) => break,
+                }
+            }
+            Ok::<_, Infallible>(out)
+        });
+        drop(forks);
+        let Ok(values) = evaluated;
+        self.known.extend(values.into_iter().flatten());
+    }
+}
+
+impl<P: CoalitionPayoff> CoalitionPayoff for Prefetched<'_, P> {
+    fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+        if let Some(&v) = self.known.get(&mask) {
+            return Ok(v);
+        }
+        self.inner.value(mask)
+    }
+}
+
+/// Coalitions per worker thread handed out in one exact-mode prefetch block.
+const PREFETCH_BLOCK: u64 = 64;
+/// Permutations per worker thread handed out in one Monte Carlo prefetch block.
+const PREFETCH_PERMUTATIONS: usize = 8;
+
+/// The `n + 1` prefix coalitions (`∅` through the full set) of every permutation in
+/// `orders`, in the order the estimator requests them.
+fn permutation_masks(orders: &[usize], n: usize) -> impl Iterator<Item = u64> + '_ {
+    orders.chunks_exact(n).flat_map(|order| {
+        let mut mask = 0u64;
+        std::iter::once(0).chain(order.iter().map(move |&i| {
+            mask |= 1u64 << i;
+            mask
+        }))
+    })
+}
+
 /// Estimate Shapley values for `players` under `payoff`.
 ///
 /// Uses a semantic [`CoalitionCache`] keyed by coalition mask. Approximate
@@ -215,6 +330,14 @@ fn evaluate_coalition<P: CoalitionPayoff>(
 /// # Errors
 ///
 /// Size limits, empty players, or payoff failures.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "exact, sampled and antithetic estimators are selected by one match; each arm is a self-contained estimator over the same payoff"
+)]
 pub fn estimate_shapley<P: CoalitionPayoff>(
     players: &[ComponentId],
     config: &ShapleyConfig,
@@ -227,6 +350,8 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
     }
     let n = players.len();
     check_shapley_size(n, config)?;
+    let mut payoff = Prefetched::new(payoff);
+    let payoff = &mut payoff;
 
     let mut cache = CoalitionCache::from_policy(ctx.cache_policy);
     if matches!(config.mode, ShapleyMode::Exact) {
@@ -234,7 +359,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
     }
     let mut budget = ComputeBudget::default();
 
-    let eval = evaluate_coalition::<P>;
+    let eval = evaluate_coalition::<Prefetched<'_, P>>;
 
     match config.mode {
         ShapleyMode::Exact => {
@@ -252,12 +377,15 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                     reason = "this branch runs only for n <= MAX_DENSE_TABLE_PLAYERS (24), so masks are below 2^24 and fit usize"
                 )]
                 let mut table = Vec::with_capacity(n_coalitions as usize);
+                let block = PREFETCH_BLOCK * Prefetched::<P>::threads(ctx) as u64;
                 for mask in 0..n_coalitions {
+                    if mask % block == 0 {
+                        payoff.prefetch(mask..(mask + block).min(n_coalitions), ctx);
+                    }
                     if ctx.cancellation.is_cancelled() {
                         return Err(AttributionError::Cancelled);
                     }
                     if let Some(p) = &ctx.progress {
-                        #[allow(clippy::cast_precision_loss)]
                         p.report(mask as f64 / n_coalitions as f64, "shapley");
                     }
                     table.push(eval(mask, payoff, &mut cache, &mut budget)?);
@@ -288,7 +416,6 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                         return Err(AttributionError::Cancelled);
                     }
                     if let Some(p) = &ctx.progress {
-                        #[allow(clippy::cast_precision_loss)]
                         p.report(mask as f64 / n_coalitions as f64, "shapley");
                     }
                     let v_s = eval(mask, payoff, &mut cache, &mut budget)?;
@@ -313,41 +440,51 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                 cache_stats: cache.stats(),
             })
         }
-        ShapleyMode::MonteCarlo { n_samples } => {
+        ShapleyMode::MonteCarlo { n_samples }
+        | ShapleyMode::Permutation { n_permutations: n_samples } => {
             budget.samples = n_samples as u64;
-            let mut rng = CausalRng::from_seed(config.seed);
+            let mut rng = attribution_stream(ctx, SHAPLEY_STREAM, config.seed);
             // Per-player Welford accumulators over the sampled permutations (stable when a
             // marginal's mean is large relative to its spread).
             let mut acc = vec![Welford::new(); n];
             let mut completed = 0u64;
-            // Permutation scratch reused across samples.
-            let mut order: Vec<usize> = Vec::with_capacity(n);
+            // Permutations of one prefetch block, `n` player indices per sample.
+            let block = Prefetched::<P>::threads(ctx).max(1) * PREFETCH_PERMUTATIONS;
+            let mut orders: Vec<usize> = Vec::with_capacity(block * n);
             let mut sample_phi = vec![0.0; n];
-            for _ in 0..n_samples {
-                if ctx.cancellation.is_cancelled() {
-                    break;
+            let mut next = 0usize;
+            'samples: while next < n_samples {
+                let in_block = block.min(n_samples - next);
+                orders.clear();
+                for _ in 0..in_block {
+                    let start = orders.len();
+                    orders.extend(0..n);
+                    shuffle(&mut rng, &mut orders[start..]);
                 }
-                order.clear();
-                order.extend(0..n);
-                shuffle(&mut rng, &mut order);
-                let mut mask = 0u64;
-                let mut v_prev = eval(0, payoff, &mut cache, &mut budget)?;
-                sample_phi.fill(0.0);
-                for &i in &order {
-                    let bit = 1u64 << i;
-                    mask |= bit;
-                    let v_new = eval(mask, payoff, &mut cache, &mut budget)?;
-                    sample_phi[i] = v_new - v_prev;
-                    v_prev = v_new;
+                payoff.prefetch(permutation_masks(&orders, n), ctx);
+                for order in orders.chunks_exact(n) {
+                    if ctx.cancellation.is_cancelled() {
+                        break 'samples;
+                    }
+                    let mut mask = 0u64;
+                    let mut v_prev = eval(0, payoff, &mut cache, &mut budget)?;
+                    sample_phi.fill(0.0);
+                    for &i in order {
+                        let bit = 1u64 << i;
+                        mask |= bit;
+                        let v_new = eval(mask, payoff, &mut cache, &mut budget)?;
+                        sample_phi[i] = v_new - v_prev;
+                        v_prev = v_new;
+                    }
+                    completed += 1;
+                    for (a, &x) in acc.iter_mut().zip(&sample_phi) {
+                        a.push(x);
+                    }
+                    if let Some(p) = &ctx.progress {
+                        p.report(completed as f64 / n_samples as f64, "shapley");
+                    }
                 }
-                completed += 1;
-                for (a, &x) in acc.iter_mut().zip(&sample_phi) {
-                    a.push(x);
-                }
-                if let Some(p) = &ctx.progress {
-                    #[allow(clippy::cast_precision_loss)]
-                    p.report(completed as f64 / n_samples as f64, "shapley");
-                }
+                next += in_block;
             }
             // Exact mode refuses on cancellation; a permutation estimate stopped early is
             // likewise not the estimate that was asked for, so it is refused rather than
@@ -369,11 +506,6 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
                 cache_stats: cache.stats(),
             })
         }
-        ShapleyMode::Permutation { n_permutations } => {
-            let mut cfg = *config;
-            cfg.mode = ShapleyMode::MonteCarlo { n_samples: n_permutations };
-            estimate_shapley(players, &cfg, payoff, ctx)
-        }
         _ => Err(AttributionError::unsupported("unsupported ShapleyMode variant")),
     }
 }
@@ -387,7 +519,7 @@ pub fn estimate_shapley<P: CoalitionPayoff>(
 /// # Errors
 ///
 /// Payoff failures.
-pub fn sequential_allocate<P: CoalitionPayoff>(
+pub(crate) fn sequential_allocate<P: CoalitionPayoff>(
     order: &[ComponentId],
     player_index: &dyn Fn(ComponentId) -> Option<usize>,
     payoff: &mut P,
@@ -408,13 +540,7 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
     let mut seen = 0u64;
     for &comp in order {
         let idx = player_index(comp).ok_or(AttributionError::UnknownPlayer)?;
-        if idx >= 64 {
-            return Err(AttributionError::SizeLimit {
-                kind: "components",
-                requested: idx + 1,
-                max: 64,
-            });
-        }
+        ensure_player_bitset(idx + 1)?;
         let bit = 1u64 << idx;
         if seen & bit != 0 {
             return Err(AttributionError::invalid_input(
@@ -440,7 +566,6 @@ pub fn sequential_allocate<P: CoalitionPayoff>(
         }
         prev_component = Some((comp, idx));
         v_prev = v_new;
-        let _ = v_s;
     }
 
     Ok(ShapleyEstimate {
@@ -531,6 +656,32 @@ mod tests {
     }
 
     #[test]
+    fn permutation_matches_monte_carlo_draws() {
+        let players: Vec<_> = (0..4).map(ComponentId::from_raw).collect();
+        let weights = vec![1.0, 2.0, 3.0, 4.0];
+        let ctx = ExecutionContext::for_tests(1);
+        let mut monte = AdditivePayoff { weights: weights.clone() };
+        let mut permutation = AdditivePayoff { weights };
+        let sampled = estimate_shapley(
+            &players,
+            &ShapleyConfig::monte_carlo(30).with_seed(11),
+            &mut monte,
+            &ctx,
+        )
+        .unwrap();
+        let ordered = estimate_shapley(
+            &players,
+            &ShapleyConfig::permutation(30).with_seed(11),
+            &mut permutation,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(sampled.values, ordered.values);
+        assert_eq!(sampled.component_mc_stderr, ordered.component_mc_stderr);
+        assert_eq!(sampled.budget.samples, ordered.budget.samples);
+    }
+
+    #[test]
     fn monte_carlo_supports_64_players() {
         let players: Vec<_> = (0..64).map(ComponentId::from_raw).collect();
         let mut payoff = AdditivePayoff { weights: vec![1.0; 64] };
@@ -557,7 +708,7 @@ mod tests {
         }
     }
 
-    /// E1: the per-player standard error against a known, hand-computed Bessel-corrected
+    /// The per-player standard error against a known, hand-computed Bessel-corrected
     /// reference (not derived from the estimator itself).
     #[test]
     fn monte_carlo_se_matches_bessel_corrected_reference() {
@@ -586,7 +737,7 @@ mod tests {
         assert!(one.stderr_of_mean().is_infinite());
     }
 
-    /// E1 end-to-end: with a single Monte Carlo sample, the pre-fix formula
+    /// End-to-end: with a single Monte Carlo sample, the pre-fix formula
     /// (`sqrt(E[X^2] - E[X]^2) / sqrt(n)`) is exactly `0.0` — a single draw has no
     /// meaningful sample variance. The fix must report `+inf` instead.
     #[test]
@@ -638,7 +789,7 @@ mod tests {
         );
     }
 
-    /// E1 end-to-end statistical check: for a 2-player XOR payoff, each player's
+    /// End-to-end statistical check: for a 2-player XOR payoff, each player's
     /// per-permutation marginal contribution is Bernoulli(0.5) (the two possible
     /// orderings are equally likely), with known closed-form variance `0.25`. The
     /// reported MC stderr should track `sqrt(0.25 / n_samples)`.
@@ -849,5 +1000,169 @@ mod tests {
         let cfg = ShapleyConfig::monte_carlo(200).with_seed(7);
         let err = estimate_shapley(&players, &cfg, &mut payoff, &ctx).unwrap_err();
         assert_eq!(err, AttributionError::Cancelled);
+    }
+
+    /// A nonlinear game that is a pure function of the mask and can fork. `forked`
+    /// counts the coalitions evaluated on forks.
+    #[derive(Clone)]
+    struct Game {
+        weights: Vec<f64>,
+        fail_at: Option<u64>,
+        is_fork: bool,
+        forked: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl Game {
+        fn new(n: usize, fail_at: Option<u64>) -> Self {
+            Self {
+                weights: (0..n).map(|i| 1.0 + 0.37 * i as f64).collect(),
+                fail_at,
+                is_fork: false,
+                forked: std::sync::Arc::default(),
+            }
+        }
+    }
+
+    impl CoalitionPayoff for Game {
+        fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+            if self.is_fork {
+                self.forked.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            if self.fail_at == Some(mask) {
+                return Err(AttributionError::invalid_input("game fails at this coalition"));
+            }
+            let mut total = 0.0;
+            let mut size: f64 = 0.0;
+            for (i, &w) in self.weights.iter().enumerate() {
+                if mask & (1u64 << i) != 0 {
+                    total += w;
+                    size += 1.0;
+                }
+            }
+            Ok(total * total + (size * 1.3).sin() + f64::from(mask.count_ones() % 3))
+        }
+
+        fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+            Some(Box::new(Self { is_fork: true, ..self.clone() }))
+        }
+    }
+
+    /// The same game without `fork`: the serial reference.
+    struct NoFork(Game);
+
+    impl CoalitionPayoff for NoFork {
+        fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
+            self.0.value(mask)
+        }
+    }
+
+    fn ctx_with_threads(threads: u32, cache: bool) -> ExecutionContext {
+        let mut ctx = ExecutionContext::for_tests(11);
+        ctx.parallelism = Parallelism::bounded(
+            antecedent_core::NonZeroThreadCount::new(threads).expect("positive threads"),
+        );
+        ctx.cache_policy =
+            if cache { CachePolicy::enabled(Some(1_000_000)) } else { CachePolicy::disabled() };
+        ctx
+    }
+
+    fn bits(est: &ShapleyEstimate) -> (Vec<u64>, Option<Vec<u64>>, u64, u64, u64, u64) {
+        (
+            est.values.iter().map(|v| v.to_bits()).collect(),
+            est.component_mc_stderr.as_ref().map(|s| s.iter().map(|v| v.to_bits()).collect()),
+            est.budget.evaluations,
+            est.budget.samples,
+            est.cache_stats.hits,
+            est.cache_stats.misses,
+        )
+    }
+
+    /// Coalition values computed on worker threads change nothing: values, standard
+    /// errors, budgets and cache statistics are bit-identical to the serial run at every
+    /// thread count, with the cache on or off, for exact and sampled estimation.
+    #[test]
+    fn shapley_does_not_depend_on_thread_count() {
+        let players: Vec<_> = (0..8).map(ComponentId::from_raw).collect();
+        let configs = [
+            ShapleyConfig::exact(),
+            ShapleyConfig::monte_carlo(150).with_seed(3),
+            ShapleyConfig::monte_carlo(7).with_seed(5),
+        ];
+        for cfg in configs {
+            for cache in [false, true] {
+                let mut reference = NoFork(Game::new(8, None));
+                let serial =
+                    estimate_shapley(&players, &cfg, &mut reference, &ctx_with_threads(1, cache))
+                        .unwrap();
+                for threads in [1u32, 2, 3, 8] {
+                    let mut game = Game::new(8, None);
+                    let est = estimate_shapley(
+                        &players,
+                        &cfg,
+                        &mut game,
+                        &ctx_with_threads(threads, cache),
+                    )
+                    .unwrap();
+                    assert_eq!(bits(&est), bits(&serial), "{cfg:?} cache={cache} t={threads}");
+                    let forked = game.forked.load(std::sync::atomic::Ordering::Relaxed);
+                    assert_eq!(forked > 0, threads > 1, "t={threads}: forked evaluations {forked}");
+                }
+            }
+        }
+    }
+
+    /// A failing coalition surfaces the same error whether or not it was evaluated ahead
+    /// of the estimator on a worker.
+    #[test]
+    fn failing_coalition_reports_the_same_error_in_parallel() {
+        let players: Vec<_> = (0..6).map(ComponentId::from_raw).collect();
+        for cfg in [ShapleyConfig::exact(), ShapleyConfig::monte_carlo(40).with_seed(2)] {
+            let mut serial = NoFork(Game::new(6, Some(0b10_1101)));
+            let expected =
+                estimate_shapley(&players, &cfg, &mut serial, &ctx_with_threads(1, false))
+                    .unwrap_err();
+            let mut game = Game::new(6, Some(0b10_1101));
+            let err = estimate_shapley(&players, &cfg, &mut game, &ctx_with_threads(4, false))
+                .unwrap_err();
+            assert_eq!(err, expected);
+        }
+    }
+
+    /// Permutations are drawn from the context's attribution stream: a given master seed
+    /// reproduces, another master seed gives a different sample, and each stays within
+    /// its own standard error of the exact value.
+    #[test]
+    fn sampled_shapley_follows_the_context_seed_and_converges_to_exact() {
+        let players: Vec<_> = (0..6).map(ComponentId::from_raw).collect();
+        let exact = {
+            let mut game = NoFork(Game::new(6, None));
+            estimate_shapley(
+                &players,
+                &ShapleyConfig::exact(),
+                &mut game,
+                &ctx_with_threads(1, false),
+            )
+            .unwrap()
+        };
+        let cfg = ShapleyConfig::monte_carlo(4_000).with_seed(9);
+        let run = |master: u64| {
+            let mut ctx = ctx_with_threads(1, true);
+            ctx.rng = antecedent_core::RngFactory::from_seed(master);
+            let mut game = NoFork(Game::new(6, None));
+            estimate_shapley(&players, &cfg, &mut game, &ctx).unwrap()
+        };
+        let first = run(1);
+        assert_eq!(bits(&first), bits(&run(1)));
+        assert_ne!(bits(&first), bits(&run(2)));
+        for master in 1..=5u64 {
+            let est = run(master);
+            let stderr = est.component_mc_stderr.as_ref().unwrap();
+            for ((phi, truth), se) in est.values.iter().zip(&exact.values).zip(stderr) {
+                assert!(
+                    (phi - truth).abs() <= 4.0 * se,
+                    "master {master}: {phi} vs exact {truth} (se {se})"
+                );
+            }
+        }
     }
 }

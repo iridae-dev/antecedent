@@ -1,7 +1,6 @@
 //! Checked public adapter for IV, sharp RD and linear front-door recalculation.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use std::collections::BTreeMap;
-use std::fmt::Write;
 
 use antecedent::analysis::recalc_design::{
     DesignModel, DesignRequest, DesignRunError, DesignSession, consume_design_with_data,
@@ -21,7 +20,7 @@ use serde::Deserialize;
 
 use crate::recalc_api::{
     RunPayload, artifact_invalid, context, counts_wire, invalid, parse_json, plan_refusal_json,
-    refusal_json,
+    refusal_json, refusal_value,
 };
 use crate::recalc_bounds::check_columns;
 use crate::{detach_catch, py_msg};
@@ -105,7 +104,7 @@ fn diagnostic_number(value: f64) -> serde_json::Value {
 fn design_error(error: &DesignRunError) -> String {
     match error {
         DesignRunError::WeakInstrument { point, model_fits, diagnostics } => {
-            let json = refusal_json(
+            let mut wire = refusal_value(
                 antecedent_core::reason_code!("route_not_supported"),
                 "decision",
                 "recalc.iv_decision_unavailable",
@@ -114,8 +113,6 @@ fn design_error(error: &DesignRunError) -> String {
                 &error.to_string(),
                 None,
             );
-            let mut wire: serde_json::Value =
-                serde_json::from_str(&json).expect("internal refusal JSON");
             wire["fields"] = serde_json::json!({"point":point,"model_fits":model_fits,"diagnostics":{
                 "f_statistic":diagnostic_number(diagnostics.f_statistic),"df1":diagnostics.df1,"df2":diagnostics.df2,"partial_r2":diagnostic_number(diagnostics.partial_r2),
                 "anderson_rubin":diagnostics.anderson_rubin.map(|(lower,upper,level)|serde_json::json!({"lower":diagnostic_number(lower),"upper":diagnostic_number(upper),"nominal_level":level})),
@@ -345,8 +342,8 @@ impl PyDesignSession {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ReplayPayload> {
-        if artifact.len() > 16 * 1024 * 1024 {
-            return Err(invalid("recalc.limits_exceeded", "design artifact exceeds 16MiB"));
+        if artifact.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
+            return Err(invalid("recalc.limits_exceeded", "design artifact exceeds byte bound"));
         }
         let request = match (names, columns.as_ref(), specification) {
             (Some(names), Some(columns), Some(text)) => Some(request(names, columns, text)?),
@@ -373,13 +370,7 @@ impl PyDesignSession {
                     &session.capabilities(),
                     &replay.outcome,
                 )?;
-                let digest = replay.artifact_digest.iter().fold(
-                    String::with_capacity(64),
-                    |mut text, byte| {
-                        write!(text, "{byte:02x}").expect("String formatting cannot fail");
-                        text
-                    },
-                );
+                let digest = antecedent_core::to_hex(&replay.artifact_digest);
                 Ok((Some(session), result.0, result.1, Some(digest), None))
             }
             Err(error) => Ok((None, None, None, None, Some(design_error(&error)))),

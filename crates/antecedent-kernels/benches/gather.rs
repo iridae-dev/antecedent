@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 
 use antecedent_core::KernelPolicy;
 use antecedent_kernels::{F64VectorView, gather};
@@ -18,7 +21,8 @@ fn bench_gather(c: &mut Criterion) {
 
     c.bench_function("gather_stride10_n100k", |b| {
         b.iter(|| {
-            gather(black_box(&policy), black_box(src), black_box(&indices), black_box(&mut out));
+            gather(black_box(&policy), black_box(src), black_box(&indices), black_box(&mut out))
+                .unwrap();
         });
     });
 }

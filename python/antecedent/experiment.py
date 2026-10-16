@@ -8,7 +8,7 @@ from typing import Literal
 
 import numpy as np
 
-from ._columns import resolved
+from ._columns import coerce_fields, hold_unresolved, resolved
 from ._native import estimate_ancova_effect as _estimate_ancova_effect
 from ._native import estimate_cuped_effect as _estimate_cuped_effect
 from ._native import estimate_stratified_effect as _estimate_stratified_effect
@@ -46,7 +46,7 @@ class StratifiedRandomization:
             raise CausalValueError(
                 "each block needs at least two treated units for variance estimation"
             )
-        object.__setattr__(self, "treated_per_block", counts)
+        coerce_fields(self, treated_per_block=counts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,16 +67,11 @@ class FactorialRandomization:
     _COLUMN_FIELDS = {"second_factor_assignment": "bool"}
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
-            # design against the data at prepare, re-running the checks below.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
-        object.__setattr__(self, "second_factor_assignment", tuple(self.second_factor_assignment))
-        object.__setattr__(self, "cell_counts", tuple(self.cell_counts))
-        object.__setattr__(self, "second_factor_arms", tuple(self.second_factor_arms))
+        coerce_fields(self, second_factor_assignment=tuple(self.second_factor_assignment))
+        coerce_fields(self, cell_counts=tuple(self.cell_counts))
+        coerce_fields(self, second_factor_arms=tuple(self.second_factor_arms))
         if any(type(value) is not bool for value in self.second_factor_assignment):
             raise CausalValueError("second_factor_assignment entries must be bool")
         if len(self.cell_counts) != 4 or any(
@@ -112,19 +107,13 @@ class MultiArmExperimentDesign:
     }
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column names unvalidated; resolve_columns rebuilds this
-            # design against the data at prepare, re-running the checks below.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
         for name in ("realized_assignment", "action_labels", "assignment_units", "outcome_units"):
-            object.__setattr__(self, name, tuple(getattr(self, name)))
-        object.__setattr__(
+            coerce_fields(self, **{name: tuple(getattr(self, name))})
+        coerce_fields(
             self,
-            "assignment_probabilities",
-            tuple(tuple(row) for row in self.assignment_probabilities),
+            assignment_probabilities=tuple(tuple(row) for row in self.assignment_probabilities),
         )
         n = len(self.realized_assignment)
         labels = self.action_labels
@@ -198,12 +187,7 @@ class SwitchbackDesign:
     }
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column names unvalidated; resolve_columns rebuilds this
-            # design against the data at prepare, re-running the checks below.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
         for name in (
             "realized_assignment",
@@ -211,7 +195,7 @@ class SwitchbackDesign:
             "period_ids",
             "assignment_probabilities",
         ):
-            object.__setattr__(self, name, tuple(getattr(self, name)))
+            coerce_fields(self, **{name: tuple(getattr(self, name))})
         n = len(self.realized_assignment)
         if n < 2 or any(
             len(getattr(self, name)) != n
@@ -365,38 +349,30 @@ class ExperimentDesign:
     _COLUMN_NESTED = ("assignment",)
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column names unvalidated; resolve_columns rebuilds
-            # this design against the data at prepare, re-running the checks below.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
-        object.__setattr__(self, "realized_assignment", tuple(self.realized_assignment))
-        object.__setattr__(self, "assignment_units", tuple(self.assignment_units))
-        object.__setattr__(self, "outcome_units", tuple(self.outcome_units))
+        coerce_fields(self, realized_assignment=tuple(self.realized_assignment))
+        coerce_fields(self, assignment_units=tuple(self.assignment_units))
+        coerce_fields(self, outcome_units=tuple(self.outcome_units))
         if not isinstance(self.treatment_arms, str):
-            object.__setattr__(self, "treatment_arms", tuple(self.treatment_arms))
+            coerce_fields(self, treatment_arms=tuple(self.treatment_arms))
         if self.blocks is not None:
-            object.__setattr__(self, "blocks", tuple(self.blocks))
+            coerce_fields(self, blocks=tuple(self.blocks))
         if isinstance(self.assignment, BernoulliAssignment):
             probability = self.assignment.probabilities
             if not isinstance(probability, (int, float)):
                 probability = tuple(probability)
-            object.__setattr__(self, "assignment", BernoulliAssignment(probability))
+            coerce_fields(self, assignment=BernoulliAssignment(probability))
         elif isinstance(self.assignment, ClusterRandomization):
-            object.__setattr__(
+            coerce_fields(
                 self,
-                "assignment",
-                ClusterRandomization(
+                assignment=ClusterRandomization(
                     tuple(self.assignment.clusters), self.assignment.treated_clusters
                 ),
             )
         elif isinstance(self.assignment, StratifiedRandomization):
-            object.__setattr__(
-                self,
-                "assignment",
-                StratifiedRandomization(dict(self.assignment.treated_per_block)),
+            coerce_fields(
+                self, assignment=StratifiedRandomization(dict(self.assignment.treated_per_block))
             )
         if not isinstance(
             self.assignment,
@@ -816,13 +792,7 @@ class ComplierEffect:
     _COLUMN_NESTED = ("design",)
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column name (and any deferred nested design)
-            # unvalidated; resolve_columns rebuilds this query against the data at
-            # prepare, re-running the checks below with arrays in hand.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must be a non-empty variable name")
@@ -833,7 +803,7 @@ class ComplierEffect:
             type(value) is not bool for value in receipt
         ):
             raise CausalValueError("treatment receipt must be row-aligned booleans")
-        object.__setattr__(self, "received_treatment", receipt)
+        coerce_fields(self, received_treatment=receipt)
 
 
 @dataclass(frozen=True, slots=True)
@@ -863,7 +833,7 @@ class TreatmentOnTreated:
             raise CausalValueError(
                 "treatment-on-treated requires no control-assigned treatment receipt"
             )
-        object.__setattr__(self, "received_treatment", receipt)
+        coerce_fields(self, received_treatment=receipt)
 
 
 @dataclass(frozen=True, slots=True)

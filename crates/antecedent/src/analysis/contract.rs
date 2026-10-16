@@ -9,15 +9,17 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use antecedent_core::{
-    Assumption, AssumptionSet, AssumptionSlot, AssumptionSource, AssumptionStatus,
-    AttestedEvidence, CalibrationView, CausalQuery, CausalSchema, ClaimDomains, ClaimEnvelope,
-    ClaimKind, ContractIdentities, DomainStatus, ExecutionContext, IDENTITY_FORMAT,
-    IdentificationSlot, IdentificationStatus, IdentityDomain, IntervalInterpretation,
-    IntervalMethod, NextAction, ObligationKind, ObligationRecord, ObligationScope, OperationKind,
-    OperationReadiness, OperationReport, ReasoningView, ResponseUncertainty, SemanticApplicability,
-    SemanticLayer, SlotAvailability, SupportSlot, TargetPopulation, TransformIntent,
+use antecedent_contract::{
+    AssumptionSlot, AttestedEvidence, CalibrationView, ClaimDomains, ClaimEnvelope, ClaimKind,
+    DomainStatus, IdentificationSlot, NextAction, ObligationKind, ObligationRecord,
+    ObligationScope, OperationKind, OperationReadiness, OperationReport, ReasoningView,
+    SemanticApplicability, SemanticLayer, SlotAvailability, SupportSlot, TransformIntent,
     TransformationReport, UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
+};
+use antecedent_core::{
+    Assumption, AssumptionSet, AssumptionSource, AssumptionStatus, CausalQuery, CausalSchema,
+    ContractIdentities, ExecutionContext, IDENTITY_FORMAT, IdentificationStatus, IdentityDomain,
+    IntervalInterpretation, IntervalMethod, ResponseUncertainty, TargetPopulation,
 };
 use antecedent_data::TableView;
 use antecedent_identify::{
@@ -34,16 +36,16 @@ use antecedent_io::{
     ProgramIdentityWire, ReasoningSectionWire, ScoreReuseIdentityWire, SlotSectionWire,
     SupportSlotWire, TargetIdentityWire, TargetWeightsIdentityWire, TargetWeightsSectionWire,
     TemporalIdentificationWire, UncertaintyComponentWire, UncertaintySlotWire, admg_identity,
-    causal_query_to_wire, causal_query_to_wire_with_registry, claim_digest, cpdag_identity,
-    dag_identity, data_snapshot_digest, digest_wire, encode_analysis_result_artifact_with_contract,
+    causal_query_to_wire_with_registry, claim_digest, cpdag_identity, dag_identity,
+    data_snapshot_digest, digest_wire, encode_analysis_result_artifact_with_contract,
     execution_digest, execution_identity_from_context, graph_posterior_atom_identities,
     identification_digest, identification_product_digest_wire, identification_product_wire,
     identification_to_wire_with_registry, inference_binding_digest, observation_identity_wire,
     pag_identity, program_digest, schema_to_wire, score_reuse_digest, target_weights_digest,
-    temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
+    temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
 };
 
-use crate::accepted::{AcceptedGraph, GraphClass};
+use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::result::{RowWeightsBinding, StudyResult};
@@ -57,23 +59,170 @@ use super::prepared::{
     PreparedStudy,
 };
 
+mod program_wire;
+mod result_wire;
+
+use result_wire::{LicensedWire, distribution_wire};
+
 /// Bind an executed graphless license onto the contract's support reasoning.
 ///
-/// Every graphless family sets the same four fields once the realized support
+/// Every graphless family sets the same fields once the realized support
 /// status is known: the contract-level `support_status`, then the support
-/// slot's `matrix_status` and `matrix_coordinate`. The per-family coordinate
-/// string is the only thing that differs, so each family supplies it through
-/// `coordinate`, evaluated only when the row is actually licensed.
-fn set_graphless_reasoning(
+/// slot's `matrix_status` and `matrix_coordinate`. A result carrying none of
+/// those families leaves the contract untouched. The coordinate is derived
+/// only when the row is actually licensed.
+///
+/// # Errors
+///
+/// [`CausalError::Conflict`] when a licensed result's payload does not match
+/// the handle's query, which the contract identity comparison upstream rules
+/// out for any result this handle executed.
+fn bind_graphless_reasoning(
     contract: &mut CausalContract,
-    support_status: Option<CellStatus>,
-    coordinate: impl FnOnce() -> Arc<str>,
-) {
+    result: &StudyResult,
+    query: &CausalQuery,
+) -> Result<(), CausalError> {
+    let graphless = result.continuous_dose_response().is_some()
+        || result.policy_value().is_some()
+        || result.panel_did().is_some()
+        || result.survival().is_some()
+        || result.randomized_effect().is_some()
+        || result.longitudinal_regime().is_some();
+    if !graphless {
+        return Ok(());
+    }
+    let support_status = result.support_status;
+    let coordinate = if support_status == Some(CellStatus::Licensed) {
+        Some(graphless_coordinate(result, query)?)
+    } else {
+        None
+    };
     contract.support_status = support_status;
     if let SlotAvailability::Available(support) = &mut contract.reasoning.support {
         support.matrix_status = Arc::from(support_status.map_or("off_axis", CellStatus::as_str));
-        support.matrix_coordinate = (support_status == Some(CellStatus::Licensed)).then(coordinate);
+        support.matrix_coordinate = coordinate;
     }
+    Ok(())
+}
+
+/// Matrix coordinate of a licensed graphless result.
+///
+/// The coordinate is a function of the query's facets, shared with the
+/// execute-side licence so the published coordinate is the key the design was
+/// licensed under. A payload whose query facet is absent, or a calibrated
+/// route that cannot be licensed, is a typed conflict rather than a panic.
+///
+/// Interference and `local_polynomial_ratio` are deliberately absent. They
+/// carry their licence on the per-fit `graphless_support_status`, rechecked
+/// by `validate_result` against the published interval, and stay off the
+/// matrix axis so calibration verification is not broken by a coordinate no
+/// route expects.
+fn graphless_coordinate(
+    result: &StudyResult,
+    query: &CausalQuery,
+) -> Result<Arc<str>, CausalError> {
+    const MISMATCH: CausalError = CausalError::Conflict {
+        what: "result",
+        detail: "licensed graphless result does not match this handle's query",
+    };
+    let mut coordinate = None;
+    if result.continuous_dose_response().is_some() {
+        coordinate = Some(
+            "graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals"
+                .to_string(),
+        );
+    }
+    if result.policy_value().is_some() {
+        let CausalQuery::PolicyValue(query) = query else { return Err(MISMATCH) };
+        let multi = query.multi_action.is_some();
+        let uplift = query.uplift_bin_count > 0;
+        let cate = query.multi_action.as_ref().is_some_and(|policy| !policy.cate_groups.is_empty());
+        let ipw = query.mu0.is_empty();
+        let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
+            multi,
+            ipw,
+            uplift,
+            cate,
+            query.regret.is_some(),
+            !ipw && query.crossfit_fold_ownership_valid && !query.disjoint_training_subjects,
+        );
+        coordinate = Some(format!("graphless:policy_value/{design}/{method}/{claim}"));
+    }
+    if result.panel_did().is_some() {
+        let CausalQuery::PanelDid(query) = query else { return Err(MISMATCH) };
+        let key = super::execute::panel_did_graphless_key(query.design);
+        coordinate = Some(format!(
+            "graphless:{}/{}/{}/{}",
+            key.family, key.design, key.method, key.inference_claim
+        ));
+    }
+    if result.survival().is_some() {
+        // The licensed scalar route is fixed by the query's entry and
+        // censoring facets. Cumulative incidence never reaches this arm; only
+        // the paired RMST + horizon survival scalar intervals carry a
+        // graphless matrix coordinate. The simultaneous band is a separate
+        // claim carried on the band's own `graphless_support_status`.
+        let CausalQuery::Survival(query) = query else { return Err(MISMATCH) };
+        let design = if query.delayed_entry.is_some() {
+            "delayed_entry_two_arm_individual_randomized"
+        } else {
+            "two_arm_individual_randomized"
+        };
+        let method = if query.known_censoring.is_some() {
+            "arm_stratified_subject_bootstrap_ipcw_product_limit"
+        } else {
+            "arm_stratified_subject_bootstrap_product_limit"
+        };
+        coordinate = Some(format!(
+            "graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+        ));
+    }
+    if result.randomized_effect().is_some() {
+        // Preparation cannot know the realized outcome variance, so the
+        // executed graphless license binds in the result-specific reasoning
+        // and claim only after estimation. The Wald complier effect is its
+        // own graphless family; a Bernoulli assignment design does not fold
+        // it into ITT.
+        let CausalQuery::RandomizedEffect(query) = query else { return Err(MISMATCH) };
+        let (family, design, method, _assignment_unit, claim) =
+            antecedent_core::randomized_graphless_coordinate(
+                &query.design,
+                query.estimand,
+                query.received_treatment.is_some(),
+                query.fixed_cuped.is_some(),
+                !query.ancova_covariates.is_empty(),
+            );
+        coordinate = Some(format!("graphless:{family}/{design}/{method}/{claim}"));
+    }
+    if result.longitudinal_regime().is_some() {
+        use antecedent_core::LongitudinalRegimeMethod as Method;
+        let CausalQuery::LongitudinalRegime(query) = query else { return Err(MISMATCH) };
+        let (design, method, claim) = match query.method {
+            Method::SequentialDoublyRobust => (
+                if query.periods == 2 {
+                    "known_sequential_randomized_two_period"
+                } else {
+                    "known_sequential_randomized_three_period"
+                },
+                "subject_excluded_q_sequential_dr_scores",
+                "conditional_q_pointwise_95_normal_interval",
+            ),
+            Method::GFormula => (
+                "known_sequential_randomized_two_period",
+                "fixed_known_q_g_formula_scores",
+                "conditional_q_pointwise_95_normal_interval",
+            ),
+            Method::MarginalStructuralModel => (
+                "known_sequential_randomized_additive_msm",
+                "stabilized_ipw_cr1_scores",
+                "intercept_and_period_effects_pointwise_95_normal_intervals",
+            ),
+            // Only calibrated graphless rows carry a licence.
+            Method::Ipw => return Err(MISMATCH),
+        };
+        coordinate = Some(format!("graphless:longitudinal_regime/{design}/{method}/{claim}"));
+    }
+    coordinate.map(Arc::from).ok_or(MISMATCH)
 }
 
 /// Immutable causal-contract companion. Not a second builder.
@@ -156,6 +305,20 @@ pub(crate) struct BodyFrame {
 }
 
 impl CausalContract {
+    /// The cached identification wire and temporal products, without numerical execution.
+    ///
+    /// # Errors
+    /// A certificate whose canonical wire cannot be serialized.
+    pub fn identification_details(&self) -> Result<serde_json::Value, CausalError> {
+        Ok(serde_json::json!({
+            "status": self.body.identification.as_ref().map(|r| r.status.as_str()),
+            "method": self.identifier.as_deref(),
+            "graph_class": self.graph_class.as_str(),
+            "cases": self.body.identification.as_ref().map(|r| vec![serde_json::json!({"identification": r, "weight": 1.0})]).unwrap_or_default(),
+            "temporal_identification": self.body.temporal_identification,
+            "reasoning": reasoning_section(&self.reasoning),
+        }))
+    }
     /// Preview a transformation against this contract's identities.
     #[must_use]
     pub fn preview_transform(&self, intent: TransformIntent) -> TransformationReport {
@@ -451,6 +614,15 @@ impl PreparedStudy {
                 snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
             }
         }
+        if let DataInput::Temporal(series) | DataInput::Event(series) = data {
+            if let CausalQuery::NestedCounterfactual(query) = &self.study().query {
+                snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
+                    series,
+                    query,
+                    nested_prior_scale(&self.study().inference),
+                )?);
+            }
+        }
         let snapshot = data_snapshot_digest(&snapshot).map_err(|err| io_err(&err))?;
         Ok(crate::result::ExecutedContract { identities: program.identities(snapshot), refute })
     }
@@ -536,133 +708,7 @@ impl PreparedStudy {
             });
         }
         let (mut contract, payloads) = compiled;
-        if result.continuous_dose_response.is_some() {
-            set_graphless_reasoning(&mut contract, result.support_status, || {
-                Arc::from(
-                    "graphless:continuous_dose_policy/fixed_group_kernel/inverse_density_kernel_paired_scores/policy_reference_incremental_pointwise_95_normal_intervals",
-                )
-            });
-        }
-        if result.policy_value.is_some() {
-            set_graphless_reasoning(&mut contract, result.support_status, || {
-                let CausalQuery::PolicyValue(query) = self.query() else {
-                    unreachable!("licensed policy result must retain its policy query")
-                };
-                let multi = query.multi_action.is_some();
-                let uplift = query.uplift_bin_count > 0;
-                let cate = query
-                    .multi_action
-                    .as_ref()
-                    .is_some_and(|policy| !policy.cate_groups.is_empty());
-                let ipw = query.mu0.is_empty();
-                let (design, method, claim) = antecedent_core::policy_graphless_coordinate(
-                    multi,
-                    ipw,
-                    uplift,
-                    cate,
-                    query.regret.is_some(),
-                    !ipw && query.crossfit_fold_ownership_valid
-                        && !query.disjoint_training_subjects,
-                );
-                Arc::from(format!("graphless:policy_value/{design}/{method}/{claim}"))
-            });
-        }
-        if result.panel_did.is_some() {
-            set_graphless_reasoning(&mut contract, result.support_status, || {
-                let CausalQuery::PanelDid(query) = self.query() else {
-                    unreachable!("licensed DiD result must retain its DiD query")
-                };
-                // Shared with the execute-side licence so the published
-                // coordinate is the key the design was licensed under.
-                let key = super::execute::panel_did_graphless_key(query.design);
-                Arc::from(format!(
-                    "graphless:{}/{}/{}/{}",
-                    key.family, key.design, key.method, key.inference_claim
-                ))
-            });
-        }
-        if result.survival.is_some() {
-            set_graphless_reasoning(&mut contract, result.support_status, || {
-                // The licensed scalar route is fixed by the query's entry
-                // and censoring facets. Cumulative incidence never reaches
-                // this arm; only the paired RMST + horizon survival scalar
-                // intervals carry a graphless matrix coordinate. The
-                // simultaneous band is a separate claim carried on the
-                // band's own `graphless_support_status`, never a matrix
-                // coordinate, matching the interference precedent.
-                let CausalQuery::Survival(query) = self.query() else {
-                    unreachable!("licensed survival result must retain its survival query")
-                };
-                let design = if query.delayed_entry.is_some() {
-                    "delayed_entry_two_arm_individual_randomized"
-                } else {
-                    "two_arm_individual_randomized"
-                };
-                let method = if query.known_censoring.is_some() {
-                    "arm_stratified_subject_bootstrap_ipcw_product_limit"
-                } else {
-                    "arm_stratified_subject_bootstrap_product_limit"
-                };
-                Arc::from(format!(
-                    "graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"
-                ))
-            });
-        }
-        if result.randomized_effect.is_some() {
-            // Preparation cannot know the realized outcome variance. Keep the
-            // program identity fixed, then bind the executed graphless license
-            // in the result-specific reasoning and claim only after estimation.
-            set_graphless_reasoning(&mut contract, result.support_status, || {
-                let CausalQuery::RandomizedEffect(query) = self.query() else {
-                    unreachable!("licensed randomized result must retain its randomized query")
-                };
-                // Shared with the execute-side license handshake so the emitted
-                // coordinate cannot drift from the licensed key. The Wald
-                // complier effect is its own graphless family; a Bernoulli
-                // assignment design does not fold it into ITT.
-                let (family, design, method, _assignment_unit, claim) =
-                    antecedent_core::randomized_graphless_coordinate(
-                        &query.design,
-                        query.estimand,
-                        query.received_treatment.is_some(),
-                        query.fixed_cuped.is_some(),
-                        !query.ancova_covariates.is_empty(),
-                    );
-                Arc::from(format!("graphless:{family}/{design}/{method}/{claim}"))
-            });
-        }
-        if result.longitudinal_regime.is_some() {
-            set_graphless_reasoning(&mut contract, result.support_status, || {
-                let CausalQuery::LongitudinalRegime(query) = self.query() else {
-                    unreachable!("licensed longitudinal result must retain its regime query")
-                };
-                let (design, method, claim) = match query.method {
-                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => (
-                        if query.periods == 2 {
-                            "known_sequential_randomized_two_period"
-                        } else {
-                            "known_sequential_randomized_three_period"
-                        },
-                        "subject_excluded_q_sequential_dr_scores",
-                        "conditional_q_pointwise_95_normal_interval",
-                    ),
-                    antecedent_core::LongitudinalRegimeMethod::GFormula => (
-                        "known_sequential_randomized_two_period",
-                        "fixed_known_q_g_formula_scores",
-                        "conditional_q_pointwise_95_normal_interval",
-                    ),
-                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => (
-                        "known_sequential_randomized_additive_msm",
-                        "stabilized_ipw_cr1_scores",
-                        "intercept_and_period_effects_pointwise_95_normal_intervals",
-                    ),
-                    antecedent_core::LongitudinalRegimeMethod::Ipw => {
-                        unreachable!("only calibrated graphless longitudinal rows can be licensed")
-                    }
-                };
-                Arc::from(format!("graphless:longitudinal_regime/{design}/{method}/{claim}"))
-            });
-        }
+        bind_graphless_reasoning(&mut contract, result, self.query())?;
         // Interference is on the geometric support axis: its contract keeps the
         // geometric `InterferenceQuery` coordinate and calibration basis. The
         // off-axis exposure-contrast interval license is carried instead in
@@ -702,19 +748,19 @@ impl PreparedStudy {
     /// Score-reuse payload for this handle's score table under `identities`.
     fn score_reuse_wire(&self, identities: &ContractIdentities) -> Option<ScoreReuseIdentityWire> {
         let table = self.score_table()?;
-        Some(ScoreReuseIdentityWire::score_table(
-            identities.identification,
-            identities.data_snapshot,
-            &table.row_index,
-            &table.fold_ids,
-            table.n_folds,
-            &table.adjustment_set,
-            table.nuisance_provenance.as_ref(),
-            table.treatment,
-            &table.intervened,
-            self.study().bootstrap_replicates,
-            identities.inference_binding,
-        ))
+        Some(ScoreReuseIdentityWire::score_table(&antecedent_io::ScoreTableKey {
+            identification: identities.identification,
+            data_snapshot: identities.data_snapshot,
+            row_index: &table.row_index,
+            fold_ids: &table.fold_ids,
+            n_folds: table.n_folds,
+            adjustment_set: &table.adjustment_set,
+            nuisance_provenance: table.nuisance_provenance.as_ref(),
+            treatment: table.treatment,
+            intervened: &table.intervened,
+            bootstrap_replicates: self.study().bootstrap_replicates,
+            inference_binding: identities.inference_binding,
+        }))
     }
 
     /// The reuse layers this handle exports beside a result, advertised on the
@@ -740,7 +786,10 @@ impl PreparedStudy {
             // The cross-fitted procedure publishes its complete-case rows on the
             // score table; the trimmed common-support procedure has no table and
             // binds the rows its preparation retained.
-            let rows = match (&result.estimate.score_table, checked.lowering().procedure) {
+            let rows = match (
+                result.estimate.as_effect().and_then(|effect| effect.scores.table.as_ref()),
+                checked.lowering().procedure,
+            ) {
                 (Some(table), _) => table.row_index.to_vec(),
                 (None, antecedent_estimate::CheckedAipwProcedure::TrimmedLogisticOls) => {
                     checked.lowering().rows.to_vec()
@@ -898,14 +947,14 @@ impl PreparedStudy {
         result: &StudyResult,
         artifact_id: &str,
         ctx: &ExecutionContext,
-        labels: Option<&antecedent_core::ResponseCoordinateLabels<'_>>,
+        labels: Option<&antecedent_contract::ResponseCoordinateLabels<'_>>,
     ) -> Result<Vec<u8>, CausalError> {
         let quantities = labels
             .map(|labels| {
-                let response = result.response.as_ref().ok_or_else(|| CausalError::Compile {
+                let response = result.response().ok_or_else(|| CausalError::Compile {
                     message: "scientific coordinates require a native response".into(),
                 })?;
-                antecedent_core::response_coordinates(
+                antecedent_contract::response_coordinates(
                     response,
                     &|id| {
                         self.schema()
@@ -1023,10 +1072,10 @@ impl PreparedStudy {
         candidates: &[crate::design::CandidateDesign],
         eval: &crate::design::DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
-    ) -> Result<crate::design::DesignRanking, CausalError>
+    ) -> Result<crate::design::ScoredDesignRanking, CausalError>
     where
-        A: Clone,
-        O: Clone,
+        A: Clone + Sync,
+        O: Clone + Sync,
     {
         self.rank_designs_bound(ranker, objective, candidates, eval, ctx, None)
     }
@@ -1048,10 +1097,10 @@ impl PreparedStudy {
         eval: &crate::design::DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
         decision_target: Option<antecedent_core::SemanticDigest>,
-    ) -> Result<crate::design::DesignRanking, CausalError>
+    ) -> Result<crate::design::ScoredDesignRanking, CausalError>
     where
-        A: Clone,
-        O: Clone,
+        A: Clone + Sync,
+        O: Clone + Sync,
     {
         crate::design::rank_designs_bound(
             &self.contract()?,
@@ -1123,7 +1172,7 @@ impl StudyResult {
         &self,
         contract: &CausalContract,
         ctx: &ExecutionContext,
-        quantities: Option<&[antecedent_core::ScientificQuantity]>,
+        quantities: Option<&[antecedent_contract::ScientificQuantity]>,
     ) -> Result<(ClaimEnvelope, AnalysisResultWire), CausalError> {
         // A claim seals the result under the contract's identities, so the result must
         // prove which contract it ran under. An unstamped result (a plain `Study::run`, a
@@ -1182,14 +1231,14 @@ impl StudyResult {
         };
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
-        let calibration = if self.randomized_effect.is_some()
-            || self.synthetic_control.is_some()
-            || self.synthetic_did.is_some()
-            || self.local_polynomial_ratio.is_some()
-            || self.policy_value.is_some()
-            || self.continuous_dose_response.is_some()
-            || self.survival.is_some()
-            || self.longitudinal_regime.is_some()
+        let calibration = if self.randomized_effect().is_some()
+            || self.synthetic_control().is_some()
+            || self.synthetic_did().is_some()
+            || self.local_polynomial_ratio().is_some()
+            || self.policy_value().is_some()
+            || self.continuous_dose_response().is_some()
+            || self.survival().is_some()
+            || self.longitudinal_regime().is_some()
         {
             // These non-effect result families report no calibrated scalar
             // effect interval. Their uncertainty semantics live in their
@@ -1246,8 +1295,7 @@ impl StudyResult {
         artifact_id: &str,
     ) -> Result<(), CausalError> {
         wire.response = self
-            .response
-            .as_ref()
+            .response()
             .map(antecedent_io::causal_response_to_wire)
             .transpose()
             .map_err(|err| io_err(&err))?;
@@ -1257,23 +1305,25 @@ impl StudyResult {
             .map(|posterior| antecedent_io::encode_causal_posterior_bytes(posterior, artifact_id))
             .transpose()
             .map_err(|err| io_err(&err))?;
-        wire.mediation_grid = self.mediation_grid.as_ref().map(mediation_grid_wire);
+        wire.mediation_grid = self.mediation_grid().map(mediation_grid_wire);
         wire.structural_response =
             self.structural_response.as_ref().map(structural_response_wire).transpose()?;
-        wire.unit_effects =
-            self.counterfactual.as_ref().map(|ite| antecedent_io::UnitEffectsWire {
-                effects: ite.unit_effects.to_vec(),
-                homogeneous: self.estimate.unit_effects_homogeneous,
-                intervals: ite.unit_effect_intervals.as_ref().map(|intervals| {
-                    antecedent_io::UnitEffectIntervalsWire {
-                        lower: intervals.lower.to_vec(),
-                        upper: intervals.upper.to_vec(),
-                        level: intervals.level,
-                        method: intervals.method.to_string(),
-                    }
-                }),
-                extrapolative: ite.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
-            });
+        wire.unit_effects = self.counterfactual().map(|ite| antecedent_io::UnitEffectsWire {
+            effects: ite.unit_effects.to_vec(),
+            homogeneous: self
+                .estimate
+                .as_effect()
+                .is_some_and(|effect| effect.heterogeneity.unit_effects_homogeneous),
+            intervals: ite.unit_effect_intervals.as_ref().map(|intervals| {
+                antecedent_io::UnitEffectIntervalsWire {
+                    lower: intervals.lower.to_vec(),
+                    upper: intervals.upper.to_vec(),
+                    level: intervals.level,
+                    method: intervals.method.to_string(),
+                }
+            }),
+            extrapolative: ite.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
+        });
         Ok(())
     }
 
@@ -1343,32 +1393,34 @@ impl StudyResult {
             }
             _ => (None, None),
         };
-        if self.mediation.is_none() && self.counterfactual.is_none() {
+        if self.mediation().is_none() && self.counterfactual().is_none() {
             return Err(compile("static result requires a mediation or counterfactual payload"));
         }
-        let published = crate::PublishedScalarUncertainty::select(&self.estimate);
+        let effect = self
+            .estimate
+            .as_effect()
+            .ok_or_else(|| compile("static result requires an effect estimate"))?;
+        let published = crate::PublishedScalarUncertainty::select(effect);
         Ok(antecedent_io::StaticResultWire {
             identification: antecedent_io::identification_to_wire_with_registry(
                 &self.identification,
                 registry,
             )?,
-            estimate: self.estimate.ate,
+            estimate: effect.ate,
             standard_error: published.standard_error,
             interval_lower: published.lower,
             interval_upper: published.upper,
-            assumptions: antecedent_io::assumptions_to_wire(&self.estimate.assumptions),
+            assumptions: antecedent_io::assumptions_to_wire(&effect.provenance.assumptions),
             support: self.support_diagnostics().map(antecedent_io::diagnostic_to_wire).collect(),
             diagnostics: self.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
             refutations: self.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
-            unit_effects: self.counterfactual.as_ref().map(|c| c.unit_effects.to_vec()),
+            unit_effects: self.counterfactual().map(|c| c.unit_effects.to_vec()),
             unit_extrapolative: self
-                .counterfactual
-                .as_ref()
+                .counterfactual()
                 .and_then(|c| c.unit_extrapolative.as_ref())
                 .map(|flags| flags.to_vec()),
             mediation: self
-                .mediation
-                .as_ref()
+                .mediation()
                 .map(|m| {
                     Ok::<_, CausalError>([
                         m.total.ok_or_else(|| compile("mediation total is unavailable"))?,
@@ -1398,7 +1450,7 @@ fn response_interval_component(
 }
 
 fn io_err(err: &antecedent_io::IoError) -> CausalError {
-    CausalError::Compile { message: err.to_string() }
+    CausalError::rejected(err.clone())
 }
 
 /// Data-independent layers of a contract: target through observation.
@@ -1529,15 +1581,9 @@ fn nested_counterfactual_fit_wire(
     operation: &crate::gcm::NestedCounterfactualOperation,
 ) -> Result<antecedent_io::NestedCounterfactualFitWire, CausalError> {
     let query = operation.query();
-    let x = data
-        .float64_values(query.treatment)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    let m = data
-        .float64_values(query.mediator)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    let y = data
-        .float64_values(query.outcome)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let x = data.float64_values(query.treatment).map_err(CausalError::rejected)?;
+    let m = data.float64_values(query.mediator).map_err(CausalError::rejected)?;
+    let y = data.float64_values(query.outcome).map_err(CausalError::rejected)?;
     let mut gram = [0.0_f64; 9];
     let mut outcome_cross = [0.0_f64; 3];
     let mut complete_case_rows = 0_u64;
@@ -1566,6 +1612,35 @@ fn nested_counterfactual_fit_wire(
         complete_case_rows,
         gram,
         outcome_cross,
+    })
+}
+
+fn nested_prior_scale(inference: &InferenceMode) -> Option<f64> {
+    match inference {
+        InferenceMode::Bayesian(cfg) => Some(cfg.prior_scale),
+        InferenceMode::Frequentist => None,
+    }
+}
+
+/// Lagged `[1, treatment, mediator]` moments for a nested time-graph point.
+fn temporal_nested_fit_wire(
+    data: &antecedent_data::TimeSeriesData,
+    query: &antecedent_core::NestedCounterfactualQuery,
+    prior_scale: Option<f64>,
+) -> Result<antecedent_io::NestedCounterfactualFitWire, CausalError> {
+    let moments = antecedent_estimate::nested_direct_fit_moments(
+        data,
+        query.treatment,
+        query.mediator,
+        query.outcome,
+        &antecedent_core::KernelPolicy::scalar_only(),
+        prior_scale,
+    )?;
+    Ok(antecedent_io::NestedCounterfactualFitWire {
+        format: 1,
+        complete_case_rows: moments.complete_case_rows,
+        gram: moments.gram,
+        outcome_cross: moments.outcome_cross,
     })
 }
 
@@ -1668,6 +1743,15 @@ fn contract_payloads(
             data_snapshot.linear_fit_moments = linear_fit_moments_wire(tabular, operation)?;
         }
     }
+    if let DataInput::Temporal(series) | DataInput::Event(series) = &study.data {
+        if let CausalQuery::NestedCounterfactual(query) = &study.query {
+            data_snapshot.nested_counterfactual_fit = Some(temporal_nested_fit_wire(
+                series,
+                query,
+                nested_prior_scale(&study.inference),
+            )?);
+        }
+    }
     let snapshot_digest = data_snapshot_digest(&data_snapshot).map_err(|err| io_err(&err))?;
     Ok(ContractPayloads { identities: program.identities(snapshot_digest), program, data_snapshot })
 }
@@ -1679,74 +1763,8 @@ fn program_payloads(
     resolved_estimator: Option<&str>,
     binding: CheckedProgramBinding<'_>,
 ) -> Result<ProgramPayloads, CausalError> {
-    let (
-        checked_aipw,
-        checked_frontdoor,
-        checked_iv,
-        checked_linear,
-        checked_functional_effect,
-        checked_functional_response_members,
-        checked_distribution,
-        checked_nested_counterfactual,
-    ) = match binding {
-        CheckedProgramBinding::None => (None, None, None, None, None, None, None, None),
-        CheckedProgramBinding::Aipw(x) => (Some(x), None, None, None, None, None, None, None),
-        CheckedProgramBinding::FrontDoor(x) => (None, Some(x), None, None, None, None, None, None),
-        CheckedProgramBinding::Iv(x) => (None, None, Some(x), None, None, None, None, None),
-        CheckedProgramBinding::Linear(x) => (None, None, None, Some(x), None, None, None, None),
-        CheckedProgramBinding::FunctionalEffect(x) => {
-            (None, None, None, None, Some(x), None, None, None)
-        }
-        CheckedProgramBinding::FunctionalResponse(x) => {
-            (None, None, None, None, None, Some(x), None, None)
-        }
-        CheckedProgramBinding::Distribution(x) => {
-            (None, None, None, None, None, None, Some(x), None)
-        }
-        CheckedProgramBinding::NestedCounterfactual(x) => {
-            (None, None, None, None, None, None, None, Some(x))
-        }
-    };
     let selected = resolved_estimator.and_then(|name| name.parse::<crate::EstimatorId>().ok());
-    let binding_matches = match binding {
-        CheckedProgramBinding::None => true,
-        CheckedProgramBinding::Aipw(_) => {
-            selected == Some(crate::EstimatorId::Aipw)
-                && matches!(study.query, CausalQuery::AverageEffect(_))
-        }
-        CheckedProgramBinding::FrontDoor(_) => {
-            selected == Some(crate::EstimatorId::FrontDoorTwoStage)
-                && matches!(study.query, CausalQuery::AverageEffect(_))
-        }
-        CheckedProgramBinding::Iv(_) => {
-            matches!(selected, Some(crate::EstimatorId::IvWald | crate::EstimatorId::Iv2Sls))
-                && matches!(study.query, CausalQuery::AverageEffect(_))
-        }
-        CheckedProgramBinding::Linear(_) => {
-            selected == Some(crate::EstimatorId::LinearAdjustmentAte)
-                && matches!(study.query, CausalQuery::AverageEffect(_))
-        }
-        CheckedProgramBinding::FunctionalEffect(_) => {
-            selected == Some(crate::EstimatorId::FunctionalEffect)
-                && matches!(
-                    study.query,
-                    CausalQuery::AverageEffect(_) | CausalQuery::PathSpecific(_)
-                )
-        }
-        CheckedProgramBinding::FunctionalResponse(_) => {
-            selected == Some(crate::EstimatorId::FunctionalEffect)
-                && matches!(study.query, CausalQuery::Response(_))
-        }
-        CheckedProgramBinding::Distribution(_) => {
-            selected == Some(crate::EstimatorId::FunctionalDistribution)
-                && matches!(study.query, CausalQuery::Distribution(_))
-        }
-        CheckedProgramBinding::NestedCounterfactual(_) => {
-            selected == Some(crate::EstimatorId::StaticMediationLinear)
-                && matches!(study.query, CausalQuery::NestedCounterfactual(_))
-        }
-    };
-    if !binding_matches {
+    if !program_wire::binding_agrees(binding, selected, &study.query) {
         return Err(CausalError::Compile {
             message: "checked program binding disagrees with the selected estimator or query"
                 .into(),
@@ -1772,29 +1790,13 @@ fn program_payloads(
     let observation_digest =
         digest_wire(IdentityDomain::Observation, &observation).map_err(|err| io_err(&err))?;
     let graph = graph_identity(study)?;
-    let identification = IdentificationIdentityWire {
-        format: IDENTITY_FORMAT,
-        target_question: *question_digest.as_bytes(),
-        population_depends_on: population_depends_on(
-            &study.query,
-            study.population_registry.as_ref(),
-        ),
-        rd_config: study.rd.as_ref().map(|cfg| antecedent_io::RdConfigWire {
-            running_variable: cfg.running_variable.raw(),
-            cutoff_bits: cfg.cutoff.to_bits(),
-            bandwidth_bits: cfg.bandwidth.to_bits(),
-            se_kind: Some(cfg.se_kind.as_str().into()),
-        }),
-        class_prior: study.class_prior.as_ref().map(crate::ClassPrior::identity_wire),
-        transport: transport_premises(study)?,
-        graph_class: study.graph.class().as_str().into(),
-        structure_source: study.structure_source.as_str().into(),
-        accepted_version: study.graph.version(),
-        algorithm_id: study.graph.algorithm_id().map(str::to_string),
-        schema_names: Some(schema.variables().iter().map(|v| v.name.to_string()).collect()),
+    let identification = identification_identity_wire(
+        study,
+        schema,
+        *question_digest.as_bytes(),
+        *observation_digest.as_bytes(),
         graph,
-        observation: *observation_digest.as_bytes(),
-    };
+    )?;
     let identification_digest =
         identification_digest(&identification).map_err(|err| io_err(&err))?;
     let identification_product = match cached {
@@ -1814,265 +1816,9 @@ fn program_payloads(
         None => None,
     };
     let mut commitments = inferential_commitments(study, resolved_estimator);
-    let checked_aipw_lowering = checked_aipw.map(|checked| {
-        let lowering = checked.lowering();
-        commitments.se_kind = Some(lowering.se_kind.as_str().to_string());
-        let se_lag = match lowering.se_kind {
-            antecedent_estimate::AnalyticSeKind::NeweyWest { lag }
-            | antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag } => Some(lag as u64),
-            _ => None,
-        };
-        antecedent_io::CheckedAipwLoweringWire {
-            format: 1,
-            functional: lowering.functional.raw(),
-            treatment: lowering.treatment.raw(),
-            outcome: lowering.outcome.raw(),
-            adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
-            population: "all_observed".into(),
-            procedure: lowering.procedure.as_str().into(),
-            folds: lowering.folds as u64,
-            se_kind: lowering.se_kind.as_str().into(),
-            se_lag,
-            bootstrap_replicates: lowering.bootstrap_replicates,
-            trim_bits: match lowering.overlap {
-                antecedent_estimate::OverlapPolicy::RequireDiagnostics {
-                    trim: Some(trim), ..
-                } => Some(trim.to_bits()),
-                _ => None,
-            },
-        }
-    });
-    let checked_frontdoor_lowering =
-        checked_frontdoor
-            .map(|checked| {
-                let lowering = checked.lowering();
-                let procedure = match lowering.procedure {
-            antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::LinearPathProduct => {
-                "linear_path_product"
-            }
-            antecedent_estimate::frontdoor::CheckedFrontDoorProcedure::Functional => "functional",
-        };
-                let problem = checked.problem();
-                Ok::<_, CausalError>(antecedent_io::CheckedFrontDoorLoweringWire {
-                    format: 1,
-                    functional: lowering.functional.raw(),
-                    executable: lowering.executable.raw(),
-                    treatment: lowering.treatment.raw(),
-                    outcome: lowering.outcome.raw(),
-                    mediators: lowering.mediators.iter().map(|id| id.raw()).collect(),
-                    active_bits: lowering.active.to_bits(),
-                    control_bits: lowering.control.to_bits(),
-                    procedure: procedure.into(),
-                    complete_case_rows: problem.nrows as u64,
-                    overlap: overlap_policy_tag(problem.overlap),
-                    uncertainty: format!(
-                        "{}:{}",
-                        commitments.interval_method,
-                        commitments.se_kind.as_deref().unwrap_or("unspecified")
-                    ),
-                    arena: antecedent_io::expr_arena_to_wire(checked.program().arena())
-                        .map_err(|error| io_err(&error))?,
-                })
-            })
-            .transpose()?;
-    let checked_iv_lowering = checked_iv.map(|checked| {
-        let lowering = checked.lowering();
-        commitments.se_kind = Some(lowering.se_kind.as_str().to_string());
-        let procedure = match lowering.procedure {
-            antecedent_estimate::CheckedIvProcedure::Wald => "wald",
-            antecedent_estimate::CheckedIvProcedure::TwoStageLeastSquares => {
-                "two_stage_least_squares"
-            }
-        };
-        let weak_instrument_uncertainty =
-            if lowering.se_kind == antecedent_estimate::AnalyticSeKind::Homoskedastic {
-                "anderson_rubin_if_weak"
-            } else {
-                "withheld_non_homoskedastic"
-            };
-        antecedent_io::CheckedIvLoweringWire {
-            format: 1,
-            functional: lowering.functional.raw(),
-            treatment: lowering.treatment.raw(),
-            outcome: lowering.outcome.raw(),
-            instrument: lowering.instruments.first().map_or(u32::MAX, |id| id.raw()),
-            adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
-            active_bits: lowering.active.to_bits(),
-            control_bits: lowering.control.to_bits(),
-            instrument_active_bits: lowering.instrument_active.to_bits(),
-            instrument_control_bits: lowering.instrument_control.to_bits(),
-            procedure: procedure.into(),
-            se_kind: lowering.se_kind.as_str().into(),
-            weak_instrument_uncertainty: weak_instrument_uncertainty.into(),
-            complete_case_rows: u64::try_from(checked.problem().nrows).unwrap_or(u64::MAX),
-        }
-    });
-    let checked_linear_adjustment_lowering = checked_linear
-        .filter(|_| resolved_estimator == Some("linear.adjustment.ate"))
-        .filter(|_| {
-            study.graph.class() == GraphClass::Dag
-                && matches!(
-                    study.structure_source,
-                    StructureSource::Explicit | StructureSource::Accepted
-                )
-                && matches!(study.inference, InferenceMode::Frequentist)
-        })
-        .map(|operation| {
-            let checked = &operation.preparation;
-            let lowering = checked.lowering();
-            let problem = checked.problem();
-            let fit_kind = match operation.fitter.fit_kind {
-                antecedent_estimate::LinearFitKind::Ols => "ols".to_string(),
-                antecedent_estimate::LinearFitKind::Ridge { lambda } => {
-                    format!("ridge:{:016x}", lambda.to_bits())
-                }
-                antecedent_estimate::LinearFitKind::Lasso { lambda } => {
-                    format!("lasso:{:016x}", lambda.to_bits())
-                }
-                antecedent_estimate::LinearFitKind::Huber { c } => {
-                    format!("huber:{:016x}", c.to_bits())
-                }
-            };
-            let design_columns = problem
-                .design
-                .columns
-                .iter()
-                .map(|column| match column.role {
-                    antecedent_stats::DesignColumnRole::Intercept => "intercept".to_string(),
-                    antecedent_stats::DesignColumnRole::Treatment => "treatment".to_string(),
-                    antecedent_stats::DesignColumnRole::Covariate(id) => {
-                        format!("covariate:{}", id.raw())
-                    }
-                })
-                .collect();
-            let se_kind = operation.fitter.se_kind;
-            commitments.se_kind = Some(se_kind.as_str().to_string());
-            Ok::<_, CausalError>(antecedent_io::CheckedLinearAdjustmentLoweringWire {
-                format: 1,
-                functional: lowering.source.raw(),
-                executable: lowering.executable.raw(),
-                treatment: lowering.treatment.raw(),
-                outcome: lowering.outcome.raw(),
-                adjustment: lowering.adjustment.iter().map(|id| id.raw()).collect(),
-                active_bits: lowering.active.to_bits(),
-                control_bits: lowering.control.to_bits(),
-                population: antecedent_io::TargetPopulationWire::from_domain(&lowering.population)
-                    .map_err(|error| io_err(&error))?,
-                design_columns,
-                fit_kind,
-                backend: "faer".into(),
-                se_kind: se_kind.as_str().into(),
-                se_lag: match se_kind {
-                    antecedent_estimate::AnalyticSeKind::NeweyWest { lag }
-                    | antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag } => {
-                        Some(lag as u64)
-                    }
-                    _ => None,
-                },
-                bootstrap_replicates: operation.fitter.bootstrap_replicates,
-                interval_method: commitments.interval_method.clone(),
-                complete_case_rows: problem.design.nrows as u64,
-                arena: antecedent_io::expr_arena_to_wire(checked.program().arena())
-                    .map_err(|error| io_err(&error))?,
-            })
-        })
-        .transpose()?;
-    let functional_program = if resolved_estimator
-        .and_then(|name| name.parse::<crate::EstimatorId>().ok())
-        == Some(crate::EstimatorId::FunctionalEffect)
-    {
-        checked_functional_effect
-            .map(antecedent_io::functional_program_to_wire)
-            .transpose()
-            .map_err(|err| io_err(&err))?
-    } else if resolved_estimator.and_then(|name| name.parse::<crate::EstimatorId>().ok())
-        == Some(crate::EstimatorId::FunctionalDistribution)
-    {
-        if let Some(program) = checked_distribution {
-            Some(antecedent_io::functional_program_to_wire(program).map_err(|err| io_err(&err))?)
-        } else {
-            cached
-                .map(|identification| {
-                    let estimand = crate::strategy_table::select_estimand(
-                        identification,
-                        crate::EstimatorId::FunctionalDistribution,
-                    )?;
-                    let schema = data_schema(&study.data);
-                    let program_schema = antecedent_expr::ProgramSchema::new(
-                        schema.variables().iter().map(|variable| {
-                            (
-                                variable.id,
-                                antecedent_expr::ProgramVariable {
-                                    name: Arc::clone(&variable.name),
-                                },
-                            )
-                        }),
-                    );
-                    let root = estimand.functional;
-                    let program = antecedent_expr::FunctionalProgram::new(
-                        identification.arena.clone(),
-                        program_schema,
-                        root,
-                        root,
-                        antecedent_expr::ProgramLimits::default(),
-                    )
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-                    antecedent_io::functional_program_to_wire(&program)
-                        .map_err(|error| io_err(&error))
-                })
-                .transpose()?
-        }
-    } else {
-        None
-    };
-    let checked_functional_response_members = checked_functional_response_members.filter(|_| {
-        matches!(
-            &study.query,
-            CausalQuery::Response(query)
-                if matches!(query.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
-        )
-    });
-    let checked_functional_response_grid = checked_functional_response_members
-        .map(|members| {
-            let (treatment, outcome) = match &study.query {
-                CausalQuery::Response(query) => match &query.functional {
-                    antecedent_core::ResponseFunctional::MeanCurve { treatment, outcome } => {
-                        (treatment.variable.raw(), outcome.raw())
-                    }
-                    _ => {
-                        return Err(CausalError::Compile {
-                            message: "checked response members require a mean-curve target".into(),
-                        });
-                    }
-                },
-                _ => {
-                    return Err(CausalError::Compile {
-                        message: "checked response members require a response target".into(),
-                    });
-                }
-            };
-            let members = members
-                .iter()
-                .map(|member| {
-                    let query = CausalQuery::Response(member.query().clone());
-                    Ok(antecedent_io::CheckedFunctionalResponseMemberWire {
-                        grid_value_bits: member.grid_value().to_bits(),
-                        query: causal_query_to_wire(&query).map_err(|error| io_err(&error))?,
-                        identification: identification_product_wire(member.identification(), false)
-                            .map_err(|error| io_err(&error))?,
-                        program: antecedent_io::functional_program_to_wire(member.program())
-                            .map_err(|error| io_err(&error))?,
-                    })
-                })
-                .collect::<Result<Vec<_>, CausalError>>()?;
-            Ok::<_, CausalError>(antecedent_io::CheckedFunctionalResponseGridWire {
-                format: 1,
-                treatment,
-                outcome,
-                members,
-            })
-        })
-        .transpose()?;
+    let lowerings =
+        program_wire::ProgramLowerings::bind(binding, study, resolved_estimator, &mut commitments)?;
+    let functional_program = program_wire::functional_program(binding, study, cached, selected)?;
     let program = ProgramIdentityWire {
         format: IDENTITY_FORMAT,
         target: *target_digest.as_bytes(),
@@ -2081,46 +1827,15 @@ fn program_payloads(
         completion_budget: study.max_completions.map(|cap| cap as u64),
         commitments: commitments.clone(),
         functional_program,
-        checked_aipw_lowering,
-        checked_frontdoor_lowering,
-        checked_iv_lowering,
-        checked_linear_adjustment_lowering,
-        checked_functional_response_grid,
-        checked_nested_counterfactual: checked_nested_counterfactual.map(|operation| {
-            let query = operation.query();
-            antecedent_io::CheckedNestedCounterfactualWire {
-                format: 1,
-                treatment: query.treatment.raw(),
-                mediator: query.mediator.raw(),
-                outcome: query.outcome.raw(),
-                control_bits: query.control_value().to_bits(),
-                active_bits: query.active_value().to_bits(),
-                model: "linear_gaussian".into(),
-                procedure: "natural_direct_shared_exogenous".into(),
-            }
-        }),
+        checked_aipw_lowering: lowerings.aipw,
+        checked_frontdoor_lowering: lowerings.frontdoor,
+        checked_iv_lowering: lowerings.iv,
+        checked_linear_adjustment_lowering: lowerings.linear_adjustment,
+        checked_functional_response_grid: lowerings.functional_response_grid,
+        checked_nested_counterfactual: lowerings.nested_counterfactual,
     };
     let program_digest = program_digest(&program).map_err(|err| io_err(&err))?;
-    let inference_binding = InferenceBindingWire {
-        format: IDENTITY_FORMAT,
-        inference: commitments.inference.clone(),
-        bootstrap_replicates: study.bootstrap_replicates,
-        bayesian: match &study.inference {
-            InferenceMode::Bayesian(cfg) => Some(super::contract_identity::bayesian_binding(cfg)),
-            InferenceMode::Frequentist => None,
-        },
-        validation_suite: study.refute.validation_suite_id().map(str::to_string),
-        overlap_policy: study.overlap_policy.map(overlap_policy_tag),
-        estimator_spec: study.estimator_spec_identity.clone(),
-        response_options: study
-            .response_options
-            .as_ref()
-            .map(super::contract_identity::response_options),
-        observation_options: super::contract_identity::observation_options(
-            &study.observation_options,
-        ),
-        split: study.split.as_ref().map(super::contract_identity::split),
-    };
+    let inference_binding = inference_binding_wire(study, commitments.inference.clone());
     let inference_binding_digest =
         inference_binding_digest(&inference_binding).map_err(|err| io_err(&err))?;
     Ok(ProgramPayloads {
@@ -2137,6 +1852,63 @@ fn program_payloads(
         inference_binding_digest,
         observation_digest,
     })
+}
+
+/// Identification identity wire: the question, graph, transport and observation bindings that fix identification.
+fn identification_identity_wire(
+    study: &Study,
+    schema: &CausalSchema,
+    target_question: [u8; 32],
+    observation: [u8; 32],
+    graph: GraphIdentityWire,
+) -> Result<IdentificationIdentityWire, CausalError> {
+    Ok(IdentificationIdentityWire {
+        format: IDENTITY_FORMAT,
+        target_question,
+        population_depends_on: population_depends_on(
+            &study.query,
+            study.population_registry.as_ref(),
+        ),
+        rd_config: study.rd.as_ref().map(|cfg| antecedent_io::RdConfigWire {
+            running_variable: cfg.running_variable.raw(),
+            cutoff_bits: cfg.cutoff.to_bits(),
+            bandwidth_bits: cfg.bandwidth.to_bits(),
+            se_kind: Some(cfg.se_kind.as_str().into()),
+        }),
+        class_prior: study.class_prior.as_ref().map(crate::ClassPrior::identity_wire),
+        transport: transport_premises(study)?,
+        graph_class: study.graph.class().as_str().into(),
+        structure_source: study.structure_source.as_str().into(),
+        accepted_version: study.graph.version(),
+        algorithm_id: study.graph.algorithm_id().map(str::to_string),
+        schema_names: Some(schema.variables().iter().map(|v| v.name.to_string()).collect()),
+        graph,
+        observation,
+    })
+}
+
+/// Inference binding wire: the inference mode, replicates, priors, overlap, options and split the result depends on.
+fn inference_binding_wire(study: &Study, inference: String) -> InferenceBindingWire {
+    InferenceBindingWire {
+        format: IDENTITY_FORMAT,
+        inference,
+        bootstrap_replicates: study.bootstrap_replicates,
+        bayesian: match &study.inference {
+            InferenceMode::Bayesian(cfg) => Some(super::contract_identity::bayesian_binding(cfg)),
+            InferenceMode::Frequentist => None,
+        },
+        validation_suite: study.refute.validation_suite_id().map(str::to_string),
+        overlap_policy: study.overlap_policy.map(overlap_policy_tag),
+        estimator_spec: study.estimator_spec_identity.clone(),
+        response_options: study
+            .response_options
+            .as_ref()
+            .map(super::contract_identity::response_options),
+        observation_options: super::contract_identity::observation_options(
+            &study.observation_options,
+        ),
+        split: study.split.as_ref().map(super::contract_identity::split),
+    }
 }
 
 fn transport_premises(
@@ -2206,7 +1978,7 @@ fn compile_with_payloads(
     // the label binds it only to records measured under that nuisance.
     if let Some(propensity) = study
         .estimator_spec
-        .as_ref()
+        .as_deref()
         .and_then(crate::estimator_spec::EstimatorSpec::propensity_calibration_label)
     {
         functional = format!("{functional}+{propensity}");
@@ -2410,30 +2182,16 @@ fn graph_identity(study: &Study) -> Result<GraphIdentityWire, CausalError> {
 }
 
 fn accepted_graph_identity(graph: &AcceptedGraph) -> Result<GraphIdentityWire, CausalError> {
-    match graph.class() {
-        GraphClass::Dag => {
-            dag_identity(graph.as_dag().expect("Dag class")).map_err(|err| io_err(&err))
-        }
-        GraphClass::Admg => {
-            admg_identity(graph.as_admg().expect("Admg class")).map_err(|err| io_err(&err))
-        }
-        GraphClass::Cpdag => {
-            cpdag_identity(graph.as_cpdag().expect("Cpdag class")).map_err(|err| io_err(&err))
-        }
-        GraphClass::Pag => {
-            pag_identity(graph.as_pag().expect("Pag class")).map_err(|err| io_err(&err))
-        }
-        GraphClass::TemporalDag => {
-            temporal_dag_identity(graph.as_temporal_dag().expect("TemporalDag class"))
-                .map_err(|err| io_err(&err))
-        }
-        GraphClass::TemporalCpdag => {
-            Ok(temporal_cpdag_identity(graph.as_temporal_cpdag().expect("TemporalCpdag class")))
-        }
-        GraphClass::TemporalPag => {
-            Ok(temporal_pag_identity(graph.as_temporal_pag().expect("TemporalPag class")))
-        }
-        GraphClass::RandomizedTrial => Ok(GraphIdentityWire::RandomizedTrial),
+    match graph.graph_ref() {
+        GraphRef::Dag(g) => dag_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::Admg(g) => admg_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::Cpdag(g) => cpdag_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::Pag(g) => pag_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::TemporalDag(g) => temporal_dag_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::TemporalCpdag(g) => Ok(temporal_cpdag_identity(g)),
+        GraphRef::TemporalPag(g) => Ok(temporal_pag_identity(g)),
+        GraphRef::TemporalAdmg(g) => temporal_admg_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::RandomizedTrial => Ok(GraphIdentityWire::RandomizedTrial),
     }
 }
 
@@ -2559,12 +2317,16 @@ fn project_class_envelope(
     envelope: &antecedent_identify::TemporalClassEnvelope,
 ) -> Option<CachedTemporalIdentification> {
     let indexer = envelope.indexers.first()?.clone();
-    let case = envelope.envelope.cases.iter().find(|case| !case.result.estimands.is_empty())?;
+    let (case, estimand) = envelope
+        .envelope
+        .cases
+        .iter()
+        .find_map(|case| case.result.estimands.first().map(|estimand| (case, estimand)))?;
     Some(CachedTemporalIdentification {
         by_horizon: Arc::from([CachedTemporalHorizonIdentification {
             horizon,
             identification: case.result.clone(),
-            estimand: case.result.estimands[0].clone(),
+            estimand: estimand.clone(),
             indexer,
         }]),
     })
@@ -2698,10 +2460,11 @@ fn analysis_row_count(result: &StudyResult, contract: &CausalContract) -> u64 {
         .as_effect()
         .and_then(|estimate| {
             estimate
+                .provenance
                 .n_obs
-                .or_else(|| estimate.influence.as_ref().map(|rows| rows.len() as u64))
-                .or_else(|| estimate.score_table.as_ref().map(|table| table.n_rows as u64))
-                .or_else(|| estimate.block_resampling.map(|block| block.rows as u64))
+                .or_else(|| estimate.scores.influence.as_ref().map(|rows| rows.len() as u64))
+                .or_else(|| estimate.scores.table.as_ref().map(|table| table.n_rows as u64))
+                .or_else(|| estimate.uncertainty.block.resampling.map(|block| block.rows as u64))
         })
         .unwrap_or(contract.row_count)
 }
@@ -2752,7 +2515,11 @@ impl StudyResult {
             Some(cell) => (
                 cell.query.to_string(),
                 cell.graph_class.to_string(),
-                if cell.structure == "graph_posterior" { "graph_posterior" } else { "fixed" },
+                if cell.structure.as_str() == "graph_posterior" {
+                    "graph_posterior"
+                } else {
+                    "fixed"
+                },
                 cell.inference.to_string(),
             ),
             None => (
@@ -2934,7 +2701,7 @@ fn overlap_label(study: &Study, resolved_estimator: Option<&str>) -> Option<Stri
     use antecedent_estimate::OverlapPolicy;
     let configured = study
         .estimator_spec
-        .as_ref()
+        .as_deref()
         .and_then(crate::estimator_spec::EstimatorSpec::propensity_overlap);
     let policy = if let Some(policy) = configured {
         policy
@@ -3058,7 +2825,7 @@ fn calibration_wire(view: &CalibrationView) -> CalibrationSlotWire {
         CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire,
     };
     CalibrationSlotWire {
-        status: view.status.to_string(),
+        status: view.status.as_ref().into(),
         record_id: view.record_id.as_ref().map(ToString::to_string),
         reason: view.reason.as_ref().map(ToString::to_string),
         scope_n: view.scope_n,
@@ -3133,10 +2900,9 @@ fn reasoning_view(
         view.identification = SlotAvailability::unavailable(IDENTIFIED_PER_EXECUTION);
         return view;
     }
-    if prepared.is_none() || cached.is_none() {
+    let (Some(_), Some(result)) = (prepared, cached) else {
         return ReasoningView::structural(support, assumptions);
-    }
-    let result = cached.expect("checked");
+    };
     let slot = identification_slot_from_prepared(study, result, search_capped);
     ReasoningView::new(
         SlotAvailability::Available(slot),
@@ -3171,6 +2937,38 @@ fn matrix_coordinate(study: &Study) -> Option<String> {
     Some(crate::support::cell_coordinate(cell))
 }
 
+/// Maps the matrix cell status to its semantic applicability and the blockers it carries.
+fn matrix_applicability(
+    status: Option<CellStatus>,
+    cell: Option<crate::support::SupportCell>,
+) -> (SemanticApplicability, Vec<antecedent_contract::BlockedOperation>) {
+    match status {
+        Some(CellStatus::Licensed) => (SemanticApplicability::Licensed, Vec::new()),
+        Some(CellStatus::Refused) => {
+            let reason = cell.map_or(
+                "cell is not licensed (parity/support_licensed.toml) and is not n/a; it is refused.",
+                crate::support::refused_message,
+            );
+            (
+                SemanticApplicability::Unlicensed,
+                vec![antecedent_contract::BlockedOperation::refused(reason)],
+            )
+        }
+        Some(CellStatus::NotApplicable { reason }) => (
+            SemanticApplicability::Impossible,
+            vec![antecedent_contract::BlockedOperation::not_applicable(reason)],
+        ),
+        Some(CellStatus::Allowlisted { reason, .. }) => (
+            SemanticApplicability::Unlicensed,
+            vec![antecedent_contract::BlockedOperation::refused(reason)],
+        ),
+        None => (
+            SemanticApplicability::Unknown,
+            vec![antecedent_contract::BlockedOperation::off_axis()],
+        ),
+    }
+}
+
 fn operation_report(contract: &CausalContract, operation: OperationKind) -> OperationReport {
     let coordinate =
         contract.reasoning.support.as_ref().and_then(|slot| slot.matrix_coordinate.clone());
@@ -3181,30 +2979,7 @@ fn operation_report(contract: &CausalContract, operation: OperationKind) -> Oper
         .as_ref()
         .map(|slot| slot.obligations.iter().filter(|o| o.is_unresolved()).cloned().collect())
         .unwrap_or_default();
-    let (applicability, mut blockers) = match contract.support_status {
-        Some(CellStatus::Licensed) => (SemanticApplicability::Licensed, Vec::new()),
-        Some(CellStatus::Refused) => {
-            let reason = cell.map_or(
-                "cell is not licensed (parity/support_licensed.toml) and is not n/a; it is refused.",
-                crate::support::refused_message,
-            );
-            (
-                SemanticApplicability::Unlicensed,
-                vec![antecedent_core::BlockedOperation::refused(reason)],
-            )
-        }
-        Some(CellStatus::NotApplicable { reason }) => (
-            SemanticApplicability::Impossible,
-            vec![antecedent_core::BlockedOperation::not_applicable(reason)],
-        ),
-        Some(CellStatus::Allowlisted { reason, .. }) => (
-            SemanticApplicability::Unlicensed,
-            vec![antecedent_core::BlockedOperation::refused(reason)],
-        ),
-        None => {
-            (SemanticApplicability::Unknown, vec![antecedent_core::BlockedOperation::off_axis()])
-        }
-    };
+    let (applicability, mut blockers) = matrix_applicability(contract.support_status, cell);
     let neighbors = match contract.support_status {
         Some(CellStatus::Refused | CellStatus::NotApplicable { .. }) => {
             cell.map(crate::support::licensed_neighbors).unwrap_or_default()
@@ -3219,11 +2994,11 @@ fn operation_report(contract: &CausalContract, operation: OperationKind) -> Oper
             OperationKind::Export => crate::error::EXPORT_REQUIRES_LICENSE,
             _ => crate::error::OPERATION_REQUIRES_LICENSE,
         };
-        blockers = vec![antecedent_core::BlockedOperation::operation_unlicensed(reason)];
+        blockers = vec![antecedent_contract::BlockedOperation::operation_unlicensed(reason)];
     } else if operation == OperationKind::RankDesigns
         && contract.identities.identification_product.is_none()
     {
-        blockers.push(antecedent_core::BlockedOperation::binding("identification_product"));
+        blockers.push(antecedent_contract::BlockedOperation::binding("identification_product"));
     }
 
     let readiness = if !blockers.is_empty() {
@@ -3363,48 +3138,8 @@ fn assumption_label(assumption: &Assumption) -> String {
     }
 }
 
-fn result_reasoning(
-    result: &StudyResult,
-    prepared: &ReasoningView,
-    body: &AnalysisResultWire,
-) -> Result<ReasoningView, CausalError> {
-    let identification = identification_slot_from_result(result)?;
-    let mut components = Vec::new();
-    if let Some(effect) = result.estimate.as_effect() {
-        let published = crate::PublishedScalarUncertainty::select(effect);
-        match published.method {
-            antecedent_core::IntervalMethod::AnalyticSe => components
-                .push(UncertaintyComponent::new(UncertaintySource::Sampling, "analytic_se", false)),
-            antecedent_core::IntervalMethod::BootstrapSe => components.push(
-                UncertaintyComponent::new(UncertaintySource::Sampling, "bootstrap_se", false),
-            ),
-            antecedent_core::IntervalMethod::AndersonRubin => components.push(
-                UncertaintyComponent::new(UncertaintySource::Sampling, "anderson_rubin", false),
-            ),
-            _ => {}
-        }
-    }
-    if result.posterior.is_some() {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Parameter,
-            "posterior",
-            false,
-        ));
-    }
-    if let Some(policy) = &body.policy_value {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Sampling,
-            format!("policy_value_{}", policy.uncertainty),
-            false,
-        ));
-    }
-    if let Some(dose) = &body.continuous_dose_response {
-        components.push(UncertaintyComponent::new(
-            UncertaintySource::Sampling,
-            format!("continuous_dose_{}", dose.uncertainty),
-            false,
-        ));
-    }
+/// Adds the response's own interval or posterior artifact as an uncertainty component, whatever the inference mode.
+fn push_response_uncertainty(result: &StudyResult, components: &mut Vec<UncertaintyComponent>) {
     // A function-valued posterior can carry its band directly on the response,
     // without a scalar posterior or SE on StudyResult. Its portable reasoning
     // must not call that published parameter uncertainty "omitted". This runs for
@@ -3413,7 +3148,7 @@ fn result_reasoning(
     // here as a Bayesian credible band — there is nothing left for an
     // `inference == "bayesian"` gate to guard.
     {
-        if let Some(response) = &result.response {
+        if let Some(response) = result.response() {
             // The interval's own tag decides the source: a credible interval is posterior
             // parameter uncertainty; a confidence interval (a Wald interval on influence
             // scores, say) is sampling uncertainty even when the fit was Bayesian.
@@ -3456,6 +3191,51 @@ fn result_reasoning(
             }
         }
     }
+}
+
+fn result_reasoning(
+    result: &StudyResult,
+    prepared: &ReasoningView,
+    body: &AnalysisResultWire,
+) -> Result<ReasoningView, CausalError> {
+    let identification = identification_slot_from_result(result)?;
+    let mut components = Vec::new();
+    if let Some(effect) = result.estimate.as_effect() {
+        let published = crate::PublishedScalarUncertainty::select(effect);
+        match published.method {
+            antecedent_core::IntervalMethod::AnalyticSe => components
+                .push(UncertaintyComponent::new(UncertaintySource::Sampling, "analytic_se", false)),
+            antecedent_core::IntervalMethod::BootstrapSe => components.push(
+                UncertaintyComponent::new(UncertaintySource::Sampling, "bootstrap_se", false),
+            ),
+            antecedent_core::IntervalMethod::AndersonRubin => components.push(
+                UncertaintyComponent::new(UncertaintySource::Sampling, "anderson_rubin", false),
+            ),
+            _ => {}
+        }
+    }
+    if result.posterior.is_some() {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Parameter,
+            "posterior",
+            false,
+        ));
+    }
+    if let Some(policy) = &body.policy_value {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            format!("policy_value_{}", policy.uncertainty),
+            false,
+        ));
+    }
+    if let Some(dose) = &body.continuous_dose_response {
+        components.push(UncertaintyComponent::new(
+            UncertaintySource::Sampling,
+            format!("continuous_dose_{}", dose.uncertainty),
+            false,
+        ));
+    }
+    push_response_uncertainty(result, &mut components);
     if result.structural_response.is_some()
         || identification.weight_basis.is_some()
         || matches!(
@@ -3492,7 +3272,7 @@ fn result_reasoning(
 }
 
 fn executed_scalar(result: &StudyResult) -> Option<f64> {
-    if result.response.is_some() {
+    if result.response().is_some() {
         return None;
     }
     let scalar = result.effect();
@@ -3536,399 +3316,31 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
     let effect = result.estimate.as_effect();
     let published = effect.map(crate::PublishedScalarUncertainty::select);
     let executed_estimate = effect.and_then(|_| executed_scalar(result));
-    let policy_value = result.policy_value.as_ref().map(|policy| antecedent_io::PolicyValueWire {
-        policy_value: policy.policy_value,
-        reference_value: policy.reference_value,
-        incremental_value: policy.incremental_value,
-        relative_value_gap: policy.relative_value_gap,
-        treatment_rate: policy.treatment_rate,
-        total_cost: policy.total_cost,
-        policy_standard_error: policy.policy_standard_error,
-        reference_standard_error: policy.reference_standard_error,
-        incremental_standard_error: policy.incremental_standard_error,
-        policy_interval_95: policy.policy_interval_95,
-        incremental_interval_95: policy.incremental_interval_95,
-        prediction_ownership: policy.prediction_ownership.to_string(),
-        propensity_min: policy.propensity_min,
-        propensity_max: policy.propensity_max,
-        uncertainty: policy.uncertainty.to_string(),
-        graphless_support_status: result.support_status.map(CellStatus::as_str).map(str::to_string),
-        uplift_bins: policy
-            .uplift_bins
-            .iter()
-            .map(|bin| antecedent_io::UpliftBinWire {
-                rank: bin.rank,
-                effect: bin.effect,
-                standard_error: bin.standard_error,
-                evaluation_rows: bin.evaluation_rows,
-                interval_95: bin.interval_95,
-            })
-            .collect(),
-        multi_action_cate: policy
-            .multi_action_cate
-            .iter()
-            .map(|point| antecedent_io::analysis_result_artifact::MultiActionCateWire {
-                group: point.group.clone(),
-                action: point.action.clone(),
-                effect: point.effect,
-                standard_error: point.standard_error,
-                interval_95: point.interval_95,
-                evaluation_rows: point.evaluation_rows,
-                observed_action_rows: point.observed_action_rows,
-                observed_control_rows: point.observed_control_rows,
-            })
-            .collect(),
-        regret: policy.regret.as_ref().map(|regret| {
-            antecedent_io::analysis_result_artifact::FixedCandidateRegretWire {
-                candidate_values: regret.candidate_values.clone(),
-                contrast_standard_errors: regret.contrast_standard_errors.clone(),
-                regret: regret.regret,
-                interval_95: regret.interval_95,
-                selected_index: regret.selected_index,
-            }
-        }),
-    });
+    let support = result.support_status;
     let mut wire = AnalysisResultWire {
         query: frame.query.clone(),
         identification,
         identification_variables,
         temporal_identification,
         estimate: executed_estimate,
-        policy_value,
-        continuous_dose_response: result.continuous_dose_response.as_ref().map(|fit| {
-            antecedent_io::analysis_result_artifact::ContinuousDoseResponseWire {
-                points: fit
-                    .points
-                    .iter()
-                    .map(|point| antecedent_io::analysis_result_artifact::ContinuousDosePointWire {
-                        baseline_group: point.baseline_group.clone(),
-                        target_dose: point.target_dose,
-                        response: point.response,
-                        local_rows: point.local_rows,
-                        effective_sample_size: point.effective_sample_size,
-                        minimum_dose_density: point.minimum_dose_density,
-                        maximum_normalized_weight: point.maximum_normalized_weight,
-                        local_outcome_sd: point.local_outcome_sd,
-                    })
-                    .collect(),
-                bandwidth: fit.bandwidth,
-                density_provenance: fit.density_provenance.to_string(),
-                uncertainty: fit.uncertainty.to_string(),
-                graphless_support_status: result
-                    .support_status
-                    .map(CellStatus::as_str)
-                    .map(str::to_string),
-                fixed_policy: fit.fixed_policy.as_ref().map(|value| {
-                    antecedent_io::analysis_result_artifact::DosePolicyValueWire {
-                        policy_doses: value.policy_doses.clone(),
-                        reference_doses: value.reference_doses.clone(),
-                        policy_value: value.policy_value,
-                        reference_value: value.reference_value,
-                        incremental_value: value.incremental_value,
-                        policy_variance: value.policy_variance,
-                        reference_variance: value.reference_variance,
-                        incremental_variance: value.incremental_variance,
-                        policy_interval_95: value.policy_interval_95,
-                        reference_interval_95: value.reference_interval_95,
-                        incremental_interval_95: value.incremental_interval_95,
-                        minimum_local_rows: value.minimum_local_rows,
-                        minimum_effective_sample_size: value.minimum_effective_sample_size,
-                        maximum_normalized_weight: value.maximum_normalized_weight,
-                        minimum_dose_density: value.minimum_dose_density,
-                    }
-                }),
-            }
-        }),
-        panel_did: result.panel_did.as_ref().map(|did| antecedent_io::PanelDidWire {
-            effect: did.effect,
-            standard_error: if did.augmented.is_some() { None } else { Some(did.standard_error) },
-            interval_95: did.interval_95,
-            treated_subjects: did.treated_subjects,
-            comparison_subjects: did.comparison_subjects,
-            clusters: did.clusters,
-            uncertainty: did.uncertainty.to_string(),
-            graphless_support_status: result
-                .support_status
-                .map(CellStatus::as_str)
-                .map(str::to_string),
-            event_time_effects: did
-                .event_time_effects
-                .iter()
-                .map(|effect| {
-                    (
-                        effect.cohort,
-                        effect.period,
-                        effect.event_time,
-                        effect.effect,
-                        effect.treated_subjects,
-                        effect.comparison_subjects,
-                        effect.standard_error,
-                        effect.clusters,
-                    )
-                })
-                .collect(),
-            event_time_intervals_95: did.event_time_intervals_95.to_vec(),
-            augmented: did.augmented,
-        }),
-        synthetic_control: result.synthetic_control.as_ref().map(|fit| {
-            antecedent_io::SyntheticControlWire {
-                effect: fit.effect,
-                pre_treatment_rmse: fit.pre_treatment_rmse,
-                donor_weights: fit
-                    .donor_weights
-                    .iter()
-                    .map(|(unit, weight)| (unit.to_string(), *weight))
-                    .collect(),
-                placebo_effects: fit.placebo_effects.to_vec(),
-                placebo_rank: fit.placebo_rank,
-                effective_donors: fit.effective_donors,
-                n_pre_periods: fit.n_pre_periods,
-                n_post_periods: fit.n_post_periods,
-                uncertainty: fit.uncertainty.to_string(),
-                randomization_p_value: fit.randomization_p_value,
-                randomization_null_effect: fit.randomization_null_effect,
-                randomization_statistics: fit
-                    .randomization_statistics
-                    .iter()
-                    .map(|(unit, statistic)| (unit.to_string(), *statistic))
-                    .collect(),
-                unadjusted_effect: fit.unadjusted_effect,
-                outcome_model_correction: fit.outcome_model_correction,
-                augmentation_ridge: fit.augmentation_ridge,
-            }
-        }),
-        synthetic_did: result.synthetic_did.as_ref().map(|fit| antecedent_io::SyntheticDidWire {
-            effect: fit.effect,
-            pre_treatment_rmse: fit.pre_treatment_rmse,
-            donor_weights: fit
-                .donor_weights
-                .iter()
-                .map(|(unit, weight)| (unit.to_string(), *weight))
-                .collect(),
-            time_weights: fit.time_weights.to_vec(),
-            n_donors: fit.n_donors,
-            n_pre_periods: fit.n_pre_periods,
-            n_post_periods: fit.n_post_periods,
-            uncertainty: fit.uncertainty.to_string(),
-            randomization_p_value: fit.randomization_p_value,
-            randomization_null_effect: fit.randomization_null_effect,
-            randomization_statistics: fit
-                .randomization_statistics
-                .iter()
-                .map(|(unit, statistic)| (unit.to_string(), *statistic))
-                .collect(),
-        }),
-        local_polynomial_ratio: result.local_polynomial_ratio.as_ref().map(|fit| {
-            antecedent_io::LocalPolynomialRatioWire {
-                effect: fit.effect,
-                reduced_form: fit.reduced_form,
-                first_stage: fit.first_stage,
-                cutoff: fit.cutoff,
-                bandwidth: fit.bandwidth,
-                kink: fit.kink,
-                n_left: fit.n_left,
-                n_right: fit.n_right,
-                standard_error: fit.standard_error,
-                ci_lower: fit.ci_lower,
-                ci_upper: fit.ci_upper,
-                reduced_form_standard_error: fit.reduced_form_standard_error,
-                first_stage_standard_error: fit.first_stage_standard_error,
-                uncertainty: fit.uncertainty.to_string(),
-                graphless_support_status: result
-                    .support_status
-                    .map(CellStatus::as_str)
-                    .map(str::to_string),
-            }
-        }),
-        randomized_effect: result.randomized_effect.as_ref().map(|randomized| {
-            antecedent_io::RandomizedEffectWire {
-                effect: randomized.effect,
-                estimand: randomized.estimand.to_string(),
-                intention_to_treat_effect: randomized.intention_to_treat_effect,
-                first_stage_effect: randomized.first_stage_effect,
-                received_treatment: randomized
-                    .received_treatment
-                    .as_ref()
-                    .map(|receipt| receipt.to_vec()),
-                randomization_p_value: randomized.randomization_p_value,
-                randomization_allocations: randomized.randomization_allocations,
-                second_factor_effect: randomized.second_factor_effect,
-                factorial_interaction: randomized.factorial_interaction,
-                second_factor_variance: randomized.second_factor_variance,
-                factorial_interaction_variance: randomized.factorial_interaction_variance,
-                multi_arm_values: randomized
-                    .multi_arm_values
-                    .iter()
-                    .map(|(label, value, variance, support)| {
-                        (label.to_string(), *value, *variance, *support)
-                    })
-                    .collect(),
-                variance: randomized.variance_upper_bound,
-                standard_error: randomized.standard_error,
-                interval_95: randomized.interval_95,
-                second_factor_interval_95: randomized.second_factor_interval_95,
-                factorial_interaction_interval_95: randomized.factorial_interaction_interval_95,
-                multi_arm_intervals_95: randomized.multi_arm_intervals_95.to_vec(),
-                assignment_design: randomized.assignment_design.to_string(),
-                assignment_units: randomized
-                    .assignment_units
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect(),
-                outcome_units: randomized.outcome_units.iter().map(ToString::to_string).collect(),
-                blocks: randomized.blocks.iter().map(ToString::to_string).collect(),
-                periods: randomized.periods.iter().map(ToString::to_string).collect(),
-                treatment_arms: (
-                    randomized.treatment_arms.0.to_string(),
-                    randomized.treatment_arms.1.to_string(),
-                ),
-                control_units: randomized.control_units,
-                treatment_units: randomized.treatment_units,
-                minimum_assignment_probability: randomized.minimum_assignment_probability,
-                uncertainty: randomized.uncertainty.to_string(),
-                graphless_support_status: result
-                    .support_status
-                    .map(crate::support::CellStatus::as_str)
-                    .map(str::to_string),
-            }
-        }),
-        survival: result.survival.as_ref().map(|survival| antecedent_io::SurvivalWire {
-            times: survival.times.to_vec(),
-            control: survival.control.to_vec(),
-            treated: survival.treated.to_vec(),
-            rmst_control: survival.rmst_control,
-            rmst_treated: survival.rmst_treated,
-            target_cause: survival.target_cause,
-            tau: survival.tau,
-            minimum_event_risk_set: survival.minimum_event_risk_set,
-            uncertainty: survival.uncertainty.to_string(),
-            rmst_difference_interval: survival.rmst_difference_interval,
-            difference_at_tau_interval: survival.difference_at_tau_interval,
-            bootstrap_replicates_requested: survival.bootstrap_replicates_requested,
-            bootstrap_replicates_ok: survival.bootstrap_replicates_ok,
-            assignment_counts: Some(survival.assignment_counts),
-            graphless_support_status: result
-                .support_status
-                .map(CellStatus::as_str)
-                .map(str::to_string),
-            censoring_survival_provenance: survival
-                .censoring_survival_provenance
-                .as_ref()
-                .map(ToString::to_string),
-            difference_band: survival.difference_band.as_ref().map(|band| {
-                antecedent_io::SurvivalDifferenceBandWire {
-                    times: band.times.to_vec(),
-                    difference: band.difference.to_vec(),
-                    lower: band.lower.to_vec(),
-                    upper: band.upper.to_vec(),
-                    replicates_ok: band.replicates_ok,
-                    graphless_support_status: band
-                        .support_status
-                        .map(CellStatus::as_str)
-                        .map(str::to_string),
-                }
-            }),
-            band_unavailable_reason: survival
-                .band_unavailable_reason
-                .as_ref()
-                .map(ToString::to_string),
-        }),
-        longitudinal_regime: result.longitudinal_regime.as_ref().map(|regime| {
-            antecedent_io::LongitudinalRegimeWire {
-                method: regime.method.to_string(),
-                graphless_support_status: regime
-                    .graphless_support_status
-                    .map(CellStatus::as_str)
-                    .map(str::to_string),
-                rule_id: regime.rule_id.as_ref().map(ToString::to_string),
-                rule_version: regime.rule_version.as_ref().map(ToString::to_string),
-                rule_provenance: regime.rule_provenance.as_ref().map(ToString::to_string),
-                value: regime.value,
-                value_standard_error: regime.value_standard_error,
-                value_interval_95: regime.value_interval_95,
-                period_intervals_95: regime
-                    .period_intervals_95
-                    .as_ref()
-                    .map_or_else(Vec::new, |v| v.to_vec()),
-                interval_reason: regime.interval_reason.as_ref().map(ToString::to_string),
-                effective_sample_size: regime.effective_sample_size,
-                matched_observed_fraction: regime.matched_observed_fraction,
-                maximum_weight: regime.maximum_weight,
-                minimum_action_probability: regime.minimum_action_probability,
-                minimum_censoring_probability: regime.minimum_censoring_probability,
-                uncertainty: regime.uncertainty.to_string(),
-                probability_ownership: regime.probability_ownership.to_string(),
-                period_effects: regime
-                    .period_effects
-                    .as_ref()
-                    .map_or_else(Vec::new, |v| v.to_vec()),
-                standard_errors: regime
-                    .standard_errors
-                    .as_ref()
-                    .map_or_else(Vec::new, |v| v.to_vec()),
-                stabilizing_numerator_probabilities: regime
-                    .stabilizing_numerator_probabilities
-                    .as_ref()
-                    .map_or_else(Vec::new, |v| v.to_vec()),
-                observed_subjects: regime.observed_subjects.unwrap_or(0),
-            }
-        }),
-        interference_inference: result.interference_inference.as_ref().map(|inference| {
-            antecedent_io::InterferenceInferenceWire {
-                method: inference.method.into(),
-                graphless_support_status: inference
-                    .graphless_support_status
-                    .map(CellStatus::as_str)
-                    .map(str::to_string),
-                interval: inference.interval.as_ref().map(|interval| {
-                    antecedent_io::InterferencePointwiseIntervalWire {
-                        lower: interval.lower,
-                        upper: interval.upper,
-                        standard_error: interval.standard_error,
-                        degrees_of_freedom: interval.degrees_of_freedom,
-                        first_stage_arm_clusters: interval.first_stage_arm_clusters,
-                    }
-                }),
-                interval_unavailable_reason: inference
-                    .interval_unavailable_reason
-                    .map(str::to_string),
-                from_exposed_units: inference.from_exposed_units,
-                to_exposed_units: inference.to_exposed_units,
-                from_exposed_clusters: inference.from_exposed_clusters,
-                to_exposed_clusters: inference.to_exposed_clusters,
-            }
-        }),
-        interventional_distribution: result.distribution.as_ref().map(|distribution| {
-            antecedent_io::InterventionalDistributionWire {
-                atoms: distribution
-                    .atoms
-                    .iter()
-                    .map(|atom| antecedent_io::DistributionAtomWire {
-                        outcomes: atom
-                            .outcomes
-                            .iter()
-                            .map(|(variable, value)| {
-                                (variable.raw(), antecedent_io::ValueWire::from_value(value))
-                            })
-                            .collect(),
-                        conditioning: atom
-                            .conditioning
-                            .iter()
-                            .map(|(variable, value)| {
-                                (variable.raw(), antecedent_io::ValueWire::from_value(value))
-                            })
-                            .collect(),
-                        probability: atom.probability,
-                    })
-                    .collect(),
-            }
-        }),
+        policy_value: result.policy_value().map(|v| v.to_wire(support)),
+        continuous_dose_response: result.continuous_dose_response().map(|v| v.to_wire(support)),
+        panel_did: result.panel_did().map(|v| v.to_wire(support)),
+        synthetic_control: result.synthetic_control().map(Into::into),
+        synthetic_did: result.synthetic_did().map(Into::into),
+        local_polynomial_ratio: result.local_polynomial_ratio().map(|v| v.to_wire(support)),
+        randomized_effect: result.randomized_effect().map(|v| v.to_wire(support)),
+        survival: result.survival().map(|v| v.to_wire(support)),
+        longitudinal_regime: result.longitudinal_regime().map(Into::into),
+        interference_inference: result.interference_inference().map(Into::into),
+        interventional_distribution: result.distribution().map(distribution_wire),
         // A standard error describes the published scalar; none rides without it.
         standard_error: executed_estimate.and(published.as_ref().and_then(|p| p.standard_error)),
         interval_lower: published.as_ref().and_then(|p| p.lower),
         interval_upper: published.as_ref().and_then(|p| p.upper),
         assumptions: antecedent_io::assumptions_to_wire(
-            effect.map_or(&result.identification.required_assumptions, |e| &e.assumptions),
+            effect
+                .map_or(&result.identification.required_assumptions, |e| &e.provenance.assumptions),
         ),
         diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
         refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
@@ -3937,18 +3349,18 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
-        cate: effect.and_then(|v| v.cate.as_ref().map(|v| v.to_vec())),
-        fitted_effect: effect.and_then(|v| v.fitted_effect.as_deref().cloned()),
-        cate_se: effect.and_then(|v| v.cate_se.as_ref().map(|v| v.to_vec())),
+        cate: effect.and_then(|v| v.heterogeneity.cate.as_ref().map(|v| v.to_vec())),
+        fitted_effect: effect.and_then(|v| v.heterogeneity.fitted_effect.as_deref().cloned()),
+        cate_se: effect.and_then(|v| v.heterogeneity.cate_se.as_ref().map(|v| v.to_vec())),
         cate_leaf_dispersion: effect
-            .and_then(|v| v.cate_leaf_dispersion.as_ref().map(|v| v.to_vec())),
-        outcome_oof_r2: effect.and_then(|v| v.outcome_oof_r2),
-        treatment_oof_logloss: effect.and_then(|v| v.treatment_oof_logloss),
-        crossfit_folds: effect.and_then(|v| v.crossfit_folds),
-        crossfit_seed: effect.and_then(|v| v.crossfit_seed),
+            .and_then(|v| v.heterogeneity.cate_leaf_dispersion.as_ref().map(|v| v.to_vec())),
+        outcome_oof_r2: effect.and_then(|v| v.crossfit.outcome_oof_r2),
+        treatment_oof_logloss: effect.and_then(|v| v.crossfit.treatment_oof_logloss),
+        crossfit_folds: effect.and_then(|v| v.crossfit.folds),
+        crossfit_seed: effect.and_then(|v| v.crossfit.seed),
         learner_provenance: effect
             .into_iter()
-            .flat_map(|v| v.learner_provenance.iter())
+            .flat_map(|v| v.crossfit.learner_provenance.iter())
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
             .collect(),
     };
@@ -3969,12 +3381,9 @@ fn temporal_identification_wires(
         .map(|entry| {
             let variables = (0..entry.indexer.dense_len())
                 .map(|dense| -> Result<HorizonAdjustmentNodeWire, CausalError> {
-                    let key = entry
-                        .indexer
-                        .key_of(u32::try_from(dense).map_err(|_| CausalError::Compile {
-                            message: "temporal dense id exceeds u32".into(),
-                        })?)
-                        .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+                    let key = entry.indexer.key_of(u32::try_from(dense).map_err(|_| {
+                        CausalError::Compile { message: "temporal dense id exceeds u32".into() }
+                    })?)?;
                     Ok(HorizonAdjustmentNodeWire {
                         variable: key.variable.raw(),
                         offset: key.offset,
@@ -4512,18 +3921,20 @@ mod tests {
         GraphIdentificationCase {
             graph: 0,
             result: IdentificationResult::from_parts(
-                status,
-                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
-                    antecedent_core::VariableId::from_raw(0),
-                    antecedent_core::VariableId::from_raw(1),
-                )),
-                Vec::new(),
-                antecedent_expr::CausalExprArena::new(),
-                DerivationTrace::default(),
-                AssumptionSet::default(),
-                diagnostics,
-                IdentificationPerformanceRecord::default(),
-                None,
+                antecedent_identify::IdentificationResultParts {
+                    status,
+                    query: CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+                        antecedent_core::VariableId::from_raw(0),
+                        antecedent_core::VariableId::from_raw(1),
+                    )),
+                    estimands: Vec::new(),
+                    arena: antecedent_expr::CausalExprArena::new(),
+                    derivation: DerivationTrace::default(),
+                    required_assumptions: AssumptionSet::default(),
+                    diagnostics,
+                    performance: IdentificationPerformanceRecord::default(),
+                    hedge: None,
+                },
             ),
             weight: ProbabilityMass(weight),
         }

@@ -1,4 +1,4 @@
-//! Learned continuous-outcome trial-to-target transport (2.2A cell X4).
+//! Learned continuous-outcome trial-to-target transport.
 //!
 //! # The one cell
 //!
@@ -45,13 +45,14 @@
 //! whose fold lacks a role fails and is counted; any failure withholds the interval), and
 //! only the point run is gated on membership overlap ([`check_membership_overlap`]) - a
 //! replicate whose out-of-fold membership falls below the threshold still contributes.
-//! The shared bootstrap also serves the 2.1 learned-trial cells, whose seeded results must
+//! The shared bootstrap also serves the learned-trial cells, whose seeded results must
 //! not change. `fit_point` applies no preprocessing beyond an intercept column, so
 //! "preprocessing inside folds" holds trivially today.
 use crate::learned_trial::{
     TrialAipwInput, TrialAipwOptions, TrialNuisanceDiagnostics, TrialSampling, estimate_trial_aipw,
     trial_fold_assignment, validate_trial_aipw,
 };
+use crate::util::refuse;
 use crate::{EstimationError, TransportOverlapReport};
 use antecedent_core::ExecutionContext;
 use antecedent_identify::TransportIdentification;
@@ -71,18 +72,18 @@ pub const LEARNED_CONTINUOUS_BOUNDS: (usize, u32, u32) = (
     LEARNED_CONTINUOUS_MAX_BOOTSTRAP,
 );
 /// The fold scheme recorded on every estimate.
-pub const LEARNED_CONTINUOUS_FOLD_SCHEME: &str = "stratified_round_robin_source_arm_and_target";
+pub const LEARNED_CONTINUOUS_FOLD_SCHEME: &str = "stratified_seeded_source_arm_and_target";
 /// The one supported target of a request.
-pub const LEARNED_CONTINUOUS_TARGET: &str = "target_mean_contrast";
+pub(crate) const LEARNED_CONTINUOUS_TARGET: &str = "target_mean_contrast";
 
 /// Point-only status: no interval was requested.
-pub const CONTINUOUS_POINT_ONLY: &str = "point_only";
+pub(crate) const CONTINUOUS_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
-pub const CONTINUOUS_WITHHELD: &str = "withheld";
+pub(crate) const CONTINUOUS_WITHHELD: &str = "withheld";
 /// Reason for a point-only estimate.
-pub const CONTINUOUS_NO_INTERVAL_REQUESTED: &str = "no_interval_requested";
+pub(crate) const CONTINUOUS_NO_INTERVAL_REQUESTED: &str = "no_interval_requested";
 /// Available design-specific analytic influence interval.
-pub const CONTINUOUS_AVAILABLE: &str = "available";
+pub(crate) const CONTINUOUS_AVAILABLE: &str = "available";
 
 /// Overlap thresholds, learner specs, folds and bootstrap request of one estimate.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -229,10 +230,9 @@ pub struct LearnedContinuousEstimate {
     pub diagnostics: TrialNuisanceDiagnostics,
     /// Source-membership (`selection`) and treatment overlap, kept distinct.
     pub overlap: TransportOverlapReport,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
+    /// Per-row AIPW scores whose sample mean is [`Self::estimate`].
+    #[serde(default)]
+    pub scores: Vec<f64>,
 }
 
 fn support_refusal(detail: &str, message: &str) -> EstimationError {
@@ -392,6 +392,7 @@ pub fn estimate_learned_continuous(
         },
         diagnostics: point.diagnostics,
         overlap: point.overlap,
+        scores: point.scores,
     })
 }
 
@@ -526,7 +527,10 @@ impl LearnedContinuousOptions {
         ctx: &ExecutionContext,
     ) -> Result<(f64, (f64, f64)), EstimationError> {
         let run = estimate_learned_continuous_analytic_interval(id, input, self, ctx)?;
-        Ok((run.estimate, run.interval.expect("analytic result has an interval")))
+        let interval = run.interval.ok_or_else(|| {
+            EstimationError::data_msg("analytic learned-continuous result has no interval")
+        })?;
+        Ok((run.estimate, interval))
     }
 }
 

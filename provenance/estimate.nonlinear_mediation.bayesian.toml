@@ -1,0 +1,19 @@
+feature_id = "estimate.nonlinear_mediation.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "The published numbers are the posterior means of the mediator and outcome coefficients under independent normal priors on every non-intercept column, with the ordinary-least-squares residual variance plugged in. No interval is produced.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
+]

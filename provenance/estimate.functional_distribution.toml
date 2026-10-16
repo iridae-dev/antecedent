@@ -5,14 +5,12 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# Tian & Pearl's AAAI-02 ID paper has no resolving DOI: AAAI/UAI proceedings of this
-# era were not assigned registered DOIs, the ACM Digital Library `10.5555/...`
-# identifiers 404 at doi.org, and no arXiv mirror exists (`10.48550/arXiv.1301.2312`
-# is a different Tian & Pearl paper, "Causal Discovery from Changes"). Omitted rather
-# than asserted. The IDC paper does have an arXiv mirror, used below and shared with
-# identify.idc.toml.
+# ID lineage is Shpitser and Pearl (AAAI 2006), as in identify.id.toml;
+# this module evaluates the resulting expression rather than performing ID.
+# The primary paper is linked through the authors' institutional archive;
+# no unverified DOI is supplied. IDC shares its source with identify.idc.toml.
 papers = [
- { title = "A General Identification Condition for Causal Effects", sections = ["ID algorithm"] },
+ { title = "Identification of Joint Interventional Distributions in Recursive Semi-Markovian Causal Models", url = "https://escholarship.org/uc/item/9598x714", sections = ["Algorithm ID: lineage of the already identified expression, not the empirical plug-in evaluator"] },
  { title = "Identification of Conditional Interventional Distributions", doi = "10.48550/arXiv.1206.6876", sections = ["IDC algorithm"] },
 ]
 

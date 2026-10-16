@@ -22,7 +22,7 @@ use crate::Study;
 fn forged_plans(
     physical: &PhysicalExecutionPlan,
     other: impl Into<CausalQuery>,
-) -> [PhysicalExecutionPlan; 4] {
+) -> [Arc<PhysicalExecutionPlan>; 4] {
     let mut query = physical.clone();
     query.logical.query = other.into();
     assert_ne!(query.logical.query, physical.logical.query, "the forged query must differ");
@@ -32,7 +32,7 @@ fn forged_plans(
     identifier.logical.record.identifier = Some(Arc::from("randomized.design"));
     let mut estimator = physical.clone();
     estimator.logical.record.estimator = Some(Arc::from("randomized.ht_itt"));
-    [query, plan_id, identifier, estimator]
+    [query, plan_id, identifier, estimator].map(Arc::new)
 }
 
 fn panel_did() -> (TabularData, Study) {
@@ -60,7 +60,7 @@ fn panel_did() -> (TabularData, Study) {
 fn panel_did_refuses_a_forged_plan_or_structure_source() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, study) = panel_did();
-    let physical = study.plan(&ctx).unwrap();
+    let physical = Arc::new(study.plan(&ctx).unwrap());
     assert!(CheckedPanelDidOperation::checked(&study, &data, &physical).is_ok());
     let CausalQuery::PanelDid(mut other) = study.query.clone() else { unreachable!() };
     other.clusters = other.clusters.iter().map(|_| Arc::<str>::from("c0")).collect();
@@ -94,7 +94,7 @@ fn synthetic_control_refuses_a_forged_plan() {
         5,
     );
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
-    let physical = study.plan(&ctx).unwrap();
+    let physical = Arc::new(study.plan(&ctx).unwrap());
     assert!(CheckedSyntheticControlOperation::checked(&study, &data, &physical).is_ok());
     let CausalQuery::SyntheticControl(mut other) = study.query.clone() else { unreachable!() };
     other.treated_unit = Arc::from("a");
@@ -133,7 +133,7 @@ fn local_polynomial_ratio_refuses_a_forged_plan() {
         kink: true,
     };
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
-    let physical = study.plan(&ctx).unwrap();
+    let physical = Arc::new(study.plan(&ctx).unwrap());
     assert!(CheckedLocalPolynomialRatioOperation::checked(&study, &data, &physical).is_ok());
     let CausalQuery::LocalPolynomialRatio(mut other) = study.query.clone() else { unreachable!() };
     other.bandwidth = 0.5;

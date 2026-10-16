@@ -1,0 +1,23 @@
+# Algorithm provenance for adaptive_inference.bayesian_posterior (see docs/adaptive-inference.md).
+
+feature_id = "adaptive_inference.bayesian_posterior"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "On the likelihood that one unknown probability exceeds another in view of the evidence of two samples (Thompson, Biometrika 25:285-294)", doi = "10.1093/biomet/25.3-4.285", sections = ["Posterior probability that one arm exceeds another"] },
+]
+implementation_deviations = [
+ "Only the Beta-Bernoulli likelihood with prior shapes at least one; other priors and likelihoods are closed.",
+ "Quadrature, not a closed form, for non-integer shapes; accuracy about 1e-10 for counts below 1e5.",
+ "The posterior is exact under the declared prior; it is not a frequentist statement and its credible intervals have no measured coverage under adaptive sampling and stopping.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-stats/tests/adaptive_inference_oracle.rs",
+ "crates/antecedent-estimate/tests/adaptive_inference.rs",
+ "crates/antecedent-io/tests/adaptive_inference_result_artifact.rs",
+]

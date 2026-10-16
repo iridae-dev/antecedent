@@ -1,0 +1,25 @@
+# Algorithm provenance for adaptive_inference.anytime_valid_sequence (see docs/adaptive-inference.md).
+
+feature_id = "adaptive_inference.anytime_valid_sequence"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Statistical methods related to the law of the iterated logarithm (Robbins, Ann Math Statist 41:1397-1409)", doi = "10.1214/aoms/1177696786", sections = ["Normal mixture boundary"] },
+ { title = "Time-uniform, nonparametric, nonasymptotic confidence sequences (Howard, Ramdas, McAuliffe, Sekhon, Ann Statist 49:1055-1080)", doi = "10.1214/20-AOS1991", sections = ["Sub-Gaussian normal mixture boundary"] },
+ { title = "Estimating means of bounded random variables by betting (Waudby-Smith, Ramdas, JRSS B 86:1-27)", doi = "10.1093/jrsssb/qkad009", sections = ["Betting confidence sequences (not implemented; cited as the carried-forward alternative)"] },
+]
+implementation_deviations = [
+ "The normal-mixture Hoeffding boundary is implemented; the betting confidence sequences of Waudby-Smith and Ramdas are cited as the tighter alternative and are not implemented.",
+ "The finite-time theorem holds for the arm's observations in pull order under the stack-of-rewards premise; it is not measured for the whole adaptive procedure.",
+ "The mixture variance is tuned for a declared sample size; any positive tuning is valid, none is optimized.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-stats/tests/adaptive_inference_oracle.rs",
+ "crates/antecedent-estimate/tests/adaptive_inference.rs",
+ "crates/antecedent/tests/adaptive_inference_facade.rs",
+]

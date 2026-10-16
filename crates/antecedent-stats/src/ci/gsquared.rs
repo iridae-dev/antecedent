@@ -2,13 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_lossless,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::doc_markdown,
-    clippy::trivially_copy_pass_by_ref
-)]
 #![cfg_attr(
     test,
     allow(
@@ -24,12 +17,11 @@ use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::unbiased_index;
 
 use super::block_shuffle::{block_permute_contiguous, query_stream_salt};
-use super::parcorr::{PartialCorrelation, block_shuffle_min_p};
+use super::parcorr::PartialCorrelation;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
     PreparedCiTest, reject_unsupported_block_size, requested_block_size,
 };
-use crate::special::gamma_q;
 
 #[cfg(test)]
 use super::types::{CiQuery, ConfidenceMethod, SignificanceMethod};
@@ -132,8 +124,8 @@ impl ConditionalIndependenceTest for GSquared {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: super::types::SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 
@@ -225,13 +217,12 @@ pub(super) fn discrete_strata(
         let key = if z.is_empty() {
             0u64
         } else {
-            let mut h = 0xcbf2_9ce4_8422_2325_u64;
+            let mut h = antecedent_core::Fnv1a64::new();
             for zc in &codes {
                 let v = zc[r];
-                h ^= u64::from(u32::from_ne_bytes(v.to_ne_bytes()));
-                h = h.wrapping_mul(0x0100_0000_01b3);
+                h.fold(u64::from(u32::from_ne_bytes(v.to_ne_bytes())));
             }
-            h
+            h.finish()
         };
         strata.entry(key).or_default().push(r);
     }
@@ -240,6 +231,10 @@ pub(super) fn discrete_strata(
     Ok(keys.into_iter().filter_map(|k| strata.remove(&k)).collect())
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 fn g_squared_statistic(
     columns: &[&[f64]],
     x: usize,
@@ -263,6 +258,10 @@ fn g_squared_statistic(
 /// depended on the process hash seed. Permutation nulls hoist the code/strata
 /// construction (X codes and Z strata are invariant under Y-only permutation)
 /// and call this per replicate.
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 fn g_squared_from_parts(
     xi: &[i32],
     yi: &[i32],
@@ -296,6 +295,14 @@ fn g_squared_from_parts(
     Ok((g_total, df_total))
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 fn g_squared_on_rows(
     xi: &[i32],
     yi: &[i32],
@@ -337,7 +344,8 @@ fn g_squared_on_rows(
         &workspace.contingency_y_codes[..n_rows],
         &mut workspace.shuffled[..need],
         ly,
-    );
+    )
+    .map_err(|_| StatsError::Shape { message: "contingency table shape" })?;
     let mut row_sum = vec![0.0; lx];
     let mut col_sum = vec![0.0; ly];
     let mut total = 0.0;
@@ -386,22 +394,28 @@ fn g_squared_on_rows(
     Ok((g, df))
 }
 
-/// Exact chi-squared survival function via the regularized upper incomplete gamma
-/// `Q(df/2, x/2)`.
+/// Exact chi-squared survival function for the integer-valued contingency degrees of freedom
+/// (`df <= 0` is a degenerate table with no mass above any statistic: `0`). A thin adapter over
+/// the single owner [`crate::special::chi_square_sf`].
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the value is a positive integral degrees-of-freedom count"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the value is a positive integral degrees-of-freedom count"
+)]
 fn chi2_sf(x: f64, df: f64) -> f64 {
-    if x <= 0.0 {
-        return 1.0;
-    }
     if df <= 0.0 {
-        return 0.0;
+        return if x <= 0.0 { 1.0 } else { 0.0 };
     }
-    gamma_q(df * 0.5, x * 0.5)
+    crate::special::chi_square_sf(x, df as usize)
 }
 
 /// Residualize-then-correlate CI — an explicit alias of [`PartialCorrelation`].
 ///
 /// Kept as a named entry point for callers who think in regression terms; the
-/// statistic is identical to ParCorr.
+/// statistic is identical to `ParCorr`.
 #[derive(Clone, Debug, Default)]
 pub struct RegressionCi {
     inner: PartialCorrelation,
@@ -428,8 +442,8 @@ impl ConditionalIndependenceTest for RegressionCi {
         self.inner.test_batch(prepared, request, workspace, ctx)
     }
 
-    fn min_attainable_p(&self, significance: super::types::SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 

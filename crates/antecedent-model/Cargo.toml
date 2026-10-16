@@ -17,11 +17,11 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.3.0", path = "../antecedent-data" }
-antecedent-graph = { version = "2.3.0", path = "../antecedent-graph" }
-antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
-antecedent-stats = { version = "2.3.0", path = "../antecedent-stats" }
+antecedent-core = { workspace = true }
+antecedent-data = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-kernels = { workspace = true }
+antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 
 [features]
@@ -39,6 +39,7 @@ default = []
 gaussian-process = []
 
 [dev-dependencies]
+antecedent-identify = { workspace = true }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 

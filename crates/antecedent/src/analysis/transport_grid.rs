@@ -3,7 +3,7 @@ use super::{
     ExactPreparedState, ExactStudyResult, PreparedStudy, StatisticalPreparedState,
     StatisticalStudyResult, StudyBuilder,
 };
-pub use antecedent_core::TransportGridFailure;
+pub use antecedent_contract::TransportGridFailure;
 use antecedent_core::{ExecutionContext, IdentityDomain, NodeRef, VariableDomain, VariableId};
 use antecedent_estimate::{EmpiricalTableOptions, StatisticalTransportInput};
 use antecedent_expr::{
@@ -22,13 +22,9 @@ use antecedent_io::{
 use serde::Deserialize;
 use std::sync::Arc;
 
-use super::transport_common::{GraphFields, digest, err, rebind_snapshots, rebuild_checked_proof};
-fn assignments(request: &Assignment) -> Vec<(u32, ValueWire)> {
-    let mut values: Vec<_> =
-        request.entries().iter().map(|(v, x)| (v.raw(), ValueWire::from_value(x))).collect();
-    values.sort_by_key(|x| x.0);
-    values
-}
+use super::transport_common::{
+    GraphFields, assignments, digest, err, rebind_snapshots, rebuild_checked_proof,
+};
 fn request(values: &[(u32, ValueWire)]) -> Assignment {
     Assignment::from_pairs(values.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())))
 }
@@ -238,7 +234,7 @@ impl TransportGridResult {
     }
     /// All four durable reasoning slots; per-point inference is retained in each point.
     #[must_use]
-    pub fn reasoning(&self) -> antecedent_core::ReasoningView {
+    pub fn reasoning(&self) -> antecedent_contract::ReasoningView {
         let kinds = self.points.iter().map(|point| match point {
             TransportGridPoint::Unavailable(failure) => Some(failure.kind.as_str()),
             _ => None,
@@ -287,7 +283,7 @@ impl TransportGridResult {
         &self,
         point: usize,
         outcome: VariableId,
-    ) -> Result<(f64, antecedent_core::HandoffReceipt), IoError> {
+    ) -> Result<(f64, antecedent_contract::HandoffReceipt), IoError> {
         let distribution = self
             .points
             .get(point)
@@ -298,7 +294,7 @@ impl TransportGridResult {
         );
         Ok((
             distribution.mean(outcome).map_err(err)?,
-            antecedent_core::HandoffReceipt::lossy_scalar(identity, "transport_grid_scalar"),
+            antecedent_contract::HandoffReceipt::lossy_scalar(identity, "transport_grid_scalar"),
         ))
     }
     /// Export a sectioned artifact with explicit required transport features.
@@ -335,12 +331,12 @@ impl TransportGridResult {
 fn grid_reasoning_view(
     execution: Option<GridTally>,
     legacy: bool,
-) -> antecedent_core::ReasoningView {
-    use antecedent_core::{
-        AssumptionSlot, AssumptionSource, AssumptionStatus, IdentificationSlot,
-        IdentificationStatus, ObligationKind, ObligationRecord, ObligationScope, ReasoningView,
-        SlotAvailability, SupportSlot,
+) -> antecedent_contract::ReasoningView {
+    use antecedent_contract::{
+        AssumptionSlot, IdentificationSlot, ObligationKind, ObligationRecord, ObligationScope,
+        ReasoningView, SlotAvailability, SupportSlot,
     };
+    use antecedent_core::{AssumptionSource, AssumptionStatus, IdentificationStatus};
     ReasoningView::new(
         SlotAvailability::Available(IdentificationSlot::identified_singleton(
             IdentificationStatus::NonparametricallyIdentified,
@@ -503,6 +499,54 @@ fn compile_grid(
         .collect()
 }
 
+/// Resolves the grid's provider laws, sample summaries, and frozen inference options from the supplied evidence.
+fn grid_provider_data(
+    input: &TransportGridData,
+    query: &TransportGridQuery,
+    ctx: &ExecutionContext,
+) -> Result<(ExactTransportData, Vec<SampleSummary>, Option<StatisticalOptionsWire>), IoError> {
+    Ok(match input {
+        TransportGridData::Exact(data) => {
+            if data.laws().iter().any(|l| l.origin() != antecedent_expr::LawOrigin::SuppliedExact) {
+                return Err(err("empirical laws require statistical transport"));
+            }
+            (data.clone(), vec![], None)
+        }
+        TransportGridData::Statistical(input, options) => {
+            antecedent_estimate::statistical_transport::check_statistical_resources(
+                input,
+                &query.functional,
+                options,
+                ctx,
+            )
+            .map_err(err)?;
+            let summaries = input
+                .samples
+                .iter()
+                .map(SampleSummary::from_sample)
+                .collect::<Result<Vec<_>, _>>()?;
+            (
+                antecedent_estimate::empirical_table::assemble_grid_point_laws(
+                    input,
+                    &query.functional,
+                    options,
+                    ctx,
+                )
+                .map_err(err)?,
+                summaries,
+                Some(StatisticalOptionsWire::from_options(options)),
+            )
+        }
+    })
+}
+
+/// Per-point local failures, the eligible assignments, and their retained distributions.
+struct EligibleGridPoints {
+    failures: Vec<Option<TransportGridFailure>>,
+    eligible: Vec<Assignment>,
+    evaluated: Vec<ExactDistribution>,
+}
+
 impl StudyBuilder {
     /// Prepare a finite mean-response grid without discarding unsupported assignments.
     /// # Errors
@@ -525,43 +569,7 @@ impl StudyBuilder {
         if let TransportGridData::Statistical(input, _) = &mut input {
             super::statistical::canonicalize_input(input)?;
         }
-        let (data, samples, options) = match &input {
-            TransportGridData::Exact(data) => {
-                if data
-                    .laws()
-                    .iter()
-                    .any(|l| l.origin() != antecedent_expr::LawOrigin::SuppliedExact)
-                {
-                    return Err(err("empirical laws require statistical transport"));
-                }
-                (data.clone(), vec![], None)
-            }
-            TransportGridData::Statistical(input, options) => {
-                antecedent_estimate::statistical_transport::check_statistical_resources(
-                    input,
-                    &query.functional,
-                    options,
-                    ctx,
-                )
-                .map_err(err)?;
-                let summaries = input
-                    .samples
-                    .iter()
-                    .map(SampleSummary::from_sample)
-                    .collect::<Result<Vec<_>, _>>()?;
-                (
-                    antecedent_estimate::empirical_table::assemble_grid_point_laws(
-                        input,
-                        &query.functional,
-                        options,
-                        ctx,
-                    )
-                    .map_err(err)?,
-                    summaries,
-                    Some(StatisticalOptionsWire::from_options(options)),
-                )
-            }
-        };
+        let (data, samples, options) = grid_provider_data(&input, &query, ctx)?;
         let data = data.with_shared_factor_cache(1024);
         let footprint = data
             .laws()
@@ -638,7 +646,7 @@ impl PreparedStudy<TransportGridState> {
     /// property of the accepted proof and the assumptions are declared; support
     /// and uncertainty stay execution-specific until the grid runs.
     #[must_use]
-    pub fn inspect(&self) -> antecedent_core::ReasoningView {
+    pub fn inspect(&self) -> antecedent_contract::ReasoningView {
         grid_reasoning_view(None, false)
     }
     /// Whether the retained native providers permit estimator replay without refresh.
@@ -669,51 +677,18 @@ impl PreparedStudy<TransportGridState> {
         };
         ctx.memory.hard_limit_bytes =
             ctx.memory.hard_limit_bytes.map(|n| n / query.at.len() as u64);
-        let mut failures = Vec::new();
-        let mut eligible = Vec::new();
-        // A point's eligibility pass already computes its distribution on the retained point
-        // laws; keep it rather than evaluating the same plan again (an exact point publishes
-        // it, a statistical point uses it as its point estimate under the joint bootstrap).
-        let mut evaluated_points = Vec::new();
-        for (at, plan) in query.at.iter().zip(&self.state.plans) {
-            let evaluated = match plan {
-                Ok(plan) => plan.evaluate(&ctx).map_err(|e| local_failure(e, &query.functional)),
-                Err(failure) => Err(Ok(failure.clone())),
-            };
-            match evaluated {
-                Ok(distribution) => {
-                    failures.push(None);
-                    eligible.push(at.clone());
-                    evaluated_points.push(distribution);
-                }
-                Err(e) => failures.push(Some(e?)),
-            }
-        }
-        let mut evaluated_points = Some(evaluated_points);
+        let EligibleGridPoints { failures, eligible, evaluated } =
+            self.evaluate_eligible_points(&ctx)?;
+        let mut evaluated_points = Some(evaluated);
         let mut statistical = if let TransportGridData::Statistical(input, options) = input {
-            if let Some(first) = eligible.first() {
-                let study = PreparedStudy::<StatisticalPreparedState>::build_fitted(
-                    query.diagram.clone(),
-                    query.functional.clone(),
-                    input.clone(),
-                    self.state.data.clone(),
-                    self.state.template.samples.clone(),
-                    first.clone(),
-                    limits,
-                    *options,
-                    &ctx,
-                    false,
-                )?;
-                study
-                    .estimate_grid_evaluated(
-                        &eligible,
-                        evaluated_points.take().unwrap_or_default(),
-                        &ctx,
-                    )?
-                    .into_iter()
-            } else {
-                vec![].into_iter()
-            }
+            self.joint_statistical_estimates(
+                input,
+                options,
+                &eligible,
+                limits,
+                &mut evaluated_points,
+                &ctx,
+            )?
         } else {
             vec![].into_iter()
         };
@@ -767,6 +742,75 @@ impl PreparedStudy<TransportGridState> {
             identity: antecedent_io::transport_grid_wire::grid_identity(&wire)?,
             wire,
             points,
+        })
+    }
+    /// Evaluates every compiled point once, splitting local failures from the eligible points and their distributions.
+    fn evaluate_eligible_points(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<EligibleGridPoints, IoError> {
+        let query = &self.state.query;
+        let mut failures = Vec::new();
+        let mut eligible = Vec::new();
+        // A point's eligibility pass already computes its distribution on the retained point
+        // laws; keep it rather than evaluating the same plan again (an exact point publishes
+        // it, a statistical point uses it as its point estimate under the joint bootstrap).
+        let mut evaluated_points = Vec::new();
+        for (at, plan) in query.at.iter().zip(&self.state.plans) {
+            let evaluated = match plan {
+                Ok(plan) => plan.evaluate(ctx).map_err(|e| local_failure(e, &query.functional)),
+                Err(failure) => Err(Ok(failure.clone())),
+            };
+            match evaluated {
+                Ok(distribution) => {
+                    failures.push(None);
+                    eligible.push(at.clone());
+                    evaluated_points.push(distribution);
+                }
+                Err(e) => failures.push(Some(e?)),
+            }
+        }
+        Ok(EligibleGridPoints { failures, eligible, evaluated: evaluated_points })
+    }
+
+    /// Fits the joint bootstrap over the eligible statistical points, consuming the retained point distributions.
+    fn joint_statistical_estimates(
+        &self,
+        input: &StatisticalTransportInput,
+        options: &EmpiricalTableOptions,
+        eligible: &[Assignment],
+        limits: ExactEvaluationLimits,
+        evaluated_points: &mut Option<Vec<ExactDistribution>>,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        std::vec::IntoIter<(PreparedStudy<StatisticalPreparedState>, StatisticalStudyResult)>,
+        IoError,
+    > {
+        let query = &self.state.query;
+        Ok(if let Some(first) = eligible.first() {
+            let study = PreparedStudy::<StatisticalPreparedState>::build_fitted(
+                super::statistical::StatisticalPremises {
+                    diagram: query.diagram.clone(),
+                    functional: query.functional.clone(),
+                    input: Arc::new(input.clone()),
+                    data: self.state.data.clone(),
+                    samples: self.state.template.samples.clone(),
+                    request: first.clone(),
+                    limits,
+                    options: *options,
+                },
+                ctx,
+                false,
+            )?;
+            study
+                .estimate_grid_evaluated(
+                    eligible,
+                    evaluated_points.take().unwrap_or_default(),
+                    ctx,
+                )?
+                .into_iter()
+        } else {
+            vec![].into_iter()
         })
     }
     /// Explicit atomic refresh, retaining the previous state if any global check fails.
@@ -884,16 +928,17 @@ impl PreparedStudy<TransportGridState> {
     /// Identity serialization failure.
     pub fn preview_transform(
         &self,
-        intent: antecedent_core::TransformIntent,
-    ) -> Result<antecedent_core::TransformationReport, IoError> {
-        use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
+        intent: antecedent_contract::TransformIntent,
+    ) -> Result<antecedent_contract::TransformationReport, IoError> {
+        use antecedent_contract::{TransformIntent, TransformationReport};
+        use antecedent_core::{IdentityRef, SemanticDigest};
         let id = SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(
             &digest(IdentityDomain::Execution, &self.state.template)?,
         )?);
         let report = TransformationReport::new(
             intent,
             vec![IdentityRef::new(IdentityDomain::Execution, id)],
-            antecedent_core::intent_effects(intent).iter().cloned(),
+            antecedent_contract::intent_effects(intent).iter().cloned(),
             vec![],
         );
         Ok(
@@ -920,179 +965,13 @@ impl PreparedStudy<TransportGridState> {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<(Self, TransportGridResult), IoError> {
-        if ctx.cancellation.is_cancelled()
-            || ctx.memory.hard_limit_bytes.is_some_and(|n| bytes.len() as u64 > n)
-        {
-            return Err(err("transport grid budget/cancellation"));
-        }
-        let artifact =
-            antecedent_io::transport_certificate::read_bounded_transport_artifact(bytes, ctx)?;
-        if artifact.manifest.artifact_kind
-            != antecedent_io::wire::ArtifactKind::Other("transport_grid".into())
-            || artifact.sections.len() != 1
-            || artifact.sections[0].id != "transport_grid_v1"
-        {
-            return Err(err("unsupported transport grid artifact"));
-        }
-        let wire: GridWire = antecedent_io::from_cbor(&artifact.sections[0].data)?;
-        if !matches!(wire.version, 1 | 2)
-            || wire.required_features
-                != [
-                    "checked_transport_proof_v1",
-                    if wire.version == 1 {
-                        "retained_transport_grid_v1"
-                    } else {
-                        "retained_transport_grid_v2"
-                    },
-                ]
-            || (wire.version == 1 && !wire.point_evidence.is_empty())
-            || (wire.version == 2 && wire.point_evidence.len() != wire.points.len())
-            || wire.operations > limits.operations
-            || wire.depth > limits.depth
-            || wire.at.is_empty()
-            || wire.at.len() != wire.points.len()
-            || wire.at.len() > limits.operations
-        {
-            return Err(err("unsupported transport grid features/version/limits"));
-        }
-        // A grid written before the support summary separated missing evidence from
-        // support failures carries the undifferentiated summary; both are this grid's.
-        if wire.reasoning != grid_reasoning(&wire.points, wire.statistical, false)
-            && wire.reasoning != grid_reasoning(&wire.points, wire.statistical, true)
-        {
-            return Err(err("grid reasoning mismatch"));
-        }
-        if antecedent_io::transport_grid_wire::grid_identity(&wire)?
-            != artifact.manifest.artifact_id
-        {
-            return Err(err("transport grid identity mismatch"));
-        }
-        let (diagram, proof) = rebuild_checked_proof(
-            &GraphFields {
-                nodes: &wire.nodes,
-                directed: &wire.directed,
-                bidirected: &wire.bidirected,
-                selections: &wire.selections,
-            },
-            &wire.proof,
-            limits,
-            ctx,
-        )?;
-        let catalog = wire.catalog.to_catalog()?;
-        let functional = proof
-            .bind_catalog_with_context(
-                &catalog,
-                SidLimits { steps: limits.operations, depth: limits.depth },
-                ctx,
-            )
-            .map_err(err)?;
-        validate_grid(
-            &functional,
-            &wire.at.iter().map(|a| request(a)).collect::<Vec<_>>(),
-            ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
-            ctx,
-        )?;
-        if wire.at.iter().any(|a| a.len() != request(a).entries().len()) {
-            return Err(err("duplicate grid assignment coordinate"));
-        }
-        let data = ExactTransportData::try_new(
-            wire.laws.iter().map(ExactLawWire::to_law).collect::<Result<Vec<_>, _>>()?,
-            limits.operations,
-        )
-        .map_err(err)?;
-        super::statistical::validate_sample_summaries(&wire.samples, &data, &catalog)?;
-        if !wire.statistical
-            && (!wire.samples.is_empty()
-                || data
-                    .laws()
-                    .iter()
-                    .any(|law| law.origin() != antecedent_expr::LawOrigin::SuppliedExact))
-        {
-            return Err(err("empirical grid mislabeled as supplied exact"));
-        }
-        if wire.statistical != wire.options.is_some() {
-            return Err(err("grid provider modality mismatch"));
-        }
-        if let Some(options) = &wire.options {
-            antecedent_estimate::empirical_table::validate_options(&options.to_options()?)
-                .map_err(err)?;
-        }
+        let (wire, artifact_id) = read_grid_wire(bytes, limits, ctx)?;
+        let (diagram, functional, data) = rebuild_grid_premises(&wire, limits, ctx)?;
         let at: Vec<_> = wire.at.iter().map(|values| request(values)).collect();
         if at.iter().zip(&wire.at).any(|(a, b)| a.entries().len() != b.len()) {
             return Err(err("duplicate grid assignment"));
         }
-        let executable: Vec<_> = wire
-            .at
-            .iter()
-            .zip(&wire.points)
-            .filter(|(_, p)| !matches!(p, GridPointWire::Unavailable(_)))
-            .map(|(a, _)| a.clone())
-            .collect();
-        let point_limits = ExactEvaluationLimits {
-            operations: wire.operations / wire.at.len(),
-            depth: wire.depth,
-        };
-        let mut points = Vec::new();
-        for ((at, values), point) in at.iter().zip(&wire.at).zip(&wire.points) {
-            match point {
-                GridPointWire::Unavailable(expected) => {
-                    let evaluated = antecedent_estimate::prepare_exact_transport(
-                        &functional,
-                        data.clone(),
-                        at.clone(),
-                        point_limits,
-                        ctx,
-                    )
-                    .and_then(|plan| plan.evaluate(ctx));
-                    let actual = local_failure(
-                        evaluated.err().ok_or_else(|| err("claimed grid failure is executable"))?,
-                        &functional,
-                    )?;
-                    if actual != expected.to_failure() {
-                        return Err(err("grid support claim mismatch"));
-                    }
-                    points.push(TransportGridPoint::Unavailable(actual));
-                }
-                GridPointWire::Exact(bytes) | GridPointWire::Statistical(bytes) => {
-                    let binding: PointBinding = antecedent_io::from_cbor(bytes)?;
-                    if antecedent_io::to_cbor(&binding.proof)?
-                        != antecedent_io::to_cbor(&wire.proof)?
-                        || binding.catalog != wire.catalog
-                        || law_set(&binding.laws)? != law_set(&wire.laws)?
-                        || &binding.request != values
-                    {
-                        return Err(err("substituted grid point inputs"));
-                    }
-                    match point {
-                        GridPointWire::Exact(_) if !wire.statistical => {
-                            let (study, result) = PreparedStudy::<ExactPreparedState>::consume(
-                                bytes,
-                                point_limits,
-                                ctx,
-                            )?;
-                            points.push(TransportGridPoint::Exact(study, Box::new(result)));
-                        }
-                        GridPointWire::Statistical(_) if wire.statistical => {
-                            if binding.grid != executable
-                                || binding.samples != wire.samples
-                                || binding.options != wire.options
-                                || binding.seed != wire.seed
-                            {
-                                return Err(err("substituted grid inference family"));
-                            }
-                            let (study, result) =
-                                PreparedStudy::<StatisticalPreparedState>::consume(
-                                    bytes,
-                                    point_limits,
-                                    ctx,
-                                )?;
-                            points.push(TransportGridPoint::Statistical(study, Box::new(result)));
-                        }
-                        _ => return Err(err("substituted grid modality")),
-                    }
-                }
-            }
-        }
+        let points = verify_grid_points(&wire, &at, &functional, &data, ctx)?;
         if wire.version == 2
             && points.iter().map(point_evidence).collect::<Result<Vec<_>, _>>()?
                 != wire.point_evidence
@@ -1132,11 +1011,197 @@ impl PreparedStudy<TransportGridState> {
             seed: wire.seed,
             template: GridWire { points: vec![], ..wire.clone() },
         };
-        Ok((
-            PreparedStudy { state },
-            TransportGridResult { points, identity: artifact.manifest.artifact_id, wire },
-        ))
+        Ok((PreparedStudy { state }, TransportGridResult { points, identity: artifact_id, wire }))
     }
+}
+
+/// Reads the bounded artifact, checks its container, features, reasoning, and identity, and returns the wire with its artifact id.
+fn read_grid_wire(
+    bytes: &[u8],
+    limits: ExactEvaluationLimits,
+    ctx: &ExecutionContext,
+) -> Result<(GridWire, String), IoError> {
+    if ctx.cancellation.is_cancelled()
+        || ctx.memory.hard_limit_bytes.is_some_and(|n| bytes.len() as u64 > n)
+    {
+        return Err(err("transport grid budget/cancellation"));
+    }
+    let artifact =
+        antecedent_io::transport_certificate::read_bounded_transport_artifact(bytes, ctx)?;
+    if artifact.manifest.artifact_kind
+        != antecedent_io::wire::ArtifactKind::Other("transport_grid".into())
+        || artifact.sections.len() != 1
+        || artifact.sections[0].id != "transport_grid_v1"
+    {
+        return Err(err("unsupported transport grid artifact"));
+    }
+    let wire: GridWire = antecedent_io::from_cbor(&artifact.sections[0].data)?;
+    if !matches!(wire.version, 1 | 2)
+        || wire.required_features
+            != [
+                "checked_transport_proof_v1",
+                if wire.version == 1 {
+                    "retained_transport_grid_v1"
+                } else {
+                    "retained_transport_grid_v2"
+                },
+            ]
+        || (wire.version == 1 && !wire.point_evidence.is_empty())
+        || (wire.version == 2 && wire.point_evidence.len() != wire.points.len())
+        || wire.operations > limits.operations
+        || wire.depth > limits.depth
+        || wire.at.is_empty()
+        || wire.at.len() != wire.points.len()
+        || wire.at.len() > limits.operations
+    {
+        return Err(err("unsupported transport grid features/version/limits"));
+    }
+    // A grid written before the support summary separated missing evidence from
+    // support failures carries the undifferentiated summary; both are this grid's.
+    if wire.reasoning != grid_reasoning(&wire.points, wire.statistical, false)
+        && wire.reasoning != grid_reasoning(&wire.points, wire.statistical, true)
+    {
+        return Err(err("grid reasoning mismatch"));
+    }
+    if antecedent_io::transport_grid_wire::grid_identity(&wire)? != artifact.manifest.artifact_id {
+        return Err(err("transport grid identity mismatch"));
+    }
+    Ok((wire, artifact.manifest.artifact_id))
+}
+
+/// Rebuilds the checked proof, bound functional, and exact laws a grid artifact claims, validating its declared inputs.
+fn rebuild_grid_premises(
+    wire: &GridWire,
+    limits: ExactEvaluationLimits,
+    ctx: &ExecutionContext,
+) -> Result<(SelectionDiagram, BoundTransportFunctional, ExactTransportData), IoError> {
+    let (diagram, proof) = rebuild_checked_proof(
+        &GraphFields {
+            nodes: &wire.nodes,
+            directed: &wire.directed,
+            bidirected: &wire.bidirected,
+            selections: &wire.selections,
+        },
+        &wire.proof,
+        limits,
+        ctx,
+    )?;
+    let catalog = wire.catalog.to_catalog()?;
+    let functional = proof
+        .bind_catalog_with_context(
+            &catalog,
+            SidLimits { steps: limits.operations, depth: limits.depth },
+            ctx,
+        )
+        .map_err(err)?;
+    validate_grid(
+        &functional,
+        &wire.at.iter().map(|a| request(a)).collect::<Vec<_>>(),
+        ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
+        ctx,
+    )?;
+    if wire.at.iter().any(|a| a.len() != request(a).entries().len()) {
+        return Err(err("duplicate grid assignment coordinate"));
+    }
+    let data = ExactTransportData::try_new(
+        wire.laws.iter().map(ExactLawWire::to_law).collect::<Result<Vec<_>, _>>()?,
+        limits.operations,
+    )
+    .map_err(err)?;
+    super::statistical::validate_sample_summaries(&wire.samples, &data, &catalog)?;
+    if !wire.statistical
+        && (!wire.samples.is_empty()
+            || data
+                .laws()
+                .iter()
+                .any(|law| law.origin() != antecedent_expr::LawOrigin::SuppliedExact))
+    {
+        return Err(err("empirical grid mislabeled as supplied exact"));
+    }
+    if wire.statistical != wire.options.is_some() {
+        return Err(err("grid provider modality mismatch"));
+    }
+    if let Some(options) = &wire.options {
+        antecedent_estimate::empirical_table::validate_options(&options.to_options()?)
+            .map_err(err)?;
+    }
+    Ok((diagram, functional, data))
+}
+
+/// Re-derives each retained point from its embedded claim, rejecting substituted inputs, modalities, and failures.
+fn verify_grid_points(
+    wire: &GridWire,
+    at: &[Assignment],
+    functional: &BoundTransportFunctional,
+    data: &ExactTransportData,
+    ctx: &ExecutionContext,
+) -> Result<Vec<TransportGridPoint>, IoError> {
+    let executable: Vec<_> = wire
+        .at
+        .iter()
+        .zip(&wire.points)
+        .filter(|(_, p)| !matches!(p, GridPointWire::Unavailable(_)))
+        .map(|(a, _)| a.clone())
+        .collect();
+    let point_limits =
+        ExactEvaluationLimits { operations: wire.operations / wire.at.len(), depth: wire.depth };
+    let mut points = Vec::new();
+    for ((at, values), point) in at.iter().zip(&wire.at).zip(&wire.points) {
+        match point {
+            GridPointWire::Unavailable(expected) => {
+                let evaluated = antecedent_estimate::prepare_exact_transport(
+                    functional,
+                    data.clone(),
+                    at.clone(),
+                    point_limits,
+                    ctx,
+                )
+                .and_then(|plan| plan.evaluate(ctx));
+                let actual = local_failure(
+                    evaluated.err().ok_or_else(|| err("claimed grid failure is executable"))?,
+                    functional,
+                )?;
+                if actual != expected.to_failure() {
+                    return Err(err("grid support claim mismatch"));
+                }
+                points.push(TransportGridPoint::Unavailable(actual));
+            }
+            GridPointWire::Exact(bytes) | GridPointWire::Statistical(bytes) => {
+                let binding: PointBinding = antecedent_io::from_cbor(bytes)?;
+                if antecedent_io::to_cbor(&binding.proof)? != antecedent_io::to_cbor(&wire.proof)?
+                    || binding.catalog != wire.catalog
+                    || law_set(&binding.laws)? != law_set(&wire.laws)?
+                    || &binding.request != values
+                {
+                    return Err(err("substituted grid point inputs"));
+                }
+                match point {
+                    GridPointWire::Exact(_) if !wire.statistical => {
+                        let (study, result) =
+                            PreparedStudy::<ExactPreparedState>::consume(bytes, point_limits, ctx)?;
+                        points.push(TransportGridPoint::Exact(study, Box::new(result)));
+                    }
+                    GridPointWire::Statistical(_) if wire.statistical => {
+                        if binding.grid != executable
+                            || binding.samples != wire.samples
+                            || binding.options != wire.options
+                            || binding.seed != wire.seed
+                        {
+                            return Err(err("substituted grid inference family"));
+                        }
+                        let (study, result) = PreparedStudy::<StatisticalPreparedState>::consume(
+                            bytes,
+                            point_limits,
+                            ctx,
+                        )?;
+                        points.push(TransportGridPoint::Statistical(study, Box::new(result)));
+                    }
+                    _ => return Err(err("substituted grid modality")),
+                }
+            }
+        }
+    }
+    Ok(points)
 }
 
 #[cfg(test)]

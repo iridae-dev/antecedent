@@ -21,10 +21,11 @@ use antecedent_io::{
     section_descriptor, to_cbor,
 };
 use antecedent_model::{CompiledMechanismStore, MechanismSlot};
+use antecedent_test_support::conformance_dir;
 use serde_json::Value;
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/interchange/artifact_migrate")
+    conformance_dir("interchange/artifact_migrate")
 }
 
 #[test]
@@ -292,7 +293,6 @@ fn class_aware_identified_set_interval_survives_the_result_artifact() {
         state ^= state << 13;
         state ^= state >> 7;
         state ^= state << 17;
-        #[allow(clippy::cast_precision_loss)]
         let u = (state >> 11) as f64 / (1u64 << 53) as f64;
         u - 0.5
     };

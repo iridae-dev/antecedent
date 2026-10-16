@@ -1,4 +1,4 @@
-//! 2.3.0 A5 transported static path-specific counterfactual artifact: hand-derived oracle values
+//! Transported static path-specific counterfactual artifact: hand-derived oracle values
 //! through the container, a recomputing consumer, resealed-mutation refusals against a retained
 //! identity (premise, law, coefficient, selection, assignment), false-labelled premises,
 //! refusals that are never stored, unknown versions and bounds.
@@ -11,19 +11,22 @@
 //! `{0: 0.4, 1: 0.4, 2: 0.2}` gives `5.4`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::transported_counterfactual_artifact::{
-    AffineWire, AssignmentWire, EvidenceWire, LawWire, MAX_COVARIATES, MechanismWire, ModelWire,
-    PremisesWire, RefusalWire, SelectionWire, SupportPointWire, TransportedCounterfactualArtifact,
-    TransportedCounterfactualArtifactError, TransportedCounterfactualMeta,
+    AffineWire, AssignmentWire, EvidenceWire, LawWire, MAX_COVARIATES, ModelWire, PremisesWire,
+    SelectionWire, SupportPointWire, TransportedCounterfactualArtifact,
+    TransportedCounterfactualArtifactError, TransportedCounterfactualMechanismWire,
+    TransportedCounterfactualMeta, TransportedCounterfactualRefusalWire,
     TransportedCounterfactualRequestWire, decode_parts, encode_parts,
 };
+
+#[path = "common/mod.rs"]
+mod common;
 
 const TOL: f64 = 1e-12;
 
 fn close(a: f64, b: f64) {
-    assert!((a - b).abs() < TOL, "{a} != {b}");
+    common::close_below(a, b, TOL);
 }
 
 fn aff(constant: f64, slopes: &[(&str, f64)]) -> AffineWire {
@@ -38,12 +41,12 @@ fn model() -> ModelWire {
         treatment: "a".into(),
         covariates: vec!["z".into()],
         mechanisms: vec![
-            MechanismWire {
+            TransportedCounterfactualMechanismWire {
                 node: "m".into(),
                 intercept: aff(0.0, &[]),
                 parents: vec![("z".into(), aff(0.5, &[])), ("a".into(), aff(2.0, &[("z", -0.5)]))],
             },
-            MechanismWire {
+            TransportedCounterfactualMechanismWire {
                 node: "y".into(),
                 intercept: aff(0.0, &[]),
                 parents: vec![
@@ -114,7 +117,9 @@ fn seal(request: &TransportedCounterfactualRequestWire) -> TransportedCounterfac
     TransportedCounterfactualArtifact::seal(request).expect("seals")
 }
 
-fn refusal_of(request: &TransportedCounterfactualRequestWire) -> RefusalWire {
+fn refusal_of(
+    request: &TransportedCounterfactualRequestWire,
+) -> TransportedCounterfactualRefusalWire {
     TransportedCounterfactualArtifact::seal(request)
         .expect_err("must refuse")
         .refusal()

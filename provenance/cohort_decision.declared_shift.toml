@@ -1,0 +1,20 @@
+feature_id = "cohort_decision.declared_shift"
+implementation_crate = "antecedent-io-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: the declared premise that the selection node enters only the covariates"] },
+  { title = "The use of propensity scores to assess the generalizability of results from randomized trials (Stuart, Cole, Bradshaw and Leaf, 2011)", doi = "10.1111/j.1467-985X.2010.00673.x", sections = ["conditions for generalizing a conditional treatment effect to a target population"] },
+]
+implementation_deviations = [
+  "Original bounded route under a declared invariance premise; the premise is a declaration and is not tested. The cited literature is the statement of the covariate-shift identification, not an implemented algorithm.",
+  "Only the support box is checked as a positivity necessary condition; no density ratio, overlap weight or transported variance is computed, and the result is labelled extrapolative and point-only.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-io-core/src/cohort_decision/tests.rs",
+  "crates/antecedent-design/tests/cohort_decision_input.rs",
+]

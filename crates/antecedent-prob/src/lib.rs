@@ -4,23 +4,9 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(
-    clippy::neg_cmp_op_on_partial_ord,
-    clippy::unnecessary_wraps,
-    clippy::manual_memcpy,
-    clippy::single_match_else,
-    clippy::match_same_arms,
-    clippy::manual_range_contains,
-    clippy::doc_markdown,
-    clippy::needless_range_loop,
-    clippy::too_many_lines,
-    clippy::too_many_arguments
-)]
 #![cfg_attr(
     test,
     allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -47,7 +33,7 @@ pub mod transport;
 
 pub use backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
-    LaplaceWorkspace, coefficient_schema,
+    LaplaceWorkspace,
 };
 pub use conjugate::{
     ConjugateGaussianBackend, fit_conjugate_gaussian, sample_gamma, sample_inv_gamma,
@@ -62,28 +48,22 @@ pub use external_prior::{
     ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
     compose_external_priors_with_alphas, kish_ess,
 };
-pub use gaussian_target::{
-    GaussianInvGammaTarget, GaussianKnownTarget, GaussianTarget, PosteriorTarget,
-    gaussian_target_from_model, gaussian_target_from_model_with_precision,
-};
 pub use graph_samples::{GraphEnvelopeSubsample, GraphIdentFlag, WeightedGraphSamples};
 pub use hmc::{HmcGlmBackend, HmcOptions, fit_hmc_glm};
 pub use laplace::{LaplaceGlmBackend, fit_laplace_glm, sample_gaussian_mvn};
 pub use mcmc_stats::{
-    McmcSummary, ParameterMcmcDiagnostics, all_chains_moved, max_split_rhat, mcmc_summary,
-    min_bulk_ess, min_tail_ess, parameter_mcmc_diagnostics,
+    McmcSummary, ParameterMcmcDiagnostics, all_chains_moved, mcmc_summary, min_bulk_ess,
+    min_tail_ess, parameter_mcmc_diagnostics,
 };
 pub use posterior::{
     EffectBatch, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,
     PosteriorSchema, PosteriorSummary,
 };
 pub use prior::{
-    ABSOLUTE_COEFFICIENT_SCALE_ID, CoefficientCorrelation, CoefficientPrecision, ContrastCoding,
-    EffectPrior, GaussianCoefficientPrior, GaussianVarianceModel, InvGammaPrior, PriorSet,
-    PriorSpec,
+    CoefficientCorrelation, CoefficientPrecision, ContrastCoding, EffectPrior,
+    GaussianCoefficientPrior, GaussianVarianceModel, InvGammaPrior, PriorSet, PriorSpec,
 };
 pub use transport::{
-    POPULATION_TAG_KEY, TRANSPORT_ASSUMPTION_ID, TRANSPORT_MIN_KISH_ESS, TransportAdjustment,
-    TransportContext, TransportError, TransportOutcome, TransportPolicy, apply_transport,
-    compose_with_transport, populations_require_transport,
+    POPULATION_TAG_KEY, TRANSPORT_MIN_KISH_ESS, TransportAdjustment, TransportContext,
+    TransportError, TransportOutcome, TransportPolicy, apply_transport, compose_with_transport,
 };

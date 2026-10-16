@@ -84,7 +84,7 @@ fn build(data: TabularData) -> Study {
 }
 
 fn value(result: &antecedent::StudyResult) -> f64 {
-    match &result.response.as_ref().expect("response payload").estimate {
+    match &result.response().expect("response payload").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
         other => panic!("expected a point-identified joint cell, got {other:?}"),
     }

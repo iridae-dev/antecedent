@@ -51,7 +51,7 @@ fn retained_grid_recovers_linear_truth_and_artifact_identity() {
     let ctx = ExecutionContext::for_tests(613);
     let mut prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let grid = result.continuous_dose_response.as_ref().unwrap();
+    let grid = result.continuous_dose_response().unwrap();
     assert_eq!(grid.points.len(), 4);
     for (point, expected) in grid.points.iter().zip([1.0, 2.0, 10.0, 11.0]) {
         assert!((point.response - expected).abs() < 1e-12);
@@ -83,7 +83,7 @@ fn retained_grid_recovers_linear_truth_and_artifact_identity() {
         .is_err()
     );
     let refreshed = prepared.refresh(data, &ctx).unwrap();
-    assert_eq!(result.continuous_dose_response, refreshed.continuous_dose_response);
+    assert_eq!(result.continuous_dose_response(), refreshed.continuous_dose_response());
 }
 
 #[test]

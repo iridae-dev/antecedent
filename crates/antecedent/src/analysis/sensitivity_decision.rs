@@ -1,8 +1,8 @@
-//! F17: consume an existing assumption-sensitivity result in a durable decision.
+//! Consume an existing assumption-sensitivity result in a durable decision.
 //!
 //! The facade routes three things and owns no scientific rule of its own:
 //!
-//! * [`PreparedZTransport::sensitivity_artifact`] runs the 2.2 joint mechanism
+//! * [`PreparedZTransport::sensitivity_artifact`] runs the joint mechanism
 //!   sensitivity on a prepared z stage and adapts its result into a
 //!   composition-ready [`SensitivityArtifact`] (assumption coordinate, effect surface,
 //!   coordinate support, uncertainty relationship, provenance);
@@ -13,6 +13,9 @@
 //!   container; consumption recomputes the identity digests and the decision outcome
 //!   and refuses a resealed mutation.
 //!
+//! A transported response's point value is shifted by a declared bound through
+//! [`super::transport_sensitivity`], which builds the same [`SensitivityArtifact`].
+//!
 //! An assumption range is never a probability and never a sampling interval. The
 //! sampling interval, when one exists, is reported next to the decision
 //! ([`SamplingReport`]); composing it with the range is refused with
@@ -22,11 +25,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExecutionContext, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::ExecutionContext;
 use antecedent_io::IoError;
 use antecedent_validate::JointDeviationSpec;
 
-pub use antecedent_design::sensitivity_decision::*;
+pub use antecedent_design::sensitivity_decision::{
+    ASSUMPTION_RANGE_STATEMENT, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
+    DecisionSwitch, IdentifiedBound, LICENSED_SAMPLING_COMPOSITIONS, NoRobustReason, PointSupport,
+    SENSITIVITY_DECISION_INTERPRETATION, SamplingInterval, SamplingReport, SamplingStatus,
+    ScenarioCoverage, SensitivityArtifact, SensitivityDecisionError, SensitivityDecisionResult,
+    SensitivityDecisionSpec, SensitivityIdentity, SensitivityOutcome, SensitivityParts,
+    SensitivityProvenance, SourceTipping, SurfaceQuantity, UncertaintyRelationship, UtilityTerm,
+    contract_from_artifact, evaluate_sensitivity_decision,
+};
 pub use antecedent_io::sensitivity_artifact::{
     MAX_SENSITIVITY_ACTIONS, MAX_SENSITIVITY_ARTIFACT_BYTES, MAX_SENSITIVITY_GRID_POINTS,
     MAX_SENSITIVITY_QUANTITIES, MAX_SENSITIVITY_RANGED_QUANTITIES, MAX_SENSITIVITY_UTILITY_DEPTH,
@@ -38,12 +50,12 @@ use antecedent_design::decision_contract::DecisionContract;
 use super::PreparedZTransport;
 
 impl PreparedZTransport {
-    /// Run the 2.2 joint mechanism sensitivity of the retained checked formula and
+    /// Run the joint mechanism sensitivity of the retained checked formula and
     /// adapt its assumption range into a composition-ready [`SensitivityArtifact`].
     ///
     /// With one declared factor the surface is exact on `grid_points` equally spaced
     /// contamination fractions; with two factors only the unperturbed point and the
-    /// declared box are exact, so `grid_points` must be 2. The 2.2 withheld sampling
+    /// declared box are exact, so `grid_points` must be 2. The withheld sampling
     /// status is carried unchanged: the range stays an assumption range.
     ///
     /// # Errors

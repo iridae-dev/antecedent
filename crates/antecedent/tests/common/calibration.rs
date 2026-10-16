@@ -116,7 +116,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "each integration test binary includes this module and uses a subset of it"
+)]
 
 /// Standard-normal 0.95 quantile (two-sided 90% interval).
 pub const Z90: f64 = 1.644_853_626_951_472_2;

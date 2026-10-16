@@ -1,4 +1,4 @@
-//! F18 `EffectConstancy`: a global heterogeneity test of one effect across a declared
+//! `EffectConstancy`: a global heterogeneity test of one effect across a declared
 //! partition (time periods or regions), under a frozen null and a shared effect estimand.
 //!
 //! # Contract
@@ -35,10 +35,10 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use antecedent_core::reason_code;
-use antecedent_kernels::erfc;
-use antecedent_stats::gamma_q;
+use antecedent_stats::chi_square_sf;
 
 use crate::error::EstimationError;
+use crate::util::{count, refuse};
 
 /// The frozen null of the global test.
 pub const EFFECT_CONSTANCY_NULL: &str = "effect equal across all declared partitions";
@@ -225,22 +225,6 @@ pub struct EffectConstancyResult {
     pub inference_claim: &'static str,
 }
 
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
-}
-
-/// Chi-square survival function through the regularized upper incomplete gamma.
-fn chi_square_sf(statistic: f64, df: usize) -> f64 {
-    if statistic <= 0.0 {
-        return 1.0;
-    }
-    gamma_q(count(df) * 0.5, statistic * 0.5)
-}
-
 /// Holm step-down adjustment of raw p-values; the result is in the input order.
 #[must_use]
 pub fn holm_adjust(p_values: &[f64]) -> Vec<f64> {
@@ -257,39 +241,10 @@ pub fn holm_adjust(p_values: &[f64]) -> Vec<f64> {
     adjusted
 }
 
-/// Lower Cholesky factor of a row-major symmetric `n x n` matrix; `None` unless positive
-/// definite (every pivot strictly positive and finite).
-fn cholesky(matrix: &[f64], n: usize) -> Option<Vec<f64>> {
-    let mut lower = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = matrix[i * n + j];
-            for k in 0..j {
-                sum -= lower[i * n + k] * lower[j * n + k];
-            }
-            if i == j {
-                if sum.is_nan() || sum <= 0.0 || !sum.is_finite() {
-                    return None;
-                }
-                lower[i * n + i] = sum.sqrt();
-            } else {
-                lower[i * n + j] = sum / lower[j * n + j];
-            }
-        }
-    }
-    Some(lower)
-}
-
 /// `x' V^-1 x` from the Cholesky factor `lower` of `V`.
 fn quadratic_form(lower: &[f64], n: usize, x: &[f64]) -> f64 {
     let mut y = vec![0.0; n];
-    for i in 0..n {
-        let mut sum = x[i];
-        for k in 0..i {
-            sum -= lower[i * n + k] * y[k];
-        }
-        y[i] = sum / lower[i * n + i];
-    }
+    antecedent_kernels::forward_solve_into(lower, n, x, &mut y);
     y.iter().map(|v| v * v).sum()
 }
 
@@ -400,7 +355,7 @@ fn validate_covariance(
             ));
         }
     }
-    if cholesky(covariance, k).is_none() {
+    if antecedent_stats::cholesky_spd(covariance, k).is_none() {
         return Err(bad("the covariance is not positive definite"));
     }
     Ok(())
@@ -429,7 +384,7 @@ fn wald_statistic(effects: &[f64], covariance: &[f64]) -> Result<f64, Estimation
                     + covariance[0];
         }
     }
-    let lower = cholesky(&v, m).ok_or_else(|| {
+    let lower = antecedent_stats::cholesky_spd(&v, m).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
             "effect_constancy.invalid_covariance",
@@ -500,7 +455,7 @@ fn contrast_reports(
                 "a contrast overflows at the supplied scale",
             ));
         }
-        rows.push((a, b, difference, se, z, erfc(z.abs() / std::f64::consts::SQRT_2)));
+        rows.push((a, b, difference, se, z, crate::util::normal_two_sided_p(z)));
     }
     let raw: Vec<f64> = rows.iter().map(|r| r.5).collect();
     let adjusted = holm_adjust(&raw);
@@ -520,7 +475,7 @@ fn contrast_reports(
         .collect())
 }
 
-/// Run the F18 constancy test.
+/// Run the constancy test.
 ///
 /// Partitions are put in label order first, so the result is invariant to input order and
 /// relabelling that keeps the label order.
@@ -614,4 +569,23 @@ pub fn test_effect_constancy(
         pooled_effect,
         inference_claim: EFFECT_CONSTANCY_INFERENCE_CLAIM,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wald_statistic;
+
+    #[test]
+    fn a_contrast_covariance_that_cancels_to_rounding_noise_is_refused() {
+        // The contrast covariance is [[1, 1], [1, 1 + 1e-15]]: its second pivot is positive
+        // (1.1e-15) but is rounding noise against its diagonal. The former `sum <= 0` test
+        // accepted it and returned a Wald statistic of order 1e15; the kernel pivot floor
+        // (64 eps of the diagonal) refuses it.
+        let covariance = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0 + 1e-15];
+        assert!(wald_statistic(&[0.0, 1.0, 2.0], &covariance).is_err());
+        // A well-separated covariance is unchanged: V = [[2, 1], [1, 2]], d = (1, 2).
+        let ok = [0.0, 0.0, 0.0, 0.0, 2.0, 1.0, 0.0, 1.0, 2.0];
+        let statistic = wald_statistic(&[0.0, 1.0, 2.0], &ok).unwrap();
+        assert!((statistic - 2.0).abs() < 1e-12, "{statistic}");
+    }
 }

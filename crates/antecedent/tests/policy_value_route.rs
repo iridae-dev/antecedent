@@ -78,7 +78,7 @@ fn retained_finite_class_regret_round_trips_and_rejects_forged_bounds() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let policy = result.policy_value.as_ref().unwrap();
+    let policy = result.policy_value().unwrap();
     let regret = policy.regret.as_ref().unwrap();
     assert!(regret.regret > 0.0);
     assert!(regret.interval_95[0] <= regret.regret && regret.regret <= regret.interval_95[1]);
@@ -134,7 +134,7 @@ fn policy_answer_is_not_an_ate_and_survives_retained_reexecution() {
             .iter()
             .all(|step| step.rule.as_ref() != "randomized.itt")
     );
-    let answer = first.policy_value.as_ref().unwrap();
+    let answer = first.policy_value().unwrap();
     assert!((answer.policy_value - 2.0).abs() < 1e-12);
     assert!((answer.reference_value - 1.0).abs() < 1e-12);
     assert!((answer.incremental_value - 1.0).abs() < 1e-12);
@@ -149,7 +149,7 @@ fn policy_answer_is_not_an_ate_and_survives_retained_reexecution() {
     assert!(matches!(first.estimate, PrimaryEstimate::NotAnEffect));
     assert_eq!(first.effect().is_nan(), true);
     let refreshed = prepared.refresh(data, &ctx).unwrap();
-    assert_eq!(first.policy_value, refreshed.policy_value);
+    assert_eq!(first.policy_value(), refreshed.policy_value());
     assert_eq!(first.logical_plan.plan_id, refreshed.logical_plan.plan_id);
 }
 
@@ -170,7 +170,7 @@ fn retained_uplift_bins_recover_ranked_randomized_contrasts_and_round_trip() {
     let ctx = ExecutionContext::for_tests(31);
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let bins = &result.policy_value.as_ref().unwrap().uplift_bins;
+    let bins = &result.policy_value().unwrap().uplift_bins;
     assert_eq!(bins.len(), 2);
     assert!((bins[0].effect - 2.0).abs() < 1e-12);
     assert!((bins[1].effect - 0.0).abs() < 1e-12);
@@ -213,7 +213,7 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let bins = &result.policy_value.as_ref().unwrap().uplift_bins;
+    let bins = &result.policy_value().unwrap().uplift_bins;
     assert_eq!(bins.len(), 2);
     for (index, &truth) in [2.0, 0.5].iter().enumerate() {
         let bounds = bins[index].interval_95.unwrap();
@@ -251,7 +251,7 @@ fn retained_held_out_uplift_intervals_round_trip_and_refuse_forged_bounds() {
     assert_eq!(aipw_result.support_status, Some(antecedent::support::CellStatus::Licensed));
     assert!(
         aipw_result
-            .policy_value
+            .policy_value()
             .as_ref()
             .unwrap()
             .uplift_bins
@@ -299,7 +299,7 @@ fn retained_held_out_policy_intervals_round_trip_and_reject_forgery() {
         Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let value = result.policy_value.as_ref().unwrap();
+    let value = result.policy_value().unwrap();
     let policy_ci = value.policy_interval_95.unwrap();
     let incremental_ci = value.incremental_interval_95.unwrap();
     assert!(policy_ci[0] < value.policy_value && value.policy_value < policy_ci[1]);
@@ -339,7 +339,7 @@ fn retained_held_out_policy_intervals_round_trip_and_reject_forgery() {
         .build()
         .unwrap();
     let constrained_result = constrained.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
-    assert!(constrained_result.policy_value.unwrap().policy_interval_95.is_none());
+    assert!(constrained_result.policy_value().unwrap().policy_interval_95.is_none());
 }
 
 #[test]
@@ -371,7 +371,7 @@ fn retained_crossfit_policy_intervals_round_trip_and_refuse_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let value = result.policy_value.as_ref().unwrap();
+    let value = result.policy_value().unwrap();
     let policy_ci =
         value.policy_interval_95.expect("cross-fitted AIPW publishes a policy interval");
     let incremental_ci =
@@ -416,7 +416,7 @@ fn randomized_ipw_policy_round_trips_without_nuisance_predictions() {
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.estimand.method.as_ref(), "randomized.policy_value");
-    let answer = result.policy_value.as_ref().unwrap();
+    let answer = result.policy_value().unwrap();
     assert!((answer.policy_value - 4.0).abs() < 1e-12);
     assert!((answer.reference_value - 1.0).abs() < 1e-12);
     assert!((answer.incremental_value - 3.0).abs() < 1e-12);
@@ -429,7 +429,10 @@ fn randomized_ipw_policy_round_trips_without_nuisance_predictions() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // one end-to-end route fixture; splitting would fragment the flow
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for retained multi action value matches known randomized truth and round trips"
+)]
 fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() {
     let y = [1.0, 2.0, 4.0, 1.0, 2.0, 4.0, 1.0, 2.0, 4.0];
     let data = TabularData::from_f64_columns([("outcome", &y[..])]).unwrap();
@@ -467,7 +470,7 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.estimand.method.as_ref(), "randomized.policy_value");
     assert_eq!(result.identification.derivation.steps[0].rule.as_ref(), "randomized.policy_value");
-    let answer = result.policy_value.as_ref().unwrap();
+    let answer = result.policy_value().unwrap();
     assert!((answer.policy_value - 7.0 / 3.0).abs() < 1e-12);
     assert!((answer.reference_value - 1.0).abs() < 1e-12);
     assert!((answer.incremental_value - 4.0 / 3.0).abs() < 1e-12);
@@ -489,7 +492,7 @@ fn retained_multi_action_value_matches_known_randomized_truth_and_round_trips() 
         Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
     let grouped_prepared = grouped.prepare(&ctx).unwrap();
     let grouped_result = grouped_prepared.estimate(&data, &ctx).unwrap();
-    let points = &grouped_result.policy_value.as_ref().unwrap().multi_action_cate;
+    let points = &grouped_result.policy_value().unwrap().multi_action_cate;
     assert_eq!(points.len(), 6);
     for point in points {
         assert_eq!(point.evaluation_rows, 3);
@@ -575,7 +578,7 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
         Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let value = result.policy_value.as_ref().unwrap();
+    let value = result.policy_value().unwrap();
     assert!(value.policy_interval_95.is_some());
     assert!(value.incremental_interval_95.is_some());
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
@@ -604,13 +607,18 @@ fn multi_action_intervals_require_nonbinding_global_constraints() {
     q.multi_action.as_mut().unwrap().budget = Some(40.0);
     let constrained =
         Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q.clone())).build().unwrap();
-    let constrained_value =
-        constrained.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().policy_value.unwrap();
+    let constrained_value = constrained
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap()
+        .into_policy_value()
+        .unwrap();
     assert!(constrained_value.policy_interval_95.is_none());
     q.multi_action.as_mut().unwrap().budget = None;
     q.multi_action.as_mut().unwrap().capacities = [n, n, n / 3].into();
     let capped = Study::tabular(data.clone()).query(CausalQuery::PolicyValue(q)).build().unwrap();
     let capped_value =
-        capped.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().policy_value.unwrap();
+        capped.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap().into_policy_value().unwrap();
     assert!(capped_value.policy_interval_95.is_none());
 }

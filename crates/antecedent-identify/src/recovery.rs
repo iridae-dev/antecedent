@@ -1,4 +1,4 @@
-//! Exact binary causal observation recovery (2.2B X10): graph-licensed recovery
+//! Exact binary causal observation recovery: graph-licensed recovery
 //! of the full law of partially observed binary variables, not MAR/IPCW.
 //!
 //! # Model class
@@ -85,9 +85,9 @@ use std::fmt;
 use std::sync::Arc;
 
 use antecedent_core::{
-    CatalogDistribution, DistributionAvailability, EvidenceCatalog, EvidenceProjection,
-    ExecutionContext, LawOrigin, RegimeId, RegimeKind, SamplingSelection, SearchBudget,
-    SearchLimits, SearchReceipt, SearchStop, VariableDomain, VariableId,
+    CanonicalWriter, CatalogDistribution, DistributionAvailability, EvidenceCatalog,
+    EvidenceProjection, ExecutionContext, LawOrigin, RegimeId, RegimeKind, SamplingSelection,
+    SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableDomain, VariableId,
 };
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, NodeRef, SelectionDiagram};
@@ -109,9 +109,9 @@ pub const RECOVERY_DEFAULT_LIMITS: RecoveryLimits = RecoveryLimits {
     memory_bytes: antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES,
 };
 /// Version of the recovery rule, bound into every derivation.
-pub const RECOVERY_RULE_VERSION: &str = "x10.recovery.v1";
+pub const RECOVERY_RULE_VERSION: &str = "binary_observation_recovery.v1";
 /// Every witness mechanism probability is `k / WITNESS_SCALE`.
-pub const WITNESS_SCALE: u32 = 60;
+pub(crate) const WITNESS_SCALE: u32 = 60;
 
 /// The label of the missing level of a proxy.
 pub const MISSING_LEVEL: &str = "?";
@@ -556,40 +556,64 @@ fn scientific_identity(
     for margin in &mut record.margins {
         margin.identity = String::new();
     }
-    format!("recovery_scientific.v1:{}", derivation_identity(&record))
+    format!("recovery_scientific.v2:{}", derivation_identity(&record))
 }
+
+/// Domain of the canonical derivation digest.
+const DERIVATION_IDENTITY_DOMAIN: &str = "recovery.derivation.v2";
 
 fn derivation_identity(record: &RecoveryDerivationRecord) -> String {
     // Every field except the budget accounting: the provenance names what was
-    // derived, not how much work the producer's budget recorded.
-    let factors = record
-        .factors
-        .iter()
-        .map(|f| format!("{}<{:?}|{:?}@{}", f.response, f.parents, f.conditioning, f.expression))
-        .collect::<Vec<_>>()
-        .join(";");
-    let margins = record
-        .margins
-        .iter()
-        .map(|m| format!("{}:{:?}:{}", m.expression, m.variables, m.identity))
-        .collect::<Vec<_>>()
-        .join(";");
-    let effect = record.effect.as_ref().map_or_else(String::new, |e| {
-        format!("{:?}|{:?}|{:?}|{}|{:?}", e.outcomes, e.treatments, e.edges, e.root, e.rules)
-    });
-    format!(
-        "{}|graph={}|population={}|regime={}|observed={}|roles={:?}|fully={:?}|premises={:?}|numerator={}|factors={factors}|root={}|margins={margins}|effect={effect}",
-        record.rule_version,
-        record.graph_signature,
-        record.population,
-        record.observed_regime,
-        record.observed_identity,
-        record.partially_observed,
-        record.fully_observed,
-        record.premises,
-        record.numerator,
-        record.root,
-    )
+    // derived, not how much work the producer's budget recorded. Strings and
+    // sequences are length-delimited, so no field value can alias a neighbour.
+    let words = |stream: &mut CanonicalWriter, values: &[u32]| {
+        stream.word(values.len() as u64);
+        for &v in values {
+            stream.word(u64::from(v));
+        }
+    };
+    let mut stream = CanonicalWriter::new(DERIVATION_IDENTITY_DOMAIN);
+    stream.text(&record.rule_version).text(&record.graph_signature).text(&record.population);
+    stream.word(u64::from(record.observed_regime)).text(&record.observed_identity);
+    stream.word(record.partially_observed.len() as u64);
+    for &(variable, response, proxy) in &record.partially_observed {
+        stream.word(u64::from(variable)).word(u64::from(response)).word(u64::from(proxy));
+    }
+    words(&mut stream, &record.fully_observed);
+    stream.texts(&record.premises);
+    stream.word(u64::from(record.numerator));
+    stream.word(record.factors.len() as u64);
+    for f in &record.factors {
+        stream.word(u64::from(f.response));
+        words(&mut stream, &f.parents);
+        words(&mut stream, &f.conditioning);
+        stream.word(u64::from(f.expression));
+    }
+    stream.word(u64::from(record.root));
+    stream.word(record.margins.len() as u64);
+    for m in &record.margins {
+        stream.word(u64::from(m.expression));
+        words(&mut stream, &m.variables);
+        stream.text(&m.identity);
+    }
+    match &record.effect {
+        None => {
+            stream.word(0);
+        }
+        Some(e) => {
+            stream.word(1);
+            words(&mut stream, &e.outcomes);
+            words(&mut stream, &e.treatments);
+            stream.word(e.edges.len() as u64);
+            for &(from, to) in &e.edges {
+                stream.word(u64::from(from)).word(u64::from(to));
+            }
+            stream.word(u64::from(e.root));
+            stream.texts(&e.rules);
+        }
+    }
+    // The rule version stays readable as the prefix; the digest carries the content.
+    format!("{}|{}", record.rule_version, stream.finish_hex())
 }
 
 /// The outcome of a decision.
@@ -673,11 +697,8 @@ impl MGraph<'_> {
 }
 
 fn var(graph: &Admg, node: DenseNodeId) -> VariableId {
-    match graph.nodes()[node.as_usize()] {
-        NodeRef::Static(v) => v,
-        // Non-static nodes are refused before any lookup.
-        _ => VariableId::from_raw(u32::MAX),
-    }
+    // Non-static nodes are refused before any lookup.
+    graph.static_variable(node).unwrap_or(VariableId::from_raw(u32::MAX))
 }
 
 fn ids(raw: &[VariableId]) -> Vec<u32> {
@@ -750,7 +771,10 @@ fn resolve_roles<'g>(
 
 /// Refuse every mechanism outside the bounded class, charging one operation per
 /// node inspected. Returns the self-censoring edges found.
-#[allow(clippy::too_many_lines)] // One linear pass per stage; splitting it would scatter the checks.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One linear pass per stage; splitting it would scatter the checks"
+)]
 fn check_class(
     m: &MGraph<'_>,
     query: &ObservationRecoveryQuery,
@@ -1039,7 +1063,7 @@ pub fn decide_observation_recovery(
     let observed = observed_distribution(&query, catalog)?;
     charge(&mut search, at, 1, base)?;
     if let Some(&(x, r)) = violations.first() {
-        let witness = self_censoring_witness(&m, x, r);
+        let witness = self_censoring_witness(&m, x, r)?;
         return nonrecoverable(&m, witness, &mut search, at.with(Stage::Witness), base);
     }
     let formula = at.with(Stage::Formula);
@@ -1107,18 +1131,25 @@ fn graph_bytes(graph: &Admg) -> u64 {
 #[must_use]
 #[doc(hidden)]
 pub fn m_graph_signature(graph: &Admg) -> String {
-    let mut nodes = Vec::new();
-    let mut edges = Vec::new();
-    for i in 0..graph.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
-        nodes.push(var(graph, from).raw());
-        for child in graph.children(from) {
-            edges.push((var(graph, from).raw(), var(graph, *child).raw()));
-        }
-    }
+    let mut nodes: Vec<u32> = graph.node_ids().map(|id| var(graph, id).raw()).collect();
     nodes.sort_unstable();
-    edges.sort_unstable();
-    format!("mgraph.v1;nodes={nodes:?};directed={edges:?}")
+    // Non-static graphs are refused before a derivation records its signature.
+    let edges: Vec<(u32, u32)> = graph
+        .static_directed_edges_sorted()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(from, to)| (from.raw(), to.raw()))
+        .collect();
+    let mut stream = CanonicalWriter::new("recovery.mgraph.v2");
+    stream.word(nodes.len() as u64);
+    for node in &nodes {
+        stream.word(u64::from(*node));
+    }
+    stream.word(edges.len() as u64);
+    for &(from, to) in &edges {
+        stream.word(u64::from(from)).word(u64::from(to));
+    }
+    format!("mgraph.v2:{}", stream.finish_hex())
 }
 
 fn margin_identity(
@@ -1275,7 +1306,10 @@ fn arena_bytes(arena: &CausalExprArena) -> u64 {
 /// local-Markov premise `R_i _||_ R_S | pa(R_i)` by m-separation in the m-graph,
 /// pattern-matches the arena from the root, and recomputes every margin's
 /// catalog identity.
-#[allow(clippy::too_many_lines)] // One linear pass per stage; splitting it would scatter the checks.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One linear pass per stage; splitting it would scatter the checks"
+)]
 fn check_formula(
     graph: &Admg,
     query: &ObservationRecoveryQuery,
@@ -1291,12 +1325,8 @@ fn check_formula(
     if root.raw() as usize >= arena.len() {
         return Err(bad("root outside the arena"));
     }
-    let node_of: BTreeMap<VariableId, DenseNodeId> = (0..graph.node_count())
-        .map(|i| {
-            let d = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
-            (var(graph, d), d)
-        })
-        .collect();
+    let node_of: BTreeMap<VariableId, DenseNodeId> =
+        graph.node_ids().map(|d| (var(graph, d), d)).collect();
     let responses: BTreeMap<VariableId, usize> =
         query.partially_observed.iter().enumerate().map(|(i, p)| (p.response, i)).collect();
     let variables: BTreeMap<VariableId, usize> =
@@ -1397,422 +1427,86 @@ fn check_formula(
     Ok(())
 }
 
-/// The closed-form self-censoring witness for `x -> r`: every mechanism a fair
-/// coin except `x` and `r`, which differ between the two models while
-/// `P(r = 1, x)` is equal.
-fn self_censoring_witness(m: &MGraph<'_>, x: VariableId, r: VariableId) -> RecoveryWitness {
-    let half = WITNESS_SCALE / 2;
-    let mut first = Vec::new();
-    let mut second = Vec::new();
-    for (v, role) in &m.roles {
-        if matches!(role, Role::Proxy(_)) {
-            continue;
-        }
-        let parents =
-            m.graph.parents(m.dense[v]).iter().map(|p| var(m.graph, *p)).collect::<Vec<_>>();
-        let configs = 1usize << parents.len();
-        let at = parents.iter().position(|p| *p == x);
-        let table = |x1: u32, x0: u32| -> Vec<u32> {
-            (0..configs)
-                .map(|c| {
-                    let bit = at.map(|i| (c >> (parents.len() - 1 - i)) & 1);
-                    if bit == Some(1) { x1 } else { x0 }
-                })
-                .collect()
-        };
-        let (a, b) = if *v == x {
-            (vec![half; configs], vec![24; configs])
-        } else if *v == r {
-            (table(36, 24), table(45, 20))
-        } else {
-            (vec![half; configs], vec![half; configs])
-        };
-        let raw = parents.iter().map(|p| p.raw()).collect::<Vec<_>>();
-        first.push(WitnessMechanism { node: v.raw(), parents: raw.clone(), numerators: a });
-        second.push(WitnessMechanism { node: v.raw(), parents: raw, numerators: b });
-    }
-    RecoveryWitness { edge: (x.raw(), r.raw()), first, second }
-}
-
-/// Verify a witness against an m-graph by exact enumeration: both models are
-/// positive and Markov to the graph, agree on every observed-law cell, and
-/// differ on the target `P(X, O)`. No theorem is trusted. A verified witness
-/// shows non-recoverability over every model Markov to the m-graph, not under
-/// faithful or generic parameters.
-///
-/// Not charged to a budget: the role bounds (at most three partially and two
-/// fully observed variables) cap the enumeration at eight non-proxy nodes,
-/// `2 * 2^8` configurations.
-///
-/// # Errors
-///
-/// [`RecoveryDetail::InvalidQuery`] for a malformed role declaration, or
-/// [`RecoveryDetail::InvalidDerivation`] when the witness does not verify.
-pub fn verify_recovery_witness(
-    graph: &Admg,
-    query: &ObservationRecoveryQuery,
-    witness: &RecoveryWitness,
-) -> Result<WitnessCheck, RecoveryError> {
-    let query = query.canonical();
-    let m = resolve_roles(graph, &query)?;
-    if graph.has_bidirected() {
-        return Err(refuse(RecoveryDetail::InvalidDerivation, "a witness is checked on a DAG"));
-    }
-    verify_witness_charged(&m, witness, &mut |_| Ok(()))
-}
-
-#[allow(clippy::too_many_lines)] // One linear pass per stage; splitting it would scatter the checks.
-fn verify_witness_charged(
-    m: &MGraph<'_>,
-    witness: &RecoveryWitness,
-    charge_step: &mut dyn FnMut(u64) -> Result<(), RecoveryError>,
-) -> Result<WitnessCheck, RecoveryError> {
-    let bad = |why: &str| refuse(RecoveryDetail::InvalidDerivation, format!("witness: {why}"));
-    // Nodes with a mechanism: every non-proxy node, in variable order.
-    let nodes: Vec<VariableId> =
-        m.roles.iter().filter(|(_, r)| !matches!(r, Role::Proxy(_))).map(|(v, _)| *v).collect();
-    let index: BTreeMap<VariableId, usize> =
-        nodes.iter().enumerate().map(|(i, v)| (*v, i)).collect();
-    let n = nodes.len();
-    if n > 16 {
-        return Err(bad("too many nodes to enumerate"));
-    }
-    let check_model = |model: &[WitnessMechanism]| -> Result<(), RecoveryError> {
-        if model.len() != n {
-            return Err(bad("a model must give one mechanism per non-proxy node"));
-        }
-        for mechanism in model {
-            let v = VariableId::from_raw(mechanism.node);
-            if !index.contains_key(&v) {
-                return Err(bad("a mechanism names a proxy or an unknown node"));
-            }
-            let graph_parents = m
-                .graph
-                .parents(m.dense[&v])
-                .iter()
-                .map(|p| var(m.graph, *p).raw())
-                .collect::<Vec<_>>();
-            if mechanism.parents != graph_parents {
-                return Err(bad(
-                    "a mechanism's parents are not the node's graph parents (not Markov to the m-graph)",
-                ));
-            }
-            if mechanism.numerators.len() != 1 << graph_parents.len() {
-                return Err(bad("a mechanism must give one probability per parent configuration"));
-            }
-            if mechanism.numerators.iter().any(|k| *k == 0 || *k >= WITNESS_SCALE) {
-                return Err(bad(
-                    "a mechanism probability is not strictly between 0 and 1 (positivity)",
-                ));
-            }
-        }
-        let distinct: BTreeSet<u32> = model.iter().map(|m| m.node).collect();
-        if distinct.len() != n {
-            return Err(bad("a node has two mechanisms"));
-        }
-        Ok(())
-    };
-    check_model(&witness.first)?;
-    check_model(&witness.second)?;
-    let substantive: Vec<VariableId> = m
-        .roles
-        .iter()
-        .filter(|(_, r)| matches!(r, Role::Partial(_) | Role::Full))
-        .map(|(v, _)| *v)
-        .collect();
-    // Observed coordinates: each response and fully observed value, and each
-    // proxy's value in {0, 1, ?} (encoded 0, 1, 2).
-    let pairs = witness_roles(m);
-    let enumerate = |model: &[WitnessMechanism],
-                     charge_step: &mut dyn FnMut(u64) -> Result<(), RecoveryError>|
-     -> Result<(Masses, Masses), RecoveryError> {
-        let by_node: BTreeMap<u32, &WitnessMechanism> = model.iter().map(|m| (m.node, m)).collect();
-        let mut observed = BTreeMap::new();
-        let mut target = BTreeMap::new();
-        for config in 0u32..(1u32 << n) {
-            charge_step(
-                u64::try_from(observed.len() + target.len()).unwrap_or(u64::MAX).saturating_mul(48),
-            )?;
-            let value = |v: VariableId| u8::from((config >> index[&v]) & 1 == 1);
-            let mut mass: u128 = 1;
-            for v in &nodes {
-                let mechanism = by_node[&v.raw()];
-                let parent_config = mechanism.parents.iter().fold(0usize, |acc, p| {
-                    (acc << 1) | usize::from(value(VariableId::from_raw(*p)))
-                });
-                let k = u128::from(mechanism.numerators[parent_config]);
-                mass *= if value(*v) == 1 { k } else { u128::from(WITNESS_SCALE) - k };
-            }
-            let mut cell = Vec::new();
-            for (v, role) in &m.roles {
-                cell.push(match role {
-                    Role::Partial(_) => continue,
-                    Role::Proxy(i) => {
-                        let p = &pairs[*i];
-                        if value(p.1) == 1 { value(p.0) } else { 2 }
-                    }
-                    Role::Response(_) | Role::Full => value(*v),
-                });
-            }
-            *observed.entry(cell).or_insert(0) += mass;
-            let target_cell: Vec<u8> = substantive.iter().map(|v| value(*v)).collect();
-            *target.entry(target_cell).or_insert(0) += mass;
-        }
-        Ok((observed, target))
-    };
-    let (observed_a, target_a) = enumerate(&witness.first, charge_step)?;
-    let (observed_b, target_b) = enumerate(&witness.second, charge_step)?;
-    if observed_a != observed_b {
-        return Err(bad("the two models disagree on the observed law"));
-    }
-    let Some((cell, mass_a)) =
-        target_a.iter().find(|(cell, mass)| target_b.get(*cell) != Some(mass))
-    else {
-        return Err(bad("the two models agree on the target"));
-    };
-    let denominator = u128::from(WITNESS_SCALE).pow(u32::try_from(n).unwrap_or(u32::MAX));
-    Ok(WitnessCheck {
-        observed_cells: observed_a.len(),
-        differing_cell: substantive.iter().copied().zip(cell.iter().copied()).collect(),
-        masses: (*mass_a, target_b.get(cell).copied().unwrap_or(0)),
-        denominator,
-    })
-}
-
-/// Exact integer masses per cell (observed or target levels).
-type Masses = BTreeMap<Vec<u8>, u128>;
-
-/// `(variable, response)` per partially observed index.
-fn witness_roles(m: &MGraph<'_>) -> Vec<(VariableId, VariableId)> {
-    let mut out = BTreeMap::new();
-    for (v, role) in &m.roles {
-        match role {
-            Role::Partial(i) => out.entry(*i).or_insert((*v, *v)).0 = *v,
-            Role::Response(i) => out.entry(*i).or_insert((*v, *v)).1 = *v,
-            _ => {}
-        }
-    }
-    out.into_values().collect()
-}
-
-/// Identify the downstream effect with the ordinary target ID stage of sID on
-/// the causal restriction of the m-graph, charged to the shared budget.
-#[allow(clippy::too_many_lines)] // One linear pass per stage; splitting it would scatter the checks.
-fn identify_effect(
-    m: &MGraph<'_>,
-    query: &ObservationRecoveryQuery,
-    effect: &RecoveredEffectQuery,
-    search: &mut SharedSearch<'_>,
-    at: At,
-    ctx: &ExecutionContext,
-) -> Result<(RecoveredEffect, RecoveredEffectRecord), RecoveryError> {
-    use RecoveryDetail::{HandoffMismatch, InvalidDerivation, InvalidQuery};
-    let substantive: BTreeSet<VariableId> = query.substantive().into_iter().collect();
-    let mut nodes = BTreeSet::new();
-    for node in effect.graph.nodes() {
-        let NodeRef::Static(v) = node else {
-            return Err(refuse(HandoffMismatch, "the effect graph must have static nodes only"));
-        };
-        nodes.insert(*v);
-    }
-    if nodes != substantive {
-        return Err(refuse(
-            HandoffMismatch,
-            "the effect graph's variables are not exactly the recovered law's variables X and O",
-        ));
-    }
-    if effect.graph.has_bidirected() {
-        return Err(refuse(
-            HandoffMismatch,
-            "the recovered law factorizes by a DAG; a bidirected edge changes the factorization",
-        ));
-    }
-    let mut edges = Vec::new();
-    for i in 0..effect.graph.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
-        for child in effect.graph.children(from) {
-            edges.push((var(&effect.graph, from).raw(), var(&effect.graph, *child).raw()));
-        }
-    }
-    edges.sort_unstable();
-    let mut restriction = Vec::new();
-    for v in &substantive {
-        for child in m.children(*v) {
-            if substantive.contains(&child) {
-                restriction.push((v.raw(), child.raw()));
-            }
-        }
-    }
-    restriction.sort_unstable();
-    if edges != restriction {
-        return Err(refuse(
-            HandoffMismatch,
-            "the effect graph is not the m-graph's causal restriction (factorization mismatch)",
-        ));
-    }
-    let mut outcomes = effect.outcomes.to_vec();
-    outcomes.sort_unstable();
-    let mut treatments = effect.treatments.to_vec();
-    treatments.sort_unstable();
-    if outcomes.is_empty()
-        || outcomes.windows(2).any(|w| w[0] == w[1])
-        || treatments.windows(2).any(|w| w[0] == w[1])
-        || outcomes.iter().any(|o| treatments.contains(o))
-    {
-        return Err(refuse(
-            InvalidQuery,
-            "effect outcomes must be non-empty, distinct and disjoint from treatments",
-        ));
-    }
-    if outcomes.iter().chain(&treatments).any(|v| !substantive.contains(v)) {
-        return Err(refuse(
-            HandoffMismatch,
-            "effect outcomes and treatments must be variables of the recovered law",
-        ));
-    }
-    let diagram = SelectionDiagram::try_new(effect.graph.clone(), Arc::<[VariableId]>::from([]))
-        .map_err(|e| refuse(HandoffMismatch, e.to_string()))?;
-    let target: Arc<str> = Arc::clone(&query.population);
-    let sid_query = ClassicalTransportQuery {
-        outcomes: outcomes.clone().into(),
-        treatments: treatments.clone().into(),
-        // The source is a label only: a derivation citing any leaf other than the
-        // target's observational law is refused below, so no source law is used.
-        source: Arc::from(format!("{target}#recovery-no-source")),
-        target: Arc::clone(&target),
-    };
-    search.begin_stage();
-    let result = identify_classical_transport_metered(&diagram, &sid_query, search.meter(), ctx)
-        .map_err(|error| {
-            if error.is_budget_or_cancel() {
-                budget_error(search, at, search.stop_of(&error))
-            } else {
-                refuse(InvalidDerivation, format!("ordinary target ID failed: {error}"))
-            }
-        })?;
-    search.end_stage();
-    // Every effect on a DAG whose variables the recovered law all covers is
-    // identified by ordinary target ID (the g-formula); anything else is a defect,
-    // reported as a failed derivation, never as a claim about the effect.
-    let ClassicalTransportResult::Identified(derivation) = result else {
-        return Err(refuse(
-            InvalidDerivation,
-            "ordinary target ID did not identify an effect on a fully recovered DAG",
-        ));
-    };
-    let arena = derivation.arena().clone();
-    let root = derivation.root();
-    // Defense in depth, unreachable through the public API: sID on a selection
-    // diagram without selection nodes identifies every DAG effect by target ID,
-    // whose leaves are all target observational laws (audit mutant A7 survives
-    // every public-route test for that reason). The predicate is unit tested
-    // directly (`the_effect_leaf_predicate_refuses_foreign_or_interventional_leaves`).
-    if !cites_only_target_observational(&arena, root, &target) {
-        return Err(refuse(
-            InvalidDerivation,
-            "the effect derivation cites a law other than the recovered target law",
-        ));
-    }
-    let record = RecoveredEffectRecord {
-        outcomes: ids(&outcomes),
-        treatments: ids(&treatments),
-        edges,
-        root: root.raw(),
-        rules: derivation.rules().into_iter().map(str::to_owned).collect(),
-    };
-    Ok((
-        RecoveredEffect { arena, root, outcomes: outcomes.into(), treatments: treatments.into() },
-        record,
-    ))
-}
-
-/// Whether every distribution leaf under `root` is an observational,
-/// non-interventional law of `target`: the only law a recovered law supplies.
-fn cites_only_target_observational(arena: &CausalExprArena, root: ExprId, target: &str) -> bool {
-    arena.distribution_leaves(root).into_iter().all(|leaf| {
-        let ExprNode::Distribution { intervention, domain, population, .. } = arena.node(leaf)
-        else {
-            return true;
-        };
-        arena.population(*population) == target
-            && *domain == DomainRef::Observational
-            && arena.intervention_assignments(*intervention).is_empty()
-    })
-}
-
-/// Re-check a stored derivation: re-decide from the stored inputs under the
-/// stored limits (refused when above `max`), accept only an identical record and
-/// arena, and run the independent formula checker on the stored record.
-///
-/// # Errors
-///
-/// [`RecoveryDetail::BoundsExceeded`] for stored limits above `max`;
-/// [`RecoveryDetail::InvalidDerivation`] when anything differs; the decision's
-/// own refusal when the inputs no longer recover.
-#[allow(clippy::too_many_arguments)]
-pub fn verify_observation_recovery(
-    graph: &Admg,
-    query: &ObservationRecoveryQuery,
-    catalog: &EvidenceCatalog,
-    effect: Option<&RecoveredEffectQuery>,
-    record: &RecoveryDerivationRecord,
-    arena: &CausalExprArena,
-    effect_arena: Option<&CausalExprArena>,
-    max: RecoveryLimits,
-    ctx: &ExecutionContext,
-) -> Result<RecoveryDerivation, RecoveryError> {
-    let stored = RecoveryLimits {
-        search: SearchLimits {
-            operations: record.receipt.operations_limit,
-            depth: record.receipt.depth_limit,
-        },
-        memory_bytes: record.receipt.memory_bytes,
-    };
-    if stored.search.operations > max.search.operations
-        || stored.search.depth > max.search.depth
-        || stored.memory_bytes > max.memory_bytes
-    {
-        return Err(refuse(
-            RecoveryDetail::BoundsExceeded,
-            "the stored search limits exceed the consumer's maxima",
-        ));
-    }
-    let invalid = |why: &str| refuse(RecoveryDetail::InvalidDerivation, why.to_owned());
-    let canonical = query.canonical();
-    let observed = observed_distribution(&canonical, catalog)?;
-    // The independent checker runs on the stored record and arena first, so a
-    // tampered formula is refused for what it is, not only for differing.
-    check_formula(graph, &canonical, &observed, record, arena, &mut |_| Ok(()))?;
-    let decision = decide_observation_recovery(graph, query, catalog, effect, stored, ctx)?;
-    let RecoveryDecision::Recovered(fresh) = decision else {
-        return Err(invalid("the stored inputs are nonrecoverable"));
-    };
-    if fresh.record != *record {
-        return Err(invalid("the stored derivation record is not reproduced"));
-    }
-    if fresh.arena != *arena {
-        return Err(invalid("the stored formula expression is not reproduced"));
-    }
-    match (&fresh.effect, effect_arena) {
-        (None, None) => {}
-        (Some(e), Some(stored)) if e.arena == *stored => {}
-        _ => return Err(invalid("the stored effect expression is not reproduced")),
-    }
-    Ok(*fresh)
-}
+mod witness;
+pub use witness::{StoredRecovery, verify_observation_recovery, verify_recovery_witness};
+use witness::{identify_effect, self_censoring_witness, verify_witness_charged};
 
 #[cfg(test)]
 mod tests {
+    use super::witness::cites_only_target_observational;
     use super::*;
     use antecedent_core::{
         DistributionAvailability, EvidenceKind, EvidenceRegime, RegimeKind, SearchStop,
     };
 
-    fn v(raw: u32) -> VariableId {
-        VariableId::from_raw(raw)
-    }
+    use crate::test_support::v;
 
     const WITNESS_AT: At = At { stage: Stage::Witness, effect: false };
+
+    fn identity_record() -> RecoveryDerivationRecord {
+        RecoveryDerivationRecord {
+            rule_version: RECOVERY_RULE_VERSION.to_string(),
+            graph_signature: "g".to_string(),
+            population: "p".to_string(),
+            observed_regime: 7,
+            observed_identity: "obs".to_string(),
+            partially_observed: vec![(0, 1, 2)],
+            fully_observed: vec![3],
+            premises: vec!["a|b".to_string(), "c".to_string()],
+            numerator: 0,
+            factors: vec![RecoveryFactorRecord {
+                response: 1,
+                parents: vec![3],
+                conditioning: vec![3, 2],
+                expression: 4,
+            }],
+            root: 5,
+            margins: vec![RecoveryMarginRecord {
+                expression: 0,
+                variables: vec![3],
+                identity: "m".to_string(),
+            }],
+            effect: None,
+            receipt: RecoveryReceiptRecord {
+                operations_limit: 100,
+                depth_limit: 8,
+                memory_bytes: 1 << 20,
+                operations_consumed: 10,
+                depth_reached: 2,
+            },
+        }
+    }
+
+    #[test]
+    fn derivation_identity_is_canonical_and_field_sensitive() {
+        let base = identity_record();
+        let id = derivation_identity(&base);
+        assert!(id.starts_with(RECOVERY_RULE_VERSION));
+        // Equivalent records (budget accounting aside) agree.
+        let mut same = base.clone();
+        same.receipt.operations_consumed = 99;
+        assert_eq!(derivation_identity(&same), id);
+        // Strings that would alias under separator-joined text stay distinct.
+        let mut split = base.clone();
+        split.premises = vec!["a".to_string(), "b|c".to_string()];
+        assert_ne!(derivation_identity(&split), id);
+        let mut moved = base.clone();
+        moved.fully_observed = vec![];
+        moved.partially_observed = vec![(0, 1, 2), (3, 0, 0)];
+        assert_ne!(derivation_identity(&moved), id);
+        let mut other = base.clone();
+        other.factors[0].conditioning = vec![2, 3];
+        assert_ne!(derivation_identity(&other), id);
+        let mut effect = base;
+        effect.effect = Some(RecoveredEffectRecord {
+            outcomes: vec![1],
+            treatments: vec![0],
+            edges: vec![(0, 1)],
+            root: 9,
+            rules: vec!["r".to_string()],
+        });
+        assert_ne!(derivation_identity(&effect), id);
+    }
 
     /// X=0, R=1, X*=2, O=3; O -> X, O -> R, X -> X*, R -> X*.
     fn k1() -> (Admg, ObservationRecoveryQuery, EvidenceCatalog) {
@@ -2018,7 +1712,7 @@ mod tests {
         let canonical = q.canonical();
         let m = resolve_roles(&g, &canonical).unwrap();
         let ctx = ExecutionContext::for_tests(1);
-        let witness = self_censoring_witness(&m, v(0), v(1));
+        let witness = self_censoring_witness(&m, v(0), v(1)).unwrap();
         let mut search =
             SharedSearch::new(SearchBudget::new(RECOVERY_DEFAULT_LIMITS.search, &ctx).unwrap());
         assert!(matches!(

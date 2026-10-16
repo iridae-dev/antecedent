@@ -39,7 +39,8 @@ if [ "$RECHECK_NSIM" -le "$FIRST_NSIM" ]; then
 fi
 
 # Sample-size grid. Every coverage group that emits records (the
-# antecedent-estimate SE suite and the v19_* / v110_* suites) is measured once
+# antecedent-estimate SE suite and the interval, response, effect and transport
+# coverage suites matched below) is measured once
 # per grid point with ANTECEDENT_CALIBRATION_GRID_POINT=<k>: each design draws
 # its row count through `SampleGrid` (crates/antecedent/tests/common/calibration.rs),
 # and scripts/collect_coverage_records.py merges the points of a record into
@@ -56,20 +57,42 @@ done
 grid_group() {
   case "$1" in
     "antecedent-estimate: bayesian_"*) return 1 ;;
-    antecedent-estimate:*|v19_*|v110_*|v20_*) return 0 ;;
-    # 2.2 coverage records: X1 (both mz suites) and the two X4 coverage records. The X4
-    # weak-overlap and misspecified-nuisance tests print measurements, emit no record,
+    antecedent-estimate:*) return 0 ;;
+    # The antecedent coverage suites: every label is `<test file>: <test>`.
+    bayesian_temporal:*|calibration_admg:*|calibration_anomaly_bayesian:*|calibration_attribution_bayesian:*|calibration_backlog:*|calibration_bayesian_static:*|calibration_counterfactual:*|calibration_design:*|calibration_design_bayesian:*|calibration_distribution_admg:*|calibration_estimate:*|calibration_response:*|calibration_temporal:*|calibration_temporal_class:*|class_posterior_calibration:*|derivative_calibration:*|mixture_interval_calibration:*|panel_calibration:*|static_calibration:*|static_envelope_calibration:*|static_mixture_calibration:*|temporal_class_calibration:*|temporal_frequentist:*|temporal_response_calibration:*|transport_statistical_calibration:*) return 0 ;;
+    # Multi-source limited-experiment (both mz suites) and the two learned continuous trial
+    # transport coverage records. The learned-transport weak-overlap and misspecified-nuisance tests print measurements, emit no record,
     # and run once at the base point.
     mz_transport_calibration:*) return 0 ;;
+    # Whole-method coverage of the effect estimated after discovery on a row split, and its named boundaries.
+    sample_split_effect_calibration:*) return 0 ;;
+    # Interval of an expected predictive score or score difference under a declared dependence.
+    predictive_score_interval_calibration:*) return 0 ;;
+    evidence_synthesis_calibration:*|joint_law_composed_interval_calibration:*|cross_world_interval_calibration:*) return 0 ;;
+    # Interval of a bridged value: trial-level prediction interval and the delta-method correction.
+    scientific_bridge_interval_calibration:*) return 0 ;;
+    # Whole-file groups: one invocation runs every ignored test in the file, once per grid point.
+    panel_calibration|temporal_response_calibration) return 0 ;;
     bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
-    # 2.2B X4 smoothed dose-response: the two *_psi_h coverage records only.
+    # Adaptive-procedure coverage records. The group-sequential power comparison is a
+    # pass/fail gate against the integrated crossing probability and runs once; the
+    # decision-reliability expectation prints diagnostics, emits no record and runs once.
+    adaptive_inference_calibration:group_sequential_power_matches_the_numerical_integration) return 1 ;;
+    adaptive_inference_calibration:*|adaptive_procedure_prior_predictive_calibration:*) return 0 ;;
+    # Native linear cohort effect: the gated randomized/confounded designs and the named boundaries.
+    cohort_linear_effect_calibration:*) return 0 ;;
+    count_fitted_posterior_calibration:*) return 0 ;;
+    decision_reliability_calibration:*) return 1 ;;
+    # Decision-reliability published routes: coverage records over the Monte Carlo budget grid.
+    decision_reliability_interval_calibration:*) return 0 ;;
+    # Smoothed dose-response transport: the two *_psi_h coverage records only.
     smoothed_dose_calibration:*_psi_h) return 0 ;;
-    # 2.2B X3 joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
+    # Joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
     joint_sensitivity_calibration:*) return 0 ;;
-    # 2.2E E3 batch retarget: the unpublished family-level max-t band (wired, unmeasured).
+    # Batch retarget: the unpublished family-level max-t band (wired, unmeasured).
     batch_retarget_calibration:*) return 0 ;;
-    # 2.2E E4 clustered DML: the published t_(G-1) Wald interval (wired, unmeasured).
+    # Clustered DML: the published t_(G-1) Wald interval (wired, unmeasured).
     cluster_dml_calibration:*) return 0 ;;
     *) return 1 ;;
   esac
@@ -247,14 +270,14 @@ run_ignored() {
 # A pass/fail reference experiment, not a coverage claim for arbitrary input estimators.
 check "effect_constancy_calibration: known_gaussian_null_power_and_holm" \
   cargo test --release -p antecedent-estimate --test effect_constancy_calibration \
-  f18_known_gaussian_null_power_and_holm_grid -- --exact --nocapture
+  known_gaussian_null_power_and_holm_grid -- --exact --nocapture
 
 # Actual checked temporal adapter, paired effects share whole-unit resampling.
 run_temporal_recalc() {
   local name="$1"
-  check "temporal_recalc_calibration: ${name}" cargo test --release -p antecedent --test temporal_recalc_calibration "$name" -- --ignored --exact --nocapture
+  check "temporal_recalc_calibration: ${name}" cargo test --release -p antecedent --features calibration-internal --test temporal_recalc_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 C2 checked temporal response and paired effect candidates =="
+echo "== checked temporal response and paired effect candidates =="
 # Original response percentile/basic measurements failed. Their harnesses and
 # archived results remain retained; bootstrap-t is a distinct required method.
 run_temporal_recalc temporal_checked_response_studentized_l95
@@ -267,7 +290,7 @@ run_bayesian_recalc() {
   local name="$1"
   check "bayesian_recalc_calibration: ${name}" cargo test --release -p antecedent --test bayesian_recalc_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 C2 checked Gaussian posterior summary precision =="
+echo "== checked Gaussian posterior summary precision =="
 run_bayesian_recalc gaussian_adapter_posterior_summary_precision
 
 # Actual basis NIG and replayed mapped source-prior conditional summary precision.
@@ -283,7 +306,7 @@ run_posterior_summary() {
   local name="$1"
   check "posterior_summary_calibration: ${name}" cargo test --release -p antecedent-io --test posterior_summary_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 F1 F16 posterior quantile numerical precision =="
+echo "== posterior quantile numerical precision =="
 run_posterior_summary posterior_type7_quantile_precision
 
 # Precision of shared-row bootstrap covariance; no interval or error-control license.
@@ -291,7 +314,7 @@ run_scenario_covariance() {
   local name="$1"
   check "scenario_covariance_calibration: ${name}" cargo test --release -p antecedent-estimate --test scenario_covariance_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 X2 shared-row covariance numerical precision =="
+echo "== shared-row covariance numerical precision =="
 run_scenario_covariance shared_row_mean_covariance_precision
 
 # Conditional numerical diagnostics only; no coverage emitter or new inference license.
@@ -299,7 +322,7 @@ run_evsi_precision() {
   local name="$1"
   check "evsi_precision_calibration: ${name}" cargo test --release -p antecedent-design --test evsi_precision_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 conditional EVSI and ranking numerical precision =="
+echo "== conditional EVSI and ranking numerical precision =="
 run_evsi_precision evsi_finite_and_conjugate_exact_precision
 run_evsi_precision evsi_monte_carlo_score_error_and_net_value_precision
 run_evsi_precision evsi_fixed_rank_selection_and_tie_precision
@@ -309,17 +332,17 @@ run_design_ar_precision() {
   local name="$1"
   check "design_ar_precision_calibration: ${name}" cargo test --release -p antecedent --test design_ar_precision_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 original checked IV AR all-run numerical diagnostics =="
+echo "== original checked IV AR all-run numerical diagnostics =="
 run_design_ar_precision checked_design_iv_ar_full_method_error_rate_and_weak_boundaries
 
 run_generic_aipw_precision() {
   local name="$1"
   check "generic_aipw_precision: ${name}" cargo test --release -p antecedent --test generic_aipw_precision "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 public five-fold AIPW known-target score SE diagnostics =="
+echo "== public five-fold AIPW known-target score SE diagnostics =="
 run_generic_aipw_precision generic_aipw_five_fold_known_target_score_precision
 
-# Closed 2.3 X4 candidates: whole-method measurements, final step only.
+# Closed whole-method candidates: whole-method measurements, final step only.
 run_nested_fisher() {
   local name="$1"
   check "nested_markov_fisher_calibration: ${name}" cargo test --release -p antecedent-estimate --test nested_markov_fisher_calibration "$name" -- --ignored --exact --nocapture
@@ -332,7 +355,7 @@ run_joint_gaussian() {
   local name="$1"
   check "joint_bayesian_transport_calibration: ${name}" cargo test --release -p antecedent-estimate --test joint_bayesian_transport_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 X4 closed Fisher and joint Gaussian candidates =="
+echo "== closed Fisher and joint Gaussian candidates =="
 run_nested_fisher nested_fisher_iid_latent_verma_l95
 run_nested_fisher nested_fisher_iid_markov_submodel_l95
 run_nested_bayesian nested_bayesian_full11d_uniform_l95
@@ -350,7 +373,7 @@ run_recovery_whole_method() {
   local name="$1"
   check "recovery_whole_method_calibration: ${name}" cargo test --release -p antecedent-estimate --test recovery_whole_method_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 closed temporal and recovery whole-method candidates =="
+echo "== closed temporal and recovery whole-method candidates =="
 # Distinct corrected constructions; historical percentile/basic failures are
 # preserved in the original harnesses and carryover disposition, never relabeled.
 run_temporal_unit temporal_two_step_units_studentized_l95
@@ -360,26 +383,105 @@ run_learned_joint() {
   local name="$1"
   check "learned_joint_calibration: ${name}" cargo test --release -p antecedent-estimate --test learned_joint_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 closed degree-2 learned joint posterior candidate =="
+echo "== closed degree-2 learned joint posterior candidate =="
 run_learned_joint learned_degree2_gaussian_one_source_intercept_l95
 run_learned_joint learned_degree2_gaussian_two_independent_intercepts_l95
 run_learned_joint learned_degree2_gaussian_two_shared_intercepts_l95
 run_learned_joint learned_degree2_gaussian_two_varying_covariates_l95
 
+run_adaptive_inference() {
+  local name="$1"
+  check "adaptive_inference_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test adaptive_inference_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== adaptive procedures: fixed-truth Thompson, epsilon-greedy, group-sequential, anytime-valid =="
+run_adaptive_inference thompson_posterior_whole_procedure_l95
+run_adaptive_inference thompson_posterior_equal_arms_boundary_l95
+run_adaptive_inference thompson_posterior_large_gap_boundary_l95
+run_adaptive_inference epsilon_greedy_weighted_contrast_whole_procedure_l95
+run_adaptive_inference epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95
+run_adaptive_inference epsilon_greedy_weighted_contrast_delayed_outcomes_l95
+run_adaptive_inference epsilon_greedy_repeated_measures_weighted_contrast_l95
+run_adaptive_inference group_sequential_overall_type_one_error_is_alpha
+run_adaptive_inference group_sequential_power_matches_the_numerical_integration
+run_adaptive_inference anytime_valid_sequence_covers_the_arm_mean_at_every_look_l95
+run_adaptive_inference anytime_valid_sequence_arm_mean_record_l95
+run_adaptive_inference anytime_valid_sequence_contrast_record_l95
+run_adaptive_inference group_sequential_repeated_interval_null_effect_l95
+run_adaptive_inference group_sequential_repeated_interval_moderate_effect_l95
+run_adaptive_inference group_sequential_repeated_interval_large_effect_l95
+
+run_adaptive_prior_predictive() {
+  local name="$1"
+  check "adaptive_procedure_prior_predictive_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test adaptive_procedure_prior_predictive_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== adaptive procedure prior-predictive credible interval =="
+run_adaptive_prior_predictive thompson_posterior_prior_predictive_stop_090_l95
+run_adaptive_prior_predictive thompson_posterior_prior_predictive_stop_095_l95
+run_adaptive_prior_predictive thompson_posterior_prior_predictive_stop_099_boundary_l95
+
+run_decision_reliability_expectation() {
+  local name="$1"
+  check "decision_reliability_calibration: ${name}" cargo test --release -p antecedent-design --test decision_reliability_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== decision reliability winner's curse expectation =="
+run_decision_reliability_expectation winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased
+
+run_decision_reliability_interval() {
+  local name="$1"
+  check "decision_reliability_interval_calibration: ${name}" cargo test --release -p antecedent-design --test decision_reliability_interval_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== decision reliability published routes: ranking probability, utility, confidence set, selection-corrected =="
+run_decision_reliability_interval ranking_probability_two_candidates_l95
+run_decision_reliability_interval ranking_probability_eight_candidates_l95
+run_decision_reliability_interval ranking_probability_sixty_four_candidates_l95
+run_decision_reliability_interval ranking_probability_dominant_leader_boundary_l95
+run_decision_reliability_interval ranking_probability_all_equal_boundary_l95
+run_decision_reliability_interval utility_interval_two_candidates_l95
+run_decision_reliability_interval utility_interval_eight_candidates_l95
+run_decision_reliability_interval utility_interval_sixty_four_candidates_l95
+run_decision_reliability_interval confidence_set_two_candidates_l95
+run_decision_reliability_interval confidence_set_eight_candidates_l95
+run_decision_reliability_interval confidence_set_sixty_four_candidates_l95
+run_decision_reliability_interval selection_corrected_two_candidates_l95
+run_decision_reliability_interval selection_corrected_eight_candidates_l95
+run_decision_reliability_interval selection_corrected_sixty_four_candidates_l95
+run_decision_reliability_interval selection_corrected_all_equal_sixty_four_candidates_boundary_l95
+
 run_quadratic_dose() {
   local name="$1"
-  check "quadratic_dose_calibration: ${name}" cargo test --release -p antecedent-estimate --test quadratic_dose_calibration "$name" -- --ignored --exact --nocapture
+  check "quadratic_dose_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test quadratic_dose_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 closed exact-quadratic dose pointwise candidates =="
+echo "== closed exact-quadratic dose pointwise candidates =="
 run_quadratic_dose randomized_exact_quadratic_level_l95
 run_quadratic_dose randomized_exact_quadratic_derivative_l95
 run_quadratic_dose randomized_exact_quadratic_contrast_l95
+
+run_cohort_linear_effect() {
+  local name="$1"
+  check "cohort_linear_effect_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test cohort_linear_effect_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== native linear cohort-mean effect interval =="
+for design in randomized_p3 confounded_p4 confounded_p5; do
+  run_cohort_linear_effect "cohort_linear_effect_${design}_l90"
+  run_cohort_linear_effect "cohort_linear_effect_${design}_l95"
+done
+run_cohort_linear_effect cohort_linear_effect_misspecified_effect_boundary_l95
+run_cohort_linear_effect cohort_linear_effect_high_leverage_cohort_boundary_l95
+
+run_count_fitted_posterior() {
+  local name="$1"
+  check "count_fitted_posterior_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test count_fitted_posterior_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== count-fitted finite table posterior interval =="
+for name in count_fitted_confounded_signal_l90 count_fitted_confounded_signal_l95 count_fitted_measured_signal_l90 count_fitted_measured_signal_l95 count_fitted_sparse_parent_configuration_boundary_l95 count_fitted_rare_evidence_boundary_l95; do
+  run_count_fitted_posterior "${name}"
+done
 
 run_treatment_inference() {
   local name="$1"
   check "treatment_inference_calibration: ${name}" cargo test --release -p antecedent-estimate --test treatment_inference_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 full-fit treatment covariance and error-rate diagnostics =="
+echo "== full-fit treatment covariance and error-rate diagnostics =="
 run_bootstrap_effect_precision() {
   local name="$1"
   check "bootstrap_effect_precision: ${name}" cargo test --release -p antecedent-estimate --test bootstrap_effect_precision "$name" -- --ignored --exact --nocapture
@@ -425,9 +527,9 @@ run_ignored antecedent-estimate aipw_att_hc1_ci_coverage
 # runs about 3% short of the Monte Carlo SD at n = 600).
 run_ignored antecedent-estimate aipw_atc_hc1_boundary_within_band
 run_ignored antecedent-estimate aipw_att_cluster_ci_coverage
-# 2.2E E2 penalized propensity: the cross-fitted influence-function SE and the refit
+# Penalized propensity: the cross-fitted influence-function SE and the refit
 # bootstrap (penalty and support selection repeated in every replicate), ridge and lasso.
-# Wired, measured once at the 2.2 cut; records 2.2E.E2.penalized_propensity_aipw.
+# Records estimate.penalized_propensity_aipw.
 run_ignored antecedent-estimate aipw_ridge_influence_ci_coverage
 run_ignored antecedent-estimate aipw_ridge_refit_bootstrap_ci_coverage
 run_ignored antecedent-estimate aipw_lasso_influence_ci_coverage
@@ -467,12 +569,24 @@ run_ignored antecedent-estimate bayesian_sustained_single_step_conjugate_nominal
 run_ignored antecedent-estimate bayesian_sustained_multi_step_conjugate_nominal_90_coverage
 run_ignored antecedent-estimate bayesian_panel_hierarchical_nominal_90_coverage
 
+echo "== sampled counterfactual transport delta-method candidate (antecedent-estimate) =="
+run_sampled_counterfactual_transport() {
+  local filter="$1"
+  echo "== antecedent-estimate: ${filter} =="
+  check "antecedent-estimate: ${filter}" \
+    cargo test --release -p antecedent-estimate --features calibration-internal \
+    --test counterfactual_transport_sampled "$filter" -- --ignored --exact --nocapture
+}
+run_sampled_counterfactual_transport sampled_mediation_covariate_shift
+run_sampled_counterfactual_transport sampled_two_source_joint
+run_sampled_counterfactual_transport sampled_latent_district
+
 echo "== temporal / mixture interval coverage (antecedent) =="
 run_ignored_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_calibration "$filter" -- --ignored --exact --nocapture
+  check "mixture_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --test mixture_interval_calibration "$filter" -- --ignored --exact --nocapture
 }
 run_ignored_test frequentist_dbn_pulse_shared_block_nominal_90_coverage
 run_ignored_test frequentist_dbn_sustained_shared_block_nominal_90_coverage
@@ -515,8 +629,8 @@ echo "== temporal class envelopes: multi-step, TemporalPag, identified-set inter
 run_temporal_class() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_temporal_class_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_temporal_class_calibration "$filter" \
+  check "temporal_class_calibration: ${filter}" \
+    cargo test --release -p antecedent --test temporal_class_calibration "$filter" \
     -- --ignored --exact --nocapture
 }
 run_temporal_class frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage
@@ -555,8 +669,8 @@ echo "== static graph-posterior mixture coverage (antecedent) =="
 run_static_mixture_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_static_mixture_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_static_mixture_calibration "$filter" \
+  check "static_mixture_calibration: ${filter}" \
+    cargo test --release -p antecedent --test static_mixture_calibration "$filter" \
     -- --ignored --nocapture
 }
 run_static_mixture_test static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage
@@ -568,8 +682,8 @@ echo "== derivative-family interval coverage (antecedent) =="
 run_ignored_derivative() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_derivative_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_derivative_calibration "$filter" \
+  check "derivative_calibration: ${filter}" \
+    cargo test --release -p antecedent --test derivative_calibration "$filter" \
     -- --ignored --nocapture --exact
 }
 run_ignored_derivative ade_frequentist_gaussian_treatment_nominal_90_coverage
@@ -601,8 +715,8 @@ echo "== Bayesian temporal Pulse / Sustained under serial dependence (antecedent
 run_ignored_bayes_temporal() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_bayesian_temporal: ${filter}" \
-    cargo test --release -p antecedent --test v19_bayesian_temporal "$filter" -- --ignored --nocapture
+  check "bayesian_temporal: ${filter}" \
+    cargo test --release -p antecedent --test bayesian_temporal "$filter" -- --ignored --nocapture
 }
 run_ignored_bayes_temporal bayesian_temporal_pulse_iid_nominal_90_coverage
 run_ignored_bayes_temporal bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage
@@ -658,8 +772,8 @@ echo "== dependence-honest Frequentist TemporalDag SEs (R-1, R-2) =="
 run_temporal_frequentist() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_temporal_frequentist: ${filter}" \
-    cargo test --release -p antecedent --test v19_temporal_frequentist "$filter" \
+  check "temporal_frequentist: ${filter}" \
+    cargo test --release -p antecedent --test temporal_frequentist "$filter" \
     -- --ignored --exact --nocapture
 }
 run_temporal_frequentist temporal_dag_pulse_iid_n160_nominal_90_coverage
@@ -697,8 +811,8 @@ echo "== static envelope / tier coverage (antecedent, release) =="
 run_static_envelope() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_static_envelope_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_static_envelope_calibration "$filter" \
+  check "static_envelope_calibration: ${filter}" \
+    cargo test --release -p antecedent --test static_envelope_calibration "$filter" \
     -- --ignored --nocapture --exact
 }
 run_static_envelope static_cpdag_ate_envelope_frequentist_nominal_90_coverage
@@ -721,20 +835,20 @@ echo "== temporal response surfaces: pointwise + simultaneous bands (antecedent)
 # TemporalDag surfaces, observation-adjusted pairs, horizon-dependent I(h), and
 # TemporalCpdag / TemporalPag completion atoms, two-step Sequence overlays on
 # complete and observation-adjusted data, iid and AR(1) residuals).
-check "v19_temporal_response_calibration" \
-  cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
+check "temporal_response_calibration" \
+  cargo test --release -p antecedent --test temporal_response_calibration -- --ignored --nocapture
 
 echo "== panel routes: cluster-by-unit SE, unit bootstrap, between-unit bands (antecedent) =="
 # One invocation runs every ignored test in the file.
-check "v110_panel_calibration" \
-  cargo test --release -p antecedent --test v110_panel_calibration -- --ignored --nocapture
+check "panel_calibration" \
+  cargo test --release -p antecedent --test panel_calibration -- --ignored --nocapture
 
 echo "== remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
 run_static_remaining() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_static_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_static_calibration "$filter" \
+  check "static_calibration: ${filter}" \
+    cargo test --release -p antecedent --test static_calibration "$filter" \
     -- --ignored --nocapture --exact
 }
 run_static_remaining response_curve_dag_frequentist_pointwise_nominal_90_coverage
@@ -768,8 +882,6 @@ run_static_remaining mediation_confounded_mediator_probe
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \
   bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform
-run_ignored antecedent-validate \
-  bayesian_checks::tests::calibration_gate::posterior_calibration_synthetic_scm_nominal_90_coverage
 
 echo "== CI Type I / permutation uniformity (antecedent-stats) =="
 run_ignored antecedent-stats robust_parcorr_calibration_gate
@@ -798,140 +910,174 @@ run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
 
 echo "== coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
-run_v110() {
+run_suite() {
   local file="$1"
   local filter="$2"
   echo "== antecedent: ${file} ${filter} =="
   check "${file}: ${filter}" \
     cargo test --release -p antecedent --test "$file" "$filter" -- --ignored --exact --nocapture
 }
-run_v110 v110_calibration_response intervention_response_dag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_response intervention_response_dag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_response intervention_response_cpdag_bayesian_nominal_coverage
-run_v110 v110_calibration_response intervention_response_pag_bayesian_nominal_coverage
-run_v110 v110_calibration_response intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_response intervention_response_pag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_response response_curve_cpdag_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_response response_curve_pag_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_response intervention_response_codetermined_frequentist_nominal_coverage
-run_v110 v110_calibration_response intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_response response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_admg average_effect_admg_frontdoor_frequentist_nominal_coverage
-run_v110 v110_calibration_admg average_effect_admg_frontdoor_bayesian_nominal_coverage
-run_v110 v110_calibration_admg interventional_distribution_admg_frontdoor_bayesian_nominal_coverage
-run_v110 v110_calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_nominal_coverage
-run_v110 v110_calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage
-run_v110 v110_calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage
-run_v110 v110_calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_bayesian_accepted_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_pag_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_pag_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_pag_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_pag_frequentist_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_bayesian_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_frequentist_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog average_effect_unknown_frequentist_joint_band_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_intervention_response_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_intervention_response_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_response_curve_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_response_curve_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_response_curve_frequentist_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_response_curve_bayesian_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_intervention_response_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_intervention_response_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_response_curve_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_response_curve_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_intervention_response_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_intervention_response_bayesian_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_temporal_pag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_temporal_pag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_temporal_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_temporal_pag_graph_posterior_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_anomaly_bayesian anomaly_attribution_dag_bayesian_nominal_coverage
-run_v110 v110_calibration_design transport_admg_trial_ipw_frequentist_nominal_coverage
+run_suite calibration_response intervention_response_dag_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_response intervention_response_dag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_response intervention_response_cpdag_bayesian_nominal_coverage
+run_suite calibration_response intervention_response_pag_bayesian_nominal_coverage
+run_suite calibration_response intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_response intervention_response_pag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_response response_curve_cpdag_bayesian_pointwise_nominal_coverage
+run_suite calibration_response response_curve_pag_bayesian_pointwise_nominal_coverage
+run_suite calibration_response intervention_response_codetermined_frequentist_nominal_coverage
+run_suite calibration_response intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_response response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage
+run_suite calibration_admg average_effect_admg_frontdoor_frequentist_nominal_coverage
+run_suite calibration_admg average_effect_admg_frontdoor_bayesian_nominal_coverage
+run_suite calibration_admg interventional_distribution_admg_frontdoor_bayesian_nominal_coverage
+run_suite calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_nominal_coverage
+run_suite calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage
+run_suite calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage
+run_suite calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage
+run_suite calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage
+run_suite calibration_backlog intervention_response_admg_bayesian_nominal_coverage
+run_suite calibration_backlog intervention_response_admg_bayesian_accepted_nominal_coverage
+run_suite calibration_backlog intervention_response_pag_frequentist_nominal_coverage
+run_suite calibration_backlog intervention_response_pag_frequentist_accepted_nominal_coverage
+run_suite calibration_backlog response_curve_pag_frequentist_pointwise_nominal_coverage
+run_suite calibration_backlog response_curve_pag_frequentist_accepted_pointwise_nominal_coverage
+run_suite calibration_backlog response_curve_admg_bayesian_pointwise_nominal_coverage
+run_suite calibration_backlog response_curve_admg_bayesian_accepted_pointwise_nominal_coverage
+run_suite calibration_backlog intervention_response_admg_frequentist_nominal_coverage
+run_suite calibration_backlog intervention_response_admg_frequentist_accepted_nominal_coverage
+run_suite calibration_backlog intervention_response_admg_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_backlog response_curve_admg_frequentist_pointwise_nominal_coverage
+run_suite calibration_backlog response_curve_admg_frequentist_accepted_pointwise_nominal_coverage
+run_suite calibration_backlog response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage
+run_suite calibration_backlog average_effect_unknown_frequentist_joint_band_nominal_coverage
+run_suite calibration_backlog temporal_cpdag_intervention_response_frequentist_nominal_coverage
+run_suite calibration_backlog temporal_cpdag_intervention_response_bayesian_nominal_coverage
+run_suite calibration_backlog temporal_cpdag_response_curve_frequentist_pointwise_nominal_coverage
+run_suite calibration_backlog temporal_cpdag_response_curve_bayesian_pointwise_nominal_coverage
+run_suite calibration_backlog temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage
+run_suite calibration_backlog temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage
+run_suite calibration_backlog temporal_cpdag_response_curve_frequentist_accepted_pointwise_nominal_coverage
+run_suite calibration_backlog temporal_cpdag_response_curve_bayesian_accepted_pointwise_nominal_coverage
+run_suite calibration_backlog temporal_pag_intervention_response_frequentist_nominal_coverage
+run_suite calibration_backlog temporal_pag_intervention_response_bayesian_nominal_coverage
+run_suite calibration_backlog temporal_pag_response_curve_frequentist_pointwise_nominal_coverage
+run_suite calibration_backlog temporal_pag_response_curve_bayesian_pointwise_nominal_coverage
+run_suite calibration_backlog temporal_pag_intervention_response_frequentist_accepted_nominal_coverage
+run_suite calibration_backlog temporal_pag_intervention_response_bayesian_accepted_nominal_coverage
+run_suite calibration_backlog temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage
+run_suite calibration_backlog temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage
+run_suite calibration_backlog intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_backlog intervention_response_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_backlog intervention_response_temporal_pag_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_backlog intervention_response_temporal_pag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_backlog response_curve_temporal_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage
+run_suite calibration_backlog response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage
+run_suite calibration_backlog response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage
+run_suite calibration_backlog response_curve_temporal_pag_graph_posterior_bayesian_pointwise_nominal_coverage
+run_suite calibration_anomaly_bayesian anomaly_attribution_dag_bayesian_nominal_coverage
+run_suite calibration_design transport_admg_trial_ipw_frequentist_nominal_coverage
 # Boundary cell: the conservative Young variance bound over-covers by design.
-run_v110 v110_calibration_design interference_dag_bernoulli_neighbor_count_conservative_bound_boundary
-run_v110 v110_calibration_attribution_bayesian change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage
-run_v110 v110_calibration_design_bayesian interference_query_dag_bayesian_neighbor_count_nominal_coverage
-run_v110 v110_calibration_design_bayesian transport_query_admg_bayesian_bootstrap_nominal_coverage
-run_v110 v110_calibration_temporal_class pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_temporal_class pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_temporal_class sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_temporal_class sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_temporal_class temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_estimate glm_adjustment_binary_outcome_nominal_coverage
-run_v110 v110_calibration_estimate average_effect_dag_frequentist_default_nominal_coverage
-run_v110 v110_calibration_temporal temporal_cpdag_mediation_frequentist_confounded_nominal_coverage
-run_v110 v110_calibration_temporal temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage
-run_v110 v110_calibration_temporal pulse_effect_temporal_dag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_temporal pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_logit_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_probit_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_poisson_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_cpdag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_pag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static conditional_effect_dag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static conditional_effect_cpdag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static conditional_effect_pag_bayesian_default_nominal_coverage
+run_suite calibration_design interference_dag_bernoulli_neighbor_count_conservative_bound_boundary
+run_suite calibration_attribution_bayesian change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage
+run_suite calibration_design_bayesian interference_query_dag_bayesian_neighbor_count_nominal_coverage
+run_suite calibration_design_bayesian transport_query_admg_bayesian_bootstrap_nominal_coverage
+run_suite calibration_temporal_class pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_temporal_class pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_temporal_class pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_temporal_class pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_temporal_class sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_temporal_class sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_temporal_class sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_temporal_class sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_temporal_class temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
+run_suite calibration_temporal_class temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
+run_suite calibration_estimate glm_adjustment_binary_outcome_nominal_coverage
+run_suite calibration_estimate average_effect_dag_frequentist_default_nominal_coverage
+run_suite calibration_temporal temporal_cpdag_mediation_frequentist_confounded_nominal_coverage
+run_suite calibration_temporal temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage
+run_suite calibration_temporal pulse_effect_temporal_dag_bayesian_default_nominal_coverage
+run_suite calibration_temporal pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage
+run_suite calibration_bayesian_static average_effect_dag_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static average_effect_dag_bayesian_logit_nominal_coverage
+run_suite calibration_bayesian_static average_effect_dag_bayesian_probit_nominal_coverage
+run_suite calibration_bayesian_static average_effect_dag_bayesian_poisson_nominal_coverage
+run_suite calibration_bayesian_static average_effect_cpdag_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static average_effect_pag_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static conditional_effect_dag_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static conditional_effect_cpdag_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static conditional_effect_pag_bayesian_default_nominal_coverage
 # Boundary cells: an atom probability 0.035 from a boundary at 600 rows.
-run_v110 v110_calibration_bayesian_static interventional_distribution_dag_bayesian_near_one_default_coverage
-run_v110 v110_calibration_bayesian_static interventional_distribution_dag_bayesian_near_zero_default_coverage
-run_v110 v110_calibration_bayesian_static mediation_nde_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static mediation_nie_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static path_specific_chain_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static path_specific_two_path_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static interventional_distribution_dag_bayesian_near_one_default_coverage
+run_suite calibration_bayesian_static interventional_distribution_dag_bayesian_near_zero_default_coverage
+run_suite calibration_bayesian_static mediation_nde_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static mediation_nie_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static path_specific_chain_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static path_specific_two_path_bayesian_default_nominal_coverage
 # Boundary cell: the mean-ITE credible interval is finite-sample tight at n=300.
-run_v110 v110_calibration_bayesian_static counterfactual_bayesian_mean_ite_default_coverage
-run_v110 v110_calibration_bayesian_static intervention_response_dag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static response_curve_dag_bayesian_default_pointwise_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_derivative_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static point_derivative_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static semi_elasticity_log_treatment_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static semi_elasticity_log_outcome_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static elasticity_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static directional_derivative_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static counterfactual_bayesian_mean_ite_default_coverage
+run_suite calibration_bayesian_static intervention_response_dag_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static response_curve_dag_bayesian_default_pointwise_nominal_coverage
+run_suite calibration_bayesian_static average_derivative_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static point_derivative_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static semi_elasticity_log_treatment_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static semi_elasticity_log_outcome_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static elasticity_bayesian_default_nominal_coverage
+run_suite calibration_bayesian_static directional_derivative_bayesian_default_nominal_coverage
 # Boundary cell: the Jacobian band's measured coverage is asserted, not nominal.
-run_v110 v110_calibration_bayesian_static response_jacobian_bayesian_default_coverage
-run_v110 v110_calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
-run_v110 v110_calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
-run_v110 v110_class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
+run_suite calibration_bayesian_static response_jacobian_bayesian_default_coverage
+run_suite calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
+run_suite calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
+run_suite class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
+# Sample-split discovery then effect: the gated construction and its named boundaries.
+run_suite sample_split_effect_calibration sample_split_discovered_effect_nominal_95_coverage
+run_suite sample_split_effect_calibration sample_split_weak_edges_boundary_95
+run_suite sample_split_effect_calibration sample_split_cancelling_edge_boundary_95
+run_suite sample_split_effect_calibration sample_split_misspecified_test_boundary_95
+run_suite sample_split_effect_calibration sample_split_full_row_reuse_boundary_95
+# Pooled evidence interval, composed linear-moment interval and cross-world intervals.
+run_suite evidence_synthesis_calibration pooled_fixed_effect_five_studies
+run_suite evidence_synthesis_calibration pooled_fixed_effect_ten_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_five_studies
+run_suite evidence_synthesis_calibration pooled_random_effects_ten_studies
+run_suite joint_law_composed_interval_calibration composed_contrast_shared_rows_gaussian_positive_correlation_l95
+run_suite joint_law_composed_interval_calibration composed_contrast_shared_rows_gaussian_negative_correlation_l95
+run_suite joint_law_composed_interval_calibration composed_contrast_shared_rows_skewed_pair_l95
+run_suite joint_law_composed_interval_calibration composed_contrast_independent_samples_gaussian_l95
+run_suite joint_law_composed_interval_calibration composed_contrast_aligned_bootstrap_gaussian_l95
+run_suite joint_law_composed_interval_calibration composed_contrast_aligned_bootstrap_skewed_pair_l95
+run_suite cross_world_interval_calibration cross_world_interval_independent_sample_balanced_types_l95
+run_suite cross_world_interval_calibration cross_world_interval_independent_sample_rare_types_l95
+run_suite cross_world_interval_calibration cross_world_interval_fixed_units_balanced_types_l95
+run_suite predictive_score_interval_calibration iid_crps_mean_l95
+run_suite predictive_score_interval_calibration iid_log_score_mean_l95
+run_suite predictive_score_interval_calibration iid_crps_difference_l95
+run_suite predictive_score_interval_calibration serial_crps_mean_l95
+run_suite predictive_score_interval_calibration serial_log_score_mean_l95
+run_suite predictive_score_interval_calibration serial_crps_difference_l95
+run_suite predictive_score_interval_calibration cluster_crps_mean_l95
+run_suite predictive_score_interval_calibration cluster_log_score_mean_l95
+run_suite predictive_score_interval_calibration cluster_crps_difference_l95
+run_suite predictive_score_interval_calibration iid_log_score_heavy_tailed_truth_boundary_l95
+run_suite scientific_bridge_interval_calibration surrogate_trial_level_prediction_interval_l95
+run_suite scientific_bridge_interval_calibration latent_measured_correction_prevalence_0_2_l95
+run_suite scientific_bridge_interval_calibration latent_measured_correction_prevalence_0_5_l95
+run_suite scientific_bridge_interval_calibration latent_measured_correction_low_prevalence_boundary_l95
 
-echo "== 2.0 statistical transport: empirical-table IID bootstrap (antecedent) =="
-run_v20() {
+echo "== statistical transport: empirical-table IID bootstrap (antecedent) =="
+run_transport_statistical() {
   local filter="$1"
-  echo "== antecedent: v20_transport_statistical_calibration ${filter} =="
-  check "v20_transport_statistical_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v20_transport_statistical_calibration "$filter" \
+  echo "== antecedent: transport_statistical_calibration ${filter} =="
+  check "transport_statistical_calibration: ${filter}" \
+    cargo test --release -p antecedent --test transport_statistical_calibration "$filter" \
     -- --ignored --exact --nocapture
 }
-run_v20 shared_factor_target_observational_nominal_coverage
-run_v20 source_target_imbalance_standardize_nominal_coverage
-run_v20 recursive_frontdoor_nominal_coverage
-run_v20 weak_overlap_near_empty_conditioner_boundary
+run_transport_statistical shared_factor_target_observational_nominal_coverage
+run_transport_statistical source_target_imbalance_standardize_nominal_coverage
+run_transport_statistical recursive_frontdoor_nominal_coverage
+run_transport_statistical weak_overlap_near_empty_conditioner_boundary
 
-echo "== 2.2 multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
+echo "== multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
 run_mz() {
   local filter="$1"
   echo "== antecedent: mz_transport_calibration ${filter} =="
@@ -942,7 +1088,7 @@ run_mz() {
 run_mz multi_source_mz_independent_studies
 run_mz multi_source_mz_shared_units
 
-echo "== 2.2 learned continuous-outcome trial transport joint bootstrap (antecedent) =="
+echo "== learned continuous-outcome trial transport joint bootstrap (antecedent) =="
 run_lc() {
   local filter="$1"
   echo "== antecedent: learned_continuous_calibration ${filter} =="
@@ -955,7 +1101,7 @@ run_lc learned_trial_aipw_independent_samples_continuous_mean_contrast
 run_lc learned_trial_aipw_weak_overlap_boundary
 run_lc learned_trial_aipw_misspecified_nuisance_cases
 
-echo "== 2.2B smoothed dose-response transport joint bootstrap (antecedent) =="
+echo "== smoothed dose-response transport joint bootstrap (antecedent) =="
 run_sd() {
   local filter="$1"
   echo "== antecedent: smoothed_dose_calibration ${filter} =="
@@ -968,8 +1114,8 @@ run_sd smoothed_dose_transport_independent_samples_psi_h
 run_sd smoothed_dose_transport_grid_points
 run_sd smoothed_dose_transport_weak_overlap_boundary
 
-echo "== 2.2B joint mechanism sensitivity conservative endpoint bootstrap (antecedent) =="
-# Record 2.2B.X3.joint_sensitivity_uncertainty. The zero box is a two-sided gated record;
+echo "== joint mechanism sensitivity conservative endpoint bootstrap (antecedent) =="
+# Record sensitivity.joint_uncertainty. The zero box is a two-sided gated record;
 # the positive box is a `one_sided` record (CoverageTally::assert_one_sided, side upper):
 # coverage of the true upper extremal bound at least nominal, no upper band or ceiling.
 run_js() {
@@ -982,10 +1128,10 @@ run_js() {
 run_js z_joint_sensitivity_zero_box
 run_js z_joint_sensitivity_positive_box
 
-echo "== 2.2E batch retarget unpublished max-t simultaneous band (antecedent) =="
-# Record 2.2E.E3.batch_retarget_covariance_contrasts. The family-level simultaneous interval
+echo "== batch retarget unpublished max-t simultaneous band (antecedent) =="
+# Record estimate.batch_retarget_covariance. The family-level simultaneous interval
 # route is closed (cell_not_licensed); the band is scored through the unpublished evaluator
-# and measured once at the 2.2 cut. Nothing is measured before it.
+# and is measured only by this gate.
 run_br() {
   local filter="$1"
   echo "== antecedent: batch_retarget_calibration ${filter} =="
@@ -995,9 +1141,9 @@ run_br() {
 }
 run_br batch_retarget_max_t_simultaneous_band
 
-echo "== 2.2E clustered DML published t Wald interval (antecedent) =="
-# Record 2.2E.E4.clustered_dml_aipw. The cluster-sandwich interval estimate +- t_(G-1) se is
-# scored through the facade's published interval and measured once at the 2.2 cut; the
+echo "== clustered DML published t Wald interval (antecedent) =="
+# Record estimate.clustered_dml_aipw. The cluster-sandwich interval estimate +- t_(G-1) se is
+# scored through the facade's published interval and measured only by this gate; the
 # coverage record is the only missing piece.
 run_cd() {
   local filter="$1"
@@ -1015,7 +1161,7 @@ if [ -n "$RECHECKED" ]; then
   echo "gate_calibration: group(s) rechecked at ${RECHECK_NSIM} replicates:"
   printf '%s' "$RECHECKED"
 fi
-# Retained adjusted source-fit and fixed-target variance diagnostics (2.3).
+# Retained adjusted source-fit and fixed-target variance diagnostics.
 run_adjusted_recalc_precision() {
   local name="$1"
   check "adjusted_recalc_precision: ${name}" cargo test --release -p antecedent --test adjusted_recalc_precision "$name" -- --ignored --exact --nocapture

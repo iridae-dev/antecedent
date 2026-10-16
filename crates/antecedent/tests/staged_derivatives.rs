@@ -1,6 +1,5 @@
 //! Known-truth licensing evidence for staged derivatives.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 use antecedent::{AcceptedGraph, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, ResponseFunctional as F,
@@ -12,6 +11,10 @@ use antecedent_graph::{Dag, DenseNodeId};
 use std::sync::Arc;
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for staged derivatives known truth"
+)]
 fn staged_derivatives_known_truth() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/response/staged_derivatives/expected.json"
@@ -96,8 +99,8 @@ fn staged_derivatives_known_truth() {
             let prepared = study.prepare(&ctx).unwrap();
             let result = prepared.estimate(&data, &ctx).unwrap();
             let fresh = study.run(&ctx).unwrap();
-            let response = result.response.as_ref().unwrap();
-            assert_eq!(response, fresh.response.as_ref().unwrap());
+            let response = result.response().unwrap();
+            assert_eq!(response, fresh.response().unwrap());
             let ResponseIdentification::PointIdentified(value) = &response.estimate else {
                 panic!("unidentified {key}")
             };
@@ -197,7 +200,7 @@ fn confounded_derivatives_are_not_the_observational_slope() {
             .unwrap();
         let result = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
         let ResponseIdentification::PointIdentified(ResponseValue::Scalar(got)) =
-            &result.response.as_ref().unwrap().estimate
+            &result.response().unwrap().estimate
         else {
             panic!("unidentified {key}")
         };

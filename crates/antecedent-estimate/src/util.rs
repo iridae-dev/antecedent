@@ -12,7 +12,10 @@
 
 use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext};
 use antecedent_data::{DataError, ResamplingPlan, fill_resample_index_batch};
-use antecedent_stats::{StatsError, chol_solve, cholesky_spd, form_xtx, invert_square};
+use antecedent_stats::{
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, StatsError, chol_solve, cholesky_spd,
+    form_xtx, invert_square,
+};
 
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
@@ -21,7 +24,7 @@ use crate::overlap::OverlapPolicy;
 /// carries (a refused GLM fit, a rank-deficient design, too few clusters) stays in the error and
 /// is read back as structured fields by [`EstimationError::refusal_fields`]; the text and the
 /// variant are unchanged.
-#[allow(clippy::needless_pass_by_value)] // StatsError is small / owned at call sites
+#[allow(clippy::needless_pass_by_value, reason = "statsError is small / owned at call sites")]
 pub(crate) fn stats_err(e: StatsError) -> EstimationError {
     EstimationError::from(e)
 }
@@ -31,6 +34,36 @@ pub(crate) fn stats_err(e: StatsError) -> EstimationError {
 pub(crate) fn solve_spd(a: &[f64], b: &[f64], p: usize) -> Option<Vec<f64>> {
     let chol = cholesky_spd(a, p)?;
     chol_solve(&chol, p, b)
+}
+
+/// The 64-bit identity word of a finished canonical stream: the first eight bytes of its
+/// BLAKE3 digest, little-endian. For identities that are carried as a `u64` field; anything
+/// stored as a whole digest uses [`CanonicalWriter::finish`] directly.
+#[must_use]
+pub(crate) fn canonical_word(writer: &antecedent_core::CanonicalWriter) -> u64 {
+    let digest = writer.finish();
+    u64::from_le_bytes([
+        digest[0], digest[1], digest[2], digest[3], digest[4], digest[5], digest[6], digest[7],
+    ])
+}
+
+/// `n` draws from `N(mean, variance)` on the seeded direct-draw stream of the shared
+/// multivariate sampler; `None` when `variance` is not positive and finite (the sampler's
+/// Cholesky refuses it) or the draw fails.
+#[must_use]
+pub(crate) fn normal_draws(mean: f64, variance: f64, n: usize, seed: u64) -> Option<Vec<f64>> {
+    if !(variance.is_finite() && variance > 0.0) {
+        return None;
+    }
+    antecedent_prob::sample_gaussian_mvn(
+        &[mean],
+        &[variance],
+        n,
+        seed,
+        &mut antecedent_prob::LaplaceWorkspace::default(),
+    )
+    .ok()
+    .map(|draws| draws.to_vec())
 }
 
 /// `X'X` (row-major `p × p`) of a column-major `n × p` design.
@@ -63,10 +96,33 @@ pub(crate) fn refuse_explicit_override(
     Ok(())
 }
 
-/// Unbiased sample standard deviation; `NaN` if fewer than 2 observations.
-pub(crate) fn sample_std(values: &[f64]) -> f64 {
-    antecedent_stats::sample_std(values)
+/// A structured refusal whose message is `"{detail}: {message}"`: `detail` is the namespaced
+/// reason literal a caller keys on, `message` the human text.
+pub(crate) fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
+    EstimationError::refused(code, format!("{detail}: {message}"))
 }
+
+/// Slack of every correlation-matrix factorization, relative to its unit diagonal: a pivot
+/// within it of zero is a rank-deficient direction (perfectly collinear scores, an identical
+/// estimand), one below it is an indefinite matrix. Also the tolerance of the unit-diagonal
+/// and symmetry checks that precede the factorization.
+pub(crate) const CORRELATION_PSD_TOLERANCE: f64 = 1e-9;
+
+/// Two-sided normal p-value `2·(1 − Φ(|z|))` of a standardized statistic; `NaN` propagates.
+pub(crate) fn normal_two_sided_p(z: f64) -> f64 {
+    2.0 * antecedent_kernels::norm_sf(z.abs())
+}
+
+/// A row or parameter count as `f64`.
+#[allow(clippy::cast_precision_loss, reason = "counts are far below 2^53")]
+pub(crate) const fn count(n: usize) -> f64 {
+    n as f64
+}
+
+pub(crate) use antecedent_kernels::{dot, mean};
+
+/// Unbiased sample standard deviation; `NaN` if fewer than 2 observations.
+pub(crate) use antecedent_kernels::sample_std;
 
 /// Monte Carlo critical value of a max-statistic band: the `⌈level·(B+1)⌉`-th
 /// smallest of `B` ascending-sorted replicate maxima.
@@ -96,6 +152,23 @@ pub(crate) fn monte_carlo_critical(sorted_maxima: &[f64], level: f64) -> f64 {
         return f64::INFINITY;
     }
     sorted_maxima[rank - 1]
+}
+
+/// How many seeded posterior or resampling draws an estimator takes, and from which seed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DrawSpec {
+    /// Number of draws.
+    pub draws: usize,
+    /// Master seed of the draw stream.
+    pub seed: u64,
+}
+
+impl DrawSpec {
+    /// `draws` draws from `seed`.
+    #[must_use]
+    pub const fn new(draws: usize, seed: u64) -> Self {
+        Self { draws, seed }
+    }
 }
 
 /// Outcome of an IID bootstrap SE computation with failure accounting.
@@ -130,7 +203,7 @@ impl BootstrapSeResult {
 /// Maximum allowed soft-failure fraction before refusing to report a bootstrap
 /// summary: more than half the attempted replicates failing means the survivors
 /// are not a resample of the estimator.
-pub const BOOTSTRAP_MAX_FAILURE_FRAC: f64 = 0.5;
+pub(crate) const BOOTSTRAP_MAX_FAILURE_FRAC: f64 = 0.5;
 
 /// When a set of bootstrap replicates or posterior draws may be summarized.
 ///
@@ -458,6 +531,36 @@ where
     Ok(finalize_bootstrap_se_ex(&ates, attempted, cancelled, false))
 }
 
+/// Coefficients and residuals of one `FaerBackend` least-squares solve.
+pub(crate) struct LsFit {
+    /// Coefficient vector, length `ncols`.
+    pub coefficients: Vec<f64>,
+    /// Residuals, length `nrows`.
+    pub residuals: Vec<f64>,
+    /// Numerical rank.
+    pub rank: usize,
+}
+
+/// Solve `min ||X β − y||` on a column-major design.
+///
+/// The coefficients, residuals, and rank are the backend fit's fields.
+///
+/// # Errors
+///
+/// A stats-layer shape or numerical failure.
+pub(crate) fn ls_fit(
+    backend: FaerBackend,
+    design_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    workspace: &mut LeastSquaresWorkspace,
+) -> Result<LsFit, EstimationError> {
+    let fit =
+        backend.least_squares(design_colmajor, nrows, ncols, y, workspace).map_err(stats_err)?;
+    Ok(LsFit { coefficients: fit.coefficients, residuals: fit.residuals, rank: fit.rank })
+}
+
 /// OLS residual variance `σ² = RSS / (n − p)` for a fitted coefficient vector.
 pub(crate) fn ols_sigma2(
     x_colmajor: &[f64],
@@ -504,6 +607,31 @@ pub(crate) fn xtx_inverse(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Opt
     let mut xtx = vec![0.0; ncols * ncols];
     form_xtx(x_colmajor, nrows, ncols, &mut xtx);
     invert_square(&xtx, ncols)
+}
+
+/// Invert a small fixed-size matrix with [`invert_square`]'s scale-free rule, or `None` when it
+/// is singular or non-finite.
+///
+/// The one inverse for the Bayesian IV / RD and local-polynomial families, which carry their
+/// moment matrices as `[[f64; N]; N]`.
+#[must_use]
+pub(crate) fn invert_fixed<const N: usize>(a: &[[f64; N]; N]) -> Option<[[f64; N]; N]> {
+    let flat: Vec<f64> = a.iter().flatten().copied().collect();
+    let inv = invert_square(&flat, N)?;
+    Some(std::array::from_fn(|i| std::array::from_fn(|j| inv[i * N + j])))
+}
+
+/// [`invert_fixed`] for a runtime-sized square matrix held as rows; `None` when the rows are not
+/// square, or the matrix is singular or non-finite.
+#[must_use]
+pub(crate) fn invert_rows(rows: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
+    let n = rows.len();
+    if rows.iter().any(|r| r.len() != n) {
+        return None;
+    }
+    let flat: Vec<f64> = rows.iter().flatten().copied().collect();
+    let inv = invert_square(&flat, n)?;
+    Some(inv.chunks(n).map(<[f64]>::to_vec).collect())
 }
 
 /// Gather `idx`-selected entries of `src` into `out` (a reused scratch buffer) for one IID
@@ -571,6 +699,31 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     use antecedent_core::{AdaptiveBootstrapBudget, CancellationToken, ExecutionContext};
+
+    #[test]
+    fn fixed_inverse_judges_singularity_scale_free() {
+        // A design in units of 1e-8 has pivots far below the old absolute 1e-12 cutoff but is
+        // perfectly conditioned once equilibrated.
+        let tiny = [[1e-16, 0.0, 0.0], [0.0, 4e-16, 0.0], [0.0, 0.0, 9e-16]];
+        let inv = invert_fixed(&tiny).expect("a scaled diagonal is not singular");
+        assert!((inv[1][1] * 4e-16 - 1.0).abs() < 1e-12);
+        // A genuinely collinear pair is still refused, at any scale.
+        let collinear = [[1.0, 2.0], [2.0, 4.0]];
+        assert!(invert_fixed(&collinear).is_none());
+        let scaled = [[1e12, 2e12], [2e12, 4e12]];
+        assert!(invert_fixed(&scaled).is_none());
+        // Non-finite entries are refused rather than propagated.
+        assert!(invert_fixed(&[[f64::NAN, 0.0], [0.0, 1.0]]).is_none());
+    }
+
+    #[test]
+    fn row_inverse_matches_the_fixed_inverse_and_refuses_ragged_input() {
+        let rows = vec![vec![1e-16, 0.0], vec![0.0, 4e-16]];
+        let inv = invert_rows(&rows).expect("a scaled diagonal is not singular");
+        assert!((inv[0][0] * 1e-16 - 1.0).abs() < 1e-12 && inv[0][1] == 0.0);
+        assert!(invert_rows(&[vec![1.0, 2.0], vec![2.0, 4.0]]).is_none());
+        assert!(invert_rows(&[vec![1.0, 0.0], vec![0.0]]).is_none());
+    }
 
     #[test]
     fn cancelled_bootstrap_retains_actual_failures() {

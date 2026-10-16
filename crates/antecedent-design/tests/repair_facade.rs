@@ -1,4 +1,4 @@
-//! F9/F13 evidence obligations and the generic identification-repair facade,
+//! Evidence obligations and the generic identification-repair facade,
 //! exercised on two distinct families: catalog-aware classical transport and
 //! back-door adjustment. Expected outcomes are derived by hand from the
 //! theorems, not from the code under test.
@@ -7,11 +7,13 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    EvidenceObligationKind, ObligationKind, ObligationRecord, ObligationScope,
+};
 use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
 use antecedent_core::{
-    DistributionAvailability, Environment, EvidenceCatalog, EvidenceCatalogDelta,
-    EvidenceObligationKind, ExecutionContext, FactorNeed, InterventionAssignment, ObligationKind,
-    ObligationRecord, ObligationScope, SearchLimits, SearchStop, SupportRegion, SupportReport,
+    DistributionAvailability, Environment, EvidenceCatalog, EvidenceCatalogDelta, ExecutionContext,
+    FactorNeed, InterventionAssignment, SearchLimits, SearchStop, SupportRegion, SupportReport,
     SupportStatus, Value, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_design::obligation_adapters::{
@@ -137,7 +139,7 @@ fn defaults() -> RepairLimits {
 // ------------------------------------------------------------- obligations
 
 #[test]
-fn f9_failed_backdoor_contract_exposes_a_joint_law_obligation_with_its_proof_step() {
+fn failed_backdoor_contract_exposes_a_joint_law_obligation_with_its_proof_step() {
     let family = backdoor_family();
     let obligations = family.unresolved_obligations();
     assert_eq!(obligations.len(), 1);
@@ -153,7 +155,7 @@ fn f9_failed_backdoor_contract_exposes_a_joint_law_obligation_with_its_proof_ste
 }
 
 #[test]
-fn f9_failed_transport_contract_exposes_the_source_factor_and_its_search_stage() {
+fn failed_transport_contract_exposes_the_source_factor_and_its_search_stage() {
     let (family, _) = transport_family();
     let obligations = family.unresolved_obligations();
     assert_eq!(obligations.len(), 1);
@@ -168,7 +170,7 @@ fn f9_failed_transport_contract_exposes_the_source_factor_and_its_search_stage()
 }
 
 #[test]
-fn f9_transport_factors_support_and_planner_deltas_become_obligations() {
+fn transport_factors_support_and_planner_deltas_become_obligations() {
     // An unmet transport factor from the catalog's own unmet-dependency report.
     let catalog = transport_catalog();
     let need = FactorNeed {
@@ -231,7 +233,7 @@ fn f9_transport_factors_support_and_planner_deltas_become_obligations() {
 // ------------------------------------------------------------------ backdoor
 
 #[test]
-fn f13_backdoor_two_separate_studies_cannot_meet_the_joint_regime_but_one_study_can() {
+fn backdoor_two_separate_studies_cannot_meet_the_joint_regime_but_one_study_can() {
     let a = observation("a", &[T, Y, Z1], 5);
     let b = observation("b", &[T, Y, Z2], 5);
     let c = observation("c", &[T, Y, Z1, Z2], 20);
@@ -272,7 +274,7 @@ fn f13_backdoor_two_separate_studies_cannot_meet_the_joint_regime_but_one_study_
 }
 
 #[test]
-fn f13_insufficient_candidate_keeps_its_failure_reasons_and_the_report_is_wrong_contract() {
+fn insufficient_candidate_keeps_its_failure_reasons_and_the_report_is_wrong_contract() {
     let a = observation("a", &[T, Y, Z1], 5);
     let report = run(&backdoor_family(), &[a.clone()], RepairObjective::MinimizeCost, defaults());
     let only = outcome(&report, &[&a]);
@@ -286,7 +288,7 @@ fn f13_insufficient_candidate_keeps_its_failure_reasons_and_the_report_is_wrong_
 }
 
 #[test]
-fn f13_a_variable_name_match_without_population_or_regime_stays_insufficient() {
+fn a_variable_name_match_without_population_or_regime_stays_insufficient() {
     // Every needed variable is measured jointly, but in another population.
     let other_population =
         study("other", StudyKind::Observation, "elsewhere", &[], &[T, Y, Z1, Z2], true, 4);
@@ -307,7 +309,7 @@ fn f13_a_variable_name_match_without_population_or_regime_stays_insufficient() {
 }
 
 #[test]
-fn f13_invalid_candidates_are_reported_and_never_searched() {
+fn invalid_candidates_are_reported_and_never_searched() {
     let c = observation("c", &[T, Y, Z1, Z2], 20);
     let mut free = c.clone();
     free.label = Arc::from("free");
@@ -344,7 +346,7 @@ fn f13_invalid_candidates_are_reported_and_never_searched() {
 }
 
 #[test]
-fn f13_candidate_order_does_not_change_the_report() {
+fn candidate_order_does_not_change_the_report() {
     let a = observation("a", &[T, Y, Z1], 5);
     let b = observation("b", &[T, Y, Z2], 5);
     let c = observation("c", &[T, Y, Z1, Z2], 20);
@@ -361,7 +363,7 @@ fn f13_candidate_order_does_not_change_the_report() {
 }
 
 #[test]
-fn f13_objective_ranks_sufficient_subsets_and_cost_units_must_agree() {
+fn objective_ranks_sufficient_subsets_and_cost_units_must_agree() {
     let cheap_wide = observation("cheap-wide", &[T, Y, Z1, Z2], 20);
     let mut dear_narrow = observation("dear-narrow", &[T, Y, Z1, Z2, W1], 30);
     dear_narrow.cost.sample_budget = 10;
@@ -389,7 +391,7 @@ fn f13_objective_ranks_sufficient_subsets_and_cost_units_must_agree() {
 }
 
 #[test]
-fn f13_budget_truncated_search_keeps_explored_and_unevaluated_and_never_says_impossible() {
+fn budget_truncated_search_keeps_explored_and_unevaluated_and_never_says_impossible() {
     let candidates = [
         observation("a", &[T, Y, Z1], 5),
         observation("b", &[T, Y, Z2], 5),
@@ -423,7 +425,7 @@ fn f13_budget_truncated_search_keeps_explored_and_unevaluated_and_never_says_imp
 }
 
 #[test]
-fn f13_subsets_larger_than_the_declared_depth_are_not_examined_and_say_so() {
+fn subsets_larger_than_the_declared_depth_are_not_examined_and_say_so() {
     let a = observation("a", &[T, Y, Z1], 5);
     let b = observation("b", &[T, Y, Z2], 5);
     let limits = RepairLimits { search: SearchLimits { operations: 100, depth: 1 }, ..defaults() };
@@ -434,7 +436,7 @@ fn f13_subsets_larger_than_the_declared_depth_are_not_examined_and_say_so() {
 }
 
 #[test]
-fn f13_bounds_and_cancellation_are_refusals_or_reports_not_verdicts() {
+fn bounds_and_cancellation_are_refusals_or_reports_not_verdicts() {
     let family = backdoor_family();
     let many: Vec<_> = (0..=REPAIR_MAX_CANDIDATES as u64)
         .map(|n| observation(&format!("n{n}"), &[T, Y, Z1], n + 1))
@@ -463,7 +465,7 @@ fn f13_bounds_and_cancellation_are_refusals_or_reports_not_verdicts() {
 }
 
 #[test]
-fn f9_establish_assumption_is_never_marked_satisfied_by_a_study() {
+fn establish_assumption_is_never_marked_satisfied_by_a_study() {
     let record = ObligationRecord::new(
         "assume:positivity",
         ObligationScope::Program,
@@ -496,7 +498,7 @@ fn f9_establish_assumption_is_never_marked_satisfied_by_a_study() {
 }
 
 #[test]
-fn f13_a_contract_that_already_identifies_is_not_a_repair_target() {
+fn a_contract_that_already_identifies_is_not_a_repair_target() {
     let mut graph = Dag::with_variables(2);
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let error =
@@ -559,7 +561,7 @@ fn transport_family() -> (TransportRepairFamily, SelectionDiagram) {
 }
 
 #[test]
-fn f13_transport_family_is_repaired_only_by_the_source_experiment_that_binds_the_factor() {
+fn transport_family_is_repaired_only_by_the_source_experiment_that_binds_the_factor() {
     let (family, _) = transport_family();
     let experiment = study("exp", StudyKind::Experiment, "source", &[X], &[TY], true, 3);
     // Same variable, wrong regime: a source observation is not do(X).
@@ -591,7 +593,7 @@ fn f13_transport_family_is_repaired_only_by_the_source_experiment_that_binds_the
 }
 
 #[test]
-fn f13_two_distinct_families_are_repaired_by_their_own_verified_candidates() {
+fn two_distinct_families_are_repaired_by_their_own_verified_candidates() {
     let (transport, _) = transport_family();
     let experiment = study("exp", StudyKind::Experiment, "source", &[X], &[TY], true, 3);
     let transport_report =
@@ -611,7 +613,7 @@ fn f13_two_distinct_families_are_repaired_by_their_own_verified_candidates() {
 }
 
 #[test]
-fn f13_sample_increase_has_no_transport_checker_and_is_not_certified() {
+fn sample_increase_has_no_transport_checker_and_is_not_certified() {
     let (family, _) = transport_family();
     let mut more_rows = study("rows", StudyKind::SampleIncrease, "source", &[X], &[TY], true, 2);
     more_rows.expected_evidence = Arc::from([]);
@@ -622,7 +624,7 @@ fn f13_sample_increase_has_no_transport_checker_and_is_not_certified() {
 
 // A level-valued intervention keeps its levels as hypothetical evidence only.
 #[test]
-fn f13_leveled_experiment_is_a_restricted_domain_and_does_not_supply_an_unrestricted_response() {
+fn leveled_experiment_is_a_restricted_domain_and_does_not_supply_an_unrestricted_response() {
     let (family, _) = transport_family();
     let mut leveled = study("leveled", StudyKind::Experiment, "source", &[X], &[TY], true, 3);
     leveled.expected_evidence = Arc::from([ExpectedEvidence {

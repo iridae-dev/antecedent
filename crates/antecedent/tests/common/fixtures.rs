@@ -1,4 +1,4 @@
-//! Heterogeneous multi-atom calibration fixtures (R-15 / R-17 / R-18).
+//! Heterogeneous multi-atom calibration fixtures.
 //!
 //! Every fixture pairs a linear-Gaussian data-generating process with a graph
 //! object carrying several atoms. The DBN, `TemporalCpdag` and [`chain_pag`]
@@ -18,11 +18,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "each integration test binary includes this module and uses a subset of it"
+)]
 
 use antecedent_core::{Lag, VariableId};
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_graph::{Endpoint, MarkedEdge, MiddleMark, TemporalCpdag, TemporalDag, TemporalPag};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -181,9 +184,11 @@ fn dbn_posterior(weights: &[f64], lag_masks: &[u64]) -> GraphPosterior {
         vec![cmask; weights.len()],
         edges.clone(),
         edges,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("v19_heterogeneous_dbn"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("heterogeneous_dbn"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(DBN_MAX_LAG, lagged)
@@ -608,7 +613,7 @@ pub fn mediation_backdoor_only_plim(kappa: f64) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
-// Two-lag TemporalDag (R-18).
+// Two-lag TemporalDag.
 // ---------------------------------------------------------------------------
 
 /// `x` iid `N(0, 0.4²)`, `y[t] = B1 x[t-1] + B2 x[t-2] + 0.35 e`.
@@ -749,9 +754,11 @@ pub fn mixture_graph_posterior() -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -775,7 +782,6 @@ pub fn pinned_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
     let mut cols = vec![vec![0.0; n]; names.len()];
     let [t, y, z, m, v] = [0, 1, 2, 3, 4];
     for i in 0..n {
-        #[allow(clippy::cast_precision_loss)]
         let x = i as f64;
         cols[z][i] = (0.37 * x).sin() + 0.5 * (1.3 * x).cos();
         cols[t][i] = 0.6 * cols[z][i] + 0.8 * (0.23 * x + 0.4).sin();

@@ -24,5 +24,5 @@ upstream_implementations_observed = []
 test_sources = [
  "exhaustive and sampled DAG-with-latents sweep: MAG, latent projection and interventional truth computed independently of the identifier (crates/antecedent-identify/src/mag_id_bruteforce.rs)",
  "hand-derived MAG cases: invisible edge, front-door DAG, non-ancestral input, direct and collider-path visibility witnesses, identification beyond adjustment, null effect, circle-arrow class (conformance/identify/mag_visibility_id)",
- "end-to-end exact recovery of E[Y | do(T)] on a five-node MAG with no adjustment set, and refusal of the front-door ADMG held as a Pag (crates/antecedent/tests/v15_numeric_pins.rs)",
+ "end-to-end exact recovery of E[Y | do(T)] on a five-node MAG with no adjustment set, and refusal of the front-door ADMG held as a Pag (crates/antecedent/tests/numeric_pins.rs)",
 ]

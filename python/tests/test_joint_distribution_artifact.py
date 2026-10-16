@@ -1,4 +1,4 @@
-"""Typed Python consumption of the bounded 2.3 joint artifact."""
+"""Typed Python consumption of the bounded joint artifact."""
 
 from __future__ import annotations
 

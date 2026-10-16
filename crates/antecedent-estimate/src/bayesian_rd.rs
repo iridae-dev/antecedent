@@ -8,6 +8,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
+use crate::util::DrawSpec;
 
 /// Posterior summary for a sharp-RD jump under a fixed local-linear Gaussian model.
 #[derive(Clone, Debug, PartialEq)]
@@ -30,25 +31,31 @@ pub struct BayesianRdEstimate {
     pub model: &'static str,
 }
 
+/// The observed vectors of a sharp-RD fit, aligned by row.
+#[derive(Clone, Copy, Debug)]
+pub struct RdSample<'a> {
+    /// Running-variable values.
+    pub running: &'a [f64],
+    /// Treatment values (must equal `1{running >= cutoff}`).
+    pub treatment: &'a [f64],
+    /// Outcome values.
+    pub outcome: &'a [f64],
+}
+
 /// Fit a local-linear Bayesian sharp RD at a caller-specified bandwidth.
 ///
 /// Sharp assignment `T = 1{R >= cutoff}` is checked row by row. The posterior conditions on
 /// that design, the fixed bandwidth, and the plug-in variance. At least 12 in-window rows and
 /// four rows on each side are required.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "public estimator inputs match the fixed-bandwidth model contract"
-)]
 pub fn fit_bayesian_sharp_rd(
-    running: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &RdSample<'_>,
     cutoff: f64,
     bandwidth: f64,
     prior_sd: f64,
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
 ) -> Result<BayesianRdEstimate, EstimationError> {
+    let RdSample { running, treatment, outcome } = *sample;
+    let DrawSpec { draws, seed } = sampling;
     let n = running.len();
     if n == 0
         || treatment.len() != n
@@ -121,19 +128,12 @@ pub fn fit_bayesian_sharp_rd(
 }
 
 /// Fit the same model over declared bandwidths and return sensitivity summaries.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "sensitivity forwards the same explicit fit contract"
-)]
 pub fn bayesian_rd_bandwidth_sensitivity(
-    running: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &RdSample<'_>,
     cutoff: f64,
     bandwidths: &[f64],
     prior_sd: f64,
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
 ) -> Result<Vec<BayesianRdEstimate>, EstimationError> {
     if bandwidths.is_empty() {
         return Err(EstimationError::stats_msg(
@@ -145,33 +145,23 @@ pub fn bayesian_rd_bandwidth_sensitivity(
         .enumerate()
         .map(|(i, b)| {
             fit_bayesian_sharp_rd(
-                running,
-                treatment,
-                outcome,
+                sample,
                 cutoff,
                 *b,
                 prior_sd,
-                draws,
-                seed.wrapping_add(i as u64),
+                DrawSpec::new(sampling.draws, sampling.seed.wrapping_add(i as u64)),
             )
         })
         .collect()
 }
 
 /// Refit the fixed-bandwidth model over caller-declared coefficient prior scales.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "sensitivity forwards the same explicit fit contract"
-)]
 pub fn bayesian_rd_prior_sensitivity(
-    running: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &RdSample<'_>,
     cutoff: f64,
     bandwidth: f64,
     prior_sds: &[f64],
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
 ) -> Result<Vec<BayesianRdEstimate>, EstimationError> {
     if prior_sds.is_empty() {
         return Err(EstimationError::stats_msg(
@@ -183,35 +173,18 @@ pub fn bayesian_rd_prior_sensitivity(
         .enumerate()
         .map(|(i, sd)| {
             fit_bayesian_sharp_rd(
-                running,
-                treatment,
-                outcome,
+                sample,
                 cutoff,
                 bandwidth,
                 *sd,
-                draws,
-                seed.wrapping_add(i as u64),
+                DrawSpec::new(sampling.draws, sampling.seed.wrapping_add(i as u64)),
             )
         })
         .collect()
 }
 
 fn q(a: &[f64], p: f64) -> f64 {
-    let k = p * (a.len() - 1) as f64;
-    // `p` is one of the fixed posterior quantile probabilities and `a` is nonempty.
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "quantile rank is bounded by the slice length"
-    )]
-    let lo = k.floor() as usize;
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "quantile rank is bounded by the slice length"
-    )]
-    let hi = k.ceil() as usize;
-    a[lo] + (k - lo as f64) * (a[hi] - a[lo])
+    antecedent_stats::quantile_sorted(a, p, antecedent_stats::QuantileRule::ExchangeableRank)
 }
 fn posterior(
     x: &[[f64; 4]],
@@ -243,40 +216,10 @@ fn posterior(
     Ok((beta, inv.map(|r| r.map(|z| z * v))))
 }
 fn invert(a: [[f64; 4]; 4]) -> Result<[[f64; 4]; 4], EstimationError> {
-    let mut aug = [[0.0; 8]; 4];
-    for i in 0..4 {
-        for j in 0..4 {
-            aug[i][j] = a[i][j];
-        }
-        aug[i][i + 4] = 1.0;
-    }
-    for c in 0..4 {
-        let p = (c..4).max_by(|i, j| aug[*i][c].abs().total_cmp(&aug[*j][c].abs())).unwrap_or(c);
-        if aug[p][c].abs() < 1e-12 {
-            return Err(EstimationError::stats_msg("Bayesian RD posterior design is singular"));
-        }
-        aug.swap(c, p);
-        let d = aug[c][c];
-        for j in 0..8 {
-            aug[c][j] /= d;
-        }
-        for i in 0..4 {
-            if i != c {
-                let f = aug[i][c];
-                for j in 0..8 {
-                    aug[i][j] -= f * aug[c][j];
-                }
-            }
-        }
-    }
-    let mut out = [[0.0; 4]; 4];
-    for i in 0..4 {
-        for j in 0..4 {
-            out[i][j] = aug[i][j + 4];
-        }
-    }
-    Ok(out)
+    crate::util::invert_fixed(&a)
+        .ok_or_else(|| EstimationError::stats_msg("Bayesian RD posterior design is singular"))
 }
+/// `n` seeded draws of one posterior coordinate, whose marginal is `N(mean[col], cov[col][col])`.
 fn draw_column(
     mean: [f64; 4],
     cov: &[[f64; 4]; 4],
@@ -284,39 +227,9 @@ fn draw_column(
     n: usize,
     seed: u64,
 ) -> Result<Vec<f64>, EstimationError> {
-    let mut l = [[0.0; 4]; 4];
-    for i in 0..4 {
-        for j in 0..=i {
-            let s = cov[i][j] - (0..j).map(|k| l[i][k] * l[j][k]).sum::<f64>();
-            if i == j {
-                if s <= 0.0 {
-                    return Err(EstimationError::stats_msg(
-                        "Bayesian RD posterior covariance is not positive definite",
-                    ));
-                }
-                l[i][j] = s.sqrt();
-            } else {
-                l[i][j] = s / l[j][j];
-            }
-        }
-    }
-    let mut state = seed.max(1);
-    let mut out = Vec::with_capacity(n);
-    for _ in 0..n {
-        let z = [normal(&mut state), normal(&mut state), normal(&mut state), normal(&mut state)];
-        out.push(mean[col] + (0..4).map(|j| l[col][j] * z[j]).sum::<f64>());
-    }
-    Ok(out)
-}
-fn normal(s: &mut u64) -> f64 {
-    fn u(s: &mut u64) -> f64 {
-        *s ^= *s << 13;
-        *s ^= *s >> 7;
-        *s ^= *s << 17;
-        ((*s >> 11) as f64 + 0.5) / ((1_u64 << 53) as f64)
-    }
-    let r = (-2.0 * u(s).ln()).sqrt();
-    r * (std::f64::consts::TAU * u(s)).cos()
+    crate::util::normal_draws(mean[col], cov[col][col], n, seed).ok_or_else(|| {
+        EstimationError::stats_msg("Bayesian RD posterior covariance is not positive definite")
+    })
 }
 
 #[cfg(test)]
@@ -336,26 +249,80 @@ mod tests {
                 1.0 + 2.5 * t[i] + 0.8 * r + 1.2 * t[i] * r + ((i % 5) as f64 - 2.0) * 0.01
             })
             .collect();
-        let fit = fit_bayesian_sharp_rd(&running, &t, &y, 0.0, 0.8, 20.0, 1000, 4).unwrap();
+        let fit = fit_bayesian_sharp_rd(
+            &RdSample { running: &running, treatment: &t, outcome: &y },
+            0.0,
+            0.8,
+            20.0,
+            DrawSpec::new(1000, 4),
+        )
+        .unwrap();
         assert!((fit.mean - 2.5).abs() < 0.08, "{}", fit.mean);
         assert!(fit.lower < 2.5 && fit.upper > 2.5);
-        let sens =
-            bayesian_rd_bandwidth_sensitivity(&running, &t, &y, 0.0, &[0.5, 0.8], 20.0, 300, 8)
-                .unwrap();
+        let sens = bayesian_rd_bandwidth_sensitivity(
+            &RdSample { running: &running, treatment: &t, outcome: &y },
+            0.0,
+            &[0.5, 0.8],
+            20.0,
+            DrawSpec::new(300, 8),
+        )
+        .unwrap();
         assert_eq!(sens.len(), 2);
         assert_ne!(sens[0].n_window, sens[1].n_window);
-        let prior = bayesian_rd_prior_sensitivity(&running, &t, &y, 0.0, 0.8, &[0.5, 20.0], 300, 8)
-            .unwrap();
+        let prior = bayesian_rd_prior_sensitivity(
+            &RdSample { running: &running, treatment: &t, outcome: &y },
+            0.0,
+            0.8,
+            &[0.5, 20.0],
+            DrawSpec::new(300, 8),
+        )
+        .unwrap();
         assert_eq!(prior.len(), 2);
         assert!((prior[0].mean - prior[1].mean).abs() > 1e-3);
     }
+    #[test]
+    fn adjacent_seeds_do_not_produce_the_same_first_draw() {
+        let mean = [0.0; 4];
+        let mut cov = [[0.0; 4]; 4];
+        cov[1][1] = 1.0;
+        let a = draw_column(mean, &cov, 1, 1, 1).unwrap();
+        let b = draw_column(mean, &cov, 1, 1, 2).unwrap();
+        assert!((a[0] - b[0]).abs() > 1e-3, "{} vs {}", a[0], b[0]);
+    }
+
     #[test]
     fn non_sharp_assignment_is_refused() {
         let r: Vec<f64> = (0..20).map(|i| f64::from(i) - 10.0).collect();
         let mut t: Vec<f64> = r.iter().map(|x| f64::from(*x >= 0.0)).collect();
         t[8] = 1.0;
         let y = r.clone();
-        let e = fit_bayesian_sharp_rd(&r, &t, &y, 0.0, 5.0, 2.0, 20, 3).unwrap_err();
+        let e = fit_bayesian_sharp_rd(
+            &RdSample { running: &r, treatment: &t, outcome: &y },
+            0.0,
+            5.0,
+            2.0,
+            DrawSpec::new(20, 3),
+        )
+        .unwrap_err();
         assert!(e.to_string().contains("rd_assignment_not_sharp"));
+    }
+    #[test]
+    fn the_posterior_inverse_is_scale_free_and_still_refuses_collinear_designs() {
+        // Pivots of order 1e-16 were refused by the former absolute 1e-12 cutoff.
+        let tiny = [
+            [1e-16, 0.0, 0.0, 0.0],
+            [0.0, 4e-16, 0.0, 0.0],
+            [0.0, 0.0, 9e-16, 0.0],
+            [0.0, 0.0, 0.0, 16e-16],
+        ];
+        assert!(invert(tiny).is_ok());
+        let collinear = [
+            [1.0, 2.0, 0.0, 0.0],
+            [2.0, 4.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ];
+        let e = invert(collinear).unwrap_err();
+        assert!(e.to_string().contains("Bayesian RD posterior design is singular"), "{e}");
     }
 }

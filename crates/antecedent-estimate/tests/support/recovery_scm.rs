@@ -1,11 +1,15 @@
-//! Enumerated binary m-graph SCMs for the X10 recovery tests, independent of the
+//! Enumerated binary m-graph SCMs for the observation-recovery tests, independent of the
 //! library's recovery code: the joint over every node is enumerated from the
 //! mechanisms, the proxies are computed deterministically, and the observed
 //! pattern law and the target law are marginals of that joint.
 //!
 //! Numbering: `X_i = i` (`0..k`), `O_j = k + j`, `R_i = k + m + i`,
 //! `X*_i = 2k + m + i`.
-#![allow(dead_code, clippy::unused_self)]
+#![allow(
+    dead_code,
+    clippy::unused_self,
+    reason = "shared by several test binaries, each of which uses a subset; the model methods keep one receiver shape"
+)]
 #![allow(clippy::cast_possible_truncation, reason = "node counts are at most 11")]
 
 use std::collections::BTreeMap;

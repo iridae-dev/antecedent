@@ -21,7 +21,8 @@ use antecedent_identify::IdentifiedEstimand;
 
 use crate::common::{
     RefutationProblem, RefutationReport, check_cancelled, complete_case_rows,
-    linear_estimator_no_bootstrap, masked_sample_sd, refit_effect, validity_from_flags,
+    full_sample_refit_ate, linear_estimator_no_bootstrap, masked_sample_sd, refit_effect,
+    validity_from_flags,
 };
 use crate::error::ValidationError;
 
@@ -75,19 +76,17 @@ impl GraphRefuter {
             });
         }
         if problem.estimand.adjustment_set.is_empty() {
-            return Ok(RefutationReport {
-                refuter: Arc::from("adjustment.drop_covariate"),
-                original_ate: problem.original.ate,
-                refuted_ate: problem.original.ate,
-                comparison: 0.0,
-                informative: false,
-                passed: true,
-                failure_condition: None,
-                replicates: 0,
-            });
+            return Ok(RefutationReport::builder("adjustment.drop_covariate")
+                .original_ate(problem.original.ate)
+                .refuted_ate(problem.original.ate)
+                .comparison(0.0)
+                .informative(false)
+                .passed(true)
+                .failure_condition(None)
+                .replicates(0)
+                .build());
         }
-        let mut ids = vec![problem.treatment(), problem.outcome()];
-        ids.extend_from_slice(&problem.estimand.adjustment_set);
+        let ids = problem.estimation_ids(true);
         let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
         let sd_t = masked_sample_sd(problem.data, problem.treatment(), &mask)?;
         let sd_y = masked_sample_sd(problem.data, problem.outcome(), &mask)?;
@@ -109,8 +108,9 @@ impl GraphRefuter {
             problem.data
         };
 
+        let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
         let mut worst_delta = 0.0_f64;
-        let mut worst_ate = problem.original.ate;
+        let mut worst_ate = centre;
         let mut worst_dropped = problem.estimand.adjustment_set[0];
         for drop_idx in 0..problem.estimand.adjustment_set.len() {
             check_cancelled(ctx)?;
@@ -124,8 +124,7 @@ impl GraphRefuter {
             }
             // Relative change with an sd-based floor on the denominator: a near-zero original
             // estimate that moves materially when a covariate is dropped is set-sensitive.
-            let delta =
-                (est.ate - problem.original.ate).abs() / problem.original.ate.abs().max(floor);
+            let delta = (est.ate - centre).abs() / centre.abs().max(floor);
             if delta >= worst_delta {
                 worst_delta = delta;
                 worst_ate = est.ate;
@@ -133,15 +132,14 @@ impl GraphRefuter {
             }
         }
         let passed = worst_delta < self.rel_delta_threshold;
-        Ok(RefutationReport {
-            refuter: Arc::from("adjustment.drop_covariate"),
-            original_ate: problem.original.ate,
-            refuted_ate: worst_ate,
-            comparison: worst_delta,
+        Ok(RefutationReport::builder("adjustment.drop_covariate")
+            .original_ate(problem.original.ate)
+            .refuted_ate(worst_ate)
+            .comparison(worst_delta)
             // Descriptive: a moving estimate is what a real confounder does.
-            informative: false,
-            passed,
-            failure_condition: if passed {
+            .informative(false)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(format!(
@@ -150,9 +148,9 @@ impl GraphRefuter {
                      depends on that covariate, which is expected if it is a confounder",
                     self.rel_delta_threshold
                 )))
-            },
-            replicates: u32::try_from(problem.estimand.adjustment_set.len()).unwrap_or(u32::MAX),
-        })
+            })
+            .replicates(u32::try_from(problem.estimand.adjustment_set.len()).unwrap_or(u32::MAX))
+            .build())
     }
 }
 

@@ -20,7 +20,7 @@
 //! short by cancellation is never exported: nothing recorded lets a consumer
 //! reproduce where the interruption fell.
 //!
-//! Format version 2 (2.2B B1) is the same artifact for a conditional question
+//! Format version 2 is the same artifact for a conditional question
 //! `P*(y | do(x), w)`: the question carries `conditioned_on`, an identified
 //! scenario carries its checked conditional record (rule-2 moves, remaining
 //! conditioned set and the reduced joint's sID record) in place of `proof`, a
@@ -62,45 +62,18 @@ use std::sync::Arc;
 pub const TRANSPORT_SCENARIO_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TRANSPORT_SCENARIO_ARTIFACT_FEATURE: &str = "transport_scenario_envelope_v1";
-/// The format version of an artifact whose question is conditional (2.2B B1).
+/// The format version of an artifact whose question is conditional.
 pub const TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker a version-2 artifact requires beside
 /// [`TRANSPORT_SCENARIO_ARTIFACT_FEATURE`].
 pub const TRANSPORT_SCENARIO_CONDITIONAL_FEATURE: &str = "transport_scenario_admg_conditional_v2";
 
-/// Why a scenario artifact was refused.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum TransportScenarioArtifactError {
-    /// The feature marker is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A recorded limit or stored collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The recomputed report differs from the stored report.
-    #[error("scenario report does not replay")]
-    ReportMismatch,
-    /// The stored laws disagree with the recorded provider or its samples.
-    #[error("scenario provider mismatch: {0}")]
-    ProviderMismatch(&'static str),
-    /// The stored catalog, laws, provider or sample summaries do not match the
-    /// data-identity digest.
-    #[error("scenario data identity mismatch")]
-    DataIdentityMismatch,
-    /// The report was truncated by cancellation, which no consumer can
-    /// reproduce: it is never exported.
-    #[error("a report truncated by cancellation cannot be independently verified")]
-    CancelledNotReplayable,
-}
-
+pub use antecedent_io_core::transport_errors::TransportScenarioArtifactError;
 /// A refused scenario set, schema or law as a reason-coded refusal.
 #[must_use]
+// doc(hidden): the facade and the python bindings map refusals through it.
 #[doc(hidden)]
-#[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.
+#[allow(clippy::needless_pass_by_value, reason = "A `map_err` adapter")]
 pub fn scenario_refusal(refusal: ScenarioSetRefusal) -> IoError {
     IoError::Refused {
         code: refusal.code,
@@ -490,11 +463,10 @@ pub struct TransportScenarioArtifactWire {
 pub(crate) fn scenario_data_identity(
     wire: &TransportScenarioArtifactWire,
 ) -> Result<String, IoError> {
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("transport_scenarios_data_v1", &wire.provider, &wire.catalog, &wire.laws, &wire.samples),
-    )?
-    .to_hex())
+    )
 }
 
 /// Scientific identity of a scenario-set execution: canonical scenarios (sorted
@@ -526,11 +498,10 @@ pub(crate) fn scenario_set_identity(
         (wire.scenario_operations, wire.scenario_depth, wire.scenario_memory_bytes),
         (wire.operation_limit, wire.depth_limit, wire.max_support_rows),
     );
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("transport_scenarios_v1", shape, weights, coordinates, &wire.query, request, budget),
-    )?
-    .to_hex())
+    )
 }
 
 fn scenario_wires(set: &TransportScenarioSet) -> Result<Vec<ScenarioWire>, IoError> {
@@ -651,11 +622,6 @@ fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoErro
     Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl TransportScenarioArtifactWire {
     /// Build an artifact from a prepared set and the report it produced. The
     /// limits recorded are the ones the decision ran under.
@@ -769,13 +735,15 @@ impl TransportScenarioArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        let conditional = match peek.version {
-            TRANSPORT_SCENARIO_ARTIFACT_VERSION => false,
-            TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION => true,
-            version => return Err(IoError::UnsupportedVersion { version }),
-        };
-        let wire: Self = crate::from_cbor(bytes)?;
+        let mut conditional = false;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            conditional = match version {
+                TRANSPORT_SCENARIO_ARTIFACT_VERSION => false,
+                TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION => true,
+                version => return Err(IoError::UnsupportedVersion { version }),
+            };
+            Ok(())
+        })?;
         let unsupported =
             |what| Err(TransportScenarioArtifactError::UnsupportedSemantics(what).into());
         let features: &[&str] = if conditional {
@@ -824,11 +792,13 @@ impl TransportScenarioArtifactWire {
         {
             return Err(exceeded("evaluation limits"));
         }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(exceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(exceeded("law count"));
+        if let Some(what) = crate::stored_law_bounds(
+            self.max_support_rows,
+            limits.max_support_rows,
+            self.laws.len(),
+            limits.max_laws,
+        ) {
+            return Err(exceeded(what));
         }
         Ok(())
     }
@@ -844,12 +814,18 @@ impl TransportScenarioArtifactWire {
     ) -> Result<(Self, ScenarioSetReport), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits, ctx)?;
-        if scenario_set_identity(&wire)? != wire.premises_digest {
-            return Err(TransportScenarioArtifactError::PremisesMismatch.into());
-        }
-        if scenario_data_identity(&wire)? != wire.data_digest {
-            return Err(TransportScenarioArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            scenario_set_identity(&wire),
+            std::convert::identity,
+            || TransportScenarioArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            scenario_data_identity(&wire),
+            std::convert::identity,
+            || TransportScenarioArtifactError::DataIdentityMismatch.into(),
+        )?;
         let coordinates = wire
             .coordinates
             .iter()

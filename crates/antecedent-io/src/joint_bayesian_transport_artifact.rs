@@ -1,5 +1,4 @@
-//! Independent artifact of the joint Bayesian source-target transport engine
-//! (2.3A X4, record `2.3A.X4.joint_bayesian_transport`). The original candidate
+//! Independent artifact of the joint Bayesian source-target transport engine. The original candidate
 //! format and its posterior quantities retain their `unmeasured` standing.
 //! Separate `build_measured` / `consume_measured` adapters authorize only the
 //! target-effect scalar when the actual native execution satisfies the frozen
@@ -7,7 +6,7 @@
 //!
 //! Format version 1. The artifact carries the model declaration (graph class, varying
 //! block, sharing, dependence, bounds), both priors with their provenance (a prior bank
-//! names every observation it consumed), the checked 2.2 transport identification the
+//! names every observation it consumed), the checked transport identification the
 //! model reads, the draw request (count and seed), the source and target data identities
 //! with the observations themselves, and the result: exact posterior mean and covariance,
 //! the aligned joint draws with their RNG identity, the diagnostics, and the calibration
@@ -28,12 +27,15 @@
 //! The artifact embeds the observations (units), not sufficient statistics: the engine's
 //! only fit entry takes units, and a re-fit from units reproduces the draws bit for bit
 //! under the engine's own summation order. What replay does not protect against: a
-//! producer that supplies fabricated observations consistently, and the 2.2 derivation
+//! producer that supplies fabricated observations consistently, and the derivation
 //! the identification record copies, which is a declared premise bound into the premises
 //! digest, not re-derived here (no graph is stored).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::model_codes::{
+    GraphClassCode, SourceDependenceCode, SourceSharingCode, VaryingBlockCode,
+};
 use crate::{
     IoError,
     transport_interference_wire::{
@@ -41,12 +43,13 @@ use crate::{
         transport_identification_to_wire,
     },
 };
+use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS,
     JointPriors, JointTransportCalibration, JointTransportFit, JointTransportModel,
     JointTransportOptions, JointTransportRefusal, PriorProvenance, SourceData, SourceDependence,
-    SourceSharing, TargetData, TransportGraphClass, VaryingBlock, fit_joint_bayesian_transport,
+    TargetData, fit_joint_bayesian_transport,
 };
 use antecedent_identify::TransportIdentification;
 use serde::{Deserialize, Serialize};
@@ -228,15 +231,15 @@ impl GaussianPriorWire {
 #[serde(deny_unknown_fields)]
 pub struct JointModelWire {
     /// `fixed_dag`, `admg` or `graph_posterior`.
-    pub graph: String,
+    pub graph: GraphClassCode,
     /// Raw covariate variable ids.
     pub features: Vec<u32>,
     /// `intercept` or `intercept_and_covariates`.
-    pub varying: String,
+    pub varying: VaryingBlockCode,
     /// `independent_varying_blocks` or `shared_varying_block`.
-    pub sharing: String,
+    pub sharing: SourceSharingCode,
     /// `independent_samples`, `overlapping_units` or `unknown`.
-    pub dependence: String,
+    pub dependence: SourceDependenceCode,
     /// Prior of the invariant block.
     pub invariant_prior: GaussianPriorWire,
     /// Prior of every varying block.
@@ -247,44 +250,14 @@ pub struct JointModelWire {
     pub conflict_z_threshold: f64,
 }
 
-fn graph_name(graph: TransportGraphClass) -> &'static str {
-    match graph {
-        TransportGraphClass::FixedDag => "fixed_dag",
-        TransportGraphClass::Admg => "admg",
-        TransportGraphClass::GraphPosterior => "graph_posterior",
-    }
-}
-
-fn varying_name(varying: VaryingBlock) -> &'static str {
-    match varying {
-        VaryingBlock::Intercept => "intercept",
-        VaryingBlock::InterceptAndCovariates => "intercept_and_covariates",
-    }
-}
-
-fn sharing_name(sharing: SourceSharing) -> &'static str {
-    match sharing {
-        SourceSharing::IndependentVaryingBlocks => "independent_varying_blocks",
-        SourceSharing::SharedVaryingBlock => "shared_varying_block",
-    }
-}
-
-fn dependence_name(dependence: SourceDependence) -> &'static str {
-    match dependence {
-        SourceDependence::IndependentSamples => "independent_samples",
-        SourceDependence::OverlappingUnits => "overlapping_units",
-        SourceDependence::Unknown => "unknown",
-    }
-}
-
 impl JointModelWire {
     fn from_model(model: &JointTransportModel) -> Self {
         Self {
-            graph: graph_name(model.graph).into(),
+            graph: GraphClassCode::from_class(model.graph),
             features: model.features.clone(),
-            varying: varying_name(model.varying).into(),
-            sharing: sharing_name(model.sharing).into(),
-            dependence: dependence_name(model.dependence).into(),
+            varying: VaryingBlockCode::from_block(model.varying),
+            sharing: SourceSharingCode::from_sharing(model.sharing),
+            dependence: SourceDependenceCode::from_dependence(model.dependence),
             invariant_prior: GaussianPriorWire::from_prior(&model.priors.invariant),
             varying_prior: GaussianPriorWire::from_prior(&model.priors.varying),
             max_unsupported_mass: model.max_unsupported_mass,
@@ -292,43 +265,20 @@ impl JointModelWire {
         }
     }
 
-    fn to_model(&self) -> Result<JointTransportModel, JointBayesianArtifactError> {
-        let unsupported = JointBayesianArtifactError::UnsupportedSemantics;
-        let graph = match self.graph.as_str() {
-            "fixed_dag" => TransportGraphClass::FixedDag,
-            "admg" => TransportGraphClass::Admg,
-            "graph_posterior" => TransportGraphClass::GraphPosterior,
-            _ => return Err(unsupported("graph class")),
-        };
-        let varying = match self.varying.as_str() {
-            "intercept" => VaryingBlock::Intercept,
-            "intercept_and_covariates" => VaryingBlock::InterceptAndCovariates,
-            _ => return Err(unsupported("varying block")),
-        };
-        let sharing = match self.sharing.as_str() {
-            "independent_varying_blocks" => SourceSharing::IndependentVaryingBlocks,
-            "shared_varying_block" => SourceSharing::SharedVaryingBlock,
-            _ => return Err(unsupported("source sharing")),
-        };
-        let dependence = match self.dependence.as_str() {
-            "independent_samples" => SourceDependence::IndependentSamples,
-            "overlapping_units" => SourceDependence::OverlappingUnits,
-            "unknown" => SourceDependence::Unknown,
-            _ => return Err(unsupported("source dependence")),
-        };
-        Ok(JointTransportModel {
-            graph,
+    fn to_model(&self) -> JointTransportModel {
+        JointTransportModel {
+            graph: self.graph.to_class(),
             features: self.features.clone(),
-            varying,
-            sharing,
-            dependence,
+            varying: self.varying.to_block(),
+            sharing: self.sharing.to_sharing(),
+            dependence: self.dependence.to_dependence(),
             priors: JointPriors {
                 invariant: self.invariant_prior.to_prior(),
                 varying: self.varying_prior.to_prior(),
             },
             max_unsupported_mass: self.max_unsupported_mass,
             conflict_z_threshold: self.conflict_z_threshold,
-        })
+        }
     }
 }
 
@@ -540,7 +490,7 @@ pub struct JointBayesianArtifactWire {
     pub required_features: Vec<String>,
     /// Model declaration with priors and provenance.
     pub model: JointModelWire,
-    /// The checked 2.2 transport identification the model reads.
+    /// The checked transport identification the model reads.
     pub identification: TransportIdentificationWire,
     /// Draw request.
     pub options: JointOptionsWire,
@@ -573,11 +523,6 @@ struct DataView<'a> {
     tag: &'static str,
     sources: &'a [JointSourceWire],
     target: &'a JointTargetWire,
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
 }
 
 impl JointBayesianArtifactWire {
@@ -639,7 +584,7 @@ impl JointBayesianArtifactWire {
                 .collect(),
             bounds: (JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// The data-identity digest the stored observations should carry.
@@ -652,7 +597,7 @@ impl JointBayesianArtifactWire {
             sources: &self.sources,
             target: &self.target,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// Encode as CBOR.
@@ -668,11 +613,13 @@ impl JointBayesianArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure or a foreign feature or claim.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != JOINT_BAYESIAN_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == JOINT_BAYESIAN_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         let unsupported = JointBayesianArtifactError::UnsupportedSemantics;
         if wire.required_features != [JOINT_BAYESIAN_ARTIFACT_FEATURE] {
             return Err(unsupported("required features").into());
@@ -770,12 +717,18 @@ impl JointBayesianArtifactWire {
     ) -> Result<(Self, JointTransportFit), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(JointBayesianArtifactError::PremisesMismatch.into());
-        }
-        if wire.expected_data_digest()? != wire.data_digest {
-            return Err(JointBayesianArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || JointBayesianArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            wire.expected_data_digest(),
+            std::convert::identity,
+            || JointBayesianArtifactError::DataIdentityMismatch.into(),
+        )?;
         if expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest) {
             return Err(JointBayesianArtifactError::ExpectationMismatch("premises").into());
         }
@@ -783,7 +736,7 @@ impl JointBayesianArtifactWire {
             return Err(JointBayesianArtifactError::ExpectationMismatch("data identity").into());
         }
         let id = transport_identification_from_wire(&wire.identification);
-        let model = wire.model.to_model()?;
+        let model = wire.model.to_model();
         let sources: Vec<SourceData> =
             wire.sources.iter().map(JointSourceWire::to_source).collect();
         let target = TargetData {
@@ -807,7 +760,6 @@ impl JointBayesianArtifactWire {
     /// measured target-effect scalar. Other posterior quantities remain unmeasured.
     /// # Errors
     /// Out-of-protocol inputs, original native refusal, or non-attesting evidence.
-    #[allow(clippy::too_many_arguments)]
     pub fn build_measured(
         id: &TransportIdentification,
         model: &JointTransportModel,
@@ -828,11 +780,11 @@ impl JointBayesianArtifactWire {
         };
         crate::measured_inference::transport::protocol(
             &crate::measured_inference::transport::Model {
-                graph: &declaration.graph,
+                graph: declaration.graph,
                 features: &declaration.features,
-                varying: &declaration.varying,
-                sharing: &declaration.sharing,
-                dependence: &declaration.dependence,
+                varying: declaration.varying,
+                sharing: declaration.sharing,
+                dependence: declaration.dependence,
                 invariant: &declaration.invariant_prior,
                 varying_prior: &declaration.varying_prior,
                 unsupported: declaration.max_unsupported_mass,
@@ -888,11 +840,11 @@ impl JointBayesianArtifactWire {
     ) -> Result<crate::measured_inference::MeasuredInference, IoError> {
         let scope = crate::measured_inference::transport::protocol(
             &crate::measured_inference::transport::Model {
-                graph: &self.model.graph,
+                graph: self.model.graph,
                 features: &self.model.features,
-                varying: &self.model.varying,
-                sharing: &self.model.sharing,
-                dependence: &self.model.dependence,
+                varying: self.model.varying,
+                sharing: self.model.sharing,
+                dependence: self.model.dependence,
                 invariant: &self.model.invariant_prior,
                 varying_prior: &self.model.varying_prior,
                 unsupported: self.model.max_unsupported_mass,
@@ -955,11 +907,11 @@ impl JointBayesianArtifactWire {
         preliminary.check_limits(&limits)?;
         crate::measured_inference::transport::protocol(
             &crate::measured_inference::transport::Model {
-                graph: &preliminary.model.graph,
+                graph: preliminary.model.graph,
                 features: &preliminary.model.features,
-                varying: &preliminary.model.varying,
-                sharing: &preliminary.model.sharing,
-                dependence: &preliminary.model.dependence,
+                varying: preliminary.model.varying,
+                sharing: preliminary.model.sharing,
+                dependence: preliminary.model.dependence,
                 invariant: &preliminary.model.invariant_prior,
                 varying_prior: &preliminary.model.varying_prior,
                 unsupported: preliminary.model.max_unsupported_mass,
@@ -986,4 +938,87 @@ impl JointBayesianArtifactWire {
         crate::measured_inference::compare_replay(&envelope, &measured)?;
         Ok((wire, fit, measured))
     }
+}
+
+// ---------------------------------------------------------------------------
+// Source dependence from the evidence ledger.
+// ---------------------------------------------------------------------------
+
+/// Fold the pairwise ledger overlap of two groups of sources into one declaration.
+///
+/// `SharedObservations` anywhere wins (the likelihood would double count), then
+/// any pair the ledger cannot compute is `Unknown`; only when every pair is
+/// known disjoint is the result `IndependentSamples`. Independence is never
+/// inferred from absence.
+fn fold_pair_overlap(
+    ledger: &EvidenceLedger,
+    pairs: impl Iterator<Item = (SourceId, SourceId)>,
+) -> Result<SourceDependence, IoError> {
+    let mut result = SourceDependence::IndependentSamples;
+    for (a, b) in pairs {
+        match ledger.overlap(a, b).map_err(|error| IoError::Refused {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            message: format!("joint_bayesian_transport.source_dependence: {error}"),
+        })? {
+            Overlap::Independent => {}
+            Overlap::SharedObservations { .. } => return Ok(SourceDependence::OverlappingUnits),
+            _ => result = SourceDependence::Unknown,
+        }
+    }
+    Ok(result)
+}
+
+/// Derive the dependence between the source trials (and the target sample)
+/// of a joint Bayesian transport model from an evidence ledger.
+///
+/// Pass the ledger source behind every source trial and the target sample.
+/// Every pair must be known disjoint for [`SourceDependence::IndependentSamples`];
+/// sources sharing observations give `OverlappingUnits`, and any pair whose
+/// observations the ledger cannot compute gives `Unknown`. The estimator
+/// refuses the latter two, so a hand-declared independence is not needed.
+///
+/// # Errors
+/// `invalid_argument` when no source is given or a source is not in the ledger.
+pub fn source_dependence_from_ledger(
+    ledger: &EvidenceLedger,
+    sources: &[SourceId],
+) -> Result<SourceDependence, IoError> {
+    if sources.is_empty() {
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            message: "joint_bayesian_transport.source_dependence: no sources bound".to_owned(),
+        });
+    }
+    let pairs = sources
+        .iter()
+        .enumerate()
+        .flat_map(|(i, &a)| sources[i + 1..].iter().map(move |&b| (a, b)));
+    fold_pair_overlap(ledger, pairs)
+}
+
+/// Derive whether the observations a prior bank consumed overlap the
+/// observations of the likelihood sources, from an evidence ledger.
+///
+/// `IndependentSamples` means every prior-bank source is known disjoint from
+/// every likelihood source; otherwise `OverlappingUnits` or `Unknown`, exactly
+/// as [`source_dependence_from_ledger`]. A prior bank whose consumed data the
+/// ledger cannot compute is therefore never reported independent.
+///
+/// # Errors
+/// `invalid_argument` when either group is empty or a source is not in the ledger.
+pub fn prior_data_overlap_from_ledger(
+    ledger: &EvidenceLedger,
+    prior_sources: &[SourceId],
+    likelihood_sources: &[SourceId],
+) -> Result<SourceDependence, IoError> {
+    if prior_sources.is_empty() || likelihood_sources.is_empty() {
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            message: "joint_bayesian_transport.source_dependence: prior and likelihood sources \
+                      must both be bound"
+                .to_owned(),
+        });
+    }
+    let pairs = prior_sources.iter().flat_map(|&a| likelihood_sources.iter().map(move |&b| (a, b)));
+    fold_pair_overlap(ledger, pairs)
 }

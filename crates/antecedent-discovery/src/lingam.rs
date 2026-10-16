@@ -12,25 +12,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::manual_let_else, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
-use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, distance_correlation,
-};
+#[cfg(test)]
+use antecedent_stats::distance_correlation;
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, dcor::DistanceY};
 
-use crate::constraints::{DiscoveryConstraints, forbidden_edge};
+use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::pc::collect_float_columns;
@@ -98,14 +89,17 @@ impl DirectLingam {
     /// # Errors
     ///
     /// Data, numerical, or graph failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<StaticDagDiscoveryResult, DiscoveryError> {
-        let _ = workspace;
         self.constraints.validate()?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
@@ -177,12 +171,14 @@ impl DirectLingam {
                     return Err(DiscoveryError::Cancelled);
                 }
                 let mut score = 0.0;
+                // `cols[j]` is residualized after this round, so the cache dies with `j`.
+                let y = DistanceY::new(&cols[j]);
                 for &i in &remaining {
                     if i == j {
                         continue;
                     }
                     let resid = regress_residual(&cols[i], &cols[j]);
-                    let d = distance_correlation(&resid, &cols[j]);
+                    let d = y.correlate(&resid);
                     if !d.is_finite() {
                         return Err(DiscoveryError::stats_msg(
                             "DirectLiNGAM independence score is non-finite",
@@ -281,6 +277,7 @@ impl DirectLingam {
             kept
         };
 
+        let index = crate::constraints::ConstraintIndex::compile(&self.constraints);
         for (pos, &child) in order.iter().enumerate() {
             if pos == 0 {
                 continue;
@@ -288,7 +285,12 @@ impl DirectLingam {
             let preds: Vec<usize> = order[..pos]
                 .iter()
                 .copied()
-                .filter(|&par| !forbidden_edge(&self.constraints, variables, par, child))
+                .filter(|&par| {
+                    !index.is_forbidden(
+                        &self.constraints,
+                        crate::constraints::contemp_link(variables[par], variables[child]),
+                    )
+                })
                 .collect();
             if preds.is_empty() {
                 continue;
@@ -707,31 +709,23 @@ mod tests {
         (data, vars)
     }
 
-    /// Deterministic standard normal draws (Box–Muller on an LCG).
-    fn gaussian(n: usize, seed: u64) -> Vec<f64> {
-        let mut s = seed;
-        let mut unit = || {
-            s = s.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
-            ((s >> 11) as f64 / (1u64 << 53) as f64).clamp(1e-12, 1.0 - 1e-12)
-        };
-        (0..n)
-            .map(|_| {
-                let (u, v) = (unit(), unit());
-                (-2.0 * u.ln()).sqrt() * (2.0 * std::f64::consts::PI * v).cos()
-            })
-            .collect()
-    }
-
     /// Two Gaussian exogenous errors: their relative order is not identified. The run still
     /// returns a graph, but must say which variables' order it cannot vouch for.
     #[test]
     fn direct_lingam_reports_two_gaussian_consistent_residuals() {
         let n = 500;
-        let x0 = gaussian(n, 3);
-        let x1 = gaussian(n, 11);
-        let x2: Vec<f64> = (0..n)
-            .map(|i| x0[i] + x1[i] + (((i as f64 * 0.419) % 1.0) - 0.5).powi(3) * 8.0)
-            .collect();
+        // The two exogenous errors are Gaussian by construction: each is the exact normal
+        // quantile sequence at (i + 1/2) / n, put in a different deterministic order by a
+        // stride coprime to n, so the Jarque-Bera verdict on each does not depend on a draw.
+        // The third error is strongly skewed (centred exponential quantiles in a third
+        // order), so the non-Gaussian variable is identified with high power at n = 500.
+        let quantiles = |stride: usize, f: &dyn Fn(f64) -> f64| -> Vec<f64> {
+            (0..n).map(|i| f((((i * stride) % n) as f64 + 0.5) / n as f64)).collect()
+        };
+        let x0 = quantiles(7, &antecedent_kernels::norm_inv);
+        let x1 = quantiles(13, &antecedent_kernels::norm_inv);
+        let skew = quantiles(11, &|p: f64| -(1.0 - p).ln() - 1.0);
+        let x2: Vec<f64> = (0..n).map(|i| x0[i] + x1[i] + 2.0 * skew[i]).collect();
         let (data, vars) = table(vec![x0, x1, x2]);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);

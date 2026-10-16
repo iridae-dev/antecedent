@@ -7,8 +7,6 @@
 //! the PAG fixture has one visible completion and publishes a point.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent::{
@@ -153,7 +151,7 @@ fn atom_levels(result: &antecedent::StudyResult) -> Vec<Option<Vec<f64>>> {
 }
 
 fn point_levels(result: &antecedent::StudyResult) -> Vec<f64> {
-    match &result.response.as_ref().expect("response payload").estimate {
+    match &result.response().expect("response payload").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => vec![*value],
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
             mean.to_vec()
@@ -174,6 +172,10 @@ fn static_class_responses_are_sealed_for_both_classes_and_inferences() {
     run_on_large_stack(static_class_responses_body);
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the route-evidence body: builds, seals, executes and re-executes every static class response family"
+)]
 fn static_class_responses_body() {
     let seed = 4_021;
     let n = 600;
@@ -282,7 +284,7 @@ fn static_class_responses_body() {
                                 "{label} {tag}: disagreeing completions stay set-valued"
                             );
                             let ResponseIdentification::PartiallyIdentified(_) =
-                                &result.response.as_ref().unwrap().estimate
+                                &result.response().unwrap().estimate
                             else {
                                 panic!("{label} {tag}: expected a completion identified set");
                             };

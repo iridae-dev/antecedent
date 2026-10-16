@@ -1,0 +1,1897 @@
+//! Every licensed support-matrix cell is first-class on inspect and completes
+//! inspect → preview → execute → claim → consume.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    reason = "test scaffolding compares exact constants and indexes with small literals"
+)]
+
+use std::sync::Arc;
+
+use antecedent::support::{classify_estimator, licensed_estimators, licensed_route_estimator};
+use antecedent::{
+    AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
+    InterferenceSpec, RefuteSuite, Study, StudyBuilder, TransportTrialSpec, cell_coordinate,
+    licensed_support_cells,
+};
+use antecedent_contract::{SlotAvailability, TransformIntent};
+use antecedent_core::{
+    AnomalyAttributionQuery, AssignmentDesign, AverageEffectQuery, CausalQuery,
+    ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,
+    DerivativeScale, DerivativeWeighting, ExecutionContext, ExposureLevel, ExposureMapping,
+    GridSpec, InterferenceFunctional, InterferenceQuery, Intervention,
+    InterventionalDistributionQuery, Lag, MediationContrast, MediationQuery,
+    NestedCounterfactualQuery, PathSpecificEffectQuery, PopulationSelector, ResponseFunctional,
+    ResponseQuery, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, TransportQuery,
+    Value, VariableId,
+};
+use antecedent_data::{
+    NetworkData, NetworkEdge, SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
+};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_estimate::ContinuousResponseOptions;
+use antecedent_graph::{
+    Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalAdmg,
+    TemporalCpdag, TemporalDag, TemporalPag, TieredBackground, WithinTier, ensure_lagged,
+};
+use antecedent_io::consume_analysis_result;
+use antecedent_prob::InferenceDiagnostics;
+
+#[path = "fixtures_common/mod.rs"]
+mod common;
+
+// The pinned temporal-PAG law and structure, in one owner.
+use common::fixtures::{pinned_pag as identified_pag, pinned_pag_series as identified_pag_series};
+
+fn vid(raw: u32) -> VariableId {
+    VariableId::from_raw(raw)
+}
+
+fn nid(raw: u32) -> DenseNodeId {
+    DenseNodeId::from_raw(raw)
+}
+
+fn refute_of(validation: &str) -> RefuteSuite {
+    match validation {
+        "none" => RefuteSuite::None,
+        "cheap" => RefuteSuite::Cheap,
+        "full" => RefuteSuite::Full,
+        other => panic!("unexpected validation axis {other}"),
+    }
+}
+
+fn inference_of(axis: &str) -> InferenceMode {
+    match axis {
+        "Frequentist" => InferenceMode::Frequentist,
+        "Bayesian" => InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)),
+        other => panic!("unexpected inference axis {other}"),
+    }
+}
+
+fn binary_treatment_table(cols: &[(&str, usize)]) -> TabularData {
+    let n = 48usize;
+    let owned: Vec<(String, Vec<f64>)> = cols
+        .iter()
+        .enumerate()
+        .map(|(j, (name, _))| {
+            let values: Vec<f64> = (0..n)
+                .map(|i| {
+                    if j == 0 {
+                        (i % 2) as f64
+                    } else if *name == "y" {
+                        0.3 + 0.8 * (i % 2) as f64 + 0.2 * ((i + 5) as f64 * 0.13).sin()
+                    } else {
+                        ((i / 2 + 3 * j) % 5) as f64 * 0.25 + 0.1 * ((i + j) as f64 * 0.2).sin()
+                    }
+                })
+                .collect();
+            ((*name).to_string(), values)
+        })
+        .collect();
+    let refs: Vec<(&str, &[f64])> = owned.iter().map(|(n, v)| (n.as_str(), v.as_slice())).collect();
+    TabularData::from_f64_columns(refs).unwrap()
+}
+
+fn discrete_joint_table(names: &[&str]) -> TabularData {
+    let mut columns: Vec<Vec<f64>> = vec![Vec::new(); names.len()];
+    for bits in 0..(1 << names.len()) {
+        let count = 8 + (bits % 5);
+        for _ in 0..count {
+            for (j, column) in columns.iter_mut().enumerate() {
+                column.push(f64::from((bits >> j) & 1));
+            }
+        }
+    }
+    let refs: Vec<(&str, &[f64])> =
+        names.iter().zip(columns.iter()).map(|(n, v)| (*n, v.as_slice())).collect();
+    TabularData::from_f64_columns(refs).unwrap()
+}
+
+fn static_table(cols: &[(&str, usize)]) -> TabularData {
+    let n = 48usize;
+    let owned: Vec<(String, Vec<f64>)> = cols
+        .iter()
+        .enumerate()
+        .map(|(j, (name, _))| {
+            let values: Vec<f64> =
+                (0..n).map(|i| ((i + 3 * j) as f64 * 0.17).sin() + 0.25 * (i % 4) as f64).collect();
+            ((*name).to_string(), values)
+        })
+        .collect();
+    let refs: Vec<(&str, &[f64])> = owned.iter().map(|(n, v)| (n.as_str(), v.as_slice())).collect();
+    TabularData::from_f64_columns(refs).unwrap()
+}
+
+fn series_from(names: &[&str]) -> TimeSeriesData {
+    let n = 48usize;
+    let owned: Vec<(String, Vec<f64>)> = names
+        .iter()
+        .enumerate()
+        .map(|(j, name)| {
+            let mut values = vec![0.0; n];
+            for t in 1..n {
+                values[t] = 0.4 * values[t - 1] + 0.2 * ((t + 5 * j) as f64 * 0.11).sin();
+            }
+            ((*name).to_string(), values)
+        })
+        .collect();
+    let refs: Vec<(&str, &[f64])> = owned.iter().map(|(n, v)| (n.as_str(), v.as_slice())).collect();
+    let data = TabularData::from_f64_columns(refs).unwrap();
+    TimeSeriesData::try_new(
+        data.storage().clone(),
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap()
+}
+
+#[allow(
+    clippy::needless_range_loop,
+    reason = "each step reads t[i - 1] and m[i] alongside the index-dependent signal term"
+)]
+fn temporal_mediation_series() -> TimeSeriesData {
+    let n = 320usize;
+    let mut t = vec![0.0; n];
+    let mut m = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        t[i] = (0.071 * i as f64).sin() + 0.35 * (0.137 * i as f64).cos();
+    }
+    for i in 1..n {
+        m[i] = 0.8 * t[i - 1] + 0.12 * (0.43 * i as f64).sin();
+        y[i] = 0.25 * t[i - 1] + 0.55 * m[i] + 0.09 * (0.29 * i as f64).cos();
+    }
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("m", m.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    TimeSeriesData::try_new(
+        data.storage().clone(),
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap()
+}
+
+fn chain_dag(n: u32) -> Dag {
+    let mut g = Dag::with_variables(n);
+    for i in 0..n.saturating_sub(1) {
+        g.insert_directed(nid(i), nid(i + 1)).unwrap();
+    }
+    g
+}
+
+fn mediation_dag() -> Dag {
+    let mut g = Dag::with_variables(3);
+    g.insert_directed(nid(0), nid(1)).unwrap();
+    g.insert_directed(nid(1), nid(2)).unwrap();
+    g.insert_directed(nid(0), nid(2)).unwrap();
+    g
+}
+
+fn dag_for(cell: antecedent::SupportCell, n: u32) -> Dag {
+    match cell.query.as_str() {
+        "MediationEffect" | "PathSpecificEffect" | "NestedCounterfactualEffect" => mediation_dag(),
+        "AverageDerivative"
+        | "PointDerivative"
+        | "Elasticity"
+        | "SemiElasticity"
+        | "DirectionalDerivative"
+        | "ResponseJacobian" => {
+            let mut g = Dag::with_variables(n);
+            if n >= 3 {
+                g.insert_directed(nid(0), nid(2)).unwrap();
+            }
+            if n >= 4 {
+                g.insert_directed(nid(1), nid(3)).unwrap();
+            }
+            g
+        }
+        "ConditionalEffect"
+        | "AverageEffect"
+        | "ResponseCurve"
+        | "InterventionResponse"
+        | "InterventionalDistribution"
+        | "AnomalyAttribution"
+        | "ChangeAttribution" => {
+            if n >= 3 {
+                let mut g = Dag::with_variables(n);
+                g.insert_directed(nid(2), nid(0)).unwrap();
+                g.insert_directed(nid(2), nid(1)).unwrap();
+                g.insert_directed(nid(0), nid(1)).unwrap();
+                g
+            } else {
+                chain_dag(n)
+            }
+        }
+        "SustainedEffect"
+        | "PulseEffect"
+        | "TemporalConditionalPulse"
+        | "TemporalConditionalSustained"
+        | "TemporalMediationEffect" => chain_dag(n),
+        "Counterfactual" => chain_dag(n.max(3)),
+        "TransportQuery" => {
+            let mut g = Dag::with_variables(n.max(5));
+            g.insert_directed(nid(0), nid(1)).unwrap();
+            g
+        }
+        "InterferenceQuery" => chain_dag(n.max(2)),
+        other => panic!("unprofiled licensed query {other}"),
+    }
+}
+
+fn confounder_admg() -> Admg {
+    let mut g = Admg::with_variables(3);
+    g.insert_directed(nid(0), nid(1)).unwrap();
+    g.insert_bidirected(nid(0), nid(2)).unwrap();
+    g
+}
+
+fn pag_envelope_pin() -> serde_json::Value {
+    serde_json::from_str(include_str!(
+        "../../../conformance/estimate/pag_ate_envelope_identified/expected.json"
+    ))
+    .unwrap()
+}
+
+fn pag_envelope_fixture() -> (TabularData, Pag) {
+    let pin = pag_envelope_pin();
+    let columns: Vec<&str> =
+        pin["columns"].as_array().unwrap().iter().map(|value| value.as_str().unwrap()).collect();
+    let mut values: Vec<Vec<f64>> = vec![Vec::new(); columns.len()];
+    for cell in pin["contingency_table"].as_array().unwrap() {
+        let count = usize::try_from(cell["count"].as_u64().unwrap()).unwrap();
+        for (index, name) in columns.iter().enumerate() {
+            values[index].extend(std::iter::repeat_n(cell[*name].as_f64().unwrap(), count));
+        }
+    }
+    let pairs: Vec<(&str, &[f64])> =
+        columns.iter().zip(values.iter()).map(|(name, col)| (*name, col.as_slice())).collect();
+    let data = TabularData::from_f64_columns(pairs).unwrap();
+    let index = |name: &str| {
+        u32::try_from(columns.iter().position(|column| *column == name).unwrap()).unwrap()
+    };
+    let endpoint = |mark: &str| match mark {
+        "tail" => Endpoint::Tail,
+        "arrow" => Endpoint::Arrow,
+        "circle" => Endpoint::Circle,
+        other => panic!("unknown endpoint {other}"),
+    };
+    let mut pag = Pag::with_variables(u32::try_from(columns.len()).unwrap());
+    for edge in pin["graph"]["marked_edges"].as_array().unwrap() {
+        pag.insert_marked(MarkedEdge {
+            a: DenseNodeId::from_raw(index(edge[0].as_str().unwrap())),
+            b: DenseNodeId::from_raw(index(edge[1].as_str().unwrap())),
+            at_a: endpoint(edge[2].as_str().unwrap()),
+            at_b: endpoint(edge[3].as_str().unwrap()),
+            middle: MiddleMark::Empty,
+        })
+        .unwrap();
+    }
+    (data, pag)
+}
+
+fn uses_pag_envelope(cell: antecedent::SupportCell) -> bool {
+    cell.graph_class.as_str() == "Pag"
+        && matches!(cell.query.as_str(), "AverageEffect" | "ConditionalEffect")
+        && cell.structure.as_str() != "graph_posterior"
+}
+
+fn uses_identified_temporal_pag(cell: antecedent::SupportCell) -> bool {
+    cell.graph_class.as_str() == "TemporalPag"
+        && cell.structure.as_str() != "graph_posterior"
+        && !matches!(
+            cell.query.as_str(),
+            "TemporalConditionalPulse"
+                | "TemporalConditionalSustained"
+                | "AverageDerivative"
+                | "PointDerivative"
+                | "Elasticity"
+                | "SemiElasticity"
+                | "DirectionalDerivative"
+                | "ResponseJacobian"
+                | "Counterfactual"
+                | "InterventionalDistribution"
+                | "NestedCounterfactualEffect"
+                | "PathSpecificEffect"
+        )
+}
+
+/// Directed mediation PAG with a lag-1 parent of treatment, so `t → y` is visible
+/// and the back-door set of the licensed point queries stays empty.
+fn visible_mediation_pag() -> TemporalPag {
+    let mut g = TemporalPag::empty();
+    let t1 = g.add_lagged(vid(0), Lag::from_raw(1)).unwrap();
+    let m0 = g.add_lagged(vid(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = g.add_lagged(vid(2), Lag::CONTEMPORANEOUS).unwrap();
+    let r1 = g.add_lagged(vid(3), Lag::from_raw(1)).unwrap();
+    g.insert_directed(r1, t1).unwrap();
+    g.insert_directed(t1, m0).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    g.insert_directed(m0, y0).unwrap();
+    g
+}
+
+fn identified_pag_pin() -> serde_json::Value {
+    serde_json::from_str(include_str!(
+        "../../../conformance/estimate/temporal_class_envelope/identified_pag.json"
+    ))
+    .unwrap()
+}
+
+// A confounder triangle read as a MAG leaves `t -> y` invisible (nothing points
+// into `t` from outside `y`'s neighbourhood), so PAG responses are refused on
+// it; these cells need the fixture whose treatment edge has a visibility witness.
+fn uses_pag_response_curve(cell: antecedent::SupportCell) -> bool {
+    cell.graph_class.as_str() == "Pag"
+        && matches!(cell.query.as_str(), "ResponseCurve" | "InterventionResponse")
+}
+
+fn pag_response_curve_fixture() -> (TabularData, Pag) {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/class_aware_envelope/pag_identified.json"
+    ))
+    .unwrap();
+    let spec = &pin["curve"];
+    let n = usize::try_from(spec["law"]["n"].as_u64().unwrap()).unwrap();
+    let wave = |i: usize, freq: f64| (i as f64 * freq).sin();
+    let z: Vec<f64> = (0..n).map(|i| wave(i, 0.37)).collect();
+    let r: Vec<f64> = (0..n).map(|i| wave(i, 0.53)).collect();
+    let t: Vec<f64> = (0..n).map(|i| 0.5 + 0.5 * z[i] + 0.4 * r[i] + 0.5 * wave(i, 0.61)).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            0.1 + spec["true_contrast"].as_f64().unwrap() * t[i] + 0.2 * z[i] + 0.02 * wave(i, 0.29)
+        })
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("y", y.as_slice()),
+        ("z", z.as_slice()),
+        ("r", r.as_slice()),
+    ])
+    .unwrap();
+    let columns = ["t", "y", "z", "r"];
+    let mut pag = Pag::with_variables(4);
+    let node = |name: &str| {
+        DenseNodeId::from_raw(
+            u32::try_from(columns.iter().position(|c| *c == name).unwrap()).unwrap(),
+        )
+    };
+    for edge in spec["graph"]["marked_edges"].as_array().unwrap() {
+        pag.insert_marked(MarkedEdge {
+            a: node(edge[0].as_str().unwrap()),
+            b: node(edge[1].as_str().unwrap()),
+            at_a: match edge[2].as_str().unwrap() {
+                "tail" => Endpoint::Tail,
+                "arrow" => Endpoint::Arrow,
+                "circle" => Endpoint::Circle,
+                other => panic!("unknown endpoint {other}"),
+            },
+            at_b: match edge[3].as_str().unwrap() {
+                "tail" => Endpoint::Tail,
+                "arrow" => Endpoint::Arrow,
+                "circle" => Endpoint::Circle,
+                other => panic!("unknown endpoint {other}"),
+            },
+            middle: MiddleMark::Empty,
+        })
+        .unwrap();
+    }
+    (data, pag)
+}
+
+fn pag_from_dag(dag: &Dag) -> Pag {
+    let mut g = Pag::with_variables(u32::try_from(dag.node_count()).unwrap());
+    for edge in dag.edges() {
+        if edge.at_b == antecedent_graph::Endpoint::Arrow {
+            g.insert_directed(edge.a, edge.b).unwrap();
+        }
+    }
+    g
+}
+
+fn transport_admg() -> Admg {
+    let mut g = Admg::with_variables(5);
+    g.insert_directed(nid(0), nid(1)).unwrap();
+    g
+}
+
+fn temporal_dag(n_vars: u32) -> TemporalDag {
+    let mut g = TemporalDag::empty();
+    if n_vars >= 3 {
+        let t1 = ensure_lagged(&mut g, vid(0), Lag::from_raw(1)).unwrap();
+        let m0 = ensure_lagged(&mut g, vid(1), Lag::CONTEMPORANEOUS).unwrap();
+        let y0 = ensure_lagged(&mut g, vid(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(t1, m0).unwrap();
+        g.insert_directed(t1, y0).unwrap();
+        g.insert_directed(m0, y0).unwrap();
+        return g;
+    }
+    if n_vars >= 2 {
+        let x1 = ensure_lagged(&mut g, vid(0), Lag::from_raw(1)).unwrap();
+        let y0 = ensure_lagged(&mut g, vid(1), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(x1, y0).unwrap();
+    }
+    g
+}
+
+fn static_gp(n_vars: usize) -> GraphPosterior {
+    let cell = n_vars * n_vars;
+    let mut contemporaneous = vec![0.0; cell];
+    if n_vars >= 2 {
+        contemporaneous[1] = 1.0;
+    }
+    if n_vars >= 3 {
+        contemporaneous[2 * n_vars] = 1.0;
+        contemporaneous[2 * n_vars + 1] = 1.0;
+    }
+    GraphPosterior::new(
+        n_vars,
+        vec![1.0],
+        vec![0],
+        contemporaneous,
+        vec![0.0; cell],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-static-gp"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+}
+
+fn temporal_gp(n_vars: usize) -> GraphPosterior {
+    let cell = n_vars * n_vars;
+    if n_vars >= 3 {
+        let mut lagged = vec![0.0; cell];
+        lagged[1] = 1.0;
+        lagged[2] = 1.0;
+        return GraphPosterior::new(
+            n_vars,
+            vec![1.0],
+            vec![8],
+            vec![0.0; cell],
+            vec![0.0; cell],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: InferenceDiagnostics::analytic(
+                    "licensed-compiler-temporal-mediation-gp",
+                ),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_lagged_marginals(1, lagged)
+        .unwrap()
+        .with_lag_masks(vec![6])
+        .unwrap();
+    }
+    let mut lagged = vec![0.0; cell];
+    if n_vars >= 2 {
+        lagged[1] = 1.0;
+    }
+    static_gp(n_vars).with_lagged_marginals(1, lagged).unwrap().with_lag_masks(vec![2]).unwrap()
+}
+
+/// Reconstructible TemporalCpdag/Pag atom.
+///
+/// `TemporalPag` MAG adjustment needs a contemporaneous arrowhead into the
+/// treatment so the unfolded `t_{t-1} → y_t` edge is visible. `2→0` and `2→1`
+/// plus lag `0→1` is that backdoor template.
+/// Masks of [`temporal_dag`], plus a contemporaneous witness into treatment
+/// for a `TemporalPag` atom. That witness is what makes the lagged treatment
+/// edge visible without putting a confounder on the outcome.
+fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
+    let cell = n_vars * n_vars;
+    let mut lag_mask = 0u64;
+    let mut adjacency = 0u64;
+    if n_vars >= 2 {
+        lag_mask |= 1u64 << 1;
+    }
+    if n_vars >= 3 {
+        lag_mask |= 1u64 << 2;
+        adjacency = set_edge(0, n_vars, 1, 2, true);
+    }
+    if pag && n_vars >= 4 {
+        adjacency = set_edge(adjacency, n_vars, 3, 0, true);
+    }
+    GraphPosterior::new(
+        n_vars,
+        vec![1.0],
+        vec![adjacency],
+        vec![0.0; cell],
+        vec![0.0; cell],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-temporal-class-point"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+    .with_lagged_marginals(1, vec![0.0; cell])
+    .unwrap()
+    .with_lag_masks(vec![lag_mask])
+    .unwrap()
+}
+
+fn temporal_class_gp(n_vars: usize) -> GraphPosterior {
+    let cell = n_vars * n_vars;
+    let mut lagged = vec![0.0; cell];
+    let mut adjacency = 0u64;
+    let mut lag_mask = 0u64;
+    if n_vars >= 2 {
+        lagged[1] = 1.0;
+        lag_mask |= 1u64 << 1;
+    }
+    if n_vars >= 3 {
+        lagged[2 * n_vars + 1] = 1.0;
+        adjacency = set_edge(set_edge(0, n_vars, 2, 0, true), n_vars, 2, 1, true);
+    }
+    GraphPosterior::new(
+        n_vars,
+        vec![1.0],
+        vec![adjacency],
+        vec![0.0; cell],
+        vec![0.0; cell],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("licensed-compiler-temporal-class-gp"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+    .with_lagged_marginals(1, lagged)
+    .unwrap()
+    .with_lag_masks(vec![lag_mask])
+    .unwrap()
+}
+
+fn temporal_spec() -> TemporalResponseSpec {
+    TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap()
+}
+
+fn temporalize(query: ResponseQuery, temporal: bool) -> CausalQuery {
+    CausalQuery::Response(if temporal { query.with_temporal(temporal_spec()) } else { query })
+}
+
+fn mean_curve(treatment: u32, outcome: u32, temporal: bool) -> CausalQuery {
+    let q = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: vid(outcome),
+        treatment: ContinuousDomain::new(vid(treatment), GridSpec::Values(Arc::from([0.0, 1.0]))),
+    });
+    CausalQuery::Response(if temporal { q.with_temporal(temporal_spec()) } else { q })
+}
+
+fn intervention_response(treatments: &[u32], outcome: u32, temporal: bool) -> CausalQuery {
+    let interventions: Arc<[Intervention]> =
+        treatments.iter().map(|&t| Intervention::set(vid(t), Value::f64(1.0))).collect();
+    let q = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: vid(outcome),
+        interventions,
+    });
+    CausalQuery::Response(if temporal { q.with_temporal(temporal_spec()) } else { q })
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per support-matrix cell maps the cell to its literal query"
+)]
+fn query_for(cell: antecedent::SupportCell) -> CausalQuery {
+    let temporal_graph =
+        matches!(cell.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag");
+    match cell.query.as_str() {
+        "AverageEffect" => {
+            CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(1)))
+        }
+        "ConditionalEffect" => {
+            let modifier = if cell.graph_class.as_str() == "Pag"
+                && cell.structure.as_str() != "graph_posterior"
+            {
+                vid(5)
+            } else {
+                vid(2)
+            };
+            CausalQuery::ConditionalEffect(
+                ConditionalEffectQuery::try_new(
+                    AverageEffectQuery::binary_ate(vid(0), vid(1))
+                        .with_effect_modifiers([modifier]),
+                )
+                .unwrap(),
+            )
+        }
+        "Counterfactual" => CausalQuery::Counterfactual(
+            CounterfactualQuery::new(
+                vid(1),
+                Arc::from([Intervention::set(vid(0), Value::f64(1.0))]),
+            )
+            .with_control_level(0.0),
+        ),
+        "NestedCounterfactualEffect" => CausalQuery::NestedCounterfactual(
+            NestedCounterfactualQuery::new(vid(0), vid(1), vid(2)).unwrap(),
+        ),
+        "InterventionalDistribution" => {
+            CausalQuery::Distribution(InterventionalDistributionQuery::new(
+                vid(1),
+                [Intervention::set(vid(0), Value::f64(1.0))],
+            ))
+        }
+        "MediationEffect" | "TemporalMediationEffect" => {
+            let contrast = if cell.query.as_str() == "TemporalMediationEffect" {
+                MediationContrast::Mediated
+            } else {
+                MediationContrast::NaturalDirect
+            };
+            CausalQuery::Mediation(MediationQuery::binary(
+                vid(0),
+                vid(2),
+                Arc::from([vid(1)]),
+                contrast,
+            ))
+        }
+        "PathSpecificEffect" => CausalQuery::PathSpecific(
+            PathSpecificEffectQuery::binary(vid(0), vid(2)).with_path_nodes([vid(1)]),
+        ),
+        "PulseEffect" => CausalQuery::TemporalEffect(
+            TemporalEffectQuery::pulse(vid(0), vid(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1)),
+        ),
+        "SustainedEffect" => CausalQuery::TemporalEffect(
+            TemporalEffectQuery::pulse(vid(0), vid(1), 1.0)
+                .with_policy(TemporalPolicy::sustained(-1, -1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1)),
+        ),
+        "TemporalConditionalPulse" => CausalQuery::TemporalEffect(
+            TemporalEffectQuery::pulse(vid(0), vid(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1))
+                .with_effect_modifiers([vid(2)]),
+        ),
+        "TemporalConditionalSustained" => CausalQuery::TemporalEffect(
+            TemporalEffectQuery::pulse(vid(0), vid(1), 1.0)
+                .with_policy(TemporalPolicy::sustained(-1, -1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1))
+                .with_effect_modifiers([vid(2)]),
+        ),
+        "ResponseCurve" => mean_curve(0, 1, temporal_graph),
+        "InterventionResponse" if cell.graph_class.as_str() == "CoDetermined" => {
+            intervention_response(&[1, 2], 3, false)
+        }
+        "InterventionResponse" => intervention_response(&[0], 1, temporal_graph),
+        "AverageDerivative" => temporalize(
+            ResponseQuery::new(ResponseFunctional::AverageDerivative {
+                outcome: vid(2),
+                treatment: vid(0),
+                weighting: DerivativeWeighting::Observed,
+            }),
+            temporal_graph,
+        ),
+        "PointDerivative" => temporalize(
+            ResponseQuery::new(ResponseFunctional::PointDerivative {
+                outcome: vid(2),
+                treatment: vid(0),
+                at: if temporal_graph { 2.0 } else { 0.5 },
+                order: 1,
+                scale: DerivativeScale::Identity,
+            }),
+            temporal_graph,
+        ),
+        "Elasticity" => temporalize(
+            ResponseQuery::new(ResponseFunctional::PointDerivative {
+                outcome: vid(2),
+                treatment: vid(0),
+                at: if temporal_graph { 2.0 } else { 0.5 },
+                order: 1,
+                scale: DerivativeScale::LogLog,
+            }),
+            temporal_graph,
+        ),
+        "SemiElasticity" => temporalize(
+            ResponseQuery::new(ResponseFunctional::PointDerivative {
+                outcome: vid(2),
+                treatment: vid(0),
+                at: if temporal_graph { 2.0 } else { 0.5 },
+                order: 1,
+                scale: DerivativeScale::LogTreatment,
+            }),
+            temporal_graph,
+        ),
+        "DirectionalDerivative" => temporalize(
+            ResponseQuery::new(ResponseFunctional::DirectionalDerivative {
+                outcomes: Arc::from([vid(2), vid(3)]),
+                treatments: Arc::from([vid(0), vid(1)]),
+                at: if temporal_graph { Arc::from([2.0, 1.0]) } else { Arc::from([0.5, 0.0]) },
+                direction: Arc::from([1.0, 1.0]),
+            }),
+            temporal_graph,
+        ),
+        "ResponseJacobian" => temporalize(
+            ResponseQuery::new(ResponseFunctional::Jacobian {
+                outcomes: Arc::from([vid(2), vid(3)]),
+                treatments: Arc::from([vid(0), vid(1)]),
+                at: if temporal_graph { Arc::from([2.0, 1.0]) } else { Arc::from([0.5, 0.0]) },
+                scale: DerivativeScale::Identity,
+            }),
+            temporal_graph,
+        ),
+        "TransportQuery" => CausalQuery::Transport(TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: vid(1),
+                treatment: ContinuousDomain::new(vid(0), GridSpec::Values(Arc::from([0.0, 1.0]))),
+            }),
+            "trial",
+            "target",
+            [vid(0)],
+        )),
+        "InterferenceQuery" => CausalQuery::Interference(InterferenceQuery::new(
+            AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+            ExposureMapping::NeighborCount,
+            InterferenceFunctional::ExposureContrast {
+                outcome: vid(0),
+                from: ExposureLevel { own: 0.0, neighbors: 1.0 },
+                to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+            },
+        )),
+        "AnomalyAttribution" => {
+            CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new([vid(1)], 48))
+        }
+        "ChangeAttribution" => CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
+            vid(1),
+            PopulationSelector::TimeRange { start: 0, end: 24 },
+            PopulationSelector::TimeRange { start: 24, end: 48 },
+        )),
+        other => panic!("unhandled licensed query {other}"),
+    }
+}
+
+fn needs_series(cell: antecedent::SupportCell) -> bool {
+    matches!(cell.query.as_str(), "PulseEffect" | "SustainedEffect" | "TemporalMediationEffect")
+        || matches!(cell.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
+}
+
+fn point_family_query(cell: antecedent::SupportCell) -> bool {
+    matches!(
+        cell.query.as_str(),
+        "TemporalConditionalPulse"
+            | "TemporalConditionalSustained"
+            | "AverageDerivative"
+            | "PointDerivative"
+            | "Elasticity"
+            | "SemiElasticity"
+            | "DirectionalDerivative"
+            | "ResponseJacobian"
+            | "Counterfactual"
+            | "InterventionalDistribution"
+            | "NestedCounterfactualEffect"
+            | "PathSpecificEffect"
+    )
+}
+
+#[allow(
+    clippy::match_same_arms,
+    reason = "one arm per support-matrix query kind, in matrix order, so each reads against the row it mirrors"
+)]
+fn n_vars(cell: antecedent::SupportCell) -> u32 {
+    if cell.graph_class.as_str() == "TemporalPag"
+        && cell.structure.as_str() == "graph_posterior"
+        && point_family_query(cell)
+    {
+        // A fourth variable is the visibility witness into treatment. The
+        // query still names the first three columns.
+        return 4;
+    }
+    match cell.query.as_str() {
+        "PathSpecificEffect"
+        | "MediationEffect"
+        | "TemporalMediationEffect"
+        | "NestedCounterfactualEffect" => 3,
+        "AverageDerivative"
+        | "PointDerivative"
+        | "Elasticity"
+        | "SemiElasticity"
+        | "DirectionalDerivative"
+        | "ResponseJacobian" => 4,
+        "TransportQuery" => 5,
+        "InterferenceQuery" => 2,
+        "InterventionResponse" if cell.graph_class.as_str() == "CoDetermined" => 4,
+        "AverageEffect" if matches!(cell.graph_class.as_str(), "CoDetermined" | "Unknown") => 4,
+        "ConditionalEffect" | "TemporalConditionalPulse" | "TemporalConditionalSustained" => 3,
+        _ if needs_series(cell) && cell.query.as_str() == "TemporalMediationEffect" => 3,
+        _ if needs_series(cell) && cell.graph_class.as_str() == "TemporalPag" => 3,
+        _ if needs_series(cell) => 2,
+        _ => 3,
+    }
+}
+
+enum CellData {
+    Tabular(TabularData),
+    Series(TimeSeriesData),
+}
+
+struct CellSetup {
+    expected: String,
+    builder: StudyBuilder,
+    data: CellData,
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per support-matrix cell maps the cell to its builder setup"
+)]
+fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
+    let expected = cell_coordinate(cell);
+    let query = query_for(cell);
+    let n = n_vars(cell);
+    let series = needs_series(cell);
+    let inference = inference_of(cell.inference.as_str());
+    let refute = refute_of(cell.validation.as_str());
+
+    let (mut builder, data) = if uses_identified_temporal_pag(cell) {
+        let pin = identified_pag_pin();
+        let series = identified_pag_series(&pin);
+        (Study::series(series.clone()), CellData::Series(series))
+    } else if series {
+        let names: Vec<&str> = if cell.graph_class.as_str() == "TemporalPag"
+            && cell.structure.as_str() != "graph_posterior"
+            && !uses_identified_temporal_pag(cell)
+        {
+            vec!["t", "m", "y", "r"]
+        } else {
+            match n {
+                2 => vec!["x", "y"],
+                3 => vec!["t", "m", "y"],
+                _ => vec!["x", "y", "z", "w"][..n as usize].to_vec(),
+            }
+        };
+        let series = if cell.query.as_str() == "TemporalMediationEffect" {
+            temporal_mediation_series()
+        } else {
+            series_from(&names)
+        };
+        (Study::series(series.clone()), CellData::Series(series))
+    } else {
+        let table = if cell.query.as_str() == "NestedCounterfactualEffect" {
+            let x: Vec<f64> = (0..300).map(|i| (f64::from(i) * 0.37).sin()).collect();
+            let m: Vec<f64> =
+                x.iter().enumerate().map(|(i, x)| 0.8 * x + (i as f64 * 0.91).cos()).collect();
+            let y: Vec<f64> = x
+                .iter()
+                .zip(&m)
+                .enumerate()
+                .map(|(i, (x, m))| 1.7 * x + 4.0 * m + (i as f64 * 0.23).sin() * 0.01)
+                .collect();
+            TabularData::from_f64_columns([
+                ("x", x.as_slice()),
+                ("m", m.as_slice()),
+                ("y", y.as_slice()),
+            ])
+            .unwrap()
+        } else if uses_pag_response_curve(cell) {
+            pag_response_curve_fixture().0
+        } else if uses_pag_envelope(cell) {
+            pag_envelope_fixture().0
+        } else if cell.graph_class.as_str() == "CoDetermined"
+            && cell.query.as_str() == "InterventionResponse"
+        {
+            let n = 48usize;
+            let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let t1: Vec<f64> = (0..n).map(|i| (i / 2 % 2) as f64).collect();
+            let t2: Vec<f64> = (0..n).map(|i| (i / 4 % 2) as f64).collect();
+            let y: Vec<f64> = (0..n)
+                .map(|i| 0.4 * t1[i] + 0.3 * t2[i] + 0.2 * z[i] + 0.05 * (i as f64 * 0.1).sin())
+                .collect();
+            TabularData::from_f64_columns([
+                ("z", z.as_slice()),
+                ("t1", t1.as_slice()),
+                ("t2", t2.as_slice()),
+                ("y", y.as_slice()),
+            ])
+            .unwrap()
+        } else if cell.graph_class.as_str() == "CoDetermined" {
+            binary_treatment_table(&[("t", 0), ("y", 1), ("z", 2), ("u", 3)])
+        } else if cell.graph_class.as_str() == "Unknown" {
+            binary_treatment_table(&[("t", 0), ("y", 1), ("era", 2), ("m", 3)])
+        } else if cell.query.as_str() == "TransportQuery" {
+            let n = 48usize;
+            let a: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let trial: Vec<f64> = (0..n).map(|i| if i < n / 2 { 1.0 } else { 0.0 }).collect();
+            let s: Vec<f64> = (0..n).map(|_| 0.4).collect();
+            let e: Vec<f64> = (0..n).map(|_| 0.5).collect();
+            let y: Vec<f64> = (0..n).map(|i| 0.2 + 0.8 * a[i] + 0.1 * trial[i]).collect();
+            TabularData::from_f64_columns([
+                ("a", a.as_slice()),
+                ("y", y.as_slice()),
+                ("trial", trial.as_slice()),
+                ("s", s.as_slice()),
+                ("e", e.as_slice()),
+            ])
+            .unwrap()
+        } else if cell.query.as_str() == "InterferenceQuery" {
+            static_table(&[("y", 0), ("x", 1)])
+        } else if cell.query.as_str() == "InterventionalDistribution"
+            || (matches!(
+                cell.query.as_str(),
+                "AverageEffect" | "ResponseCurve" | "InterventionResponse"
+            ) && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg"))
+        {
+            discrete_joint_table(&["t", "y", "z"][..n.min(3) as usize])
+        } else if matches!(
+            cell.query.as_str(),
+            "AverageDerivative"
+                | "PointDerivative"
+                | "Elasticity"
+                | "SemiElasticity"
+                | "DirectionalDerivative"
+                | "ResponseJacobian"
+        ) {
+            static_table(&[("a", 0), ("b", 1), ("y", 2), ("v", 3)])
+        } else if matches!(cell.query.as_str(), "MediationEffect" | "PathSpecificEffect") {
+            discrete_joint_table(&["t", "m", "y"])
+        } else if matches!(
+            cell.query.as_str(),
+            "AverageEffect" | "ConditionalEffect" | "MediationEffect"
+        ) {
+            binary_treatment_table(&[("t", 0), ("y", 1), ("z", 2)])
+        } else {
+            static_table(&[("t", 0), ("y", 1), ("z", 2)])
+        };
+        (Study::tabular(table.clone()), CellData::Tabular(table))
+    };
+
+    builder = builder.query(query).refute(refute).inference(inference).bootstrap_replicates(0);
+
+    builder = match cell.structure.as_str() {
+        "graph_posterior" => {
+            let gp = if series {
+                if cell.query.as_str() == "TemporalMediationEffect"
+                    && matches!(cell.graph_class.as_str(), "TemporalCpdag" | "TemporalPag")
+                {
+                    temporal_gp(n as usize)
+                } else if matches!(cell.graph_class.as_str(), "TemporalCpdag" | "TemporalPag") {
+                    if point_family_query(cell) {
+                        point_family_gp(n as usize, cell.graph_class.as_str() == "TemporalPag")
+                    } else {
+                        temporal_class_gp(n as usize)
+                    }
+                } else {
+                    temporal_gp(n as usize)
+                }
+            } else {
+                static_gp(n as usize)
+            };
+            let gp = match cell.graph_class.as_str() {
+                "Cpdag" | "TemporalCpdag" => gp.with_atom_kind(GraphPosteriorAtomKind::Cpdag),
+                "Pag" | "TemporalPag" => gp.with_atom_kind(GraphPosteriorAtomKind::Pag),
+                "Admg" => gp.with_atom_kind(GraphPosteriorAtomKind::Admg),
+                "TemporalAdmg" => gp.with_atom_kind(GraphPosteriorAtomKind::TemporalAdmg),
+                _ => gp,
+            };
+            builder.graph_posterior(gp)
+        }
+        "explicit" | "accepted" => {
+            let accepted = cell.structure.as_str() == "accepted";
+            match cell.graph_class.as_str() {
+                "Dag" => {
+                    let g = dag_for(cell, n);
+                    if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
+                }
+                "Admg" => {
+                    let g = if cell.query.as_str() == "TransportQuery" {
+                        transport_admg()
+                    } else {
+                        confounder_admg()
+                    };
+                    if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
+                }
+                "TemporalAdmg" => {
+                    let g = TemporalAdmg::from_static_contemporaneous(&if cell.query.as_str()
+                        == "TransportQuery"
+                    {
+                        transport_admg()
+                    } else {
+                        confounder_admg()
+                    })
+                    .map_err(|e| format!("{expected}: {e}"))?;
+                    if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
+                }
+                "Cpdag" => {
+                    let g = Cpdag::from_dag(&dag_for(cell, n));
+                    if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
+                }
+                "Pag" => {
+                    let g = if uses_pag_response_curve(cell) {
+                        pag_response_curve_fixture().1
+                    } else if uses_pag_envelope(cell) {
+                        pag_envelope_fixture().1
+                    } else {
+                        pag_from_dag(&dag_for(cell, n))
+                    };
+                    if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
+                }
+                "TemporalDag" => {
+                    let g = temporal_dag(n);
+                    if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
+                }
+                "TemporalCpdag" => {
+                    let g = TemporalCpdag::from_temporal_dag(&temporal_dag(n));
+                    if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
+                }
+                "TemporalPag" => {
+                    let g = if uses_identified_temporal_pag(cell) {
+                        identified_pag(&identified_pag_pin())
+                    } else {
+                        visible_mediation_pag()
+                    };
+                    if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
+                }
+                "CoDetermined" => {
+                    let background = if cell.query.as_str() == "InterventionResponse" {
+                        TieredBackground::from_named(
+                            static_table(&[("z", 0), ("t1", 1), ("t2", 2), ("y", 3)]).schema(),
+                            &[vec!["z"], vec!["t1", "t2"], vec!["y"]],
+                            WithinTier::CoDetermined,
+                        )
+                    } else {
+                        TieredBackground::from_named(
+                            static_table(&[("t", 0), ("y", 1), ("z", 2), ("u", 3)]).schema(),
+                            &[vec!["z", "u"], vec!["t"], vec!["y"]],
+                            WithinTier::CoDetermined,
+                        )
+                    }
+                    .map_err(|e| format!("{expected}: {e}"))?;
+                    builder.tiered_background(background).map_err(|e| format!("{expected}: {e}"))?
+                }
+                "Unknown" => {
+                    let background = TieredBackground::from_named(
+                        static_table(&[("t", 0), ("y", 1), ("era", 2), ("m", 3)]).schema(),
+                        &[vec!["era"], vec!["t", "m"], vec!["y"]],
+                        WithinTier::Unknown,
+                    )
+                    .map_err(|e| format!("{expected}: {e}"))?;
+                    builder.tiered_background(background).map_err(|e| format!("{expected}: {e}"))?
+                }
+                other => return Err(format!("{expected}: unhandled graph class {other}")),
+            }
+        }
+        other => return Err(format!("{expected}: unhandled structure {other}")),
+    };
+
+    if cell.query.as_str() == "PathSpecificEffect"
+        && !matches!(cell.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
+    {
+        builder = builder
+            .identifier(IdentifierId::PathSpecificNatural)
+            .estimator(EstimatorId::FunctionalEffect);
+    }
+    if cell.query.as_str() == "InterventionalDistribution"
+        && !matches!(cell.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
+    {
+        builder = builder
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution);
+    }
+    if matches!(cell.query.as_str(), "AverageEffect" | "ResponseCurve" | "InterventionResponse")
+        && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg")
+    {
+        builder =
+            builder.identifier(IdentifierId::GeneralId).estimator(EstimatorId::FunctionalEffect);
+    }
+    if matches!(
+        cell.query.as_str(),
+        "PointDerivative"
+            | "Elasticity"
+            | "SemiElasticity"
+            | "DirectionalDerivative"
+            | "ResponseJacobian"
+            | "AverageDerivative"
+    ) {
+        builder = builder.response_options(ContinuousResponseOptions {
+            bandwidth: Some(0.35),
+            ..ContinuousResponseOptions::default()
+        });
+    }
+
+    if cell.query.as_str() == "TransportQuery" {
+        builder = builder.selection_targets(Arc::from([])).transport_trial(TransportTrialSpec {
+            trial: vid(2),
+            selection_probability: vid(3),
+            treatment_probability: vid(4),
+        });
+        if cell.graph_class.as_str() == "TemporalAdmg" {
+            builder = builder.estimator(if cell.inference.as_str() == "Bayesian" {
+                EstimatorId::TransportTrialBayesianBootstrap
+            } else {
+                EstimatorId::TransportTrialIpw
+            });
+        }
+    }
+    if cell.query.as_str() == "InterferenceQuery" {
+        let units = static_table(&[("y", 0)]);
+        let n_units = 48usize;
+        let edges: Vec<NetworkEdge> = (0..n_units)
+            .map(|i| NetworkEdge { from: i as u32, to: ((i + 1) % n_units) as u32, weight: 1.0 })
+            .collect();
+        let network = NetworkData::try_new(units, edges).map_err(|e| format!("{expected}: {e}"))?;
+        // The repeated 1100 pattern supplies all own/neighbor exposure pairs.
+        // Alternation makes the two regressors perfectly collinear.
+        let assignment: Arc<[bool]> = (0..n_units).map(|i| i % 4 < 2).collect();
+        builder = builder.interference(InterferenceSpec { network, assignment });
+    }
+
+    Ok(CellSetup { expected, builder, data })
+}
+
+/// Optional estimators often need a different, but still same-coordinate,
+/// design than the shared support fixture. Keep the registry cell unchanged
+/// while supplying the data and identifier the named estimator expects.
+#[allow(
+    clippy::too_many_lines,
+    clippy::match_same_arms,
+    reason = "one arm per optional-estimator cell maps the cell to its builder setup, in matrix order"
+)]
+fn optional_estimator_setup(
+    cell: antecedent::SupportCell,
+    estimator: EstimatorId,
+) -> Result<CellSetup, String> {
+    let name = estimator.as_str();
+    let custom = match name {
+        "frontdoor.linear_two_stage" => Some("frontdoor"),
+        "iv.2sls" | "iv.wald" | "iv.bayesian_joint_linear" => Some("iv"),
+        "rd.sharp" | "rd.bayesian_local_linear" => Some("rd"),
+        "glm.adjustment" => Some("glm"),
+        "cell.aipw" if cell.query.as_str() == "InterventionResponse" => Some("cell_aipw"),
+        _ => None,
+    };
+    let Some(kind) = custom else {
+        let mut setup = cell_setup(cell)?;
+        setup.builder = setup.builder.estimator(estimator);
+        // The optional registry alternatives are routed through their named
+        // identifier families; the default shared fixture otherwise infers
+        // the primary compiler route and silently rewrites several choices.
+        let identifier = match (cell.query.as_str(), cell.graph_class.as_str(), name) {
+            ("AverageEffect", "CoDetermined", "cell.aipw") => return Ok(setup),
+            ("InterventionResponse", _, "cell.aipw") => IdentifierId::ResponseBackdoor,
+            ("ConditionalEffect", _, "bayesian.basis.gcomp") => IdentifierId::BackdoorAdjustment,
+            (
+                "AverageEffect",
+                _,
+                "bayesian.basis.gcomp" | "bayesian.robust_ate" | "bayesian.gcomp",
+            ) => IdentifierId::BackdoorAdjustment,
+            (
+                "AverageEffect",
+                _,
+                "aipw" | "propensity.matching" | "propensity.weighting" | "glm.adjustment",
+            ) => IdentifierId::BackdoorAdjustment,
+            _ => return Ok(setup),
+        };
+        setup.builder = setup.builder.identifier(identifier);
+        return Ok(setup);
+    };
+
+    let expected = cell_coordinate(cell);
+    let accepted = cell.structure.as_str() == "accepted";
+    let n = 120usize;
+    let (data, query, graph, identifier, rd) = match kind {
+        "frontdoor" => {
+            let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let m: Vec<f64> = (0..n).map(|i| 0.3 * t[i] + ((i * 7 % 13) as f64) / 13.0).collect();
+            let y: Vec<f64> = (0..n).map(|i| 0.7 * m[i] + ((i * 11 % 17) as f64) / 17.0).collect();
+            let data = TabularData::from_f64_columns([
+                ("t", t.as_slice()),
+                ("m", m.as_slice()),
+                ("y", y.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            let mut graph = Dag::with_variables(3);
+            graph.insert_directed(nid(0), nid(1)).unwrap();
+            graph.insert_directed(nid(1), nid(2)).unwrap();
+            (
+                data,
+                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(2))),
+                graph,
+                IdentifierId::Frontdoor,
+                None,
+            )
+        }
+        "iv" => {
+            let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let t: Vec<f64> = (0..n).map(|i| f64::from(z[i] > 0.5 && i % 4 != 1)).collect();
+            let y: Vec<f64> = (0..n).map(|i| 0.5 * t[i] + ((i * 7 % 19) as f64) / 19.0).collect();
+            let data = TabularData::from_f64_columns([
+                ("t", t.as_slice()),
+                ("y", y.as_slice()),
+                ("z", z.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            let mut graph = Dag::with_variables(3);
+            graph.insert_directed(nid(2), nid(0)).unwrap();
+            graph.insert_directed(nid(0), nid(1)).unwrap();
+            (
+                data,
+                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(1))),
+                graph,
+                IdentifierId::Iv,
+                None,
+            )
+        }
+        "rd" => {
+            let r: Vec<f64> = (0..n).map(|i| (i as f64 - 60.0) / 30.0).collect();
+            let t: Vec<f64> = r.iter().map(|x| f64::from(*x >= 0.0)).collect();
+            let y: Vec<f64> =
+                (0..n).map(|i| 1.0 + 1.5 * t[i] + 0.4 * r[i] + ((i % 7) as f64) * 0.01).collect();
+            let data = TabularData::from_f64_columns([
+                ("t", t.as_slice()),
+                ("y", y.as_slice()),
+                ("r", r.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            let mut graph = Dag::with_variables(3);
+            graph.insert_directed(nid(2), nid(0)).unwrap();
+            graph.insert_directed(nid(0), nid(1)).unwrap();
+            graph.insert_directed(nid(2), nid(1)).unwrap();
+            (
+                data,
+                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(1))),
+                graph,
+                IdentifierId::RdSharp,
+                Some((vid(2), 0.0, 1.5)),
+            )
+        }
+        "glm" => {
+            let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let z: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
+            let y: Vec<f64> =
+                (0..n).map(|i| f64::from(u8::from((i % 5 < 2) ^ (t[i] > 0.5)))).collect();
+            let data = TabularData::from_f64_columns([
+                ("t", t.as_slice()),
+                ("y", y.as_slice()),
+                ("z", z.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            (
+                data,
+                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(1))),
+                dag_for(cell, 3),
+                IdentifierId::BackdoorAdjustment,
+                None,
+            )
+        }
+        "cell_aipw" => {
+            let t1: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+            let t2: Vec<f64> = (0..n).map(|i| ((i / 2) % 2) as f64).collect();
+            let z: Vec<f64> = (0..n).map(|i| ((i / 4) % 2) as f64).collect();
+            let y: Vec<f64> = (0..n)
+                .map(|i| 0.4 * t1[i] + 0.3 * t2[i] + 0.2 * z[i] + ((i * 7 % 13) as f64) * 0.01)
+                .collect();
+            let data = TabularData::from_f64_columns([
+                ("t1", t1.as_slice()),
+                ("t2", t2.as_slice()),
+                ("y", y.as_slice()),
+                ("z", z.as_slice()),
+            ])
+            .map_err(|e| e.to_string())?;
+            let query = intervention_response(&[0, 1], 2, false);
+            let mut graph = Dag::with_variables(4);
+            graph.insert_directed(nid(3), nid(0)).unwrap();
+            graph.insert_directed(nid(3), nid(1)).unwrap();
+            graph.insert_directed(nid(3), nid(2)).unwrap();
+            graph.insert_directed(nid(0), nid(2)).unwrap();
+            graph.insert_directed(nid(1), nid(2)).unwrap();
+            (data, query, graph, IdentifierId::ResponseBackdoor, None)
+        }
+        _ => unreachable!(),
+    };
+    let mut builder = Study::tabular(data.clone())
+        .query(query)
+        .inference(inference_of(cell.inference.as_str()))
+        .refute(refute_of(cell.validation.as_str()))
+        .bootstrap_replicates(0)
+        .identifier(identifier)
+        .estimator(estimator);
+    builder =
+        if accepted { builder.graph(AcceptedGraph::from(graph)) } else { builder.graph(graph) };
+    if let Some((running, cutoff, bandwidth)) = rd {
+        builder = builder.rd_config(running, cutoff, bandwidth);
+    }
+    Ok(CellSetup { expected, builder, data: CellData::Tabular(data) })
+}
+
+fn inspect_setup(setup: &CellSetup) -> Result<antecedent::CausalContract, String> {
+    let expected = &setup.expected;
+    let inspected =
+        setup.builder.clone().inspect().map_err(|e| format!("{expected}: inspect {e}"))?;
+    if inspected.support_status != Some(CellStatus::Licensed) {
+        return Err(format!("{expected}: support_status={:?}", inspected.support_status));
+    }
+    match &inspected.reasoning.identification {
+        SlotAvailability::Unavailable { .. } => {}
+        other => return Err(format!("{expected}: identification was {other:?}")),
+    }
+    match &inspected.reasoning.support {
+        SlotAvailability::Available(slot) => {
+            let got = slot.matrix_coordinate.as_deref().unwrap_or("");
+            if got != expected {
+                return Err(format!("{expected}: inspect published {got}"));
+            }
+        }
+        other => return Err(format!("{expected}: support slot {other:?}")),
+    }
+    Ok(inspected)
+}
+
+fn inspect_cell(cell: antecedent::SupportCell) -> Result<antecedent::CausalContract, String> {
+    inspect_setup(&cell_setup(cell)?)
+}
+
+/// The identifier and estimator a licensed cell's execution ran, as recorded on its
+/// logical plan (`-` when the plan names none).
+struct Route {
+    coordinate: String,
+    identifier: String,
+    estimator: String,
+}
+
+fn consume_setup(setup: CellSetup) -> Result<Route, String> {
+    let expected = setup.expected.clone();
+    inspect_setup(&setup)?;
+    let ctx = ExecutionContext::for_tests(1);
+    let built = setup.builder.build().map_err(|e| format!("{expected}: build {e}"))?;
+    let prepared = built.prepare(&ctx).map_err(|e| format!("{expected}: prepare {e}"))?;
+    let contract = prepared.contract().map_err(|e| format!("{expected}: contract {e}"))?;
+    let preview = prepared
+        .preview_transform(TransformIntent::CompatibleDataReplace)
+        .map_err(|e| format!("{expected}: preview {e}"))?;
+    if preview.refused {
+        return Err(format!("{expected}: compatible-data preview refused"));
+    }
+    if !contract.identities.program.is_some_and(|program| preview.binds_program(program)) {
+        return Err(format!("{expected}: preview unbound from program"));
+    }
+    let result = match &setup.data {
+        CellData::Tabular(data) => prepared.estimate(data, &ctx),
+        CellData::Series(data) => prepared.estimate_series(data, &ctx),
+    }
+    .map_err(|e| format!("{expected}: execute {e}"))?;
+    let claim = result.claim(&contract, &ctx).map_err(|e| format!("{expected}: claim {e}"))?;
+    if claim.identities.program != contract.identities.program
+        || claim.identities.target != contract.identities.target
+    {
+        return Err(format!("{expected}: claim identities drifted"));
+    }
+    if Some(claim.claim_id) == contract.identities.program {
+        return Err(format!("{expected}: claim identity collapsed onto program identity"));
+    }
+    // A partially identified answer must carry its bounds. `mixture` is the
+    // kind a claim takes when it withholds the scalar and publishes no
+    // identified set, which leaves a consumer with neither.
+    if claim.kind == antecedent_contract::ClaimKind::Mixture {
+        return Err(format!("{expected}: partial claim carries no identified set"));
+    }
+    let bytes = prepared
+        .encode_contracted_result(&result, &expected, &ctx)
+        .map_err(|e| format!("{expected}: encode {e}"))?;
+    let consumed =
+        consume_analysis_result(&bytes).map_err(|e| format!("{expected}: consume {e}"))?;
+    if !consumed.acceptance.accepts_as_verified_program()
+        && !sealed_checked_operation_dependency_only(&consumed)
+        && !functional_effect_replay_dependency_only(&consumed)
+        && !linear_replay_dependency_only(&consumed)
+        && !bayesian_distribution_replay_dependency_only(&consumed)
+    {
+        return Err(format!(
+            "{expected}: consume did not accept a verified program: {:?}",
+            consumed.acceptance.unresolved
+        ));
+    }
+    let plan = &result.logical_plan;
+    Ok(Route {
+        coordinate: expected,
+        identifier: plan.identifier.as_deref().unwrap_or("-").to_owned(),
+        estimator: plan.estimator.as_deref().unwrap_or("-").to_owned(),
+    })
+}
+
+const ROUTES: &str = "parity/licensed_routes.toml";
+
+/// `parity/licensed_routes.toml` as the executions produce it.
+fn render_routes(routes: &[Route]) -> String {
+    let mut out = String::from(concat!(
+        "# Generated by crates/antecedent/tests/licensed_compiler.rs\n",
+        "# (every_licensed_cell_completes_the_compiler_path): the identifier and estimator\n",
+        "# each licensed cell's execution recorded on its logical plan. The test fails when\n",
+        "# this file drifts; regenerate with\n",
+        "#   UPDATE_LICENSED_ROUTES=1 cargo test -p antecedent --test licensed_compiler \\\n",
+        "#     every_licensed_cell_completes_the_compiler_path\n",
+        "# scripts/generate_support_matrix_docs.py joins these component ids to the parity\n",
+        "# rows whose external oracles exercise them.\n",
+    ));
+    for route in routes {
+        out.push_str(&format!(
+            "\n[[route]]\ncoordinate = \"{}\"\nidentifier = \"{}\"\nestimator = \"{}\"\n",
+            route.coordinate, route.identifier, route.estimator
+        ));
+    }
+    out
+}
+
+#[test]
+fn every_licensed_cell_inspects_as_a_first_class_contract() {
+    let mut failures = Vec::new();
+    let mut n = 0usize;
+    for cell in licensed_support_cells() {
+        n += 1;
+        if let Err(err) = inspect_cell(cell) {
+            failures.push(err);
+        }
+    }
+    assert_eq!(n, 717, "licensed inventory drifted");
+    assert!(
+        failures.is_empty(),
+        "{} licensed cells are not first-class on inspect:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn every_licensed_query_has_a_fixture_profile() {
+    let mut queries = std::collections::BTreeSet::new();
+    for cell in licensed_support_cells() {
+        queries.insert(cell.query.as_str());
+    }
+    for query in queries {
+        let cell =
+            antecedent::SupportCell::from_labels(query, "Dag", "explicit", "Frequentist", "none")
+                .expect("fixture support axis");
+        let _ = dag_for(cell, 4);
+    }
+}
+
+#[test]
+fn every_licensed_cell_completes_the_compiler_path() {
+    let mut failures = Vec::new();
+    let mut routes = Vec::new();
+    let mut n = 0usize;
+    for cell in licensed_support_cells() {
+        n += 1;
+        match cell_setup(cell).and_then(consume_setup) {
+            Ok(route) => routes.push(route),
+            Err(err) => failures.push(err),
+        }
+    }
+    assert_eq!(n, 717, "licensed inventory drifted");
+    assert!(
+        failures.is_empty(),
+        "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+    let rendered = render_routes(&routes);
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(ROUTES);
+    if std::env::var("UPDATE_LICENSED_ROUTES").ok().as_deref() == Some("1") {
+        std::fs::write(&path, &rendered).expect("write licensed routes");
+    }
+    let committed = std::fs::read_to_string(&path).unwrap_or_default();
+    assert!(
+        committed == rendered,
+        "{ROUTES} does not match the identifiers and estimators the licensed cells ran; \
+         regenerate with UPDATE_LICENSED_ROUTES=1"
+    );
+}
+
+/// Diagnostic sweep for retained checked execution after every source owner is
+/// dropped. This stays opt-in because the full 669-cell execution is expensive.
+#[test]
+#[ignore = "opt-in registry closure diagnostic; run with --ignored --exact"]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for diagnostic registry closure after builder and study drop"
+)]
+fn diagnostic_registry_closure_after_builder_and_study_drop() {
+    let mut count = 0usize;
+    let mut plan_gaps = Vec::new();
+    let mut lifecycle_gaps = Vec::new();
+    let mut not_inspectable = Vec::new();
+    let mut dependency_refusals = Vec::new();
+
+    for cell in licensed_support_cells() {
+        count += 1;
+        let coordinate = cell_coordinate(cell);
+        let probe = (|| -> Result<(String, String), String> {
+            let setup = cell_setup(cell)?;
+            let CellSetup { expected: _, builder, data } = setup;
+            let ctx = ExecutionContext::for_tests(1);
+            let study = builder.clone().build().map_err(|e| format!("build: {e}"))?;
+            let mut prepared = study.prepare(&ctx).map_err(|e| format!("prepare: {e}"))?;
+            let estimator =
+                prepared.plan().logical.record.estimator.as_deref().unwrap_or("-").to_owned();
+            let checked_status = match estimator.as_str() {
+                "functional.distribution" => Some((
+                    "checked_distribution_program",
+                    prepared.checked_distribution_program().is_some(),
+                )),
+                "linear.adjustment.ate" => Some((
+                    "checked_linear_adjustment",
+                    prepared.checked_linear_adjustment().is_some(),
+                )),
+                "aipw" => Some(("checked_aipw_ate", prepared.checked_aipw_ate().is_some())),
+                "bayesian.gcomp" => Some((
+                    "checked_bayesian_gcomp_operation",
+                    prepared.checked_bayesian_gcomp_operation().is_some(),
+                )),
+                _ => None,
+            };
+            if let Some((inspector, present)) = checked_status {
+                if !present {
+                    plan_gaps
+                        .push(format!("{coordinate}: {inspector} absent (estimator={estimator})"));
+                }
+            } else {
+                not_inspectable.push(format!(
+                    "{coordinate}: no public checked-plan inspector (estimator={estimator})"
+                ));
+            }
+
+            drop(builder);
+            drop(study);
+
+            let result = match &data {
+                CellData::Tabular(table) => prepared.estimate(table, &ctx),
+                CellData::Series(series) => prepared.estimate_series(series, &ctx),
+            }
+            .map_err(|e| format!("execute after drop: {e}"))?;
+            let refreshed = match &data {
+                CellData::Tabular(table) => prepared.refresh(table.clone(), &ctx),
+                CellData::Series(series) => prepared.refresh_series(series.clone(), &ctx),
+            }
+            .map_err(|e| format!("compatible refresh after drop: {e}"))?;
+            let bytes = prepared
+                .encode_contracted_result(&refreshed, &format!("closure-{coordinate}"), &ctx)
+                .map_err(|e| format!("export after refresh: {e}"))?;
+            let consumed = consume_analysis_result(&bytes).map_err(|e| format!("consume: {e}"))?;
+            let missing_distribution_laws = consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|item| item.as_ref() == "dependencies.distribution_factor_laws");
+            if estimator == "functional.distribution" && missing_distribution_laws {
+                dependency_refusals
+                    .push(format!("{coordinate}: dependencies.distribution_factor_laws"));
+            } else if sealed_checked_operation_dependency_only(&consumed)
+                || functional_effect_replay_dependency_only(&consumed)
+            {
+                dependency_refusals
+                    .push(format!("{coordinate}: {:?}", consumed.acceptance.unresolved));
+            } else if linear_replay_dependency_only(&consumed) {
+                dependency_refusals
+                    .push(format!("{coordinate}: dependencies.linear_fit_sufficient_statistics"));
+            } else if bayesian_distribution_replay_dependency_only(&consumed) {
+                dependency_refusals.push(format!(
+                    "{coordinate}: dependencies.distribution_posterior_factor_draws"
+                ));
+            } else if !consumed.acceptance.accepts_as_verified_program() {
+                return Err(format!(
+                    "consumer refused verified program: {:?}",
+                    consumed.acceptance.unresolved
+                ));
+            }
+            let _ = result;
+            Ok((estimator, "execute/refresh/export/consume passed".into()))
+        })();
+
+        if let Err(error) = probe {
+            lifecycle_gaps.push(format!("{coordinate}: {error}"));
+        }
+    }
+
+    println!("registry closure diagnostic inspected {count} support cells");
+    println!("checked-plan gaps ({}):\n{}", plan_gaps.len(), plan_gaps.join("\n"));
+    println!("lifecycle gaps ({}):\n{}", lifecycle_gaps.len(), lifecycle_gaps.join("\n"));
+    println!(
+        "known distribution dependency refusals ({}):\n{}",
+        dependency_refusals.len(),
+        dependency_refusals.join("\n")
+    );
+    println!(
+        "coordinates without public checked-plan inspectors ({}):\n{}",
+        not_inspectable.len(),
+        not_inspectable.join("\n")
+    );
+    assert_eq!(count, 717, "licensed support inventory drifted");
+}
+
+/// Opt-in probe for the separately licensed alternate estimators. It keeps
+/// every exact `base::estimator=...` coordinate visible and classifies public
+/// plan inspection separately from execution and artifact acceptance.
+#[test]
+#[ignore = "opt-in 60-route optional-estimator closure diagnostic"]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for diagnostic optional estimator closure after builder and study drop"
+)]
+fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
+    let mut routes = Vec::new();
+    for cell in licensed_support_cells() {
+        let Some(selected) = licensed_route_estimator(cell) else {
+            continue;
+        };
+        for wire in licensed_estimators(cell) {
+            let estimator = wire.parse::<EstimatorId>().unwrap_or_else(|e| {
+                panic!("{}: invalid licensed estimator {wire}: {e}", cell_coordinate(cell))
+            });
+            if estimator != selected {
+                routes.push((cell, estimator));
+            }
+        }
+    }
+    routes.sort_by_key(|(cell, estimator)| {
+        format!("{}::estimator={}", cell_coordinate(*cell), estimator.as_str())
+    });
+
+    let mut checked_plan_gaps = Vec::new();
+    let mut uninspectable = Vec::new();
+    let mut execution_gaps = Vec::new();
+    let mut selection_gaps = Vec::new();
+    let mut refresh_gaps = Vec::new();
+    let mut dependency_refusals = Vec::new();
+    let mut inspected = 0usize;
+
+    for (cell, estimator) in routes {
+        inspected += 1;
+        let base = cell_coordinate(cell);
+        let coordinate = format!("{base}::estimator={}", estimator.as_str());
+        if classify_estimator(cell, estimator) != CellStatus::Licensed {
+            execution_gaps
+                .push(format!("{coordinate}: concrete estimator no longer licenses on base cell"));
+            continue;
+        }
+
+        let probe = (|| -> Result<(), String> {
+            let CellSetup { builder, data, .. } = optional_estimator_setup(cell, estimator)?;
+            let ctx = ExecutionContext::for_tests(1);
+            let study = builder.clone().build().map_err(|e| format!("build: {e}"))?;
+            let mut prepared = study.prepare(&ctx).map_err(|e| format!("prepare: {e}"))?;
+            let retained = prepared.plan().logical.record.estimator.as_deref();
+            if retained != Some(estimator.as_str()) {
+                return Err(format!("selected estimator drifted at prepare: {retained:?}"));
+            }
+
+            let checked_status = match estimator.as_str() {
+                "functional.distribution" => Some((
+                    "checked_distribution_program",
+                    prepared.checked_distribution_program().is_some(),
+                )),
+                "linear.adjustment.ate" => Some((
+                    "checked_linear_adjustment",
+                    prepared.checked_linear_adjustment().is_some(),
+                )),
+                "aipw" => Some(("checked_aipw_ate", prepared.checked_aipw_ate().is_some())),
+                "frontdoor.linear_two_stage" => Some((
+                    "checked_frontdoor_linear",
+                    prepared.checked_frontdoor_linear().is_some(),
+                )),
+                "iv.2sls" | "iv.wald" => Some(("checked_iv", prepared.checked_iv().is_some())),
+                "bayesian.gcomp" => Some((
+                    "checked_bayesian_gcomp_operation",
+                    prepared.checked_bayesian_gcomp_operation().is_some(),
+                )),
+                _ => None,
+            };
+            match checked_status {
+                Some((_, true)) => {}
+                Some((inspector, false)) => {
+                    checked_plan_gaps.push(format!("{coordinate}: {inspector} absent"))
+                }
+                None => {
+                    uninspectable.push(format!("{coordinate}: no public checked-plan inspector"))
+                }
+            }
+
+            drop(builder);
+            drop(study);
+            let result = match &data {
+                CellData::Tabular(table) => prepared.estimate(table, &ctx),
+                CellData::Series(series) => prepared.estimate_series(series, &ctx),
+            }
+            .map_err(|e| format!("execute after builder/Study drop: {e}"))?;
+            let refreshed = match &data {
+                CellData::Tabular(table) => prepared.refresh(table.clone(), &ctx),
+                CellData::Series(series) => prepared.refresh_series(series.clone(), &ctx),
+            }
+            .map_err(|e| format!("compatible refresh: {e}"))?;
+            if result.effect().to_bits() != refreshed.effect().to_bits() {
+                return Err(format!(
+                    "identical-data refresh changed effect {} -> {}",
+                    result.effect(),
+                    refreshed.effect()
+                ));
+            }
+            let bytes = prepared
+                .encode_contracted_result(&refreshed, &coordinate, &ctx)
+                .map_err(|e| format!("export: {e}"))?;
+            let consumed = consume_analysis_result(&bytes).map_err(|e| format!("consume: {e}"))?;
+            if !consumed.acceptance.accepts_as_verified_program() {
+                if consumed
+                    .acceptance
+                    .unresolved
+                    .iter()
+                    .any(|item| item.as_ref() == "dependencies.distribution_factor_laws")
+                {
+                    dependency_refusals
+                        .push(format!("{coordinate}: dependencies.distribution_factor_laws"));
+                } else if sealed_checked_operation_dependency_only(&consumed)
+                    || functional_effect_replay_dependency_only(&consumed)
+                {
+                    dependency_refusals
+                        .push(format!("{coordinate}: {:?}", consumed.acceptance.unresolved));
+                } else if linear_replay_dependency_only(&consumed) {
+                    dependency_refusals.push(format!(
+                        "{coordinate}: dependencies.linear_fit_sufficient_statistics"
+                    ));
+                } else if bayesian_distribution_replay_dependency_only(&consumed) {
+                    dependency_refusals.push(format!(
+                        "{coordinate}: dependencies.distribution_posterior_factor_draws"
+                    ));
+                } else {
+                    return Err(format!("consumer refusal: {:?}", consumed.acceptance.unresolved));
+                }
+            } else if consumed.body.estimate.is_some_and(|estimate| {
+                (estimate - refreshed.effect()).abs() > 1e-12 * refreshed.effect().abs().max(1.0)
+            }) {
+                return Err(format!(
+                    "independently consumed estimate {:?} differs from refreshed effect {}",
+                    consumed.body.estimate,
+                    refreshed.effect()
+                ));
+            }
+            Ok(())
+        })();
+
+        if let Err(error) = probe {
+            if error.starts_with("compatible refresh:") {
+                refresh_gaps.push(format!("{coordinate}: {error}"));
+            } else if error.starts_with("selected estimator drifted") {
+                selection_gaps.push(format!("{coordinate}: {error}"));
+            } else {
+                execution_gaps.push(format!("{coordinate}: {error}"));
+            }
+        }
+    }
+
+    println!("optional estimator diagnostic inspected {inspected} coordinates");
+    println!("checked-plan gaps ({}):\n{}", checked_plan_gaps.len(), checked_plan_gaps.join("\n"));
+    println!("no public plan inspector ({}):\n{}", uninspectable.len(), uninspectable.join("\n"));
+    println!("selection/plan drift ({}):\n{}", selection_gaps.len(), selection_gaps.join("\n"));
+    println!(
+        "execution or artifact gaps ({}):\n{}",
+        execution_gaps.len(),
+        execution_gaps.join("\n")
+    );
+    println!("refresh gaps ({}):\n{}", refresh_gaps.len(), refresh_gaps.join("\n"));
+    println!(
+        "known dependency refusals ({}):\n{}",
+        dependency_refusals.len(),
+        dependency_refusals.join("\n")
+    );
+    assert_eq!(inspected, 60, "optional estimator registry drifted");
+}
+
+/// The sealed outcome. Every licensed route executes on a retained checked
+/// operation; a consumer that holds only the exported bytes cannot resolve that
+/// operation, so it names it as `dependencies.checked_<family>_operation` (the
+/// counterfactual GCM route names its fitted mechanisms) and withholds
+/// verified-program acceptance while it still recognizes the contract section
+/// and reads the body. Any other unresolved reason, or an unrecognized or
+/// unreadable contract, is a genuine refusal.
+fn sealed_checked_operation_dependency_only(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> bool {
+    let acceptance = &consumed.acceptance;
+    acceptance.recognized
+        && consumed.contract.is_some()
+        && !acceptance.unresolved.is_empty()
+        && acceptance.unresolved.iter().all(|reason| {
+            reason.as_ref() == "dependencies.fitted_counterfactual_mechanisms"
+                || reason
+                    .as_ref()
+                    .strip_prefix("dependencies.checked_")
+                    .is_some_and(|family| family.ends_with("_operation"))
+        })
+}
+
+/// The functional-effect programs export a readable claim without the replay
+/// input an independent consumer would need: posterior row weights for a
+/// Bayesian scalar or response, or a response grid for a frequentist ADMG
+/// intervention response. The route evidence pins each key as the outcome.
+fn functional_effect_replay_dependency_only(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> bool {
+    let Some(contract) = consumed.contract.as_ref() else {
+        return false;
+    };
+    let functional_effect = contract.estimator.as_deref() == Some("functional.effect")
+        || contract.program.as_ref().is_some_and(|program| {
+            program.commitments.resolved_estimator.as_deref() == Some("functional.effect")
+        });
+    let bayesian = contract
+        .inference_binding
+        .as_ref()
+        .is_some_and(|binding| binding.inference == "bayesian" && binding.bayesian.is_some());
+    consumed.acceptance.recognized
+        && functional_effect
+        && consumed.acceptance.unresolved.len() == 1
+        && match consumed.acceptance.unresolved[0].as_ref() {
+            "dependencies.functional_effect_posterior_draws"
+            | "dependencies.functional_effect_response_posterior_draws" => bayesian,
+            "program.functional_effect_response_grid" => {
+                !bayesian
+                    && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
+                    && matches!(contract.target.query, antecedent_io::CausalQueryWire::Response(_))
+            }
+            _ => false,
+        }
+}
+
+fn linear_replay_dependency_only(consumed: &antecedent_io::AnalysisResultConsumption) -> bool {
+    consumed.acceptance.unresolved.len() == 1
+        && consumed.acceptance.unresolved[0].as_ref()
+            == "dependencies.linear_fit_sufficient_statistics"
+        && consumed.contract.as_ref().is_some_and(|contract| {
+            (contract.estimator.as_deref() == Some("linear.adjustment.ate")
+                || contract.program.as_ref().is_some_and(|program| {
+                    program.commitments.resolved_estimator.as_deref()
+                        == Some("linear.adjustment.ate")
+                }))
+                && contract
+                    .program
+                    .as_ref()
+                    .is_some_and(|program| program.checked_linear_adjustment_lowering.is_some())
+        })
+}
+
+fn bayesian_distribution_replay_dependency_only(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> bool {
+    consumed.acceptance.unresolved.len() == 1
+        && consumed.acceptance.unresolved[0].as_ref()
+            == "dependencies.distribution_posterior_factor_draws"
+        && consumed.contract.as_ref().is_some_and(|contract| {
+            contract.estimator.as_deref() == Some("functional.distribution")
+                && matches!(contract.target.query, antecedent_io::CausalQueryWire::Distribution(_))
+                && contract.inference_binding.as_ref().is_some_and(|binding| {
+                    binding.inference == "bayesian" && binding.bayesian.is_some()
+                })
+                && contract.identification_product.is_some()
+                && contract
+                    .data_snapshot
+                    .as_ref()
+                    .is_some_and(|snapshot| snapshot.distribution_factor_laws.is_some())
+        })
+}

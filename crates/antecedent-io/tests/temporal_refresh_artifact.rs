@@ -1,4 +1,4 @@
-//! 2.3A X5 `new_period_refresh`: the refresh artifact re-decides and replays from its
+//! `new_period_refresh`: the refresh artifact re-decides and replays from its
 //! embedded identities and panel summaries, and refuses every resealed mutation of the
 //! period, snapshot, units, decision, receipt or interval flag.
 //!
@@ -6,10 +6,7 @@
 //! the old period; the replacement panel's cell means are each `0.1` higher, so the
 //! re-evaluated value is `0.3 * 0.43 + 0.7 * 0.56 = 0.521`.
 #![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_wrap,
     clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     reason = "enumerated binary SCM fixtures use bounded nonnegative counts and indices"
 )]
 
@@ -176,7 +173,7 @@ fn refused(error: IoError) -> (&'static str, String) {
 }
 
 #[test]
-fn x5_period_replace_artifact_replays_the_re_evaluated_point() {
+fn period_replace_artifact_replays_the_re_evaluated_point() {
     let bytes = artifact().export().unwrap();
     let (wire, replay) = TemporalRefreshArtifactWire::consume(&bytes, &limits()).unwrap();
     assert_eq!(replay.decision, RefreshDecision::Reusable);
@@ -202,7 +199,7 @@ fn x5_period_replace_artifact_replays_the_re_evaluated_point() {
 }
 
 #[test]
-fn x5_period_replace_artifact_receipt_is_the_core_refresh_receipt() {
+fn period_replace_artifact_receipt_is_the_core_refresh_receipt() {
     let q = query();
     let old_panel = panel("snap_old", 0, 0, 0);
     let new_panel = panel("snap_new", 10, 1000, 1);
@@ -221,7 +218,7 @@ fn x5_period_replace_artifact_receipt_is_the_core_refresh_receipt() {
 }
 
 #[test]
-fn x5_period_replace_artifact_without_a_prior_interval_records_none() {
+fn period_replace_artifact_without_a_prior_interval_records_none() {
     let wire = build(&new_identity(), false).unwrap();
     assert!(!wire.interval_invalidated);
     assert!(!wire.receipt.as_ref().unwrap().interval_invalidated);
@@ -231,7 +228,7 @@ fn x5_period_replace_artifact_without_a_prior_interval_records_none() {
 type IdentityEdit = (fn(&mut TemporalWindowIdentity), RefreshInvalidation);
 
 #[test]
-fn x5_third_period_artifact_records_a_typed_invalidation_and_no_result() {
+fn third_period_artifact_records_a_typed_invalidation_and_no_result() {
     let edits: [IdentityEdit; 4] = [
         (|i| i.horizon = 3, RefreshInvalidation::HorizonChanged),
         (|i| i.lag_alignment[2].1 = 1, RefreshInvalidation::LagAlignmentChanged),
@@ -257,7 +254,7 @@ fn x5_third_period_artifact_records_a_typed_invalidation_and_no_result() {
 }
 
 #[test]
-fn x5_period_reseal_refuses_unsealed_edits_and_a_foreign_feature() {
+fn period_reseal_refuses_unsealed_edits_and_a_foreign_feature() {
     let mut wire = artifact();
     wire.new_window.period_end = 2500;
     let message = convert_detail(consume(&wire.export().unwrap()));
@@ -273,7 +270,7 @@ fn x5_period_reseal_refuses_unsealed_edits_and_a_foreign_feature() {
 }
 
 #[test]
-fn x5_period_reseal_refuses_a_changed_period_snapshot_or_units() {
+fn period_reseal_refuses_a_changed_period_snapshot_or_units() {
     // Period no longer covering the new panel's time ids.
     let mut period = artifact();
     period.new_window.period_end = 1500;
@@ -311,7 +308,7 @@ fn x5_period_reseal_refuses_a_changed_period_snapshot_or_units() {
 }
 
 #[test]
-fn x5_period_reseal_refuses_a_replacement_that_is_the_old_snapshot() {
+fn period_reseal_refuses_a_replacement_that_is_the_old_snapshot() {
     // Both the window and its panel claim the old snapshot: the identities are
     // self-consistent but the refresh is stale, so a stored `reusable` is refused.
     let mut wire = artifact();
@@ -323,7 +320,7 @@ fn x5_period_reseal_refuses_a_replacement_that_is_the_old_snapshot() {
 }
 
 #[test]
-fn x5_period_reseal_refuses_a_resealed_change_of_decision_receipt_or_interval() {
+fn period_reseal_refuses_a_resealed_change_of_decision_receipt_or_interval() {
     let mut flipped = artifact();
     flipped.decision = "invalidated".into();
     flipped.invalidation = Some("temporal_refresh.horizon_changed".into());
@@ -353,7 +350,7 @@ fn x5_period_reseal_refuses_a_resealed_change_of_decision_receipt_or_interval() 
 }
 
 #[test]
-fn x5_period_reseal_refuses_a_resealed_change_of_value_law_or_premises() {
+fn period_reseal_refuses_a_resealed_change_of_value_law_or_premises() {
     let mut copied = artifact();
     copied.refreshed.as_mut().unwrap().value = copied.old_value;
     let message = convert_detail(consume(&reseal(copied)));
@@ -382,7 +379,7 @@ fn x5_period_reseal_refuses_a_resealed_change_of_value_law_or_premises() {
 }
 
 #[test]
-fn x5_period_reseal_refuses_an_invalidated_record_that_carries_a_result() {
+fn period_reseal_refuses_an_invalidated_record_that_carries_a_result() {
     let mut new = new_identity();
     new.horizon = 3;
     let mut wire = build(&new, false).unwrap();

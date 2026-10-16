@@ -20,13 +20,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::manual_flatten,
-    clippy::needless_pass_by_value,
-    clippy::too_many_arguments,
-    clippy::type_complexity,
-    clippy::zero_sized_map_values
-)]
 #![cfg_attr(
     test,
     allow(
@@ -62,12 +55,23 @@ use crate::overlap::OverlapPolicy;
 use crate::prepare::require_method;
 use crate::util::bootstrap_se;
 
+/// One retained empirical factor fit: its stage identity, its entries and their byte cost.
+type RetainedFactorFit =
+    (antecedent_core::recalc::StageIdentity, Arc<Vec<(Assignment, f64)>>, usize);
+
+/// Variables of one factor and its conditioning set.
+type FactorKey = (Arc<[VariableId]>, Arc<[VariableId]>);
+
+/// A factor key with the intervention assignments and domain it is registered under.
+type FactorSignature =
+    (Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef);
+
 /// Hard cap on discrete levels per variable (fail-closed beyond this).
 const MAX_DISCRETE_LEVELS: usize = 64;
 
 /// Diagnostic code: the functional kept free variables and was averaged over their
 /// supported values (see the module docs).
-pub const FREE_VARIABLES_AVERAGED_CODE: &str = "estimate.functional.free_variables_averaged";
+pub(crate) const FREE_VARIABLES_AVERAGED_CODE: &str = "estimate.functional.free_variables_averaged";
 
 /// Free variables of `functional` that the consumer does not bind (`bound`: outcomes,
 /// interventions, conditioning), sorted by id.
@@ -281,7 +285,7 @@ pub struct AtomUncertainty {
 }
 
 /// Logit-scale delta-method interval for a probability from its bootstrap SE:
-/// `expit(logit(p̂) ± z·se / (p̂(1 − p̂)))`, `z = Φ⁻¹(1/2 + level/2)`.
+/// `antecedent_kernels::sigmoid(logit(p̂) ± z·se / (p̂(1 − p̂)))`, `z = Φ⁻¹(1/2 + level/2)`.
 ///
 /// Why this construction: a probability's sampling law is skewed toward the
 /// interior near 0 and 1, so the symmetric `p̂ ± z·se` both leaves `[0, 1]` and
@@ -319,16 +323,10 @@ pub fn logit_probability_interval(p: f64, se: Option<f64>, level: f64) -> Probab
     }
     let centre = (p / (1.0 - p)).ln();
     let half = z * se / (p * (1.0 - p));
-    ProbabilityInterval::Bounded { level, lower: expit(centre - half), upper: expit(centre + half) }
-}
-
-/// Numerically stable logistic function; always in `[0, 1]`.
-fn expit(x: f64) -> f64 {
-    if x >= 0.0 {
-        1.0 / (1.0 + (-x).exp())
-    } else {
-        let e = x.exp();
-        e / (1.0 + e)
+    ProbabilityInterval::Bounded {
+        level,
+        lower: antecedent_kernels::sigmoid(centre - half),
+        upper: antecedent_kernels::sigmoid(centre + half),
     }
 }
 
@@ -378,10 +376,9 @@ pub struct PreparedFunctionalDistribution {
     /// Row-aligned discrete columns for bootstrap CPT refits.
     bootstrap_columns: EncodedColumns,
     /// Factor specs used to rebuild the empirical provider.
-    bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
+    bootstrap_factors: Vec<FactorKey>,
     /// Interventional signatures used to rebuild the empirical provider.
-    bootstrap_signatures:
-        Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+    bootstrap_signatures: Vec<FactorSignature>,
     /// Input row count for the currently bound provider snapshot.
     source_rows: usize,
 }
@@ -734,7 +731,8 @@ impl FunctionalDistribution {
             if !tracked.is_finite() {
                 return Ok(None);
             }
-            let mut reps = atom_replicates.lock().expect("atom replicate lock");
+            let mut reps =
+                atom_replicates.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             for (values, &p) in reps.iter_mut().zip(aligned.iter()) {
                 if p.is_finite() {
                     values.push(p);
@@ -742,7 +740,8 @@ impl FunctionalDistribution {
             }
             Ok(Some(tracked))
         })?;
-        let atom_replicates = atom_replicates.into_inner().expect("atom replicate lock");
+        let atom_replicates =
+            atom_replicates.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
         let attempted = boot.replicates_ok.saturating_add(boot.replicates_failed);
         let uncertainty: Vec<AtomUncertainty> = out
             .atoms
@@ -1009,9 +1008,8 @@ pub struct PreparedFunctionalEffect {
     /// Free variables of the scalar functional (see the module docs).
     pub free_variables: Arc<[VariableId]>,
     bootstrap_columns: EncodedColumns,
-    bootstrap_factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
-    bootstrap_signatures:
-        Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)>,
+    bootstrap_factors: Vec<FactorKey>,
+    bootstrap_signatures: Vec<FactorSignature>,
     /// Input row count for the currently bound empirical law.
     source_rows: usize,
 }
@@ -1107,10 +1105,7 @@ impl PreparedFunctionalEffect {
 
 /// Add the marginal law of the free variables to the factors built from the data, so its
 /// empirical (or reweighted) masses are available as averaging weights.
-fn push_free_variable_law(
-    factors: &mut Vec<(Arc<[VariableId]>, Arc<[VariableId]>)>,
-    free: &[VariableId],
-) {
+fn push_free_variable_law(factors: &mut Vec<FactorKey>, free: &[VariableId]) {
     if free.is_empty() {
         return;
     }
@@ -1371,10 +1366,7 @@ fn set_assignments(
     Ok(out)
 }
 
-fn collect_observational_factors(
-    arena: &CausalExprArena,
-    root: ExprId,
-) -> Vec<(Arc<[VariableId]>, Arc<[VariableId]>)> {
+fn collect_observational_factors(arena: &CausalExprArena, root: ExprId) -> Vec<FactorKey> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     let mut stack = vec![root];
@@ -1412,10 +1404,7 @@ fn collect_observational_factors(
 }
 
 /// Collect (variables, `conditioned_on`, intervention set, domain) for CPT duplication.
-fn collect_factor_signatures(
-    arena: &CausalExprArena,
-    root: ExprId,
-) -> Vec<(Arc<[VariableId]>, Arc<[VariableId]>, Arc<[InterventionAssignment]>, DomainRef)> {
+fn collect_factor_signatures(arena: &CausalExprArena, root: ExprId) -> Vec<FactorSignature> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     let mut stack = vec![root];
@@ -1462,13 +1451,8 @@ fn collect_factor_signatures(
 fn build_empirical_provider(
     data: &TabularData,
     vars_needed: &HashSet<VariableId>,
-    factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
-    signatures: &[(
-        Arc<[VariableId]>,
-        Arc<[VariableId]>,
-        Arc<[InterventionAssignment]>,
-        DomainRef,
-    )],
+    factors: &[FactorKey],
+    signatures: &[FactorSignature],
 ) -> Result<(EmpiricalTableProvider, EncodedColumns), EstimationError> {
     let columns = EncodedColumns::read(data, vars_needed)?;
 
@@ -1737,13 +1721,8 @@ impl EncodedColumn {
 fn provider_from_columns(
     columns: &EncodedColumns,
     n: usize,
-    factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
-    signatures: &[(
-        Arc<[VariableId]>,
-        Arc<[VariableId]>,
-        Arc<[InterventionAssignment]>,
-        DomainRef,
-    )],
+    factors: &[FactorKey],
+    signatures: &[FactorSignature],
     weights: Option<&[f64]>,
 ) -> Result<EmpiricalTableProvider, EstimationError> {
     let mut provider = EmpiricalTableProvider::new();
@@ -1798,16 +1777,11 @@ fn provider_from_columns(
 fn provider_from_bayesian_bootstrap(
     columns: &EncodedColumns,
     n: usize,
-    factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
-    signatures: &[(
-        Arc<[VariableId]>,
-        Arc<[VariableId]>,
-        Arc<[InterventionAssignment]>,
-        DomainRef,
-    )],
+    factors: &[FactorKey],
+    signatures: &[FactorSignature],
     rng: &mut CausalRng,
 ) -> Result<EmpiricalTableProvider, EstimationError> {
-    let weights: Vec<f64> = (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+    let weights = antecedent_kernels::bayesian_bootstrap_weights(rng, n, false);
     provider_from_columns(columns, n, factors, signatures, Some(&weights))
 }
 
@@ -1847,8 +1821,10 @@ fn ordered_domains(cols: &[&EncodedColumn]) -> Result<Vec<Vec<u32>>, EstimationE
             }
             domain.sort_by(|&a, &b| {
                 match (c.levels[a as usize].as_f64(), c.levels[b as usize].as_f64()) {
-                    (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
-                    _ => std::cmp::Ordering::Equal,
+                    (Some(x), Some(y)) => x.total_cmp(&y),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => a.cmp(&b),
                 }
             });
             Ok(domain)
@@ -1864,13 +1840,14 @@ fn ordered_domains(cols: &[&EncodedColumn]) -> Result<Vec<Vec<u32>>, EstimationE
 /// Bounded retained empirical factor fits, shared only under an explicit execution scope.
 #[derive(Default, Debug)]
 pub struct EmpiricalFactorCache {
-    entries: std::sync::Mutex<
-        Vec<(
-            antecedent_core::recalc::StageIdentity,
-            std::sync::Arc<Vec<(Assignment, f64)>>,
-            usize,
-        )>,
-    >,
+    state: Mutex<RetainedFactorFits>,
+}
+
+/// The retained fits in insertion order with their running cost, so eviction never re-sums.
+#[derive(Default, Debug)]
+struct RetainedFactorFits {
+    entries: Vec<RetainedFactorFit>,
+    cost: usize,
 }
 thread_local! {static ACTIVE_FACTOR_CACHE:std::cell::RefCell<Option<std::sync::Arc<EmpiricalFactorCache>>>=const{std::cell::RefCell::new(None)};}
 impl EmpiricalFactorCache {
@@ -1894,60 +1871,117 @@ impl EmpiricalFactorCache {
     }
     /// Retained numeric factor identities; these are not identification licenses.
     pub fn identities(&self) -> Vec<antecedent_core::recalc::StageIdentity> {
-        self.entries
+        self.state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entries
             .iter()
             .map(|entry| entry.0)
             .collect()
     }
 }
+/// The shared, immutable entries of one fitted factor.
+type FactorEntries = Arc<Vec<(Assignment, f64)>>;
+
+/// Most retained fits.
+const MAX_RETAINED_FITS: usize = 64;
+/// Retained-cost budget, in stored values.
+const MAX_RETAINED_VALUES: usize = 1 << 24;
+
 fn cpt_entries(
     columns: &EncodedColumns,
     n: usize,
     vars: &[VariableId],
     cond: &[VariableId],
     weights: Option<&[f64]>,
-) -> Result<Vec<(Assignment, f64)>, EstimationError> {
-    const MAX_VALUES: usize = 1 << 24;
+) -> Result<FactorEntries, EstimationError> {
     let active = ACTIVE_FACTOR_CACHE.with(|active| active.borrow().clone());
     let Some(active) = active else {
-        return cpt_entries_uncached(columns, n, vars, cond, weights);
+        return cpt_entries_uncached(columns, n, vars, cond, weights).map(Arc::new);
     };
-    let mut pieces = vec![format!("{vars:?}:{cond:?}:{:?}", columns.row_ids).into_bytes()];
+    let identity = factor_identity(columns, vars, cond, weights)?;
+    let lock =
+        || active.state.lock().map_err(|_| EstimationError::data_msg("factor cache lock poisoned"));
+    if let Some(entry) = lock()?.entries.iter().find(|entry| entry.0 == identity) {
+        return Ok(Arc::clone(&entry.1));
+    }
+    // The fit runs unlocked: concurrent callers on other keys are not serialized behind it.
+    // Two callers racing on one key both fit; the first to insert wins and both return the
+    // same values.
+    let result = Arc::new(cpt_entries_uncached(columns, n, vars, cond, weights)?);
+    let cost = result
+        .len()
+        .saturating_mul(vars.len().saturating_add(cond.len()).saturating_mul(2).saturating_add(1));
+    let mut state = lock()?;
+    if let Some(entry) = state.entries.iter().find(|entry| entry.0 == identity) {
+        return Ok(Arc::clone(&entry.1));
+    }
+    if cost <= MAX_RETAINED_VALUES {
+        while !state.entries.is_empty()
+            && (state.entries.len() >= MAX_RETAINED_FITS
+                || state.cost.saturating_add(cost) > MAX_RETAINED_VALUES)
+        {
+            let (_, _, evicted) = state.entries.remove(0);
+            state.cost -= evicted;
+        }
+        state.entries.push((identity, Arc::clone(&result), cost));
+        state.cost = state.cost.saturating_add(cost);
+    }
+    Ok(result)
+}
+
+/// Content identity of one factor fit: its variables, the row ids and level codes it reads,
+/// and its weights.
+///
+/// The digested bytes are the `Debug` text of each part (`[0, 1, 2]` for a code vector), so
+/// retained identities are stable; the code lists are written directly instead of through
+/// `format!`, which dominated a cache hit.
+fn factor_identity(
+    columns: &EncodedColumns,
+    vars: &[VariableId],
+    cond: &[VariableId],
+    weights: Option<&[f64]>,
+) -> Result<antecedent_core::recalc::StageIdentity, EstimationError> {
+    let mut pieces: Vec<Vec<u8>> = Vec::with_capacity(vars.len() + cond.len() + 2);
+    let mut head = format!("{vars:?}:{cond:?}:").into_bytes();
+    push_debug_list(&mut head, columns.row_ids.iter().map(|&row| row as u64));
+    pieces.push(head);
     for &id in vars.iter().chain(cond) {
         let column = columns.column(id)?;
-        pieces.push(format!("{:?}:{:?}", column.levels, column.codes).into_bytes());
+        let mut piece = format!("{:?}:", column.levels).into_bytes();
+        push_debug_list(&mut piece, column.codes.iter().map(|&code| u64::from(code)));
+        pieces.push(piece);
     }
     if let Some(weights) = weights {
         pieces.push(weights.iter().flat_map(|value| value.to_bits().to_le_bytes()).collect());
     }
-    let identity = antecedent_core::recalc::StageIdentity::of(
+    Ok(antecedent_core::recalc::StageIdentity::of(
         "empirical.cpt.fit.v1",
         &pieces.iter().map(Vec::as_slice).collect::<Vec<_>>(),
-    );
-    let mut entries = active
-        .entries
-        .lock()
-        .map_err(|_| EstimationError::data_msg("factor cache lock poisoned"))?;
-    if let Some(entry) = entries.iter().find(|entry| entry.0 == identity) {
-        return Ok(entry.1.as_ref().clone());
-    }
-    let result = cpt_entries_uncached(columns, n, vars, cond, weights)?;
-    let cost = result
-        .len()
-        .saturating_mul(vars.len().saturating_add(cond.len()).saturating_mul(2).saturating_add(1));
-    if cost <= MAX_VALUES {
-        while !entries.is_empty()
-            && (entries.len() >= 64
-                || entries.iter().map(|entry| entry.2).sum::<usize>().saturating_add(cost)
-                    > MAX_VALUES)
-        {
-            entries.remove(0);
+    ))
+}
+
+/// Append `values` as `{:?}` prints an integer vector: `[1, 20, 3]`.
+fn push_debug_list(out: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u64>) {
+    out.reserve(2 + values.len() * 4);
+    out.push(b'[');
+    for (index, mut value) in values.enumerate() {
+        if index > 0 {
+            out.extend_from_slice(b", ");
         }
-        entries.push((identity, std::sync::Arc::new(result.clone()), cost));
+        let mut digits = [0u8; 20];
+        let mut start = digits.len();
+        loop {
+            start -= 1;
+            digits[start] = b'0' + (value % 10) as u8;
+            value /= 10;
+            if value == 0 {
+                break;
+            }
+        }
+        out.extend_from_slice(&digits[start..]);
     }
-    Ok(result)
+    out.push(b']');
 }
 
 fn cpt_entries_uncached(
@@ -2098,6 +2132,10 @@ fn insert_cpt(
     Ok(())
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "a `map_err` adapter: the error arrives by value at every call site"
+)]
 fn eval_err(e: EvalError) -> EstimationError {
     EstimationError::data_msg(e.to_string())
 }
@@ -2387,7 +2425,7 @@ mod tests {
         let (lo1, hi1) = logit_probability_interval(1.0 - p, Some(se), 0.95).bounds().unwrap();
         assert!((lo1 - (1.0 - hi)).abs() < 1e-12 && (hi1 - (1.0 - lo)).abs() < 1e-12);
         // Delta-method width on the logit scale.
-        let z = antecedent_stats::normal_ppf(0.975);
+        let z = antecedent_stats::NORMAL_Q975;
         let logit = |x: f64| (x / (1.0 - x)).ln();
         let half = z * 0.05 / (0.4 * 0.6);
         let (lo, hi) = logit_probability_interval(0.4, Some(0.05), 0.95).bounds().unwrap();
@@ -2518,13 +2556,17 @@ mod tests {
             est.prepare(&data, &estimand, &arena, AssumptionSet::default(), &extra).unwrap();
         let mut ews = FunctionalDistributionWorkspace::default();
         let out = est.estimate(&prepared, &mut ews, &ExecutionContext::for_tests(0)).unwrap();
-        assert!(out.bootstrap_replicates_ok.is_none(), "ok={:?}", out.bootstrap_replicates_ok);
         assert!(
-            out.bootstrap_replicates_failed.is_none(),
-            "failed={:?}",
-            out.bootstrap_replicates_failed
+            out.uncertainty.bootstrap.replicates_ok.is_none(),
+            "ok={:?}",
+            out.uncertainty.bootstrap.replicates_ok
         );
-        assert!(out.se_bootstrap.is_none());
+        assert!(
+            out.uncertainty.bootstrap.replicates_failed.is_none(),
+            "failed={:?}",
+            out.uncertainty.bootstrap.replicates_failed
+        );
+        assert!(out.se_bootstrap().is_none());
     }
 
     #[test]
@@ -2565,7 +2607,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)] // Exact aliases and structural zeros are the contract.
+    #[allow(clippy::float_cmp, reason = "exact aliases and structural zeros are the contract")]
     fn joint_dirichlet_preserves_probability_identities_and_beta_moments() {
         use antecedent_expr::DistributionProvider;
         let x = VariableId::from_raw(0);
@@ -2574,7 +2616,7 @@ mod tests {
             (x, vec![Some(f(0.0)), Some(f(0.0)), Some(f(1.0)), Some(f(1.0))]),
             (y, vec![Some(f(0.0)), Some(f(0.0)), Some(f(0.0)), Some(f(1.0))]),
         ]));
-        let factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)> = vec![
+        let factors: Vec<FactorKey> = vec![
             (Arc::from([x]), Arc::from([])),
             (Arc::from([y]), Arc::from([x])),
             (Arc::from([x, y]), Arc::from([])),
@@ -2790,13 +2832,13 @@ mod tests {
             .unwrap();
         let truth = pin["truth"]["path_specific_effect"].as_f64().unwrap();
         assert!((out.ate - truth).abs() < 1e-9, "ate={} truth={truth}", out.ate);
-        assert!(out.se_bootstrap.is_some_and(|s| s.is_finite() && s > 0.0));
+        assert!(out.se_bootstrap().is_some_and(|s| s.is_finite() && s > 0.0));
     }
 
     /// Each Bayesian draw evaluates the edge g-formula on one reweighted row law:
     /// recompute it by hand from the same weights.
     #[test]
-    #[allow(clippy::float_cmp, clippy::many_single_char_names)] // exact binary levels
+    #[allow(clippy::float_cmp, reason = "exact binary levels")]
     fn path_specific_edge_g_formula_uses_one_row_law_per_draw() {
         let (data, _) = edge_gformula_table();
         let res = edge_gformula_identification();
@@ -2853,5 +2895,118 @@ mod tests {
         };
         let by_hand = g(1.0, 0.0) - g(0.0, 0.0);
         assert!((value - by_hand).abs() < 1e-12, "draw {value} vs by-hand {by_hand}");
+    }
+
+    /// The retained identity is a public digest: the direct code-list writer must emit the
+    /// bytes `Debug` formatting did.
+    #[test]
+    fn factor_identity_matches_the_debug_formatted_digest() {
+        let n = 1_203usize;
+        let (x, y) = (VariableId::from_raw(0), VariableId::from_raw(7));
+        let column = |salt: usize| -> Vec<Option<Value>> {
+            (0..n)
+                .map(|i| match (i * 31 + salt) % 17 {
+                    0 => None,
+                    k => Some(Value::Int64(i64::try_from(k % 12).unwrap())),
+                })
+                .collect()
+        };
+        let columns = EncodedColumns::from_values(HashMap::from([(x, column(1)), (y, column(5))]));
+        let weights: Vec<f64> = (0..n).map(|i| 0.5 + (i % 3) as f64).collect();
+        for (vars, cond, w) in [
+            (vec![y], vec![x], None),
+            (vec![x, y], vec![], Some(weights.as_slice())),
+            (vec![y], vec![], None),
+        ] {
+            let mut pieces = vec![format!("{vars:?}:{cond:?}:{:?}", columns.row_ids).into_bytes()];
+            for &id in vars.iter().chain(&cond) {
+                let column = columns.column(id).unwrap();
+                pieces.push(format!("{:?}:{:?}", column.levels, column.codes).into_bytes());
+            }
+            if let Some(w) = w {
+                pieces.push(w.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect());
+            }
+            let legacy = antecedent_core::recalc::StageIdentity::of(
+                "empirical.cpt.fit.v1",
+                &pieces.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+            );
+            assert_eq!(factor_identity(&columns, &vars, &cond, w).unwrap(), legacy);
+        }
+    }
+
+    /// A hit returns the retained entries themselves, and eviction keeps the byte budget.
+    #[test]
+    fn cached_cpt_entries_share_one_allocation_and_evict_in_insertion_order() {
+        let n = 64usize;
+        let ids: Vec<VariableId> = (0..70).map(VariableId::from_raw).collect();
+        let columns = EncodedColumns::from_values(
+            ids.iter()
+                .map(|&id| {
+                    let cells = (0..n)
+                        .map(|i| {
+                            Some(Value::Int64(i64::try_from((i + id.raw() as usize) % 3).unwrap()))
+                        })
+                        .collect();
+                    (id, cells)
+                })
+                .collect(),
+        );
+        let cache = EmpiricalFactorCache::new();
+        cache.scope(|| {
+            let first = cpt_entries(&columns, n, &[ids[0]], &[], None).unwrap();
+            let again = cpt_entries(&columns, n, &[ids[0]], &[], None).unwrap();
+            assert!(Arc::ptr_eq(&first, &again));
+            for id in &ids[1..] {
+                cpt_entries(&columns, n, &[*id], &[], None).unwrap();
+            }
+        });
+        // 70 distinct fits against a 64-fit cap: the six oldest were evicted.
+        assert_eq!(cache.identities().len(), MAX_RETAINED_FITS);
+        let kept = cache.identities();
+        let oldest = factor_identity(&columns, &[ids[0]], &[], None).unwrap();
+        assert!(!kept.contains(&oldest));
+        let newest = factor_identity(&columns, &[ids[69]], &[], None).unwrap();
+        assert_eq!(kept.last(), Some(&newest));
+    }
+
+    /// The retained factor cache keys every call by the content of its row ids and code
+    /// columns; a hit must cost far less than a refit.
+    #[test]
+    #[ignore = "timing harness: cargo test --release -p antecedent-estimate --lib timing_ -- --ignored --nocapture"]
+    fn timing_cpt_entries_cache() {
+        let n = 100_000usize;
+        let (x, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let column = |salt: usize| -> Vec<Option<Value>> {
+            (0..n)
+                .map(|i| {
+                    Some(Value::Int64(i64::try_from((i * 7 + salt * 13 + i / 5) % 4).unwrap()))
+                })
+                .collect()
+        };
+        let columns = EncodedColumns::from_values(HashMap::from([
+            (x, column(1)),
+            (y, column(2)),
+            (z, column(3)),
+        ]));
+        let (vars, cond) = ([y], [x, z]);
+        let uncached = std::time::Instant::now();
+        for _ in 0..20 {
+            std::hint::black_box(cpt_entries_uncached(&columns, n, &vars, &cond, None).unwrap());
+        }
+        println!(
+            "cpt_entries_uncached n={n}: {:.3} ms/call",
+            uncached.elapsed().as_secs_f64() * 1e3 / 20.0
+        );
+        let cache = EmpiricalFactorCache::new();
+        cache.scope(|| {
+            let miss = std::time::Instant::now();
+            std::hint::black_box(cpt_entries(&columns, n, &vars, &cond, None).unwrap());
+            println!("cpt_entries miss: {:.3} ms", miss.elapsed().as_secs_f64() * 1e3);
+            let hit = std::time::Instant::now();
+            for _ in 0..50 {
+                std::hint::black_box(cpt_entries(&columns, n, &vars, &cond, None).unwrap());
+            }
+            println!("cpt_entries hit: {:.3} ms/call", hit.elapsed().as_secs_f64() * 1e3 / 50.0);
+        });
     }
 }

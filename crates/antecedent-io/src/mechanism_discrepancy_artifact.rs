@@ -1,4 +1,4 @@
-//! B3 mechanism discrepancy artifact (`mechanism_discrepancy_v1`).
+//! Mechanism discrepancy artifact (`mechanism_discrepancy_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one source-target mechanism discrepancy
 //! diagnostic:
@@ -29,9 +29,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::io::Cursor;
-
-use antecedent_estimate::EstimationError;
+use antecedent_core::CanonicalWriter;
 use antecedent_estimate::mechanism_discrepancy::{
     DiscrepancyConclusion, DiscrepancyOptions, MECHANISM_DISCREPANCY_ALIGNMENT,
     MECHANISM_DISCREPANCY_CAVEAT, MECHANISM_DISCREPANCY_DEPENDENCE,
@@ -42,10 +40,7 @@ use antecedent_estimate::mechanism_discrepancy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const MECHANISM_DISCREPANCY_ARTIFACT_VERSION: u16 = 1;
@@ -56,97 +51,21 @@ pub const MECHANISM_DISCREPANCY_CALIBRATION: &str = "unmeasured";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
-const ARTIFACT_KIND: &str = "mechanism_discrepancy_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::MECHANISM_DISCREPANCY;
 const META_SECTION: &str = "mechanism_discrepancy_meta";
 const NUMBERS_SECTION: &str = "mechanism_discrepancy_numbers";
 const DEPENDENCE_INDEPENDENT: &str = "independent";
 const DEPENDENCE_SHARED_UNITS: &str = "shared_units";
 const DEPENDENCE_UNKNOWN: &str = "unknown";
 
-/// Why a mechanism discrepancy artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum MechanismDiscrepancyArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("mechanism discrepancy artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported mechanism discrepancy artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate, caveat or invariance flag that is not
-    /// this format's.
-    #[error("unsupported mechanism discrepancy semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("mechanism discrepancy consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed mechanism discrepancy artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("mechanism_discrepancy.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored result differs from the recomputed one.
-    #[error("stored mechanism discrepancy result does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("mechanism discrepancy artifact does not encode: {0}")]
-    Encode(String),
-    /// The core diagnostic refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl MechanismDiscrepancyArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core refusal and for a changed identity field; absent for corruption,
-    /// unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "mechanism_discrepancy.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for MechanismDiscrepancyArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for MechanismDiscrepancyArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why a mechanism discrepancy artifact was refused or could not be produced.
+    MechanismDiscrepancyArtifactError,
+    "mechanism discrepancy",
+    "mechanism_discrepancy",
+    "result",
+    false
+);
 
 fn invalid_request(message: &str) -> MechanismDiscrepancyArtifactError {
     MechanismDiscrepancyArtifactError::Refused {
@@ -280,15 +199,17 @@ pub struct FitWire {
 }
 
 impl FitWire {
-    fn from_fit(fit: &PopulationFit) -> Self {
-        Self {
+    fn from_fit(fit: &PopulationFit) -> Result<Self, MechanismDiscrepancyArtifactError> {
+        Ok(Self {
             label: fit.label.clone(),
             n: fit.n as u64,
-            residual_df: u32::try_from(fit.residual_df).unwrap_or(u32::MAX),
+            residual_df: u32::try_from(fit.residual_df).map_err(|_| {
+                MechanismDiscrepancyArtifactError::LimitsExceeded("residual degrees of freedom")
+            })?,
             residual_variance: fit.residual_variance,
             coefficients: fit.coefficients.clone(),
             standard_errors: fit.standard_errors.clone(),
-        }
+        })
     }
 }
 
@@ -349,10 +270,14 @@ pub struct ResultWire {
 }
 
 impl ResultWire {
-    fn from_result(result: &MechanismDiscrepancyResult) -> Self {
-        Self {
+    fn from_result(
+        result: &MechanismDiscrepancyResult,
+    ) -> Result<Self, MechanismDiscrepancyArtifactError> {
+        let degrees_of_freedom = u32::try_from(result.test.degrees_of_freedom)
+            .map_err(|_| MechanismDiscrepancyArtifactError::LimitsExceeded("degrees of freedom"))?;
+        Ok(Self {
             statistic: result.test.statistic,
-            degrees_of_freedom: u32::try_from(result.test.degrees_of_freedom).unwrap_or(u32::MAX),
+            degrees_of_freedom,
             p_value: result.test.p_value,
             conclusion: match result.conclusion {
                 DiscrepancyConclusion::NotRejected => "not_rejected",
@@ -364,8 +289,8 @@ impl ResultWire {
             power_statement: result.power_statement.clone(),
             informs_selection_on: result.informs_selection_on.clone(),
             coefficient_names: result.coefficient_names.clone(),
-            source: FitWire::from_fit(&result.source),
-            target: FitWire::from_fit(&result.target),
+            source: FitWire::from_fit(&result.source)?,
+            target: FitWire::from_fit(&result.target)?,
             coefficients: result
                 .coefficients
                 .iter()
@@ -382,7 +307,7 @@ impl ResultWire {
                     minimal_detectable_difference: c.minimal_detectable_difference,
                 })
                 .collect(),
-        }
+        })
     }
 }
 
@@ -472,11 +397,6 @@ pub struct MechanismDiscrepancyReportWire {
     pub identity: MechanismDiscrepancyIdentity,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
-}
-
 fn dependence_of(kind: &str) -> Result<SampleDependence, MechanismDiscrepancyArtifactError> {
     match kind {
         DEPENDENCE_INDEPENDENT => Ok(SampleDependence::Independent),
@@ -503,35 +423,7 @@ fn summary_of(
     })
 }
 
-/// Length-prefixed canonical byte builder hashed with BLAKE3.
-struct Canon(Vec<u8>);
-
-impl Canon {
-    fn new(tag: &str) -> Self {
-        let mut canon = Self(Vec::new());
-        canon.text(tag);
-        canon
-    }
-
-    fn word(&mut self, word: u64) {
-        self.0.extend_from_slice(&word.to_le_bytes());
-    }
-
-    fn text(&mut self, text: &str) {
-        self.word(text.len() as u64);
-        self.0.extend_from_slice(text.as_bytes());
-    }
-
-    fn real(&mut self, value: f64) {
-        self.word(value.to_bits());
-    }
-
-    fn finish(&self) -> String {
-        blake3::hash(&self.0).to_hex().to_string()
-    }
-}
-
-fn measurement_digest(canon: &mut Canon, m: &MechanismMeasurement) {
+fn measurement_digest(canon: &mut CanonicalWriter, m: &MechanismMeasurement) {
     canon.text(&m.node);
     canon.text(&m.node_unit);
     canon.text(&m.protocol_id);
@@ -543,14 +435,14 @@ fn measurement_digest(canon: &mut Canon, m: &MechanismMeasurement) {
 }
 
 fn evidence_digest(tag: &str, s: &MechanismSummary) -> String {
-    let mut canon = Canon::new(tag);
+    let mut canon = CanonicalWriter::new(tag);
     canon.text(&s.label);
     canon.word(s.n as u64);
     for v in s.xtx.iter().chain(&s.xty) {
         canon.real(*v);
     }
     canon.real(s.yty);
-    canon.finish()
+    canon.finish_hex()
 }
 
 fn identity_of(
@@ -560,11 +452,11 @@ fn identity_of(
     dependence_kind: &str,
     result: &MechanismDiscrepancyResult,
 ) -> MechanismDiscrepancyIdentity {
-    let mut measurement = Canon::new("mechanism_discrepancy_v1.measurement");
+    let mut measurement = CanonicalWriter::new("mechanism_discrepancy_v1.measurement");
     measurement_digest(&mut measurement, &source.measurement);
     measurement_digest(&mut measurement, &target.measurement);
 
-    let mut design = Canon::new("mechanism_discrepancy_v1.design");
+    let mut design = CanonicalWriter::new("mechanism_discrepancy_v1.design");
     design.word(u64::from(options.compare_intercept));
     design.real(options.alpha);
     design.real(options.power);
@@ -575,11 +467,11 @@ fn identity_of(
         design.text(node);
     }
 
-    let measurement_id = measurement.finish();
+    let measurement_id = measurement.finish_hex();
     let source_evidence_id = evidence_digest("mechanism_discrepancy_v1.source", source);
     let target_evidence_id = evidence_digest("mechanism_discrepancy_v1.target", target);
-    let design_id = design.finish();
-    let mut whole = Canon::new("mechanism_discrepancy_v1.identity");
+    let design_id = design.finish_hex();
+    let mut whole = CanonicalWriter::new("mechanism_discrepancy_v1.identity");
     for part in [
         measurement_id.as_str(),
         source_evidence_id.as_str(),
@@ -595,7 +487,7 @@ fn identity_of(
         target_evidence_id,
         null: MECHANISM_DISCREPANCY_NULL.to_owned(),
         design_id,
-        digest: whole.finish(),
+        digest: whole.finish_hex(),
     }
 }
 
@@ -666,13 +558,14 @@ fn compute(
 
 fn population_of(meta: &PopulationMeta, values: &[f64]) -> PopulationWire {
     let p = meta.measurement.parents.len() + 1;
+    let mut rest = values;
     PopulationWire {
         label: meta.label.clone(),
         measurement: meta.measurement.clone(),
         n: meta.n,
-        xtx: values[..p * p].to_vec(),
-        xty: values[p * p..p * p + p].to_vec(),
-        yty: values[p * p + p],
+        xtx: crate::width::split_reals(&mut rest, p * p).to_vec(),
+        xty: crate::width::split_reals(&mut rest, p).to_vec(),
+        yty: crate::width::split_reals(&mut rest, 1)[0],
     }
 }
 
@@ -689,17 +582,11 @@ fn request_of(
     if numbers.len() != (ws + wt) * 8 {
         return Err(MechanismDiscrepancyArtifactError::Malformed("numbers section length".into()));
     }
-    let values: Vec<f64> = numbers
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect();
+    let values = crate::width::f64s_from_le_bytes(numbers);
+    let mut rest = values.as_slice();
     Ok(MechanismDiscrepancyRequestWire {
-        source: population_of(&meta.source, &values[..ws]),
-        target: population_of(&meta.target, &values[ws..]),
+        source: population_of(&meta.source, crate::width::split_reals(&mut rest, ws)),
+        target: population_of(&meta.target, crate::width::split_reals(&mut rest, wt)),
         compare_intercept: meta.compare_intercept,
         alpha: meta.alpha,
         power: meta.power,
@@ -714,44 +601,48 @@ fn request_of(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
     meta: &MechanismDiscrepancyMeta,
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, MechanismDiscrepancyArtifactError> {
-    let encode = |e: crate::IoError| MechanismDiscrepancyArtifactError::Encode(e.to_string());
+    encode_parts_impl(meta, numbers, artifact_id)
+}
+
+fn encode_parts_impl(
+    meta: &MechanismDiscrepancyMeta,
+    numbers: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, MechanismDiscrepancyArtifactError> {
     if artifact_id.trim().is_empty() {
         return Err(MechanismDiscrepancyArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(NUMBERS_SECTION, "application/octet-stream", numbers),
-            ],
-            provenance: ProvenanceWire {
-                note: "mechanism_discrepancy_wald_unmeasured_never_certifies_invariance".into(),
-            },
+    let meta_bytes = to_cbor(meta)
+        .map_err(|error| MechanismDiscrepancyArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "mechanism_discrepancy_wald_unmeasured_never_certifies_invariance",
+            max_bytes: MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(NUMBERS_SECTION, numbers.to_vec()),
+        &[
+            crate::OutSection {
+                id: META_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            crate::OutSection {
+                id: NUMBERS_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: numbers,
+            },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES {
-        return Err(MechanismDiscrepancyArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+    )
+    .map_err(|error| crate::map_artifact_check!(error, MechanismDiscrepancyArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -761,41 +652,37 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(MechanismDiscrepancyMeta, Vec<u8>), MechanismDiscrepancyArtifactError> {
-    if bytes.len() > MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES {
-        return Err(MechanismDiscrepancyArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 2
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != NUMBERS_SECTION
-    {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
+    bytes: &[u8],
+) -> Result<(MechanismDiscrepancyMeta, Vec<u8>), MechanismDiscrepancyArtifactError> {
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES,
+        &[META_SECTION, NUMBERS_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, MechanismDiscrepancyArtifactError))?;
+    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(MechanismDiscrepancyArtifactError::Malformed(
             "unsupported container layout".into(),
         ));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    if declared.is_none_or(|total| total > MAX_MECHANISM_DISCREPANCY_ARTIFACT_BYTES as u64) {
-        return Err(MechanismDiscrepancyArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != MECHANISM_DISCREPANCY_ARTIFACT_VERSION {
-        return Err(MechanismDiscrepancyArtifactError::UnsupportedVersion {
-            version: peek.version,
-        });
-    }
-    let meta: MechanismDiscrepancyMeta = from_cbor(meta_section.as_bytes())?;
-    let numbers = reader.load_section(NUMBERS_SECTION)?;
-    Ok((meta, numbers.as_bytes().to_vec()))
+    };
+    let meta = crate::decode_with_version(&meta_bytes, |version| {
+        if version == MECHANISM_DISCREPANCY_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(MechanismDiscrepancyArtifactError::UnsupportedVersion { version })
+        }
+    })?;
+    Ok((meta, payload))
 }
 
 fn check_semantics(
@@ -871,7 +758,7 @@ impl MechanismDiscrepancyArtifact {
                 n: request.target.n,
             },
             identity: computed.identity,
-            result: ResultWire::from_result(&computed.result),
+            result: ResultWire::from_result(&computed.result)?,
             caveats: vec![
                 MECHANISM_DISCREPANCY_CAVEAT.to_owned(),
                 MECHANISM_DISCREPANCY_POWER_CAVEAT.to_owned(),
@@ -934,7 +821,7 @@ impl MechanismDiscrepancyArtifact {
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, MechanismDiscrepancyArtifactError> {
-        encode_parts(&self.meta, &numbers_of(&self.request), artifact_id)
+        encode_parts_impl(&self.meta, &numbers_of(&self.request), artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -952,14 +839,14 @@ impl MechanismDiscrepancyArtifact {
         bytes: &[u8],
         expected: Option<&MechanismDiscrepancyIdentity>,
     ) -> Result<Self, MechanismDiscrepancyArtifactError> {
-        let (meta, numbers) = decode_parts(bytes)?;
+        let (meta, numbers) = decode_parts_impl(bytes)?;
         check_semantics(&meta)?;
         let request = request_of(&meta, &numbers)?;
         let computed = compute(&request)?;
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
             return Err(MechanismDiscrepancyArtifactError::IdentityMismatch { field });
         }
-        if meta.result != ResultWire::from_result(&computed.result) {
+        if meta.result != ResultWire::from_result(&computed.result)? {
             return Err(MechanismDiscrepancyArtifactError::ResultMismatch(
                 "statistic, p-value, coefficients or detectability",
             ));

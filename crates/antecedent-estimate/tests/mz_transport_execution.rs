@@ -17,11 +17,14 @@ use std::sync::Arc;
 use antecedent_core::{
     DependenceGroup, EvidenceCatalog, ExecutionContext, InterventionAssignment, RegimeKind, Value,
 };
+use antecedent_estimate::posterior_mean::{
+    DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
+};
 use antecedent_estimate::{
     Z_TRANSPORT_INTERVAL_NOT_MEASURED, evaluate_exact_mz_transport, mz_interval_withheld_reason,
     mz_sampling_dependence, mz_transport_bootstrap_interval, mz_transport_bootstrap_law_draws,
 };
-use antecedent_expr::{Assignment, ExactEvaluationLimits};
+use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
     BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MzTransportDecision, MzTransportRoute,
     ZTransportSourceSpec, bind_mz_transport_catalog, decide_mz_transport,
@@ -57,6 +60,32 @@ fn truth(x: u8) -> f64 {
     target_scm().risk(&[(X, x)], Y)
 }
 
+fn posterior_laws(data: &ExactTransportData, scale: f64) -> ExactTransportData {
+    let laws: Vec<ExactDiscreteLaw> = data
+        .laws()
+        .iter()
+        .map(|law| {
+            let filled = dirichlet_supported_mean(
+                law.probabilities(),
+                PosteriorRequest::IndependentNormal { scale },
+                DirichletNamespace::MultiSource,
+            )
+            .unwrap();
+            ExactDiscreteLaw::try_new(
+                law.population(),
+                law.regime(),
+                law.interventions().to_vec(),
+                law.axes().to_vec(),
+                filled,
+                law.snapshot_identity(),
+                law.tolerance(),
+            )
+            .unwrap()
+        })
+        .collect();
+    ExactTransportData::try_new(laws, data.max_support_rows()).unwrap()
+}
+
 #[test]
 fn combined_formula_matches_the_target_interventional_truth() {
     let (catalog, data) = evidence();
@@ -80,6 +109,50 @@ fn combined_formula_matches_the_target_interventional_truth() {
     assert!((naive - truth(1)).abs() > 1e-3);
     // Each source's own law differs from the target's too.
     assert!((source_b_scm().risk(&[(X, 1)], Y) - truth(1)).abs() > 1e-3);
+}
+
+#[test]
+fn multi_source_posterior_mean_stays_at_the_target_truth() {
+    let (catalog, data) = evidence();
+    let functional = bound(sources(), &catalog);
+    let updated = posterior_laws(&data, 1e-8);
+    let ctx = ExecutionContext::for_tests(3);
+    let point = evaluate_exact_mz_transport(
+        &functional,
+        updated,
+        request(true),
+        ExactEvaluationLimits::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert!((risk_of(&point) - truth(1)).abs() < 1e-5);
+}
+
+#[test]
+fn multi_source_posterior_refuses_a_mapped_prior() {
+    let error = dirichlet_supported_mean(
+        &[0.5, 0.5],
+        PosteriorRequest::MappedCoefficient,
+        DirichletNamespace::MultiSource,
+    )
+    .unwrap_err();
+    let antecedent_estimate::EstimationError::Refused { message, .. } = error else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("multi_source_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn multi_source_posterior_consumer_replays_the_dirichlet_weights() {
+    let weights = [1.0, 3.0];
+    let produced = dirichlet_supported_mean(
+        &weights,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        DirichletNamespace::MultiSource,
+    )
+    .unwrap();
+    assert!((produced[0] - 2.0 / 6.0).abs() < 1e-12);
+    assert!((produced[1] - 4.0 / 6.0).abs() < 1e-12);
 }
 
 #[test]

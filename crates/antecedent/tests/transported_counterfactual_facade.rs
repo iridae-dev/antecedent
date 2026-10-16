@@ -1,4 +1,4 @@
-//! 2.3.0 A5: the transported static path-specific counterfactual through the `antecedent`
+//! The transported static path-specific counterfactual through the `antecedent`
 //! facade: evaluate, export and consume, the hand-derived oracle values, the typed refusals
 //! (with the two-model witness) mapped onto `CausalError`, and the general closed route that
 //! the narrow cell does not open.
@@ -16,10 +16,11 @@ use antecedent::analysis::temporal_counterfactual::{
     TransportedCounterfactualPrerequisites, transported_path_specific,
 };
 use antecedent::analysis::transported_counterfactual::{
-    AffineWire, AssignmentWire, EvidenceWire, LawWire, MechanismWire, ModelWire, PremisesWire,
-    SelectionWire, SupportPointWire, TransportedCounterfactual,
-    TransportedCounterfactualArtifactError, TransportedCounterfactualRequestWire,
+    AffineWire, AssignmentWire, EvidenceWire, LawWire, ModelWire, PremisesWire, SelectionWire,
+    SupportPointWire, TransportedCounterfactual, TransportedCounterfactualArtifactError,
+    TransportedCounterfactualRequestWire,
 };
+use antecedent_io::transported_counterfactual_artifact::TransportedCounterfactualMechanismWire;
 
 const TOL: f64 = 1e-12;
 
@@ -49,7 +50,7 @@ fn request(plus: &[&str], minus: &[&str]) -> TransportedCounterfactualRequestWir
             treatment: "a".into(),
             covariates: vec!["z".into()],
             mechanisms: vec![
-                MechanismWire {
+                TransportedCounterfactualMechanismWire {
                     node: "m".into(),
                     intercept: aff(0.0, &[]),
                     parents: vec![
@@ -57,7 +58,7 @@ fn request(plus: &[&str], minus: &[&str]) -> TransportedCounterfactualRequestWir
                         ("a".into(), aff(2.0, &[("z", -0.5)])),
                     ],
                 },
-                MechanismWire {
+                TransportedCounterfactualMechanismWire {
                     node: "y".into(),
                     intercept: aff(0.0, &[]),
                     parents: vec![

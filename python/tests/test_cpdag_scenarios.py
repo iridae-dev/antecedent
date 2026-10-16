@@ -1,4 +1,4 @@
-"""DAG completions of a CPDAG as one finite scenario set (2.3A X2).
+"""DAG completions of a CPDAG as one finite scenario set.
 
 The chain ``a - b - c`` has three completions: ``a -> b -> c``, ``a <- b -> c`` and
 ``a <- b <- c``. One target joint law is enumerated from the finite SCM
@@ -103,7 +103,7 @@ def bind(edges, identity, measured=NAMES, certified_for=None):
     )
 
 
-def test_x2_enumerated_truth_effects_and_envelope():
+def test_enumerated_truth_effects_and_envelope():
     result = run()
     assert result.scope == "cpdag_completion_scenarios_structural_envelope"
     assert len(result.completions) == 3 and result.complete and result.exportable
@@ -134,7 +134,7 @@ def test_x2_enumerated_truth_effects_and_envelope():
     assert isinstance(refused.value, CausalUnsupportedError)
 
 
-def test_x2_missing_evidence_is_counted_not_redistributed():
+def test_missing_evidence_is_counted_not_redistributed():
     evidence = [
         bind(sorted(FORWARD), "ev-forward"),
         bind(sorted(FORK), "ev-fork"),
@@ -164,7 +164,7 @@ def test_x2_missing_evidence_is_counted_not_redistributed():
     assert sum(1 for c in only_one.completions if c.evidence_identity is None) == 2
 
 
-def test_x2_completion_identity_ignores_edge_insertion_order():
+def test_completion_identity_ignores_edge_insertion_order():
     canonical = run()
     reversed_edges = run(chain((("c", "b"), ("b", "a"))))
     assert canonical.cpdag_identity == reversed_edges.cpdag_identity
@@ -183,7 +183,7 @@ def test_x2_completion_identity_ignores_edge_insertion_order():
     assert by_id.envelope == canonical.envelope
 
 
-def test_x2_budget_stop_retains_explored_and_unevaluated():
+def test_budget_stop_retains_explored_and_unevaluated():
     # Enumeration stops after one of three completions (three orientation attempts).
     partial = run(max_steps=3)
     assert not partial.complete and partial.exportable
@@ -218,7 +218,7 @@ def test_x2_budget_stop_retains_explored_and_unevaluated():
     assert run().complete
 
 
-def test_x2_cancelled_report_is_not_exportable():
+def test_cancelled_report_is_not_exportable():
     token = antecedent.state.CancellationToken()
     token.cancel()
     cancelled = run(cancel=token)
@@ -231,7 +231,7 @@ def test_x2_cancelled_report_is_not_exportable():
     assert refused.value.detail == "cpdag_scenarios.cancelled_not_exportable"
 
 
-def test_x2_export_and_fresh_consume_reproduce_the_report():
+def test_export_and_fresh_consume_reproduce_the_report():
     result = run()
     artifact = result.export()
     assert artifact.startswith(PREFIX)
@@ -295,7 +295,7 @@ def _frame(names, inner):
     return bytes(out)
 
 
-def test_x2_tampered_artifacts_refuse_with_typed_details():
+def test_tampered_artifacts_refuse_with_typed_details():
     artifact = run().export()
     names, inner = _unframe(artifact)
     assert names == NAMES and _frame(names, inner) == artifact
@@ -327,7 +327,7 @@ def test_x2_tampered_artifacts_refuse_with_typed_details():
         transport.consume_cpdag_scenarios_artifact(artifact, max_steps=1)
 
 
-def test_x2_refusals_carry_exact_code_and_detail():
+def test_refusals_carry_exact_code_and_detail():
     def refusal(call):
         with pytest.raises(transport.CpdagScenarioRefusal) as refused:
             call()
@@ -372,7 +372,7 @@ def test_x2_refusals_carry_exact_code_and_detail():
     assert refusal(lambda: run(evidence=[forged])) == mismatch
 
 
-def test_x2_inputs_are_checked_before_any_search():
+def test_inputs_are_checked_before_any_search():
     graph = Admg.from_edges(NAMES, [("a", "b"), ("b", "c")], [("a", "c")])
     with pytest.raises(CausalUnsupportedError, match="cpdag_scenarios.selection_or_latent") as e:
         run(graph)

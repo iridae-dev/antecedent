@@ -1,0 +1,7 @@
+{
+  "marginal_effect": 1.9,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Population marginal pulse effect from the stated linear structural equation Y = 1.5 X + 0.2 W + 0.8 XW. The conditional slope is 1.5 + 0.8 W; for the declared equally weighted binary modifier W ~ Bernoulli(1/2), E[slope] = 1.5 + 0.8/2 = 1.9. This is a structural population value, independent of the temporal estimator; the deterministic finite series approximates that modifier distribution."
+  }
+}

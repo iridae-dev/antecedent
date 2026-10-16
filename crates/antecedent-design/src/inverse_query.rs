@@ -1,4 +1,4 @@
-//! Generalized finite inverse decision query (F7).
+//! Generalized finite inverse decision query.
 //!
 //! The question is "which of these declared actions satisfy these constraints?"
 //! over a finite, ordered action grid. Three constraint kinds run through the
@@ -43,26 +43,36 @@
 //!   answer across scenarios is `StructurallyAmbiguous`; an unidentified
 //!   scenario is `Unidentified`; an unevaluated one is `Unevaluated`. Their
 //!   probability mass is retained and never renormalized away.
+//! - **Forward sources.** A claim may come from a composed mechanism model, a
+//!   cohort-mean contrast or a transported response; each is adapted, with its
+//!   own refusals and its source and transport identity, by
+//!   [`crate::inverse_forward_source`]. A source that answers each action by its
+//!   own execution is evaluated by [`evaluate_inverse_query_per_action`]. The
+//!   engine itself is unchanged: it still compares only the supplied claim's
+//!   value with the target.
 //! - **Continuous domains.** A grid sampled from a continuous action space can
 //!   find a feasible point, but that is never reported as a global feasibility
 //!   claim; continuous optimization is separately scoped.
 //!
-//! The 2.2 finite-enumeration baseline stays available as
+//! The finite-enumeration baseline stays available as
 //! [`finite_enumeration_baseline`], independent of the engine.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 
-use antecedent_core::{ExternalRefusal, ScientificQuantity};
-use antecedent_io::distribution_artifact::DistributionArtifact;
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
+
+use crate::signal::{RefusalBuilder, at_stage};
+use antecedent_io_core::distribution_artifact::DistributionArtifact;
 
 use crate::decision_contract::{
     DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion, DecisionFunctional,
     SourceRepresentation, Tail,
 };
 use crate::decision_eval::{
-    DecisionEvalError, MeanSource, SourceReceipt, evaluate_contract_on_means, evaluate_functional,
+    ActionLaw, DecisionEvalError, MeanSource, SourceReceipt, evaluate_contract_on_means,
+    evaluate_functional,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
 
@@ -379,8 +389,11 @@ pub enum ExistenceClaim {
 
 /// Result of an inverse query.
 // Independent public report flags; grouping them would change the public surface.
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, PartialEq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct InverseResult {
     /// Identity of the contract that declared the actions.
     pub contract_identity: String,
@@ -437,16 +450,7 @@ pub enum InverseQueryError {
 }
 
 fn refusal(code: &'static str, detail: &str, offending: Option<String>) -> ExternalRefusal {
-    ExternalRefusal {
-        code,
-        stage: STAGE,
-        detail: detail.to_owned(),
-        offending,
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
-    }
+    RefusalBuilder::new(code, STAGE, detail).offending_opt(offending).build()
 }
 
 impl InverseQueryError {
@@ -471,11 +475,7 @@ impl InverseQueryError {
     pub fn to_refusal(&self) -> ExternalRefusal {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         match self {
-            Self::Engine(error) => {
-                let mut value = error.to_refusal();
-                value.stage = STAGE;
-                value
-            }
+            Self::Engine(error) => at_stage(error.to_refusal(), STAGE),
             Self::InvalidGrid(why) => {
                 refusal(invalid, "inverse_query.invalid_grid", Some((*why).to_owned()))
             }
@@ -503,7 +503,7 @@ pub struct EnumeratedForwardValue {
     pub supported: bool,
 }
 
-/// The 2.2 finite-enumeration baseline: classify each enumerated action by its
+/// The finite-enumeration baseline: classify each enumerated action by its
 /// forward mean against `target`, within `tolerance`. An action off the
 /// evaluated grid is `Unevaluated`, never interpolated; an unsupported one is
 /// `Unsupported`. It uses no distribution engine, so it is the independent
@@ -553,24 +553,31 @@ impl Source<'_> {
     fn screen(self, action: &DecisionAction) -> Option<(FeasibilityStatus, &'static str)> {
         let mut missing = false;
         let mut masked = false;
-        for wanted in &action.inputs {
-            match self {
-                Self::Law(artifact) => {
-                    let found = artifact.quantities().iter().position(|candidate| {
-                        ScientificQuantity::try_from(candidate.clone())
-                            .is_ok_and(|q| q.require_same_coordinate(wanted).is_ok())
-                    });
-                    match found {
+        match self {
+            Self::Law(artifact) => {
+                let parsed: Vec<Option<ScientificQuantity>> = artifact
+                    .quantities()
+                    .iter()
+                    .map(|candidate| ScientificQuantity::try_from(candidate.clone()).ok())
+                    .collect();
+                let mask = artifact.metadata().supported.as_deref();
+                for wanted in &action.inputs {
+                    match parsed.iter().position(|quantity| {
+                        quantity.as_ref().is_some_and(|quantity| {
+                            quantity.require_same_coordinate(wanted).is_ok()
+                        })
+                    }) {
                         None => missing = true,
                         Some(column) => {
-                            let mask = artifact.metadata().supported.as_deref();
                             if mask.is_some_and(|m| m.get(column).is_some_and(|ok| !*ok)) {
                                 masked = true;
                             }
                         }
                     }
                 }
-                Self::Means(means) => {
+            }
+            Self::Means(means) => {
+                for wanted in &action.inputs {
                     if !means.coordinates.iter().any(|c| c.require_same_coordinate(wanted).is_ok())
                     {
                         missing = true;
@@ -662,11 +669,45 @@ fn single_action_contract(
     }
 }
 
+/// What one (member, action) needs for every constraint, computed once.
+///
+/// Both forms are an optimization of a per-constraint call: when preparing fails, the
+/// constraint path calls the engine exactly as before and so raises the same refusal.
+enum Prepared {
+    /// The action's utility law on a distribution source.
+    Law(ActionLaw),
+    /// The action's `(expected utility, standard error)` on a mean source.
+    Mean((f64, Option<f64>)),
+    /// Not prepared: ask the engine per constraint.
+    None,
+}
+
+impl Prepared {
+    fn new(contract: &DecisionContract, action_id: &str, source: Source<'_>) -> Self {
+        match source {
+            Source::Law(artifact) => {
+                ActionLaw::of_action(contract, action_id, artifact).map_or(Self::None, Self::Law)
+            }
+            Source::Means(means) => evaluate_contract_on_means(contract, means)
+                .ok()
+                .and_then(|result| {
+                    result
+                        .actions
+                        .iter()
+                        .find(|o| o.id == action_id)
+                        .map(|o| (o.expected_utility, o.standard_error))
+                })
+                .map_or(Self::None, Self::Mean),
+        }
+    }
+}
+
 fn mean_value(
     contract: &DecisionContract,
     action_id: &str,
     functional: DecisionFunctional,
     means: &MeanSource,
+    prepared: Option<(f64, Option<f64>)>,
 ) -> Result<(f64, Option<f64>), DecisionEvalError> {
     let unknown =
         || DecisionEvalError::Contract(DecisionContractError::UnknownAction(action_id.to_owned()));
@@ -679,6 +720,9 @@ fn mean_value(
             other => DecisionEvalError::Contract(other),
         },
     )?;
+    if let Some(value) = prepared {
+        return Ok(value);
+    }
     let result = evaluate_contract_on_means(contract, means)?;
     let outcome = result.actions.iter().find(|o| o.id == action_id).ok_or_else(unknown)?;
     Ok((outcome.expected_utility, outcome.standard_error))
@@ -689,11 +733,20 @@ fn engine_value(
     action_id: &str,
     functional: DecisionFunctional,
     source: Source<'_>,
+    prepared: &Prepared,
 ) -> Result<(f64, Option<f64>), DecisionEvalError> {
-    match source {
-        Source::Law(artifact) => evaluate_functional(contract, action_id, functional, artifact)
-            .map(|value| (value.value, value.standard_error)),
-        Source::Means(means) => mean_value(contract, action_id, functional, means),
+    match (source, prepared) {
+        (Source::Law(_), Prepared::Law(law)) => {
+            law.functional(contract, functional).map(|value| (value.value, value.standard_error))
+        }
+        (Source::Law(artifact), _) => {
+            evaluate_functional(contract, action_id, functional, artifact)
+                .map(|value| (value.value, value.standard_error))
+        }
+        (Source::Means(means), Prepared::Mean(value)) => {
+            mean_value(contract, action_id, functional, means, Some(*value))
+        }
+        (Source::Means(means), _) => mean_value(contract, action_id, functional, means, None),
     }
 }
 
@@ -715,11 +768,12 @@ fn constraint_value(
     tolerance: f64,
     contract: &DecisionContract,
     source: Source<'_>,
+    prepared: &Prepared,
     action_id: &str,
     index: usize,
     constraint: &InverseConstraint,
 ) -> Result<ConstraintValue, InverseQueryError> {
-    match engine_value(contract, action_id, constraint.functional(), source) {
+    match engine_value(contract, action_id, constraint.functional(), source, prepared) {
         Ok((value, standard_error)) => {
             let (target, comparison) = constraint.target();
             let status = if comparison.holds(value, target, tolerance) {
@@ -791,9 +845,18 @@ fn evaluate_member(
         return Ok(Member { status, values: Vec::new(), reason: Some(reason.to_owned()) });
     }
     let single = single_action_contract(&query.contract, action);
+    let prepared = Prepared::new(&single, action_id, source);
     let mut values = Vec::with_capacity(query.constraints.len());
     for (index, constraint) in query.constraints.iter().enumerate() {
-        match constraint_value(query.tolerance, &single, source, action_id, index, constraint) {
+        match constraint_value(
+            query.tolerance,
+            &single,
+            source,
+            &prepared,
+            action_id,
+            index,
+            constraint,
+        ) {
             Ok(value) => values.push(value),
             Err(InverseQueryError::Engine(error))
                 if lenient && !matches!(error, DecisionEvalError::Contract(_)) =>
@@ -1080,7 +1143,90 @@ pub fn evaluate_inverse_query(
     for (position, id) in query.grid_order.iter().enumerate() {
         actions.push(report_action(query, evidence, id, position, &mut meter)?);
     }
-    let has_point = evidence.point.is_some();
+    Ok(assemble_result(
+        query,
+        contract_identity,
+        actions,
+        &meter,
+        evidence.point.is_some(),
+        evidence.point.as_ref().map(ForwardClaim::receipt),
+    ))
+}
+
+/// Evaluate an inverse query whose point claim is given per action.
+///
+/// A forward source that answers each intervention by its own separate
+/// execution (one composed-model query per action, one exact finite law per
+/// action) has no single aligned law across the grid. Each grid action is
+/// evaluated on its own claim, exactly as [`evaluate_inverse_query`] evaluates
+/// it on a shared point claim, and the results are assembled in grid order
+/// with the same selection and existence rules. A grid action with no claim is
+/// `Unevaluated`, never interpolated and never excluded.
+///
+/// Claims for different actions are separate worlds: they carry no pairing,
+/// so only an action's own coordinates are ever read from its claim. The
+/// result's `point_source` is `None` because there is no single claim to cite;
+/// the lineage of each claim stays with the caller's per-action receipts.
+///
+/// # Errors
+/// An invalid grid, constraint or tolerance, a claim for an action that is
+/// not in the grid, a repeated claim for one action, no claim for any grid
+/// action, and any engine refusal on a claim.
+pub fn evaluate_inverse_query_per_action(
+    query: &InverseQuery,
+    claims: &[(String, ForwardClaim)],
+) -> Result<InverseResult, InverseQueryError> {
+    let mut seen = HashSet::new();
+    for (id, _) in claims {
+        if !query.grid_order.contains(id) {
+            return Err(InverseQueryError::InvalidGrid("a claim names an action outside the grid"));
+        }
+        if !seen.insert(id.as_str()) {
+            return Err(InverseQueryError::InvalidGrid("an action has more than one claim"));
+        }
+    }
+    let Some((_, first)) = claims.first() else {
+        return Err(InverseQueryError::NoForwardEvidence);
+    };
+    let probe = ForwardEvidence { point: Some(first.clone()), ..ForwardEvidence::default() };
+    let contract_identity = validate_query(query, &probe)?;
+    let mut meter = Meter { used: 0, limit: query.max_evaluations, exhausted: false };
+    let mut actions = Vec::with_capacity(query.grid_order.len());
+    for (position, id) in query.grid_order.iter().enumerate() {
+        let report = match claims.iter().find(|(claimed, _)| claimed == id) {
+            Some((_, claim)) => {
+                let evidence =
+                    ForwardEvidence { point: Some(claim.clone()), ..ForwardEvidence::default() };
+                report_action(query, &evidence, id, position, &mut meter)?
+            }
+            None => ActionReport {
+                id: id.clone(),
+                position,
+                point: Some(FeasibilityStatus::Unevaluated),
+                point_values: Vec::new(),
+                interval_region: None,
+                identified_set: None,
+                identified_set_members: Vec::new(),
+                all_scenario: None,
+                scenario_members: Vec::new(),
+                posterior_probability: None,
+            },
+        };
+        actions.push(report);
+    }
+    Ok(assemble_result(query, contract_identity, actions, &meter, true, None))
+}
+
+/// Existence, selection and flags over per-action reports. Shared by the single-claim
+/// and per-action routes so both apply one rule.
+fn assemble_result(
+    query: &InverseQuery,
+    contract_identity: String,
+    actions: Vec<ActionReport>,
+    meter: &Meter,
+    has_point: bool,
+    point_source: Option<SourceReceipt>,
+) -> InverseResult {
     let feasible_actions: Vec<String> = actions
         .iter()
         .filter(|a| a.point == Some(FeasibilityStatus::Feasible))
@@ -1099,7 +1245,7 @@ pub fn evaluate_inverse_query(
         ExistenceClaim::Undetermined
     };
     let selection = select(query.selection, &actions, has_point);
-    Ok(InverseResult {
+    InverseResult {
         contract_identity,
         grid_order: query.grid_order.clone(),
         grid_scope: query.grid_scope,
@@ -1112,9 +1258,9 @@ pub fn evaluate_inverse_query(
         exhaustive_over_declared_set: exhaustive,
         evaluations_used: meter.used,
         budget_exhausted: meter.exhausted,
-        point_source: evidence.point.as_ref().map(ForwardClaim::receipt),
+        point_source,
         feasible_actions,
         actions,
         scope_note: INVERSE_QUERY_SCOPE_NOTE,
-    })
+    }
 }

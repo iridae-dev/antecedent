@@ -1,4 +1,4 @@
-//! B4 latent-class regime-effects artifact (`latent_class_effects_v1`).
+//! Latent-class regime-effects artifact (`latent_class_effects_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one finite-mixture fit:
 //!
@@ -27,19 +27,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::io::Cursor;
-
-use antecedent_estimate::EstimationError;
+use antecedent_core::CanonicalWriter;
 use antecedent_estimate::latent_class_effects::{
     LATENT_CLASS_CAVEAT, LATENT_CLASS_INFERENCE_CLAIM, LatentClassConfig, LatentClassData,
     LatentClassResult, PremiseStatus, fit_latent_class_effects,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const LATENT_CLASS_ARTIFACT_VERSION: u16 = 1;
@@ -58,98 +53,18 @@ pub const LATENT_CLASS_ARTIFACT_TRACE_HEAD: usize = 16;
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_LATENT_CLASS_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
-const ARTIFACT_KIND: &str = "latent_class_effects_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::LATENT_CLASS_EFFECTS;
 const META_SECTION: &str = "latent_class_meta";
 const DATA_SECTION: &str = "latent_class_data";
 
-/// Why a latent-class artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum LatentClassArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("latent class artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported latent class artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate or caveat that is not this format's.
-    #[error("unsupported latent class semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("latent class consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed latent class artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("latent_class.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored record differs from the refitted one.
-    #[error("stored latent class record does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("latent class artifact does not encode: {0}")]
-    Encode(String),
-    /// The core fit refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl LatentClassArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core refusal, a changed identity field and a record that does not replay;
-    /// absent for corruption, unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "latent_class.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ResultMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "latent_class.report_replay_mismatch".to_owned(),
-                format!("the stored {what} does not replay"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for LatentClassArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for LatentClassArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why a latent-class artifact was refused or could not be produced.
+    LatentClassArtifactError,
+    "latent class",
+    "latent_class",
+    "record",
+    true
+);
 
 fn invalid_request(message: &str) -> LatentClassArtifactError {
     LatentClassArtifactError::Refused {
@@ -370,21 +285,16 @@ pub struct LatentClassReportWire {
     pub hard_assignment: Vec<u32>,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
-}
-
-fn count_u32(n: usize) -> u32 {
-    u32::try_from(n).unwrap_or(u32::MAX)
+fn count_u32(n: usize) -> Result<u32, LatentClassArtifactError> {
+    u32::try_from(n).map_err(|_| LatentClassArtifactError::LimitsExceeded("count"))
 }
 
 fn count_u64(n: usize) -> u64 {
-    u64::try_from(n).unwrap_or(u64::MAX)
+    crate::width::lossless_u64(n)
 }
 
 fn index(n: u32) -> usize {
-    usize::try_from(n).unwrap_or(usize::MAX)
+    n as usize
 }
 
 fn config_of(wire: &LatentClassConfigWire) -> LatentClassConfig {
@@ -465,68 +375,64 @@ fn request_of(
     if p > LATENT_CLASS_ARTIFACT_MAX_COVARIATES {
         return Err(LatentClassArtifactError::LimitsExceeded("covariates"));
     }
-    let expected = (2 + p).checked_mul(n).and_then(|c| c.checked_mul(8));
-    if expected != Some(numbers.len()) {
-        return Err(LatentClassArtifactError::Malformed("data section length".into()));
-    }
-    let values: Vec<f64> = numbers
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect();
-    let column = |j: usize| values[j * n..(j + 1) * n].to_vec();
+    let columns = crate::width::columns_from_le(numbers, n, 2 + p)
+        .ok_or_else(|| LatentClassArtifactError::Malformed("data section length".into()))?;
     Ok(LatentClassRequestWire {
         config: meta.config.clone(),
-        data: LatentClassDataWire {
-            outcome: column(0),
-            treatment: column(1),
-            covariate_names: meta.covariate_names.clone(),
-            covariates: (0..p).map(|j| column(2 + j)).collect(),
-        },
+        data: data_from_columns(columns, meta.covariate_names.clone()),
     })
 }
 
-fn hard_u32(result: &LatentClassResult) -> Vec<u32> {
-    result.hard_assignment.iter().map(|&c| count_u32(c)).collect()
+fn data_from_columns(
+    mut columns: Vec<Vec<f64>>,
+    covariate_names: Vec<String>,
+) -> LatentClassDataWire {
+    let covariates = columns.split_off(2);
+    let treatment = columns.pop().unwrap_or_default();
+    let outcome = columns.pop().unwrap_or_default();
+    LatentClassDataWire { outcome, treatment, covariate_names, covariates }
 }
 
-fn responsibilities_summary(result: &LatentClassResult) -> ResponsibilitiesSummaryWire {
+fn hard_u32(result: &LatentClassResult) -> Result<Vec<u32>, LatentClassArtifactError> {
+    result.hard_assignment.iter().copied().map(count_u32).collect()
+}
+
+fn responsibilities_summary(
+    result: &LatentClassResult,
+) -> Result<ResponsibilitiesSummaryWire, LatentClassArtifactError> {
     let k = result.classes.len();
     let rows = result.responsibilities.len();
-    let rows_f = f64::from(count_u32(rows).max(1));
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"latent_class_effects_v1.responsibilities");
+    let rows_f = f64::from(count_u32(rows)?.max(1));
+    let mut hasher = CanonicalWriter::new("latent_class_effects_v1.responsibilities");
     let mut sums = vec![0.0_f64; k];
     for row in &result.responsibilities {
         for (c, value) in row.iter().enumerate() {
             sums[c] += value;
-            hasher.update(&value.to_bits().to_le_bytes());
+            hasher.real(*value);
         }
     }
     let mut counts = vec![0_u64; k];
     for &assigned in &result.hard_assignment {
         counts[assigned] += 1;
-        hasher.update(&count_u64(assigned).to_le_bytes());
+        hasher.word(count_u64(assigned));
     }
-    ResponsibilitiesSummaryWire {
+    Ok(ResponsibilitiesSummaryWire {
         rows: count_u64(rows),
         class_means: sums.iter().map(|s| s / rows_f).collect(),
         hard_counts: counts,
         separation: result.separation,
-        digest: hasher.finalize().to_hex().to_string(),
-    }
+        digest: hasher.finish_hex(),
+    })
 }
 
-fn likelihood_record(result: &LatentClassResult) -> LatentClassLikelihoodWire {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"latent_class_effects_v1.trace");
+fn likelihood_record(
+    result: &LatentClassResult,
+) -> Result<LatentClassLikelihoodWire, LatentClassArtifactError> {
+    let mut hasher = CanonicalWriter::new("latent_class_effects_v1.trace");
     for value in &result.log_likelihood_trace {
-        hasher.update(&value.to_bits().to_le_bytes());
+        hasher.real(*value);
     }
-    LatentClassLikelihoodWire {
+    Ok(LatentClassLikelihoodWire {
         log_likelihood: result.log_likelihood,
         iterations: count_u64(result.iterations),
         trace_head: result
@@ -536,11 +442,11 @@ fn likelihood_record(result: &LatentClassResult) -> LatentClassLikelihoodWire {
             .copied()
             .collect(),
         trace_len: count_u64(result.log_likelihood_trace.len()),
-        trace_digest: hasher.finalize().to_hex().to_string(),
+        trace_digest: hasher.finish_hex(),
         bic: result.bic,
-        restarts_attempted: count_u32(result.restarts_attempted),
-        restarts_converged: count_u32(result.restarts_converged),
-    }
+        restarts_attempted: count_u32(result.restarts_attempted)?,
+        restarts_converged: count_u32(result.restarts_converged)?,
+    })
 }
 
 fn premise_records(result: &LatentClassResult) -> Vec<LatentClassPremiseRecord> {
@@ -560,22 +466,17 @@ fn premise_records(result: &LatentClassResult) -> Vec<LatentClassPremiseRecord> 
 
 fn digest<T: Serialize>(tag: &str, value: &T) -> Result<String, LatentClassArtifactError> {
     let bytes = to_cbor(value)?;
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(tag.as_bytes());
-    hasher.update(&count_u64(bytes.len()).to_le_bytes());
-    hasher.update(&bytes);
-    Ok(hasher.finalize().to_hex().to_string())
+    Ok(CanonicalWriter::digest_bytes_hex(tag, &bytes))
 }
 
 fn data_digest(data: &LatentClassDataWire) -> Result<String, LatentClassArtifactError> {
     let names = to_cbor(&data.covariate_names)?;
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"latent_class_effects_v1.data");
-    hasher.update(&count_u64(names.len()).to_le_bytes());
-    hasher.update(&names);
-    hasher.update(&count_u64(data.outcome.len()).to_le_bytes());
-    hasher.update(&data_bytes(data));
-    Ok(hasher.finalize().to_hex().to_string())
+    let hasher = CanonicalWriter::new("latent_class_effects_v1.data")
+        .bytes(&names)
+        .word(count_u64(data.outcome.len()))
+        .bytes(&data_bytes(data))
+        .finish();
+    Ok(antecedent_core::to_hex(&hasher))
 }
 
 /// Everything in the record that the fit determines, in one comparable value.
@@ -598,27 +499,33 @@ fn build_meta(
     let classes: Vec<LatentClassWire> = result
         .classes
         .iter()
-        .map(|c| LatentClassWire {
-            index: count_u32(c.index),
-            raw_index: count_u32(c.raw_index),
-            weight: c.weight,
-            weight_se: c.weight_se,
-            intercept: c.intercept,
-            effect: c.effect,
-            effect_se: c.effect_se,
-            covariate_coefficients: c.covariate_coefficients.clone(),
-            residual_variance: c.residual_variance,
-            effective_n: c.effective_n,
+        .map(|c| {
+            Ok(LatentClassWire {
+                index: count_u32(c.index)?,
+                raw_index: count_u32(c.raw_index)?,
+                weight: c.weight,
+                weight_se: c.weight_se,
+                intercept: c.intercept,
+                effect: c.effect,
+                effect_se: c.effect_se,
+                covariate_coefficients: c.covariate_coefficients.clone(),
+                residual_variance: c.residual_variance,
+                effective_n: c.effective_n,
+            })
         })
-        .collect();
-    let class_order: Vec<u32> = result.class_order.iter().map(|&c| count_u32(c)).collect();
-    let responsibilities = responsibilities_summary(result);
-    let likelihood = likelihood_record(result);
-    let bootstrap = result.bootstrap.map(|b| LatentClassBootstrapWire {
-        requested: count_u32(b.requested),
-        succeeded: count_u32(b.succeeded),
-        failed: count_u32(b.failed),
-    });
+        .collect::<Result<_, LatentClassArtifactError>>()?;
+    let class_order: Vec<u32> =
+        result.class_order.iter().copied().map(count_u32).collect::<Result<_, _>>()?;
+    let responsibilities = responsibilities_summary(result)?;
+    let likelihood = likelihood_record(result)?;
+    let bootstrap = match result.bootstrap {
+        Some(b) => Some(LatentClassBootstrapWire {
+            requested: count_u32(b.requested)?,
+            succeeded: count_u32(b.succeeded)?,
+            failed: count_u32(b.failed)?,
+        }),
+        None => None,
+    };
     let premises = premise_records(result);
     let canonical = CanonicalResult {
         class_order: &class_order,
@@ -688,44 +595,44 @@ fn identity_diff(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
     meta: &LatentClassMeta,
     data: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, LatentClassArtifactError> {
-    let encode = |e: crate::IoError| LatentClassArtifactError::Encode(e.to_string());
+    encode_parts_impl(meta, data, artifact_id)
+}
+
+fn encode_parts_impl(
+    meta: &LatentClassMeta,
+    data: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, LatentClassArtifactError> {
     if artifact_id.trim().is_empty() {
         return Err(LatentClassArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(DATA_SECTION, "application/octet-stream", data),
-            ],
-            provenance: ProvenanceWire {
-                note: "latent_class_point_with_bootstrap_se_unmeasured".into(),
-            },
+    let meta_bytes =
+        to_cbor(meta).map_err(|error| LatentClassArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "latent_class_point_with_bootstrap_se_unmeasured",
+            max_bytes: MAX_LATENT_CLASS_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(DATA_SECTION, data.to_vec()),
+        &[
+            crate::OutSection {
+                id: META_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            crate::OutSection { id: DATA_SECTION, content_type: crate::CONTENT_BYTES, bytes: data },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_LATENT_CLASS_ARTIFACT_BYTES {
-        return Err(LatentClassArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+    )
+    .map_err(|error| crate::map_artifact_check!(error, LatentClassArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -735,35 +642,31 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<(LatentClassMeta, Vec<u8>), LatentClassArtifactError> {
-    if bytes.len() > MAX_LATENT_CLASS_ARTIFACT_BYTES {
-        return Err(LatentClassArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 2
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != DATA_SECTION
-    {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(bytes: &[u8]) -> Result<(LatentClassMeta, Vec<u8>), LatentClassArtifactError> {
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_LATENT_CLASS_ARTIFACT_BYTES,
+        &[META_SECTION, DATA_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, LatentClassArtifactError))?;
+    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(LatentClassArtifactError::Malformed("unsupported container layout".into()));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    if declared.is_none_or(|total| total > count_u64(MAX_LATENT_CLASS_ARTIFACT_BYTES)) {
-        return Err(LatentClassArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != LATENT_CLASS_ARTIFACT_VERSION {
-        return Err(LatentClassArtifactError::UnsupportedVersion { version: peek.version });
-    }
-    let meta: LatentClassMeta = from_cbor(meta_section.as_bytes())?;
-    let data = reader.load_section(DATA_SECTION)?;
-    Ok((meta, data.as_bytes().to_vec()))
+    };
+    let meta = crate::decode_with_version(&meta_bytes, |version| {
+        if version == LATENT_CLASS_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(LatentClassArtifactError::UnsupportedVersion { version })
+        }
+    })?;
+    Ok((meta, payload))
 }
 
 /// A produced or consumed latent-class artifact: the declared request, the refitted result and
@@ -773,6 +676,9 @@ pub struct LatentClassArtifact {
     meta: LatentClassMeta,
     request: LatentClassRequestWire,
     result: LatentClassResult,
+    /// Class index of each row. Computed when the record is sealed so a later
+    /// report does not saturate an index that does not fit in `u32`.
+    hard_assignment: Vec<u32>,
 }
 
 impl LatentClassArtifact {
@@ -784,7 +690,8 @@ impl LatentClassArtifact {
     pub fn seal(request: &LatentClassRequestWire) -> Result<Self, LatentClassArtifactError> {
         let result = fit_of(request)?;
         let meta = build_meta(request, &result)?;
-        Ok(Self { meta, request: request.clone(), result })
+        let hard_assignment = hard_u32(&result)?;
+        Ok(Self { meta, request: request.clone(), result, hard_assignment })
     }
 
     /// The metadata section, which is also the summary report.
@@ -817,7 +724,7 @@ impl LatentClassArtifact {
         LatentClassReportWire {
             meta: self.meta.clone(),
             responsibilities: self.result.responsibilities.clone(),
-            hard_assignment: hard_u32(&self.result),
+            hard_assignment: self.hard_assignment.clone(),
         }
     }
 
@@ -826,7 +733,7 @@ impl LatentClassArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, LatentClassArtifactError> {
-        encode_parts(&self.meta, &data_bytes(&self.request.data), artifact_id)
+        encode_parts_impl(&self.meta, &data_bytes(&self.request.data), artifact_id)
     }
 
     /// Consume an artifact by refitting under the stored seed and configuration.
@@ -843,7 +750,7 @@ impl LatentClassArtifact {
         bytes: &[u8],
         expected: Option<&LatentClassIdentity>,
     ) -> Result<Self, LatentClassArtifactError> {
-        let (meta, data) = decode_parts(bytes)?;
+        let (meta, data) = decode_parts_impl(bytes)?;
         let unsupported = LatentClassArtifactError::UnsupportedSemantics;
         if meta.feature != LATENT_CLASS_ARTIFACT_FEATURE {
             return Err(unsupported("feature marker"));
@@ -860,6 +767,7 @@ impl LatentClassArtifact {
         let request = request_of(&meta, &data)?;
         let result = fit_of(&request)?;
         let rebuilt = build_meta(&request, &result)?;
+        let hard_assignment = hard_u32(&result)?;
         if let Some(field) = identity_diff(&meta.identity, &rebuilt.identity) {
             return Err(if field == "result" {
                 LatentClassArtifactError::ResultMismatch("canonical result")
@@ -875,6 +783,31 @@ impl LatentClassArtifact {
                 return Err(LatentClassArtifactError::IdentityMismatch { field });
             }
         }
-        Ok(Self { meta: rebuilt, request, result })
+        Ok(Self { meta: rebuilt, request, result, hard_assignment })
+    }
+}
+
+#[cfg(test)]
+mod data_section_tests {
+    use super::data_bytes;
+    use crate::latent_class_artifact::LatentClassDataWire;
+
+    #[test]
+    fn data_section_round_trips_signed_zero_and_nan() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
+        let data = LatentClassDataWire {
+            outcome: vec![-0.0, 1.0],
+            treatment: vec![nan, -1.0],
+            covariate_names: vec!["x".into()],
+            covariates: vec![vec![0.0, f64::MIN_POSITIVE]],
+        };
+        let bytes = data_bytes(&data);
+        let columns = crate::width::columns_from_le(&bytes, 2, 3).unwrap();
+        let again = super::data_from_columns(columns, data.covariate_names.clone());
+        assert_eq!(data_bytes(&again), bytes);
+        let bits = |sample: &[f64]| sample.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&again.outcome), bits(&data.outcome));
+        assert_eq!(bits(&again.treatment), bits(&data.treatment));
+        assert_eq!(bits(&again.covariates[0]), bits(&data.covariates[0]));
     }
 }

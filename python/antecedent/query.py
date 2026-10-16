@@ -14,16 +14,33 @@ from dataclasses import KW_ONLY, dataclass, field
 from math import isfinite
 from typing import Literal
 
+from ._columns import coerce_fields
 from ._native import temporal_response_spec as _native_temporal_response_spec
+from ._validate import count as _count
 from .errors import CausalUnsupportedError, CausalValueError
 
+# Rust names the capability. Python appends the call.
+_ADJUSTMENT_HANDOFF_CAPABILITY = "capability: adjustment handoff"
+_ADJUSTMENT_HANDOFF_CALL = "antecedent.handoff.econml(result, modifiers=[...])"
+
+
+def _append_adjustment_handoff_call(remedy: str) -> str:
+    if _ADJUSTMENT_HANDOFF_CAPABILITY in remedy and _ADJUSTMENT_HANDOFF_CALL not in remedy:
+        return remedy.replace(
+            _ADJUSTMENT_HANDOFF_CAPABILITY,
+            f"{_ADJUSTMENT_HANDOFF_CAPABILITY} ({_ADJUSTMENT_HANDOFF_CALL})",
+            1,
+        )
+    return remedy
+
+
 # What a multi-modifier ``ConditionalEffect`` refusal names instead.
-_CONDITIONAL_MULTI_MODIFIER_REMEDY = (
+_CONDITIONAL_MULTI_MODIFIER_REMEDY = _append_adjustment_handoff_call(
     "the frequentist interaction regression fits one modifier; for several "
-    "modifiers hand the identified adjustment set to an external CATE learner "
-    "with antecedent.handoff.econml(result, modifiers=[...]), fit one "
-    "ConditionalEffect per modifier, or use the Rust Bayesian conditional "
-    "estimator (EstimatorId::BayesianConditional), which takes a modifier set"
+    "modifiers use the Bayesian conditional estimator "
+    "(EstimatorId::BayesianConditional), or hand the identified adjustment set "
+    "to an external CATE learner (capability: adjustment handoff), or fit one "
+    "ConditionalEffect per modifier"
 )
 
 
@@ -33,7 +50,7 @@ def _require_name(field_name: str, value: str) -> None:
 
 
 def _require_names(field_name: str, values: Sequence[str]) -> None:
-    if not values:
+    if len(values) == 0:
         raise CausalValueError(f"{field_name} must contain at least one variable name")
     for value in values:
         _require_name(field_name, value)
@@ -160,7 +177,7 @@ temporal_response_spec = _load_temporal_response_spec()
 
 def _validate_horizons(horizons: Sequence[int]) -> None:
     """Nonempty, ≥1, strictly increasing, capped — shared with TemporalResponseSpec."""
-    if not horizons:
+    if len(horizons) == 0:
         raise CausalValueError("horizons must be non-empty")
     if len(horizons) > temporal_response_spec.max_horizons:
         raise CausalValueError(
@@ -168,8 +185,7 @@ def _validate_horizons(horizons: Sequence[int]) -> None:
         )
     prev_h: int | None = None
     for h in horizons:
-        if isinstance(h, bool) or not isinstance(h, int) or h < 1:
-            raise CausalValueError("horizons must be positive integers")
+        h = _count(h, "horizon", minimum=1, maximum=2**32 - 1, type_error=CausalValueError)
         if prev_h is not None and h <= prev_h:
             raise CausalValueError("horizons must be strictly increasing")
         prev_h = h
@@ -179,8 +195,13 @@ def _validate_max_history_lag(max_history_lag: int | None) -> None:
     """``max_history_lag`` is ``None`` or a nonnegative integer step count."""
     if max_history_lag is None:
         return
-    if isinstance(max_history_lag, bool) or not isinstance(max_history_lag, int):
-        raise CausalValueError(f"max_history_lag must be an int or None, got {max_history_lag!r}")
+    _count(
+        max_history_lag,
+        "max_history_lag",
+        minimum=0,
+        maximum=2**32 - 1,
+        type_error=CausalValueError,
+    )
     if max_history_lag < 0:
         raise CausalValueError("max_history_lag must be non-negative")
 
@@ -298,6 +319,60 @@ class SustainedEffect:
                 raise ValueError("window must be a pair of integer offsets")
             if self.window[0] > self.window[1]:
                 raise ValueError("window must have from <= until")
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalConditionalPulse:
+    """One-modifier conditional pulse on a temporal DAG.
+
+    The published point is the marginal effect ``(β_T + β_{T×W} · mean(W)) · (active − control)``
+    on the unfolded temporal design. No interval is published.
+    """
+
+    treatment: str
+    outcome: str
+    modifier: str
+    _: KW_ONLY
+    control_level: float = 0.0
+    active_level: float = 1.0
+    treatment_lag: int = temporal_response_spec.default_treatment_lag
+    horizon_steps: int = 1
+    max_history_lag: int | None = None
+    target_population: object | None = None
+    kind: Literal["pulse"] = field(default="pulse", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        _validate_max_history_lag(self.max_history_lag)
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalConditionalSustained:
+    """One-modifier conditional sustained effect on a single time step.
+
+    Same marginal functional as :class:`TemporalConditionalPulse`. A multi-step
+    window is not this license.
+    """
+
+    treatment: str
+    outcome: str
+    modifier: str
+    _: KW_ONLY
+    control_level: float = 0.0
+    active_level: float = 1.0
+    treatment_lag: int = temporal_response_spec.default_treatment_lag
+    horizon_steps: int = 1
+    window: tuple[int, int] | None = None
+    max_history_lag: int | None = None
+    target_population: object | None = None
+    kind: Literal["sustained"] = field(default="sustained", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        _validate_max_history_lag(self.max_history_lag)
+        if self.window is not None and self.window != (
+            -self.treatment_lag,
+            -self.treatment_lag,
+        ):
+            raise ValueError("temporal conditional sustained effect is a single step")
 
 
 @dataclass(frozen=True, slots=True)
@@ -528,7 +603,7 @@ class TemporalMediationEffect:
     def __post_init__(self) -> None:
         hs = (1,) if self.horizons is None else tuple(self.horizons)
         _validate_horizons(hs)
-        object.__setattr__(self, "horizons", hs)
+        coerce_fields(self, horizons=hs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -567,6 +642,26 @@ class ResponseCurve:
             if previous is not None and value <= previous:
                 raise CausalValueError("grid values must be strictly increasing")
             previous = value
+        if self.horizons is not None:
+            object.__setattr__(
+                self,
+                "horizons",
+                tuple(
+                    _count(h, f"horizons[{i}]", minimum=1, maximum=2**32 - 1)
+                    for i, h in enumerate(self.horizons)
+                ),
+            )
+        object.__setattr__(
+            self,
+            "treatment_lag",
+            _count(self.treatment_lag, "treatment_lag", minimum=0, maximum=2**32 - 1),
+        )
+        if self.max_history_lag is not None:
+            object.__setattr__(
+                self,
+                "max_history_lag",
+                _count(self.max_history_lag, "max_history_lag", minimum=0, maximum=2**32 - 1),
+            )
         _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
         if (
             self.horizons is not None
@@ -776,6 +871,26 @@ class InterventionResponse:
         _require_name("outcome", self.outcome)
         if self.intervention is None:
             raise CausalValueError("intervention must not be None")
+        if self.horizons is not None:
+            object.__setattr__(
+                self,
+                "horizons",
+                tuple(
+                    _count(h, f"horizons[{i}]", minimum=1, maximum=2**32 - 1)
+                    for i, h in enumerate(self.horizons)
+                ),
+            )
+        object.__setattr__(
+            self,
+            "treatment_lag",
+            _count(self.treatment_lag, "treatment_lag", minimum=0, maximum=2**32 - 1),
+        )
+        if self.max_history_lag is not None:
+            object.__setattr__(
+                self,
+                "max_history_lag",
+                _count(self.max_history_lag, "max_history_lag", minimum=0, maximum=2**32 - 1),
+            )
         _validate_temporal(self.horizons, self.policy, self.treatment_lag, self.max_history_lag)
 
     @property
@@ -808,6 +923,8 @@ __all__ = [
     "ResponseJacobian",
     "SemiElasticity",
     "SustainedEffect",
+    "TemporalConditionalPulse",
+    "TemporalConditionalSustained",
     "TemporalMediationEffect",
     "TemporalResponseSpec",
     "coerce_outcome_functional",

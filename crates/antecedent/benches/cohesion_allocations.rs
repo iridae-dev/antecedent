@@ -1,5 +1,5 @@
 //! Fixed release workloads with native allocator accounting. No speedup claim.
-#![allow(missing_docs, clippy::too_many_lines)]
+#![allow(missing_docs, reason = "bench binaries are not public API")]
 use antecedent::analysis::{TransportGridData, TransportGridQuery, TransportGridState};
 use antecedent::{PreparedStudy, StudyBuilder};
 use antecedent_core::{
@@ -161,6 +161,10 @@ fn grid_fixture(ctx: &ExecutionContext) -> (TransportGridQuery, TransportGridDat
     clippy::float_cmp,
     reason = "the same estimator on the same prepared problem must reproduce the ate bit for bit, so exact equality is the assertion"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one binary that builds each fixed workload, measures it under the allocator meter and prints the table"
+)]
 fn main() {
     let ctx = ExecutionContext::production(9, 1);
     let n = 600;
@@ -179,7 +183,7 @@ fn main() {
     let estimator = DrLearner::new();
     let problem = estimator.prepare(&data, &estimand, &query).unwrap();
     let result = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
-    let model = result.fitted_effect.as_ref().unwrap();
+    let model = result.heterogeneity.fitted_effect.as_ref().unwrap();
     let model_bytes = antecedent_io::to_cbor(model.as_ref()).unwrap();
     let loaded: antecedent_estimate::FittedEffect = antecedent_io::from_cbor(&model_bytes).unwrap();
     loaded.validate().unwrap();

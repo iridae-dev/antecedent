@@ -1,6 +1,5 @@
 //! Consuming observed-data posterior pins; no pseudo-outcome Gaussian likelihood.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -115,7 +114,7 @@ fn observed_temporal_bayesian_pairs_consume_real_censoring_likelihood() {
         let ctx = ExecutionContext::for_tests(330);
         let prepared = study.prepare(&ctx).unwrap();
         let result = prepared.estimate_series(&series, &ctx).unwrap();
-        let response = result.response.as_ref().unwrap();
+        let response = result.response().unwrap();
         let ResponseIdentification::PointIdentified(ResponseValue::Surface {
             mean: values, ..
         }) = &response.estimate
@@ -176,7 +175,7 @@ fn observed_bayesian_sequence_changes_every_assigned_time() {
         .unwrap()
         .run(&ExecutionContext::for_tests(330))
         .unwrap();
-    let response = result.response.unwrap();
+    let response = result.response().unwrap();
     let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) = response.estimate
     else {
         panic!("scalar")

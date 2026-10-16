@@ -10,18 +10,10 @@
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
+pub use antecedent_io_core::score_wire::{ScoreColumn, ScoreTableWire};
 
 use crate::error::EstimationError;
 use crate::joint_if::{JointCovariance, joint_influence_covariance, kish_n_eff, weighted_mean};
-
-/// Column key: one interventional arm, optionally at an exceedance threshold.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ScoreColumn {
-    /// Arm label (`0`/`1` for binary, or a cell mask for joint treatments).
-    pub arm: u32,
-    /// Exceedance threshold. `None` is the mean functional.
-    pub threshold: Option<f64>,
-}
 
 /// Per-row cross-fitted AIPW scores.
 #[derive(Clone, Debug, PartialEq)]
@@ -425,40 +417,21 @@ pub struct LinearContrast {
     pub se: f64,
 }
 
-/// Wire form for cross-language round-trip.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ScoreTableWire {
-    /// Observed cell on each retained row.
-    pub observed_arm: Vec<u32>,
-    /// Out-of-fold raw propensity for each score column.
-    pub propensities: Vec<f64>,
-    /// Observed original outcome.
-    pub observed_outcome: Vec<f64>,
-    /// Complete-case row count.
-    pub n_rows: u64,
-    /// Original row indexes.
-    pub row_index: Vec<u32>,
-    /// Fold ids.
-    pub fold_ids: Vec<u32>,
-    /// Fold count.
-    pub n_folds: u32,
-    /// Column-major scores.
-    pub scores: Vec<f64>,
-    /// Column keys.
-    pub columns: Vec<ScoreColumn>,
-    /// Adjustment variable raw ids.
-    pub adjustment_set: Vec<u32>,
-    /// Nuisance provenance.
-    pub nuisance_provenance: String,
-    /// Applied propensity clip (`None`: unclipped).
-    pub propensity_clip: Option<f64>,
-    /// Treatment raw id.
-    pub treatment: u32,
-    /// Extra intervened raw ids.
-    pub intervened: Vec<u32>,
-}
-
 impl ScoreTable {
+    /// The scores of a frozen-scores artifact as the estimator's table.
+    ///
+    /// # Errors
+    /// Never for a sealed or consumed artifact.
+    pub fn from_frozen(
+        artifact: &antecedent_io_core::frozen_scores_artifact::FrozenScoreTable,
+    ) -> Result<Self, antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError> {
+        Self::from_wire(artifact.table_wire()).map_err(|e| {
+            antecedent_io_core::frozen_scores_artifact::FrozenScoresArtifactError::Malformed(
+                e.to_string(),
+            )
+        })
+    }
+
     /// Encode for artifacts / Python.
     #[must_use]
     pub fn to_wire(&self) -> ScoreTableWire {
@@ -486,26 +459,8 @@ impl ScoreTable {
     ///
     /// Shape mismatch.
     pub fn from_wire(wire: ScoreTableWire) -> Result<Self, EstimationError> {
+        wire.check().map_err(|error| EstimationError::data_msg(error.to_string()))?;
         let n = usize::try_from(wire.n_rows).unwrap_or(usize::MAX);
-        if wire.row_index.len() != n
-            || wire.fold_ids.len() != n
-            || wire.scores.len() != n.saturating_mul(wire.columns.len())
-        {
-            return Err(EstimationError::data_msg("score table wire shape mismatch"));
-        }
-        if (!wire.observed_arm.is_empty() && wire.observed_arm.len() != n)
-            || (!wire.observed_outcome.is_empty() && wire.observed_outcome.len() != n)
-            || (!wire.propensities.is_empty() && wire.propensities.len() != wire.scores.len())
-            || wire.scores.iter().any(|v| !v.is_finite())
-            || wire.propensities.iter().any(|v| !v.is_finite() || *v < 0.0 || *v > 1.0)
-            || wire.observed_outcome.iter().any(|v| !v.is_finite())
-            || wire.n_folds < 2
-            || wire.fold_ids.iter().any(|&f| f >= wire.n_folds)
-            || wire.columns.iter().any(|c| c.threshold.is_some_and(|v| !v.is_finite()))
-            || wire.propensity_clip.is_some_and(|c| !(c > 0.0 && c < 0.5))
-        {
-            return Err(EstimationError::data_msg("invalid score table values or support shape"));
-        }
         Ok(Self {
             observed_arm: wire.observed_arm.into(),
             propensities: wire.propensities.into(),

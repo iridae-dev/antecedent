@@ -5,16 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::{HashMap, HashSet};
 
 use crate::error::StatsError;
@@ -38,6 +28,10 @@ struct ClusterTuple {
 /// # Errors
 ///
 /// Empty / too many dimensions, bad mask, or length mismatch.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn intern_cluster_tuples(
     dimensions: &[&[u32]],
     subset_mask: usize,
@@ -92,7 +86,7 @@ pub fn intern_cluster_tuples(
 
 /// Sign for Cameron–Gelbach–Miller term: `(-1)^{|S|+1}` → `+1` odd, `-1` even.
 #[must_use]
-pub fn multiway_subset_sign(subset_mask: usize) -> f64 {
+pub(crate) fn multiway_subset_sign(subset_mask: usize) -> f64 {
     if subset_mask.count_ones() % 2 == 1 { 1.0 } else { -1.0 }
 }
 
@@ -247,7 +241,8 @@ pub fn newey_west_meat_scalar(demeaned: &[f64], lag: usize) -> f64 {
 /// [`panel_hac_meat_scalar`] / [`panel_hac_meat_matrix`]. A requested lag beyond the panel's
 /// widest time span is silently capped there; report this value alongside the requested one.
 #[must_use]
-pub fn panel_effective_lag(clusters: &[u32], time: &[i64], requested: usize) -> usize {
+#[cfg(test)]
+pub(crate) fn panel_effective_lag(clusters: &[u32], time: &[i64], requested: usize) -> usize {
     effective_nw_lag(requested, panel_max_time_span(clusters, time))
 }
 
@@ -334,7 +329,7 @@ pub fn panel_hac_meat_scalar(
 /// # Errors
 ///
 /// Shape / uniqueness validation failures.
-pub fn panel_hac_meat_matrix(
+pub(crate) fn panel_hac_meat_matrix(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,

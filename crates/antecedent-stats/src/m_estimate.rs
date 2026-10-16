@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 use crate::error::StatsError;
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
 use crate::twosls::fit_wls;
@@ -53,6 +51,10 @@ pub struct MEstimateFit {
 /// # Errors
 ///
 /// Shape mismatch or WLS backend failure.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn fit_huber_m(
     x_colmajor: &[f64],
     nrows: usize,
@@ -219,7 +221,6 @@ mod tests {
         );
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

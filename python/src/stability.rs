@@ -22,7 +22,6 @@ use antecedent_validate::{
 };
 use arrow_array::RecordBatch;
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -183,7 +182,7 @@ fn validate_pcmci_false_positive(
             "permute" | "column_permute" => NullTransform::ColumnPermute,
             "phase" | "phase_randomize" => NullTransform::PhaseRandomize,
             other => {
-                return Err(PyValueError::new_err(format!(
+                return Err(crate::value_err(format!(
                     "unknown transform={other:?}; use permute|phase"
                 )));
             }
@@ -450,7 +449,7 @@ fn validate_environment_holdout(
     threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     if env_columns.is_empty() {
-        return Err(PyValueError::new_err("env_columns needs ≥1 environment"));
+        return Err(crate::value_err("env_columns needs ≥1 environment"));
     }
     let mut batches = Vec::with_capacity(env_columns.len());
     for cols in &env_columns {
@@ -528,12 +527,12 @@ fn validate_regime_stability(
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         if regimes.len() != series.row_count() {
-            return Err(PyValueError::new_err("regimes length must match series length"));
+            return Err(crate::value_err("regimes length must match series length"));
         }
         let assignment = RegimeAssignment::try_new(
             regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
         )
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        .map_err(|e| crate::value_err(e.to_string()))?;
         let pcmci_plus = pcmci_plus_from_params(max_lag, alpha, fdr, &ci)?;
         let rpcmci = Rpcmci::new().with_pcmci_plus(pcmci_plus).with_alternating_iters(0);
         let mut checker = RegimeStability::new(rpcmci, assignment);

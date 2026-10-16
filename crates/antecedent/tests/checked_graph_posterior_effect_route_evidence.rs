@@ -6,7 +6,7 @@ use std::sync::Arc;
 use antecedent::{InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_prob::InferenceDiagnostics;
 
 fn data(outcome_shift: f64) -> TabularData {
@@ -50,9 +50,11 @@ fn posterior() -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_algorithm("known_truth_fixture")
@@ -89,14 +91,17 @@ fn frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass() {
         assert_eq!(plan.bootstrap_replicates, 199);
 
         let result = prepared.estimate(&base, &ctx).unwrap();
-        assert!(result.estimate.ate.is_nan(), "atom estimands disagree; scalar must be withheld");
+        assert!(
+            result.estimate.as_effect().unwrap().ate.is_nan(),
+            "atom estimands disagree; scalar must be withheld"
+        );
         let mixture = result.structural_response.as_ref().expect("structural graph mixture");
         let set = mixture.identified_set.as_ref().expect("identified set retained");
         assert!((set.lower[0] - 2.0).abs() < 0.06);
         assert!((set.upper[0] - 3.0).abs() < 0.06);
         assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
         assert!((mixture.unidentified_mass - 0.2).abs() < 1e-12);
-        assert!(one_shot.estimate.ate.is_nan());
+        assert!(one_shot.estimate.as_effect().unwrap().ate.is_nan());
         assert!(
             one_shot
                 .diagnostics
@@ -106,7 +111,7 @@ fn frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass() {
         );
 
         let shifted = prepared.refresh(data(4.0), &ctx).unwrap();
-        assert!(shifted.estimate.ate.is_nan());
+        assert!(shifted.estimate.as_effect().unwrap().ate.is_nan());
         let refreshed_plan = prepared
             .checked_graph_posterior_effect_info()
             .expect("checked graph-posterior plan remains after refresh");

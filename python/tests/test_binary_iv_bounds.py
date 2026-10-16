@@ -2,22 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from antecedent.errors import CausalIdentifyError
 from antecedent.identify import binary_iv_bounds
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
 
 def test_binary_iv_bounds_matches_frozen_bpbounds_table1() -> None:
     fixture = load_json(
-        Path(__file__).resolve().parents[2]
-        / "conformance"
-        / "response"
-        / "binary_iv_balke_pearl_table1"
-        / "expected.json"
+        REPO_ROOT / "conformance" / "response" / "binary_iv_balke_pearl_table1" / "expected.json"
     )
     cells = fixture["cells"]
     expected = fixture["expected"]

@@ -39,12 +39,12 @@ fn augmented_panel_did_retains_known_truth_and_point_only_semantics() {
     let study = Study::tabular(data.clone()).query(query.clone()).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.panel_did.as_ref().unwrap();
+    let fit = result.panel_did().unwrap();
     assert!((fit.effect - 3.0).abs() < 1e-12);
     assert_eq!(fit.augmented, Some((0.5, 0.5, 3.0, true)));
     assert_eq!(fit.uncertainty.as_ref(), "point_only_no_standard_error");
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     for required in
         ["strict_propensity_overlap", "supplied_nuisance_predictions_valid_for_evaluation_rows"]
     {
@@ -52,8 +52,8 @@ fn augmented_panel_did_retains_known_truth_and_point_only_semantics() {
             matches!(&record.assumption, Assumption::Custom { id, .. } if id.as_ref() == required)));
     }
     assert_eq!(
-        Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap().panel_did,
-        result.panel_did
+        Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap().panel_did(),
+        result.panel_did()
     );
     let bytes = prepared.encode_contracted_result(&result, "augmented-panel-did", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();

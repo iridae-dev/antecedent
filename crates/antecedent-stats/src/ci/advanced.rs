@@ -2,22 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_lossless,
-    clippy::needless_range_loop,
-    clippy::too_many_arguments,
-    clippy::doc_markdown,
-    clippy::trivially_copy_pass_by_ref
-)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -31,8 +15,8 @@ use super::gsquared::{
 use super::residualize::residual_is_uninformative;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    KnnDependenceWorkspace, PreparedCiTest, SignificanceMethod, nonparametric_permutation_count,
-    permutation_min_p, reject_unsupported_block_size, requested_block_size,
+    KnnDependenceWorkspace, PreparedCiTest, nonparametric_permutation_count,
+    reject_unsupported_block_size, requested_block_size,
 };
 use crate::dcor::distance_correlation;
 use crate::error::StatsError;
@@ -210,15 +194,9 @@ impl ConditionalIndependenceTest for KnnDependence {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        permutation_floor(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::NonparametricPermutation
     }
-}
-
-/// Smallest attainable p-value of a nonparametric permutation test: the default 49
-/// replicates under `Analytic` (0.02), the caller's `replicates` under `BlockShuffle`.
-fn permutation_floor(significance: SignificanceMethod) -> f64 {
-    permutation_min_p(nonparametric_permutation_count(significance))
 }
 
 /// Content identity of the columns feeding a kNN index.
@@ -226,10 +204,9 @@ fn permutation_floor(significance: SignificanceMethod) -> f64 {
 /// Hashes query indexes and the full contents of each involved column. Pointers
 /// are not identity: allocator reuse or an unsampled mutation must miss.
 fn knn_input_fingerprint(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n: usize) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325_u64;
+    let mut h = antecedent_core::Fnv1a64::new();
     let mut mix = |v: u64| {
-        h ^= v;
-        h = h.wrapping_mul(0x0100_0000_01b3);
+        h.fold(v);
     };
     mix(x as u64);
     mix(y as u64);
@@ -245,7 +222,7 @@ fn knn_input_fingerprint(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n:
             mix(v.to_bits());
         }
     }
-    h
+    h.finish()
 }
 
 fn ensure_knn_index(
@@ -363,23 +340,20 @@ fn ensure_finite_z(columns: &[&[f64]], z: &[usize], n: usize) -> Result<(), Stat
 }
 
 fn joint_z_keys(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<u64> {
-    let mut keys = vec![0xcbf2_9ce4_8422_2325_u64; n];
+    let mut keys = vec![antecedent_core::Fnv1a64::new(); n];
     for &zc in z {
         let col = columns[zc];
         for (r, key) in keys.iter_mut().enumerate() {
-            *key ^= col[r].to_bits();
-            *key = key.wrapping_mul(0x0100_0000_01b3);
+            key.fold(col[r].to_bits());
         }
     }
-    keys
+    keys.iter().map(antecedent_core::Fnv1a64::finish).collect()
 }
 
 /// Sort rows by univariate Z, then cut into contiguous windows of size `neighbourhood`.
 fn local_z_neighbourhood_strata(col: &[f64], n: usize, neighbourhood: usize) -> Vec<Vec<usize>> {
     let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by(|&a, &b| {
-        col[a].partial_cmp(&col[b]).unwrap_or(std::cmp::Ordering::Equal).then_with(|| a.cmp(&b))
-    });
+    order.sort_by(|&a, &b| col[a].total_cmp(&col[b]).then_with(|| a.cmp(&b)));
     let m = neighbourhood.clamp(2, n);
     let mut strata = Vec::new();
     let mut start = 0usize;
@@ -456,8 +430,8 @@ impl ConditionalIndependenceTest for MixedKnnDependence {
         self.inner.test_batch(prepared, &ranked_req, workspace, ctx)
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        permutation_floor(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::NonparametricPermutation
     }
 }
 
@@ -562,8 +536,8 @@ impl ConditionalIndependenceTest for SymbolicCmi {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        permutation_floor(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::NonparametricPermutation
     }
 }
 
@@ -611,7 +585,7 @@ fn symbolic_mi_on_rows(xi: &[i32], yi: &[i32], rows: &[usize]) -> f64 {
 /// Rows above which GPDC refuses a *conditional* test: it factorizes a dense `n × n` kernel
 /// (memory `O(n²)`, Cholesky `O(n³)`), so a few thousand rows already take hundreds of MB. The
 /// distance correlation itself is `O(n log n)` and never limits the unconditional test.
-pub const GPDC_ROW_LIMIT: usize = 4_000;
+pub(crate) const GPDC_ROW_LIMIT: usize = 4_000;
 
 /// Conditioning sets whose kernel factorization one batch keeps for reuse.
 const GPDC_FACTOR_CACHE: usize = 2;
@@ -739,8 +713,8 @@ impl ConditionalIndependenceTest for Gpdc {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        permutation_floor(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::NonparametricPermutation
     }
 }
 
@@ -860,9 +834,9 @@ mod tests {
 
         // Rounded so symbols recur: distinct continuous values would each be a singleton
         // category, leaving `SymbolicCmi` no permutation support.
-        let x: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).sin().round()).collect();
-        let y: Vec<f64> = (0..60).map(|i| (i as f64 * 0.3).cos().round()).collect();
-        let z: Vec<f64> = (0..60).map(|i| (i as f64 * 0.11).sin().round()).collect();
+        let x: Vec<f64> = (0..60).map(|i| (f64::from(i) * 0.3).sin().round()).collect();
+        let y: Vec<f64> = (0..60).map(|i| (f64::from(i) * 0.3).cos().round()).collect();
+        let z: Vec<f64> = (0..60).map(|i| (f64::from(i) * 0.11).sin().round()).collect();
         let cols: [&[f64]; 3] = [&x, &y, &z];
         let z_flat = [2usize];
         let mut ws = CiWorkspace::default();
@@ -1035,17 +1009,7 @@ mod tests {
         assert!((0.0..=1.0).contains(&out.results[0].p_value));
     }
 
-    fn lcg_noise(n: usize, seed: u64) -> Vec<f64> {
-        let mut s = seed;
-        (0..n)
-            .map(|_| {
-                s = s
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                ((s >> 33) as f64) / ((1u64 << 31) as f64) - 0.5
-            })
-            .collect()
-    }
+    use crate::test_util::centered_uniform as lcg_noise;
 
     #[test]
     fn gpdc_permutation_pvalue_separates_dependence() {

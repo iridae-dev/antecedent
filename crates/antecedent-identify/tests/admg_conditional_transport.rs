@@ -1,9 +1,8 @@
-//! 2.2B B1 (X2): ADMG conditional transport on the classical complete-source family.
+//! ADMG conditional transport on the classical complete-source family.
 //!
 //! Decision, reduction, obstruction-candidate and budget evidence. Numerical truth
 //! against enumerated latent SCMs lives in
 //! crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs.
-#![allow(clippy::cast_possible_truncation, reason = "small graph coordinates")]
 
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext,

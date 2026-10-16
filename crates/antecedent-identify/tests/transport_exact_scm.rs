@@ -1,5 +1,4 @@
 //! Numerical oracle independent of symbolic ID: enumerate latent binary SCMs.
-#![allow(clippy::cast_precision_loss, clippy::cast_possible_wrap)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -10,7 +9,7 @@ use antecedent_core::{
 };
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
-    ExactTransportData, LawTolerance,
+    ExactEvaluationSpec, ExactTransportData, LawTolerance,
 };
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{
@@ -105,13 +104,15 @@ fn recursive_frontdoor_matches_independent_latent_scm_enumeration() {
                     }
                 }
                 let plan = ExactEvaluationPlan::compile(
-                    functional.arena(),
-                    functional.root(),
+                    ExactEvaluationSpec {
+                        arena: functional.arena(),
+                        root: functional.root(),
+                        outcomes: [v(2)].into(),
+                        request: Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                        limits: ExactEvaluationLimits::default(),
+                        tolerance: LawTolerance::default(),
+                    },
                     data.clone(),
-                    [v(2)],
-                    Assignment::from_pairs([(v(0), Value::Int64(x))]),
-                    ExactEvaluationLimits::default(),
-                    LawTolerance::default(),
                     &ctx,
                 )
                 .unwrap();
@@ -184,7 +185,6 @@ fn three_node_selection_graphs_with_pre_treatment_ancestor_agree_with_full_exper
     three_node_selection_sweep(1);
 }
 
-#[allow(clippy::too_many_lines)] // Independent exhaustive oracle and provider construction.
 fn three_node_selection_sweep(x: u32) {
     // Domain: all 64 ordered three-node ADMGs × 8 selection patterns × 3
     // independent Bernoulli latent-SCM parameterizations. Truth is the target
@@ -213,7 +213,8 @@ fn every_treatment_position_and_joint_interventions_agree_with_the_oracle() {
     }
 }
 
-#[allow(clippy::too_many_lines)] // Independent exhaustive oracle and provider construction.
+#[allow(clippy::too_many_lines, reason = "Independent exhaustive oracle and provider construction")]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, f64)]) {
     let ctx = ExecutionContext::for_tests(42);
     let edges = [(0usize, 1usize), (0, 2), (1, 2)];
@@ -224,21 +225,24 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
         target: Arc::from("target"),
     };
     let treatment_mask: usize = treatments.iter().map(|t| 1usize << t).sum();
+    let visited = std::sync::atomic::AtomicU64::new(0);
+    let checked = std::sync::atomic::AtomicU64::new(0);
     // Each directed mask is its own graph family. Nextest reserves the machine
     // for this sweep, and the masks share that budget.
-    let workers = std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1);
-    let masks: Vec<usize> = (0..8).collect();
-    let width = (masks.len() / workers).max(1);
-    let chunks: Vec<Vec<usize>> = masks.chunks(width).map(<[usize]>::to_vec).collect();
+    let workers =
+        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(8);
+    let catalog = three_node_power_set_catalog();
+    let catalog = &catalog;
     let query = &query;
     let ctx = &ctx;
     let edges = &edges;
     std::thread::scope(|scope| {
-        for chunk in &chunks {
+        for worker in 0..workers {
+            let visited = &visited;
+            let checked = &checked;
             scope.spawn(move || {
-                for &directed_mask in chunk {
+                for directed_mask in (worker..8).step_by(workers) {
         for bidirected_mask in 0..8usize {
-            for selected in 0..8usize {
                 let mut graph = Admg::with_variables(3);
                 for (bit, &(a, b)) in edges.iter().enumerate() {
                     if directed_mask & (1 << bit) != 0 {
@@ -248,8 +252,13 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                         graph.insert_bidirected(d(a as u32), d(b as u32)).unwrap();
                     }
                 }
+                // Every target selection uses the same source mechanisms.
+                let mut sources: Vec<Option<Vec<ExactDiscreteLaw>>> =
+                    (0..parameterizations.len()).map(|_| None).collect();
+            for selected in 0..8usize {
+                visited.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 let diagram = SelectionDiagram::try_new(
-                    graph,
+                    graph.clone(),
                     (0..3).filter(|i| selected & (1 << i) != 0).map(v).collect::<Vec<_>>(),
                 )
                 .unwrap();
@@ -267,7 +276,10 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                         "inconclusive uncapped three-node case: directed={directed_mask} bidirected={bidirected_mask} selected={selected}"
                     ),
                 };
-                for &(base, parent_w, shared_w, sel_w) in parameterizations {
+                let bound = proof.bind_catalog(catalog).unwrap();
+                for (parameter, &(base, parent_w, shared_w, sel_w)) in
+                    parameterizations.iter().enumerate()
+                {
                     let enumerate =
                         |target: bool, intervention_mask: usize, intervention_values: usize| {
                             let axes: Vec<usize> =
@@ -319,30 +331,11 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                             }
                             (axes, law)
                         };
-                    let mut laws = Vec::new();
-                    let mut regimes = Vec::new();
+                    if sources[parameter].is_none() {
+                    let mut laws = Vec::with_capacity(27);
                     for mask in 0..8usize {
                         let interventions: Vec<_> =
                             (0..3).filter(|i| mask & (1 << i) != 0).map(v).collect();
-                        let measured: Vec<_> =
-                            (0..3).filter(|i| mask & (1 << i) == 0).map(v).collect();
-                        regimes.push(
-                            EvidenceRegime::try_new(
-                                RegimeId::from_raw(mask as u32),
-                                if mask == 0 {
-                                    RegimeKind::Observational
-                                } else {
-                                    RegimeKind::Experimental
-                                },
-                                EvidenceKind::Available,
-                                interventions.clone(),
-                                [],
-                                measured,
-                                "source",
-                                DistributionAvailability::Joint,
-                            )
-                            .unwrap(),
-                        );
                         for values in 0..8usize {
                             if values & !mask != 0 {
                                 continue;
@@ -376,20 +369,10 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                             );
                         }
                     }
+                    sources[parameter] = Some(laws);
+                    }
+                    let mut laws = sources[parameter].as_ref().unwrap().clone();
                     let (axes, mass) = enumerate(true, 0, 0);
-                    regimes.push(
-                        EvidenceRegime::try_new(
-                            RegimeId::from_raw(8),
-                            RegimeKind::Observational,
-                            EvidenceKind::Available,
-                            [],
-                            [],
-                            [v(0), v(1), v(2)],
-                            "target",
-                            DistributionAvailability::Joint,
-                        )
-                        .unwrap(),
-                    );
                     let axes = axes
                         .into_iter()
                         .map(|i| DiscreteAxis {
@@ -409,8 +392,6 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                         )
                         .unwrap(),
                     );
-                    let catalog = EvidenceCatalog::try_new([], regimes, [], None).unwrap();
-                    let bound = proof.bind_catalog(&catalog).unwrap();
                     let data = ExactTransportData::try_new(laws, 1000).unwrap();
                     for level in 0..(1usize << treatments.len()) {
                         let assigned: usize = treatments
@@ -431,24 +412,16 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
                             .map(|(_, mass)| *mass)
                             .sum();
                         let plan =
-                            ExactEvaluationPlan::compile(
-                                bound.arena(),
-                                bound.root(),
-                                data.clone(),
-                                [v(outcome)],
-                                Assignment::from_pairs(treatments.iter().enumerate().map(
+                            ExactEvaluationPlan::compile(ExactEvaluationSpec { arena: bound.arena(), root: bound.root(), outcomes: [v(outcome)].into(), request: Assignment::from_pairs(treatments.iter().enumerate().map(
                                     |(j, t)| (v(*t), Value::Int64(((level >> j) & 1) as i64)),
-                                )),
-                                ExactEvaluationLimits::default(),
-                                LawTolerance::default(),
-                                ctx,
-                            )
+                                )), limits: ExactEvaluationLimits::default(), tolerance: LawTolerance::default() }, data.clone(), ctx)
                             .unwrap();
                         let result = plan.evaluate(ctx).unwrap();
                         assert!(
                             (result.mean(v(outcome)).unwrap() - expected).abs() < 1e-10,
                             "graph directed={directed_mask} bidirected={bidirected_mask} selection={selected} treatments={treatments:?} outcome={outcome} level={level} base={base}"
                         );
+                        checked.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                 }
             }
@@ -457,10 +430,53 @@ fn sweep(treatments: &[u32], outcome: u32, parameterizations: &[(f64, f64, f64, 
             });
         }
     });
+    assert_eq!(visited.load(std::sync::atomic::Ordering::Relaxed), 64 * 8);
+    let checked = checked.load(std::sync::atomic::Ordering::Relaxed);
+    eprintln!(
+        "three-node SCM treatments={treatments:?} outcome={outcome}: 512 diagrams; {checked} intervention comparisons"
+    );
+    assert!(checked > 0);
+}
+
+// Catalog shape depends only on node count, never graph or SCM parameters.
+fn three_node_power_set_catalog() -> EvidenceCatalog {
+    let mut regimes = Vec::with_capacity(9);
+    for mask in 0..8u32 {
+        let interventions: Vec<_> = (0..3).filter(|i| mask & (1 << i) != 0).map(v).collect();
+        let measured: Vec<_> = (0..3).filter(|i| mask & (1 << i) == 0).map(v).collect();
+        regimes.push(
+            EvidenceRegime::try_new(
+                RegimeId::from_raw(mask),
+                if mask == 0 { RegimeKind::Observational } else { RegimeKind::Experimental },
+                EvidenceKind::Available,
+                interventions,
+                [],
+                measured,
+                "source",
+                DistributionAvailability::Joint,
+            )
+            .unwrap(),
+        );
+    }
+    regimes.push(
+        EvidenceRegime::try_new(
+            RegimeId::from_raw(8),
+            RegimeKind::Observational,
+            EvidenceKind::Available,
+            [],
+            [],
+            [v(0), v(1), v(2)],
+            "target",
+            DistributionAvailability::Joint,
+        )
+        .unwrap(),
+    );
+    EvidenceCatalog::try_new([], regimes, [], None).unwrap()
 }
 
 /// Laws for X -> M -> Y with X <-> M, where only Y's mechanism differs in the target.
 /// Returns the source `do(x)` worlds over (M, Y) and one observational joint over (X, M, Y).
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn mediator_bow_laws(observational_population: &str, y_shift: f64) -> Vec<ExactDiscreteLaw> {
     let binary =
         |i| DiscreteAxis { variable: v(i), values: Arc::from([Value::Int64(0), Value::Int64(1)]) };
@@ -521,6 +537,7 @@ fn mediator_bow_laws(observational_population: &str, y_shift: f64) -> Vec<ExactD
 }
 
 #[test]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn two_population_district_recursion_fails_truth_under_kernel_population_substitution() {
     use antecedent_identify::{CatalogTransportResult, identify_catalog_transport};
     const TARGET_Y_SHIFT: f64 = 0.25;
@@ -576,13 +593,15 @@ fn two_population_district_recursion_fails_truth_under_kernel_population_substit
 
     let mean = |laws: Vec<ExactDiscreteLaw>, x: i64| {
         ExactEvaluationPlan::compile(
-            bound.arena(),
-            bound.root(),
+            ExactEvaluationSpec {
+                arena: bound.arena(),
+                root: bound.root(),
+                outcomes: [v(2)].into(),
+                request: Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             ExactTransportData::try_new(laws, 1000).unwrap(),
-            [v(2)],
-            Assignment::from_pairs([(v(0), Value::Int64(x))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .and_then(|plan| plan.evaluate(&ctx))
@@ -841,37 +860,37 @@ fn four_node_branch_conformance_has_no_unchecked_obstructions() {
 /// A parameterization is skipped when a node's Bernoulli weight would leave `(0, 1)`.
 #[test]
 fn four_node_branch_positives_match_latent_scm_truth() {
-    const PARAMS: [(f64, f64, f64, f64); 3] =
-        [(0.12, 0.16, 0.12, 0.09), (0.08, 0.14, 0.11, 0.07), (0.18, 0.10, 0.08, 0.05)];
     let failed = std::sync::atomic::AtomicBool::new(false);
     let message = std::sync::Mutex::new(String::new());
     let checked = std::sync::atomic::AtomicU64::new(0);
+    let visited = std::sync::atomic::AtomicU64::new(0);
+    let workers =
+        std::thread::available_parallelism().map(std::num::NonZero::get).unwrap_or(1).min(64);
     std::thread::scope(|scope| {
-        for worker in 0..8u32 {
+        for worker in 0..workers {
             let failed = &failed;
             let message = &message;
             let checked = &checked;
+            let visited = &visited;
             scope.spawn(move || {
-                let ctx = ExecutionContext::for_tests(u64::from(worker));
+                let ctx = ExecutionContext::for_tests(worker as u64);
                 let catalog = four_node_power_set_catalog();
-                let query = ClassicalTransportQuery {
-                    outcomes: Arc::from([v(3)]),
-                    treatments: Arc::from([v(0)]),
-                    source: Arc::from("source"),
-                    target: Arc::from("target"),
-                };
-                for directed in (worker..64).step_by(8) {
+                let query = four_node_query();
+                for directed in (worker..64).step_by(workers) {
+                    let directed = directed as u32;
                     for bidirected in 0..64u32 {
                         if failed.load(std::sync::atomic::Ordering::Relaxed) {
                             return;
                         }
                         let graph = four_node_graph(directed, bidirected);
+                        // Source mechanisms do not depend on target selections. Keep
+                        // one validated set per parameterization for this graph;
+                        // target laws and independent do-truths still vary per case.
+                        let mut sources: [Option<Vec<ExactDiscreteLaw>>; FOUR_NODE_PARAMS.len()] =
+                            std::array::from_fn(|_| None);
                         for selections in 0..16u32 {
-                            let diagram = SelectionDiagram::try_new(
-                                graph.clone(),
-                                (0..4).filter(|i| selections & (1 << i) != 0).map(v).collect::<Vec<_>>(),
-                            )
-                            .unwrap();
+                            visited.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            let diagram = four_node_diagram(&graph, selections);
                             let proof = match identify_classical_transport(
                                 &diagram,
                                 &query,
@@ -890,7 +909,9 @@ fn four_node_branch_positives_match_latent_scm_truth() {
                                     return;
                                 }
                             };
-                            for (base, parent_w, shared_w, sel_w) in PARAMS {
+                            for (parameter, (base, parent_w, shared_w, sel_w)) in
+                                FOUR_NODE_PARAMS.into_iter().enumerate()
+                            {
                                 if !four_node_param_in_unit_interval(
                                     directed, bidirected, selections, base, parent_w, shared_w, sel_w,
                                 ) {
@@ -905,9 +926,23 @@ fn four_node_branch_positives_match_latent_scm_truth() {
                                     shared_w,
                                     sel_w,
                                 };
-                                if let Err(err) =
-                                    four_node_formula_matches_scm(&proof, &catalog, &model, &ctx)
-                                {
+                                if sources[parameter].is_none() {
+                                    match four_node_source_laws(&model) {
+                                        Ok(laws) => sources[parameter] = Some(laws),
+                                        Err(err) => {
+                                            *message.lock().unwrap() = err;
+                                            failed.store(true, std::sync::atomic::Ordering::Relaxed);
+                                            return;
+                                        }
+                                    }
+                                }
+                                if let Err(err) = four_node_formula_matches_scm(
+                                    &proof,
+                                    &catalog,
+                                    &model,
+                                    sources[parameter].as_ref().unwrap(),
+                                    &ctx,
+                                ) {
                                     *message.lock().unwrap() = err;
                                     failed.store(true, std::sync::atomic::Ordering::Relaxed);
                                     return;
@@ -921,10 +956,36 @@ fn four_node_branch_positives_match_latent_scm_truth() {
         }
     });
     assert!(!failed.load(std::sync::atomic::Ordering::Relaxed), "{}", message.lock().unwrap());
-    assert!(checked.load(std::sync::atomic::Ordering::Relaxed) > 0);
+    assert_eq!(visited.load(std::sync::atomic::Ordering::Relaxed), 64 * 64 * 16);
+    let checked = checked.load(std::sync::atomic::Ordering::Relaxed);
+    eprintln!(
+        "four-node SCM: 65536 diagrams; {checked} graph-selection-parameter cases; {} intervention comparisons",
+        checked * 2
+    );
+    assert!(checked > 0);
 }
 
 const FOUR_EDGES: [(usize, usize); 6] = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+
+const FOUR_NODE_PARAMS: [(f64, f64, f64, f64); 3] =
+    [(0.12, 0.16, 0.12, 0.09), (0.08, 0.14, 0.11, 0.07), (0.18, 0.10, 0.08, 0.05)];
+
+fn four_node_query() -> ClassicalTransportQuery {
+    ClassicalTransportQuery {
+        outcomes: Arc::from([v(3)]),
+        treatments: Arc::from([v(0)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    }
+}
+
+fn four_node_diagram(graph: &Admg, selections: u32) -> SelectionDiagram {
+    SelectionDiagram::try_new(
+        graph.clone(),
+        (0..4).filter(|i| selections & (1 << i) != 0).map(v).collect::<Vec<_>>(),
+    )
+    .unwrap()
+}
 
 fn four_node_graph(directed: u32, bidirected: u32) -> Admg {
     let mut graph = Admg::with_variables(4);
@@ -1033,14 +1094,11 @@ fn four_node_weight(
     model.base + model.parent_w * parents + model.shared_w * shared + selection_shift
 }
 
-#[allow(clippy::too_many_lines)]
-fn four_node_formula_matches_scm(
-    proof: &antecedent_identify::ClassicalTransportDerivation,
-    catalog: &EvidenceCatalog,
-    model: &FourNodeModel,
-    ctx: &ExecutionContext,
-) -> Result<(), String> {
-    let FourNodeModel { directed, bidirected, selections, base, .. } = *model;
+// The source power-set laws are independent of the selected target mechanisms.
+// Enumeration and summation order match the original per-case oracle exactly.
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
+fn four_node_source_laws(model: &FourNodeModel) -> Result<Vec<ExactDiscreteLaw>, String> {
+    let FourNodeModel { directed, bidirected, selections, .. } = *model;
     let mut source = vec![Vec::new(); 81];
     for mask in 0..16usize {
         let free = 4 - mask.count_ones() as usize;
@@ -1051,20 +1109,11 @@ fn four_node_formula_matches_scm(
             source[four_node_slot(mask, values)] = vec![0.0; 1 << free];
         }
     }
-    let mut target = vec![0.0; 16];
-    let mut truth = [0.0; 2];
     let prior = 1.0 / 64.0;
     for latent in 0..64usize {
         for values in 0..16usize {
             let source_p: [f64; 4] =
                 std::array::from_fn(|node| four_node_weight(node, values, latent, model, false));
-            let target_p: [f64; 4] =
-                std::array::from_fn(|node| four_node_weight(node, values, latent, model, true));
-            let mut observational = prior;
-            for (node, probability) in target_p.iter().enumerate() {
-                observational *= bernoulli((values >> node) & 1, *probability);
-            }
-            target[four_node_free_row(values, 0)] += observational;
             for mask in 0..16usize {
                 let mut mass = prior;
                 for (node, probability) in source_p.iter().enumerate() {
@@ -1076,17 +1125,9 @@ fn four_node_formula_matches_scm(
                 let row = four_node_free_row(values, mask);
                 source[four_node_slot(mask, values & mask)][row] += mass;
             }
-            let x = values & 1;
-            if (values >> 3) & 1 == 1 {
-                let mut mass = prior;
-                for (node, probability) in target_p.iter().enumerate().skip(1) {
-                    mass *= bernoulli((values >> node) & 1, *probability);
-                }
-                truth[x] += mass;
-            }
         }
     }
-    let mut laws = Vec::with_capacity(82);
+    let mut laws = Vec::with_capacity(81);
     for mask in 0..16usize {
         for values in 0..16usize {
             if values & !mask != 0 {
@@ -1122,6 +1163,41 @@ fn four_node_formula_matches_scm(
             );
         }
     }
+    Ok(laws)
+}
+
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
+fn four_node_formula_matches_scm(
+    proof: &antecedent_identify::ClassicalTransportDerivation,
+    catalog: &EvidenceCatalog,
+    model: &FourNodeModel,
+    source: &[ExactDiscreteLaw],
+    ctx: &ExecutionContext,
+) -> Result<(), String> {
+    let FourNodeModel { directed, bidirected, selections, base, .. } = *model;
+    let mut target = vec![0.0; 16];
+    let mut truth = [0.0; 2];
+    let prior = 1.0 / 64.0;
+    for latent in 0..64usize {
+        for values in 0..16usize {
+            let target_p: [f64; 4] =
+                std::array::from_fn(|node| four_node_weight(node, values, latent, model, true));
+            let mut observational = prior;
+            for (node, probability) in target_p.iter().enumerate() {
+                observational *= bernoulli((values >> node) & 1, *probability);
+            }
+            target[four_node_free_row(values, 0)] += observational;
+            let x = values & 1;
+            if (values >> 3) & 1 == 1 {
+                let mut mass = prior;
+                for (node, probability) in target_p.iter().enumerate().skip(1) {
+                    mass *= bernoulli((values >> node) & 1, *probability);
+                }
+                truth[x] += mass;
+            }
+        }
+    }
+    let mut laws = source.to_vec();
     laws.push(
         ExactDiscreteLaw::try_new(
             "target",
@@ -1142,16 +1218,7 @@ fn four_node_formula_matches_scm(
     let bound = proof.bind_catalog(catalog).map_err(|err| format!("bind: {err}"))?;
     let data = ExactTransportData::try_new(laws, 10_000).map_err(|err| format!("data: {err}"))?;
     for (x, expected_truth) in truth.iter().enumerate() {
-        let result = ExactEvaluationPlan::compile(
-            bound.arena(),
-            bound.root(),
-            data.clone(),
-            [v(3)],
-            Assignment::from_pairs([(v(0), Value::Int64(i64::try_from(x).expect("x is binary")))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
-            ctx,
-        )
+        let result = ExactEvaluationPlan::compile(ExactEvaluationSpec { arena: bound.arena(), root: bound.root(), outcomes: [v(3)].into(), request: Assignment::from_pairs([(v(0), Value::Int64(i64::try_from(x).expect("x is binary")))]), limits: ExactEvaluationLimits::default(), tolerance: LawTolerance::default() }, data.clone(), ctx)
         .and_then(|plan| plan.evaluate(ctx))
         .map_err(|err| format!("evaluate x={x} directed={directed} bidirected={bidirected} selections={selections}: {err}"))?;
         let got = result.mean(v(3)).map_err(|err| format!("mean: {err}"))?;
@@ -1187,7 +1254,10 @@ fn four_node_free_row(values: usize, mask: usize) -> usize {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one fixture exercised end to end; later assertions read locals built above them"
+)]
 fn four_node_frontdoor_matches_independent_parameterizations() {
     let mut graph = Admg::with_variables(4);
     graph.insert_directed(d(0), d(1)).unwrap();
@@ -1277,13 +1347,15 @@ fn four_node_frontdoor_matches_independent_parameterizations() {
                 }
             }
             let result = ExactEvaluationPlan::compile(
-                functional.arena(),
-                functional.root(),
+                ExactEvaluationSpec {
+                    arena: functional.arena(),
+                    root: functional.root(),
+                    outcomes: [v(3)].into(),
+                    request: Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                    limits: ExactEvaluationLimits::default(),
+                    tolerance: LawTolerance::default(),
+                },
                 data.clone(),
-                [v(3)],
-                Assignment::from_pairs([(v(0), Value::Int64(x))]),
-                ExactEvaluationLimits::default(),
-                LawTolerance::default(),
                 &ctx,
             )
             .unwrap()
@@ -1297,7 +1369,6 @@ fn four_node_frontdoor_matches_independent_parameterizations() {
     }
 }
 
-#[allow(clippy::too_many_lines)] // one linear derivation; splitting it would scatter the argument
 #[test]
 #[allow(
     clippy::too_many_lines,
@@ -1419,13 +1490,15 @@ fn four_node_graph_parameter_sweep_matches_target_interventions() {
                         }
                     }
                     let result = ExactEvaluationPlan::compile(
-                        functional.arena(),
-                        functional.root(),
+                        ExactEvaluationSpec {
+                            arena: functional.arena(),
+                            root: functional.root(),
+                            outcomes: [v(3)].into(),
+                            request: Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                            limits: ExactEvaluationLimits::default(),
+                            tolerance: LawTolerance::default(),
+                        },
                         data.clone(),
-                        [v(3)],
-                        Assignment::from_pairs([(v(0), Value::Int64(x))]),
-                        ExactEvaluationLimits::default(),
-                        LawTolerance::default(),
                         &ctx,
                     )
                     .unwrap()
@@ -1442,7 +1515,11 @@ fn four_node_graph_parameter_sweep_matches_target_interventions() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // Keep independently enumerated joint truth and its contrasts together.
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keep independently enumerated joint truth and its contrasts together"
+)]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn six_node_recursive_districts_match_joint_latent_scm_truth() {
     let mut graph = Admg::with_variables(6);
     for offset in [0, 3] {
@@ -1518,16 +1595,18 @@ fn six_node_recursive_districts_match_joint_latent_scm_truth() {
         for x0 in 0..2 {
             for x1 in 0..2 {
                 let result = ExactEvaluationPlan::compile(
-                    functional.arena(),
-                    functional.root(),
+                    ExactEvaluationSpec {
+                        arena: functional.arena(),
+                        root: functional.root(),
+                        outcomes: [v(2), v(5)].into(),
+                        request: Assignment::from_pairs([
+                            (v(0), Value::Int64(x0 as i64)),
+                            (v(3), Value::Int64(x1 as i64)),
+                        ]),
+                        limits: ExactEvaluationLimits { operations: 100_000_000, depth: 256 },
+                        tolerance: LawTolerance::default(),
+                    },
                     data.clone(),
-                    [v(2), v(5)],
-                    Assignment::from_pairs([
-                        (v(0), Value::Int64(x0 as i64)),
-                        (v(3), Value::Int64(x1 as i64)),
-                    ]),
-                    ExactEvaluationLimits { operations: 100_000_000, depth: 256 },
-                    LawTolerance::default(),
                     &ctx,
                 )
                 .unwrap()
@@ -1623,13 +1702,15 @@ fn enlargement_does_not_require_the_child_at_levels_the_data_cannot_reach() {
     let data = ExactTransportData::try_new([law], 1000).unwrap();
     for x in 0..2i64 {
         let plan = ExactEvaluationPlan::compile(
-            functional.arena(),
-            functional.root(),
+            ExactEvaluationSpec {
+                arena: functional.arena(),
+                root: functional.root(),
+                outcomes: [v(2)].into(),
+                request: Assignment::from_pairs([(v(1), Value::Int64(x))]),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data.clone(),
-            [v(2)],
-            Assignment::from_pairs([(v(1), Value::Int64(x))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();
@@ -1658,6 +1739,7 @@ fn confounded_treatment_with_selected_parent() -> (SelectionDiagram, ClassicalTr
 }
 
 #[test]
+#[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
 fn irrelevant_selection_upstream_of_the_treatment_is_direct_transport_at_the_root() {
     let (diagram, query) = confounded_treatment_with_selected_parent();
     let ctx = ExecutionContext::for_tests(22);
@@ -1709,13 +1791,15 @@ fn irrelevant_selection_upstream_of_the_treatment_is_direct_transport_at_the_roo
     let data = ExactTransportData::try_new(laws, 1000).unwrap();
     for x in 0..2i64 {
         let plan = ExactEvaluationPlan::compile(
-            bound.arena(),
-            bound.root(),
+            ExactEvaluationSpec {
+                arena: bound.arena(),
+                root: bound.root(),
+                outcomes: [v(2)].into(),
+                request: Assignment::from_pairs([(v(1), Value::Int64(x))]),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data.clone(),
-            [v(2)],
-            Assignment::from_pairs([(v(1), Value::Int64(x))]),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();

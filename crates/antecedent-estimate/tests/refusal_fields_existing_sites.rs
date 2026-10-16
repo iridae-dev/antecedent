@@ -1,4 +1,4 @@
-//! Structured refusal fields at the existing refusal sites (2.2 preflight cell, completion).
+//! Structured refusal fields at the existing refusal sites (preflight cell, completion).
 //!
 //! Each site refuses with the same message (pinned byte for byte below, as at the commit the
 //! fields were added) and now also carries `RefusalFields`: stage, reason, remedy and the

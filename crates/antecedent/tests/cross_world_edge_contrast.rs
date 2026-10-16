@@ -1,4 +1,4 @@
-//! Cross-world edge contrast on a fixed Markovian DAG (2.2 A5, X8): exact SCM
+//! Cross-world edge contrast on a fixed Markovian DAG: exact SCM
 //! truth for every edge set, the natural direct effect regression, per-unit
 //! shared abduction (mediator and outcome noise) under linear and non-separable
 //! mechanisms, nonidentification, out-of-contract and refusal boundaries,
@@ -209,7 +209,8 @@ fn natural_direct_effect_regression_against_the_existing_cell() {
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    let existing = study.run(&ExecutionContext::for_tests(417)).unwrap().estimate.ate;
+    let existing =
+        study.run(&ExecutionContext::for_tests(417)).unwrap().estimate.as_effect().unwrap().ate;
     let direct = CrossWorldQuery::natural_direct(v(X), v(M), v(Y), control, active).unwrap();
     let mine = effect(&direct, &data, CrossWorldOptions::default());
     assert!((mine - existing).abs() < 1e-12, "cross-world NDE {mine} vs existing {existing}");
@@ -481,6 +482,8 @@ fn natural_direct_effect_regression_on_noisy_and_non_separable_fixtures() {
             .run(&ExecutionContext::for_tests(417))
             .unwrap()
             .estimate
+            .as_effect()
+            .unwrap()
             .ate
     };
     let noisy = NoisyLinear::new(300).table();

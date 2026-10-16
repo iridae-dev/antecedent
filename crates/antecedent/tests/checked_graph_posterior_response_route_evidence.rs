@@ -8,8 +8,6 @@
 //! refresh rather than renormalized away.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
@@ -18,7 +16,7 @@ use antecedent_core::{
     ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
@@ -53,9 +51,11 @@ fn posterior(kind: GraphPosteriorAtomKind, masks: Vec<u64>, weights: Vec<f64>) -
         masks,
         vec![0.0; 9],
         vec![0.0; 9],
-        ess,
-        InferenceDiagnostics::analytic("graph_posterior_response_known_truth"),
-        0,
+        SamplingSummary {
+            ess,
+            diagnostics: InferenceDiagnostics::analytic("graph_posterior_response_known_truth"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)
@@ -173,6 +173,10 @@ fn graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference() {
     run_on_large_stack(graph_posterior_responses_body);
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the route-evidence body: builds, seals, executes and re-executes every graph-posterior response family"
+)]
 fn graph_posterior_responses_body() {
     let initial = data(0.0);
     let shifted = data(0.5);

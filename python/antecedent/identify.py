@@ -1,8 +1,8 @@
-"""The staged identification surface: ``identify()`` → ``estimate()`` → ``validate()``.
+"""The staged identification surface: ``identify()`` → ``estimate()`` → ``result.refute()``.
 
 :func:`identify` runs identification only (no estimate) and returns an
 :class:`Identification` — enough state to continue into a strategy-consistent
-``.estimate()`` / ``.validate()`` workflow. The one-shot analysis pipeline
+``.estimate(refute=...)`` / ``result.refute()`` workflow. The one-shot analysis pipeline
 deterministically rechecks identification before estimation. This is the
 single class that replaces both ``estimation.IdentifyResult`` (identify-only
 shape) and ``results.IdentificationView`` (the identification section of a
@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 
 from ._claim import identification_statement
+from ._freeze import thaw
 from ._verdict import describe_status, verdict_for
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
@@ -79,7 +80,7 @@ def _certificate_cases(certificate: Mapping[str, Any] | None) -> list[Mapping[st
     if not certificate:
         return []
     cases = certificate.get("cases")
-    if not isinstance(cases, list):
+    if not isinstance(cases, (list, tuple)):
         return []
     return [case for case in cases if isinstance(case, Mapping)]
 
@@ -94,7 +95,7 @@ def _assumption_statements(certificate: Mapping[str, Any] | None) -> tuple[str, 
             else None
         )
         entries = raw.get("entries", raw) if isinstance(raw, Mapping) else raw
-        if not isinstance(entries, list):
+        if not isinstance(entries, (list, tuple)):
             continue
         for item in entries:
             line = _assumption_line(item)
@@ -108,7 +109,7 @@ def _derivation_statements(certificate: Mapping[str, Any] | None) -> tuple[str, 
     for case in _certificate_cases(certificate):
         identification = case.get("identification")
         steps = identification.get("derivation") if isinstance(identification, Mapping) else None
-        if not isinstance(steps, list):
+        if not isinstance(steps, (list, tuple)):
             continue
         for step in steps:
             if isinstance(step, str) and step.strip() and step not in seen:
@@ -137,7 +138,7 @@ class Identification:
 
     status: str
     method: str
-    adjustment_set: list[str]
+    adjustment_set: Sequence[str]
     graph: (
         Dag
         | Admg
@@ -167,13 +168,69 @@ class Identification:
         | Counterfactual
         | Any
     )
-    names: list[str] | None = None
+    names: Sequence[str] | None = None
     identifier: str | None = None
     assumption_count: int | None = None
     derivation_step_count: int | None = None
     # Complete native certificate: per-completion wire records, coordinates,
     # weights, derivations, assumptions, expression arenas, and search limits.
-    certificate: dict[str, Any] | None = None
+    certificate: Mapping[str, Any] | None = None
+    design: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("adjustment_set", "names", "certificate", "graph", "query", "design"):
+            from ._study_lifecycle import retain
+
+            object.__setattr__(self, name, retain(getattr(self, name)))
+
+    @classmethod
+    def from_prepared(cls, payload: Mapping[str, Any], *, query: Any, graph: Any) -> Identification:
+        names = tuple(payload.get("names", ()))
+        cases = payload.get("cases", ())
+        first = cases[0].get("identification", {}) if cases else {}
+        estimands = first.get("estimands", ())
+        adjustment = estimands[0].get("adjustment_set", ()) if estimands else ()
+
+        def variable_name(value: Any) -> str:
+            index = value if isinstance(value, int) else value.get("raw", value.get("variable", 0))
+            return names[index] if 0 <= index < len(names) else str(index)
+
+        design = not cases and (
+            payload.get("graph_class") in ("randomized_trial", "RandomizedTrial")
+            or type(query).__name__ == "InterferenceQuery"
+        )
+        import re
+
+        from ._verdict import VERDICTS
+
+        statuses = {re.sub(r"(?<!^)(?=[A-Z])", "_", key).lower(): key for key in VERDICTS}
+        status = statuses.get(str(payload.get("status")), payload.get("status"))
+        method = payload.get("method") or (estimands[0].get("method") if estimands else None)
+        return cls(
+            status=status or ("DesignBased" if design else "NotIdentified"),
+            method=method or ("design_based" if design else "unavailable"),
+            adjustment_set=[variable_name(v) for v in adjustment],
+            graph=graph,
+            query=query,
+            names=list(names),
+            identifier=payload.get("method"),
+            assumption_count=len(first.get("required_assumptions", ())) if cases else None,
+            derivation_step_count=len(first.get("derivation", ())) if cases else None,
+            certificate=None if design else dict(payload),
+            design={
+                "basis": "declared_design",
+                "query_family": type(query).__name__,
+                "outcome": getattr(
+                    query, "outcome", getattr(getattr(query, "contrast", None), "outcome", None)
+                ),
+                "reasoning": payload.get("reasoning", {}),
+                "limitations": (
+                    "Design declaration does not establish a graph certificate or add an estimation or inference license.",
+                ),
+            }
+            if design
+            else None,
+        )
 
     @property
     def completion_keys(self) -> list[int]:
@@ -195,7 +252,7 @@ class Identification:
     @property
     def verdict(self) -> str:
         """Stable human label: identified, not identified, partial, or graph-dependent."""
-        return verdict_for(self.status)
+        return "design based" if self.design is not None else verdict_for(self.status)
 
     @property
     def qualified_verdict(self) -> str:
@@ -206,12 +263,16 @@ class Identification:
         identification, so ``IdentifiedUnderPriorRestrictions`` keeps its
         qualifier too.
         """
-        return describe_status(self.status)
+        return "design based" if self.design is not None else describe_status(self.status)
 
     @property
     def assumption_statements(self) -> tuple[str, ...]:
         """Readable assumption lines retained from the identification certificate."""
-        return _assumption_statements(self.certificate)
+        return (
+            ("The declared design and its required scientific checks govern this analysis.",)
+            if self.design is not None
+            else _assumption_statements(self.certificate)
+        )
 
     @property
     def derivation_statements(self) -> tuple[str, ...]:
@@ -225,7 +286,11 @@ class Identification:
     @property
     def statement(self) -> str:
         """One-sentence identification state. This is data, not a display hook."""
-        return identification_statement(self.query, self.status, self.method, self.adjustment_set)
+        return (
+            f"{type(self.query).__name__} for {self.design.get('outcome') or 'the declared quantity'} uses the declared design; scientific standing and inference licenses are reported by estimation."
+            if self.design is not None
+            else identification_statement(self.query, self.status, self.method, self.adjustment_set)
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe identification state, including the human-readable fields."""
@@ -241,6 +306,8 @@ class Identification:
             "derivation_step_count": self.derivation_step_count,
             "assumption_statements": list(self.assumption_statements),
             "derivation_statements": list(self.derivation_statements),
+            "certificate": thaw(self.certificate),
+            "design": thaw(self.design),
         }
 
     def __repr__(self) -> str:
@@ -249,7 +316,11 @@ class Identification:
     def _repr_html_(self) -> str:
         from .results._html import _identification_repr_html
 
-        return _identification_repr_html(self)
+        return (
+            self.inspect()._repr_html_()
+            if self.design is not None
+            else _identification_repr_html(self)
+        )
 
     def to_identify_result(self) -> IdentifyResult:
         """Convert down to the legacy identify-only result shape.
@@ -299,6 +370,24 @@ class Identification:
         from .results._report import InspectionReport, SlotModel
         from .transport import Transport
 
+        if self.design is not None:
+            unavailable = SlotModel(available=False, reason="not_executed", summary="not estimated")
+            return InspectionReport(
+                identification=SlotModel(
+                    available=True, summary="design based", payload=self.design
+                ),
+                support=unavailable,
+                uncertainty=unavailable,
+                assumptions=SlotModel(
+                    available=True,
+                    summary="declared",
+                    payload={"statements": self.assumption_statements},
+                ),
+                stage="prepared",
+                family="DesignIdentification",
+                details=self.to_dict(),
+                operations=("inspect", "estimate"),
+            )
         certificate = self.certificate or {}
         outcome = certificate.get("outcome") or self.status
         identified = self.verdict == "identified"
@@ -454,24 +543,6 @@ class Identification:
             provider=provider,
             controls=controls,
         )
-
-    def validate(
-        self,
-        data: Mapping[str, Any] | Any,
-        *,
-        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = "cheap",
-        seed: int = 1,
-        threads: int | None = None,
-    ) -> Analysis:
-        """Run the refutation/validation suite against this identification.
-
-        ``refute`` defaults to the scalar ``"cheap"`` suite. Function-valued
-        response queries have no licensed scalar refutation state and raise
-        :class:`~antecedent.errors.CausalUnsupportedError`. A literal ``True``
-        is not accepted by :func:`antecedent.analyze`; it does not name a
-        validation contract.
-        """
-        return self.estimate(data, refute=refute, seed=seed, threads=threads)
 
 
 _STRUCTURE_GRAPHS = (Cpdag, Pag, TemporalDag, TemporalCpdag, TemporalPag)
@@ -892,18 +963,6 @@ def estimate(
     )
 
 
-def validate(
-    identification: Identification,
-    data: Mapping[str, Any] | Any,
-    *,
-    refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = "cheap",
-    seed: int = 1,
-    threads: int | None = None,
-) -> Analysis:
-    """Module-level mirror of :meth:`Identification.validate`. See :func:`estimate`."""
-    return identification.validate(data, refute=refute, seed=seed, threads=threads)
-
-
 @dataclass(frozen=True, slots=True)
 class BinaryIvBounds:
     """Sharp Balke–Pearl interval for ``E[Y(1)-Y(0)]`` under a binary IV."""
@@ -933,5 +992,4 @@ __all__ = [
     "binary_iv_bounds",
     "estimate",
     "identify",
-    "validate",
 ]

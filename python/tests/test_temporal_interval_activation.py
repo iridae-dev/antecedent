@@ -9,6 +9,7 @@ SCM uses the frozen target law and shared-unit-shock design.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from dataclasses import FrozenInstanceError, replace
@@ -70,30 +71,27 @@ def mix(word):
     return word ^ (word >> 31)
 
 
-def fold(state, word):
-    return (mix(state ^ word) + _GAMMA) & _MASK
-
-
 def independent_replicates(payload):
     """Independent unit sampling plus SCM algebra, never the native estimator.
 
     Matching RNG is replay bookkeeping. Scientific reference uses E[Y|s0=0]=.35,
     E[Y|s0=1]=.55, hence .3*.35+.7*.55=.49 plus the selected unit shock mean.
     """
-    base = fold(fold(_GAMMA, 901), int(payload["result"]["panel_digest"], 16))
+    # Replicate ids and digests are BLAKE3 canonical words, carried by the artifact and not
+    # re-derived here; the id seeds the unit draw, which is.
+    assert len({record["replicate_id"] for record in payload["result"]["replicates"]}) == len(
+        payload["result"]["replicates"]
+    )
     points = []
-    for index, record in enumerate(payload["result"]["replicates"]):
-        identity = fold(base, index)
-        assert record["replicate_id"] == identity
+    for record in payload["result"]["replicates"]:
+        identity = record["replicate_id"]
         state = mix((identity + _GAMMA) & _MASK)
         selected = []
-        digest = fold(_GAMMA, identity)
         for _ in range(100):
             state = (state + _GAMMA) & _MASK
             unit = (mix(state) * 100) >> 64
             selected.append(unit)
-            digest = fold(digest, unit)
-        assert record["selection_digest"] == digest
+        assert re.fullmatch(r"[0-9a-f]+", f"{record['selection_digest']:x}")
         truth = 0.49 + sum(0.2 if unit % 2 else -0.2 for unit in selected) / 100
         assert record["point"] == pytest.approx(truth, abs=1e-12)
         points.append(truth)

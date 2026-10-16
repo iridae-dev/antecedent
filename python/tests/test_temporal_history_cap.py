@@ -30,7 +30,7 @@ AUTOREGRESSIVE_DAG = [("t", 1, "t", 0), ("z", 1, "t", 0), ("z", 2, "y", 0), ("t"
 def test_max_history_lag_is_a_query_field(query_type: Any) -> None:
     assert query_type("t", "y").max_history_lag is None
     assert query_type("t", "y", max_history_lag=3).max_history_lag == 3
-    with pytest.raises(ValueError, match="max_history_lag must be non-negative"):
+    with pytest.raises(ValueError, match="max_history_lag must lie in"):
         query_type("t", "y", max_history_lag=-1)
 
 
@@ -67,7 +67,7 @@ def test_max_history_lag_reaches_rust_and_bounds_the_unfolding() -> None:
 def test_identify_takes_max_history_lag() -> None:
     graph = ant.TemporalDag.from_lagged_edges(["t", "y", "z"], AUTOREGRESSIVE_DAG)
     identified = ant.identify(graph=graph, query=ant.PulseEffect("t", "y", treatment_lag=1))
-    assert identified.adjustment_set == ["t", "z"]
+    assert identified.adjustment_set == tuple(["t", "z"])
     with pytest.raises(CausalIdentifyError) as caught:
         ant.identify(
             graph=graph, query=ant.PulseEffect("t", "y", treatment_lag=1, max_history_lag=1)

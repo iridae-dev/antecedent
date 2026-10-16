@@ -1,4 +1,4 @@
-//! X6: the checked adapter from `PriorCatalog` posterior sources to a future candidate
+//! The checked adapter from `PriorCatalog` posterior sources to a future candidate
 //! signal likelihood. All expected draws are enumerated by hand from the documented
 //! rule: sources are processed in artifact-id order; each source's draws are mapped to
 //! the target coordinate and shrunk toward the pooled weighted mean
@@ -15,7 +15,7 @@ use antecedent_design::prior_signal::{
 };
 use antecedent_design::signal::SignalProvider;
 use antecedent_design::signal::{NativeBinomialSignal, SignalLimits, SignalRequest};
-use antecedent_io::{
+use antecedent_io_core::{
     DesignVariableRole, DesignVariableSummary, EstimandFingerprint, PriorCatalog, PriorSourceMeta,
     PriorSourceRef, TargetDesign,
 };
@@ -94,7 +94,7 @@ fn refusal_detail(error: &PriorSignalError) -> String {
 }
 
 #[test]
-fn x6_equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal() {
+fn equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal() {
     let result = adapt_prior_to_signal(&catalog(), &target(), &request(two_sources(), 4)).unwrap();
     // quotas 2 and 2; A: sorted [0.2, 0.4] -> idx 0, 1; B: [0.6, 0.8] -> idx 0, 1.
     assert!(close_all(&draws_of(&result.prior), &[0.2, 0.4, 0.6, 0.8]));
@@ -112,10 +112,10 @@ fn x6_equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal() {
     let signal_request = SignalRequest {
         candidate_id: "study".into(),
         prior_id: result.prior_id.clone(),
-        state_quantity: antecedent_core::ScientificQuantity {
+        state_quantity: antecedent_contract::ScientificQuantity {
             variable_id: "schema:p".into(),
             variable_name: "p".into(),
-            role: antecedent_core::QuantityRole::Outcome,
+            role: antecedent_contract::QuantityRole::Outcome,
             units: "probability".into(),
             population_id: "target".into(),
             regime_id: "observational".into(),
@@ -124,10 +124,10 @@ fn x6_equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal() {
             conditioning: vec![],
             transform_id: "identity".into(),
         },
-        observation_quantity: antecedent_core::ScientificQuantity {
+        observation_quantity: antecedent_contract::ScientificQuantity {
             variable_id: "schema:k".into(),
             variable_name: "k".into(),
-            role: antecedent_core::QuantityRole::Outcome,
+            role: antecedent_contract::QuantityRole::Outcome,
             units: "count".into(),
             population_id: "target".into(),
             regime_id: "observational".into(),
@@ -147,7 +147,7 @@ fn x6_equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal() {
 }
 
 #[test]
-fn x6_weights_and_prior_strength_set_the_allocation() {
+fn weights_and_prior_strength_set_the_allocation() {
     // Effective weights 3 * 1 and 1 * 1 -> quotas 3 and 1 of 4.
     // A: sorted [0.2, 0.4], count 3 -> idx floor(2/6 * ...) = 0, 1, 1 -> 0.2, 0.4, 0.4.
     // B: sorted [0.6, 0.8], count 1 -> idx floor(1 * 2 / 2) = 1 -> 0.8.
@@ -170,7 +170,7 @@ fn x6_weights_and_prior_strength_set_the_allocation() {
 }
 
 #[test]
-fn x6_conflict_shrinkage_pulls_a_source_to_the_pooled_mean() {
+fn conflict_shrinkage_pulls_a_source_to_the_pooled_mean() {
     let mut sources = two_sources();
     sources[1].conflict_shrinkage = 1.0;
     let result = adapt_prior_to_signal(&catalog(), &target(), &request(sources, 4)).unwrap();
@@ -179,7 +179,7 @@ fn x6_conflict_shrinkage_pulls_a_source_to_the_pooled_mean() {
 }
 
 #[test]
-fn x6_source_to_target_map_is_applied_before_pooling() {
+fn source_to_target_map_is_applied_before_pooling() {
     let mut sources = vec![source("A", &[0.0, 1.0], 1.0, &["obs-a"])];
     sources[0].source_to_target = SourceToTarget::Affine { intercept: 0.5, slope: 0.25 };
     let result = adapt_prior_to_signal(&catalog(), &target(), &request(sources, 2)).unwrap();
@@ -188,7 +188,7 @@ fn x6_source_to_target_map_is_applied_before_pooling() {
 }
 
 #[test]
-fn x6_source_order_does_not_change_the_prior_or_its_digest() {
+fn source_order_does_not_change_the_prior_or_its_digest() {
     let forward = adapt_prior_to_signal(&catalog(), &target(), &request(two_sources(), 4)).unwrap();
     let mut reversed_sources = two_sources();
     reversed_sources.reverse();
@@ -204,7 +204,7 @@ fn x6_source_order_does_not_change_the_prior_or_its_digest() {
 }
 
 #[test]
-fn x6_incompatible_or_unknown_artifacts_refuse() {
+fn incompatible_or_unknown_artifacts_refuse() {
     let sources = vec![source("wrong", &[0.1, 0.2], 1.0, &["obs-w"])];
     let error = adapt_prior_to_signal(&catalog(), &target(), &request(sources, 4)).unwrap_err();
     assert!(matches!(error, PriorSignalError::IncompatibleArtifact { .. }), "{error:?}");
@@ -217,7 +217,7 @@ fn x6_incompatible_or_unknown_artifacts_refuse() {
 }
 
 #[test]
-fn x6_a_coefficient_prior_or_unlock_list_alone_is_not_a_signal() {
+fn a_coefficient_prior_or_unlock_list_alone_is_not_a_signal() {
     let mut req = request(two_sources(), 4);
     req.signal = CandidateSignalSource::CoefficientPriorOnly;
     let error = adapt_prior_to_signal(&catalog(), &target(), &req).unwrap_err();
@@ -232,7 +232,7 @@ fn x6_a_coefficient_prior_or_unlock_list_alone_is_not_a_signal() {
 }
 
 #[test]
-fn x6_prior_data_overlap_refuses() {
+fn prior_data_overlap_refuses() {
     // The candidate study would reuse an observation the prior source was fit on.
     let mut req = request(two_sources(), 4);
     req.candidate_observation_ids = vec!["future-1".into(), "obs-a2".into()];
@@ -256,7 +256,7 @@ fn x6_prior_data_overlap_refuses() {
 }
 
 #[test]
-fn x6_population_change_needs_a_declared_transport_policy() {
+fn population_change_needs_a_declared_transport_policy() {
     let mut sources = two_sources();
     sources[0].source_population = "other-site".into();
     let error =
@@ -271,7 +271,7 @@ fn x6_population_change_needs_a_declared_transport_policy() {
 }
 
 #[test]
-fn x6_invalid_parameters_and_resolution_refuse() {
+fn invalid_parameters_and_resolution_refuse() {
     let bad = |edit: &dyn Fn(&mut PriorSourceInput)| {
         let mut sources = two_sources();
         edit(&mut sources[0]);
@@ -303,7 +303,7 @@ fn x6_invalid_parameters_and_resolution_refuse() {
 }
 
 #[test]
-fn x6_a_provider_can_supply_the_future_signal() {
+fn a_provider_can_supply_the_future_signal() {
     let mut req = request(two_sources(), 4);
     req.signal = CandidateSignalSource::Provider(Arc::new(NativeBinomialSignal));
     assert!(adapt_prior_to_signal(&catalog(), &target(), &req).is_ok());

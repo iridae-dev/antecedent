@@ -18,6 +18,7 @@ In this simulated experiment, treatment increases the outcome by 2 units. A base
 
 Copy this whole block into Python:
 
+<!-- exec: quickstart -->
 ```python
 import numpy as np
 import antecedent as ant
@@ -60,6 +61,7 @@ Bounds describe what the assumptions determine; they are not a confidence interv
 
 For the reasoning and diagnostics behind the answer:
 
+<!-- exec: quickstart -->
 ```python
 report = result.inspect().to_dict()
 print(result.inspect())
@@ -75,8 +77,6 @@ Read identification, data support, uncertainty, and assumptions together. Calibr
 
 An identified effect or a passing diagnostic does not establish calibration.
 
-Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
-
 Every reported interval states its calibration: `calibrated` only when a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code; `scope_not_assessed` when a record matches but the execution is outside its scope, the record is a boundary, or the record is stale or non-attesting; `unavailable` with a reason code when no record exists.
 
 Identities are distinct and stable: every `IdentityDomain` plus `target_weights` is domain-separated and registered in `parity/identity.toml`.
@@ -85,6 +85,7 @@ Identities are distinct and stable: every `IdentityDomain` plus `target_weights`
 
 Keep `result.study` to reuse the graph, question, and settings. Here we simulate an outcome whose treatment effect is one unit larger:
 
+<!-- exec: quickstart -->
 ```python
 new_data = {**data, "outcome": data["outcome"] + treatment}
 study = result.study
@@ -97,6 +98,7 @@ The updated estimate should be one unit larger. The original result stays unchan
 
 ## Save and reload a result
 
+<!-- exec: quickstart -->
 ```python
 encoded = result.export()
 loaded = ant.load(encoded)
@@ -110,6 +112,7 @@ The loaded result keeps the same answer. `acceptance.status` is `verified` when 
 
 A refusal explains why the requested analysis cannot run. Keep the explanation visible rather than replacing the answer with a default value:
 
+<!-- exec: quickstart -->
 ```python
 try:
     updated = study.refresh(new_data)
@@ -133,28 +136,20 @@ Transport is the same `analyze` call. Its `data` and `graph` are not the quickst
 
 Wrap an ordinary question. Source identity, intervention regime, and sampling are scientific claims on `evidence`; the table only supplies columns and a snapshot digest.
 
-```python
-evidence = ant.transport.Evidence(
-    source=ant.transport.Source(
-        "trial", kind="experimental", interventions=["price"], sampling="independent",
-    ),
-    target_sampling="representative_sample",
-)
-query = ant.transport.Transport(
-    ant.ResponseCurve("price", "sales", grid=[8, 9, 10, 11, 12]),
-    target="new_market",
-    evidence=evidence,
-    selections=["preference"],
-)
-result = ant.analyze(data, graph=graph, query=query)
-print(result.answer.kind, result.inspect().support.summary)
+Run the self-contained [statistical transport example](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/transport_statistical.py):
+
+```bash
+python examples/python/transport_statistical.py
 ```
+
+It constructs its own trial table, graph, target and evidence declaration before calling `analyze`. Use the [exact-law example](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/transport_exact.py) to compare a supplied law with empirical evidence. Both examples assert their own identification and answer boundaries.
+
 
 `EmpiricalTable` is the default provider. `LearnedCategorical` and `TrialAipw` change the assumption set and must be passed explicitly. If the formula is identified but a joint is unbound, `identify(...).inspect()` and `result.answer.detail` name the missing evidence.
 
 Not-certified, missing evidence, local support failure, an uncalibrated interval, and a budget refusal are different outcomes. Do not treat them as one error.
 
-A transport result exports through its own day-1 view, not the contracted execution the sections above describe. `ant.load(result.export())` rebuilds the result view from the verified identification and specialist artifacts and returns that view (`AnalysisResult` or `CausalResponseView`), not a `LoadedResult`: there is no `acceptance` slot to read, it is not a verified analysis program, and it does not restore a live study.
+A transport result exports through its own day-1 view, not the contracted execution the sections above describe. `ant.load(result.export())` rebuilds the result view from the verified identification and specialist artifacts and returns that view (`AnalysisResult` or `CausalResponseView`), not a `LoadedResult`. Its `acceptance` is an `ArtifactAcceptance`: `verified` and `answer_available` read as on a loaded analysis, and `identity_bound` says whether an expected identity was checked. It is not a verified analysis program, and it does not restore a live study.
 
 See the [2.0 transport migration](migrations/2.0-transport-day1.md), the [failure guide](guides/transport-failure.md), and [theorem scope](guides/transport-scope.md).
 

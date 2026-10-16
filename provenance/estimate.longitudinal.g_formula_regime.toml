@@ -18,6 +18,6 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-estimate/src/longitudinal_regime.rs",
+ "crates/antecedent-stats/src/longitudinal_regime.rs",
  "crates/antecedent/tests/longitudinal_regime_route.rs",
 ]

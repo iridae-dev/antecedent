@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+
+use crate::detach_catch;
 
 /// One staggered event-study effect: cohort, period, event time, estimate,
 /// treated and comparison counts, standard error, clusters.
@@ -11,9 +12,6 @@ type EventTimeEffect = (i64, i64, i64, f64, usize, usize, f64, usize);
 /// One group-time ATT: cohort, period, estimate, treated and comparison
 /// counts, standard error, clusters.
 type GroupTimeAtt = (i64, i64, f64, usize, usize, f64, usize);
-/// Per-unit staggered panel row: adoption cohort, outcome by period, cluster.
-type UnitPanel<'a> = (Option<i64>, std::collections::BTreeMap<i64, f64>, Option<&'a str>);
-
 /// Retained panel DiD result with support-gated pointwise uncertainty.
 #[pyclass(get_all, skip_from_py_object)]
 #[derive(Clone)]
@@ -229,12 +227,10 @@ fn difference_in_differences(
     let values = outcome.as_array();
     let n = values.len();
     if n == 0 || treated.len() != n || post.len() != n {
-        return Err(PyValueError::new_err(
-            "outcome, treated, and post must have equal non-zero length",
-        ));
+        return Err(crate::value_err("outcome, treated, and post must have equal non-zero length"));
     }
     if values.iter().any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes must be finite"));
+        return Err(crate::value_err("outcomes must be finite"));
     }
     let mut sum = [0.0; 4];
     let mut count = [0usize; 4];
@@ -245,7 +241,7 @@ fn difference_in_differences(
         count[cell] += 1;
     }
     if count.contains(&0) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "2x2 difference in differences requires observations in all four treatment-by-time cells",
         ));
     }
@@ -257,143 +253,34 @@ fn difference_in_differences(
 /// balanced panel; reports points and group sizes only.
 #[pyfunction]
 fn group_time_att(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     subjects: Vec<String>,
     periods: Vec<i64>,
     cohorts: Vec<i64>,
     clusters: Vec<String>,
 ) -> PyResult<Vec<GroupTimeAtt>> {
-    use std::collections::{BTreeMap, BTreeSet};
-
-    let values = outcome.as_array();
-    let n = values.len();
-    if n == 0
-        || subjects.len() != n
-        || periods.len() != n
-        || cohorts.len() != n
-        || clusters.len() != n
-    {
-        return Err(PyValueError::new_err(
-            "outcome, subject, period, and cohort vectors must have equal non-zero length",
-        ));
-    }
-    if values.iter().any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes must be finite"));
-    }
-
-    // Per unit: its adoption cohort and exactly one outcome at every common period.
-    let mut units: BTreeMap<&str, UnitPanel<'_>> = BTreeMap::new();
-    let mut all_periods = BTreeSet::new();
-    for i in 0..n {
-        if subjects[i].is_empty() {
-            return Err(PyValueError::new_err("subject IDs must be non-empty strings"));
-        }
-        if periods[i] <= 0 || cohorts[i] < 0 {
-            return Err(PyValueError::new_err(
-                "periods must be positive integers and cohort 0 denotes never treated",
-            ));
-        }
-        all_periods.insert(periods[i]);
-        if clusters[i].is_empty() {
-            return Err(PyValueError::new_err("cluster IDs must be non-empty strings"));
-        }
-        let unit = units.entry(subjects[i].as_str()).or_insert((None, BTreeMap::new(), None));
-        if unit.0.is_some_and(|cohort| cohort != cohorts[i]) {
-            return Err(PyValueError::new_err(
-                "adoption cohort must be constant within each subject",
-            ));
-        }
-        unit.0 = Some(cohorts[i]);
-        if unit.2.is_some_and(|cluster| cluster != clusters[i]) {
-            return Err(PyValueError::new_err("cluster ID must be constant within each subject"));
-        }
-        unit.2 = Some(clusters[i].as_str());
-        if unit.1.insert(periods[i], values[i]).is_some() {
-            return Err(PyValueError::new_err(
-                "each subject must have exactly one observation per period",
-            ));
-        }
-    }
-    let period_list: Vec<i64> = all_periods.into_iter().collect();
-    if period_list.len() < 2 {
-        return Err(PyValueError::new_err(
-            "staggered group-time ATT requires at least two periods",
-        ));
-    }
-    for (_, outcomes, cluster) in units.values() {
-        if outcomes.len() != period_list.len()
-            || period_list.iter().any(|period| !outcomes.contains_key(period))
-            || cluster.is_none()
-        {
-            return Err(PyValueError::new_err(
-                "staggered group-time ATT requires a balanced panel with the same periods for every subject",
-            ));
-        }
-    }
-
-    let cohorts_present: BTreeSet<i64> = units.values().filter_map(|unit| unit.0).collect();
-    if !cohorts_present.contains(&0) {
-        return Err(PyValueError::new_err(
-            "group-time ATT requires never-treated controls (cohort 0)",
-        ));
-    }
-    let mut output = Vec::new();
-    for cohort in cohorts_present.iter().copied().filter(|cohort| *cohort > 0) {
-        let baseline = cohort - 1;
-        if !period_list.contains(&baseline) || !period_list.contains(&cohort) {
-            return Err(PyValueError::new_err(
-                "each adoption cohort needs an observed immediately pre-treatment baseline and adoption period",
-            ));
-        }
-        let treated: Vec<_> = units.values().filter(|unit| unit.0 == Some(cohort)).collect();
-        let controls: Vec<_> = units.values().filter(|unit| unit.0 == Some(0)).collect();
-        for period in period_list.iter().copied().filter(|period| *period >= cohort) {
-            let treated_change: f64 =
-                treated.iter().map(|unit| unit.1[&period] - unit.1[&baseline]).sum::<f64>()
-                    / treated.len() as f64;
-            let control_change: f64 =
-                controls.iter().map(|unit| unit.1[&period] - unit.1[&baseline]).sum::<f64>()
-                    / controls.len() as f64;
-            let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
-            let mut group_clusters: [BTreeSet<&str>; 2] = Default::default();
-            for (group, selected, mean, denominator) in [
-                (1usize, &treated, treated_change, treated.len()),
-                (0usize, &controls, control_change, controls.len()),
-            ] {
-                for unit in selected {
-                    let change = unit.1[&period] - unit.1[&baseline];
-                    let cluster = unit.2.expect("cluster validated above");
-                    group_clusters[group].insert(cluster);
-                    *scores.entry(cluster).or_default() += (if group == 1 { 1.0 } else { -1.0 })
-                        * (change - mean)
-                        / denominator as f64;
-                }
-            }
-            if group_clusters.iter().any(|set| set.len() < 2) {
-                return Err(PyValueError::new_err(
-                    "cluster-robust standard error requires at least two clusters in each cohort/control group",
-                ));
-            }
-            let cluster_count = scores.len();
-            let variance = cluster_count as f64 / (cluster_count - 1) as f64
-                * scores.values().map(|score| score * score).sum::<f64>();
-            output.push((
-                cohort,
-                period,
-                treated_change - control_change,
-                treated.len(),
-                controls.len(),
-                variance.max(0.0).sqrt(),
-                cluster_count,
-            ));
-        }
-    }
-    if output.is_empty() {
-        return Err(PyValueError::new_err(
-            "no supported post-adoption group-time comparisons are available",
-        ));
-    }
-    Ok(output)
+    let outcome: Vec<f64> = outcome.as_array().iter().copied().collect();
+    let effects = detach_catch(py, move || {
+        antecedent_estimate::staggered_event_study::group_time_att(
+            &outcome, &subjects, &periods, &cohorts, &clusters,
+        )
+        .map_err(crate::value_err)
+    })?;
+    Ok(effects
+        .into_iter()
+        .map(|effect| {
+            (
+                effect.cohort,
+                effect.period,
+                effect.effect,
+                effect.treated_subjects,
+                effect.comparison_subjects,
+                effect.standard_error,
+                effect.clusters,
+            )
+        })
+        .collect())
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

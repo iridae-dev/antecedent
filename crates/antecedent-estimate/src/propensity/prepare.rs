@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::{AverageEffectQuery, PopulationRegistry, TargetPopulation, VariableId};
@@ -56,7 +54,7 @@ pub struct PreparedPropensityProblem {
     /// Treatment variable id (for score-table provenance).
     pub treatment_id: VariableId,
     /// Optional complete-case fold ids. `None` draws a seeded, arm-stratified, unit-level
-    /// plan from [`Self::fold_seed`] (see `learn_nuisance::crossfit_fold_plan`).
+    /// plan from [`Self::fold_seed`] (see `crossfit_plan::crossfit_fold_plan`).
     pub fold_assignment: Option<Arc<[u32]>>,
     /// Independence unit (cluster label) of each complete-case row. When set, the default
     /// fold plan deals whole units to folds (`cluster_dml_aipw::cluster_fold_plan`) instead
@@ -88,7 +86,7 @@ pub struct PreparedPropensityProblem {
 /// Retains the raw [`PropensityFit`] (coefficients, scores, GLM diagnostics) plus the
 /// clip-adjusted scores actually used for weighting/matching/distance calculations.
 #[derive(Clone, Debug)]
-pub struct PropensityModel {
+pub(crate) struct PropensityModel {
     /// Raw logistic fit (pre-clip scores in `fit.scores`).
     pub fit: PropensityFit,
     /// Clip threshold applied to `clipped_scores`, taken from the overlap policy.
@@ -107,7 +105,7 @@ impl PropensityModel {
     /// Propagates GLM/backend failures.
     pub fn fit(
         problem: &PreparedPropensityProblem,
-        backend: &FaerBackend,
+        backend: FaerBackend,
         workspace: &mut PropensityWorkspace,
         options: &GlmOptions,
     ) -> Result<Self, EstimationError> {
@@ -116,7 +114,7 @@ impl PropensityModel {
             problem.nrows,
             problem.design_ncols,
             &problem.treatment,
-            backend,
+            &backend,
             workspace,
             options,
         )
@@ -217,9 +215,15 @@ impl PropensityEstimationWorkspace {
         distance: MatchingDistance,
     ) -> Result<(), EstimationError> {
         let n_donors = donor_features.len() / dim.max(1);
-        let key =
-            MatchingIndexKey { dim, n_donors, distance, features_hash: fnv1a64(donor_features) };
-        let needs_rebuild = self.matching_index.is_none() || self.matching_index_key != key;
+        let key = MatchingIndexKey {
+            dim,
+            n_donors,
+            distance,
+            features_hash: feature_key(donor_features),
+        };
+        let needs_rebuild = self.matching_index.as_ref().is_none_or(|index| {
+            self.matching_index_key != key || !index.matches_features(donor_features)
+        });
         if needs_rebuild {
             let donor_ids: Vec<usize> = (0..n_donors).collect();
             let index = MatchingIndex::exact(donor_features, dim, &donor_ids, distance)
@@ -248,17 +252,14 @@ impl PropensityEstimationWorkspace {
     }
 }
 
-pub(crate) fn fnv1a64(bytes_as_f64: &[f64]) -> u64 {
-    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIME: u64 = 0x0100_0000_01b3;
-    let mut hash = OFFSET;
-    for &v in bytes_as_f64 {
-        for b in v.to_bits().to_le_bytes() {
-            hash ^= u64::from(b);
-            hash = hash.wrapping_mul(PRIME);
-        }
+/// In-memory cache key of a feature buffer: FNV-1a over the little-endian bytes of each
+/// value's bit pattern. Not a persisted identity; a hit is confirmed by the geometry key.
+pub(crate) fn feature_key(values: &[f64]) -> u64 {
+    let mut hash = antecedent_core::Fnv1a64::new();
+    for &v in values {
+        hash.word(v.to_bits());
     }
-    hash
+    hash.finish()
 }
 
 /// Default overlap policy for all propensity estimators: diagnostics mandatory,
@@ -276,6 +277,10 @@ pub const fn default_propensity_overlap() -> OverlapPolicy {
 // ---------------------------------------------------------------------------------------------
 
 /// Prepare propensity inputs with optional named-predicate / distribution bindings.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one preparation: validate the query, mask rows, read the columns, resolve target weights and build the design; each step reads the same row mask"
+)]
 pub(crate) fn prepare_propensity_problem_with_registry(
     data: &TabularData,
     estimand: &IdentifiedEstimand,
@@ -376,16 +381,12 @@ pub(crate) fn prepare_propensity_problem_with_registry(
 
     let ncols = 1 + estimand.adjustment_set.len();
     let mut design = vec![0.0; nrows * ncols];
-    for r in 0..nrows {
-        design[r] = 1.0;
-    }
+    design[..nrows].fill(1.0);
     let mut covariate_cols: Vec<Arc<[f64]>> = Vec::with_capacity(estimand.adjustment_set.len());
     for (i, &z) in estimand.adjustment_set.iter().enumerate() {
         let col = data.float64_masked(z, &row_mask).map_err(EstimationError::from)?;
         let base = (1 + i) * nrows;
-        for r in 0..nrows {
-            design[base + r] = col[r];
-        }
+        design[base..base + nrows].copy_from_slice(&col[..nrows]);
         covariate_cols.push(Arc::from(col));
     }
 
@@ -529,7 +530,7 @@ pub(crate) fn overlap_clip_trim(overlap: OverlapPolicy) -> (Option<f64>, Option<
 
 pub(crate) fn clamp_scores(scores: &mut [f64], clip: f64) {
     for s in scores.iter_mut() {
-        *s = s.clamp(clip, 1.0 - clip);
+        *s = crate::overlap::clip_propensity(*s, clip);
     }
 }
 
@@ -577,7 +578,46 @@ pub(crate) fn gather_rowmajor(matrix: &[f64], dim: usize, idx: &[usize]) -> Vec<
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn feature_key_is_fnv1a_over_the_little_endian_value_bits() {
+        // Independent reference: FNV-1a 64 over the sixteen bytes of 1.0 and -2.5 (Python
+        // struct.pack('<dd', 1.0, -2.5)), and the published vector FNV-1a("a").
+        assert_eq!(feature_key(&[1.0, -2.5]), 0x2f20_b4ea_1c69_d79c);
+        assert_eq!(feature_key(&[]), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(antecedent_core::fnv1a_u64(b"a"), 0xaf63_dc4c_8601_ec8c);
+    }
+
     use super::*;
+
+    #[test]
+    fn matching_index_cache_verifies_geometry_after_a_hash_key_hit() {
+        // These finite one-dimensional donor sets have different nearest neighbors to
+        // the same query. Force the compact hash field to match, simulating the exact
+        // cache-key collision that a 64-bit fingerprint must not treat as equality.
+        let original = [0.0, 2.0];
+        let changed = [9.0, 10.0];
+        let query = [9.5];
+        let mut workspace = PropensityEstimationWorkspace::default();
+        workspace.ensure_matching_index(&original, 1, MatchingDistance::Absolute).unwrap();
+        let stale = workspace.matching_index.as_ref().unwrap().nearest(&query, None).unwrap();
+        assert_eq!(
+            stale.map(|(id, distance)| (id, distance.to_bits())),
+            Some((1, 7.5_f64.to_bits()))
+        );
+
+        workspace.matching_index_key.features_hash = feature_key(&changed);
+        workspace.ensure_matching_index(&changed, 1, MatchingDistance::Absolute).unwrap();
+        let warm = workspace.matching_index.as_ref().unwrap().nearest(&query, None).unwrap();
+        let fresh = MatchingIndex::exact(&changed, 1, &[0, 1], MatchingDistance::Absolute)
+            .unwrap()
+            .nearest(&query, None)
+            .unwrap();
+
+        assert_eq!(workspace.matching_index_builds, 2);
+        let warm_bits = warm.map(|(id, distance)| (id, distance.to_bits()));
+        assert_eq!(warm_bits, fresh.map(|(id, distance)| (id, distance.to_bits())));
+        assert_eq!(warm_bits, Some((0, 0.5_f64.to_bits())));
+    }
 
     #[test]
     #[allow(

@@ -1,4 +1,4 @@
-//! F7 `InverseQueryArtifact` (`inverse_functional_query_v1`).
+//! `InverseQueryArtifact` (`inverse_functional_query_v1`).
 //!
 //! A durable record of one generalized finite inverse decision query and its answer:
 //! the declared query (action grid and order, grid scope, constraints, selection
@@ -31,30 +31,34 @@
 //! stored `exhaustive_over_declared_set` or `no_feasible_action_in_declared_set` on a
 //! continuous sample is refused even before replay.
 //!
+//! A claim produced by a composed-mechanism model, a cohort-mean contrast or a transported
+//! response may carry its [`ForwardOrigin`] (source kind, source identity, representation,
+//! transport receipt, claim digest). The origin is bound into the premises digest, and a
+//! consumer re-derives the digest of the embedded point claim and refuses an origin that
+//! names another claim. Replaying the artifact checks that the embedded numbers are the
+//! numbers the origin names; it does not re-execute the route that produced them.
+//!
 //! The artifact makes no coverage or calibration claim (`point_only`). The mean of a
 //! posterior is never turned into a probability or quantile here: the shared engine
 //! refuses that when the query is evaluated.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::io::Cursor;
+use antecedent_contract::ScientificQuantity;
 
-use antecedent_core::ScientificQuantity;
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionMetadata};
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::signal::RefusalBuilder;
+use antecedent_core::CanonicalWriter;
+use antecedent_io_core::convert::to_cbor;
+use antecedent_io_core::distribution_artifact::{DistributionArtifact, DistributionMetadata};
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
 use crate::decision_artifact::DecisionContractArtifact;
 use crate::decision_contract::{DecisionContract, Tail};
 use crate::decision_eval::{MeanSource, SourceReceipt};
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
+use crate::inverse_forward_source::{ForwardOrigin, forward_claim_digest};
 use crate::inverse_query::{
     ActionReport, Comparison, ConstraintValue, ExistenceClaim, FeasibilityStatus, ForwardClaim,
     ForwardEvidence, GridScope, IdentifiedSet, IntervalRegion, InverseConstraint, InverseQuery,
@@ -72,6 +76,10 @@ pub const INVERSE_QUERY_INFERENCE_CLAIM: &str = "point_only";
 pub const MAX_INVERSE_QUERY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 /// Most embedded forward claims (laws and mean grids) of one artifact.
 pub const MAX_INVERSE_QUERY_CLAIMS: usize = 256;
+/// Most original source artifacts one inverse-query artifact may carry. Each is
+/// replayed in full on consumption, so the count bounds the replay work inside
+/// the byte cap.
+pub const MAX_INVERSE_QUERY_SOURCE_EVIDENCE: usize = 8;
 
 const ARTIFACT_KIND: &str = "inverse_functional_query_v1";
 const META_SECTION: &str = "inverse_query.meta";
@@ -81,6 +89,61 @@ const CONTRACT_ARTIFACT_ID: &str = "inverse-query-contract";
 const WRONG_CONTRACT: &str = "functional_inverse_query.wrong_contract";
 const GLOBAL_CLAIM: &str = "functional_inverse_query.global_feasibility_claim";
 const BOUNDS: &str = "functional_inverse_query.bounds_exceeded";
+const ORIGIN_INVALID: &str = "functional_inverse_query.forward_origin_invalid";
+const KIND_MISMATCH: &str = "functional_inverse_query.artifact_kind_mismatch";
+
+/// The kind of bytes that are a recognised artifact: a container's own kind, or the
+/// bare-CBOR joint-law propagation and mechanism-composition artifacts, decoded
+/// by their own readers. `None` for anything else.
+#[must_use]
+pub fn recognised_artifact_kind(bytes: &[u8]) -> Option<String> {
+    if let Some(kind) = antecedent_io_core::container_kind(bytes) {
+        return Some(kind);
+    }
+    if antecedent_io_core::joint_law_propagation_artifact::JointLawPropagationArtifactWire::decode(
+        bytes,
+    )
+    .is_ok()
+    {
+        return Some("joint_law_propagation_v1".to_owned());
+    }
+    if antecedent_io_core::mechanism_composition_artifact::MechanismCompositionArtifactWire::decode(
+        bytes,
+    )
+    .is_ok()
+    {
+        return Some("mechanism_composition_v1".to_owned());
+    }
+    None
+}
+
+/// What to do with a recognised artifact kind that a consumer does not read: the
+/// consumer that does accept it, as a remedy sentence.
+///
+/// Shared by the consumers that refuse another kind's bytes with an
+/// `artifact_kind_mismatch` detail, so each names the same destination.
+#[must_use]
+pub fn artifact_kind_remedy(kind: &str) -> &'static str {
+    match kind {
+        "joint_law_propagation_v1" => {
+            "a propagation claim is consumed by the joint-law propagation consumer \
+             (consume_joint_law_propagation_artifact)"
+        }
+        "decision_reliability_v1" => {
+            "a decision-reliability artifact is consumed by the decision-reliability consumer \
+             (consume_decision_reliability_artifact)"
+        }
+        "inverse_functional_query_v1" => {
+            "an inverse-query artifact is consumed by the inverse-query consumer \
+             (inverse_query::consume)"
+        }
+        "mechanism_composition_v1" => {
+            "a mechanism-composition artifact is consumed by the mechanism-composition consumer \
+             (consume_mechanism_composition_artifact)"
+        }
+        _ => "offer the artifact to the consumer of its own kind; this consumer reads only its own",
+    }
+}
 
 fn refused(detail: &str, text: &str) -> IoError {
     IoError::Refused {
@@ -98,11 +161,20 @@ fn wrong_contract(text: &str) -> IoError {
 /// remainder of the message as the offending item. Any other I/O failure is
 /// `functional_inverse_query.invalid_artifact` under `invalid_argument`.
 #[must_use]
-pub fn artifact_refusal(error: &IoError) -> antecedent_core::ExternalRefusal {
+pub fn artifact_refusal(error: &IoError) -> antecedent_contract::ExternalRefusal {
     let (code, detail, offending) = match error {
         IoError::Refused { code, message } => {
             let (detail, text) =
                 message.split_once(": ").unwrap_or((WRONG_CONTRACT, message.as_str()));
+            if detail == KIND_MISMATCH {
+                let supplied = text.rsplit_once("supplied ").map_or("", |(_, kind)| kind);
+                return RefusalBuilder::new(code, "inverse_query", detail)
+                    .offending(text)
+                    .expected(ARTIFACT_KIND)
+                    .supplied(supplied)
+                    .remedy(artifact_kind_remedy(supplied))
+                    .build();
+            }
             (*code, detail.to_owned(), text.to_owned())
         }
         other => (
@@ -111,16 +183,7 @@ pub fn artifact_refusal(error: &IoError) -> antecedent_core::ExternalRefusal {
             other.to_string(),
         ),
     };
-    antecedent_core::ExternalRefusal {
-        code,
-        stage: "inverse_query",
-        detail,
-        offending: Some(offending),
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
-    }
+    RefusalBuilder::new(code, "inverse_query", &detail).offending(offending).build()
 }
 
 fn wide(count: usize) -> u64 {
@@ -601,7 +664,10 @@ impl From<&SourceReceipt> for SourceReceiptWire {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 // Wire struct mirrors the stored result table, which carries four independent flags.
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct InverseResultWire {
     /// Identity of the contract that declared the actions.
     pub contract_identity: String,
@@ -991,11 +1057,13 @@ struct Premises<'a> {
 }
 
 fn tagged_digest(tag: &str, bytes: &[u8]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(tag.as_bytes());
-    hasher.update(&wide(bytes.len()).to_le_bytes());
-    hasher.update(bytes);
-    hasher.finalize().to_hex().to_string()
+    CanonicalWriter::new(tag).bytes(bytes).finish_hex()
+}
+
+fn whole_identity(premises_digest: &str, data_digest: &str) -> String {
+    let mut whole = CanonicalWriter::new("antecedent.inverse_query.identity.v1");
+    whole.text(premises_digest).text(data_digest);
+    whole.finish_hex()
 }
 
 fn identity_of(
@@ -1014,15 +1082,8 @@ fn identity_of(
     })?;
     let premises_digest = tagged_digest("antecedent.inverse_query.premises.v1", &premises);
     let data_digest = tagged_digest("antecedent.inverse_query.data.v1", &encoded.data);
-    let mut whole = blake3::Hasher::new();
-    whole.update(b"antecedent.inverse_query.identity.v1");
-    whole.update(premises_digest.as_bytes());
-    whole.update(data_digest.as_bytes());
-    Ok(InverseQueryIdentity {
-        premises_digest,
-        data_digest,
-        digest: whole.finalize().to_hex().to_string(),
-    })
+    let digest = whole_identity(&premises_digest, &data_digest);
+    Ok(InverseQueryIdentity { premises_digest, data_digest, digest })
 }
 
 fn identity_diff(
@@ -1065,6 +1126,9 @@ pub struct InverseQueryMeta {
     /// Independently consumed original source evidence; no executable-state authority.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_evidence: Vec<Vec<u8>>,
+    /// Where the point claim came from, when it came from a licensed forward source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forward_origin: Option<ForwardOrigin>,
 }
 
 /// Encode the metadata, the nested contract artifact and the numbers as a
@@ -1086,37 +1150,33 @@ pub fn encode_parts(
         return Err(IoError::Convert("missing artifact id".into()));
     }
     let meta_bytes = to_cbor(meta)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: antecedent_io::migrate::STABLE_FORMAT,
-            minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(CONTRACT_SECTION, "application/octet-stream", contract),
-                section_descriptor(DATA_SECTION, "application/octet-stream", data),
-            ],
-            provenance: ProvenanceWire { note: "inverse_functional_query_point_only".into() },
+    antecedent_io_core::encode_container(
+        &antecedent_io_core::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "inverse_functional_query_point_only",
+            max_bytes: MAX_INVERSE_QUERY_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(CONTRACT_SECTION, contract.to_vec()),
-            SectionBytes::new(DATA_SECTION, data.to_vec()),
+        &[
+            antecedent_io_core::OutSection {
+                id: META_SECTION,
+                content_type: antecedent_io_core::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            antecedent_io_core::OutSection {
+                id: CONTRACT_SECTION,
+                content_type: antecedent_io_core::CONTENT_BYTES,
+                bytes: contract,
+            },
+            antecedent_io_core::OutSection {
+                id: DATA_SECTION,
+                content_type: antecedent_io_core::CONTENT_BYTES,
+                bytes: data,
+            },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes)?;
-    if bytes.len() > MAX_INVERSE_QUERY_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
-    }
-    Ok(bytes)
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
+    )
+    .map_err(|error| error.into_io("unsupported inverse query artifact layout"))
 }
 
 /// Decode the three sections of a container, refusing another version before the
@@ -1128,34 +1188,33 @@ struct VersionPeek {
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
 #[doc(hidden)]
 pub fn decode_parts(bytes: &[u8]) -> Result<(InverseQueryMeta, Vec<u8>, Vec<u8>), IoError> {
-    if bytes.len() > MAX_INVERSE_QUERY_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
+    // A readable container of another kind is a recognised artifact this consumer
+    // does not read; bytes that are no container at all keep the layout refusal.
+    if let Some(kind) = recognised_artifact_kind(bytes) {
+        if kind != ARTIFACT_KIND {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                message: format!("{KIND_MISMATCH}: expected {ARTIFACT_KIND}, supplied {kind}"),
+            });
+        }
     }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 3
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != CONTRACT_SECTION
-        || manifest.sections[2].id != DATA_SECTION
-    {
+    let parts = antecedent_io_core::decode_container(
+        ARTIFACT_KIND,
+        MAX_INVERSE_QUERY_ARTIFACT_BYTES,
+        &[META_SECTION, CONTRACT_SECTION, DATA_SECTION],
+        bytes,
+    )
+    .map_err(|error| error.into_io("unsupported inverse query artifact layout"))?;
+    let Ok([meta_bytes, contract, data]) = <[Vec<u8>; 3]>::try_from(parts) else {
         return Err(IoError::Convert("unsupported inverse query artifact layout".into()));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    if declared.is_none_or(|total| total > wide(MAX_INVERSE_QUERY_ARTIFACT_BYTES)) {
-        return Err(IoError::TooLarge);
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != INVERSE_QUERY_ARTIFACT_VERSION {
-        return Err(IoError::UnsupportedVersion { version: u32::from(peek.version) });
-    }
-    let meta: InverseQueryMeta = from_cbor(meta_section.as_bytes())?;
-    let contract = reader.load_section(CONTRACT_SECTION)?.as_bytes().to_vec();
-    let data = reader.load_section(DATA_SECTION)?.as_bytes().to_vec();
+    };
+    let meta = antecedent_io_core::decode_with_version(&meta_bytes, |version: u16| {
+        if version == INVERSE_QUERY_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(IoError::UnsupportedVersion { version: u32::from(version) })
+        }
+    })?;
     Ok((meta, contract, data))
 }
 
@@ -1175,6 +1234,7 @@ pub struct InverseQueryArtifact {
     result: InverseResult,
     identity: InverseQueryIdentity,
     source_evidence: Vec<crate::source_evidence::SourceEvidence>,
+    forward_origin: Option<ForwardOrigin>,
 }
 
 impl InverseQueryArtifact {
@@ -1195,7 +1255,58 @@ impl InverseQueryArtifact {
         let identity =
             identity_of(&result.contract_identity, &InverseQueryWire::from_query(&query), &encoded)
                 .map_err(|_| InverseQueryError::InvalidParameter("artifact_encoding"))?;
-        Ok(Self { query, evidence, result, identity, source_evidence: Vec::new() })
+        Ok(Self {
+            query,
+            evidence,
+            result,
+            identity,
+            source_evidence: Vec::new(),
+            forward_origin: None,
+        })
+    }
+
+    /// Where the point claim came from, when the artifact carries an origin.
+    #[must_use]
+    pub fn forward_origin(&self) -> Option<&ForwardOrigin> {
+        self.forward_origin.as_ref()
+    }
+
+    /// Bind the origin of the point claim into the artifact identity.
+    ///
+    /// The origin's claim digest is recomputed from the embedded point claim and
+    /// must equal the stored one, so an origin cannot be attached to numbers it
+    /// does not describe. The origin is a declaration of provenance: this does
+    /// not re-execute the producing route and grants no trust or calibration.
+    ///
+    /// # Errors
+    /// An origin that is malformed, an artifact with no point claim, a claim
+    /// digest that differs from the embedded claim's, or an origin already bound
+    /// (`functional_inverse_query.forward_origin_invalid`).
+    pub fn with_forward_origin(mut self, origin: ForwardOrigin) -> Result<Self, IoError> {
+        origin.validate().map_err(|why| refused(ORIGIN_INVALID, why))?;
+        if self.forward_origin.is_some() {
+            return Err(refused(ORIGIN_INVALID, "an origin is already bound"));
+        }
+        let Some(point) = self.evidence.point.as_ref() else {
+            return Err(refused(
+                ORIGIN_INVALID,
+                "an origin describes the point claim and none is embedded",
+            ));
+        };
+        if forward_claim_digest(point)? != origin.claim_digest {
+            return Err(refused(
+                ORIGIN_INVALID,
+                "the origin names a different claim than the one embedded",
+            ));
+        }
+        self.identity.premises_digest = tagged_digest(
+            "antecedent.inverse_query.forward_origin.v1",
+            &to_cbor(&(&self.identity.premises_digest, origin.canonical_identity()))?,
+        );
+        self.identity.digest =
+            whole_identity(&self.identity.premises_digest, &self.identity.data_digest);
+        self.forward_origin = Some(origin);
+        Ok(self)
     }
 
     /// Original diagnostic evidence retained alongside the actual inverse source.
@@ -1210,7 +1321,7 @@ impl InverseQueryArtifact {
         mut self,
         sources: Vec<crate::source_evidence::SourceEvidence>,
     ) -> Result<Self, IoError> {
-        if sources.len() > 8 {
+        if sources.len() > MAX_INVERSE_QUERY_SOURCE_EVIDENCE {
             return Err(refused(BOUNDS, "too many original source artifacts"));
         }
         let text = crate::decision_artifact::contract_to_json(&self.query.contract)?;
@@ -1300,14 +1411,14 @@ impl InverseQueryArtifact {
                 "antecedent.inverse_query.source_evidence.v1",
                 &to_cbor(&(original.premises_digest, bytes))?,
             );
-            let mut whole = blake3::Hasher::new();
-            whole.update(b"antecedent.inverse_query.identity.v1");
-            whole.update(self.identity.premises_digest.as_bytes());
-            whole.update(self.identity.data_digest.as_bytes());
-            self.identity.digest = whole.finalize().to_hex().to_string();
+            self.identity.digest =
+                whole_identity(&self.identity.premises_digest, &self.identity.data_digest);
         }
         self.source_evidence = sources;
-        Ok(self)
+        match self.forward_origin.take() {
+            Some(origin) => self.with_forward_origin(origin),
+            None => Ok(self),
+        }
     }
 
     /// The query.
@@ -1364,6 +1475,7 @@ impl InverseQueryArtifact {
                 .map(crate::source_evidence::SourceEvidence::export)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|cause| IoError::Convert(cause.to_string()))?,
+            forward_origin: self.forward_origin.clone(),
         };
         encode_parts(&meta, &contract, &encoded.data, artifact_id)
     }
@@ -1396,6 +1508,10 @@ impl InverseQueryArtifact {
         if meta.claims.len() > MAX_INVERSE_QUERY_CLAIMS {
             return Err(refused(BOUNDS, "too many embedded claims"));
         }
+        // Counted before any nested artifact is replayed.
+        if meta.source_evidence.len() > MAX_INVERSE_QUERY_SOURCE_EVIDENCE {
+            return Err(refused(BOUNDS, "too many original source artifacts"));
+        }
         let contract =
             DecisionContractArtifact::from_bytes(&contract_bytes, &meta.contract_identity)?
                 .contract()
@@ -1418,9 +1534,12 @@ impl InverseQueryArtifact {
             .map(|bytes| crate::source_evidence::SourceEvidence::consume(bytes))
             .collect::<Result<Vec<_>, _>>()
             .map_err(source_refusal)?;
-        let artifact = Self::new(query, evidence)
+        let mut artifact = Self::new(query, evidence)
             .map_err(|error| query_refusal(&error))?
             .with_source_evidence(sources)?;
+        if let Some(origin) = meta.forward_origin.clone() {
+            artifact = artifact.with_forward_origin(origin)?;
+        }
         if let Some(field) = identity_diff(&meta.identity, &artifact.identity) {
             return Err(wrong_contract(&format!("stored {field} differs from the recomputed one")));
         }

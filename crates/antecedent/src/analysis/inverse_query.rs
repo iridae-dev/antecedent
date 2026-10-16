@@ -1,11 +1,11 @@
-//! F7: generalized finite inverse decision query.
+//! Generalized finite inverse decision query.
 //!
 //! "Which of these declared actions satisfy these constraints?" over a finite,
 //! ordered action grid. Target-mean, target-quantile and probability-threshold
 //! constraints all run through the one typed functional engine on forward claims
 //! that actually supply the law each needs: a quantile or a probability needs an
 //! aligned joint law, a mean-only claim answers an affine target mean and nothing
-//! else, and independent marginals refuse a nonlinear utility. The 2.2 finite
+//! else, and independent marginals refuse a nonlinear utility. The finite
 //! enumeration stays available as [`finite_enumeration_baseline`] and agrees with the
 //! engine on target-mean cases.
 //!
@@ -14,7 +14,7 @@
 //! another. A continuous sample never claims global feasibility. Nothing here makes a
 //! coverage or calibration claim.
 //!
-//! The 2.2 enumeration query of [`super::InverseQuery`] is a separate, unchanged
+//! The enumeration query of [`super::InverseQuery`] is a separate, unchanged
 //! route; this module's names are reached by path
 //! (`antecedent::analysis::inverse_query`).
 //!
@@ -27,7 +27,13 @@ pub use antecedent_design::decision_contract::{
 };
 pub use antecedent_design::decision_eval::{MeanSource, evaluate_functional};
 pub use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
-pub use antecedent_design::inverse_query::*;
+pub use antecedent_design::inverse_query::{
+    ActionReport, Comparison, ConstraintValue, EnumeratedForwardValue, ExistenceClaim,
+    FeasibilityStatus, ForwardClaim, ForwardEvidence, GridScope, INVERSE_QUERY_SCOPE_NOTE,
+    IdentifiedSet, IntervalRegion, InverseConstraint, InverseQuery, InverseQueryError,
+    InverseResult, MAX_INVERSE_GRID, MemberStatus, PosteriorFeasibility, SelectionOutcome,
+    SelectionRule, evaluate_inverse_query, finite_enumeration_baseline,
+};
 pub use antecedent_design::inverse_query_artifact::{
     INVERSE_QUERY_ARTIFACT_FEATURE, INVERSE_QUERY_ARTIFACT_VERSION, INVERSE_QUERY_INFERENCE_CLAIM,
     InverseQueryArtifact, InverseQueryIdentity, InverseQueryWire, InverseResultWire,

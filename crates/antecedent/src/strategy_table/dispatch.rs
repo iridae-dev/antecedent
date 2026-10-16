@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value, clippy::too_many_arguments, clippy::too_many_lines)]
-
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext, PopulationRegistry,
     TemporalEffectQuery,
@@ -136,7 +134,7 @@ pub fn identify_static_query_with_rd(
                     message: "gcm.parametric requires Counterfactual",
                 });
             };
-            q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            q.validate()?;
             if q.allow_nested || q.outcomes.len() != 1 || q.interventions.len() != 1 {
                 return Err(CausalError::Unsupported {
                     message: "staged Counterfactual requires one outcome and one hard intervention; nested forms are refused",
@@ -255,17 +253,14 @@ pub fn identify_temporal_cpdag_configured(
     query: &TemporalEffectQuery,
     config: GeneralizedAdjustmentConfig,
 ) -> Result<TemporalClassEnvelope, CausalError> {
-    match identifier {
-        IdentifierId::GeneralizedAdjustment => {
-            let id = GeneralizedAdjustmentIdentifier { config };
-            id.identify_temporal_cpdag_envelope(cpdag, query).map_err(identify_err)
-        }
-        other => reject_non_generalized_identifier(
-            other,
-            "TemporalCpdag",
-            "unsupported TemporalCpdag identifier",
-        ),
-    }
+    identify_generalized_temporal_class(
+        identifier,
+        "TemporalCpdag",
+        "unsupported TemporalCpdag identifier",
+        config,
+        cpdag,
+        |id, graph| id.identify_temporal_cpdag_envelope(graph, query),
+    )
 }
 
 /// Class-aware identification over a `TemporalPag` (`TemporalDag` completion envelope).
@@ -292,17 +287,14 @@ pub fn identify_temporal_pag_configured(
     query: &TemporalEffectQuery,
     config: GeneralizedAdjustmentConfig,
 ) -> Result<TemporalClassEnvelope, CausalError> {
-    match identifier {
-        IdentifierId::GeneralizedAdjustment => {
-            let id = GeneralizedAdjustmentIdentifier { config };
-            id.identify_temporal_pag_envelope(pag, query).map_err(identify_err)
-        }
-        other => reject_non_generalized_identifier(
-            other,
-            "TemporalPag",
-            "unsupported TemporalPag identifier",
-        ),
-    }
+    identify_generalized_temporal_class(
+        identifier,
+        "TemporalPag",
+        "unsupported TemporalPag identifier",
+        config,
+        pag,
+        |id, graph| id.identify_temporal_pag_envelope(graph, query),
+    )
 }
 
 /// General ID over an ADMG for an average-effect query.
@@ -364,6 +356,27 @@ pub fn estimate_provenance_step(estimator: EstimatorId) -> (&'static str, &'stat
     estimator_data(estimator).provenance
 }
 
+/// The data, estimand, query and estimator settings a static estimate runs against.
+///
+/// `bootstrap_replicates`, `overlap_policy` and `population_registry` configure a fresh
+/// estimator built from an [`EstimatorId`]; a caller-configured [`EstimatorSpec`] variant
+/// carries its own and ignores them.
+#[derive(Clone, Copy)]
+pub struct StaticEstimateInput<'a> {
+    /// Estimation data.
+    pub data: &'a TabularData,
+    /// Identified estimand to estimate.
+    pub estimand: &'a IdentifiedEstimand,
+    /// Average-effect query the estimand answers.
+    pub query: &'a AverageEffectQuery,
+    /// Bootstrap replicates applied to a default-built estimator.
+    pub bootstrap_replicates: u32,
+    /// Overlap policy applied to a default-built estimator, when set.
+    pub overlap_policy: Option<OverlapPolicy>,
+    /// Population registry attached to a default-built estimator.
+    pub population_registry: Option<&'a PopulationRegistry>,
+}
+
 /// Run a frequentist static estimator by strategy spec (excludes `rd.sharp` / `bayesian.gcomp`).
 ///
 /// [`EstimatorSpec::Default`] builds a fresh estimator and applies
@@ -378,29 +391,16 @@ pub fn estimate_provenance_step(estimator: EstimatorId) -> (&'static str, &'stat
 /// Unknown estimator or estimation failure.
 pub fn estimate_static_effect(
     spec: &EstimatorSpec,
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
+    input: StaticEstimateInput<'_>,
     assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    overlap_policy: Option<OverlapPolicy>,
-    population_registry: Option<&PopulationRegistry>,
     ctx: &ExecutionContext,
     workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, CausalError> {
+    let StaticEstimateInput { data, estimand, query, .. } = input;
     match spec {
-        EstimatorSpec::Default(id) => estimate_static_effect_default(
-            *id,
-            data,
-            estimand,
-            query,
-            assumptions,
-            bootstrap_replicates,
-            overlap_policy,
-            population_registry,
-            ctx,
-            workspaces,
-        ),
+        EstimatorSpec::Default(id) => {
+            estimate_static_effect_default(*id, input, assumptions, ctx, workspaces)
+        }
         EstimatorSpec::LinearAdjustmentAte(cfg) => {
             let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
             cfg.fit(&prep, &mut workspaces.linear, ctx, assumptions).map_err(est_err)
@@ -463,18 +463,25 @@ pub fn estimate_static_effect(
 /// same `bootstrap_replicates` / `overlap_policy` / `population_registry` defaulting
 /// [`estimate_static_effect`] has always applied (byte-identical to the pre-`EstimatorSpec`
 /// behavior).
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per EstimatorId constructing a fresh estimator under the facade's per-estimator bootstrap and overlap defaults (matching and IV deliberately zero the bootstrap) and fitting it in that estimator's own workspace slot"
+)]
 fn estimate_static_effect_default(
     estimator: EstimatorId,
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
+    input: StaticEstimateInput<'_>,
     assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    overlap_policy: Option<OverlapPolicy>,
-    population_registry: Option<&PopulationRegistry>,
     ctx: &ExecutionContext,
     workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, CausalError> {
+    let StaticEstimateInput {
+        data,
+        estimand,
+        query,
+        bootstrap_replicates,
+        overlap_policy,
+        population_registry,
+    } = input;
     match estimator {
         EstimatorId::LinearAdjustmentAte => {
             let mut est = LinearAdjustmentAte::new();
@@ -610,16 +617,19 @@ fn estimate_static_effect_default(
 /// An id with no attachable bootstrap, preparation failure, or bootstrap failure.
 pub fn attach_static_bootstrap(
     estimator: EstimatorId,
-    data: &TabularData,
-    estimand: &IdentifiedEstimand,
-    query: &AverageEffectQuery,
+    input: StaticEstimateInput<'_>,
     point: EffectEstimate,
-    bootstrap_replicates: u32,
-    overlap_policy: Option<OverlapPolicy>,
-    population_registry: Option<&PopulationRegistry>,
     ctx: &ExecutionContext,
     workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, CausalError> {
+    let StaticEstimateInput {
+        data,
+        estimand,
+        query,
+        bootstrap_replicates,
+        overlap_policy,
+        population_registry,
+    } = input;
     match estimator {
         EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();
@@ -689,6 +699,26 @@ pub struct StaticEstimateWorkspaces {
 
 fn est_err(e: EstimationError) -> CausalError {
     CausalError::from(e)
+}
+
+fn identify_generalized_temporal_class<G>(
+    identifier: IdentifierId,
+    class_name: &'static str,
+    unsupported: &'static str,
+    config: GeneralizedAdjustmentConfig,
+    graph: &G,
+    run: impl FnOnce(
+        &GeneralizedAdjustmentIdentifier,
+        &G,
+    ) -> Result<TemporalClassEnvelope, IdentificationError>,
+) -> Result<TemporalClassEnvelope, CausalError> {
+    match identifier {
+        IdentifierId::GeneralizedAdjustment => {
+            let id = GeneralizedAdjustmentIdentifier { config };
+            run(&id, graph).map_err(identify_err)
+        }
+        other => reject_non_generalized_identifier(other, class_name, unsupported),
+    }
 }
 
 fn identify_err(e: IdentificationError) -> CausalError {

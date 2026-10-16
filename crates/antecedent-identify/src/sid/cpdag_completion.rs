@@ -1,4 +1,4 @@
-//! Bounded DAG completions of a supplied CPDAG, decided as a finite scenario set (2.3A X2).
+//! Bounded DAG completions of a supplied CPDAG, decided as a finite scenario set.
 //!
 //! Graph class: a supplied CPDAG of at most [`CPDAG_MAX_NODES`] fully observed
 //! nodes. A completion is a DAG with the CPDAG's skeleton and exactly its
@@ -12,7 +12,7 @@
 //! variable ids, so node and edge insertion order cannot move it), and orders
 //! them by identity. Every completion is then one scenario of the existing
 //! [`TransportScenarioSet`] and is decided by the same classical catalog route
-//! as the 2.2 supplied-scenario row. Evidence is bound per completion
+//! as the supplied-scenario row. Evidence is bound per completion
 //! ([`CpdagEvidence`]): a catalog bound to one completion's identity never
 //! satisfies another's, and a binding that names a different identity is
 //! refused (`cpdag_scenarios.evidence_identity_mismatch`).
@@ -32,8 +32,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, NodeRef, SearchBudget, SearchLimits, SearchReceipt,
-    SearchStop, VariableId, reason_code,
+    CanonicalWriter, EvidenceCatalog, ExecutionContext, NodeRef, SearchBudget, SearchLimits,
+    SearchReceipt, SearchStop, VariableId, reason_code,
 };
 use antecedent_graph::{Admg, Cpdag, DenseNodeId, SelectionDiagram};
 
@@ -300,23 +300,22 @@ impl Skeleton {
     }
 
     fn cpdag_identity(&self) -> Arc<str> {
-        let mut hasher = blake3::Hasher::new_derive_key("antecedent.cpdag_completion.cpdag.v1");
-        self.hash_variables(&mut hasher);
-        for (tag, edges) in [(0_u8, &self.fixed), (1_u8, &self.undirected)] {
-            hasher.update(&[tag]);
-            hasher.update(&(edges.len() as u64).to_le_bytes());
+        let mut stream = CanonicalWriter::new("antecedent.cpdag_completion.cpdag.v1");
+        self.hash_variables(&mut stream);
+        for (tag, edges) in [(0_u64, &self.fixed), (1_u64, &self.undirected)] {
+            stream.word(tag).word(edges.len() as u64);
             for (a, b) in edges {
-                hasher.update(&self.variables[*a].raw().to_le_bytes());
-                hasher.update(&self.variables[*b].raw().to_le_bytes());
+                stream.word(u64::from(self.variables[*a].raw()));
+                stream.word(u64::from(self.variables[*b].raw()));
             }
         }
-        Arc::from(hasher.finalize().to_hex().to_string())
+        Arc::from(stream.finish_hex())
     }
 
-    fn hash_variables(&self, hasher: &mut blake3::Hasher) {
-        hasher.update(&(self.variables.len() as u64).to_le_bytes());
+    fn hash_variables(&self, stream: &mut CanonicalWriter) {
+        stream.word(self.variables.len() as u64);
         for variable in &self.variables {
-            hasher.update(&variable.raw().to_le_bytes());
+            stream.word(u64::from(variable.raw()));
         }
     }
 
@@ -330,17 +329,14 @@ impl Skeleton {
         let mut edges: Vec<(VariableId, VariableId)> =
             edges.into_iter().map(|(p, c)| (self.variables[p], self.variables[c])).collect();
         edges.sort_unstable();
-        let mut hasher = blake3::Hasher::new_derive_key("antecedent.cpdag_completion.dag.v1");
-        self.hash_variables(&mut hasher);
-        hasher.update(&(edges.len() as u64).to_le_bytes());
+        let mut stream = CanonicalWriter::new("antecedent.cpdag_completion.dag.v1");
+        self.hash_variables(&mut stream);
+        stream.word(edges.len() as u64);
         for (parent, child) in &edges {
-            hasher.update(&parent.raw().to_le_bytes());
-            hasher.update(&child.raw().to_le_bytes());
+            stream.word(u64::from(parent.raw()));
+            stream.word(u64::from(child.raw()));
         }
-        CompletionDag {
-            identity: Arc::from(hasher.finalize().to_hex().to_string()),
-            edges: edges.into(),
-        }
+        CompletionDag { identity: Arc::from(stream.finish_hex()), edges: edges.into() }
     }
 }
 
@@ -374,15 +370,7 @@ impl<'a> Orienter<'a> {
 
     /// Whether `to` is reachable from `from` along directed edges.
     fn reaches(&self, from: usize, to: usize) -> bool {
-        let (mut seen, mut frontier) = (1_u8 << from, 1_u8 << from);
-        while frontier != 0 {
-            let node = frontier.trailing_zeros() as usize;
-            frontier &= frontier - 1;
-            let next = self.children[node] & !seen;
-            seen |= next;
-            frontier |= next;
-        }
-        seen & (1 << to) != 0
+        antecedent_graph::algo::mask_closure(1_u8 << from, &self.children, 0) & (1 << to) != 0
     }
 
     /// Whether `from -> to` keeps the graph acyclic and creates no unshielded
@@ -541,7 +529,7 @@ pub fn enumerate_cpdag_completions(
     }
 }
 
-/// Bytes one entered completion scenario holds: the same shape the 2.2 set charges.
+/// Bytes one entered completion scenario holds: the same shape the supplied-scenario set charges.
 fn scenario_bytes(variables: usize) -> u64 {
     u64::try_from(variables.saturating_mul(variables).saturating_mul(64).saturating_add(512))
         .unwrap_or(u64::MAX)
@@ -741,7 +729,7 @@ fn decide_set(
         };
         decisions.push(ScenarioDecision { scenario: scenario.clone(), outcome });
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)] // At most 720 completions.
+            #[allow(clippy::cast_precision_loss, reason = "At most 720 completions")]
             progress.report(decisions.len() as f64 / total as f64, "cpdag completions");
         }
     }
@@ -749,7 +737,7 @@ fn decide_set(
 }
 
 /// Enumerate every DAG completion of `input`, bind evidence to each, and decide
-/// each through the 2.2 classical catalog route on one shared budget.
+/// each through the classical catalog route on one shared budget.
 ///
 /// Statuses are those of the supplied-scenario row (`identified`,
 /// `structurally_unidentified`, `missing_evidence`, `not_certified`,
@@ -928,6 +916,27 @@ mod tests {
         assert_eq!(count(&input(3, &[(0, 1), (1, 2)], &[])), 3);
         assert_eq!(count(&input(3, &[], &[(0, 1), (2, 1)])), 1);
         assert_eq!(count(&input(3, &[(0, 1), (1, 2), (0, 2)], &[])), 6);
+    }
+
+    #[test]
+    fn identities_are_pinned_golden_vectors() {
+        let ctx = ExecutionContext::for_tests(1);
+        let limits = SearchLimits { operations: 1_000_000, depth: 64 };
+        let e =
+            enumerate_cpdag_completions(&input(3, &[(0, 1), (1, 2)], &[]), limits, &ctx).unwrap();
+        assert_eq!(
+            &*e.cpdag_identity,
+            "1aaee032f566bfff617c386fa98e88ac769ed22eb0616656edc25169d4d8bd0a"
+        );
+        let identities: Vec<&str> = e.completions.iter().map(|c| &*c.identity).collect();
+        assert_eq!(
+            identities,
+            [
+                "c51068bf466d561547d05f2a97ce5e8352ccc04ca4327b5603ef82544e7b8db5",
+                "c682a5b6b98e9650b828cf9d24bee2beb19d9a4af06c2f882212fc8b8d4f2f84",
+                "de2984a9bd7e10bb44fe213e7d1b6995e7acd58b56da97fe0c7a8a720fbfe539",
+            ]
+        );
     }
 
     #[test]

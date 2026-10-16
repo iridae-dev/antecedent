@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 /// Fill symmetric `ncols×ncols` `XtX` (row-major) from column-major `X`.
 pub fn form_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
@@ -29,7 +27,7 @@ pub fn form_xty(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], xty: 
 /// Accumulate `XᵀX` into an existing symmetric Gram (row-major) from column-major `X`.
 ///
 /// Used by incremental OLS sufficient statistics.
-pub fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
+pub(crate) fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64]) {
     debug_assert!(xtx.len() >= ncols * ncols);
     for c1 in 0..ncols {
         for c2 in c1..ncols {
@@ -48,7 +46,7 @@ pub fn accumulate_xtx(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut 
 }
 
 /// Accumulate one design row into `XtX` and `Xty` (row-major Gram).
-#[allow(clippy::similar_names)] // xtx / xty are standard OLS Gram notation
+#[allow(clippy::similar_names, reason = "xtx / xty are standard OLS Gram notation")]
 pub fn accumulate_xtx_xty_row(row: &[f64], y: f64, xtx: &mut [f64], xty: &mut [f64]) {
     let ncols = row.len();
     debug_assert!(xtx.len() >= ncols * ncols);
@@ -107,116 +105,38 @@ pub fn chol_log_det(chol: &[f64], n: usize) -> f64 {
 }
 
 /// Solve `A x = b` given Cholesky factor `L` of SPD `A = L L'`.
+///
+/// `None` unless every diagonal entry of `L` is strictly positive. The
+/// substitutions are [`antecedent_kernels::chol_solve_into`].
 #[must_use]
 pub fn chol_solve(chol: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
     if chol.len() < n * n || b.len() < n {
         return None;
     }
-    let mut y = vec![0.0; n];
+    // The positive-diagonal guard is hoisted ahead of the solve; it has no
+    // side effects, so the verdict matches the interleaved check it replaces.
     for i in 0..n {
-        let mut acc = b[i];
-        for j in 0..i {
-            acc -= chol[i * n + j] * y[j];
-        }
-        let diag = chol[i * n + i];
-        if diag.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+        if chol[i * n + i].partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return None;
         }
-        y[i] = acc / diag;
     }
+    let mut y = vec![0.0; n];
     let mut x = vec![0.0; n];
-    for i in (0..n).rev() {
-        let mut acc = y[i];
-        for j in (i + 1)..n {
-            acc -= chol[j * n + i] * x[j];
-        }
-        x[i] = acc / chol[i * n + i];
-    }
+    antecedent_kernels::chol_solve_into(chol, n, b, &mut y, &mut x);
     Some(x)
 }
 
-/// Invert a small dense matrix via Gauss–Jordan; returns `None` on singular pivot.
+/// Invert a small dense matrix.
 ///
-/// The matrix is first equilibrated symmetrically, `B = D⁻¹ A D⁻¹` with `Dᵢ = √|aᵢᵢ|` (the
-/// row/column magnitude when the diagonal entry is zero), and singularity is judged on the
-/// pivots of `B`, whose unit-scale rows make the tolerance independent of each column's
-/// unit. A Gram of `[1, x]` with `x` of order `1e6` is therefore inverted (its
-/// equilibrated form is the identity), while a genuinely collinear pair is still refused.
-/// The inverse is un-scaled, `A⁻¹ = D⁻¹ B⁻¹ D⁻¹`. Any non-finite entry returns `None`.
+/// Equilibration and the pivot test are [`antecedent_kernels::invert_square`]:
+/// power-of-two diagonal scales, then Gauss-Jordan with partial pivoting and
+/// floor `1e-12` times the equilibrated scale. A well-scaled inverse is the
+/// elimination's inverse. A zero diagonal is not a refusal by itself; a
+/// non-finite entry or a pivot on the floor is. Cholesky keeps a separate
+/// `64 eps` floor.
 #[must_use]
 pub fn invert_square(a_in: &[f64], ncols: usize) -> Option<Vec<f64>> {
-    if ncols == 0
-        || a_in.len() < ncols * ncols
-        || a_in[..ncols * ncols].iter().any(|v| !v.is_finite())
-    {
-        return None;
-    }
-    let mut d = vec![0.0_f64; ncols];
-    for i in 0..ncols {
-        let diag = a_in[i * ncols + i].abs();
-        let magnitude = if diag > 0.0 {
-            diag.sqrt()
-        } else {
-            (0..ncols).fold(0.0_f64, |m, j| {
-                m.max(a_in[i * ncols + j].abs().max(a_in[j * ncols + i].abs()))
-            })
-        };
-        if !(magnitude.is_finite() && magnitude > 0.0) {
-            return None;
-        }
-        d[i] = magnitude;
-    }
-    let tol = 1e-12;
-
-    let mut a = vec![0.0; ncols * ncols];
-    for i in 0..ncols {
-        for j in 0..ncols {
-            a[i * ncols + j] = a_in[i * ncols + j] / (d[i] * d[j]);
-        }
-    }
-    let mut inv = vec![0.0; ncols * ncols];
-    for i in 0..ncols {
-        inv[i * ncols + i] = 1.0;
-    }
-    for col in 0..ncols {
-        // Partial pivoting: pick the largest |pivot| in the remaining rows.
-        let mut best = col;
-        for row in (col + 1)..ncols {
-            if a[row * ncols + col].abs() > a[best * ncols + col].abs() {
-                best = row;
-            }
-        }
-        if a[best * ncols + col].abs() < tol {
-            return None;
-        }
-        if best != col {
-            for j in 0..ncols {
-                a.swap(col * ncols + j, best * ncols + j);
-                inv.swap(col * ncols + j, best * ncols + j);
-            }
-        }
-        let pivot = a[col * ncols + col];
-        for j in 0..ncols {
-            a[col * ncols + j] /= pivot;
-            inv[col * ncols + j] /= pivot;
-        }
-        for row in 0..ncols {
-            if row == col {
-                continue;
-            }
-            let factor = a[row * ncols + col];
-            for j in 0..ncols {
-                a[row * ncols + j] -= factor * a[col * ncols + j];
-                inv[row * ncols + j] -= factor * inv[col * ncols + j];
-            }
-        }
-    }
-    for i in 0..ncols {
-        for j in 0..ncols {
-            inv[i * ncols + j] /= d[i] * d[j];
-        }
-    }
-    Some(inv)
+    antecedent_kernels::invert_square(a_in, ncols)
 }
 
 #[cfg(test)]
@@ -242,7 +162,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

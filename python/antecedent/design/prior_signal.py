@@ -8,10 +8,12 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from .. import _native
+from .._columns import coerce_fields
+from .._refusal import raise_refusal
 from ..errors import CausalTypeError, CausalValueError
 from ..joint_distribution import ScientificQuantity
 from ..priors import PriorCatalog, _query_estimand
-from ._declarations import BinomialSignal, GaussianMeanSignal, StatePrior, _raise
+from ._declarations import BinomialSignal, GaussianMeanSignal, StatePrior, _refusal_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,7 +48,7 @@ class PriorSignalSource:
                 raise CausalTypeError(f"{name} must be a sequence of strings")
             if any(not isinstance(v, str) or not v.strip() for v in values):
                 raise CausalValueError(f"{name} must contain nonempty strings")
-            object.__setattr__(self, name, tuple(values))
+            coerce_fields(self, **{name: tuple(values)})
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -74,9 +76,9 @@ class CheckedPriorSignal:
         prior_id: str,
     ) -> CheckedPriorSignal:
         result = object.__new__(cls)
-        object.__setattr__(result, "prior", StatePrior("draws", _checked=native))
-        object.__setattr__(result, "signal", signal)
-        object.__setattr__(result, "prior_id", prior_id)
+        coerce_fields(result, prior=StatePrior("draws", _checked=native))
+        coerce_fields(result, signal=signal)
+        coerce_fields(result, prior_id=prior_id)
         return result
 
     @property
@@ -156,7 +158,7 @@ def adapt_prior_to_signal(
     except (TypeError, ValueError) as error:
         raise CausalValueError("invalid prior signal declaration") from error
     native, refusal = _native.adapt_prior_signal(payload, text)
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert native is not None
     return CheckedPriorSignal._from_native(native, signal, prior_id)
 

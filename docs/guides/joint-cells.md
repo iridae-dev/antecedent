@@ -1,14 +1,14 @@
-# Joint cells and derived treatments (2.2 E5)
+# Joint cells and derived treatments
 
-A *joint cell* is the joint intervention `do(T_1 = a_1, .., T_k = a_k)` on up to three
+A *joint cell* is the joint intervention `do(T_1 = a_1, .., T_k = a_k)` on up to {{bound:estimate.factorized_joint_cells.max_components}}
 binary components. This guide covers the two pieces added for it: an explicit
 **derived-treatment declaration** (`antecedent.derived.DerivedTreatment`, Rust
 `DerivedTreatmentDeclaration`) and a **factorized-propensity AIPW** over the cells
 (`factorized_joint_cells`, Rust `fit_factorized_joint_cells`). The claim is `point_only`.
-The record is `2.2E.E5.factorized_joint_cells` in `parity/promotion_2_2.toml`; no
+The record is `estimate.factorized_joint_cells` in `parity/promotion.toml`; no
 calibration is run for it.
 
-One fit accepts at most 20 cross-fitting folds and at most 6 orderings.
+One fit accepts at most {{bound:estimate.factorized_joint_cells.max_folds}} cross-fitting folds and at most {{bound:estimate.factorized_joint_cells.max_orderings}} orderings.
 
 ```python
 from antecedent.derived import DerivedTreatment, SourceColumn, factorized_joint_cells
@@ -159,7 +159,7 @@ not supported is withheld with `joint_cell_unsupported` rather than computed on 
   probability and its complement, the identity holds up to rounding; the check guards the
   indexing and the cross-fit assembly, not the model.
 - **Ordering sensitivity.** The family is re-estimated under the declared ordering and, with
-  `all_orderings`, every other permutation (at most six). A cell is flagged when an
+  `all_orderings`, every other permutation (at most {{bound:estimate.factorized_joint_cells.max_orderings}}). A cell is flagged when an
   alternative ordering refuses it, or its estimates differ by more than
   `ordering_tolerance_sd` (default 0.05) outcome standard deviations. Orderings differ only
   through the conditional models' dependence on `Z`, so a flag points at that
@@ -192,7 +192,7 @@ argument.
 
 ## Limits
 
-At most three binary components, so at most eight cells and at most six orderings. The
+At most {{bound:estimate.factorized_joint_cells.max_components}} binary components, so at most eight cells and at most {{bound:estimate.factorized_joint_cells.max_orderings}} orderings. The
 outcome model per cell is linear in `Z`; a misspecified outcome model weakens the double
 robustness that the AIPW score relies on. The route does not take a causal graph: the
 adjustment set is the caller's, checked only for the leakage and dependence above. A declared
@@ -204,3 +204,5 @@ a ridge conditional and once per cell and fold of a declared learner's outcome m
 cancelled fit is `cancelled_no_claim` (`joint_cells.cancelled`) with no fit and no score table.
 `estimate_joint_cell_cost` states the planned conditional and outcome fits from the same
 declaration (see the cost section of the preflight guide).
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

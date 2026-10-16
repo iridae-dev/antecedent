@@ -31,7 +31,7 @@ class ReleaseSupportDeltaTests(unittest.TestCase):
 
     def compare(self, cells, inventory, count=2, *, frozen=True):
         with tempfile.TemporaryDirectory() as directory:
-            baseline = Path(directory) / "v2.2.0.md"
+            baseline = Path(directory) / "v9.8.6.md"
             baseline.write_text(
                 f"{FROZEN_BEGIN if frozen else ''}\n{count} licensed of 4 meaningful cells\n\n{inventory}\n{FROZEN_END}",
                 encoding="utf-8",
@@ -66,6 +66,38 @@ class ReleaseSupportDeltaTests(unittest.TestCase):
         ]:
             with self.subTest(inventory=inventory), self.assertRaises(ValueError):
                 self.compare([], inventory)
+
+    def test_delta_baseline_applies_to_the_older_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "v9.8.6.md").write_text(
+                f"{FROZEN_BEGIN}\n2 licensed of 4 meaningful cells\n\n{self.inventory}\n{FROZEN_END}",
+                encoding="utf-8",
+            )
+            added = "- `AverageEffect` × `Dag` × `accepted` × `Frequentist` × validation `none`"
+            (root / "v9.8.7.md").write_text(
+                f"{FROZEN_BEGIN}\n"
+                "Changes to generic analysis support since 9.8.6: 1 added coordinates, 0 removed coordinates.\n\n"
+                "### Added analysis coordinates\n\n"
+                f"{added}\n"
+                f"{FROZEN_END}",
+                encoding="utf-8",
+            )
+            rendered = "\n".join(
+                release_support_delta(
+                    [
+                        self.cell(),
+                        self.cell("Admg"),
+                        self.cell(structure="accepted"),
+                        self.cell("Admg", "accepted"),
+                    ],
+                    self.axes,
+                    root / "v9.8.7.md",
+                )
+            )
+        self.assertIn("1 added coordinates, 0 removed coordinates", rendered)
+        self.assertIn("`Admg` × `accepted`", rendered)
+        self.assertNotIn("`explicit`", rendered)
 
     def test_removed_axis_is_reported_even_when_absent_from_current_axes(self):
         inventory = self.inventory.replace("`Dag` / `Admg`", "`OldGraph`")

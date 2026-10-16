@@ -1,5 +1,5 @@
 //! Prepared lifecycle, refresh and artifact consumption of an ADMG conditional
-//! transport formula (2.2B B1, X2). The consumer is independent of the artifact
+//! transport formula. The consumer is independent of the artifact
 //! (it re-derives everything), not of the implementation (it re-runs the same
 //! decision and evaluator); only its proof check is distinct code.
 //!
@@ -247,7 +247,10 @@ fn reseal(wire: &mut AdmgConditionalArtifactWire) -> Vec<u8> {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One mutation per consumer check, each with its reason.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for a mutated artifact fails consumption"
+)]
 fn a_mutated_artifact_fails_consumption() {
     let bytes = export(&prepare(&scm(1)));
     let original = AdmgConditionalArtifactWire::decode(&bytes).unwrap();

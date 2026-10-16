@@ -1,4 +1,4 @@
-//! B4 nonlinear continuous-mediator mediation artifact (`nonlinear_mediation_v1`).
+//! Nonlinear continuous-mediator mediation artifact (`nonlinear_mediation_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one natural-effects estimate:
 //!
@@ -27,9 +27,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::io::Cursor;
-
-use antecedent_estimate::EstimationError;
+use antecedent_core::CanonicalWriter;
 use antecedent_estimate::nonlinear_mediation::{
     NONLINEAR_MEDIATION_CALIBRATION, NONLINEAR_MEDIATION_INTERVAL_STATUS, NonlinearMediationConfig,
     NonlinearMediationEstimand, NonlinearMediationEstimate, NonlinearMediationInput,
@@ -37,10 +35,7 @@ use antecedent_estimate::nonlinear_mediation::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const NONLINEAR_MEDIATION_ARTIFACT_VERSION: u16 = 1;
@@ -57,7 +52,7 @@ pub const MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 /// Inference claim of the artifact: point estimates and diagnostics, no interval.
 pub const NONLINEAR_MEDIATION_ARTIFACT_CLAIM: &str = "point_with_diagnostics";
 
-const ARTIFACT_KIND: &str = "nonlinear_mediation_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::NONLINEAR_MEDIATION;
 const META_SECTION: &str = "nonlinear_mediation_meta";
 const DATA_SECTION: &str = "nonlinear_mediation_data";
 const ESTIMAND_NATURAL: &str = "natural_effects";
@@ -73,94 +68,14 @@ pub const NONLINEAR_MEDIATION_ARTIFACT_CAVEATS: [&str; 2] = [
      ignorability, which are declared and cannot be tested from the data",
 ];
 
-/// Why a nonlinear-mediation artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum NonlinearMediationArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("nonlinear mediation artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported nonlinear mediation artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate or caveat that is not this format's.
-    #[error("unsupported nonlinear mediation semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("nonlinear mediation consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed nonlinear mediation artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("nonlinear_mediation.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored record differs from the recomputed one.
-    #[error("stored nonlinear mediation record does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("nonlinear mediation artifact does not encode: {0}")]
-    Encode(String),
-    /// The core estimator refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl NonlinearMediationArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core refusal, a changed identity field and a record that does not replay;
-    /// absent for corruption, unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "nonlinear_mediation.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ResultMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "nonlinear_mediation.report_replay_mismatch".to_owned(),
-                format!("the stored {what} does not replay"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for NonlinearMediationArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for NonlinearMediationArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why a nonlinear-mediation artifact was refused or could not be produced.
+    NonlinearMediationArtifactError,
+    "nonlinear mediation",
+    "nonlinear_mediation",
+    "record",
+    true
+);
 
 fn invalid_request(message: &str) -> NonlinearMediationArtifactError {
     NonlinearMediationArtifactError::Refused {
@@ -173,7 +88,10 @@ fn invalid_request(message: &str) -> NonlinearMediationArtifactError {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 // Wire struct declares four independent graph premises; each flag is its own declaration.
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct MediationPremisesWire {
     /// An unmeasured treatment-outcome common cause is declared.
     pub unmeasured_treatment_outcome_confounding: bool,
@@ -406,21 +324,16 @@ pub struct NonlinearMediationMeta {
     pub caveats: Vec<String>,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
-}
-
-fn count_u32(n: usize) -> u32 {
-    u32::try_from(n).unwrap_or(u32::MAX)
+fn count_u32(n: usize) -> Result<u32, NonlinearMediationArtifactError> {
+    u32::try_from(n).map_err(|_| NonlinearMediationArtifactError::LimitsExceeded("count"))
 }
 
 fn count_u64(n: usize) -> u64 {
-    u64::try_from(n).unwrap_or(u64::MAX)
+    crate::width::lossless_u64(n)
 }
 
 fn index(n: u32) -> usize {
-    usize::try_from(n).unwrap_or(usize::MAX)
+    n as usize
 }
 
 fn estimand_of(tag: &str) -> Result<NonlinearMediationEstimand, NonlinearMediationArtifactError> {
@@ -533,30 +446,24 @@ fn request_of(
     if p > NONLINEAR_MEDIATION_ARTIFACT_MAX_COVARIATES {
         return Err(NonlinearMediationArtifactError::LimitsExceeded("covariates"));
     }
-    let expected = (3 + p).checked_mul(n).and_then(|c| c.checked_mul(8));
-    if expected != Some(numbers.len()) {
-        return Err(NonlinearMediationArtifactError::Malformed("data section length".into()));
-    }
-    let values: Vec<f64> = numbers
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect();
-    let column = |j: usize| values[j * n..(j + 1) * n].to_vec();
+    let columns = crate::width::columns_from_le(numbers, n, 3 + p)
+        .ok_or_else(|| NonlinearMediationArtifactError::Malformed("data section length".into()))?;
     Ok(NonlinearMediationRequestWire {
         premises: meta.premises.clone(),
         config: meta.config.clone(),
-        data: MediationDataWire {
-            treatment: column(0),
-            mediator: column(1),
-            outcome: column(2),
-            covariate_names: meta.model_specs.covariates.clone(),
-            covariates: (0..p).map(|j| column(3 + j)).collect(),
-        },
+        data: data_from_columns(columns, meta.model_specs.covariates.clone()),
     })
+}
+
+fn data_from_columns(
+    mut columns: Vec<Vec<f64>>,
+    covariate_names: Vec<String>,
+) -> MediationDataWire {
+    let covariates = columns.split_off(3);
+    let outcome = columns.pop().unwrap_or_default();
+    let mediator = columns.pop().unwrap_or_default();
+    let treatment = columns.pop().unwrap_or_default();
+    MediationDataWire { treatment, mediator, outcome, covariate_names, covariates }
 }
 
 fn premise_records(premises: &MediationPremisesWire) -> Vec<MediationPremiseRecord> {
@@ -610,9 +517,11 @@ fn model_specs(request: &NonlinearMediationRequestWire) -> MediationModelSpecs {
     }
 }
 
-fn result_wire(estimate: &NonlinearMediationEstimate) -> MediationResultWire {
+fn result_wire(
+    estimate: &NonlinearMediationEstimate,
+) -> Result<MediationResultWire, NonlinearMediationArtifactError> {
     let boot = &estimate.bootstrap;
-    MediationResultWire {
+    Ok(MediationResultWire {
         natural_direct: estimate.natural_direct,
         natural_indirect: estimate.natural_indirect,
         total: estimate.total,
@@ -621,9 +530,14 @@ fn result_wire(estimate: &NonlinearMediationEstimate) -> MediationResultWire {
         total_se: estimate.total_se,
         identity_residual: estimate.identity_residual,
         integration_error: estimate.integration_error,
-        coarse_nodes: count_u32(estimate.quadrature_nodes),
-        fine_nodes: count_u32(2 * estimate.quadrature_nodes),
-        outcome_degree: count_u32(estimate.outcome_degree),
+        coarse_nodes: count_u32(estimate.quadrature_nodes)?,
+        fine_nodes: count_u32(
+            estimate
+                .quadrature_nodes
+                .checked_mul(2)
+                .ok_or(NonlinearMediationArtifactError::LimitsExceeded("count"))?,
+        )?,
+        outcome_degree: count_u32(estimate.outcome_degree)?,
         n_rows: count_u64(estimate.n_rows),
         overlap: MediationOverlapWire {
             treated_count: count_u64(estimate.overlap.treated_count),
@@ -648,28 +562,23 @@ fn result_wire(estimate: &NonlinearMediationEstimate) -> MediationResultWire {
             interval_status: estimate.interval_status.to_owned(),
         },
         assumptions: estimate.assumptions.iter().map(|a| (*a).to_owned()).collect(),
-    }
+    })
 }
 
 fn digest<T: Serialize>(tag: &str, value: &T) -> Result<String, NonlinearMediationArtifactError> {
     let bytes = to_cbor(value)?;
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(tag.as_bytes());
-    hasher.update(&count_u64(bytes.len()).to_le_bytes());
-    hasher.update(&bytes);
-    Ok(hasher.finalize().to_hex().to_string())
+    Ok(CanonicalWriter::digest_bytes_hex(tag, &bytes))
 }
 
 fn data_digest(data: &MediationDataWire) -> Result<String, NonlinearMediationArtifactError> {
     let names = to_cbor(&data.covariate_names)?;
     let numbers = data_bytes(data);
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"nonlinear_mediation_v1.data");
-    hasher.update(&count_u64(names.len()).to_le_bytes());
-    hasher.update(&names);
-    hasher.update(&count_u64(data.treatment.len()).to_le_bytes());
-    hasher.update(&numbers);
-    Ok(hasher.finalize().to_hex().to_string())
+    let hasher = CanonicalWriter::new("nonlinear_mediation_v1.data")
+        .bytes(&names)
+        .word(count_u64(data.treatment.len()))
+        .bytes(&numbers)
+        .finish();
+    Ok(antecedent_core::to_hex(&hasher))
 }
 
 fn build_meta(
@@ -678,7 +587,7 @@ fn build_meta(
 ) -> Result<NonlinearMediationMeta, NonlinearMediationArtifactError> {
     let records = premise_records(&request.premises);
     let specs = model_specs(request);
-    let result = result_wire(estimate);
+    let result = result_wire(estimate)?;
     let premises_id = digest("nonlinear_mediation_v1.premises", &(&request.premises, &records))?;
     let config_id = digest("nonlinear_mediation_v1.config", &(&request.config, &specs))?;
     let data_id = data_digest(&request.data)?;
@@ -738,44 +647,44 @@ fn identity_diff(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
     meta: &NonlinearMediationMeta,
     data: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, NonlinearMediationArtifactError> {
-    let encode = |e: crate::IoError| NonlinearMediationArtifactError::Encode(e.to_string());
+    encode_parts_impl(meta, data, artifact_id)
+}
+
+fn encode_parts_impl(
+    meta: &NonlinearMediationMeta,
+    data: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, NonlinearMediationArtifactError> {
     if artifact_id.trim().is_empty() {
         return Err(NonlinearMediationArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(DATA_SECTION, "application/octet-stream", data),
-            ],
-            provenance: ProvenanceWire {
-                note: "nonlinear_mediation_point_with_diagnostics_unmeasured".into(),
-            },
+    let meta_bytes = to_cbor(meta)
+        .map_err(|error| NonlinearMediationArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "nonlinear_mediation_point_with_diagnostics_unmeasured",
+            max_bytes: MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(DATA_SECTION, data.to_vec()),
+        &[
+            crate::OutSection {
+                id: META_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            crate::OutSection { id: DATA_SECTION, content_type: crate::CONTENT_BYTES, bytes: data },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+    )
+    .map_err(|error| crate::map_artifact_check!(error, NonlinearMediationArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -785,39 +694,37 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(NonlinearMediationMeta, Vec<u8>), NonlinearMediationArtifactError> {
-    if bytes.len() > MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 2
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != DATA_SECTION
-    {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
+    bytes: &[u8],
+) -> Result<(NonlinearMediationMeta, Vec<u8>), NonlinearMediationArtifactError> {
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES,
+        &[META_SECTION, DATA_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, NonlinearMediationArtifactError))?;
+    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(NonlinearMediationArtifactError::Malformed(
             "unsupported container layout".into(),
         ));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    if declared.is_none_or(|total| total > count_u64(MAX_NONLINEAR_MEDIATION_ARTIFACT_BYTES)) {
-        return Err(NonlinearMediationArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != NONLINEAR_MEDIATION_ARTIFACT_VERSION {
-        return Err(NonlinearMediationArtifactError::UnsupportedVersion { version: peek.version });
-    }
-    let meta: NonlinearMediationMeta = from_cbor(meta_section.as_bytes())?;
-    let data = reader.load_section(DATA_SECTION)?;
-    Ok((meta, data.as_bytes().to_vec()))
+    };
+    let meta = crate::decode_with_version(&meta_bytes, |version| {
+        if version == NONLINEAR_MEDIATION_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(NonlinearMediationArtifactError::UnsupportedVersion { version })
+        }
+    })?;
+    Ok((meta, payload))
 }
 
 /// A produced or consumed mediation artifact: the declared request, the recomputed estimate and
@@ -873,7 +780,7 @@ impl NonlinearMediationArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, NonlinearMediationArtifactError> {
-        encode_parts(&self.meta, &data_bytes(&self.request.data), artifact_id)
+        encode_parts_impl(&self.meta, &data_bytes(&self.request.data), artifact_id)
     }
 
     /// Consume an artifact by re-estimation.
@@ -890,7 +797,7 @@ impl NonlinearMediationArtifact {
         bytes: &[u8],
         expected: Option<&NonlinearMediationIdentity>,
     ) -> Result<Self, NonlinearMediationArtifactError> {
-        let (meta, data) = decode_parts(bytes)?;
+        let (meta, data) = decode_parts_impl(bytes)?;
         let unsupported = NonlinearMediationArtifactError::UnsupportedSemantics;
         if meta.feature != NONLINEAR_MEDIATION_ARTIFACT_FEATURE {
             return Err(unsupported("feature marker"));
@@ -929,5 +836,32 @@ impl NonlinearMediationArtifact {
             }
         }
         Ok(Self { meta: rebuilt, request, estimate })
+    }
+}
+
+#[cfg(test)]
+mod data_section_tests {
+    use super::data_bytes;
+    use crate::nonlinear_mediation_artifact::MediationDataWire;
+
+    #[test]
+    fn data_section_round_trips_signed_zero_and_nan() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
+        let data = MediationDataWire {
+            treatment: vec![-0.0, 1.0],
+            mediator: vec![nan, -1.5],
+            outcome: vec![0.0, f64::MIN_POSITIVE],
+            covariate_names: vec!["x".into()],
+            covariates: vec![vec![-0.0, nan]],
+        };
+        let bytes = data_bytes(&data);
+        let columns = crate::width::columns_from_le(&bytes, 2, 4).unwrap();
+        let again = super::data_from_columns(columns, data.covariate_names.clone());
+        assert_eq!(data_bytes(&again), bytes);
+        let bits = |sample: &[f64]| sample.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&again.treatment), bits(&data.treatment));
+        assert_eq!(bits(&again.mediator), bits(&data.mediator));
+        assert_eq!(bits(&again.outcome), bits(&data.outcome));
+        assert_eq!(bits(&again.covariates[0]), bits(&data.covariates[0]));
     }
 }

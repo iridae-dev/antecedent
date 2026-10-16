@@ -5,9 +5,10 @@
 use crate::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use crate::decision_contract::{DecisionContract, DecisionFunctional};
 use crate::decision_eval::{FunctionalValue, evaluate_functional};
-use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain, reason_code};
-use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionIdentity};
-use antecedent_io::{IoError, from_cbor, to_cbor};
+use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
+use antecedent_core::{blake3_hex, reason_code};
+use antecedent_io_core::distribution_artifact::{DistributionArtifact, DistributionIdentity};
+use antecedent_io_core::{IoError, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -75,7 +76,7 @@ impl LawFunctionalArtifact {
             .quantities()
             .iter()
             .cloned()
-            .map(antecedent_core::ScientificQuantity::try_from)
+            .map(antecedent_contract::ScientificQuantity::try_from)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| functional_invalid("functional_source.invalid_source"))?;
         evidence
@@ -123,7 +124,7 @@ impl LawFunctionalArtifact {
         );
         let transform = format!(
             "functional:{}",
-            blake3::hash(&to_cbor(&(&self.action, &self.functional, &decision))?).to_hex()
+            blake3_hex(&to_cbor(&(&self.action, &self.functional, &decision))?)
         );
         let link = |id, stage, parents| CompositionLink {
             id,
@@ -151,20 +152,24 @@ impl LawFunctionalArtifact {
             .actions
             .iter()
             .find(|action| action.id == self.action)
-            .expect("evaluated action");
+            .ok_or_else(|| functional_invalid("functional_source.missing_action"))?;
         Ok(serde_json::json!({
-            "identity":blake3::hash(&self.export()?).to_hex().to_string(),
-            "value":self.result.value,"standard_error":self.result.standard_error,"source_mode":format!("{:?}",self.result.source_mode),
+            "identity":blake3_hex(&self.export()?),
+            "value":self.result.value,"standard_error":self.result.standard_error,"source_mode":format!("{}:{}", self.result.source_mode.representation.label(), self.result.source_mode.needs_error_receipt),
             "source_metadata":self.source.metadata(),
             "source_evidence":self.source_evidence.as_ref().map(crate::source_evidence::SourceEvidence::summary),
             "native_row_origin_verified":false,"source_evidence_scope":"original scoped diagnostic citation; matching quantities and snapshot do not prove native row origin","action":self.action,"functional":self.functional,
-            "contributors":action.utility.inputs_used().iter().filter_map(|index|action.inputs.get(*index)).map(antecedent_io::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),
+            "contributors":action.utility.inputs_used().iter().filter_map(|index|action.inputs.get(*index)).map(antecedent_io_core::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),
             "verification_scope":"original finite law and functional replay; source labels preserve declared standing",
             "native_authority_issued":false,"calibration_license_issued":false,
-            "lineage":chain.links().iter().map(|link| serde_json::json!({
-                "id":link.id,"stage":link.stage.as_str(),"parents":link.parents,"digest":chain.digest_of(&link.id).expect("validated link"),
-                "parent_digests":link.parents.iter().map(|id|chain.digest_of(id).expect("validated parent")).collect::<Vec<_>>()
-            })).collect::<Vec<_>>()
+            "lineage":chain.links().iter().map(|link| {
+                let digest = chain.digest_of(&link.id).map_err(|_| functional_invalid("functional_source.invalid_source"))?;
+                let parent_digests = link.parents.iter().map(|id| chain.digest_of(id).map_err(|_| functional_invalid("functional_source.invalid_source"))).collect::<Result<Vec<_>, _>>()?;
+                Ok::<_, IoError>(serde_json::json!({
+                    "id":link.id,"stage":link.stage.as_str(),"parents":link.parents,"digest":digest,
+                    "parent_digests":parent_digests
+                }))
+            }).collect::<Result<Vec<_>, _>>()?
         }))
     }
     /// Export full original law rows, weights, axes, coupling and request for replay.
@@ -209,7 +214,7 @@ impl LawFunctionalArtifact {
         if bytes.len() > MAX_BYTES {
             return Err(functional_invalid("functional_source.limits_exceeded"));
         }
-        if expected.is_some_and(|id| id != blake3::hash(bytes).to_hex().as_str()) {
+        if expected.is_some_and(|id| id != blake3_hex(bytes).as_str()) {
             return Err(functional_invalid("functional_source.expected_identity_mismatch"));
         }
         let payload = bytes

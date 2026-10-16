@@ -1,4 +1,4 @@
-"""X6: the per-proposal receipt linking identification repair and design ranking.
+"""The per-proposal receipt linking identification repair and design ranking.
 
 Oracles (derived by hand, as in ``crates/antecedent-design/tests/proposal_receipt.rs``):
 
@@ -208,7 +208,7 @@ def refused(callable_, detail):
 # --------------------------------------------------------------------------- receipts
 
 
-def test_x6_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision(fx):
+def test_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision(fx):
     assert fx.repaired.classification("cohort") == "verified_sufficient"
     assert fx.repaired.classification("narrow") == "insufficient"
     assert fx.bundle.candidate_ids == tuple(sorted(fx.ids.values()))
@@ -250,7 +250,7 @@ def test_x6_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decisi
     assert fx.bundle.verify(fx.repair_bytes, fx.ranking_bytes) is None
 
 
-def test_x6_receipt_never_marks_a_hypothetical_derivation_as_available(fx):
+def test_receipt_never_marks_a_hypothetical_derivation_as_available(fx):
     wide = fx.bundle.proposal(fx.cohort_id)
     # The derivation is verified, yet the receipt holds no available evidence.
     assert wide.hypothetical.derivation_verified
@@ -279,7 +279,7 @@ def test_x6_receipt_never_marks_a_hypothetical_derivation_as_available(fx):
     )
 
 
-def test_x6_receipt_bundle_identity_does_not_depend_on_candidate_order(fx):
+def test_receipt_bundle_identity_does_not_depend_on_candidate_order(fx):
     assert list(fx.bundle.candidate_ids) == sorted(fx.bundle.candidate_ids)
     reversed_ranking = rank(
         fx.repaired, list(reversed(fx.studies)), {"narrow": 0.625, "cohort": 0.75}
@@ -299,7 +299,7 @@ def test_x6_receipt_bundle_identity_does_not_depend_on_candidate_order(fx):
     )
 
 
-def test_x6_receipt_round_trips_through_plain_data(fx):
+def test_receipt_round_trips_through_plain_data(fx):
     data = fx.bundle.to_dict()
     again = px.ProposalBundle.from_dict(data)
     assert again.identity == fx.bundle.identity and again.proposals == fx.bundle.proposals
@@ -372,7 +372,7 @@ MUTATIONS = [
 
 
 @pytest.mark.parametrize(("name", "mutate", "detail"), MUTATIONS, ids=[m[0] for m in MUTATIONS])
-def test_x6_receipt_every_bound_field_refuses_when_mutated(fx, name, mutate, detail):
+def test_receipt_every_bound_field_refuses_when_mutated(fx, name, mutate, detail):
     data = copy.deepcopy(fx.bundle.to_dict())
     receipt = next(p for p in data["proposals"] if p["candidate_id"] == fx.cohort_id)
     mutate(receipt)
@@ -383,7 +383,7 @@ def test_x6_receipt_every_bound_field_refuses_when_mutated(fx, name, mutate, det
     )
 
 
-def test_x6_receipt_bundle_level_mutations_refuse(fx):
+def test_receipt_bundle_level_mutations_refuse(fx):
     for field, value, detail in (
         ("identity", "forged", "bundle_identity_mismatch"),
         ("repair_report_digest", "x", "repair_digest_mismatch"),
@@ -420,7 +420,7 @@ def test_x6_receipt_bundle_level_mutations_refuse(fx):
 # ------------------------------------------------------------- cross-artifact checks
 
 
-def test_x6_receipt_a_different_ranking_is_not_the_one_the_bundle_binds(fx):
+def test_receipt_a_different_ranking_is_not_the_one_the_bundle_binds(fx):
     other = rank(fx.repaired, fx.studies, {"narrow": 0.625, "cohort": 0.875})
     assert other.identity != fx.ranked.identity
     refused(
@@ -429,7 +429,7 @@ def test_x6_receipt_a_different_ranking_is_not_the_one_the_bundle_binds(fx):
     )
 
 
-def test_x6_receipt_candidate_in_repair_but_not_in_ranking_is_refused(fx):
+def test_receipt_candidate_in_repair_but_not_in_ranking_is_refused(fx):
     only_cheap = rank(fx.repaired, [fx.studies[0]], {"narrow": 0.625}, ids=fx.ids)
     # The repair evaluated both candidates; a ranking of one values one, so a bundle of both
     # does not cover it.
@@ -441,7 +441,7 @@ def test_x6_receipt_candidate_in_repair_but_not_in_ranking_is_refused(fx):
     assert single.candidate_ids == (fx.narrow_id,)
 
 
-def test_x6_receipt_candidate_in_ranking_but_not_in_repair_is_refused(fx):
+def test_receipt_candidate_in_ranking_but_not_in_repair_is_refused(fx):
     ids = {**fx.ids, "cohort": "sc1:never-repaired"}
     stranger = rank(fx.repaired, fx.studies, {"narrow": 0.625, "cohort": 0.75}, ids=ids)
     refused(
@@ -450,7 +450,7 @@ def test_x6_receipt_candidate_in_ranking_but_not_in_repair_is_refused(fx):
     )
 
 
-def test_x6_receipt_a_ranking_that_costs_a_candidate_differently_is_refused(fx):
+def test_receipt_a_ranking_that_costs_a_candidate_differently_is_refused(fx):
     dearer = rank(
         fx.repaired,
         fx.studies,
@@ -463,7 +463,7 @@ def test_x6_receipt_a_ranking_that_costs_a_candidate_differently_is_refused(fx):
     )
 
 
-def test_x6_receipt_a_foreign_repair_artifact_is_refused(fx):
+def test_receipt_a_foreign_repair_artifact_is_refused(fx):
     other = repair.repair(
         backdoor(), [narrow(), observation("wider", ["t", "y", "z1", "z2", "w1"], 30)]
     )
@@ -474,7 +474,7 @@ def test_x6_receipt_a_foreign_repair_artifact_is_refused(fx):
     )
 
 
-def test_x6_receipt_bundle_inputs_must_be_bytes(fx):
+def test_receipt_bundle_inputs_must_be_bytes(fx):
     with pytest.raises(CausalTypeError):
         px.ProposalBundle.build("repair", fx.ranking_bytes)
     with pytest.raises(CausalTypeError):
@@ -494,7 +494,7 @@ def law(measured, *, population="clinic", joint=True, sample_size=SAMPLES):
     )
 
 
-def test_x6_receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_checker(fx):
+def test_receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_checker(fx):
     verdict = fx.bundle.on_arrival(cohort(), law(["t", "y", "z1", "z2"]))
     assert isinstance(verdict, px.Verified)
     assert verdict.checker == "backdoor.adjustment"
@@ -508,7 +508,7 @@ def test_x6_receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_
     )
 
 
-def test_x6_receipt_arrival_missing_the_joint_law_is_still_insufficient(fx):
+def test_receipt_arrival_missing_the_joint_law_is_still_insufficient(fx):
     # The right variables in the right population, but as separate marginals.
     marginals = fx.bundle.on_arrival(cohort(), law(["t", "y", "z1", "z2"], joint=False))
     assert isinstance(marginals, px.StillInsufficient) and marginals.reasons
@@ -517,12 +517,12 @@ def test_x6_receipt_arrival_missing_the_joint_law_is_still_insufficient(fx):
     assert isinstance(narrower, px.StillInsufficient) and narrower.reasons
 
 
-def test_x6_receipt_arrival_in_a_different_population_invalidates_the_derivation(fx):
+def test_receipt_arrival_in_a_different_population_invalidates_the_derivation(fx):
     verdict = fx.bundle.on_arrival(cohort(), law(["t", "y", "z1", "z2"], population="elsewhere"))
     assert verdict == px.Invalidated("population", "elsewhere", proposed_populations=("clinic",))
 
 
-def test_x6_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed_reason(fx):
+def test_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed_reason(fx):
     refused(
         lambda: fx.bundle.on_arrival(
             cohort(), law(["t", "y", "z1", "z2"], sample_size=SAMPLES - 1)
@@ -581,7 +581,7 @@ class TransportFixture:
         )
 
 
-def test_x6_receipt_transport_arrival_of_the_exact_source_experiment_is_verified():
+def test_receipt_transport_arrival_of_the_exact_source_experiment_is_verified():
     fixture = TransportFixture()
     assert fixture.repaired.classification("trial") == "verified_sufficient"
     assert fixture.repaired.classification("obs") == "insufficient"
@@ -596,7 +596,7 @@ def test_x6_receipt_transport_arrival_of_the_exact_source_experiment_is_verified
     assert verdict.exact
 
 
-def test_x6_receipt_transport_arrival_in_another_population_or_regime_is_invalidated():
+def test_receipt_transport_arrival_in_another_population_or_regime_is_invalidated():
     fixture = TransportFixture()
 
     def arrive(regime):

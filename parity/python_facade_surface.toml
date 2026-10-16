@@ -1,0 +1,2390 @@
+# Rust facade entry points and the Python entry that carries each.
+# One row per public free function (kind = "fn") and per public prepared / session type
+# (kind = "type") of parity/public_api/antecedent.txt. scripts/check_python_surface.py reads
+# this file: every snapshot entry must have exactly one row, a bound row must resolve to a
+# definition in python/, and an internal or missing row must say why.
+#
+# status = "bound"      the entry is reachable from Python at `python` (a dotted path under
+#                       python/, `antecedent._native.<name>`, or `native:<file>` for a PyO3
+#                       function that the wrappers call without a stub of its own)
+# status = "internal"   orchestration or plumbing with no separate Python call; `reason` names
+#                       the entries through which Python reaches the capability
+# status = "missing"    a public entry with no Python entry yet; `reason` says why
+# status = "unverified" no Python counterpart was found by name and none was confirmed by
+#                       reading the wrappers; not a claim that none exists
+
+version = 1
+
+[[entry]]
+rust = "antecedent::analysis::adaptive_inference::consume_adaptive_inference_result_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.adaptive_inference.consume_adaptive_inference_result_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::adaptive_inference::consume_adaptive_monitoring_contract_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.adaptive_inference.consume_adaptive_monitoring_contract_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::alignment_identity"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::check_derived_treatment"
+kind = "fn"
+status = "bound"
+python = "antecedent.derived.check_derived_treatment"
+
+[[entry]]
+rust = "antecedent::analysis::api::classify_inverse_outcome"
+kind = "fn"
+status = "bound"
+python = "native:python/src/inverse_outcome_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_admg_conditional_obstruction_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._admg_conditional.consume_admg_conditional_obstruction_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_admg_conditional_transport_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._admg_conditional.consume_admg_conditional_transport_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_counterfactual_transport_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._counterfactual.consume_counterfactual_transport_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_cpdag_scenarios_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._cpdag_scenarios.consume_cpdag_scenarios_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_evidence_ledger_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.evidence_ledger.consume_evidence_ledger_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_learned_continuous_artifact"
+kind = "fn"
+status = "bound"
+python = "native:python/src/learned_continuous_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_measurement_model_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.measurement_models.consume_measurement_model_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_mechanism_composition_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.mechanism_composition.consume_mechanism_composition_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_mixed_source_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._mixed_source.consume_mixed_source_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_mz_transport_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.advanced.consume_multi_source_z_transport_artifact"
+reason = "named multi_source_z in Python"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_observation_recovery_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._recovery.consume_observation_recovery_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_predictive_assessment_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.predictive_assessment.consume_predictive_assessment_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_scenario_covariance_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._cpdag_scenarios.consume_scenario_covariance_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_scientific_bridge_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.scientific_bridge.consume_scientific_bridge_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_smoothed_dose_artifact"
+kind = "fn"
+status = "bound"
+python = "native:python/src/smoothed_dose_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_temporal_initial_state_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._temporal_extensions.consume_temporal_initial_state_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_temporal_refresh_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._temporal_extensions.consume_temporal_refresh_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_temporal_transport_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._temporal.consume_temporal_transport_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_transport_scenarios_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._scenarios.consume_transport_scenarios_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::consume_z_transport_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._impl.identify.consume_z_transport_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::api::estimate_derived_joint_cells"
+kind = "fn"
+status = "bound"
+python = "native:python/src/derived_treatment_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::estimate_joint_cell_cost"
+kind = "fn"
+status = "bound"
+python = "antecedent.derived.estimate_joint_cell_cost"
+reason = "planning-time fit counts of the factorized joint-cell fit; tested in python/tests/test_derived_treatment.py"
+
+[[entry]]
+rust = "antecedent::analysis::api::estimate_with_rank_drop"
+kind = "fn"
+status = "bound"
+python = "antecedent.preflight.estimate_with_rank_drop"
+
+[[entry]]
+rust = "antecedent::analysis::api::export_admg_conditional_obstruction"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_admg_conditional_api.rs"
+reason = "the proven stage export_obstruction; tested in python/tests/test_transport_admg_conditional.py"
+
+[[entry]]
+rust = "antecedent::analysis::api::export_scenario_covariance"
+kind = "fn"
+status = "bound"
+python = "native:python/src/cpdag_scenario_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::fit_declaration_from_ledger"
+kind = "fn"
+status = "bound"
+python = "native:python/src/predictive_assessment_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::fit_diagnostics_design"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preflight_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::observation_keys_from_ledger"
+kind = "fn"
+status = "bound"
+python = "native:python/src/predictive_assessment_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::plan_rank_drop"
+kind = "fn"
+status = "bound"
+python = "antecedent.preflight.plan_rank_drop"
+
+[[entry]]
+rust = "antecedent::analysis::api::posterior_predictive_predictor"
+kind = "fn"
+status = "missing"
+reason = "the predictor needs the Rust-typed prepared Bayesian problem and posterior, which Python holds no handle to; replicate_laws lifts replicates Python already has, but the posterior-predictive draws themselves are not exposed; no binding added yet"
+
+[[entry]]
+rust = "antecedent::analysis::api::preflight_design"
+kind = "fn"
+status = "bound"
+python = "native:python/src/preflight_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::prepare_counterfactual_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_counterfactual_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::api::temporal_dependent_interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._temporal_extensions.temporal_dependent_interval"
+
+[[entry]]
+rust = "antecedent::analysis::api::tier_diagnostics"
+kind = "fn"
+status = "bound"
+python = "antecedent.tier_diagnostics.tier_diagnostics"
+
+[[entry]]
+rust = "antecedent::analysis::check_callback_connection"
+kind = "fn"
+status = "bound"
+python = "antecedent.interface_contract.check_connection"
+reason = "callback interface check through the interface contract entry"
+
+[[entry]]
+rust = "antecedent::analysis::check_claim_to_callback"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.check_claim_to_callback"
+reason = "tested in python/tests/test_provider_callbacks.py"
+
+[[entry]]
+rust = "antecedent::analysis::check_interface_composition"
+kind = "fn"
+status = "bound"
+python = "native:python/src/interface_contract_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::check_interface_connection"
+kind = "fn"
+status = "bound"
+python = "native:python/src/interface_contract_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::closed_pilots::joint_bayesian_transport_refusal"
+kind = "fn"
+status = "bound"
+python = "native:python/src/closed_pilot_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::closed_pilots::nested_markov_refusal"
+kind = "fn"
+status = "bound"
+python = "native:python/src/closed_pilot_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::closed_pilots::sampled_recovery_refusal"
+kind = "fn"
+status = "bound"
+python = "native:python/src/closed_pilot_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::cohort_decision::consume_cohort_decision_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.cohort_decision.consume_cohort_decision_source"
+
+[[entry]]
+rust = "antecedent::analysis::cohort_decision::evaluate_cohort_decision"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision.Contract.evaluate"
+reason = "Python evaluates a cohort_decision source through Contract.evaluate(source)"
+
+[[entry]]
+rust = "antecedent::analysis::cohort_decision::fit_cohort_effect"
+kind = "fn"
+status = "bound"
+python = "native:python/src/cohort_decision_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::cohort_decision::measured_cohort_interval"
+kind = "fn"
+status = "bound"
+python = "native:python/src/cohort_decision_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume"
+kind = "fn"
+status = "bound"
+python = "native:python/src/composition_bundle_api.rs"
+reason = "consume_composition_bundle; tested in python/tests/test_composition_bundle.py"
+
+[[entry]]
+rust = "antecedent::analysis::composition::consume_with_limits"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recovery_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::composition::export_bundle"
+kind = "fn"
+status = "bound"
+python = "native:python/src/composition_bundle_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::consume_composition_verification_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_verification.consume_composition_verification_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::contract_effects"
+kind = "fn"
+status = "internal"
+reason = "builds observed effects from Rust-typed claim envelopes; Python states effects directly with composition_verification.Effect and verify_composition"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::freshness_effects"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::invalidation_effects"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::ledger_effects"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_verification.ledger_effects"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::library_transported_node"
+kind = "fn"
+status = "internal"
+reason = "node builder for the facade transported routes; Python builds composition_verification.Node directly"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::library_transported_standing"
+kind = "fn"
+status = "internal"
+reason = "standing builder for the facade transported routes; Python states Calibration and Node directly"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::query_revalidation"
+kind = "fn"
+status = "internal"
+reason = "reads the Rust invalidation log for one query; Python states the resulting effect with composition_verification.Effect"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::registry_record_attests"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_verification.registry_record_attests"
+reason = "tested in python/tests/test_composition_verification.py"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::registry_record_identity"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_verification.registry_record_identity"
+reason = "tested in python/tests/test_composition_verification.py"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::registry_resolved_calibration"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_verification.registry_resolved_calibration"
+reason = "tested in python/tests/test_composition_verification.py"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::stage_effects"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::stage_node"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::stage_node_with_standing"
+kind = "fn"
+status = "internal"
+reason = "node builder over a Rust RecalcPlan; Python builds composition_verification.Node directly"
+
+[[entry]]
+rust = "antecedent::analysis::composition_verification::unresolved_registry_calibrations"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_verification.unresolved_registry_calibrations"
+reason = "tested in python/tests/test_composition_verification.py"
+
+[[entry]]
+rust = "antecedent::analysis::consume_callback_result"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.consume_callback_result"
+
+[[entry]]
+rust = "antecedent::analysis::consume_decision_reliability_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision_reliability.consume_decision_reliability_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::consume_interface_contract_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.interface_contract.consume_interface_contract_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::consume_joint_law_propagation_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_law_propagation.consume_joint_law_propagation_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::cross_world_interval::whole_path_interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.cross_world_execution.CrossWorldExecution.measured_interval"
+reason = "tested in python/tests/test_cross_world_execution.py"
+
+[[entry]]
+rust = "antecedent::analysis::cross_world_interval::whole_path_interval_basis"
+kind = "fn"
+status = "bound"
+python = "antecedent.cross_world_execution.CrossWorldExecution.measured_interval"
+reason = "the calibration basis behind the interval; tested in python/tests/test_cross_world_execution.py"
+
+[[entry]]
+rust = "antecedent::analysis::decision_claims::atom_leaders"
+kind = "fn"
+status = "bound"
+python = "native:python/src/composition_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::decision_claims::cpdag_claims"
+kind = "fn"
+status = "bound"
+python = "native:python/src/composition_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::decision_claims::envelope_identified_utilities"
+kind = "fn"
+status = "bound"
+python = "antecedent.scenario_decision.identified_utilities_from_scenarios"
+reason = "route=envelope reads the structural envelope; tested in python/tests/test_scenario_decision.py"
+
+[[entry]]
+rust = "antecedent::analysis::decision_claims::evaluate_cpdag_decision"
+kind = "fn"
+status = "bound"
+python = "antecedent.scenario_decision.decide_from_cpdag_completions"
+reason = "tested in python/tests/test_scenario_decision.py"
+
+[[entry]]
+rust = "antecedent::analysis::decision_claims::evaluate_scenario_decision"
+kind = "fn"
+status = "bound"
+python = "antecedent.scenario_decision.decide_from_scenarios"
+reason = "tested in python/tests/test_scenario_decision.py"
+
+[[entry]]
+rust = "antecedent::analysis::decision_claims::interval_identified_utilities"
+kind = "fn"
+status = "bound"
+python = "antecedent.scenario_decision.identified_utilities_from_intervals"
+reason = "tested in python/tests/test_scenario_decision.py"
+
+[[entry]]
+rust = "antecedent::analysis::decision_claims::report_identified_utilities"
+kind = "fn"
+status = "bound"
+python = "antecedent.scenario_decision.identified_utilities_from_scenarios"
+reason = "route=report (the default), also over CPDAG completions through identified_utilities_from_cpdag_completions; tested in python/tests/test_scenario_decision.py"
+
+[[entry]]
+rust = "antecedent::analysis::decision_claims::scenario_claims"
+kind = "fn"
+status = "bound"
+python = "native:python/src/composition_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::decision_claims::weighted_identified_utilities"
+kind = "fn"
+status = "bound"
+python = "antecedent.scenario_decision.identified_utilities_from_scenarios"
+reason = "route=weighted reads the weighted range; refusal tested in python/tests/test_scenario_decision.py"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability::consume_derived_uncertainty"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision_reliability.consume_derived_uncertainty"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability::decision_reliability_coverage_design"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_reliability_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability::derive_decision_uncertainty"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_reliability_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability::derive_producer_uncertainty"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_reliability_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability::publish_derived_route"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_reliability_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability::reach_decision_carrier"
+kind = "fn"
+status = "bound"
+python = "native:python/src/decision_reliability_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::design_ranking::evaluate"
+kind = "fn"
+status = "bound"
+python = "native:python/src/design_ranking_api.rs"
+reason = "evaluate_design_ranking; tested in python/tests/test_design_ranking.py"
+
+[[entry]]
+rust = "antecedent::analysis::design_ranking::rank_structural"
+kind = "fn"
+status = "bound"
+python = "antecedent.design.structural.rank_structural"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport::discover_and_transport"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.discovered.discover_and_transport"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport::discovered_transport_refusal"
+kind = "fn"
+status = "bound"
+python = "native:python/src/discovered_transport_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport::formula_kind"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transport_interference_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport::transport_discovered_structure"
+kind = "fn"
+status = "bound"
+python = "native:python/src/discovered_transport_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::discretized_composition::consume_discretized_composition"
+kind = "fn"
+status = "bound"
+python = "antecedent.discretized_composition.consume_discretized_composition"
+
+[[entry]]
+rust = "antecedent::analysis::export_callback_result"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.ExportedCallbackResult"
+reason = "CallbackExecution.export returns it"
+
+[[entry]]
+rust = "antecedent::analysis::export_interface_contract"
+kind = "fn"
+status = "bound"
+python = "antecedent.interface_contract.export_interface_contract"
+
+[[entry]]
+rust = "antecedent::analysis::forecast_law_from_sample"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.CallbackSession.forecast_law"
+reason = "tested in python/tests/test_provider_callbacks.py"
+
+[[entry]]
+rust = "antecedent::analysis::inspect_callback_result"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.inspect_callback_result"
+
+[[entry]]
+rust = "antecedent::analysis::inspect_interface_contract_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.interface_contract.inspect_interface_contract_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::check_interface_composition_with_ledger"
+kind = "fn"
+status = "bound"
+python = "antecedent.interface_contract.check_composition_with_ledger"
+reason = "tested in python/tests/test_interface_contract.py"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_query::consume"
+kind = "fn"
+status = "bound"
+python = "antecedent.inverse_query.consume"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_query::evaluate"
+kind = "fn"
+status = "bound"
+python = "antecedent.inverse_query.evaluate"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_query::export"
+kind = "fn"
+status = "bound"
+python = "antecedent.inverse_query.InverseResult.export"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_query::seal"
+kind = "fn"
+status = "bound"
+python = "native:python/src/inverse_query_api.rs"
+reason = "InverseQueryArtifact::new behind antecedent.inverse_query.evaluate; tested in python/tests/test_inverse_query.py"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::cohort_source"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::composed_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.inverse_sources.composed_forward_source"
+reason = "the Python entry is named composed_forward_source"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::evaluate_observational"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::inspect_observational"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::inspect_origin"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::seal_per_action"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::transported_source"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::verify_observational"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_composed_basis::composed_basis"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
+reason = "tested in python/tests/test_composed_uncertainty.py"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_composed_basis::dependence_label"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
+reason = "tested in python/tests/test_composed_uncertainty.py"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_composed_basis::resolve"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_law_propagation.PropagationClaim.check_composed_interval"
+reason = "tested in python/tests/test_composed_uncertainty.py"
+
+[[entry]]
+rust = "antecedent::analysis::claim_from_artifact"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_alignment"
+kind = "fn"
+status = "internal"
+reason = "the mapping from an artifact alignment to the rule input alignment, applied inside PropagationDraws.from_artifact_column and the aligned_* routes; no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+reason = "the linear-moment and undeclared-mixture routes call propagate; tested in python/tests/test_joint_law_propagation.py"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_aligned_functional"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_aligned_linear"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_aligned_linear_spread"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_composed_exceedance"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_correlation_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_dependence_envelope"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_linear_moments"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_linear_moments_spread"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_mixture"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_mixture_exceedance"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_spread"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_transported_spread"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_law_propagation.transported_spread"
+reason = "the Python entry is named transported_spread"
+
+[[entry]]
+rust = "antecedent::analysis::joint_law_propagation::propagate_transported_spread_aligned"
+kind = "fn"
+status = "bound"
+python = "native:python/src/joint_law_propagation_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::learned_joint_closed::learned_joint_transport_refusal"
+kind = "fn"
+status = "bound"
+python = "native:python/src/learned_joint_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::mechanism_discrepancy::consume_mechanism_discrepancy"
+kind = "fn"
+status = "bound"
+python = "native:python/src/mechanism_discrepancy_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::mechanism_discrepancy::run_mechanism_discrepancy"
+kind = "fn"
+status = "bound"
+python = "native:python/src/mechanism_discrepancy_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::mechanism_discrepancy::summarize_sample"
+kind = "fn"
+status = "bound"
+python = "native:python/src/mechanism_discrepancy_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::msm_sensitivity::msm_sensitivity"
+kind = "fn"
+status = "bound"
+python = "native:python/src/msm_sensitivity_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::msm_sensitivity::msm_sensitivity_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.msm_sensitivity_artifact_run"
+reason = "wrapped by antecedent.msm_sensitivity.to_sensitivity_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::msm_sensitivity::msm_sensitivity_artifact_bytes"
+kind = "fn"
+status = "bound"
+python = "native:python/src/msm_sensitivity_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::native_claims::native_response_coordinates"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::observation_evidence::required_bayes_factor"
+kind = "fn"
+status = "bound"
+python = "antecedent.observation_query.required_bayes_factor"
+
+[[entry]]
+rust = "antecedent::analysis::observation_evidence::required_observations_binary_signal"
+kind = "fn"
+status = "bound"
+python = "antecedent.observation_query.required_observations_binary_signal"
+
+[[entry]]
+rust = "antecedent::analysis::observation_evidence::required_observations_conjugate"
+kind = "fn"
+status = "bound"
+python = "antecedent.observation_query.required_observations_conjugate"
+
+[[entry]]
+rust = "antecedent::analysis::observation_posterior::conjugate_posterior"
+kind = "fn"
+status = "bound"
+python = "antecedent.observation_query.conjugate_posterior"
+
+[[entry]]
+rust = "antecedent::analysis::observation_posterior::finite_posterior"
+kind = "fn"
+status = "bound"
+python = "antecedent.observation_query.finite_posterior"
+
+[[entry]]
+rust = "antecedent::analysis::observation_query::consume_observation_query_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.observation_query.consume_observation_query_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::per_population_discovery::add_per_population_claims"
+kind = "fn"
+status = "bound"
+python = "antecedent.selective_discovery.PerPopulationDiscovery.add_claims"
+reason = "tested in python/tests/test_per_population_discovery.py"
+
+[[entry]]
+rust = "antecedent::analysis::per_population_discovery::discover_per_population"
+kind = "fn"
+status = "bound"
+python = "antecedent.selective_discovery.PerPopulationDiscovery.run"
+reason = "discovery per population label"
+
+[[entry]]
+rust = "antecedent::analysis::per_population_discovery::request_selection_targets_from_differences"
+kind = "fn"
+status = "bound"
+python = "native:python/src/selective_discovery_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::predictive_law_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.CallbackDeclaration.predictive_law_source"
+reason = "tested in python/tests/test_provider_callbacks.py"
+
+[[entry]]
+rust = "antecedent::analysis::proposal_arrival::execute"
+kind = "fn"
+status = "bound"
+python = "native:python/src/proposal_arrival_api.rs"
+reason = "antecedent.proposal_arrival.consume_arrival executes the checked formula on delivered counts; tested in python/tests/test_proposal_arrival.py"
+
+[[entry]]
+rust = "antecedent::analysis::provider_callbacks::refuse_identification_licence"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.refuse_identification_licence"
+
+[[entry]]
+rust = "antecedent::analysis::provider_callbacks::refuse_interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.refuse_interval"
+
+[[entry]]
+rust = "antecedent::analysis::provider_callbacks::refuse_joint_law"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.refuse_joint_law"
+
+[[entry]]
+rust = "antecedent::analysis::provider_callbacks::refuse_native_trust"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.refuse_native_trust"
+
+[[entry]]
+rust = "antecedent::analysis::provider_callbacks::refuse_posterior_guarantee"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.refuse_posterior_guarantee"
+
+[[entry]]
+rust = "antecedent::analysis::provider_callbacks::register_callback_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.register_callback_source"
+reason = "tested in python/tests/test_provider_callbacks.py"
+
+[[entry]]
+rust = "antecedent::analysis::provider_callbacks::supersede_callback_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.provider_callbacks.supersede_callback_source"
+reason = "tested in python/tests/test_provider_callbacks.py"
+
+[[entry]]
+rust = "antecedent::analysis::provider_callbacks::verification_holds"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_adjusted::execute_adjusted_with_receipt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_adjusted_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_attempt::execute_with_attempt"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_bayesian::execute_bayesian_with_receipt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_bayesian_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_cell::cell_request_reason_code"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_cell::execute_cell_with_receipt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_cell_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_cell::execute_resumed_retarget"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_cell_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_cell::freeze_crossfit_scores"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_cell_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_design::consume_design_with_data"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_design_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_design::execute_design_with_receipt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_design_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_dr::execute_dr_with_receipt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_dr_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_external::count_external_invocations"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_joint_bayesian::execute_joint_bayesian_with_receipt"
+kind = "fn"
+status = "internal"
+reason = "the route behind JointBayesianSession, which is antecedent.recalc_bayesian.BayesianSession.execute"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_receipt::execute_with_receipt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_static::execute_mz_with_receipt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_static_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_static::execute_static_response_with_receipt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_static_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_temporal::consume_temporal_recalc_artifact"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_temporal_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_temporal::execute_temporal_with_receipt"
+kind = "fn"
+status = "bound"
+python = "native:python/src/recalc_temporal_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_temporal::temporal_request_identities"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::refuse_non_report_hmc"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::repair::consume_repair_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.consume_repair_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::repair::repair_contract"
+kind = "fn"
+status = "bound"
+python = "native:python/src/repair_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::repair::repair_with_artifact"
+kind = "fn"
+status = "bound"
+python = "native:python/src/repair_api.rs"
+reason = "repair runs repair_contract and RepairReportArtifact::build, the two steps of this entry; tested in python/tests/test_repair.py"
+
+[[entry]]
+rust = "antecedent::analysis::repair::unresolved_obligations"
+kind = "fn"
+status = "bound"
+python = "native:python/src/repair_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::sample_split_analysis::discover_on_split"
+kind = "fn"
+status = "bound"
+python = "antecedent.selective_discovery.discover_on_split"
+
+[[entry]]
+rust = "antecedent::analysis::sample_split_analysis::split_evidence_sources"
+kind = "fn"
+status = "bound"
+python = "antecedent.selective_discovery.SampleSplit.evidence_sources"
+reason = "tested in python/tests/test_sample_split_analysis.py"
+
+[[entry]]
+rust = "antecedent::analysis::sample_split_effect::estimate_effect_on_split"
+kind = "fn"
+status = "bound"
+python = "native:python/src/selective_discovery_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::sample_split_effect::measure_source"
+kind = "fn"
+status = "bound"
+python = "native:python/src/selective_discovery_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::selective_discovery::accepted_graph_stage_identity"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::selective_discovery::add_discovery_claims"
+kind = "fn"
+status = "bound"
+python = "antecedent.selective_discovery.SelectiveDiscovery.add_claims"
+reason = "tested in python/tests/test_selective_discovery.py"
+
+[[entry]]
+rust = "antecedent::analysis::selective_discovery::discovered_graph_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.selective_discovery.discovered_graph_source"
+reason = "tested in python/tests/test_selective_discovery.py"
+
+[[entry]]
+rust = "antecedent::analysis::selective_discovery::discovered_structure_refusal"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::analysis::selective_discovery::discovery_data_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.selective_discovery.discovery_data_source"
+reason = "tested in python/tests/test_selective_discovery.py and python/tests/test_sample_split_analysis.py"
+
+[[entry]]
+rust = "antecedent::analysis::selective_discovery::discovery_rows_source"
+kind = "fn"
+status = "bound"
+python = "antecedent.selective_discovery.discovery_rows_source"
+reason = "tested in python/tests/test_selective_discovery.py"
+
+[[entry]]
+rust = "antecedent::analysis::selective_discovery::revalidate_after_discovery"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_verification.verify_composition"
+reason = "revalidate with no extra effects is verify_composition with a previous graph and no effects; tested in python/tests/test_composition_verification.py"
+
+[[entry]]
+rust = "antecedent::analysis::sensitivity_decision::consume"
+kind = "fn"
+status = "bound"
+python = "antecedent.sensitivity_decision.SensitivityArtifact.consume"
+
+[[entry]]
+rust = "antecedent::analysis::sensitivity_decision::decide"
+kind = "fn"
+status = "bound"
+python = "antecedent.sensitivity_decision.decide"
+
+[[entry]]
+rust = "antecedent::analysis::sensitivity_decision::export"
+kind = "fn"
+status = "bound"
+python = "antecedent.sensitivity_decision.SensitivityArtifact.export"
+
+[[entry]]
+rust = "antecedent::analysis::sequential_evaluation::consume"
+kind = "fn"
+status = "bound"
+python = "antecedent.sequential_evaluation.consume_artifact"
+reason = "the Python entry is named consume_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::sequential_evaluation::evaluate"
+kind = "fn"
+status = "bound"
+python = "antecedent.sequential_evaluation.evaluate"
+
+[[entry]]
+rust = "antecedent::analysis::sequential_evaluation::export"
+kind = "fn"
+status = "bound"
+python = "antecedent.sequential_evaluation.EvaluationArtifact.export"
+
+[[entry]]
+rust = "antecedent::analysis::sequential_evaluation::seal"
+kind = "fn"
+status = "bound"
+python = "antecedent.sequential_evaluation.seal"
+
+[[entry]]
+rust = "antecedent::analysis::source_projection::source_resolved_consumer"
+kind = "fn"
+status = "bound"
+python = "native:python/src/source_projection_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::temporal_counterfactual::transported_path_specific"
+kind = "fn"
+status = "bound"
+python = "antecedent.temporal_counterfactual.transported_path_specific"
+
+[[entry]]
+rust = "antecedent::analysis::transport_handoff::consume_for_callback"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport_handoff.consume_for_callback"
+
+[[entry]]
+rust = "antecedent::analysis::transport_handoff::hand_to_callback"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport_handoff.hand_to_callback"
+
+[[entry]]
+rust = "antecedent::analysis::transport_revalidation::claim_node_key"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.revalidation.claim_node_key"
+
+[[entry]]
+rust = "antecedent::analysis::transport_revalidation::invalidation_effects_for_claims"
+kind = "fn"
+status = "internal"
+reason = "reads the Rust state's invalidation log, which Python holds no handle to; Python states the resulting observed effects through the effects argument of antecedent.transport.revalidation, tested in python/tests/test_transport_revalidation.py"
+
+[[entry]]
+rust = "antecedent::analysis::transport_revalidation::provenance_trust"
+kind = "fn"
+status = "internal"
+reason = "step of revalidate; Python reaches it through the transport revalidation scene (python/src/transport_revalidation_api.rs)"
+
+[[entry]]
+rust = "antecedent::analysis::transport_revalidation::response_coordinate"
+kind = "fn"
+status = "internal"
+reason = "step of revalidate and of the transported-claim node; Python reaches it through the transport revalidation scene"
+
+[[entry]]
+rust = "antecedent::analysis::transport_revalidation::response_support"
+kind = "fn"
+status = "internal"
+reason = "step of revalidate; Python reaches it through the transport revalidation scene (python/src/transport_revalidation_api.rs)"
+
+[[entry]]
+rust = "antecedent::analysis::transport_revalidation::revalidate"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.revalidation.revalidate"
+
+[[entry]]
+rust = "antecedent::analysis::transport_revalidation::source_node_key"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.revalidation.source_node_key"
+
+[[entry]]
+rust = "antecedent::analysis::transport_revalidation::transported_claim_node"
+kind = "fn"
+status = "internal"
+reason = "node and standing builders of revalidate and the transported constructors; Python reaches them through the transport revalidation scene"
+
+[[entry]]
+rust = "antecedent::analysis::transport_revalidation::transported_claim_standing"
+kind = "fn"
+status = "internal"
+reason = "node and standing builders of revalidate and the transported constructors; Python reaches them through the transport revalidation scene"
+
+[[entry]]
+rust = "antecedent::analysis::transport_sensitivity::route_of"
+kind = "fn"
+status = "internal"
+reason = "step of transport_range, reached through antecedent.transport.sensitivity.transport_sensitivity"
+
+[[entry]]
+rust = "antecedent::analysis::transport_sensitivity::transport_range"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transported_response_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transport_sensitivity::transport_sensitivity_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.sensitivity.transport_sensitivity"
+reason = "the sensitivity result exports the artifact"
+
+[[entry]]
+rust = "antecedent::analysis::transport_sensitivity::transport_sensitivity_spec"
+kind = "fn"
+status = "internal"
+reason = "step of transport_range, reached through antecedent.transport.sensitivity.transport_sensitivity"
+
+[[entry]]
+rust = "antecedent::analysis::transported_cohort::transport_cohort_effect_from_result"
+kind = "fn"
+status = "bound"
+python = "native:python/src/cohort_decision_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transported_cohort::verify_cohort_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/cohort_decision_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transported_constructors::adaptive_trial_response"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transported_constructors_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transported_constructors::surrogate_bridge_response"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transported_constructors_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transported_constructors::synthesis_refusal"
+kind = "fn"
+status = "internal"
+reason = "maps a synthesis refusal to its external wire form; Python raises it from the synthesis constructors (python/tests/test_transported_constructors.py)"
+
+[[entry]]
+rust = "antecedent::analysis::transported_constructors::temporal_policy_response"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transported_constructors_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transported_constructors::transported_policy_response"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transported_constructors_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transported_constructors::transported_synthesis_response"
+kind = "fn"
+status = "bound"
+python = "native:python/src/transported_constructors_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transported_measurement::transport_measurement"
+kind = "fn"
+status = "bound"
+python = "antecedent.measurement_models.transport_measurement_model"
+reason = "the Python entry is named transport_measurement_model"
+
+[[entry]]
+rust = "antecedent::analysis::transported_measurement::transport_measurement_estimate"
+kind = "fn"
+status = "bound"
+python = "native:python/src/measurement_model_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transported_measurement::verify_measurement_transport"
+kind = "fn"
+status = "bound"
+python = "antecedent.measurement_models.verify_measurement_transport"
+
+[[entry]]
+rust = "antecedent::analysis::transported_mechanism::verify_mechanism_transport"
+kind = "fn"
+status = "bound"
+python = "native:python/src/mechanism_composition_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::validate_temporal_dependent_interval"
+kind = "fn"
+status = "bound"
+python = "native:python/src/temporal_extension_api.rs"
+
+[[entry]]
+rust = "antecedent::callback_plan::mark_python_callback_plan"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::cell_coordinate"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::classify"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::counterfactual_id::consume_counterfactual_id_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.counterfactual_id.consume_counterfactual_id_artifact"
+
+[[entry]]
+rust = "antecedent::counterfactual_id::consume_counterfactual_id_artifact_for_data"
+kind = "fn"
+status = "bound"
+python = "antecedent.counterfactual_id.consume_counterfactual_id_artifact"
+reason = "data binding is supplied to the same entry"
+
+[[entry]]
+rust = "antecedent::counterfactual_id::prepare_counterfactual_id"
+kind = "fn"
+status = "bound"
+python = "native:python/src/counterfactual_id_api.rs"
+
+[[entry]]
+rust = "antecedent::cross_world::check"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::cross_world::consume_cross_world_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.cross_world.consume_cross_world_artifact"
+
+[[entry]]
+rust = "antecedent::cross_world::consume_cross_world_artifact_for_data"
+kind = "fn"
+status = "bound"
+python = "antecedent.cross_world.consume_cross_world_artifact"
+reason = "data binding is supplied to the same entry"
+
+[[entry]]
+rust = "antecedent::cross_world::evaluate_cross_world_effect"
+kind = "fn"
+status = "bound"
+python = "native:python/src/cross_world_api.rs"
+
+[[entry]]
+rust = "antecedent::design::preview_design_rank"
+kind = "fn"
+status = "internal"
+reason = "inspects ranking obligations against a prepared CausalContract that Python never holds as an object; rank_designs takes graph weights, not a prepared contract, and refuses incomplete or unlicensed inputs itself"
+
+[[entry]]
+rust = "antecedent::design::rank_designs"
+kind = "fn"
+status = "bound"
+python = "antecedent.design.ranking.rank_designs"
+
+[[entry]]
+rust = "antecedent::design::rank_designs_bound"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.rank_designs"
+reason = "bound design ranking runs through rank_designs"
+
+[[entry]]
+rust = "antecedent::discovery::discover_ci_screened_posterior"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_ci_screened_posterior"
+
+[[entry]]
+rust = "antecedent::discovery::discover_dbn_posterior"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_dbn_posterior"
+
+[[entry]]
+rust = "antecedent::discovery::discover_dbn_posterior_panel"
+kind = "fn"
+status = "bound"
+python = "native:python/src/bayesian.rs"
+
+[[entry]]
+rust = "antecedent::discovery::discover_exact_dag_posterior"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_exact_dag_posterior"
+
+[[entry]]
+rust = "antecedent::discovery::discover_fci"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_fci"
+
+[[entry]]
+rust = "antecedent::discovery::discover_ges"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_ges"
+
+[[entry]]
+rust = "antecedent::discovery::discover_jpcmci_plus"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_jpcmci_plus"
+
+[[entry]]
+rust = "antecedent::discovery::discover_lingam"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_lingam"
+
+[[entry]]
+rust = "antecedent::discovery::discover_lpcmci"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_lpcmci"
+
+[[entry]]
+rust = "antecedent::discovery::discover_lpcmci_panel"
+kind = "fn"
+status = "bound"
+python = "native:python/src/lib.rs"
+
+[[entry]]
+rust = "antecedent::discovery::discover_notears"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_notears"
+
+[[entry]]
+rust = "antecedent::discovery::discover_order_mcmc"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_order_mcmc"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pc"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_pc"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pcmci"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_pcmci"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pcmci_panel"
+kind = "fn"
+status = "bound"
+python = "native:python/src/lib.rs"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pcmci_plus"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_pcmci_plus"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pcmci_plus_panel"
+kind = "fn"
+status = "bound"
+python = "native:python/src/lib.rs"
+
+[[entry]]
+rust = "antecedent::discovery::discover_rfci"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_rfci"
+
+[[entry]]
+rust = "antecedent::discovery::discover_rpcmci"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_rpcmci"
+
+[[entry]]
+rust = "antecedent::discovery::discover_structure_mcmc"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_structure_mcmc"
+
+[[entry]]
+rust = "antecedent::discovery::pag_definite_directed_edge_count"
+kind = "fn"
+status = "bound"
+python = "native:python/src/lib.rs"
+
+[[entry]]
+rust = "antecedent::discovery_defaults::contemporaneous_constraints"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::discovery_defaults::jpcmci_constraints"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::discovery_defaults::pcmci_constraints"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::discovery_defaults::resolve_ci"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::discovery_defaults::static_pc_constraints"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::estimand_compatible_with_estimator"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::estimate_provenance_step"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::estimate_static_effect"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::identification_status_acceptable"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::identify_admg"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::identify_pag"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::identify_provenance_step"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::identify_static"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::identify_static_query"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::identify_static_query_with_rd"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::require_identified"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::select_estimand"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::validate_distribution_pair"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::validate_path_specific_pair"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::estimate::validate_static_pair"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::gcm::anomaly_attribution"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.anomaly_attribution"
+
+[[entry]]
+rust = "antecedent::gcm::anomaly_attribution_query_with"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::gcm::anomaly_attribution_with"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::gcm::attribute_distribution_change"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.attribute_distribution_change"
+
+[[entry]]
+rust = "antecedent::gcm::attribute_distribution_change_robust"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.attribute_distribution_change_robust"
+
+[[entry]]
+rust = "antecedent::gcm::attribute_feature_relevance"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.attribute_feature_relevance"
+
+[[entry]]
+rust = "antecedent::gcm::attribute_feature_relevance_with"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::gcm::attribute_path_specific"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.attribute_path_specific"
+
+[[entry]]
+rust = "antecedent::gcm::attribute_paths"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.attribute_paths"
+
+[[entry]]
+rust = "antecedent::gcm::attribute_structure_change"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.attribute_structure_change"
+
+[[entry]]
+rust = "antecedent::gcm::attribute_unit_change"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.attribute_unit_change"
+
+[[entry]]
+rust = "antecedent::gcm::counterfactual_ite"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.counterfactual_ite"
+
+[[entry]]
+rust = "antecedent::gcm::fit_gcm"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.fit_gcm"
+
+[[entry]]
+rust = "antecedent::gcm::fit_gcm_counterfactual"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::gcm::mechanism_change_detection"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.mechanism_change_detection"
+
+[[entry]]
+rust = "antecedent::gcm::rank_root_causes"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.rank_root_causes"
+
+[[entry]]
+rust = "antecedent::gcm::sample_do"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.sample_do"
+
+[[entry]]
+rust = "antecedent::gcm::sample_interventional_distribution"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.sample_interventional_distribution"
+
+[[entry]]
+rust = "antecedent::identify"
+kind = "fn"
+status = "bound"
+python = "antecedent.identify"
+reason = "root verb"
+
+[[entry]]
+rust = "antecedent::identify_api::identify_dag"
+kind = "fn"
+status = "bound"
+python = "native:python/src/prepared_api/prepare_effect.rs"
+
+[[entry]]
+rust = "antecedent::identify_api::identify_with"
+kind = "fn"
+status = "bound"
+python = "native:python/src/ate_api.rs"
+
+[[entry]]
+rust = "antecedent::inference::decode_prior_hydrate_source"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::inference::hydrate_mapping_from_io"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::inference::hydrate_prior_from_posterior_bytes"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::inference::mapped_posterior_transfer"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::inference::resolve_bayesian_prior"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::inference::resolve_bayesian_prior_with_conflict"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::io::decode_model_bundle_bytes"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::io::encode_model_bundle_bytes"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.encode_model_bundle"
+reason = "model bundle encoding"
+
+[[entry]]
+rust = "antecedent::io::prior_set_from_posterior_bytes"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::licensed_neighbors"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::licensed_support_cells"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::planner::reject_dag_only_on_pag"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::refused_message"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::result::circular_block_dependence"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::result::reported_se_interval_z"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::state::apply_state_event"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::state::new_antecedent_state"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::state::publish_recomputed_results"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::state::result_lineage_fingerprint"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::attach_static_bootstrap"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_admg_query"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_cpdag"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_cpdag_response"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_pag_response"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_temporal_cpdag"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_temporal_cpdag_configured"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_temporal_pag"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::identify_temporal_pag_configured"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::select_claim"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::validate_class_response_pair"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::strategy_table::validate_response_pair"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::classify_estimator"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::is_declared_off_axis"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::licensed_estimators"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::licensed_route_estimator"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::query_axis_name"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::refuse_if_not_applicable"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::refuse_undeclared_off_axis"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::support_cell"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::support_cell_from_coordinate"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::support::support_cell_named"
+kind = "fn"
+status = "internal"
+reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::AdaptiveInferenceSession"
+kind = "type"
+status = "bound"
+python = "antecedent.adaptive_inference.AdaptiveInferenceSession"
+
+[[entry]]
+rust = "antecedent::BatchStudy"
+kind = "type"
+status = "bound"
+python = "antecedent._batch.PreparedBatch"
+
+[[entry]]
+rust = "antecedent::EvidenceLedgerSession"
+kind = "type"
+status = "bound"
+python = "antecedent.evidence_ledger.EvidenceLedger"
+
+[[entry]]
+rust = "antecedent::PreparedAdmgConditionalTransport"
+kind = "type"
+status = "bound"
+python = "antecedent._native.PreparedAdmgConditionalTransportStage"
+
+[[entry]]
+rust = "antecedent::PreparedBatch"
+kind = "type"
+status = "bound"
+python = "antecedent._batch.PreparedBatch"
+
+[[entry]]
+rust = "antecedent::PreparedCounterfactualTransport"
+kind = "type"
+status = "bound"
+python = "antecedent.transport._counterfactual.CounterfactualTransportDerivation"
+
+[[entry]]
+rust = "antecedent::PreparedCpdagCompletionScenarios"
+kind = "type"
+status = "bound"
+python = "antecedent.transport._cpdag_scenarios.CpdagScenarioResult"
+
+[[entry]]
+rust = "antecedent::PreparedLearnedContinuous"
+kind = "type"
+status = "bound"
+python = "antecedent.transport._learned_continuous.PreparedLearnedContinuous"
+
+[[entry]]
+rust = "antecedent::PreparedMeasurementModel"
+kind = "type"
+status = "bound"
+python = "antecedent.measurement_models.PreparedMeasurementModel"
+
+[[entry]]
+rust = "antecedent::PreparedMechanismComposition"
+kind = "type"
+status = "bound"
+python = "antecedent.mechanism_composition.PreparedMechanismComposition"
+
+[[entry]]
+rust = "antecedent::PreparedMixedSource"
+kind = "type"
+status = "bound"
+python = "antecedent._native.PreparedMixedSourceStage"
+
+[[entry]]
+rust = "antecedent::PreparedMzTransport"
+kind = "type"
+status = "bound"
+python = "antecedent._native.PreparedMultiSourceZTransportStage"
+
+[[entry]]
+rust = "antecedent::PreparedObservationRecovery"
+kind = "type"
+status = "bound"
+python = "antecedent._native.PreparedObservationRecoveryStage"
+
+[[entry]]
+rust = "antecedent::PreparedPredictiveAssessment"
+kind = "type"
+status = "bound"
+python = "antecedent._native.PredictiveAssessmentHandle"
+
+[[entry]]
+rust = "antecedent::PreparedScientificBridge"
+kind = "type"
+status = "bound"
+python = "antecedent.scientific_bridge.PreparedBridge"
+
+[[entry]]
+rust = "antecedent::PreparedSmoothedDose"
+kind = "type"
+status = "bound"
+python = "antecedent.transport._smoothed_dose.PreparedSmoothedDose"
+
+[[entry]]
+rust = "antecedent::PreparedStudy"
+kind = "type"
+status = "bound"
+python = "antecedent.estimation.PreparedAnalysis"
+
+[[entry]]
+rust = "antecedent::PreparedTemporalTransport"
+kind = "type"
+status = "bound"
+python = "antecedent._native.PreparedTemporalTransportStage"
+
+[[entry]]
+rust = "antecedent::PreparedTransportScenarios"
+kind = "type"
+status = "bound"
+python = "antecedent._native.PreparedTransportScenariosStage"
+
+[[entry]]
+rust = "antecedent::PreparedZTransport"
+kind = "type"
+status = "bound"
+python = "antecedent._native.PreparedZTransportStage"
+
+[[entry]]
+rust = "antecedent::Study"
+kind = "type"
+status = "bound"
+python = "antecedent.estimation.PreparedAnalysis"
+
+[[entry]]
+rust = "antecedent::analysis::CallbackSession"
+kind = "type"
+status = "bound"
+python = "antecedent.provider_callbacks.CallbackSession"
+
+[[entry]]
+rust = "antecedent::analysis::PreparedDecisionReliability"
+kind = "type"
+status = "bound"
+python = "antecedent.decision_reliability.DecisionReliability"
+
+[[entry]]
+rust = "antecedent::analysis::discretized_composition::PreparedDiscretizedComposition"
+kind = "type"
+status = "bound"
+python = "antecedent.discretized_composition.PreparedDiscretizedComposition"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_adjusted::AdjustedSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_adjusted.AdjustedSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_bayesian::BayesianSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_bayesian.BayesianSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_cell::CellSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_cell.CellSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_cell::ScoreResumeSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_cell.ScoreResumeSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_composite::CompositeSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_composite.CompositeSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_design::DesignSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_design.DesignSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_dr::DrSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_dr.DrSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_external::ExternalCallbackSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_external.ExternalCallbackSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_joint_bayesian::JointBayesianSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_bayesian.BayesianSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_receipt::RecalcSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc.RecalcSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_static::MzRecalcSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_static.MultiSourceSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_static::StaticResponseSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_static.StaticResponseSession"
+
+[[entry]]
+rust = "antecedent::analysis::recalc_temporal::TemporalSession"
+kind = "type"
+status = "bound"
+python = "antecedent.recalc_temporal.TemporalSession"
+
+[[entry]]
+rust = "antecedent::counterfactual_id::PreparedCounterfactualId"
+kind = "type"
+status = "bound"
+python = "antecedent.counterfactual_id.PreparedEffectOnTreated"
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::evaluate"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::inverse_sources::seal"
+kind = "fn"
+status = "bound"
+python = "native:python/src/forward_source_api.rs"
+

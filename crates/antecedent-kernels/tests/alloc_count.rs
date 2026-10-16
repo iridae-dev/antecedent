@@ -72,11 +72,11 @@ fn gather_into_presized_buffer_allocates_nothing() {
     let indices: Vec<usize> = (0..n).step_by(8).collect();
     let mut out = vec![0.0; indices.len()];
     let policy = KernelPolicy::default_policy();
-    gather(&policy, src, &indices, &mut out);
+    gather(&policy, src, &indices, &mut out).unwrap();
 
     let before = THREAD_ALLOCATIONS.with(Cell::get);
     for _ in 0..200 {
-        gather(&policy, src, &indices, &mut out);
+        gather(&policy, src, &indices, &mut out).unwrap();
     }
     let after = THREAD_ALLOCATIONS.with(Cell::get);
     assert_eq!(

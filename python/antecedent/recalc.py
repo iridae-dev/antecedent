@@ -54,7 +54,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from . import _native
-from ._b4_refusal import StructuredRefusal
+from ._refusal import StructuredRefusal, raise_refusal
 from .errors import CausalSerializationError, CausalValueError
 
 ARTIFACT_KIND = "recalc_receipt_v1"
@@ -89,6 +89,9 @@ class Stage(StrEnum):
     TREATMENT_GRID = "treatment_grid"
     LEARNER_FOLDS_RNG = "learner_folds_rng"
     UTILITY = "utility"
+    CALIBRATION = "calibration"
+    REPRESENTATION = "representation"
+    COUPLING = "coupling"
     EXTERNAL_STUDY_0 = "external_study.0"
     EXTERNAL_STUDY_1 = "external_study.1"
     EXTERNAL_STUDY_2 = "external_study.2"
@@ -97,6 +100,14 @@ class Stage(StrEnum):
     EXTERNAL_STUDY_5 = "external_study.5"
     EXTERNAL_STUDY_6 = "external_study.6"
     EXTERNAL_STUDY_7 = "external_study.7"
+    PROVIDER_STANDING_0 = "provider_standing.0"
+    PROVIDER_STANDING_1 = "provider_standing.1"
+    PROVIDER_STANDING_2 = "provider_standing.2"
+    PROVIDER_STANDING_3 = "provider_standing.3"
+    PROVIDER_STANDING_4 = "provider_standing.4"
+    PROVIDER_STANDING_5 = "provider_standing.5"
+    PROVIDER_STANDING_6 = "provider_standing.6"
+    PROVIDER_STANDING_7 = "provider_standing.7"
     PROVIDER_REQUEST_0 = "provider_request.0"
     PROVIDER_REQUEST_1 = "provider_request.1"
     PROVIDER_REQUEST_2 = "provider_request.2"
@@ -135,6 +146,11 @@ class Stage(StrEnum):
     def external_study(cls, branch: int) -> Stage:
         """The external-study input of ``branch`` (``0 <= branch < 8``)."""
         return cls(f"external_study.{_branch(branch)}")
+
+    @classmethod
+    def provider_standing(cls, branch: int) -> Stage:
+        """The declared standing of the provider of external study ``branch``."""
+        return cls(f"provider_standing.{_branch(branch)}")
 
     @classmethod
     def provider_request(cls, branch: int) -> Stage:
@@ -499,22 +515,19 @@ class RecalcReceiptRefusal(RecalcRefusal):
     """A receipt artifact whose table, counts or identity do not recompute."""
 
 
-def _raise(refusal: str | None) -> None:
-    if refusal is None:
-        return
-    wire = json.loads(refusal)
+def _refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
     detail = str(wire["detail"])
     if detail in {
         "recalc.unavailable_fit",
         "recalc.unavailable_data",
         "recalc.unavailable_provider",
     }:
-        raise RecalcUnavailable(wire)
+        return RecalcUnavailable
     if detail == "recalc.no_live_state":
-        raise RecalcNoLiveState(wire)
+        return RecalcNoLiveState
     if detail.partition(".")[0] == "recalc_receipt":
-        raise RecalcReceiptRefusal(wire)
-    raise RecalcRefusal(wire)
+        return RecalcReceiptRefusal
+    return RecalcRefusal
 
 
 # -- receipt --------------------------------------------------------------------------------
@@ -685,7 +698,7 @@ class RecalcReceipt:
         receipt of another run is refused too. Corruption raises ``CausalSerializationError``.
         """
         report, refusal = _native.consume_recalc_receipt(bytes(data), expected_identity)
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - the native call returns one or the other
             raise CausalSerializationError("recalc receipt artifact did not decode")
         wire = json.loads(report)
@@ -1008,7 +1021,7 @@ class RecalcSession:
             seed=_seed(seed),
             threads=threads,
         )
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - one of the two is set
             raise CausalSerializationError("recalc execution returned no result")
         wire = json.loads(result)

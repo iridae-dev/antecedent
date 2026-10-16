@@ -3,7 +3,7 @@
 //! One fitted joint per `(population, regime, intervention world)`. Leaves from
 //! the same sample project this joint; they are never fitted as independent studies.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -23,7 +23,7 @@ use crate::error::EstimationError;
 pub const EMPIRICAL_TABLE_PLUGIN: &str = "transport.empirical_table_plugin";
 
 /// Named but unlicensed smoothing choice.
-pub const EMPIRICAL_TABLE_DIRICHLET: &str = "transport.empirical_table_dirichlet";
+pub(crate) const EMPIRICAL_TABLE_DIRICHLET: &str = "transport.empirical_table_dirichlet";
 
 /// Bayesian-bootstrap draw from the empirical support of a finite joint.
 pub const EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP: &str =
@@ -37,7 +37,8 @@ pub const STATE_SPACE_DIRICHLET: &str = "transport.state_space_dirichlet";
 /// the same draw. The empirical-support provider assigns zero mass to unobserved cells;
 /// the declared-state-space provider gives every declared cell a Dirichlet(1) prior.
 #[derive(Clone, Debug)]
-pub struct BayesianTransportLawDraw {
+#[cfg(test)]
+pub(crate) struct BayesianTransportLawDraw {
     /// Stable estimator identity.
     pub estimator: Arc<str>,
     /// Posterior draw as a validated joint law.
@@ -53,24 +54,6 @@ pub enum BayesianTransportLawProvider {
     DeclaredStateSpaceDirichlet,
 }
 
-/// Draw one law per independent dataset, preserving supplied laws and forwarded aliases.
-///
-/// The map is keyed by [`SampleKey`]. Forwarded aliases share probabilities from one
-/// underlying dataset draw while each returned law retains its own population/regime
-/// identity. Supplied exact laws are carried through unchanged. A caller drawing many
-/// times prepares a [`BayesianLawDrawer`] once instead.
-/// # Errors
-/// Conflicting aliases, invalid catalog bindings, missing samples, or excessive support.
-pub fn draw_bayesian_transport_laws(
-    input: &StatisticalTransportInput,
-    functional: &BoundTransportFunctional,
-    provider: BayesianTransportLawProvider,
-    rng: &mut antecedent_core::CausalRng,
-    max_joint_cells: usize,
-) -> Result<(Vec<ExactDiscreteLaw>, BTreeMap<SampleKey, ExactDiscreteLaw>), EstimationError> {
-    BayesianLawDrawer::prepare(input, functional, provider, max_joint_cells)?.draw(rng)
-}
-
 /// One tabulated independent dataset: its declared axes and cell counts.
 struct TabulatedDataset {
     axes: Vec<DiscreteAxis>,
@@ -83,7 +66,7 @@ struct TabulatedDataset {
 /// each draw then samples one `Gamma(count + prior, 1)` weight per cell, which
 /// is the same law as summing one `Exp(1)` weight per observation, and
 /// normalizes. Aliased samples share their dataset's draw.
-pub struct BayesianLawDrawer {
+pub(crate) struct BayesianLawDrawer {
     supplied: Vec<ExactDiscreteLaw>,
     datasets: BTreeMap<SampleKey, TabulatedDataset>,
     samples: Vec<(SampleKey, SampleKey, RegimeSample)>,
@@ -192,7 +175,7 @@ impl BayesianLawDrawer {
 /// no observations and no prior stays empty. `None` when nothing has mass or the
 /// draw is not finite.
 #[must_use]
-pub fn dirichlet_posterior_probabilities(
+pub(crate) fn dirichlet_posterior_probabilities(
     counts: &[u64],
     prior: f64,
     rng: &mut antecedent_core::CausalRng,
@@ -248,7 +231,8 @@ fn tabulate_sample(
 /// dataset and reuse the returned law for every factor and alias derived from that data.
 /// # Errors
 /// Invalid domains or rows, missing observations, empty samples, or excessive size.
-pub fn draw_empirical_support_transport_law(
+#[cfg(test)]
+pub(crate) fn draw_empirical_support_transport_law(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
     max_joint_cells: usize,
@@ -264,7 +248,8 @@ pub fn draw_empirical_support_transport_law(
 /// posterior law from the empirical-support bootstrap and must not inherit its license.
 /// # Errors
 /// Invalid domains or rows, missing observations, empty samples, or excessive size.
-pub fn draw_state_space_dirichlet_transport_law(
+#[cfg(test)]
+pub(crate) fn draw_state_space_dirichlet_transport_law(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
     max_joint_cells: usize,
@@ -273,6 +258,7 @@ pub fn draw_state_space_dirichlet_transport_law(
     draw_transport_law(sample, axes, max_joint_cells, rng, 1.0)
 }
 
+#[cfg(test)]
 fn draw_transport_law(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
@@ -369,7 +355,7 @@ impl Default for EmpiricalTableOptions {
 }
 
 /// Identity of one independent sampled world, including its concrete values.
-pub type SampleKey = (Arc<str>, Arc<str>, RegimeId, Vec<(u32, u64)>);
+pub(crate) type SampleKey = (Arc<str>, Arc<str>, RegimeId, Vec<(u32, u64)>);
 
 /// Canonical world key; numeric signed zero has one representation.
 #[must_use]
@@ -388,7 +374,7 @@ pub fn sample_key(sample: &RegimeSample) -> SampleKey {
 
 /// Resampling key with explicit forwarded-dataset aliases resolved.
 #[must_use]
-pub fn bound_sample_key(catalog: &EvidenceCatalog, sample: &RegimeSample) -> SampleKey {
+pub(crate) fn bound_sample_key(catalog: &EvidenceCatalog, sample: &RegimeSample) -> SampleKey {
     let mut key = sample_key(sample);
     if let Some(identity) = catalog
         .bindings
@@ -405,7 +391,7 @@ pub fn bound_sample_key(catalog: &EvidenceCatalog, sample: &RegimeSample) -> Sam
 /// Check that explicitly forwarded datasets agree before fitting or resampling.
 /// # Errors
 /// An alias names different rows or an incompatible sampling/dependence contract.
-pub fn validate_dataset_aliases(
+pub(crate) fn validate_dataset_aliases(
     catalog: &EvidenceCatalog,
     samples: &[RegimeSample],
 ) -> Result<(), EstimationError> {
@@ -578,6 +564,34 @@ pub fn fit_empirical_joint(
     .map_err(|e| EstimationError::data_msg(e.to_string()))
 }
 
+/// First index of each finite level under `f64` equality, including signed zero.
+///
+/// `+0` and `-0` compare equal, so both map to whichever appears first. `NaN` never
+/// matches `==`, so it is omitted. A later duplicate keeps the earlier index, which is
+/// what `position` returns.
+fn categorical_level_index(values: &[Value]) -> HashMap<u64, usize> {
+    let mut index = HashMap::with_capacity(values.len());
+    for (i, value) in values.iter().enumerate() {
+        let Some(level) = value.as_f64() else {
+            continue;
+        };
+        if level.is_nan() {
+            continue;
+        }
+        let key = if level == 0.0 { 0.0_f64.to_bits() } else { level.to_bits() };
+        index.entry(key).or_insert(i);
+    }
+    index
+}
+
+fn categorical_level(index: &HashMap<u64, usize>, value: f64) -> Option<usize> {
+    if value.is_nan() {
+        return None;
+    }
+    let key = if value == 0.0 { 0.0_f64.to_bits() } else { value.to_bits() };
+    index.get(&key).copied()
+}
+
 fn fit_statistical_joint(
     sample: &RegimeSample,
     axes: &[DiscreteAxis],
@@ -596,15 +610,18 @@ fn fit_statistical_joint(
     )?;
     let indexes: Vec<usize> =
         rows.map_or_else(|| (0..sample.n()).collect(), |r| r.iter().map(|v| *v as usize).collect());
+    let level_index: Vec<HashMap<u64, usize>> =
+        axes.iter().map(|axis| categorical_level_index(&axis.values)).collect();
     let columns = axes
         .iter()
-        .map(|axis| {
+        .zip(&level_index)
+        .map(|(axis, levels)| {
             indexes
                 .iter()
                 .map(|row| {
                     let value = sample.columns[&axis.variable][*row]
                         .ok_or_else(|| EstimationError::data_msg("missing categorical value"))?;
-                    axis.values.iter().position(|v| v.as_f64() == Some(value)).ok_or_else(|| {
+                    categorical_level(levels, value).ok_or_else(|| {
                         EstimationError::data_msg("categorical value outside declared domain")
                     })
                 })
@@ -640,7 +657,7 @@ fn fit_statistical_joint(
 ///
 /// # Errors
 /// Missing providers, convenience target samples, unlicensed smoothers, or domain errors.
-pub fn assemble_statistical_laws(
+pub(crate) fn assemble_statistical_laws(
     input: &StatisticalTransportInput,
     functional: &BoundTransportFunctional,
     options: &EmpiricalTableOptions,
@@ -690,8 +707,11 @@ fn assemble_laws(
             ));
         }
         let axes = catalog_axes_bounded(catalog, sample, options.max_joint_cells)?;
-        let regime =
-            catalog.regimes.iter().find(|r| r.id == sample.regime).expect("validated regime");
+        let regime = catalog
+            .regimes
+            .iter()
+            .find(|r| r.id == sample.regime && r.population.as_ref() == sample.population.as_ref())
+            .ok_or_else(|| EstimationError::data_msg("empirical sample names an unknown regime"))?;
         let mut interventions: Vec<_> = sample.interventions.iter().map(|a| a.variable).collect();
         interventions.sort_unstable();
         let mut expected = regime.interventions.to_vec();
@@ -1088,6 +1108,23 @@ mod tests {
 
     fn v(i: u32) -> VariableId {
         VariableId::from_raw(i)
+    }
+
+    #[test]
+    fn categorical_level_index_matches_float_equality() {
+        let levels = [
+            Value::f64(1.0),
+            Value::f64(-0.0),
+            Value::f64(0.0),
+            Value::f64(f64::INFINITY),
+            Value::f64(f64::NAN),
+            Value::f64(1.0),
+        ];
+        let index = categorical_level_index(&levels);
+        let position = |value: f64| levels.iter().position(|v| v.as_f64() == Some(value));
+        for value in [1.0, 0.0, -0.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            assert_eq!(categorical_level(&index, value), position(value), "{value}");
+        }
     }
 
     fn binary_env(identity: &str) -> Environment {

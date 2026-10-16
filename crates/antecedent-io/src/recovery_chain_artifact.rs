@@ -1,4 +1,4 @@
-//! Independent artifact for the 2.3 B2 ordered-response recovery row (X10 second row).
+//! Independent artifact for the ordered-response recovery row.
 //!
 //! Format version 1. The artifact binds the m-graph (variables in dense order and
 //! directed edges), the query roles, the decision and its evidence. A recovered
@@ -454,11 +454,6 @@ struct DataView {
     recovered: Option<Vec<u64>>,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// Everything a replay reconstructed and recomputed.
 #[derive(Clone, Debug)]
 pub struct ConsumedRecoveryChain {
@@ -559,7 +554,7 @@ impl RecoveryChainArtifactWire {
             witness: &self.witness,
             witness_check: &self.witness_check,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::IdentificationProduct, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::IdentificationProduct, &view)
     }
 
     /// The data digest the stored laws should carry.
@@ -572,7 +567,7 @@ impl RecoveryChainArtifactWire {
             observed: self.observed.as_ref().map(ChainLawWire::bits),
             recovered: self.recovered.as_ref().map(ChainRecoveredWire::bits),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::DataSnapshot, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::DataSnapshot, &view)
     }
 
     fn validate_shape(&self) -> Result<(), RecoveryChainArtifactError> {
@@ -634,11 +629,13 @@ impl RecoveryChainArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != RECOVERY_CHAIN_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == RECOVERY_CHAIN_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -666,12 +663,15 @@ impl RecoveryChainArtifactWire {
             IoError::Refused { .. } => RecoveryChainArtifactError::UnsupportedSemantics("shape"),
             other => undecodable(other),
         })?;
-        if wire.expected_premises_digest().map_err(undecodable)? != wire.premises_digest {
-            return Err(RecoveryChainArtifactError::PremisesMismatch);
-        }
-        if wire.expected_data_digest().map_err(undecodable)? != wire.data_digest {
-            return Err(RecoveryChainArtifactError::DataMismatch);
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            undecodable,
+            || RecoveryChainArtifactError::PremisesMismatch,
+        )?;
+        crate::require_digest(&wire.data_digest, wire.expected_data_digest(), undecodable, || {
+            RecoveryChainArtifactError::DataMismatch
+        })?;
         let graph = wire.graph.to_graph().map_err(undecodable)?;
         let query = wire.query.to_query();
         let decision = decide_chain_recovery(&graph, &query, ctx)?;

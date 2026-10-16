@@ -1,4 +1,4 @@
-//! Declared candidate studies for X6 study planning over the X1 (mz) and X9
+//! Declared candidate studies for study planning over the mz-transport and mixed-source
 //! (mixed-source) catalogs.
 //!
 //! A [`StudyCandidate`] is what a user can run: a population, an intervention
@@ -13,7 +13,7 @@
 //! positive probability at every level the formula reads), the same route
 //! would identify the query. [`StudyPlanProposal::receive`] checks the
 //! arriving catalog against the proposal and re-identifies it through the
-//! public X1/X9 route; a planning preview is never turned into a result.
+//! public mz-transport or mixed-source route; a planning preview is never turned into a result.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -141,7 +141,7 @@ const PLACEHOLDER_SNAPSHOT_PREFIX: &str = "hypothetical:";
 
 /// Map a public route's error on the arriving catalog: a budget stop or a
 /// cancellation is `study_plan.budget`, never "not identified". The public
-/// X1/X9 routes report their own stops as `Ok(Exhausted)` (handled in
+/// mz-transport and mixed-source routes report their own stops as `Ok(Exhausted)` (handled in
 /// [`StudyPlanProposal::receive`]), so no known input reaches the budget arm
 /// here; it is kept as a guard and unit-tested.
 fn arrival_stop(route: &str, error: &antecedent_identify::IdentificationError) -> StudyPlanError {
@@ -232,9 +232,9 @@ pub struct StudyPlanProposal {
 /// The public route's decision on the arriving catalog.
 #[derive(Clone, Debug)]
 pub enum StudyArrivalDecision {
-    /// An X1 `Identified` decision.
+    /// An mz-transport `Identified` decision.
     Mz(Box<MzTransportDecision>),
-    /// An X9 `Identified` decision, or the named route that identifies.
+    /// A mixed-source `Identified` decision, or the named route that identifies.
     Mixed(Box<MixedSourceDecision>),
 }
 
@@ -482,7 +482,7 @@ fn compile(
 }
 
 /// Compile the declared candidates and plan the cheapest subset of at most
-/// three that would make the failed X1 or X9 decision identify, under one
+/// three that would make the failed mz-transport or mixed-source decision identify, under one
 /// shared search budget (see `antecedent_identify::plan_study_additions`).
 /// The result is invariant to candidate and source declaration order.
 ///

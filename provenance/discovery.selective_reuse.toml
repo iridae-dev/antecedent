@@ -1,0 +1,24 @@
+feature_id = "discovery.selective_reuse"
+implementation_crate = "antecedent-discovery"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: the retained-statistic store is a memoization of a deterministic
+# function at its exact input, not a published algorithm. The discovery algorithms it
+# runs are cited by discovery.pc, discovery.fci, discovery.pcmci and discovery.pcmci_plus.
+papers = [
+]
+implementation_deviations = [
+  "Reuse is exact memoization of conditional-independence results at identical input coordinates; it implements no incremental or sufficient-statistic update, and a previous graph is never the start of a search.",
+  "Algorithmic match with a full run is asserted; recovery of the true graph and error control are not, and no calibration of the discovery-plus-analysis method has been measured.",
+  "Score-based search, resumable skeleton state and multi-population discovery are not delivered.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "a d-separation oracle over hand-written DAGs (moralization criterion), independent of the library's graph code",
+  "crates/antecedent-discovery/tests/selective_discovery.rs",
+  "crates/antecedent/tests/selective_discovery_facade.rs",
+  "crates/antecedent-io-core/tests/selective_discovery_artifact.rs",
+]

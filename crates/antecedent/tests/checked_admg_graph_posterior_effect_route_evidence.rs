@@ -5,7 +5,7 @@ use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_io::consume_analysis_result;
@@ -66,9 +66,11 @@ fn posterior(graph: &Admg) -> GraphPosterior {
         vec![identified, cyclic],
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("admg_graph_posterior_checked"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("admg_graph_posterior_checked"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Admg)
@@ -107,9 +109,9 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
             let result = prepared.estimate(&data, &context).unwrap();
             let tolerance = if bayesian { 0.05 } else { 1e-9 };
             assert!(
-                (result.estimate.ate - truth).abs() < tolerance,
+                (result.estimate.as_effect().unwrap().ate - truth).abs() < tolerance,
                 "bayesian={bayesian} suite={suite:?}: {} vs {truth}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             let mixture = result.structural_response.as_ref().expect("mixture");
             assert!((mixture.identified_mass - 0.8).abs() < 1e-12);
@@ -134,7 +136,12 @@ fn admg_graph_posterior_effect_is_sealed_for_both_inference_modes() {
                 RefuteSuite::PlaceboAndRcc => unreachable!(),
             }
             let refreshed = prepared.refresh(data.clone(), &context).unwrap();
-            assert!((refreshed.estimate.ate - result.estimate.ate).abs() < 1e-9);
+            assert!(
+                (refreshed.estimate.as_effect().unwrap().ate
+                    - result.estimate.as_effect().unwrap().ate)
+                    .abs()
+                    < 1e-9
+            );
             let retained = prepared.checked_graph_posterior_effect_info().unwrap();
             assert_eq!(retained.weights, plan.weights);
             assert_eq!(retained.graph_keys, plan.graph_keys);

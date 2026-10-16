@@ -1,10 +1,10 @@
-//! X6 study planning end to end: declared studies compiled to hypothetical
+//! Study planning end to end: declared studies compiled to hypothetical
 //! deltas, the bounded plan, arrival of the real data re-identified through the
-//! public X1/X9 route and executed against enumerated structural truth, and the
+//! public mz-transport and mixed-source route and executed against enumerated structural truth, and the
 //! independently replayed `study_plan_v1` artifact.
 //!
-//! Fixtures: R-443 Figure 1(c,d) (X1, shared with the estimate-crate tests) and
-//! the front-door surrogate-trial model (X9).
+//! Fixtures: R-443 Figure 1(c,d) (shared with the estimate-crate tests) and
+//! the front-door surrogate-trial model.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -37,7 +37,7 @@ use common::mz_fixture::{
 };
 use common::z_scm::{Scm, risk_of, vid};
 
-// ------------------------------------------------------------------ X1 (mz)
+// ------------------------------------------------------------------ mz-transport
 
 fn assign(variable: usize, level: bool) -> InterventionAssignment {
     InterventionAssignment { variable: vid(variable), value: Value::Bool(level) }
@@ -218,6 +218,9 @@ fn request(x: bool) -> Assignment {
     Assignment::from_pairs([(vid(X), Value::Bool(x))])
 }
 
+/// A named mutation of a sealed study-plan artifact's wire form.
+type Edit<'a> = (&'a str, &'a dyn Fn(&mut StudyPlanArtifactWire));
+
 #[test]
 fn the_sufficient_pair_s_arriving_data_identify_and_match_the_enumerated_truth() {
     let plan = mz_plan();
@@ -339,7 +342,7 @@ fn the_exported_plan_is_replayed_by_an_independent_consumer() {
     assert_eq!(consumed.plan().proposals[0].cost_units, 5);
     assert_eq!(wire.plan.proposals[0].repairs.len(), 3);
     assert!(wire.plan.minimal);
-    assert_eq!(wire.premises.ranking, "x6.ranking.v1");
+    assert_eq!(wire.premises.ranking, "study_plan_ranking.v1");
     // Unknown fields are refused at every level.
     let mut json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     json["plan"]["proposals"][0]["extra"] = serde_json::json!(1);
@@ -416,9 +419,10 @@ fn a_mutated_plan_artifact_fails_consumption_for_the_right_reason() {
     // Premises: a cost, a margin and the limits change what the replay produces.
     replay_differs(&|w| w.premises.candidates[0].cost_units = 1);
     replay_differs(&|w| w.premises.limits.operations -= 1);
-    let (code, detail, _) = resealed(&|w| w.premises.ranking = "x6.ranking.v0".into());
+    let (code, detail, _) = resealed(&|w| w.premises.ranking = "study_plan_ranking.v0".into());
     assert_eq!((code, detail), invalid);
-    let (code, detail, _) = resealed(&|w| w.premises.rule_set = "x9.rules.v1".into());
+    let (code, detail, _) =
+        resealed(&|w| w.premises.rule_set = "mixed_source_proof_rules.v1".into());
     assert_eq!((code, detail), invalid);
     // A candidate outside the controllables no longer compiles on replay.
     let (code, detail, message) = resealed(&|w| w.premises.candidates[0].interventions = vec![0]);
@@ -454,6 +458,67 @@ fn a_mutated_plan_artifact_fails_consumption_for_the_right_reason() {
     // What replay cannot tell: a base binding renamed to another real snapshot
     // is a correct plan of that stated lineage; `receive` then requires the
     // arriving catalog to keep exactly that binding.
+}
+
+/// The surrogate-trial plan: three candidates over the declared-margin route.
+fn surrogate_plan() -> StudyPlanResult {
+    let (g, base, _) = surrogate_base();
+    let route = surrogate_route();
+    let candidates = vec![
+        study("trial_xy", "target", &[FZ], None, &[FX, FY], 3),
+        study("trial_y", "target", &[FZ], None, &[FY], 2),
+        study("full_observational", "target", &[], None, &[FX, FZ, FY], 5),
+    ];
+    let ctx = ExecutionContext::for_tests(5);
+    plan_studies(&g, &route, &base, &candidates, StudyPlanLimits::for_route(&route), &ctx).unwrap()
+}
+
+#[test]
+fn a_sealed_plan_is_replayed_and_a_tampered_one_refused() {
+    use antecedent_identify::{MIXED_SOURCE_RULE_SET, STUDY_PLAN_RANKING};
+    let invalid = ("transport_not_certified", "study_plan.invalid_artifact");
+    // The mz-transport plan carries the ranking key only.
+    let mz = mz_plan().to_artifact().unwrap();
+    assert_eq!(mz.premises.ranking, STUDY_PLAN_RANKING);
+    let consumed = consume(&mz).expect("the sealed mz plan replays");
+    assert_eq!(consumed.plan().proposals[0].cost_units, 5);
+    assert_eq!(consumed.to_artifact().unwrap(), mz);
+    // The mixed-source plan also carries the rule-set key, in its premises and in
+    // every proposal's checked derivation.
+    let mixed = surrogate_plan().to_artifact().unwrap();
+    assert_eq!(mixed.premises.rule_set, MIXED_SOURCE_RULE_SET);
+    assert_eq!(mixed.premises.ranking, STUDY_PLAN_RANKING);
+    let cited = mixed.plan.proposals.iter().filter_map(|p| p.derivation.mixed.as_ref());
+    assert!(cited.clone().count() > 0);
+    assert!(cited.into_iter().all(|record| record.rule_set == MIXED_SOURCE_RULE_SET));
+    let replayed = consume(&mixed).expect("the sealed mixed-source plan replays");
+    assert_eq!(replayed.plan().proposals[0].cost_units, 2);
+    assert_eq!(replayed.to_artifact().unwrap(), mixed);
+    // Tampering is refused: unsealed edits hit the carried digests, sealed edits fail
+    // the replay, and no other version is accepted.
+    let mut unsealed = mixed.clone();
+    unsealed.premises.ranking = STUDY_PLAN_RANKING.replace(".v1", ".v0");
+    assert_eq!(detail(consume(&unsealed)), invalid);
+    let other_ranking = STUDY_PLAN_RANKING.replace(".v1", ".v0");
+    let other_rule_set = MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
+    let sealed_edits: [Edit<'_>; 4] = [
+        ("ranking version", &|w| w.premises.ranking = other_ranking.clone()),
+        ("rule-set version", &|w| w.premises.rule_set = other_rule_set.clone()),
+        ("proposal rule set", &|w| {
+            w.plan.proposals[0].derivation.mixed.as_mut().unwrap().rule_set =
+                other_rule_set.clone();
+        }),
+        ("cost", &|w| w.plan.proposals[0].cost_units += 1),
+    ];
+    for (name, edit) in sealed_edits {
+        let mut wire = mixed.clone();
+        edit(&mut wire);
+        assert_eq!(detail(consume(&wire.sealed().unwrap())), invalid, "{name}");
+    }
+    // The mixed-source rule-set is never accepted for an mz-transport plan.
+    let mut wrong_route = mz.clone();
+    wrong_route.premises.rule_set = MIXED_SOURCE_RULE_SET.into();
+    assert_eq!(detail(consume(&wrong_route.sealed().unwrap())), invalid);
 }
 
 #[test]
@@ -551,7 +616,7 @@ fn impossible_designs_do_not_compile() {
     assert_eq!(refuse(free), invalid);
 }
 
-// --------------------------------------------------------------- X9 (mixed)
+// --------------------------------------------------------------- mixed-source (mixed)
 
 use mixed_fixture::{X as FX, Y as FY, Z as FZ, build, frontdoor_scm, study as mixed_study};
 
@@ -597,16 +662,8 @@ fn surrogate_route() -> StudyPlanRoute {
 #[test]
 fn a_declared_margin_repairs_the_named_missing_joint() {
     let (g, base, base_data) = surrogate_base();
-    let route = surrogate_route();
-    let candidates = vec![
-        study("trial_xy", "target", &[FZ], None, &[FX, FY], 3),
-        study("trial_y", "target", &[FZ], None, &[FY], 2),
-        study("full_observational", "target", &[], None, &[FX, FZ, FY], 5),
-    ];
     let ctx = ExecutionContext::for_tests(5);
-    let plan =
-        plan_studies(&g, &route, &base, &candidates, StudyPlanLimits::for_route(&route), &ctx)
-            .unwrap();
+    let plan = surrogate_plan();
     // The frozen failure names the exact joint the trial published only as marginals.
     let failure = &plan.plan().failure;
     assert_eq!(

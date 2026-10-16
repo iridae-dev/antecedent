@@ -1,10 +1,10 @@
-//! Route-level refusal of the closed learned joint source-target transport row (2.3B B1
-//! row `learned_joint_transport`, `antecedent.transport.learned_joint`).
+//! Route-level refusal of the closed learned joint source-target transport row
+//! (`learned_joint_transport`, `antecedent.transport.learned_joint`).
 //!
 //! The Rust core ([`antecedent_estimate::learned_joint_transport`]) fits the outcome
 //! mechanism through `antecedent-learn` and replays through an independent io artifact, but
-//! its posterior claims a *calibrated* interval whose coverage is measured only at the
-//! release cut. Until then the public producer is closed: it validates its request against
+//! its posterior claims a *calibrated* interval whose coverage is unmeasured. The
+//! public producer is therefore closed: it validates its request against
 //! the row's scope with the core's own bounds and details and otherwise refuses with the live
 //! typed `cell_not_licensed` refusal `learned_joint_transport.route_frozen`. A request outside
 //! the row refuses first with the row's own scope refusal, so a caller learns the real
@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn a2_learned_route_is_frozen_and_scope_refusals_come_first() {
+    fn learned_joint_route_is_frozen_and_scope_refusals_come_first() {
         let frozen = learned_joint_transport_refusal(&request());
         assert_eq!(frozen.code, "cell_not_licensed");
         assert_eq!(frozen.detail, learned::DETAIL_ROUTE_FROZEN);

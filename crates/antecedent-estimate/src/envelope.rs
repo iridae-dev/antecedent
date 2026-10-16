@@ -13,12 +13,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::neg_cmp_op_on_partial_ord,
-    clippy::needless_range_loop,
-    clippy::doc_markdown,
-    clippy::too_many_lines
-)]
 #![cfg_attr(
     test,
     allow(
@@ -58,7 +52,7 @@ pub struct EnvelopeOptions {
 pub struct GraphEffectDraws {
     /// Opaque key matching [`WeightedGraphSamples::graph_keys`].
     pub graph_key: u64,
-    /// Effect draws (length = n_draws).
+    /// Effect draws (length = `n_draws`).
     pub effect_draws: Arc<[f64]>,
 }
 
@@ -79,6 +73,10 @@ pub struct GraphEffectDraws {
 #[allow(
     clippy::cast_sign_loss,
     reason = "the product is a non-negative uniform draw in [0, 1) scaled by the draw count"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one aggregation: canonicalize atoms by graph key, build the mixture draws and exact moments, then assemble the envelope; the stages share the combined atoms"
 )]
 pub fn aggregate_effect_envelope(
     graphs: &WeightedGraphSamples,
@@ -231,7 +229,9 @@ pub fn aggregate_effect_envelope(
     // a reader recomputing them from the draws gets the same numbers.
     let (draws, summaries) = moment_matched(&draws, exact_mean, Some(exact_sd))?;
 
-    let identification = if identified_mass > 0.0 && retained_unidentified > 0.0 {
+    let identification = if identified_mass > 0.0
+        && retained_unidentified > antecedent_core::POSTERIOR_MASS_TOLERANCE
+    {
         IdentificationStatus::GraphDependent
     } else if identified_mass > 0.0 {
         IdentificationStatus::NonparametricallyIdentified
@@ -338,11 +338,16 @@ pub fn aggregate_mixture_functional_envelope(
         ));
     }
     let mut weights = vec![0.0; k];
+    // First match, the same atom `position` returned. Duplicates are already refused.
+    let mut key_at = std::collections::HashMap::with_capacity(k);
+    for (pos, graph) in per_graph.iter().enumerate() {
+        key_at.entry(graph.graph_key).or_insert(pos);
+    }
     for i in 0..graphs.n_samples {
         if graphs.identified[i] != GraphIdentFlag::Identified {
             continue;
         }
-        if let Some(pos) = per_graph.iter().position(|g| g.graph_key == graphs.graph_keys[i]) {
+        if let Some(&pos) = key_at.get(&graphs.graph_keys[i]) {
             weights[pos] += graphs.weights[i];
         }
     }
@@ -391,7 +396,7 @@ pub fn aggregate_mixture_functional_envelope(
 }
 
 /// Slack for rounding when checking that a coupling matrix is a correlation.
-const PSD_TOLERANCE: f64 = 1e-9;
+const PSD_TOLERANCE: f64 = crate::util::CORRELATION_PSD_TOLERANCE;
 
 /// Rank-coupled mixture draws `Σ_g w_g τ_g^(d)` (weights already normalized).
 ///
@@ -399,8 +404,7 @@ const PSD_TOLERANCE: f64 = 1e-9;
 ///
 /// Empty or ragged draws, or a correlation that is the wrong size, asymmetric,
 /// off the unit diagonal, or not positive semidefinite.
-#[allow(clippy::many_single_char_names)]
-pub fn couple_mixture_functional_draws(
+pub(crate) fn couple_mixture_functional_draws(
     atoms: &[(f64, &[f64])],
     correlation: &[f64],
     seed: u64,
@@ -425,36 +429,16 @@ pub fn couple_mixture_functional_draws(
             }
         }
     }
-    // Positive-semidefinite Cholesky. A zero pivot marks an atom that is a linear
-    // function of earlier ones (e.g. an identical estimand) and is fine, but only if
-    // everything below it is consistent with that; a clearly negative Schur
-    // complement means the matrix is not a correlation, and truncating it would
-    // couple the atoms under a dependence other than the one supplied.
-    let not_psd =
-        || EstimationError::stats_msg("coupling correlation is not positive semidefinite");
+    // Positive-semidefinite Cholesky (the kernel's PSD variant). A zero pivot marks an atom
+    // that is a linear function of earlier ones (e.g. an identical estimand) and is fine,
+    // but only if everything below it is consistent with that; a clearly negative Schur
+    // complement means the matrix is not a correlation, and truncating it would couple the
+    // atoms under a dependence other than the one supplied.
     let mut l = vec![0.0; k * k];
-    for j in 0..k {
-        let mut s = correlation[j * k + j];
-        for p in 0..j {
-            s -= l[j * k + p] * l[j * k + p];
-        }
-        if s < -PSD_TOLERANCE {
-            return Err(not_psd());
-        }
-        let pivot = if s > 1e-12 { s.sqrt() } else { 0.0 };
-        l[j * k + j] = pivot;
-        for i in (j + 1)..k {
-            let mut v = correlation[i * k + j];
-            for p in 0..j {
-                v -= l[i * k + p] * l[j * k + p];
-            }
-            if pivot > 0.0 {
-                l[i * k + j] = v / pivot;
-            } else if v.abs() > PSD_TOLERANCE {
-                return Err(not_psd());
-            }
-        }
-    }
+    antecedent_kernels::cholesky::cholesky_psd_into(correlation, k, PSD_TOLERANCE, &mut l)
+        .map_err(|_| {
+            EstimationError::stats_msg("coupling correlation is not positive semidefinite")
+        })?;
     let mut rng = CausalRng::from_seed(seed);
     let mut normal = move || antecedent_kernels::standard_normal(&mut rng);
     let mut latent = vec![0.0; n * k];

@@ -7,29 +7,20 @@
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
+use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_data::{TableView, TabularData};
+use antecedent_discovery::{DiscoveryWorkspace, Notears};
+use antecedent_graph::{DenseNodeId, MarkedEdge};
+use antecedent_test_support::{conformance_dir, load_expected_json};
+use serde_json::Value as JsonValue;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use antecedent_core::{
-    CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    VariableId,
-};
-use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
-};
-use antecedent_discovery::{DiscoveryWorkspace, Notears};
-use antecedent_graph::{DenseNodeId, MarkedEdge};
-use serde_json::Value as JsonValue;
+mod common;
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/discovery/notears_chain")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("discovery/notears_chain")
 }
 
 fn load_tabular(expected: &JsonValue) -> (TabularData, Vec<VariableId>, Vec<String>) {
@@ -52,35 +43,7 @@ fn load_tabular(expected: &JsonValue) -> (TabularData, Vec<VariableId>, Vec<Stri
     let n = cols[0].len();
     assert_eq!(n, expected["n"].as_u64().unwrap() as usize);
 
-    let mut b = CausalSchemaBuilder::new();
-    for name in &names {
-        b.add_variable(
-            name.as_str(),
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-    }
-    let schema = b.build().unwrap();
-    let owned: Vec<OwnedColumn> = cols
-        .into_iter()
-        .enumerate()
-        .map(|(i, data)| {
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(i as u32),
-                    Arc::from(data),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            )
-        })
-        .collect();
-    let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-    let data = TabularData::new(storage);
+    let data = TabularData::new(common::continuous_storage(&names, cols));
     let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
     (data, vars, names)
 }
@@ -91,7 +54,7 @@ fn name_index(names: &[String], name: &str) -> usize {
 
 #[test]
 fn discovery_notears_chain_required_directed_edges() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     assert_eq!(expected["tolerance_class"].as_str().unwrap(), "RequiredDirectedEdges");
     assert_eq!(expected["algorithm_id"].as_str().unwrap(), "notears");
 

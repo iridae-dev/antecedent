@@ -11,7 +11,7 @@ evidence_kind = "implementation_exists"
 owner = "estimate"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "prepared_reestimate_matches_fresh_analyze"
-notes = "CausalAnalysis builder + data/graph/query; Python analyze_ate / analyze"
+notes = "CausalAnalysis builder + data/graph/query; Python analyze"
 
 [[capabilities]]
 id = "estimate.model.treatment_outcome"
@@ -56,9 +56,9 @@ description = "Model, identify, estimate, refute workflow"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "estimate"
-evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "dag_average_effect_vertical_path_is_independently_accepted"
-notes = "1.10 composition: inspect_does_not_identify and dag_average_effect_vertical_path_* in crates/antecedent/tests/v110_contract.rs. Compiler inspect/capability rows live in parity/compiler.toml and do not inherit estimator known-truth."
+notes = "Composition: inspect_does_not_identify and dag_average_effect_vertical_path_* in crates/antecedent/tests/identity_contract.rs. Compiler inspect/capability rows live in parity/compiler.toml and do not inherit estimator known-truth."
 
 [[capabilities]]
 id = "estimate.identify.adjustment_sets"
@@ -133,7 +133,7 @@ description = "Identified-estimand representation"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "estimate"
-evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "admg_frontdoor_contract_records_functional_identification"
 limitations = "The evidence test asserts the identification status, identified mass and identification product of a front-door estimand; backdoor estimand fields are asserted in the identify tests."
 python_facade = "full"
@@ -427,27 +427,40 @@ evidence_kind = "implementation_exists"
 owner = "release"
 notes = "pinned baseline secondary package is not mirrored; equivalent surfaces live as dedicated inventory IDs (discovery, transforms, effects, facade). Downgraded: no single executing test evidences this aggregate row; the equivalent surfaces are evidenced by their dedicated inventory rows."
 
+[[capabilities]]
+id = "estimate.handoff.adjustment"
+group = "external_handoff"
+description = "Certified adjustment-set handoff for a caller-owned learner"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "estimate"
+evidence_test = "python/tests/test_econml_handoff.py"
+evidence_assertion = "test_backdoor_ate_emits_adjustment_set"
+python_facade = "full"
+notes = "Antecedent emits the certified adjustment set and records a caller-fitted payload as attested. It does not wrap a learner. handoff.adjustment, AdjustmentHandoff, and AdjustmentProviderAdapter are the API; handoff.econml, EconMLSpec, and EconMLProviderAdapter are aliases. econml_model_composition stays excluded because there is no learner wrapper."
+
 [excluded]
-econml_adapter = true
+# The adjustment handoff ships (estimate.handoff.adjustment). What stays out is
+# an in-process learner wrapper or model composition, not the handoff itself.
 econml_model_composition = true
 
 [optional_adapters]
-causalml = "pending"
+causalml = "pending"  # unimplemented; a second learner uses the adjustment handoff. See adr/0025-provider-protocol.md
 tabpfn = "pending"
 
 [[capabilities]]
 id = "estimate.temporal_sequential"
 group = "estimation"
-description = "1.2 staged estimate.temporal_sequential with independent evidence"
+description = "staged estimate.temporal_sequential with independent evidence"
 owner = "estimate"
 evidence_test = "crates/antecedent/tests/temporal_response_facade.rs"
 evidence_assertion = "multi_step_sequence_matches_two_step_truth_and_does_not_collapse"
 status = "done"
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/bayesian/release_12_moments"
+known_truth_fixture = "conformance/bayesian/posterior_moments"
 python_facade = "full"
 limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
-notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 calibration = ["cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage", "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l95.sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_graph_posterior_sustained_effect_multistep_nominal_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_iid_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_graph_posterior_sustained_effect_multistep_nominal_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_iid_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary", "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l90.sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage", "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l95.sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage", "cov.sustained_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverage"]
 
 [[capabilities]]

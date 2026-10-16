@@ -1,10 +1,31 @@
 # Development
 
+## Documentation preview and checks
+
+In a separate checkout or worktree with the matching Antecedent installed:
+
+```bash
+python -m pip install -r requirements-docs.txt
+python scripts/generate_example_catalog.py --check
+python scripts/generate_doc_release_links.py --check
+python scripts/check_docs_experience.py
+python scripts/render_notebooks.py
+mkdocs build --strict
+python scripts/build_python_api_docs.py site/python
+mkdocs serve
+```
+
+Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest excludes branch audits and one-off measurements while retaining evidence source paths. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v2.4.0/docs/README.md) for editorial conventions.
+
+
 Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
 day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 `antecedent-*` on crates.io.
 
 ## CI vs local gates
+
+For optimized local test commands, measured bottlenecks and the CI build
+strategy, see [test performance](guides/test-performance.md).
 
 GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
 
@@ -62,10 +83,26 @@ bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
 bash scripts/gate_checked_execution.sh   # every licensed estimator executes from its retained checked plan with no builder alive
 bash scripts/gate_docs_support_matrix.sh
+bash scripts/gate_public_api.sh   # published crates' public items match parity/public_api/*.txt
 bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is owed, collect, attest
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
 bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
 ```
+
+## Public API snapshots
+
+`scripts/gate_public_api.sh` lists every published crate's public items (paths,
+signatures, fields, variants, trait impls, `#[doc(hidden)]` items included) from
+rustdoc JSON on the pinned toolchain (`RUSTC_BOOTSTRAP=1`, default features) and
+compares the listing with the committed `parity/public_api/<crate>.txt`. Any
+difference fails the gate with a line diff. An intended API change is made
+deliberate by regenerating the snapshots (`bash scripts/gate_public_api.sh
+--write`) and committing the diff, which a reviewer then reads as the API
+change. The gate runs in the `inventory` section of `gate_release.sh`. Keep
+cross-crate plumbing that is not a supported API out of the snapshot by making
+it `pub(crate)`, or, when another workspace crate or a fixture needs it, behind
+a `test-util`-style feature (see `antecedent-identify`) rather than
+`#[doc(hidden)] pub`.
 
 ## Coverage records
 
@@ -261,7 +298,8 @@ The collector refuses to stamp HEAD while the surface its records depend on
 differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
 `calibration` / `calibration_reason` pair on every licensed cell and estimator
 row (a licensed cell whose every reported-level record is a boundary also states
-`calibration_reason = "boundary_record"` beside its list), and regenerates `crates/antecedent-io/src/coverage_records_data.rs`.
+`calibration_reason = "boundary_record"` beside its list), and regenerates `crates/antecedent-io-core/data/coverage_records.json`
+(the snapshot `coverage_records_data` loads).
 `scripts/gate_parity_schema.sh` then checks what those rows claim. To collect
 logs measured at another commit, pass `--sha <commit>`. After you edit
 `scripts/calibration_surface.list`, `collect_coverage_records.py --retag`
@@ -501,10 +539,13 @@ Before merging the release PR:
    and evidence ledger. Record measured timings separately from test ceilings.
 
 Before tagging, confirm the changelog has a `## X.Y.Z` section for the version
-being cut and no status markers anywhere, the release notes named by
-`docs/release-notes/preparation.toml` (or the workspace version) are current,
-the supported-versions table in `SECURITY.md` and the version in `CITATION.cff`
-name that version, and release-status text matches the cut. Coverage records must be attested at
+being cut and no status markers anywhere. `docs/release-notes/preparation.toml`
+is optional: when it is present, `target_version` names the release notes
+(`docs/release-notes/vX.Y.Z.md`), which may be ahead of the package; when it is
+absent, X.Y.Z is the workspace package version in `Cargo.toml` and the missing
+file is not an error. Those notes must be current, the supported-versions table
+in `SECURITY.md` and the version in `CITATION.cff` must name that version, and
+release-status text must match the cut. Coverage records must be attested at
 HEAD. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 

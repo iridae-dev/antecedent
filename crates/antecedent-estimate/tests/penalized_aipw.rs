@@ -1,4 +1,4 @@
-//! Penalized-propensity cross-fitted AIPW (2.2 E2): the ridge and lasso routes fit and replay,
+//! Penalized-propensity cross-fitted AIPW: the ridge and lasso routes fit and replay,
 //! tune their penalty (and a lasso's support) on training rows only, keep the score table, row
 //! identity, overlap report and retargeting, publish the cross-fitted influence-function SE and
 //! the refit-bootstrap SE (which repeats penalty selection in every replicate), and the
@@ -23,6 +23,9 @@ use antecedent_core::{
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
+use antecedent_estimate::posterior_mean::{
+    PosteriorRequest, ScoreNamespace, score_contrast_posterior,
+};
 use antecedent_estimate::{
     AipwAte, AipwWorkspace, AnalyticSeKind, EffectEstimate, EstimationError, NuisanceFallback,
     OverlapPolicy, PROPENSITY_FIT_STAGE, PenalizedVarianceReport, PropensityNuisance,
@@ -32,6 +35,7 @@ use antecedent_estimate::{
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::standard_normal;
 use antecedent_stats::StatsError;
+use antecedent_test_support::dot;
 
 /// Raw columns of one synthetic data set.
 #[derive(Clone)]
@@ -171,6 +175,7 @@ fn run(est: &AipwAte, raw: &Raw, seed: u64) -> Result<EffectEstimate, Estimation
 
 fn selected_lambdas(estimate: &EffectEstimate) -> Vec<f64> {
     estimate
+        .crossfit
         .learner_provenance
         .iter()
         .map(|p| {
@@ -196,6 +201,7 @@ fn hand_influence_se(table: &ScoreTable) -> f64 {
 
 fn variance_of(estimate: &EffectEstimate) -> &PenalizedVarianceReport {
     estimate
+        .diagnostics
         .penalized
         .as_ref()
         .and_then(|report| report.variance.as_ref())
@@ -283,10 +289,6 @@ fn ols(x: &[Vec<f64>], y: &[f64]) -> Vec<f64> {
         }
     }
     solve(xtx, xty)
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 /// Out-of-fold AIPW scores recomputed from the raw data, the table's fold ids and the
@@ -378,7 +380,7 @@ fn weighted_summary(s0: &[f64], s1: &[f64], w: &[f64]) -> ([f64; 2], [[f64; 2]; 
 }
 
 fn table(estimate: &EffectEstimate) -> &ScoreTable {
-    estimate.score_table.as_ref().expect("the penalized route keeps its score table")
+    estimate.scores.table.as_ref().expect("the penalized route keeps its score table")
 }
 
 // ---- tests ---------------------------------------------------------------------------------
@@ -418,21 +420,24 @@ fn a_penalized_fit_publishes_scores_a_point_and_the_cross_fitted_influence_inter
     let hand = hand_influence_se(t);
     assert!(hand.is_finite() && hand > 0.0);
     assert!(
-        (estimate.se_analytic - hand).abs() <= 1e-12 * hand,
+        (estimate.se_analytic() - hand).abs() <= 1e-12 * hand,
         "{} vs {hand}",
-        estimate.se_analytic
+        estimate.se_analytic()
     );
     assert!((crossfit_influence_se(t).unwrap() - hand).abs() <= 1e-12 * hand);
-    assert_eq!(estimate.se_kind, Some(AnalyticSeKind::Homoskedastic));
-    assert!(estimate.se_bootstrap.is_none());
-    assert!(estimate.joint_covariance.is_some());
-    assert!(estimate.score_inference.is_some());
-    assert_eq!(estimate.influence.as_ref().map(|v| v.len()), Some(300));
-    assert!(estimate.overlap_report.is_some());
-    assert_eq!(estimate.crossfit_folds, Some(5));
-    assert_eq!(estimate.crossfit_seed, Some(11));
-    assert_eq!(estimate.learner_provenance.len(), 5);
-    assert!(estimate.penalized.is_none(), "a ridge fit with no bootstrap has nothing to report");
+    assert_eq!(estimate.uncertainty.analytic.kind, Some(AnalyticSeKind::Homoskedastic));
+    assert!(estimate.se_bootstrap().is_none());
+    assert!(estimate.joint.covariance.is_some());
+    assert!(estimate.scores.inference.is_some());
+    assert_eq!(estimate.scores.influence.as_ref().map(|v| v.len()), Some(300));
+    assert!(estimate.diagnostics.overlap_report.is_some());
+    assert_eq!(estimate.crossfit.folds, Some(5));
+    assert_eq!(estimate.crossfit.seed, Some(11));
+    assert_eq!(estimate.crossfit.learner_provenance.len(), 5);
+    assert!(
+        estimate.diagnostics.penalized.is_none(),
+        "a ridge fit with no bootstrap has nothing to report"
+    );
     assert_eq!(t.row_index.as_ref(), problem.row_index.as_ref());
     assert_eq!(t.n_rows, 300);
     assert_eq!(t.n_folds, 5);
@@ -443,9 +448,9 @@ fn a_penalized_fit_publishes_scores_a_point_and_the_cross_fitted_influence_inter
     let hc1 = AipwAte { se_kind: AnalyticSeKind::Hc1, ..ridge(&[0.5, 5.0, 50.0], 4) };
     let robust = run(&hc1, &raw, 11).unwrap();
     assert_eq!(robust.ate.to_bits(), estimate.ate.to_bits());
-    assert_eq!(robust.se_kind, Some(AnalyticSeKind::Hc1));
-    assert!(robust.se_analytic.is_finite() && robust.se_analytic > 0.9 * hand);
-    assert!(robust.joint_covariance.is_none());
+    assert_eq!(robust.uncertainty.analytic.kind, Some(AnalyticSeKind::Hc1));
+    assert!(robust.se_analytic().is_finite() && robust.se_analytic() > 0.9 * hand);
+    assert!(robust.joint.covariance.is_none());
 }
 
 /// Seeded replay: the same seed gives the same folds, penalties and scores bit for bit; another
@@ -457,7 +462,7 @@ fn selected_penalties_replay_from_the_seed() {
     let a = run(&est, &raw, 21).unwrap();
     let b = run(&est, &raw, 21).unwrap();
     let c = run(&est, &raw, 22).unwrap();
-    assert_eq!(a.learner_provenance, b.learner_provenance);
+    assert_eq!(a.crossfit.learner_provenance, b.crossfit.learner_provenance);
     assert_eq!(bits(&table(&a).scores), bits(&table(&b).scores));
     assert_eq!(table(&a).fold_ids, table(&b).fold_ids);
     assert_eq!(a.ate.to_bits(), b.ate.to_bits());
@@ -499,7 +504,7 @@ fn rewrite_fold_zero(est: &AipwAte, raw: &Raw) -> (EffectEstimate, EffectEstimat
 fn penalty_is_chosen_on_training_rows_only() {
     let raw = draw(250, 4, 13, Regime::Moderate);
     let (before, after) = rewrite_fold_zero(&ridge(&[0.05, 0.5, 5.0, 50.0], 4), &raw);
-    assert_eq!(before.learner_provenance[0], after.learner_provenance[0]);
+    assert_eq!(before.crossfit.learner_provenance[0], after.crossfit.learner_provenance[0]);
     assert_ne!(bits(&table(&before).scores), bits(&table(&after).scores));
 }
 
@@ -596,14 +601,14 @@ fn the_refit_bootstrap_publishes_its_se_and_the_penalties_it_selected_in_every_r
     let est = with_bootstrap(ridge(&grid, 3), 30);
     let a = run(&est, &raw, 5).unwrap();
     let b = run(&est, &raw, 5).unwrap();
-    let se = a.se_bootstrap.expect("a refit bootstrap SE");
+    let se = a.se_bootstrap().expect("a refit bootstrap SE");
     assert!(se.is_finite() && se > 0.0, "{se}");
     let variance = variance_of(&a);
     assert_eq!(variance.uncertainty_kind, REFIT_BOOTSTRAP_UNCERTAINTY_KIND);
     assert_eq!(variance.replicates_requested, 30);
     assert_eq!(variance.replicates_ok + variance.replicates_failed, 30);
-    assert_eq!(a.bootstrap_replicates_ok, Some(variance.replicates_ok));
-    assert_eq!(a.bootstrap_replicates_failed, Some(variance.replicates_failed));
+    assert_eq!(a.uncertainty.bootstrap.replicates_ok, Some(variance.replicates_ok));
+    assert_eq!(a.uncertainty.bootstrap.replicates_failed, Some(variance.replicates_failed));
     assert!(!variance.cancelled);
     assert_eq!(variance.refit_bootstrap_se, Some(se));
     assert_eq!(variance.replicate_penalties.len(), variance.replicates_ok as usize);
@@ -613,13 +618,13 @@ fn the_refit_bootstrap_publishes_its_se_and_the_penalties_it_selected_in_every_r
         assert!(replicate.lambdas.iter().all(|l| grid.contains(l)), "{:?}", replicate.lambdas);
     }
     // The influence SE rides beside it and is both the analytic SE and the hand formula.
-    assert!((variance.influence_se - a.se_analytic).abs() <= 1e-12 * a.se_analytic);
+    assert!((variance.influence_se - a.se_analytic()).abs() <= 1e-12 * a.se_analytic());
     assert!((variance.influence_se - hand_influence_se(table(&a))).abs() < 1e-10);
     // Replay: same seed, same SE bits and penalty record; another seed resamples differently.
-    assert_eq!(a.se_bootstrap.map(f64::to_bits), b.se_bootstrap.map(f64::to_bits));
-    assert_eq!(a.penalized, b.penalized);
+    assert_eq!(a.se_bootstrap().map(f64::to_bits), b.se_bootstrap().map(f64::to_bits));
+    assert_eq!(a.diagnostics.penalized, b.diagnostics.penalized);
     let c = run(&est, &raw, 6).unwrap();
-    assert_ne!(a.se_bootstrap.map(f64::to_bits), c.se_bootstrap.map(f64::to_bits));
+    assert_ne!(a.se_bootstrap().map(f64::to_bits), c.se_bootstrap().map(f64::to_bits));
 }
 
 /// The refit-bootstrap SE is close to an independent bootstrap written here: it resamples the
@@ -635,7 +640,7 @@ fn the_refit_bootstrap_is_close_to_an_independent_bootstrap_through_the_public_f
     let n = raw.t.len();
     let grid = [0.5, 5.0, 50.0];
     let library = run(&with_bootstrap(ridge(&grid, 3), 60), &raw, 9).unwrap();
-    let library_se = library.se_bootstrap.expect("a refit bootstrap SE");
+    let library_se = library.se_bootstrap().expect("a refit bootstrap SE");
 
     let mut state = 0x9E37_79B9_7F4A_7C15_u64;
     let mut draw_index = |bound: usize| -> usize {
@@ -664,7 +669,7 @@ fn the_refit_bootstrap_is_close_to_an_independent_bootstrap_through_the_public_f
     let ratio = library_se / independent_se;
     assert!((0.6..1.6).contains(&ratio), "library {library_se} vs independent {independent_se}");
     // Both estimate the same sampling variability as the influence-function SE does.
-    let influence = library.se_analytic;
+    let influence = library.se_analytic();
     assert!((0.6..1.7).contains(&(library_se / influence)), "{library_se} vs IF {influence}");
 }
 
@@ -690,9 +695,9 @@ fn failed_replicates_are_counted_and_the_se_follows_the_failure_policy() {
     let allowed = ReplicatePolicy::BOOTSTRAP
         .decide(100, variance.replicates_ok, variance.replicates_failed)
         .is_ok();
-    assert_eq!(estimate.se_bootstrap.is_some(), allowed);
+    assert_eq!(estimate.se_bootstrap().is_some(), allowed);
     assert_eq!(variance.refit_bootstrap_se.is_some(), allowed);
-    assert_eq!(estimate.bootstrap_replicates_failed, Some(variance.replicates_failed));
+    assert_eq!(estimate.uncertainty.bootstrap.replicates_failed, Some(variance.replicates_failed));
 }
 
 /// Cancellation of the bootstrap is a stop, never a verdict: the flag is reported, no SE is
@@ -711,8 +716,8 @@ fn a_cancelled_refit_bootstrap_is_a_stop_with_no_se() {
     let cancelled = ExecutionContext::for_tests(2);
     cancelled.cancellation.cancel();
     let estimate = est.attach_bootstrap(&problem, &mut workspace, &cancelled, point).unwrap();
-    assert!(estimate.bootstrap_cancelled);
-    assert!(estimate.se_bootstrap.is_none());
+    assert!(estimate.uncertainty.bootstrap.cancelled);
+    assert!(estimate.se_bootstrap().is_none());
     assert_eq!(estimate.ate.to_bits(), ate.to_bits());
     let variance = variance_of(&estimate);
     assert!(variance.cancelled && variance.refit_bootstrap_se.is_none());
@@ -753,7 +758,8 @@ fn a_lasso_propensity_recovers_the_support_and_the_effect_and_records_it_per_fol
     let est = lasso(&[3.0, 10.0, 30.0, 100.0], 4);
     let estimate = run(&est, &raw, 13).unwrap();
     assert!((estimate.ate - 2.0).abs() < 0.35, "ate = {}", estimate.ate);
-    let report = estimate.penalized.as_ref().expect("a lasso records its selected support");
+    let report =
+        estimate.diagnostics.penalized.as_ref().expect("a lasso records its selected support");
     assert!(report.fallback.is_none() && report.variance.is_none());
     assert_eq!(report.selected_support.len(), 5);
     let kept = |name: &str| {
@@ -772,6 +778,7 @@ fn a_lasso_propensity_recovers_the_support_and_the_effect_and_records_it_per_fol
     assert!(noise < 30, "{noise} of 40 noise slots selected: {:?}", report.selected_support);
     let strong = run(&lasso(&[200.0], 4), &raw, 13).unwrap();
     let strong_noise: usize = strong
+        .diagnostics
         .penalized
         .as_ref()
         .unwrap()
@@ -794,10 +801,12 @@ fn a_lasso_propensity_recovers_the_support_and_the_effect_and_records_it_per_fol
         t.column(0).unwrap().iter().zip(t.column(1).unwrap()).map(|(a, b)| b - a).collect();
     assert!((estimate.ate - mean(&contrast)).abs() < 1e-12);
     let hand = hand_influence_se(t);
-    assert!((estimate.se_analytic - hand).abs() <= 1e-12 * hand);
-    assert!(estimate.joint_covariance.is_some() && estimate.score_inference.is_some());
-    assert_eq!(estimate.learner_provenance.len(), 5);
-    assert!(estimate.learner_provenance.iter().all(|p| p.spec.starts_with("lasso_logistic:")));
+    assert!((estimate.se_analytic() - hand).abs() <= 1e-12 * hand);
+    assert!(estimate.joint.covariance.is_some() && estimate.scores.inference.is_some());
+    assert_eq!(estimate.crossfit.learner_provenance.len(), 5);
+    assert!(
+        estimate.crossfit.learner_provenance.iter().all(|p| p.spec.starts_with("lasso_logistic:"))
+    );
     let provenance = t.nuisance_provenance.as_ref();
     assert!(provenance.contains(";propensity=lasso.cv("), "{provenance}");
     let support = provenance.split(";selected_support=").nth(1).expect("per-fold support");
@@ -812,7 +821,7 @@ fn a_lasso_propensity_recovers_the_support_and_the_effect_and_records_it_per_fol
     // Seeded replay is bit for bit, support included.
     let again = run(&est, &raw, 13).unwrap();
     assert_eq!(again.ate.to_bits(), estimate.ate.to_bits());
-    assert_eq!(again.penalized, estimate.penalized);
+    assert_eq!(again.diagnostics.penalized, estimate.diagnostics.penalized);
     assert_eq!(bits(&table(&again).scores), bits(t.scores.as_ref()));
 }
 
@@ -822,8 +831,9 @@ fn a_lasso_propensity_recovers_the_support_and_the_effect_and_records_it_per_fol
 fn a_lasso_support_and_penalty_are_chosen_on_training_rows_only() {
     let raw = draw(250, 5, 67, Regime::Moderate);
     let (before, after) = rewrite_fold_zero(&lasso(&[1.0, 5.0, 20.0, 80.0], 4), &raw);
-    assert_eq!(before.learner_provenance[0], after.learner_provenance[0]);
-    let support = |e: &EffectEstimate| e.penalized.as_ref().unwrap().selected_support[0].clone();
+    assert_eq!(before.crossfit.learner_provenance[0], after.crossfit.learner_provenance[0]);
+    let support =
+        |e: &EffectEstimate| e.diagnostics.penalized.as_ref().unwrap().selected_support[0].clone();
     assert_eq!(support(&before), support(&after));
     assert_ne!(bits(&table(&before).scores), bits(&table(&after).scores));
 }
@@ -836,7 +846,7 @@ fn a_lasso_propensity_fits_where_the_plain_logistic_is_refused() {
     assert!(matches!(run(&plain(), &raw, 7).unwrap_err(), EstimationError::Stats(_)));
     let estimate = run(&lasso(&[5.0, 20.0, 80.0], 4), &raw, 7).unwrap();
     assert!((estimate.ate - 2.0).abs() < 0.5, "ate = {}", estimate.ate);
-    assert!(estimate.se_analytic.is_finite() && estimate.se_analytic > 0.0);
+    assert!(estimate.se_analytic().is_finite() && estimate.se_analytic() > 0.0);
 }
 
 /// The refit bootstrap repeats the lasso's penalty and support selection on every resample.
@@ -848,12 +858,12 @@ fn the_lasso_refit_bootstrap_repeats_selection_and_records_each_replicate() {
     let variance = variance_of(&estimate);
     assert_eq!(variance.replicates_ok + variance.replicates_failed, 20);
     assert!(variance.replicates_ok >= 2);
-    assert!(estimate.se_bootstrap.is_some_and(|se| se.is_finite() && se > 0.0));
+    assert!(estimate.se_bootstrap().is_some_and(|se| se.is_finite() && se > 0.0));
     for replicate in &variance.replicate_penalties {
         assert_eq!(replicate.lambdas.len(), 5);
         assert!(replicate.lambdas.iter().all(|l| grid.contains(l)));
     }
-    assert!(!estimate.penalized.as_ref().unwrap().selected_support.is_empty());
+    assert!(!estimate.diagnostics.penalized.as_ref().unwrap().selected_support.is_empty());
 }
 
 /// A declared ML fallback stays closed: a failed GLM fit is refused with the failure recorded,
@@ -887,7 +897,12 @@ fn a_failed_glm_fit_runs_the_declared_ridge_fallback_and_records_both() {
     let estimate = run(&fallback, &separated, 2).unwrap();
     assert!((estimate.ate - 2.0).abs() < 0.5, "ate = {}", estimate.ate);
 
-    let record = estimate.penalized.as_ref().and_then(|r| r.fallback.as_ref()).expect("a record");
+    let record = estimate
+        .diagnostics
+        .penalized
+        .as_ref()
+        .and_then(|r| r.fallback.as_ref())
+        .expect("a record");
     assert_eq!(record.failed_fit.stage, PROPENSITY_FIT_STAGE);
     assert!(
         ["separated", "non_converged", "boundary_saturated"].contains(&record.failed_fit.reason),
@@ -902,9 +917,9 @@ fn a_failed_glm_fit_runs_the_declared_ridge_fallback_and_records_both() {
     let direct = run(&ridge(&[1.0, 10.0, 100.0], 3), &separated, 2).unwrap();
     assert_eq!(estimate.ate.to_bits(), direct.ate.to_bits());
     assert_eq!(bits(&table(&estimate).scores), bits(&table(&direct).scores));
-    assert_eq!(estimate.se_analytic.to_bits(), direct.se_analytic.to_bits());
-    assert_eq!(estimate.learner_provenance, direct.learner_provenance);
-    assert_eq!(estimate.learner_provenance.len(), 5);
+    assert_eq!(estimate.se_analytic().to_bits(), direct.se_analytic().to_bits());
+    assert_eq!(estimate.crossfit.learner_provenance, direct.crossfit.learner_provenance);
+    assert_eq!(estimate.crossfit.learner_provenance.len(), 5);
 
     // Both identities are on the table: the destination's configuration, the failure and the
     // declared fallback.
@@ -924,7 +939,7 @@ fn a_failed_glm_fit_runs_the_declared_ridge_fallback_and_records_both() {
     let armed = run(&fallback, &healthy, 2).unwrap();
     let glm = run(&plain(), &healthy, 2).unwrap();
     assert_eq!(armed.ate.to_bits(), glm.ate.to_bits());
-    assert!(armed.penalized.is_none());
+    assert!(armed.diagnostics.penalized.is_none());
     assert!(!table(&armed).nuisance_provenance.as_ref().contains(";nuisance_fallback"));
 
     // The lasso destination runs the same way and records its support.
@@ -932,7 +947,7 @@ fn a_failed_glm_fit_runs_the_declared_ridge_fallback_and_records_both() {
         RidgeTuning::new(&[5.0, 20.0, 80.0], 3).unwrap(),
     ));
     let via_lasso = run(&lasso_fallback, &separated, 2).unwrap();
-    let report = via_lasso.penalized.as_ref().unwrap();
+    let report = via_lasso.diagnostics.penalized.as_ref().unwrap();
     assert!(report.fallback.as_ref().unwrap().destination.starts_with("lasso.cv("));
     assert_eq!(report.selected_support.len(), 5);
 }
@@ -945,7 +960,7 @@ fn the_bootstrap_of_a_fallback_result_runs_the_destination() {
     let est = with_bootstrap(glm_with_fallback(NuisanceFallback::RidgeLogistic(tuning)), 12);
     let separated = draw(240, 3, 8, Regime::Separated);
     let estimate = run(&est, &separated, 2).unwrap();
-    let report = estimate.penalized.as_ref().unwrap();
+    let report = estimate.diagnostics.penalized.as_ref().unwrap();
     assert!(report.fallback.is_some());
     let variance = report.variance.as_ref().expect("the destination's refit bootstrap");
     assert_eq!(variance.replicates_ok + variance.replicates_failed, 12);
@@ -956,7 +971,7 @@ fn the_bootstrap_of_a_fallback_result_runs_the_destination() {
             .iter()
             .all(|r| r.lambdas.iter().all(|l| [5.0, 50.0].contains(l)))
     );
-    assert!(estimate.se_bootstrap.is_some());
+    assert!(estimate.se_bootstrap().is_some());
 }
 
 /// The score table is an artifact: its wire form round-trips, and its provenance carries the
@@ -1002,11 +1017,102 @@ fn the_influence_interval_covers_the_known_effect_in_repeated_sampling() {
         for r in 0..reps {
             let raw = draw(200, 3, 900 + u64::from(r), Regime::Moderate);
             let estimate = run(&est, &raw, u64::from(r)).unwrap();
-            if (estimate.ate - 2.0).abs() <= 1.96 * estimate.se_analytic {
+            if (estimate.ate - 2.0).abs() <= 1.96 * estimate.se_analytic() {
                 covered += 1;
             }
         }
         let coverage = f64::from(covered) / f64::from(reps);
         assert!((0.87..=0.995).contains(&coverage), "{name}: coverage {coverage}");
     }
+}
+
+#[test]
+fn penalized_posterior_mean_stays_near_the_cross_fitted_score() {
+    let raw = draw(80, 2, 7, Regime::Moderate);
+    let estimate = run(&plain(), &raw, 7).unwrap();
+    let t = table(&estimate);
+    let mean = score_contrast_posterior(
+        t.column(0).unwrap(),
+        t.column(1).unwrap(),
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+        ScoreNamespace::Penalized,
+    )
+    .unwrap();
+    assert!((mean - estimate.ate).abs() < 1e-6, "{mean} vs {}", estimate.ate);
+}
+
+#[test]
+fn penalized_posterior_refuses_a_mapped_prior() {
+    let error = score_contrast_posterior(
+        &[0.0, 1.0],
+        &[1.0, 2.0],
+        PosteriorRequest::MappedCoefficient,
+        ScoreNamespace::Penalized,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("penalized_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn penalized_posterior_consumer_replays_the_shrunk_score_mean() {
+    let control = [0.0, 1.0, 0.5];
+    let treated = [1.0, 2.0, 2.5];
+    let produced = score_contrast_posterior(
+        &control,
+        &treated,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        ScoreNamespace::Penalized,
+    )
+    .unwrap();
+    let contrast = [1.0, 1.0, 2.0];
+    let mean = 4.0 / 3.0;
+    let variance = contrast.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / 2.0;
+    let weight = (3.0 / variance) / (3.0 / variance + 1.0);
+    assert!((produced - weight * mean).abs() < 1e-12);
+}
+
+#[test]
+fn batch_retarget_posterior_mean_stays_near_the_cross_fitted_score() {
+    let raw = draw(80, 2, 11, Regime::Moderate);
+    let estimate = run(&plain(), &raw, 11).unwrap();
+    let t = table(&estimate);
+    let ones = vec![1.0; t.n_rows];
+    let (retargeted, _) = retarget(t, &ones, &[], None, None, None).unwrap();
+    let mean = score_contrast_posterior(
+        t.column(0).unwrap(),
+        t.column(1).unwrap(),
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+        ScoreNamespace::BatchRetarget,
+    )
+    .unwrap();
+    assert!((mean - retargeted.contrast.as_ref().unwrap().value).abs() < 1e-6);
+}
+
+#[test]
+fn batch_retarget_posterior_refuses_an_unmeasured_band() {
+    let error = score_contrast_posterior(
+        &[0.0, 1.0],
+        &[1.0, 3.0],
+        PosteriorRequest::UnmeasuredBand,
+        ScoreNamespace::BatchRetarget,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("batch_retarget_posterior.unmeasured_band"), "{message}");
+}
+
+#[test]
+fn batch_retarget_posterior_consumer_replays_the_shrunk_score_mean() {
+    let produced = score_contrast_posterior(
+        &[0.0, 1.0, 0.5],
+        &[1.0, 2.0, 2.5],
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        ScoreNamespace::BatchRetarget,
+    )
+    .unwrap();
+    let mean = 4.0 / 3.0;
+    let variance = [1.0, 1.0, 2.0].iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / 2.0;
+    let weight = (3.0 / variance) / (3.0 / variance + 1.0);
+    assert!((produced - weight * mean).abs() < 1e-12);
 }

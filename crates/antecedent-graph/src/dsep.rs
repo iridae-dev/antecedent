@@ -3,12 +3,14 @@
 //! Boolean batch path allocates no path objects. Witness mode returns an active
 //! path certificate when nodes are d-connected given the conditioning set.
 //!
-//! Algorithm: ancestral subgraph → moralize → remove conditioning → undirected
-//! reachability (Lauritzen et al. 1990 / Pearl 1988).
+//! Boolean queries use Bayes-ball (Shachter 1998), extended across bidirected
+//! edges as latent forks. Witness paths still come from the ancestral moral
+//! graph (Lauritzen et al. 1990 / Pearl 1988), whose neighbor order the
+//! certificates depend on.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::many_single_char_names)] // x, y, z are standard d-separation names
+#![allow(clippy::many_single_char_names, reason = "x, y, z are standard d-separation names")]
 
 use crate::dag::Dag;
 use crate::error::GraphError;
@@ -56,7 +58,13 @@ pub struct DSeparationWorkspace {
     /// Conditioning set membership.
     pub conditioning: BitSet,
     /// Undirected adjacency for the moral graph (only ancestral nodes).
+    ///
+    /// Neighbor order is insertion order. [`Self::undirected_member`] is the same
+    /// relation as a bitset so duplicate edges are rejected without scanning the list.
     pub undirected: Vec<Vec<DenseNodeId>>,
+    /// Membership of [`Self::undirected`], one bitset per node. Kept in lockstep
+    /// by [`Self::prepare`] and [`add_undirected`].
+    pub(crate) undirected_member: Vec<BitSet>,
     /// BFS visited.
     pub visited: BitSet,
     /// BFS frontier / predecessor scratch.
@@ -75,9 +83,90 @@ pub struct DSeparationWorkspace {
     pub(crate) clique: Vec<DenseNodeId>,
     /// Membership marks for [`Self::clique`].
     pub(crate) clique_mark: BitSet,
+    /// Bayes-ball nodes already entered from a child.
+    pub(crate) bayes_up: BitSet,
+    /// Bayes-ball nodes already entered from a parent or a bidirected neighbor.
+    pub(crate) bayes_down: BitSet,
+    /// Bayes-ball targets for the query in progress.
+    pub(crate) bayes_targets: BitSet,
+    /// Bayes-ball stack. `true` means the ball arrived from a child.
+    pub(crate) bayes_queue: Vec<(DenseNodeId, bool)>,
 }
 
 impl DSeparationWorkspace {
+    /// Reachability from `x` to `y` over `self.undirected`, avoiding `self.conditioning`.
+    ///
+    /// The moral graph holds only ancestral nodes, so no membership test is needed.
+    /// `record_pred` fills `self.pred` for witness-path reconstruction; the frontier is a
+    /// stack, so the first witness found depends on adjacency insertion order.
+    pub(crate) fn moral_reaches(
+        &mut self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        record_pred: bool,
+    ) -> bool {
+        self.visited.clear();
+        if record_pred {
+            for p in &mut self.pred {
+                *p = None;
+            }
+        }
+        self.frontier.clear();
+        self.frontier.push(x);
+        self.visited.insert(x);
+        while let Some(u) = self.frontier.pop() {
+            if u == y {
+                return true;
+            }
+            for &v in &self.undirected[u.as_usize()] {
+                if self.conditioning.contains(v) || self.visited.contains(v) {
+                    continue;
+                }
+                self.visited.insert(v);
+                if record_pred {
+                    self.pred[v.as_usize()] = Some(u);
+                }
+                self.frontier.push(v);
+            }
+        }
+        false
+    }
+
+    /// Whether any target is reachable from any source over [`Self::undirected`],
+    /// avoiding [`Self::conditioning`].
+    ///
+    /// The moral graph holds only ancestral nodes. Sources and targets that sit in
+    /// the conditioning set are not expanded; the caller decides whether that makes
+    /// the query ill-posed.
+    #[cfg(test)]
+    pub(crate) fn moral_reaches_any(&mut self, sources: &[DenseNodeId], targets: &BitSet) -> bool {
+        self.visited.clear();
+        self.frontier.clear();
+        for &source in sources {
+            if self.conditioning.contains(source) || self.visited.contains(source) {
+                continue;
+            }
+            if targets.contains(source) {
+                return true;
+            }
+            self.visited.insert(source);
+            self.frontier.push(source);
+        }
+        while let Some(u) = self.frontier.pop() {
+            for &v in &self.undirected[u.as_usize()] {
+                if self.conditioning.contains(v) || self.visited.contains(v) {
+                    continue;
+                }
+                if targets.contains(v) {
+                    return true;
+                }
+                self.visited.insert(v);
+                self.frontier.push(v);
+            }
+        }
+        false
+    }
+
     /// Prepare for a DAG with `n` nodes.
     pub fn prepare(&mut self, n: usize) {
         self.ancestral.resize(n);
@@ -87,13 +176,142 @@ impl DSeparationWorkspace {
         for adj in &mut self.undirected {
             adj.clear();
         }
+        if self.undirected_member.len() < n {
+            self.undirected_member.resize_with(n, || BitSet::with_len(n));
+        } else {
+            self.undirected_member.truncate(n);
+        }
+        for member in &mut self.undirected_member {
+            member.resize(n);
+            member.clear();
+        }
         self.frontier.clear();
         self.pred.clear();
         self.pred.resize(n, None);
         self.graph_ws.prepare(n);
         self.clique_mark.resize(n);
         self.clique_mark.clear();
+        self.bayes_up.resize(n);
+        self.bayes_up.clear();
+        self.bayes_down.resize(n);
+        self.bayes_down.clear();
+        self.bayes_targets.resize(n);
+        self.bayes_targets.clear();
+        self.bayes_queue.clear();
     }
+}
+
+/// Whether Bayes-ball reaches any `targets` from `sources` given `conditioning`.
+///
+/// Directed edges honor `overlay`. A bidirected neighbor is the other child of
+/// an unobserved latent parent: the ball crosses it exactly when it would
+/// visit a directed parent, and it arrives traveling down.
+pub(crate) fn bayes_ball_reaches(
+    ws: &mut DSeparationWorkspace,
+    graph: BayesBallGraph<'_>,
+    sources: &[DenseNodeId],
+    targets: &[DenseNodeId],
+    conditioning: &[DenseNodeId],
+) -> bool {
+    let BayesBallGraph { parents, children, bidirected, overlay } = graph;
+    let n = parents.len();
+    ws.prepare(n);
+    ws.conditioning.clear();
+    for &node in conditioning {
+        if node.as_usize() < n {
+            ws.conditioning.insert(node);
+        }
+    }
+    crate::algo::closure_into(
+        n,
+        |node| parents.get(node.as_usize()).map_or(&[][..], Vec::as_slice),
+        conditioning.iter().copied(),
+        &mut ws.ancestral,
+        &mut ws.graph_ws,
+        |child, parent| overlay.is_none_or(|ov| ov.edge_visible(parent, child)),
+    );
+    for &target in targets {
+        if target.as_usize() < n {
+            ws.bayes_targets.insert(target);
+        }
+    }
+    let directed_ok = |parent: DenseNodeId, child: DenseNodeId| {
+        overlay.is_none_or(|ov| ov.edge_visible(parent, child))
+    };
+    for &source in sources {
+        if source.as_usize() >= n || ws.bayes_up.contains(source) {
+            continue;
+        }
+        ws.bayes_up.insert(source);
+        ws.bayes_queue.push((source, true));
+    }
+    while let Some((node, from_child)) = ws.bayes_queue.pop() {
+        if ws.bayes_targets.contains(node) {
+            return true;
+        }
+        let parents_of = parents.get(node.as_usize()).map_or(&[][..], Vec::as_slice);
+        let children_of = children.get(node.as_usize()).map_or(&[][..], Vec::as_slice);
+        let bidirected_of = bidirected.get(node.as_usize()).map_or(&[][..], Vec::as_slice);
+        if from_child {
+            if ws.conditioning.contains(node) {
+                continue;
+            }
+            for &parent in parents_of {
+                if directed_ok(parent, node) {
+                    schedule(ws, parent, true);
+                }
+            }
+            for &child in children_of {
+                if directed_ok(node, child) {
+                    schedule(ws, child, false);
+                }
+            }
+            for &other in bidirected_of {
+                schedule(ws, other, false);
+            }
+        } else {
+            if !ws.conditioning.contains(node) {
+                for &child in children_of {
+                    if directed_ok(node, child) {
+                        schedule(ws, child, false);
+                    }
+                }
+            }
+            if ws.ancestral.contains(node) {
+                for &parent in parents_of {
+                    if directed_ok(parent, node) {
+                        schedule(ws, parent, true);
+                    }
+                }
+                for &other in bidirected_of {
+                    schedule(ws, other, false);
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Adjacency rows and visibility rules used by a Bayes-ball traversal.
+#[derive(Clone, Copy)]
+pub(crate) struct BayesBallGraph<'a> {
+    pub(crate) parents: &'a [Vec<DenseNodeId>],
+    pub(crate) children: &'a [Vec<DenseNodeId>],
+    pub(crate) bidirected: &'a [Vec<DenseNodeId>],
+    pub(crate) overlay: Option<&'a GraphOverlay>,
+}
+
+fn schedule(ws: &mut DSeparationWorkspace, node: DenseNodeId, from_child: bool) {
+    let seen = if from_child { ws.bayes_up.contains(node) } else { ws.bayes_down.contains(node) };
+    if seen {
+        return;
+    }
+    if from_child {
+        ws.bayes_up.insert(node);
+    } else {
+        ws.bayes_down.insert(node);
+    }
+    ws.bayes_queue.push((node, from_child));
 }
 
 impl Dag {
@@ -135,7 +353,18 @@ impl Dag {
         if z.iter().any(|&v| v == x || v == y) {
             return Ok(false);
         }
-        Ok(!self.d_sep_connected(x, y, z, ws, overlay, false))
+        Ok(!bayes_ball_reaches(
+            ws,
+            BayesBallGraph {
+                parents: self.parent_rows(),
+                children: self.child_rows(),
+                bidirected: &[],
+                overlay,
+            },
+            &[x],
+            &[y],
+            z,
+        ))
     }
 
     /// d-separation with witness (active path or separation certificate).
@@ -217,7 +446,7 @@ impl Dag {
 
         // Build moral undirected graph on ancestral nodes.
         for i in 0..n {
-            let u = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let u = DenseNodeId::from_index(i);
             if !ws.ancestral.contains(u) {
                 continue;
             }
@@ -227,7 +456,7 @@ impl Dag {
                     continue;
                 }
                 if ws.ancestral.contains(c) {
-                    add_undirected(&mut ws.undirected, u, c);
+                    add_undirected(&mut ws.undirected, &mut ws.undirected_member, u, c);
                 }
             }
             // Moral edges: marry parents connected by visible edges into u.
@@ -244,52 +473,39 @@ impl Dag {
                         continue;
                     }
                     if ws.ancestral.contains(b) {
-                        add_undirected(&mut ws.undirected, a, b);
+                        add_undirected(&mut ws.undirected, &mut ws.undirected_member, a, b);
                     }
                 }
             }
         }
 
         // BFS from x to y avoiding conditioning set.
-        ws.visited.clear();
-        for p in &mut ws.pred {
-            *p = None;
-        }
-        ws.frontier.clear();
-        ws.frontier.push(x);
-        ws.visited.insert(x);
-        while let Some(u) = ws.frontier.pop() {
-            if u == y {
-                return true;
-            }
-            for &v in &ws.undirected[u.as_usize()] {
-                if ws.conditioning.contains(v) || ws.visited.contains(v) {
-                    continue;
-                }
-                if !ws.ancestral.contains(v) {
-                    continue;
-                }
-                ws.visited.insert(v);
-                if record_path {
-                    ws.pred[v.as_usize()] = Some(u);
-                }
-                ws.frontier.push(v);
-            }
-        }
-        false
+        ws.moral_reaches(x, y, record_path)
     }
 }
 
-fn add_undirected(adj: &mut [Vec<DenseNodeId>], a: DenseNodeId, b: DenseNodeId) {
+/// Insert the undirected edge `a - b` into `adj` once, preserving insertion order.
+///
+/// `member[i]` is the set of neighbors already stored in `adj[i]`. The bitset
+/// replaces a linear scan of the adjacency list; the list itself stays the
+/// iteration order witnesses depend on.
+pub(crate) fn add_undirected(
+    adj: &mut [Vec<DenseNodeId>],
+    member: &mut [BitSet],
+    a: DenseNodeId,
+    b: DenseNodeId,
+) {
     if a == b {
         return;
     }
     let ai = a.as_usize();
     let bi = b.as_usize();
-    if !adj[ai].contains(&b) {
+    if !member[ai].contains(b) {
+        member[ai].insert(b);
         adj[ai].push(b);
     }
-    if !adj[bi].contains(&a) {
+    if !member[bi].contains(a) {
+        member[bi].insert(a);
         adj[bi].push(a);
     }
 }

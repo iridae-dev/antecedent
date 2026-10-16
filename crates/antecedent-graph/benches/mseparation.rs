@@ -2,10 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
 #![allow(
-    clippy::cast_possible_truncation,
-    reason = "test scaffolding compares exact constants and indexes with small literals"
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
 )]
 
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, Pag};
@@ -120,5 +119,55 @@ fn bench_msep(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_msep);
+/// x - {a, b, c} - y with a - b - c, every edge circle-circle: 16 circle endpoints, the
+/// audit ceiling, and a conditioning set the marks alone cannot settle.
+fn circle_diamond() -> (Pag, [DenseNodeId; 3], DenseNodeId, DenseNodeId) {
+    let n = DenseNodeId::from_raw;
+    let mut g = Pag::with_variables(5);
+    for (a, b) in [(0, 1), (0, 2), (0, 3), (1, 2), (2, 3), (1, 4), (2, 4), (3, 4)] {
+        g.insert_circle_circle(n(a), n(b)).unwrap();
+    }
+    (g, [n(1), n(2), n(3)], n(0), n(4))
+}
+
+/// `layers` layers of three nodes, each node a parent of every node in the next layer.
+fn directed_lattice(layers: u32) -> (Pag, DenseNodeId, DenseNodeId) {
+    let n = DenseNodeId::from_raw;
+    let total = 2 + 3 * layers;
+    let mut g = Pag::with_variables(total);
+    for j in 0..3 {
+        g.insert_directed(n(0), n(1 + j)).unwrap();
+        g.insert_directed(n(1 + 3 * (layers - 1) + j), n(total - 1)).unwrap();
+    }
+    for l in 0..layers - 1 {
+        for a in 0..3 {
+            for b in 0..3 {
+                g.insert_directed(n(1 + 3 * l + a), n(1 + 3 * (l + 1) + b)).unwrap();
+            }
+        }
+    }
+    (g, n(0), n(total - 1))
+}
+
+fn bench_pag_class(c: &mut Criterion) {
+    let (g, z, x, y) = circle_diamond();
+    c.bench_function("msep_pag_class_fallback_circle_diamond", |b| {
+        b.iter(|| {
+            let status =
+                g.m_separation_status(black_box(x), black_box(y), black_box(&z), 256, 8).unwrap();
+            black_box(status);
+        });
+    });
+    let (g, x, y) = directed_lattice(4);
+    let z = [DenseNodeId::from_raw(4), DenseNodeId::from_raw(5), DenseNodeId::from_raw(6)];
+    c.bench_function("msep_pag_walk_directed_lattice_4", |b| {
+        b.iter(|| {
+            let search = g.definite_status_paths(black_box(x), black_box(y), 1 << 20, 14).unwrap();
+            black_box(&search);
+            let _ = g.m_separation_status(black_box(x), black_box(y), black_box(&z), 1 << 20, 14);
+        });
+    });
+}
+
+criterion_group!(benches, bench_msep, bench_pag_class);
 criterion_main!(benches);

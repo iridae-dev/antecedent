@@ -1,7 +1,6 @@
 //! Python boundary for sharp binary-IV ATE bounds.
 
 use antecedent_identify::{BinaryIvLaw, binary_iv_ate_bounds};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::CausalIdentifyError;
@@ -13,7 +12,7 @@ use crate::CausalIdentifyError;
 #[pyfunction(name = "binary_iv_ate_bounds")]
 fn binary_iv_ate_bounds_py(cells: Vec<Vec<f64>>) -> PyResult<(f64, f64)> {
     if cells.len() != 2 || cells.iter().any(|arm| arm.len() != 4) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "cells must be a 2x4 nested list: one arm per instrument value, \
              cells (Y,D)=(0,0),(1,0),(0,1),(1,1)",
         ));

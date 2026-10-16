@@ -1,4 +1,4 @@
-"""C1: claims bound to the identified program, and native responses as decision inputs.
+"""Claims bound to the identified program, and native responses as decision inputs.
 
 Hand example. Program: outcome ``y`` (mmHg) under ``do(a = d)`` for the grid
 ``d in {1, 2}`` in the target population. Native means: ``E[y | do(1)] = 3`` and
@@ -141,7 +141,7 @@ def _refusal(call) -> ExternalRefusal:
 # ----------------------------------------------------------------- program identity
 
 
-def test_c1_default_spec_identity_is_the_programs_not_a_graph_only_hash():
+def test_default_spec_identity_is_the_programs_not_a_graph_only_hash():
     spec, program = _spec(), _program()
     assert spec.contract_id == program.identity
     assert len(program.identity) == 64
@@ -151,7 +151,7 @@ def test_c1_default_spec_identity_is_the_programs_not_a_graph_only_hash():
     assert program_claims.ProgramBinding.from_spec(spec) == program
 
 
-def test_c1_identity_changes_when_any_field_of_the_program_changes():
+def test_identity_changes_when_any_field_of_the_program_changes():
     program = _program()
     changes = {
         "graph_id": "graph:other",
@@ -187,7 +187,7 @@ def test_c1_identity_changes_when_any_field_of_the_program_changes():
     )
 
 
-def test_c1_an_invalid_program_refuses_with_its_own_detail():
+def test_an_invalid_program_refuses_with_its_own_detail():
     refusal = _refusal(lambda: dataclasses.replace(_program(), treatment_id=" ").identity)
     assert refusal.detail == "program_binding.invalid_binding"
     assert refusal.offending == "treatment_id"
@@ -198,7 +198,7 @@ def test_c1_an_invalid_program_refuses_with_its_own_detail():
 # ------------------------------------------------------------ external bound to program
 
 
-def test_c1_a_faithful_spec_binds_to_its_program_and_stays_external():
+def test_a_faithful_spec_binds_to_its_program_and_stays_external():
     spec, program = _spec(), _program()
     checked = program_claims.check_external_program(spec, program)
     assert (checked.identity, checked.coordinates) == (program.identity, 2)
@@ -212,7 +212,7 @@ def test_c1_a_faithful_spec_binds_to_its_program_and_stays_external():
     assert claim.quantities == (_q("1"), _q("2"))
 
 
-def test_c1_substituted_treatment_or_outcome_is_refused_at_bind_time():
+def test_substituted_treatment_or_outcome_is_refused_at_bind_time():
     spec, program = _spec(), _program()
     for field, wrong in (("treatment_id", "x"), ("outcome_id", "z")):
         other = dataclasses.replace(program, **{field: wrong})
@@ -230,7 +230,7 @@ def test_c1_substituted_treatment_or_outcome_is_refused_at_bind_time():
             )
 
 
-def test_c1_target_population_mismatch_is_refused():
+def test_target_population_mismatch_is_refused():
     refusal = _refusal(
         lambda: program_claims.bind_to_program(
             _spec(), dataclasses.replace(_program(), population_id="other")
@@ -245,7 +245,7 @@ def test_c1_target_population_mismatch_is_refused():
     )
 
 
-def test_c1_dose_grid_or_dose_unit_change_is_refused():
+def test_dose_grid_or_dose_unit_change_is_refused():
     spec, program = _spec(), _program()
     grid = _refusal(
         lambda: program_claims.bind_to_program(
@@ -269,7 +269,7 @@ def test_c1_dose_grid_or_dose_unit_change_is_refused():
     assert refusal.supplied == external.UNSPECIFIED_UNITS
 
 
-def test_c1_an_incompatible_quantities_override_is_refused_each_way():
+def test_an_incompatible_quantities_override_is_refused_each_way():
     program = _program()
     base = _spec().quantities
 
@@ -313,7 +313,7 @@ def test_c1_an_incompatible_quantities_override_is_refused_each_way():
     assert program_claims.bind_to_program(same, program).bind(_response()).native is False
 
 
-def test_c1_graph_only_declared_identity_is_refused():
+def test_graph_only_declared_identity_is_refused():
     spec, program = _spec(), _program()
     bare = spec.graph_id.removeprefix("graph:")
     for declared in (f"contract:{bare}", spec.graph_id, program.graph_id, "graph:anything"):
@@ -327,7 +327,7 @@ def test_c1_graph_only_declared_identity_is_refused():
         assert refusal.expected == program.identity
 
 
-def test_c1_a_changed_graph_or_contract_premise_is_refused():
+def test_a_changed_graph_or_contract_premise_is_refused():
     spec, program = _spec(), _program()
     other_graph = _refusal(
         lambda: program_claims.bind_to_program(
@@ -351,7 +351,7 @@ def test_c1_a_changed_graph_or_contract_premise_is_refused():
     )
 
 
-def test_c1_explicit_contract_id_still_binds_unchanged():
+def test_explicit_contract_id_still_binds_unchanged():
     spec = external.response(
         _ident(),
         outcome_units="mmHg",
@@ -404,7 +404,7 @@ def _native_program(view):
     return program_claims.ProgramBinding.from_response(view, outcome_units="mmHg", dose_units="mg")
 
 
-def test_c1_native_claim_exposes_coordinates_support_and_native_trust():
+def test_native_claim_exposes_coordinates_support_and_native_trust():
     view = _native_view()
     program = _native_program(view)
     claim = program_claims.native_claim(view, program)
@@ -419,7 +419,7 @@ def test_c1_native_claim_exposes_coordinates_support_and_native_trust():
     assert program_claims.bind_to_program(spec, program).bind(_response()).native is False
 
 
-def test_c1_native_claim_refuses_a_response_for_another_request():
+def test_native_claim_refuses_a_response_for_another_request():
     view = _native_view()
     program = _native_program(view)
     changed = view.model_copy(
@@ -457,7 +457,7 @@ def test_c1_native_claim_refuses_a_response_for_another_request():
     assert error.detail == "program_binding.treatment_outcome_substitution"
 
 
-def test_c1_native_claim_refuses_unlicensed_or_unlabeled_responses():
+def test_native_claim_refuses_unlicensed_or_unlabeled_responses():
     error = _refusal(lambda: program_claims.native_claim(_view(), _program()))
     assert (error.reason_code, error.detail, error.stage) == (
         "invalid_argument",
@@ -483,7 +483,7 @@ def test_c1_native_claim_refuses_unlicensed_or_unlabeled_responses():
     )
 
 
-def test_c1_native_mean_response_feeds_decision_and_inverse_query_on_hand_values():
+def test_native_mean_response_feeds_decision_and_inverse_query_on_hand_values():
     view = _native_view()
     claim = program_claims.native_claim(view, _native_program(view))
     contract = _contract(decision.Criterion.expected_utility())
@@ -503,7 +503,7 @@ def test_c1_native_mean_response_feeds_decision_and_inverse_query_on_hand_values
     )
 
 
-def test_c1_native_mean_only_result_is_refused_for_probability_and_quantile_sources():
+def test_native_mean_only_result_is_refused_for_probability_and_quantile_sources():
     view = _native_view()
     claim = program_claims.native_claim(view, _native_program(view))
     for criterion in (
@@ -517,7 +517,7 @@ def test_c1_native_mean_only_result_is_refused_for_probability_and_quantile_sour
         )
 
 
-def test_c1_unsupported_coordinates_are_withheld_not_silently_used():
+def test_unsupported_coordinates_are_withheld_not_silently_used():
     view = _native_view()
     program = _native_program(view)
     tampered = view.model_copy(

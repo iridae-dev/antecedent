@@ -1,16 +1,14 @@
 """Negative evidence must not stand in for an actual detached measured replay."""
-
 import sys
 import unittest
-from pathlib import Path
 
+from _repo import REPO_ROOT as ROOT
 from transport_replay_contract import (
     replay_body_problems,
     shared_evidence_problems,
     source_replay_problems,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
 ASSERTION = "test_joint_bayesian_factory_replays_without_producer_inputs"
 PATH = "python/tests/test_transport_route_contracts.py"
 
@@ -86,7 +84,7 @@ class ReplayContractTests(unittest.TestCase):
         route = {
             "route": "antecedent.transport.joint_bayesian",
             "stage": "uncertainty",
-            "promotion_record": "2.3A.X4.joint_bayesian_transport",
+            "promotion_record": "transport.joint_bayesian",
             "evidence_test": PATH,
             "evidence_assertion": ASSERTION,
         }

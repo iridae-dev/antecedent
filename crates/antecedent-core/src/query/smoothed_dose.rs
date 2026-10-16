@@ -1,4 +1,4 @@
-//! Kernel-smoothed dose-response transport query (2.2B cell X4).
+//! Kernel-smoothed dose-response transport query.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 //!
 //! The estimand is `psi_h(a) = E_target[ integral K_h(a - t) E(Y | X, A=t, S=1) dt ]` for

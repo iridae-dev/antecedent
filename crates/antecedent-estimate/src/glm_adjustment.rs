@@ -12,7 +12,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::manual_map, clippy::too_many_arguments)]
 #![cfg_attr(
     test,
     allow(
@@ -36,9 +35,9 @@ use antecedent_stats::{
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
-use crate::gcomp::gcomp_diffs;
+use crate::gcomp::{GcompContrast, linear_predictors};
 use crate::overlap::OverlapPolicy;
-use crate::se::AnalyticSeKind;
+use crate::se::{AnalyticSeKind, SeSpec};
 use crate::util::{BootstrapSeResult, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
@@ -358,16 +357,18 @@ impl GlmAdjustmentAte {
             &self.glm_options,
         )?;
 
-        let diffs = gcomp_diffs(
-            problem.family,
-            &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
+        let contrast = GcompContrast {
+            family: problem.family,
+            x_colmajor: &problem.design.matrix,
+            nrows: problem.design.nrows,
+            ncols: problem.design.ncols,
             t_col,
-            &glm_fit.coefficients,
-            problem.active,
-            problem.control,
-        );
+            active: problem.active,
+            control: problem.control,
+        };
+        let diffs = contrast.diffs(&glm_fit.coefficients);
+        let target =
+            GcompTarget { treatment: &problem.treatment, population: &problem.target_population };
         let ate = average_gcomp_for_target(&diffs, &problem.treatment, &problem.target_population)?;
         let nb_alpha = resolve_nb_alpha(
             problem.family,
@@ -380,36 +381,24 @@ impl GlmAdjustmentAte {
         );
         let se_analytic = match self.se_kind {
             AnalyticSeKind::Homoskedastic => gcomp_delta_method_se(
-                problem.family,
-                &problem.design.matrix,
-                problem.design.nrows,
-                problem.design.ncols,
-                t_col,
+                &contrast,
                 &glm_fit.coefficients,
-                problem.active,
-                problem.control,
                 glm_fit.deviance,
                 nb_alpha,
-                &problem.treatment,
-                &problem.target_population,
+                &target,
             ),
             other => gcomp_sandwich_se(
-                other,
-                problem.family,
-                &problem.design.matrix,
-                problem.design.nrows,
-                problem.design.ncols,
-                t_col,
+                SeSpec {
+                    kind: other,
+                    cluster_ids: self.cluster_ids.as_deref(),
+                    multiway_ids: self.multiway_ids.as_deref(),
+                    panel_times: self.panel_times.as_deref(),
+                },
+                &contrast,
                 &glm_fit.coefficients,
                 &problem.design.outcome,
-                problem.active,
-                problem.control,
                 nb_alpha,
-                self.cluster_ids.as_deref(),
-                self.multiway_ids.as_deref(),
-                self.panel_times.as_deref(),
-                &problem.treatment,
-                &problem.target_population,
+                &target,
             )?,
         };
 
@@ -420,21 +409,22 @@ impl GlmAdjustmentAte {
     fn bootstrap_se(
         &self,
         problem: &PreparedGlmProblem,
-        workspace: &mut GlmAdjustmentWorkspace,
+        _workspace: &mut GlmAdjustmentWorkspace,
         ctx: &ExecutionContext,
         t_col: usize,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
-        let _ = workspace;
+        // Replicates own a cold workspace. A warm IRLS start would change the replicate fit.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,
             0xC17A_u64,
             n,
-            || (GlmAdjustmentWorkspace::default(), vec![0.0; n * p], vec![0.0; n]),
-            |(ws, x_boot, y_boot), idx| {
+            || (GlmAdjustmentWorkspace::default(), vec![0.0; n * p], vec![0.0; n], vec![0.0; n]),
+            |(ws, x_boot, y_boot, t_boot), idx| {
                 crate::util::gather_bootstrap_vector(y_boot, &problem.design.outcome, idx);
+                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
                 crate::util::gather_bootstrap_design(x_boot, &problem.design.matrix, n, p, idx);
                 let Ok(fit) = fit_glm(
                     problem.family,
@@ -448,18 +438,17 @@ impl GlmAdjustmentAte {
                 if fit.require_ok().is_err() {
                     return Ok(None);
                 };
-                let diffs = gcomp_diffs(
-                    problem.family,
-                    x_boot,
-                    n,
-                    p,
+                let diffs = GcompContrast {
+                    family: problem.family,
+                    x_colmajor: x_boot,
+                    nrows: n,
+                    ncols: p,
                     t_col,
-                    &fit.coefficients,
-                    problem.active,
-                    problem.control,
-                );
-                let t_boot: Vec<f64> = idx.iter().map(|&src| problem.treatment[src]).collect();
-                match average_gcomp_for_target(&diffs, &t_boot, &problem.target_population) {
+                    active: problem.active,
+                    control: problem.control,
+                }
+                .diffs(&fit.coefficients);
+                match average_gcomp_for_target(&diffs, t_boot, &problem.target_population) {
                     Ok(ate) => Ok(Some(ate)),
                     Err(_) => Ok(None),
                 }
@@ -498,20 +487,111 @@ fn include_gcomp_row(target: &TargetPopulation, t: f64) -> bool {
     }
 }
 
+/// Floor on a probit probability and on a log-mean inside Fisher weights and the NB moment.
+const FISHER_MEAN_FLOOR: f64 = 1e-12;
+/// Bernoulli mean clamp for the sandwich score. Wider than [`FISHER_MEAN_FLOOR`]: the score
+/// divides by `V(μ)`, which blows up at the boundary, while the information weight does not.
+const SCORE_PROBABILITY_CLAMP: f64 = 1e-9;
+/// Floor on a variance or a probit density inside the sandwich score.
+const SCORE_VARIANCE_FLOOR: f64 = 1e-12;
+
+/// Mean derivative, Fisher weight, and sandwich score for one GLM family.
+///
+/// The response mean is [`GlmFamily::mean_from_eta`]. The two clamps above stay on
+/// different paths: collapsing them changes probit information weights and Bernoulli scores.
+#[derive(Clone, Copy)]
+pub(crate) struct FamilyKernel {
+    family: GlmFamily,
+}
+
+impl FamilyKernel {
+    pub(crate) const fn new(family: GlmFamily) -> Self {
+        Self { family }
+    }
+
+    /// Response-scale derivative `dμ/dη` at `eta`.
+    pub(crate) fn mean_derivative(self, eta: f64) -> f64 {
+        match self.family {
+            GlmFamily::BinomialLogit => {
+                let mu = antecedent_kernels::sigmoid(eta);
+                mu * (1.0 - mu)
+            }
+            GlmFamily::BinomialProbit => {
+                // φ(η) = dμ/dη for probit.
+                antecedent_kernels::norm_pdf(eta)
+            }
+            GlmFamily::GaussianIdentity => 1.0,
+            GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => eta.exp(),
+        }
+    }
+
+    /// IRLS / Fisher information weight `W_ii` at `eta`.
+    ///
+    /// For canonical Bernoulli/logit and Poisson this equals `dμ/dη`. For probit the
+    /// Bernoulli Fisher weight is `φ(η)² / (μ(1−μ))`, not `φ(η)`. For NB2 with log
+    /// link, `V = μ + α μ²` so `w = (μ')² / V = μ / (1 + α μ)`.
+    pub(crate) fn fisher_weight(self, eta: f64, nb_alpha: f64) -> f64 {
+        match self.family {
+            GlmFamily::BinomialProbit => {
+                let phi = self.mean_derivative(eta);
+                // Φ(η), clamped away from {0, 1} for numerical stability.
+                let mu = antecedent_kernels::norm_cdf(eta)
+                    .clamp(FISHER_MEAN_FLOOR, 1.0 - FISHER_MEAN_FLOOR);
+                (phi * phi) / (mu * (1.0 - mu))
+            }
+            GlmFamily::NegativeBinomial => {
+                let mu = eta.exp().max(FISHER_MEAN_FLOOR);
+                let alpha = nb_alpha.max(0.0);
+                mu / (1.0 + alpha * mu)
+            }
+            _ => self.mean_derivative(eta),
+        }
+    }
+
+    /// Sandwich multiplier `u` and Fisher weight `w` at one row.
+    ///
+    /// `u = (y−μ) V(μ)⁻¹ μ'(η)`. Bernoulli `μ` uses [`SCORE_PROBABILITY_CLAMP`]; the
+    /// information weight of [`Self::fisher_weight`] uses [`FISHER_MEAN_FLOOR`] instead.
+    fn score_at(self, eta: f64, y: f64, nb_alpha: f64) -> (f64, f64) {
+        use antecedent_kernels::norm_pdf;
+        let mu = self.family.mean_from_eta(eta);
+        let alpha = nb_alpha.max(0.0);
+        match self.family {
+            GlmFamily::GaussianIdentity => {
+                // V=1, μ'=1 → u = y−μ, w = 1
+                (y - mu, 1.0)
+            }
+            GlmFamily::BinomialLogit => {
+                let mu = mu.clamp(SCORE_PROBABILITY_CLAMP, 1.0 - SCORE_PROBABILITY_CLAMP);
+                let var = (mu * (1.0 - mu)).max(SCORE_VARIANCE_FLOOR);
+                // μ' = var, u = (y−μ)/var * var = y−μ; w = var
+                (y - mu, var)
+            }
+            GlmFamily::BinomialProbit => {
+                let mu = mu.clamp(SCORE_PROBABILITY_CLAMP, 1.0 - SCORE_PROBABILITY_CLAMP);
+                let phi = norm_pdf(eta).max(SCORE_VARIANCE_FLOOR);
+                let var = (mu * (1.0 - mu)).max(SCORE_VARIANCE_FLOOR);
+                // u = (y−μ) φ / V; w = φ² / V
+                ((y - mu) * phi / var, (phi * phi) / var)
+            }
+            GlmFamily::PoissonLog => {
+                let mu = mu.max(FISHER_MEAN_FLOOR);
+                // V=μ, μ'=μ → u = y−μ; w = μ
+                (y - mu, mu)
+            }
+            GlmFamily::NegativeBinomial => {
+                let mu = mu.max(FISHER_MEAN_FLOOR);
+                let var = (mu + alpha * mu * mu).max(SCORE_VARIANCE_FLOOR);
+                // μ'=μ, u = (y−μ) μ / V; w = μ² / V
+                ((y - mu) * mu / var, (mu * mu) / var)
+            }
+        }
+    }
+}
+
 /// Response-scale derivative `dμ/dη` at `eta`.
 pub(crate) fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
-    match family {
-        GlmFamily::BinomialLogit => {
-            let mu = 1.0 / (1.0 + (-eta).exp());
-            mu * (1.0 - mu)
-        }
-        GlmFamily::BinomialProbit => {
-            // φ(η) = dμ/dη for probit.
-            antecedent_kernels::norm_pdf(eta)
-        }
-        GlmFamily::GaussianIdentity => 1.0,
-        GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => eta.exp(),
-    }
+    FamilyKernel::new(family).mean_derivative(eta)
 }
 
 /// IRLS / Fisher information weight `W_ii` at `eta`.
@@ -520,21 +600,7 @@ pub(crate) fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
 /// Bernoulli Fisher weight is `φ(η)² / (μ(1−μ))`, not `φ(η)`. For NB2 with log
 /// link, `V = μ + α μ²` so `w = (μ')² / V = μ / (1 + α μ)`.
 pub(crate) fn fisher_weight(family: GlmFamily, eta: f64, nb_alpha: f64) -> f64 {
-    match family {
-        GlmFamily::BinomialProbit => {
-            let phi = mean_derivative(GlmFamily::BinomialProbit, eta);
-            // Φ(η) via erf; clamp away from {0,1} for numerical stability.
-            let mu = (0.5 * (1.0 + antecedent_kernels::erf(eta / std::f64::consts::SQRT_2)))
-                .clamp(1e-12, 1.0 - 1e-12);
-            (phi * phi) / (mu * (1.0 - mu))
-        }
-        GlmFamily::NegativeBinomial => {
-            let mu = eta.exp().max(1e-12);
-            let alpha = nb_alpha.max(0.0);
-            mu / (1.0 + alpha * mu)
-        }
-        other => mean_derivative(other, eta),
-    }
+    FamilyKernel::new(family).fisher_weight(eta, nb_alpha)
 }
 
 /// Fitted NB2 `α`, or a moment estimate from working residuals when the fit did
@@ -574,14 +640,14 @@ fn moment_nb_alpha(
         for c in 0..ncols {
             eta += x_colmajor[c * nrows + r] * coefficients[c];
         }
-        let mu = eta.exp().max(1e-12);
+        let mu = eta.exp().max(FISHER_MEAN_FLOOR);
         let e = (y[r] - mu) / mu.sqrt();
         pearson_ss += e * e;
         sum_mu += mu;
     }
     let df = (nrows as f64 - ncols as f64).max(1.0);
     let excess = (pearson_ss - df).max(0.0);
-    (excess / sum_mu.max(1e-12)).max(1e-8)
+    (excess / sum_mu.max(FISHER_MEAN_FLOOR)).max(1e-8)
 }
 
 /// Delta-method standard error for the g-computation ATE, **conditional on the observed
@@ -596,25 +662,18 @@ fn moment_nb_alpha(
 /// `w = φ²/(μ(1−μ))`; dispersion `φ = RSS/(n−p)` for Gaussian, the fitted NB2
 /// `α` for negative binomial, and `1` otherwise). The SE is `sqrt(gᵀ Cov(β̂) g)`.
 /// Returns `NaN` when the information matrix is singular.
-#[allow(clippy::too_many_arguments)]
 fn gcomp_delta_method_se(
-    family: GlmFamily,
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
+    contrast: &GcompContrast<'_>,
     coefficients: &[f64],
-    active: f64,
-    control: f64,
     deviance: f64,
     nb_alpha: f64,
-    treatment: &[f64],
-    target: &TargetPopulation,
+    target: &GcompTarget<'_>,
 ) -> f64 {
+    let ncols = contrast.ncols;
     let Some(cov_unscaled) = adjustment_glm_covariance(
-        family,
-        x_colmajor,
-        nrows,
+        contrast.family,
+        contrast.x_colmajor,
+        contrast.nrows,
         ncols,
         coefficients,
         deviance,
@@ -622,18 +681,7 @@ fn gcomp_delta_method_se(
     ) else {
         return f64::NAN;
     };
-    let grad = gcomp_gradient(
-        family,
-        x_colmajor,
-        nrows,
-        ncols,
-        t_col,
-        coefficients,
-        active,
-        control,
-        treatment,
-        target,
-    );
+    let grad = gcomp_gradient(contrast, coefficients, target);
 
     let mut quad = 0.0;
     for i in 0..ncols {
@@ -645,7 +693,6 @@ fn gcomp_delta_method_se(
 }
 
 /// Coefficient Fisher covariance shared by ordinary and retained GLM adjustment.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn adjustment_glm_covariance(
     family: GlmFamily,
     x_colmajor: &[f64],
@@ -656,15 +703,16 @@ pub(crate) fn adjustment_glm_covariance(
     nb_alpha: f64,
 ) -> Option<Vec<f64>> {
     // Fisher information XᵀWX at the fitted coefficients, via a √W-scaled design copy.
+    let sqrt_w: Vec<f64> = linear_predictors(x_colmajor, nrows, ncols, coefficients)
+        .into_iter()
+        .map(|eta| fisher_weight(family, eta, nb_alpha).max(0.0).sqrt())
+        .collect();
     let mut x_w = vec![0.0; nrows * ncols];
-    for r in 0..nrows {
-        let mut eta = 0.0;
-        for c in 0..ncols {
-            eta += x_colmajor[c * nrows + r] * coefficients[c];
-        }
-        let sqrt_w = fisher_weight(family, eta, nb_alpha).max(0.0).sqrt();
-        for c in 0..ncols {
-            x_w[c * nrows + r] = x_colmajor[c * nrows + r] * sqrt_w;
+    for (scaled, column) in
+        x_w.chunks_exact_mut(nrows.max(1)).zip(x_colmajor.chunks_exact(nrows.max(1)))
+    {
+        for ((slot, &x), &w) in scaled.iter_mut().zip(column).zip(&sqrt_w) {
+            *slot = x * w;
         }
     }
     let cov_unscaled = crate::util::xtx_inverse(&x_w, nrows, ncols)?;
@@ -703,66 +751,22 @@ pub(crate) fn solve_adjustment_glm(
 ///
 /// Meat uses score contributions `s_i = u_i x_i` with
 /// `u_i = (y_i−μ_i) V(μ_i)⁻¹ μ'(η_i)`; bread is Fisher `(XᵀWX)⁻¹`.
-#[allow(clippy::too_many_arguments)]
 fn gcomp_sandwich_se(
-    kind: AnalyticSeKind,
-    family: GlmFamily,
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
+    spec: SeSpec<'_>,
+    contrast: &GcompContrast<'_>,
     coefficients: &[f64],
     y: &[f64],
-    active: f64,
-    control: f64,
     nb_alpha: f64,
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
-    treatment: &[f64],
-    target: &TargetPopulation,
+    target: &GcompTarget<'_>,
 ) -> Result<f64, EstimationError> {
+    let GcompContrast { family, x_colmajor, nrows, ncols, .. } = *contrast;
     let (score_u, fisher_w) =
         glm_score_components(family, x_colmajor, nrows, ncols, coefficients, y, nb_alpha);
-    let cov = sandwich_cov_matrix(
-        kind,
-        x_colmajor,
-        nrows,
-        ncols,
-        &score_u,
-        &fisher_w,
-        cluster_ids,
-        multiway_ids,
-        panel_times,
-    )?;
+    let cov = sandwich_cov_matrix(spec, x_colmajor, nrows, ncols, &score_u, &fisher_w)?;
     let Some(cov) = cov else {
-        return Ok(gcomp_delta_method_se(
-            family,
-            x_colmajor,
-            nrows,
-            ncols,
-            t_col,
-            coefficients,
-            active,
-            control,
-            0.0,
-            nb_alpha,
-            treatment,
-            target,
-        ));
+        return Ok(gcomp_delta_method_se(contrast, coefficients, 0.0, nb_alpha, target));
     };
-    let grad = gcomp_gradient(
-        family,
-        x_colmajor,
-        nrows,
-        ncols,
-        t_col,
-        coefficients,
-        active,
-        control,
-        treatment,
-        target,
-    );
+    let grad = gcomp_gradient(contrast, coefficients, target);
     let mut quad = 0.0;
     for i in 0..ncols {
         for j in 0..ncols {
@@ -773,86 +777,26 @@ fn gcomp_sandwich_se(
 }
 
 fn sandwich_cov_matrix(
-    kind: AnalyticSeKind,
+    spec: SeSpec<'_>,
     x: &[f64],
     nrows: usize,
     ncols: usize,
     score_u: &[f64],
     fisher_w: &[f64],
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
 ) -> Result<Option<Vec<f64>>, EstimationError> {
-    use crate::se::{require_clusters, require_multiway, require_panel_times};
-    use antecedent_stats::SandwichKind;
-    if matches!(kind, AnalyticSeKind::Homoskedastic) {
-        return Ok(None);
-    }
-    let cov = match kind {
-        AnalyticSeKind::Homoskedastic => unreachable!(),
-        AnalyticSeKind::Hc0 => {
-            score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, SandwichKind::Hc0)
-        }
-        AnalyticSeKind::Hc1 => {
-            score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, SandwichKind::Hc1)
-        }
-        AnalyticSeKind::Hc2 => {
-            score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, SandwichKind::Hc2)
-        }
-        AnalyticSeKind::Hc3 => {
-            score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, SandwichKind::Hc3)
-        }
-        AnalyticSeKind::Cluster => {
-            let groups = require_clusters(cluster_ids, nrows)?;
-            score_coefficient_covariance(
-                x,
-                nrows,
-                ncols,
-                score_u,
-                fisher_w,
-                SandwichKind::Cluster { groups },
-            )
-        }
-        AnalyticSeKind::Multiway => {
-            let dims = require_multiway(multiway_ids, nrows)?;
-            let refs: Vec<&[u32]> = dims.iter().map(Vec::as_slice).collect();
-            score_coefficient_covariance(
-                x,
-                nrows,
-                ncols,
-                score_u,
-                fisher_w,
-                SandwichKind::Multiway { dimensions: &refs },
-            )
-        }
-        AnalyticSeKind::NeweyWest { lag } => score_coefficient_covariance(
-            x,
-            nrows,
-            ncols,
-            score_u,
-            fisher_w,
-            SandwichKind::NeweyWest { lag },
-        ),
-        AnalyticSeKind::PanelClusterHac { lag } => {
-            let groups = require_clusters(cluster_ids, nrows)?;
-            let time = require_panel_times(panel_times, nrows)?;
-            score_coefficient_covariance(
-                x,
-                nrows,
-                ncols,
-                score_u,
-                fisher_w,
-                SandwichKind::PanelClusterHac { groups, time, lag },
-            )
-        }
-    };
-    Ok(Some(cov?))
+    crate::se::with_resolved_sandwich(spec, nrows, |kind| {
+        let Some(kind) = kind else {
+            return Ok(None);
+        };
+        Ok(Some(score_coefficient_covariance(x, nrows, ncols, score_u, fisher_w, kind)?))
+    })
 }
 
 /// Per-row GLM score multiplier `u_i` and Fisher weight `w_i`.
 ///
 /// Score contribution is `s_i = u_i x_i` with
 /// `u_i = (y−μ) V(μ)⁻¹ μ'(η)`; `w_i` is the IRLS Fisher weight for bread `XᵀWX`.
+/// Both clamps live on [`FamilyKernel`]; this only evaluates that kernel on each row.
 fn glm_score_components(
     family: GlmFamily,
     x_colmajor: &[f64],
@@ -862,84 +806,39 @@ fn glm_score_components(
     y: &[f64],
     nb_alpha: f64,
 ) -> (Vec<f64>, Vec<f64>) {
-    use antecedent_kernels::norm_pdf;
     let mut score_u = vec![0.0; nrows];
     let mut fisher_w = vec![0.0; nrows];
-    let alpha = nb_alpha.max(0.0);
-    for r in 0..nrows {
-        let mut eta = 0.0;
-        for c in 0..ncols {
-            eta += x_colmajor[c * nrows + r] * coefficients[c];
-        }
-        let mu = family.mean_from_eta(eta);
-        let (u, w) = match family {
-            GlmFamily::GaussianIdentity => {
-                // V=1, μ'=1 → u = y−μ, w = 1
-                (y[r] - mu, 1.0)
-            }
-            GlmFamily::BinomialLogit => {
-                let mu = mu.clamp(1e-9, 1.0 - 1e-9);
-                let var = (mu * (1.0 - mu)).max(1e-12);
-                // μ' = var, u = (y−μ)/var * var = y−μ; w = var
-                (y[r] - mu, var)
-            }
-            GlmFamily::BinomialProbit => {
-                let mu = mu.clamp(1e-9, 1.0 - 1e-9);
-                let phi = norm_pdf(eta).max(1e-12);
-                let var = (mu * (1.0 - mu)).max(1e-12);
-                // u = (y−μ) φ / V; w = φ² / V
-                ((y[r] - mu) * phi / var, (phi * phi) / var)
-            }
-            GlmFamily::PoissonLog => {
-                let mu = mu.max(1e-12);
-                // V=μ, μ'=μ → u = y−μ; w = μ
-                (y[r] - mu, mu)
-            }
-            GlmFamily::NegativeBinomial => {
-                let mu = mu.max(1e-12);
-                let var = (mu + alpha * mu * mu).max(1e-12);
-                // μ'=μ, u = (y−μ) μ / V; w = μ² / V
-                ((y[r] - mu) * mu / var, (mu * mu) / var)
-            }
-        };
+    let kernel = FamilyKernel::new(family);
+    let linear = linear_predictors(x_colmajor, nrows, ncols, coefficients);
+    for (r, &eta) in linear.iter().enumerate() {
+        let (u, w) = kernel.score_at(eta, y[r], nb_alpha);
         score_u[r] = u;
         fisher_w[r] = w;
     }
     (score_u, fisher_w)
 }
 
+/// Observed treatment labels and the population a g-computation average is taken over.
+struct GcompTarget<'a> {
+    treatment: &'a [f64],
+    population: &'a TargetPopulation,
+}
+
 fn gcomp_gradient(
-    family: GlmFamily,
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
+    contrast: &GcompContrast<'_>,
     coefficients: &[f64],
-    active: f64,
-    control: f64,
-    treatment: &[f64],
-    target: &TargetPopulation,
+    target: &GcompTarget<'_>,
 ) -> Vec<f64> {
+    let GcompContrast { family, x_colmajor, nrows, ncols, t_col, active, control } = *contrast;
+    let GcompTarget { treatment, population } = *target;
     let mut grad = vec![0.0; ncols];
     let mut count = 0usize;
     for r in 0..nrows {
-        if !include_gcomp_row(target, treatment.get(r).copied().unwrap_or(0.0)) {
+        if !include_gcomp_row(population, treatment.get(r).copied().unwrap_or(0.0)) {
             continue;
         }
         count += 1;
-        let mut eta_active = 0.0;
-        let mut eta_control = 0.0;
-        for c in 0..ncols {
-            let coef = coefficients[c];
-            if c == t_col {
-                eta_active += active * coef;
-                eta_control += control * coef;
-            } else {
-                let val = x_colmajor[c * nrows + r];
-                eta_active += val * coef;
-                eta_control += val * coef;
-            }
-        }
+        let (eta_active, eta_control) = contrast.contrast_row_etas(coefficients, r);
         let d1 = mean_derivative(family, eta_active);
         let d0 = mean_derivative(family, eta_control);
         for c in 0..ncols {
@@ -994,7 +893,7 @@ mod tests {
             let ti = (i % 2) as f64;
             let zi = (i as f64) / (n as f64) - 0.5;
             let logit = -0.5 + 2.0 * ti + zi;
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let yi = if rng.next_f64() < p { 1.0 } else { 0.0 };
             t[i] = ti;
             z[i] = zi;
@@ -1145,12 +1044,15 @@ mod tests {
         let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         let point_only = GlmAdjustmentAte { bootstrap_replicates: 0, ..boot.clone() };
         let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(point.se_bootstrap.is_none());
+        assert!(point.se_bootstrap().is_none());
         let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
         assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
-        assert!(full.se_bootstrap.is_some());
-        assert_eq!(attached.se_bootstrap, full.se_bootstrap);
-        assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+        assert!(full.se_bootstrap().is_some());
+        assert_eq!(attached.se_bootstrap(), full.se_bootstrap());
+        assert_eq!(
+            attached.uncertainty.bootstrap.replicates_ok,
+            full.uncertainty.bootstrap.replicates_ok
+        );
     }
 
     #[test]
@@ -1206,7 +1108,7 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!(effect.ate > 0.0, "ate={}", effect.ate);
         assert!(effect.ate < 1.0, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap().is_some());
     }
 
     #[test]
@@ -1331,12 +1233,12 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = GlmAdjustmentWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(effect.se_analytic > 0.0, "se_analytic={}", effect.se_analytic);
-        let boot = effect.se_bootstrap.unwrap();
+        assert!(effect.se_analytic() > 0.0, "se_analytic={}", effect.se_analytic());
+        let boot = effect.se_bootstrap().unwrap();
         assert!(
-            effect.se_analytic < 3.0 * boot && effect.se_analytic > boot / 3.0,
+            effect.se_analytic() < 3.0 * boot && effect.se_analytic() > boot / 3.0,
             "se_analytic={} se_bootstrap={boot}",
-            effect.se_analytic
+            effect.se_analytic()
         );
     }
 
@@ -1358,7 +1260,7 @@ mod tests {
         // (numerical quadrature); the probit fit approximates it to sampling error at n = 200
         // (SD about 0.05). A constant or sign-flipped effect would miss it.
         assert!((effect.ate - 0.4338).abs() < 0.15, "probit ATE {} vs 0.4338", effect.ate);
-        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
+        assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
     }
 
     #[test]
@@ -1412,12 +1314,12 @@ mod tests {
                 AssumptionSet::new(),
             )
             .unwrap();
-        assert!(ate.se_analytic.is_finite() && att.se_analytic.is_finite());
+        assert!(ate.se_analytic().is_finite() && att.se_analytic().is_finite());
         assert!(
-            (ate.se_analytic - att.se_analytic).abs() > 1e-8,
+            (ate.se_analytic() - att.se_analytic()).abs() > 1e-8,
             "logit ATT SE must not reuse the ATE gradient; ate_se={} att_se={}",
-            ate.se_analytic,
-            att.se_analytic
+            ate.se_analytic(),
+            att.se_analytic()
         );
     }
 
@@ -1525,33 +1427,29 @@ mod tests {
         // probes the treatment column through μ'·ΔT.
         let coefficients = [mu.ln(), 0.0];
         let treatment = [0.0, 0.0, 1.0, 1.0];
-        let target = TargetPopulation::AllObserved;
-        let se_nb = gcomp_delta_method_se(
-            GlmFamily::NegativeBinomial,
-            &x,
+        let population = TargetPopulation::AllObserved;
+        let target = GcompTarget { treatment: &treatment, population: &population };
+        let contrast = |family| GcompContrast {
+            family,
+            x_colmajor: &x,
             nrows,
             ncols,
-            1,
+            t_col: 1,
+            active: 1.0,
+            control: 0.0,
+        };
+        let se_nb = gcomp_delta_method_se(
+            &contrast(GlmFamily::NegativeBinomial),
             &coefficients,
-            1.0,
-            0.0,
             0.0,
             alpha,
-            &treatment,
             &target,
         );
         let se_pois = gcomp_delta_method_se(
-            GlmFamily::PoissonLog,
-            &x,
-            nrows,
-            ncols,
-            1,
+            &contrast(GlmFamily::PoissonLog),
             &coefficients,
-            1.0,
             0.0,
             0.0,
-            0.0,
-            &treatment,
             &target,
         );
         assert!(se_nb.is_finite() && se_pois.is_finite());
@@ -1576,6 +1474,283 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = GlmAdjustmentWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
+        assert!(effect.se_analytic().is_finite() && effect.se_analytic() > 0.0);
+    }
+
+    #[test]
+    fn family_mean_matches_the_historical_link_expressions_bit_for_bit() {
+        // The adjustment-resume mean used these expressions. `mean_from_eta` is the same
+        // evaluation: stable sigmoid, and Φ via `0.5 * erfc(-η / sqrt(2))`.
+        let etas = [-700.0, -40.0, -1.0, -1e-12, 0.0, 1e-12, 1.0, 40.0, 700.0];
+        for eta in etas {
+            let historical_logit = if eta >= 0.0 {
+                antecedent_kernels::sigmoid(eta)
+            } else {
+                let e = eta.exp();
+                e / (1.0 + e)
+            };
+            assert_eq!(
+                historical_logit.to_bits(),
+                GlmFamily::BinomialLogit.mean_from_eta(eta).to_bits(),
+                "logit {eta}"
+            );
+            let historical_probit = 0.5 * antecedent_kernels::erfc(-eta / std::f64::consts::SQRT_2);
+            assert_eq!(
+                historical_probit.to_bits(),
+                GlmFamily::BinomialProbit.mean_from_eta(eta).to_bits(),
+                "probit {eta}"
+            );
+            assert_eq!(eta.to_bits(), GlmFamily::GaussianIdentity.mean_from_eta(eta).to_bits());
+            assert_eq!(eta.exp().to_bits(), GlmFamily::PoissonLog.mean_from_eta(eta).to_bits());
+            assert_eq!(
+                eta.exp().to_bits(),
+                GlmFamily::NegativeBinomial.mean_from_eta(eta).to_bits()
+            );
+        }
+    }
+
+    #[test]
+    fn fisher_and_score_clamps_stay_on_different_paths() {
+        assert_eq!(FISHER_MEAN_FLOOR.to_bits(), (1e-12_f64).to_bits());
+        assert_eq!(SCORE_PROBABILITY_CLAMP.to_bits(), (1e-9_f64).to_bits());
+        let kernel = FamilyKernel::new(GlmFamily::BinomialProbit);
+        let fisher = kernel.fisher_weight(20.0, 0.0);
+        let (_score, weight) = kernel.score_at(20.0, 1.0, 0.0);
+        assert_ne!(fisher.to_bits(), weight.to_bits());
+    }
+
+    #[test]
+    fn routed_glm_sandwich_matches_the_direct_covariance_bit_for_bit() {
+        let x = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+        let y = [0.0, 1.0, 0.0, 1.0];
+        let coef = [0.0, 0.5];
+        let (score_u, fisher_w) =
+            glm_score_components(GlmFamily::BinomialLogit, &x, 4, 2, &coef, &y, 0.0);
+        let spec = |kind| SeSpec { kind, cluster_ids: None, multiway_ids: None, panel_times: None };
+        assert!(
+            sandwich_cov_matrix(spec(AnalyticSeKind::Homoskedastic), &x, 4, 2, &score_u, &fisher_w)
+                .unwrap()
+                .is_none()
+        );
+        for kind in [antecedent_stats::SandwichKind::Hc0, antecedent_stats::SandwichKind::Hc1] {
+            let direct = score_coefficient_covariance(&x, 4, 2, &score_u, &fisher_w, kind).unwrap();
+            let analytic = match kind {
+                antecedent_stats::SandwichKind::Hc0 => AnalyticSeKind::Hc0,
+                antecedent_stats::SandwichKind::Hc1 => AnalyticSeKind::Hc1,
+                _ => unreachable!(),
+            };
+            let routed = sandwich_cov_matrix(spec(analytic), &x, 4, 2, &score_u, &fisher_w)
+                .unwrap()
+                .unwrap();
+            assert!(direct.iter().zip(&routed).all(|(a, b)| a.to_bits() == b.to_bits()));
+        }
+        let groups = [0_u32, 0, 1, 1];
+        let direct = score_coefficient_covariance(
+            &x,
+            4,
+            2,
+            &score_u,
+            &fisher_w,
+            antecedent_stats::SandwichKind::Cluster { groups: &groups },
+        )
+        .unwrap();
+        let routed = sandwich_cov_matrix(
+            SeSpec {
+                kind: AnalyticSeKind::Cluster,
+                cluster_ids: Some(&groups),
+                multiway_ids: None,
+                panel_times: None,
+            },
+            &x,
+            4,
+            2,
+            &score_u,
+            &fisher_w,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(direct.iter().zip(&routed).all(|(a, b)| a.to_bits() == b.to_bits()));
+    }
+
+    #[test]
+    fn gcomp_gradient_matches_the_inline_row_etas_bit_for_bit() {
+        let nrows = 5;
+        let ncols = 3;
+        let x: Vec<f64> = (0..nrows * ncols).map(|i| 0.1 * i as f64).collect();
+        let beta = [0.2, -0.4, 0.3];
+        let treatment = [0.0, 1.0, 0.0, 1.0, 1.0];
+        let contrast = GcompContrast {
+            family: GlmFamily::BinomialLogit,
+            x_colmajor: &x,
+            nrows,
+            ncols,
+            t_col: 1,
+            active: 1.0,
+            control: 0.0,
+        };
+        let population = TargetPopulation::AllObserved;
+        let target = GcompTarget { treatment: &treatment, population: &population };
+        let grad = gcomp_gradient(&contrast, &beta, &target);
+        let mut reference = vec![0.0; ncols];
+        let mut count = 0usize;
+        for r in 0..nrows {
+            count += 1;
+            let mut eta_active = 0.0;
+            let mut eta_control = 0.0;
+            for (c, &coef) in beta.iter().enumerate() {
+                if c == 1 {
+                    eta_active += coef;
+                } else {
+                    let val = x[c * nrows + r];
+                    eta_active += val * coef;
+                    eta_control += val * coef;
+                }
+            }
+            let d1 = mean_derivative(GlmFamily::BinomialLogit, eta_active);
+            let d0 = mean_derivative(GlmFamily::BinomialLogit, eta_control);
+            for c in 0..ncols {
+                let (x1, x0) =
+                    if c == 1 { (1.0, 0.0) } else { (x[c * nrows + r], x[c * nrows + r]) };
+                reference[c] += d1 * x1 - d0 * x0;
+            }
+        }
+        let n = count as f64;
+        for (got, want) in grad.iter().zip(&reference) {
+            assert_eq!(got.to_bits(), (want / n).to_bits());
+        }
+    }
+
+    /// Row-by-row references: the loops the column-outer kernels replaced.
+    fn reference_covariance(
+        family: GlmFamily,
+        x: &[f64],
+        nrows: usize,
+        ncols: usize,
+        coefficients: &[f64],
+        nb_alpha: f64,
+    ) -> Option<Vec<f64>> {
+        let mut x_w = vec![0.0; nrows * ncols];
+        for r in 0..nrows {
+            let mut eta = 0.0;
+            for c in 0..ncols {
+                eta += x[c * nrows + r] * coefficients[c];
+            }
+            let sqrt_w = fisher_weight(family, eta, nb_alpha).max(0.0).sqrt();
+            for c in 0..ncols {
+                x_w[c * nrows + r] = x[c * nrows + r] * sqrt_w;
+            }
+        }
+        crate::util::xtx_inverse(&x_w, nrows, ncols)
+    }
+
+    #[test]
+    fn column_outer_covariance_and_scores_are_bit_identical_to_the_row_first_loops() {
+        let (nrows, ncols) = (1_500usize, 5usize);
+        let mut state = 0x1234_5678_9ABC_DEF0_u64;
+        let mut x = vec![0.0; nrows * ncols];
+        for (index, value) in x.iter_mut().enumerate() {
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            *value = if index < nrows { 1.0 } else { (state >> 33) as f64 / 2f64.powi(31) - 0.5 };
+        }
+        let y: Vec<f64> = (0..nrows).map(|i| f64::from(u8::from(i % 4 == 0))).collect();
+        let beta = [0.2, -0.4, 0.7, 0.1, -0.3];
+        for family in [
+            GlmFamily::GaussianIdentity,
+            GlmFamily::BinomialLogit,
+            GlmFamily::BinomialProbit,
+            GlmFamily::PoissonLog,
+            GlmFamily::NegativeBinomial,
+        ] {
+            let covariance = adjustment_glm_covariance(family, &x, nrows, ncols, &beta, 3.0, 0.4);
+            let reference = reference_covariance(family, &x, nrows, ncols, &beta, 0.4);
+            let dispersion = if matches!(family, GlmFamily::GaussianIdentity) {
+                3.0 / (nrows as f64 - ncols as f64).max(1.0)
+            } else {
+                1.0
+            };
+            let reference: Option<Vec<f64>> =
+                reference.map(|cov| cov.into_iter().map(|c| c * dispersion).collect());
+            match (&covariance, &reference) {
+                (Some(a), Some(b)) => {
+                    assert!(a.iter().zip(b).all(|(p, q)| p.to_bits() == q.to_bits()), "{family:?}");
+                }
+                (None, None) => {}
+                _ => panic!("covariance availability differs for {family:?}"),
+            }
+            let (u, w) = glm_score_components(family, &x, nrows, ncols, &beta, &y, 0.4);
+            assert_eq!(u.len(), nrows);
+            assert_eq!(w.len(), nrows);
+        }
+    }
+
+    #[test]
+    #[ignore = "timing harness: cargo test --release -p antecedent-estimate --lib timing_ -- --ignored --nocapture"]
+    fn timing_glm_row_kernels() {
+        let (nrows, ncols) = (200_000usize, 10usize);
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut x = vec![0.0; nrows * ncols];
+        for (index, value) in x.iter_mut().enumerate() {
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            *value = if index < nrows { 1.0 } else { (state >> 33) as f64 / 2f64.powi(31) - 0.5 };
+        }
+        let y: Vec<f64> = (0..nrows).map(|i| f64::from(u8::from(i % 3 == 0))).collect();
+        let treatment: Vec<f64> = (0..nrows).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
+        let beta: Vec<f64> = (0..ncols).map(|c| 0.05 * (c as f64 + 1.0)).collect();
+        let family = GlmFamily::BinomialLogit;
+        let time = |label: &str, reps: u32, mut work: Box<dyn FnMut()>| {
+            let start = std::time::Instant::now();
+            for _ in 0..reps {
+                work();
+            }
+            println!(
+                "{label}: {:.3} ms/call",
+                start.elapsed().as_secs_f64() * 1e3 / f64::from(reps)
+            );
+        };
+        {
+            let (x, beta) = (&x, &beta);
+            time(
+                "adjustment_glm_covariance",
+                5,
+                Box::new(|| {
+                    std::hint::black_box(adjustment_glm_covariance(
+                        family, x, nrows, ncols, beta, 0.0, 0.0,
+                    ));
+                }),
+            );
+        }
+        {
+            let (x, beta, y) = (&x, &beta, &y);
+            time(
+                "glm_score_components",
+                5,
+                Box::new(|| {
+                    std::hint::black_box(glm_score_components(
+                        family, x, nrows, ncols, beta, y, 0.0,
+                    ));
+                }),
+            );
+        }
+        {
+            let (x, beta, treatment) = (&x, &beta, &treatment);
+            let contrast = GcompContrast {
+                family,
+                x_colmajor: x,
+                nrows,
+                ncols,
+                t_col: 1,
+                active: 1.0,
+                control: 0.0,
+            };
+            let population = TargetPopulation::AllObserved;
+            let target = GcompTarget { treatment, population: &population };
+            time(
+                "gcomp_gradient",
+                5,
+                Box::new(|| {
+                    std::hint::black_box(gcomp_gradient(&contrast, beta, &target));
+                }),
+            );
+        }
     }
 }

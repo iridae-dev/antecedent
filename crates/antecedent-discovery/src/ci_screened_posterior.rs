@@ -21,15 +21,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -358,7 +349,29 @@ fn apply_screened_out_floor(
         }
     }
     if floored > 0 {
+        // Orientation marginals are the same accumulator as edge marginals (see
+        // `accumulate_marginals`). Floor both so `to_weighted_samples` does not report a
+        // screened-out edge as floored in one field and exactly 0 in the other.
+        let mut orientation = post.orientation_marginals.to_vec();
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let key = (crate::indexing::dense_u32(i), crate::indexing::dense_u32(j));
+                if screened_in.contains(&key) || forbidden_idx.contains(&key) {
+                    continue;
+                }
+                let half = floor / 2.0;
+                let cell_ij = i * n + j;
+                let cell_ji = j * n + i;
+                if orientation[cell_ij] < half {
+                    orientation[cell_ij] = half;
+                }
+                if orientation[cell_ji] < half {
+                    orientation[cell_ji] = half;
+                }
+            }
+        }
         post.edge_marginals = Arc::from(marginals);
+        post.orientation_marginals = Arc::from(orientation);
         post.diagnostics.notes.push(Arc::from(format!(
             "ci_screened_floor pairs={floored} floor={floor:.4} \
              (min of caller edge_inclusion prior and screen alpha; screened-out \
@@ -456,26 +469,8 @@ fn soft_weight_note(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
-    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
 
     fn chain_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {
-        let mut b = CausalSchemaBuilder::new();
-        for name in ["a", "b", "c"] {
-            b.add_variable(
-                name,
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
         let mut rng = antecedent_core::CausalRng::from_seed(21);
         let mut a = vec![0.0; n_rows];
         let mut bb = vec![0.0; n_rows];
@@ -485,22 +480,9 @@ mod tests {
             bb[i] = 1.5 * a[i] + 0.2 * (rng.next_f64() * 2.0 - 1.0);
             c[i] = 1.2 * bb[i] + 0.2 * (rng.next_f64() * 2.0 - 1.0);
         }
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(vars[0], Arc::from(a), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[1], Arc::from(bb), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[2], Arc::from(c), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        (TabularData::new(storage), vars)
+        let data = crate::test_tables::continuous_table(&["a", "b", "c"], vec![a, bb, c]);
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        (data, vars)
     }
 
     #[test]
@@ -567,6 +549,16 @@ mod tests {
             "no diagnostic disclosed the screened-out floor: {:?}",
             post.diagnostics.notes
         );
+        let samples = post.to_weighted_samples().unwrap();
+        assert_eq!(samples.edge_marginals.as_deref(), Some(post.edge_marginals.as_ref()));
+        assert_eq!(
+            samples.orientation_marginals.as_deref(),
+            Some(post.orientation_marginals.as_ref())
+        );
+        assert_eq!(post.edge_marginals.as_ref(), post.orientation_marginals.as_ref());
+        let half = ac / 2.0;
+        assert!((post.orientation_marginals[2] - half).abs() < 1e-12);
+        assert!((post.orientation_marginals[2 * n] - half).abs() < 1e-12);
     }
 
     /// A caller's explicit `required` link is an explicit prior belief, not a

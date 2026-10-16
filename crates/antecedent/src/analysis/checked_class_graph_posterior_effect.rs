@@ -6,18 +6,23 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 use std::sync::Arc;
 
 use antecedent_core::{AverageEffectQuery, PopulationRegistry};
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_estimate::OverlapPolicy;
-use antecedent_prob::GraphIdentFlag;
+use antecedent_prob::WeightedGraphSamples;
 
 use crate::{CausalError, EstimatorSpec, InferenceMode, RefuteSuite};
 
 use super::GraphPosteriorEffectTarget;
 
 use super::latency::LatencyMode;
+use super::posterior_binding::{
+    CacheKeys, PosteriorProof, identified_key_set, validate_posterior_cache,
+};
 use super::prepared::CachedGraphPosteriorIdentification;
 
 /// A fixed effect procedure over posterior-weighted CPDAG/PAG atoms. Each
@@ -39,20 +44,36 @@ pub(crate) struct CheckedClassGraphPosteriorEffect {
     validation: RefuteSuite,
 }
 
+/// The frozen premises of [`CheckedClassGraphPosteriorEffect::prepare`], carried together.
+pub(crate) struct CheckedClassGraphPosteriorEffectPremises {
+    pub(crate) posterior: GraphPosterior,
+    pub(crate) target: GraphPosteriorEffectTarget,
+    pub(crate) identification: Arc<CachedGraphPosteriorIdentification>,
+    pub(crate) inference: InferenceMode,
+    pub(crate) procedure: EstimatorSpec,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) overlap: OverlapPolicy,
+    pub(crate) population_registry: Option<PopulationRegistry>,
+    pub(crate) latency_mode: Option<LatencyMode>,
+    pub(crate) validation: RefuteSuite,
+}
+
 impl CheckedClassGraphPosteriorEffect {
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
-        posterior: GraphPosterior,
-        target: GraphPosteriorEffectTarget,
-        identification: CachedGraphPosteriorIdentification,
-        inference: InferenceMode,
-        procedure: EstimatorSpec,
-        bootstrap_replicates: u32,
-        overlap: OverlapPolicy,
-        population_registry: Option<PopulationRegistry>,
-        latency_mode: Option<LatencyMode>,
-        validation: RefuteSuite,
+        premises: CheckedClassGraphPosteriorEffectPremises,
     ) -> Result<Self, CausalError> {
+        let CheckedClassGraphPosteriorEffectPremises {
+            posterior,
+            target,
+            identification,
+            inference,
+            procedure,
+            bootstrap_replicates,
+            overlap,
+            population_registry,
+            latency_mode,
+            validation,
+        } = premises;
         if !matches!(
             posterior.atom_kind,
             GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag
@@ -79,10 +100,7 @@ impl CheckedClassGraphPosteriorEffect {
                 message: "class graph-posterior query variables must be distinct and in range",
             });
         }
-        if !matches!(
-            validation,
-            RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full
-        ) {
+        if !validation.is_point_or_placebo() {
             return Err(CausalError::Unsupported {
                 message: "class graph-posterior effect has an unsupported validation suite",
             });
@@ -91,7 +109,7 @@ impl CheckedClassGraphPosteriorEffect {
         Ok(Self {
             posterior: Arc::new(posterior),
             target,
-            identification: Arc::new(identification),
+            identification,
             inference,
             procedure,
             bootstrap_replicates,
@@ -125,7 +143,7 @@ impl CheckedClassGraphPosteriorEffect {
     }
 
     #[must_use]
-    pub(crate) fn identification(&self) -> &CachedGraphPosteriorIdentification {
+    pub(crate) fn identification(&self) -> &Arc<CachedGraphPosteriorIdentification> {
         &self.identification
     }
 
@@ -159,17 +177,6 @@ impl CheckedClassGraphPosteriorEffect {
         self.validation
     }
 
-    /// Posterior sample keys, weights, and identification flags retain the
-    /// sample-level mass, including failed/unidentified graph atoms.
-    #[must_use]
-    pub(crate) fn sample_mass(&self) -> (&[u64], &[f64], &[GraphIdentFlag]) {
-        (
-            &self.posterior.graph_keys,
-            &self.posterior.weights,
-            &self.identification.graphs.identified,
-        )
-    }
-
     /// Per-key completion envelopes retain identified, failed, and truncated
     /// completions for each identified graph-class posterior atom.
     #[must_use]
@@ -180,20 +187,26 @@ impl CheckedClassGraphPosteriorEffect {
     }
 }
 
+impl PosteriorProof for CheckedClassGraphPosteriorEffect {
+    fn graphs(&self) -> &WeightedGraphSamples {
+        &self.identification.graphs
+    }
+
+    fn atom_keys(&self) -> Vec<u64> {
+        self.identification.atom_keys()
+    }
+}
+
 fn validate_identification_binding(
     posterior: &GraphPosterior,
     target: &GraphPosteriorEffectTarget,
     identification: &CachedGraphPosteriorIdentification,
 ) -> Result<(), CausalError> {
-    if identification.graphs.weights.as_ref() != posterior.weights.as_ref()
-        || identification.graphs.graph_keys.as_ref() != posterior.graph_keys.as_ref()
-        || identification.graphs.n_samples != posterior.n_graphs
-        || identification.graphs.identified.len() != posterior.n_graphs
-        || !identification.atoms.is_empty()
-    {
-        return Err(CausalError::Unsupported {
-            message: "class graph-posterior cache does not match frozen samples or contains DAG atoms",
-        });
+    const CACHE_MISMATCH: &str =
+        "class graph-posterior cache does not match frozen samples or contains DAG atoms";
+    validate_posterior_cache(posterior, identification, CacheKeys::PosteriorKeys, CACHE_MISMATCH)?;
+    if !identification.atoms.is_empty() {
+        return Err(CausalError::Unsupported { message: CACHE_MISMATCH });
     }
     let atom_query = target.atom_identification_query();
     if identification.class_atoms.iter().any(|atom| atom.identification.query != atom_query) {
@@ -201,9 +214,12 @@ fn validate_identification_binding(
             message: "class graph-posterior cache identifies a different ATE query",
         });
     }
+    let posterior_keys: std::collections::HashSet<u64> =
+        posterior.graph_keys.iter().copied().collect();
+    let identified_keys = identified_key_set(&identification.graphs);
     let mut class_keys = std::collections::HashSet::with_capacity(identification.class_atoms.len());
     for atom in identification.class_atoms.iter() {
-        if !posterior.graph_keys.iter().any(|key| *key == atom.key)
+        if !posterior_keys.contains(&atom.key)
             || !class_keys.insert(atom.key)
             || !atom.identified_weight.is_finite()
             || atom.identified_weight <= 0.0
@@ -230,23 +246,16 @@ fn validate_identification_binding(
                 message: "class graph-posterior completion or identified masses are invalid",
             });
         }
-        if !posterior
-            .graph_keys
-            .iter()
-            .zip(identification.graphs.identified.iter())
-            .any(|(key, flag)| *key == atom.key && matches!(flag, GraphIdentFlag::Identified))
-        {
+        if !identified_keys.contains(&atom.key) {
             return Err(CausalError::Unsupported {
                 message: "retained class envelope has no identified posterior sample mass",
             });
         }
     }
-    for (key, flag) in posterior.graph_keys.iter().zip(identification.graphs.identified.iter()) {
-        if matches!(flag, GraphIdentFlag::Identified) && !class_keys.contains(key) {
-            return Err(CausalError::Unsupported {
-                message: "identified posterior sample has no retained class completion envelope",
-            });
-        }
+    if identified_keys.iter().any(|key| !class_keys.contains(key)) {
+        return Err(CausalError::Unsupported {
+            message: "identified posterior sample has no retained class completion envelope",
+        });
     }
     Ok(())
 }
@@ -260,12 +269,59 @@ fn identified_case_status(status: antecedent_core::IdentificationStatus) -> bool
     )
 }
 
+/// Read-only CPDAG/PAG posterior samples and completion envelopes retained for
+/// a frequentist average effect.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedClassGraphPosteriorEffectInfo {
+    /// Average-effect query every posterior atom was identified for.
+    pub query: antecedent_core::AverageEffectQuery,
+    /// Whether the sealed click estimates a conditional effect over the atoms.
+    pub conditional: bool,
+    /// Inference label frozen at preparation (`frequentist` or `bayesian:<backend>`).
+    pub inference: std::sync::Arc<str>,
+    /// Static estimator used inside each identified completion.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite applied to the atom-wise estimates.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Posterior sample key, including repeated and unidentified samples.
+    pub graph_keys: std::sync::Arc<[u64]>,
+    /// Frozen posterior sample weights.
+    pub weights: std::sync::Arc<[f64]>,
+    /// Sample-level identification flags, preserving unidentified mass.
+    pub identified: std::sync::Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Number of identified CPDAG/PAG completion envelopes retained.
+    pub class_atom_count: usize,
+    /// Procedure-specific bootstrap count.
+    pub bootstrap_replicates: u32,
+}
+
+impl Inspect for CheckedClassGraphPosteriorEffect {
+    type Info = CheckedClassGraphPosteriorEffectInfo;
+
+    fn info(&self) -> CheckedClassGraphPosteriorEffectInfo {
+        let (graph_keys, weights, identified) = self.sample_mass();
+        CheckedClassGraphPosteriorEffectInfo {
+            query: self.query().clone(),
+            conditional: self.target().is_conditional(),
+            inference: inference_label(self.inference()),
+            estimator: self.procedure().id(),
+            validation: self.validation(),
+            graph_keys: Arc::from(graph_keys),
+            weights: Arc::from(weights),
+            identified: Arc::from(identified),
+            class_atom_count: self.class_atoms().len(),
+            bootstrap_replicates: self.bootstrap_replicates(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::EstimatorId;
     use antecedent_core::VariableId;
-    use antecedent_prob::{InferenceDiagnostics, WeightedGraphSamples};
+    use antecedent_discovery::SamplingSummary;
+    use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
     fn posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         GraphPosterior::new(
@@ -274,9 +330,11 @@ mod tests {
             vec![0, 0],
             vec![0.0; 4],
             vec![0.0; 4],
-            1.923_076_923_076_923_1,
-            InferenceDiagnostics::analytic("checked_class_posterior_test"),
-            0,
+            SamplingSummary {
+                ess: 1.923_076_923_076_923_1,
+                diagnostics: InferenceDiagnostics::analytic("checked_class_posterior_test"),
+                rejected_invalid: 0,
+            },
         )
         .unwrap()
         .with_atom_kind(kind)
@@ -286,8 +344,8 @@ mod tests {
         AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
     }
 
-    fn unidentified_cache(graphs: &GraphPosterior) -> CachedGraphPosteriorIdentification {
-        CachedGraphPosteriorIdentification {
+    fn unidentified_cache(graphs: &GraphPosterior) -> Arc<CachedGraphPosteriorIdentification> {
+        Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
                 graphs.weights.to_vec(),
                 vec![GraphIdentFlag::Unidentified; graphs.n_graphs],
@@ -296,10 +354,10 @@ mod tests {
             .unwrap(),
             atoms: Arc::from([]),
             class_atoms: Arc::from([]),
-        }
+        })
     }
 
-    fn identified_cpdag_cache(graphs: &GraphPosterior) -> CachedGraphPosteriorIdentification {
+    fn identified_cpdag_cache(graphs: &GraphPosterior) -> Arc<CachedGraphPosteriorIdentification> {
         let target = query();
         let envelope = crate::strategy_table::identify_cpdag(
             crate::strategy_table::IdentifierId::GeneralizedAdjustment,
@@ -325,7 +383,7 @@ mod tests {
             identified_weight: envelope.identified_weight.0,
             truncated_completions: envelope.truncated_completions,
         };
-        CachedGraphPosteriorIdentification {
+        Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
                 graphs.weights.to_vec(),
                 vec![GraphIdentFlag::Identified; graphs.n_graphs],
@@ -334,12 +392,12 @@ mod tests {
             .unwrap(),
             atoms: Arc::from([]),
             class_atoms: Arc::from([atom]),
-        }
+        })
     }
 
     fn prepare(
         graphs: GraphPosterior,
-        cache: CachedGraphPosteriorIdentification,
+        cache: Arc<CachedGraphPosteriorIdentification>,
         procedure: EstimatorSpec,
     ) -> Result<CheckedClassGraphPosteriorEffect, CausalError> {
         prepare_with(graphs, GraphPosteriorEffectTarget::Average(query()), cache, procedure)
@@ -348,7 +406,7 @@ mod tests {
     fn prepare_with(
         graphs: GraphPosterior,
         target: GraphPosteriorEffectTarget,
-        cache: CachedGraphPosteriorIdentification,
+        cache: Arc<CachedGraphPosteriorIdentification>,
         procedure: EstimatorSpec,
     ) -> Result<CheckedClassGraphPosteriorEffect, CausalError> {
         let inference = match procedure.id() {
@@ -357,18 +415,18 @@ mod tests {
             }
             _ => InferenceMode::Frequentist,
         };
-        CheckedClassGraphPosteriorEffect::prepare(
-            graphs,
+        CheckedClassGraphPosteriorEffect::prepare(CheckedClassGraphPosteriorEffectPremises {
+            posterior: graphs,
             target,
-            cache,
+            identification: cache,
             inference,
             procedure,
-            0,
-            OverlapPolicy::ExplicitOverride,
-            None,
-            Some(LatencyMode::Standard),
-            RefuteSuite::None,
-        )
+            bootstrap_replicates: 0,
+            overlap: OverlapPolicy::ExplicitOverride,
+            population_registry: None,
+            latency_mode: Some(LatencyMode::Standard),
+            validation: RefuteSuite::None,
+        })
     }
 
     #[test]
@@ -414,7 +472,7 @@ mod tests {
         let case = atom.cases[0].clone();
         atom.cases = Arc::from([case.clone(), case]);
         atom.identified_weight = 2.0;
-        cache.class_atoms = Arc::from([atom]);
+        Arc::make_mut(&mut cache).class_atoms = Arc::from([atom]);
 
         let operation =
             prepare(graphs, cache, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte))
@@ -484,18 +542,18 @@ mod tests {
             "a conditional target must not retain the average-effect procedure"
         );
         assert!(
-            CheckedClassGraphPosteriorEffect::prepare(
-                graphs.clone(),
-                GraphPosteriorEffectTarget::Average(query()),
-                unidentified_cache(&graphs),
-                InferenceMode::Frequentist,
-                EstimatorSpec::Default(EstimatorId::BayesianGcomp),
-                0,
-                OverlapPolicy::ExplicitOverride,
-                None,
-                Some(LatencyMode::Standard),
-                RefuteSuite::None,
-            )
+            CheckedClassGraphPosteriorEffect::prepare(CheckedClassGraphPosteriorEffectPremises {
+                posterior: graphs.clone(),
+                target: GraphPosteriorEffectTarget::Average(query()),
+                identification: unidentified_cache(&graphs),
+                inference: InferenceMode::Frequentist,
+                procedure: EstimatorSpec::Default(EstimatorId::BayesianGcomp),
+                bootstrap_replicates: 0,
+                overlap: OverlapPolicy::ExplicitOverride,
+                population_registry: None,
+                latency_mode: Some(LatencyMode::Standard),
+                validation: RefuteSuite::None
+            })
             .is_err(),
             "frequentist inference must not retain a Bayesian procedure"
         );
@@ -524,7 +582,7 @@ mod tests {
         );
 
         let mut cache = unidentified_cache(&graphs);
-        cache.graphs.weights = Arc::from([0.5, 0.5]);
+        Arc::make_mut(&mut cache).graphs.weights = Arc::from([0.5, 0.5]);
         assert!(
             prepare(graphs, cache, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),)
                 .is_err()
@@ -534,7 +592,7 @@ mod tests {
     #[test]
     fn refuses_an_identified_sample_without_a_retained_completion_envelope() {
         let graphs = posterior(GraphPosteriorAtomKind::Pag);
-        let cache = CachedGraphPosteriorIdentification {
+        let cache = Arc::new(CachedGraphPosteriorIdentification {
             graphs: WeightedGraphSamples::new(
                 graphs.weights.to_vec(),
                 vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified],
@@ -543,7 +601,7 @@ mod tests {
             .unwrap(),
             atoms: Arc::from([]),
             class_atoms: Arc::from([]),
-        };
+        });
         assert!(
             prepare(graphs, cache, EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),)
                 .is_err()

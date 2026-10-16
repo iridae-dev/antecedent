@@ -12,6 +12,7 @@ from typing import Literal
 
 #: Four-value verdict per exact native status string.
 VERDICTS: dict[str, str] = {
+    "DesignBased": "identified",
     "NonparametricallyIdentified": "identified",
     "IdentifiedUnderParametricRestrictions": "identified",
     "IdentifiedUnderPriorRestrictions": "identified",

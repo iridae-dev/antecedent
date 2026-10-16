@@ -5,15 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
@@ -23,10 +14,12 @@ use crate::backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
     LaplaceWorkspace,
 };
-use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
+use crate::diagnostics::InferenceDiagnostics;
 use crate::error::ProbError;
 use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model_with_precision};
-use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
+use crate::likelihood_terms::{
+    LikelihoodScratch, accumulate_likelihood, log_posterior_value, validate_design,
+};
 use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd, solve_spd_into};
 use crate::posterior::{PosteriorDraws, PosteriorSchema};
 use crate::prior::{
@@ -57,6 +50,10 @@ impl InferenceBackend for LaplaceGlmBackend {
 /// # Errors
 ///
 /// Shape, prior, non-convergence, or singular curvature.
+#[allow(
+    clippy::too_many_lines,
+    reason = "Newton iteration with line search and diagnostics; the loop state is read by every step"
+)]
 pub fn fit_laplace_glm(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -100,10 +97,12 @@ pub fn fit_laplace_glm(
             likelihood,
             design,
             &workspace.beta[..ncols],
-            &mut workspace.grad[..ncols],
-            &mut workspace.neg_hessian[..ncols * ncols],
-            &mut workspace.eta[..nrows],
-            &mut workspace.work_w[..nrows],
+            LikelihoodScratch {
+                grad: &mut workspace.grad[..ncols],
+                neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
+                eta: &mut workspace.eta[..nrows],
+                work_w: &mut workspace.work_w[..nrows],
+            },
             1.0,
             true,
         )?;
@@ -206,10 +205,12 @@ pub fn fit_laplace_glm(
         likelihood,
         design,
         &workspace.beta[..ncols],
-        &mut workspace.grad[..ncols],
-        &mut workspace.neg_hessian[..ncols * ncols],
-        &mut workspace.eta[..nrows],
-        &mut workspace.work_w[..nrows],
+        LikelihoodScratch {
+            grad: &mut workspace.grad[..ncols],
+            neg_hess: &mut workspace.neg_hessian[..ncols * ncols],
+            eta: &mut workspace.eta[..nrows],
+            work_w: &mut workspace.work_w[..nrows],
+        },
         1.0,
         true,
     )?;
@@ -238,34 +239,14 @@ pub fn fit_laplace_glm(
     // Reuse the factor just computed instead of refactorizing inside
     // invert_spd (two O(p³/3) Choleskys of the same matrix).
     let cov = crate::linalg::invert_spd_from_chol(&chol, ncols);
-    let factorization = HessianFactorization::Cholesky;
-
     let mut notes = Vec::new();
     if sep_map {
         notes.push(Arc::from("possible separation in Bernoulli model"));
     }
 
-    let diagnostics = InferenceDiagnostics {
-        converged,
-        iterations,
-        grad_inf_norm: grad_inf,
-        hessian_condition: condition,
-        factorization,
-        separation_warning: sep_map,
-        notes,
-        backend_id: Arc::from("laplace"),
-        n_chains: None,
-        n_warmup: None,
-        ess_bulk_min: None,
-        ess_tail_min: None,
-        rhat_max: None,
-        n_divergences: None,
-        mean_accept_prob: None,
-        n_warmup_divergences: None,
-        n_postwarmup_divergences: None,
-        max_abs_delta_h: None,
-        all_chains_moved: None,
-    };
+    let diagnostics = InferenceDiagnostics::laplace(
+        "laplace", converged, iterations, grad_inf, condition, sep_map, notes,
+    );
 
     if let Some(message) = diagnostics.curvature_refusal() {
         return Err(ProbError::MissingDiagnostics { message });
@@ -282,7 +263,7 @@ pub fn fit_laplace_glm(
     Ok(BayesFitResult { draws, map, diagnostics, cov: Some(cov) })
 }
 
-/// GaussianIdentity Laplace: exact known-σ² posterior, or the conjugate NIG path when
+/// `GaussianIdentity` Laplace: exact known-σ² posterior, or the conjugate NIG path when
 /// residual variance is unknown (Laplace's mode Hessian is block-diagonal and is not
 /// the NIG posterior).
 fn fit_gaussian_laplace(
@@ -319,6 +300,10 @@ fn fit_gaussian_laplace(
 }
 
 /// Form `A_β = X'WX + P` and `b_β = X'W(y − offset) + P m₀`.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "returns Result to match the fallible sibling paths it is dispatched alongside"
+)]
 fn gaussian_normal_equations(
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
@@ -406,27 +391,15 @@ fn fit_gaussian_laplace_known(
     }
     let chol = cholesky_spd(&a_beta, ncols)?;
     let condition = condition_from_chol(&chol, ncols);
-    let diagnostics = InferenceDiagnostics {
-        converged: grad_inf < options.grad_tol.max(1e-8),
-        iterations: 1,
-        grad_inf_norm: grad_inf,
-        hessian_condition: condition,
-        factorization: HessianFactorization::Cholesky,
-        separation_warning: false,
-        notes: vec![Arc::from("gaussian_laplace_known_sigma2")],
-        backend_id: Arc::from("laplace"),
-        n_chains: None,
-        n_warmup: None,
-        ess_bulk_min: None,
-        ess_tail_min: None,
-        rhat_max: None,
-        n_divergences: None,
-        mean_accept_prob: None,
-        n_warmup_divergences: None,
-        n_postwarmup_divergences: None,
-        max_abs_delta_h: None,
-        all_chains_moved: None,
-    };
+    let diagnostics = InferenceDiagnostics::laplace(
+        "laplace",
+        grad_inf < options.grad_tol.max(1e-8),
+        1,
+        grad_inf,
+        condition,
+        false,
+        vec![Arc::from("gaussian_laplace_known_sigma2")],
+    );
     if let Some(message) = diagnostics.curvature_refusal() {
         return Err(ProbError::MissingDiagnostics { message });
     }
@@ -446,6 +419,10 @@ fn fit_gaussian_laplace_known(
 /// # Errors
 ///
 /// Non-SPD covariance or workspace too small.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn sample_gaussian_mvn(
     mean: &[f64],
     cov: &[f64],
@@ -509,12 +486,12 @@ mod tests {
         for seed in 0..6 {
             for r in 0..n {
                 let z = 4.0 * unit() - 2.0;
-                let t = f64::from(unit() < 1.0 / (1.0 + (-z).exp()));
+                let t = f64::from(unit() < antecedent_kernels::sigmoid(z));
                 x[r] = 1.0;
                 x[n + r] = t;
                 x[2 * n + r] = z;
                 let eta = -0.5 + 1.2 * t + 0.8 * z + 0.01 * f64::from(seed);
-                y[r] = f64::from(unit() < 1.0 / (1.0 + (-eta).exp()));
+                y[r] = f64::from(unit() < antecedent_kernels::sigmoid(eta));
             }
             let prior = PriorSet::weakly_informative(3);
             let design = BayesDesignRef {
@@ -655,7 +632,7 @@ mod tests {
             let xi = (r as f64 - 30.0) * 0.2;
             x[r] = 1.0;
             x[n + r] = xi;
-            let p = 1.0 / (1.0 + (-(0.0 + 1.2 * xi)).exp());
+            let p = antecedent_kernels::sigmoid(1.2 * xi);
             // Overlapping labels — hard p>0.5 assignment is complete separation
             // and Laplace must refuse that posterior (M12).
             y[r] = if deterministic_unit(r) < p { 1.0 } else { 0.0 };
@@ -902,6 +879,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn laplace_known_sigma2_strong_prior_far_from_one() {
         // Strong prior mean away from OLS + known σ² ≠ 1; repaired path matches analytic.
         let n = 20;
@@ -1036,10 +1017,12 @@ mod tests {
             BayesLikelihood::PoissonLog,
             design,
             &beta,
-            &mut grad,
-            &mut hess,
-            &mut eta,
-            &mut work_w,
+            LikelihoodScratch {
+                grad: &mut grad,
+                neg_hess: &mut hess,
+                eta: &mut eta,
+                work_w: &mut work_w,
+            },
             1.0,
             true,
         )
@@ -1138,10 +1121,12 @@ mod tests {
             BayesLikelihood::BernoulliProbit,
             design,
             &fit.map,
-            &mut grad,
-            &mut hess,
-            &mut eta,
-            &mut work_w,
+            LikelihoodScratch {
+                grad: &mut grad,
+                neg_hess: &mut hess,
+                eta: &mut eta,
+                work_w: &mut work_w,
+            },
             1.0,
             true,
         )
@@ -1246,27 +1231,7 @@ mod tests {
 
     #[test]
     fn refuses_without_diagnostics() {
-        let d = InferenceDiagnostics {
-            converged: false,
-            iterations: 1,
-            grad_inf_norm: 10.0,
-            hessian_condition: 1.0,
-            factorization: HessianFactorization::Cholesky,
-            separation_warning: false,
-            notes: Vec::new(),
-            backend_id: Arc::from("laplace"),
-            n_chains: None,
-            n_warmup: None,
-            ess_bulk_min: None,
-            ess_tail_min: None,
-            rhat_max: None,
-            n_divergences: None,
-            mean_accept_prob: None,
-            n_warmup_divergences: None,
-            n_postwarmup_divergences: None,
-            max_abs_delta_h: None,
-            all_chains_moved: None,
-        };
+        let d = InferenceDiagnostics::laplace("laplace", false, 1, 10.0, 1.0, false, Vec::new());
         assert!(!d.allows_posterior());
     }
 }

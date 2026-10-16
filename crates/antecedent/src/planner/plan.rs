@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::large_enum_variant)]
 #![cfg_attr(
     test,
     allow(
@@ -13,10 +12,11 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    BufferMaterialization, CausalQuery, DataClassification, ExecutionContext, KernelSelection,
-    LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
+use antecedent_contract::{
+    BufferMaterialization, DataClassification, KernelSelection, LogicalAnalysisPlanRecord,
+    ParallelTaskSpec, PhysicalExecutionPlanRecord,
 };
+use antecedent_core::{CausalQuery, ExecutionContext};
 use antecedent_data::DiscoveryEstimationSplit;
 use antecedent_graph::{Dag, Pag, TemporalDag};
 
@@ -38,6 +38,16 @@ pub struct LogicalAnalysisPlan {
 }
 
 impl LogicalAnalysisPlan {
+    /// A plan over the whole data window (no discovery/estimation split).
+    #[must_use]
+    pub(crate) fn unsplit(
+        record: LogicalAnalysisPlanRecord,
+        query: CausalQuery,
+        row_count_hint: u64,
+    ) -> Self {
+        Self { record, query, split: None, row_count_hint }
+    }
+
     /// Validate logical semantics (modality × algorithm).
     ///
     /// # Errors
@@ -76,7 +86,7 @@ impl LogicalAnalysisPlan {
                 message: "static PC discovery requires tabular data metadata".into(),
             });
         }
-        self.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        self.query.validate()?;
         Ok(())
     }
 
@@ -241,12 +251,6 @@ impl PhysicalExecutionPlan {
     pub fn static_pag(&self) -> Option<&Pag> {
         self.resolved_static_pag.as_ref()
     }
-}
-
-/// Whether an identifier is DAG-only (cannot accept a PAG without completion / class-aware ID).
-#[must_use]
-pub fn is_dag_only_identifier(identifier: IdentifierId) -> bool {
-    identifier.is_dag_only()
 }
 
 /// Refuse DAG-only identification on a PAG structure.

@@ -1,0 +1,20 @@
+feature_id = "predictive_assessment.score_interval"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Newey and West (1987) Bartlett long-run variance with a Student-t reference (Kiefer and
+# Vogelsang's fixed-b idea in the form of a t reference); cluster-robust variance with G - 1
+# degrees of freedom. No external implementation is translated.
+papers = [
+  { title = "Newey and West (1987), A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix, Econometrica 55(3)", sections = ["Bartlett-kernel heteroskedasticity and autocorrelation consistent covariance estimator"] },
+  { title = "Diebold and Mariano (1995), Comparing Predictive Accuracy, JBES 13(3)", sections = ["equal predictive accuracy from the mean of a loss-differential series with a long-run variance"] },
+  { title = "Kiefer and Vogelsang (2005), A New Asymptotic Theory for Heteroskedasticity-Autocorrelation Robust Tests, Econometric Theory 21(6)", sections = ["fixed-bandwidth asymptotics of Bartlett-kernel HAC t-statistics"] },
+]
+implementation_deviations = [
+  "Publishes the Student-t interval of one predictor's expected score (or expected difference) only for a held-out or unfitted predictor under a declared iid, serial or cluster dependence, where a current attesting coverage record measured the construction; the serial CRPS mean was measured as a named boundary and is refused. An unscoped request still refuses cell_not_licensed.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent/tests/predictive_assessment_facade.rs", "crates/antecedent/tests/predictive_score_interval_facade.rs", "crates/antecedent/tests/predictive_score_interval_calibration.rs"]

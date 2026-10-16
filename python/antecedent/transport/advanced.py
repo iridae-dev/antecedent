@@ -13,6 +13,11 @@ from ._admg_conditional import (
     consume_admg_conditional_transport_artifact,
     identify_admg_conditional_transport,
 )
+from ._augmented_grid import (
+    AugmentedResponseGrid,
+    SelectionOverlap,
+    estimate_augmented_response_grid,
+)
 from ._closed_pilots import (
     NestedFisherCandidate,
     NestedMarkovPosteriorCandidate,
@@ -21,6 +26,24 @@ from ._closed_pilots import (
     binary_nested_markov_fisher_interval,
     joint_bayesian_transport,
     sampled_observation_recovery,
+)
+from ._counterfactual import (
+    CounterfactualEvent,
+    CounterfactualTransportDecision,
+    CounterfactualTransportDerivation,
+    CounterfactualTransportQuery,
+    CounterfactualTransportResult,
+    CounterfactualTransportSource,
+    CounterfactualWorld,
+    SampledCounterfactualTransportEstimate,
+    SampledCountTable,
+    SampledTableKey,
+    SampledTransportLimits,
+    SamplingOverlap,
+    UnseenCellRule,
+    consume_counterfactual_transport_artifact,
+    consume_sampled_counterfactual_transport_artifact,
+    identify_counterfactual,
 )
 from ._cpdag_scenarios import (
     AdjustedContrast,
@@ -170,8 +193,10 @@ from ._status import (
 from ._study_planning import StudyCandidate, plan_studies, replay_study_plan
 from ._temporal import (
     TemporalSequenceSpec,
+    UnrolledSequence,
     consume_temporal_transport_artifact,
     prepare_temporal_transport_sequence,
+    unroll_two_slice,
 )
 from ._temporal_extensions import (
     InitialStateLaw,
@@ -190,6 +215,9 @@ from ._temporal_extensions import (
 )
 
 __all__ = [
+    "AugmentedResponseGrid",
+    "SelectionOverlap",
+    "estimate_augmented_response_grid",
     "SampledRecoveryCandidate",
     "SampledRecoveryIdentity",
     "AdjustedContrast",
@@ -336,6 +364,8 @@ __all__ = [
     "prepare_statistical",
     "prepare_trial",
     "prepare_temporal_transport_sequence",
+    "UnrolledSequence",
+    "unroll_two_slice",
     "InitialStateLaw",
     "TemporalExtensionRefusal",
     "TemporalInitialStateResult",
@@ -350,6 +380,22 @@ __all__ = [
     "temporal_initial_state",
     "temporal_new_period_refresh",
     "prepare_transport_scenarios",
+    "CounterfactualEvent",
+    "CounterfactualTransportDecision",
+    "CounterfactualTransportDerivation",
+    "CounterfactualTransportQuery",
+    "CounterfactualTransportResult",
+    "CounterfactualTransportSource",
+    "CounterfactualWorld",
+    "SampledCounterfactualTransportEstimate",
+    "SampledCountTable",
+    "SampledTableKey",
+    "SampledTransportLimits",
+    "SamplingOverlap",
+    "UnseenCellRule",
+    "consume_counterfactual_transport_artifact",
+    "consume_sampled_counterfactual_transport_artifact",
+    "identify_counterfactual",
     "reload_lowered_expression",
     "reload_lowered_program",
     "restore_lowered_program",

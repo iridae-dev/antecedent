@@ -27,6 +27,10 @@ use crate::shapley::{CoalitionPayoff, estimate_shapley};
 /// # Errors
 ///
 /// Size limits, out-of-range `unit_rows`, abduction, or Shapley failures.
+#[allow(
+    clippy::too_many_lines,
+    reason = "abduct the unit noise, evaluate both worlds, then allocate; the stages share the abducted state"
+)]
 pub fn unit_change(
     model: &CompiledCausalModel,
     data: &TabularData,
@@ -35,26 +39,8 @@ pub fn unit_change(
 ) -> Result<UnitChangeResult, AttributionError> {
     query.validate()?;
     let n_all = data.row_count();
-    let rows: Vec<usize> = match &query.unit_rows {
-        Some(r) => r.to_vec(),
-        None => (0..n_all).collect(),
-    };
-    for &row in &rows {
-        if row >= n_all {
-            return Err(AttributionError::PopulationOutOfRange {
-                kind: "row",
-                index: row,
-                limit: n_all,
-            });
-        }
-    }
-    if rows.len() > query.max_units {
-        return Err(AttributionError::SizeLimit {
-            kind: "units",
-            requested: rows.len(),
-            max: query.max_units,
-        });
-    }
+    let rows =
+        crate::population::resolve_unit_rows(query.unit_rows.as_deref(), n_all, query.max_units)?;
 
     require_input_components(
         query.components,
@@ -98,7 +84,10 @@ pub fn unit_change(
     // and `float64_values` copies the whole column on every call.
     let parent_cols: Vec<Vec<f64>> =
         parents.iter().map(|&p| data.float64_values(p)).collect::<Result<Vec<_>, _>>()?;
-    for (ui, &row) in rows.iter().enumerate() {
+    // Rows are independent games on streams keyed by the row (see `unit_seed`), so they
+    // run on the context's workers; the reduction below stays in row order.
+    let estimates = ctx.map_indexed(rows.len(), |ui, worker| {
+        let row = rows[ui];
         let factual: Vec<f64> = parent_cols.iter().map(|c| c[row]).collect();
         let noise = exo.noise[outcome_dense.as_usize() * exo.n_units + row];
 
@@ -118,7 +107,9 @@ pub fn unit_change(
         // identical permutation sequence, so unit estimates would be positively correlated
         // and the pooled standard error below (which assumes independence) badly optimistic.
         let unit_config = (*approximation).with_seed(unit_seed(approximation.seed, row));
-        let est = estimate_shapley(&players, &unit_config, &mut payoff, ctx)?;
+        estimate_shapley(&players, &unit_config, &mut payoff, worker)
+    })?;
+    for (ui, est) in estimates.iter().enumerate() {
         budget.evaluations += est.budget.evaluations;
         budget.samples += est.budget.samples;
         cache_stats.hits += est.cache_stats.hits;
@@ -357,5 +348,87 @@ mod tests {
             .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
         let err = unit_change(&model, &data, &q, &ExecutionContext::for_tests(1)).unwrap_err();
         assert_eq!(err, AttributionError::PopulationOutOfRange { kind: "row", index: n, limit: n });
+    }
+
+    /// Rows are scored on the context's workers: the result is bit-identical to the
+    /// serial run at every thread count.
+    #[test]
+    fn unit_change_does_not_depend_on_thread_count() {
+        let n = 48usize;
+        let mut b = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("x1", RoleHint::Context),
+            ("x2", RoleHint::Context),
+            ("y", RoleHint::OutcomeCandidate),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let x1: Vec<f64> = (0..n).map(|i| (i as f64 * 0.37).sin() + i as f64 * 0.05).collect();
+        let x2: Vec<f64> = (0..n).map(|i| (i as f64 * 0.91).cos() * 1.5).collect();
+        let y: Vec<f64> =
+            (0..n).map(|i| 2.0 * x1[i] - 0.5 * x2[i] + 0.01 * ((i * 7) % 5) as f64).collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = [x1, x2, y]
+            .into_iter()
+            .enumerate()
+            .map(|(k, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(k as u32),
+                        Arc::from(values),
+                        validity.clone(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let model = compiled.with_mechanisms(store);
+        let q = UnitChangeQuery::new(VariableId::from_raw(2), 100).with_allocation(
+            AllocationMethod::Shapley {
+                approximation: ShapleyConfig::monte_carlo(25).with_seed(4),
+            },
+        );
+        let run = |threads: u32| {
+            let mut ctx = ExecutionContext::for_tests(9);
+            ctx.parallelism = antecedent_core::Parallelism::bounded(
+                antecedent_core::NonZeroThreadCount::new(threads).unwrap(),
+            );
+            unit_change(&model, &data, &q, &ctx).unwrap()
+        };
+        let serial = run(1);
+        assert_eq!(serial.contributions.len(), n * 2);
+        for threads in [2u32, 4, 7] {
+            let parallel = run(threads);
+            let bits = |r: &UnitChangeResult| {
+                (
+                    r.contributions.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+                    r.mean_contributions.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+                    r.component_mc_stderr
+                        .as_ref()
+                        .map(|s| s.iter().map(|v| v.to_bits()).collect::<Vec<_>>()),
+                    r.budget.evaluations,
+                    r.budget.samples,
+                )
+            };
+            assert_eq!(bits(&parallel), bits(&serial), "threads={threads}");
+        }
     }
 }

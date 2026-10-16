@@ -1,4 +1,4 @@
-//! Factorized joint-cell AIPW (2.2 E5): the factorized cell propensities and cell means are
+//! Factorized joint-cell AIPW: the factorized cell propensities and cell means are
 //! checked against a known joint law enumerated by hand, the family keeps its supported cells
 //! when one is empty or rare, ordering sensitivity is reported, a declared `antecedent-learn`
 //! learner supplies the nuisances out of fold (point only), the factorization reproduces the
@@ -23,6 +23,9 @@ use antecedent_estimate::{
     refuse_joint_inference, refuse_joint_learner_inference,
 };
 use antecedent_kernels::standard_normal;
+
+#[path = "common/checks.rs"]
+mod checks;
 
 /// `P(cell | z)` for three binary components (cell bit `j` is `t_j`), enumerated by hand: each
 /// row sums to one. Row 0 is `z = 0`, row 1 is `z = 1`.
@@ -124,10 +127,7 @@ fn run(
 }
 
 fn refused(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 fn estimate_of(fit: &FactorizedJointFit, cell: usize) -> f64 {

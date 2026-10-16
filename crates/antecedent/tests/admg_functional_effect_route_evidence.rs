@@ -6,7 +6,8 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,
     StructureSource, Study,
 };
-use antecedent_core::{AverageEffectQuery, ExecutionContext, SlotAvailability};
+use antecedent_contract::SlotAvailability;
+use antecedent_core::{AverageEffectQuery, ExecutionContext};
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_io::consume_analysis_result;

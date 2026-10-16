@@ -1,4 +1,4 @@
-//! Estimator menu for a binary trial-to-target contrast (2.2A cell X4).
+//! Estimator menu for a binary trial-to-target contrast.
 //!
 //! The menu is inspection: for one certified graph, one query and one learner
 //! configuration it lists every estimator this release names, whether it is eligible, and
@@ -352,7 +352,7 @@ pub fn transport_estimator_menu_with(
             ]),
             sampling_design: designs,
             uncertainty_status:
-                "delta_method_se: the 2.1 analyze cell transport.trial_ipw; not calibrated by this cell"
+                "delta_method_se: the analyze cell transport.trial_ipw; not calibrated by this cell"
                     .into(),
             static_fields: ["nuisance_tasks", "support_requirements", "uncertainty_status"]
                 .map(String::from)
@@ -363,11 +363,14 @@ pub fn transport_estimator_menu_with(
             estimator: "dr_learner_cate".into(),
             eligible: false,
             required_laws: strings(&["conditional outcome mean per arm, evaluated pointwise"]),
-            required_graph_conditions: strings(&["conditional (heterogeneous) transport identification"]),
+            required_graph_conditions: strings(&[
+                "conditional (heterogeneous) transport identification",
+            ]),
             nuisance_tasks: strings(&["cross-fitted pseudo-outcome regression"]),
             support_requirements: strings(&["pointwise overlap at every evaluation point"]),
             sampling_design: strings(&["independent_samples"]),
-            uncertainty_status: "uncalibrated: pointwise profiles are documented as uncalibrated".into(),
+            uncertainty_status: "uncalibrated: pointwise profiles are documented as uncalibrated"
+                .into(),
             static_fields: all_requirements.map(String::from).to_vec(),
             refusal: Some(refusal(
                 antecedent_core::reason_code!("route_not_supported"),
@@ -391,7 +394,7 @@ pub fn transport_estimator_menu_with(
                 "the outcome is continuous; a finite law cannot represent its mean contrast",
             )),
         },
-        // 2.2B X4: the smoothed dose-response grid has its own query and menu
+        // The smoothed dose-response grid has its own query and menu
         // (`smoothed_dose::smoothed_dose_estimator_menu`); a binary contrast never runs it.
         EstimatorMenuEntry {
             estimator: "smoothed_dose_transport_aipw".into(),
@@ -400,11 +403,18 @@ pub fn transport_estimator_menu_with(
                 "source outcome regression over a randomized continuous dose",
                 "known conditional dose density on a declared support",
             ]),
-            required_graph_conditions: strings(&["the continuous dose as the single source experiment"]),
-            nuisance_tasks: strings(&["cross-fitted outcome regression over the dose basis and membership"]),
-            support_requirements: strings(&["every kernel window inside the declared dose support"]),
+            required_graph_conditions: strings(&[
+                "the continuous dose as the single source experiment",
+            ]),
+            nuisance_tasks: strings(&[
+                "cross-fitted outcome regression over the dose basis and membership",
+            ]),
+            support_requirements: strings(&[
+                "every kernel window inside the declared dose support",
+            ]),
             sampling_design: strings(&["nested_cohort", "independent_samples"]),
-            uncertainty_status: "withheld: cell_not_licensed (joint outer bootstrap route closed)".into(),
+            uncertainty_status: "withheld: cell_not_licensed (joint outer bootstrap route closed)"
+                .into(),
             static_fields: all_requirements.map(String::from).to_vec(),
             refusal: Some(refusal(
                 antecedent_core::reason_code!("route_not_supported"),

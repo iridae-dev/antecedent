@@ -4,6 +4,7 @@
 //! different fit procedures and uncertainty products.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -18,16 +19,14 @@ use antecedent_expr::{
     FactorRequirement, FunctionalProgram, IdentifiedEstimand, ProgramLimits, ProgramSchema,
     ProgramVariable,
 };
-use antecedent_identify::{IdentificationResult, IdentificationStatus};
+use antecedent_identify::IdentificationStatus;
 
 use crate::accepted::GraphClass;
-use crate::analysis::builder::RefuteSuite;
 use crate::analysis::route_guards::compile_error;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::planner::PhysicalExecutionPlan;
-use crate::strategy_table::{EstimatorId, IdentifierId};
-use crate::support::{CellStatus, StructureSource};
+use crate::strategy_table::EstimatorId;
+use crate::support::StructureSource;
 
 /// Procedure identity for a checked propensity estimator.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -67,22 +66,16 @@ pub(crate) struct CheckedPropensityLowering {
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedPropensityContext {
     pub(crate) source_query: CausalQuery,
-    pub(crate) identification: IdentificationResult,
+    pub(crate) cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     pub(crate) estimand_index: usize,
-    pub(crate) identifier: IdentifierId,
-    pub(crate) physical: PhysicalExecutionPlan,
-    pub(crate) graph_class: GraphClass,
-    pub(crate) graph_version: u32,
-    pub(crate) support_status: Option<CellStatus>,
-    pub(crate) structure_source: StructureSource,
-    pub(crate) inference: InferenceMode,
-    pub(crate) refute: RefuteSuite,
-    pub(crate) population_registry: Option<antecedent_core::PopulationRegistry>,
-    pub(crate) latency_mode: Option<super::latency::LatencyMode>,
-    /// `(tier replicates, configured replicates)` when a latency tier's count
-    /// was set aside for the configured estimator's own count.
-    pub(crate) latency_bootstrap_not_applied: Option<(u32, u32)>,
-    pub(crate) custom_validator_names: Arc<[Arc<str>]>,
+    pub(crate) common: Arc<crate::analysis::execute::CheckedStaticCommon>,
+}
+
+impl std::ops::Deref for CheckedPropensityContext {
+    type Target = crate::analysis::execute::CheckedStaticCommon;
+    fn deref(&self) -> &Self::Target {
+        &self.common
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -110,6 +103,82 @@ pub(crate) struct CheckedPropensityOperation {
     fit: CheckedPropensityFit,
 }
 
+/// Refuses a context outside the licensed DAG, frequentist, mean-effect propensity contract.
+fn refuse_unlicensed_premises(
+    context: &CheckedPropensityContext,
+    query: &AverageEffectQuery,
+) -> Result<(), CausalError> {
+    if context.cache.identification.query != context.source_query
+        || context.cache.identification.status != IdentificationStatus::NonparametricallyIdentified
+        || context.graph_class != GraphClass::Dag
+        || !matches!(
+            context.structure_source,
+            StructureSource::Explicit | StructureSource::Accepted
+        )
+        || !matches!(context.inference, InferenceMode::Frequentist)
+        || !context.refute.is_point_or_placebo()
+        || !context.custom_validator_names.is_empty()
+        || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
+    {
+        return Err(compile_error(
+            "checked propensity route premises are outside the licensed DAG frequentist mean-effect contract",
+        ));
+    }
+    Ok(())
+}
+
+/// Selects the identified backdoor adjustment target and its scoped required assumptions.
+fn backdoor_target(
+    context: &CheckedPropensityContext,
+) -> Result<(IdentifiedEstimand, antecedent_core::AssumptionSet), CausalError> {
+    let target = context
+        .cache
+        .identification
+        .estimands
+        .get(context.estimand_index)
+        .cloned()
+        .ok_or_else(|| compile_error("checked propensity estimand index is out of range"))?;
+    let claim = context.cache.identification.claim(context.estimand_index).ok_or_else(|| {
+        compile_error("checked propensity estimand has no scoped identification claim")
+    })?;
+    if claim.status != IdentificationStatus::NonparametricallyIdentified
+        || !target.is_adjustment_shaped()
+        || !target.instruments.is_empty()
+        || !target.mediators.is_empty()
+    {
+        return Err(compile_error(
+            "checked propensity requires a nonparametrically identified backdoor adjustment target",
+        ));
+    }
+    Ok((target, claim.required_assumptions))
+}
+
+/// Requires unique adjustment roles excluding treatment and outcome, and binary active=1, control=0 arms.
+fn binary_backdoor_arms(
+    target: &IdentifiedEstimand,
+    query: &AverageEffectQuery,
+) -> Result<(f64, f64), CausalError> {
+    let mut adjustment = target.adjustment_set.to_vec();
+    adjustment.sort_unstable();
+    adjustment.dedup();
+    if adjustment.len() != target.adjustment_set.len()
+        || adjustment.contains(&query.treatment)
+        || adjustment.contains(&query.outcome)
+    {
+        return Err(compile_error(
+            "checked propensity adjustment roles must be unique and exclude treatment and outcome",
+        ));
+    }
+    let active = set_value(&query.active, query.treatment)?;
+    let control = set_value(&query.control, query.treatment)?;
+    if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
+        return Err(compile_error(
+            "checked propensity requires binary active=1 and control=0 treatment arms",
+        ));
+    }
+    Ok((active, control))
+}
+
 impl CheckedPropensityOperation {
     /// Validate a single identified backdoor target and prepare its selected propensity fit.
     pub(crate) fn prepare(
@@ -122,81 +191,20 @@ impl CheckedPropensityOperation {
             CausalQuery::AverageEffect(query) => query.clone(),
             _ => return Err(compile_error("checked propensity requires an AverageEffect query")),
         };
-        if context.identification.query != context.source_query
-            || context.identification.status != IdentificationStatus::NonparametricallyIdentified
-            || context.graph_class != GraphClass::Dag
-            || !matches!(
-                context.structure_source,
-                StructureSource::Explicit | StructureSource::Accepted
-            )
-            || !matches!(context.inference, InferenceMode::Frequentist)
-            || !matches!(
-                context.refute,
-                RefuteSuite::None
-                    | RefuteSuite::Cheap
-                    | RefuteSuite::PlaceboAndRcc
-                    | RefuteSuite::Full
-            )
-            || !context.custom_validator_names.is_empty()
-            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
-        {
-            return Err(compile_error(
-                "checked propensity route premises are outside the licensed DAG frequentist mean-effect contract",
-            ));
-        }
-        let target =
-            context.identification.estimands.get(context.estimand_index).cloned().ok_or_else(
-                || compile_error("checked propensity estimand index is out of range"),
-            )?;
-        let claim = context.identification.claim(context.estimand_index).ok_or_else(|| {
-            compile_error("checked propensity estimand has no scoped identification claim")
-        })?;
-        if claim.status != IdentificationStatus::NonparametricallyIdentified
-            || !target.is_adjustment_shaped()
-            || !target.instruments.is_empty()
-            || !target.mediators.is_empty()
-        {
-            return Err(compile_error(
-                "checked propensity requires a nonparametrically identified backdoor adjustment target",
-            ));
-        }
-        let mut adjustment = target.adjustment_set.to_vec();
-        adjustment.sort_unstable();
-        adjustment.dedup();
-        if adjustment.len() != target.adjustment_set.len()
-            || adjustment.contains(&query.treatment)
-            || adjustment.contains(&query.outcome)
-        {
-            return Err(compile_error(
-                "checked propensity adjustment roles must be unique and exclude treatment and outcome",
-            ));
-        }
-        let active = set_value(&query.active, query.treatment)?;
-        let control = set_value(&query.control, query.treatment)?;
-        if (active - 1.0).abs() > 1e-12 || control.abs() > 1e-12 {
-            return Err(compile_error(
-                "checked propensity requires binary active=1 and control=0 treatment arms",
-            ));
-        }
+        refuse_unlicensed_premises(&context, &query)?;
+        let (target, required_assumptions) = backdoor_target(&context)?;
+        let (active, control) = binary_backdoor_arms(&target, &query)?;
         let fitter = fitter.into();
         let expected_estimator = estimator_id(&fitter);
-        if estimator != expected_estimator
-            || context.physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
-        {
+        if estimator != expected_estimator || !context.physical.binding().estimator.is(estimator) {
             return Err(compile_error(
                 "checked propensity estimator does not match the selected physical plan",
             ));
         }
-        context.identifier = context
-            .physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(context.identifier.as_str())
-            .parse()?;
+        let identifier = context.physical.binding().identifier.or(context.identifier)?;
+        Arc::make_mut(&mut context.common).identifier = identifier;
 
-        let mut arena = context.identification.arena.clone();
+        let mut arena = context.cache.identification.arena.clone();
         let expected = arena.backdoor_ate(
             query.treatment,
             query.outcome,
@@ -268,22 +276,16 @@ impl CheckedPropensityOperation {
             program,
             factor_requirements,
             lowering,
-            assumptions: claim.required_assumptions,
+            assumptions: required_assumptions,
             fit,
         })
     }
 
-    pub(crate) fn context(&self) -> &CheckedPropensityContext {
-        &self.context
-    }
-    pub(crate) fn query(&self) -> &AverageEffectQuery {
-        &self.query
-    }
-    pub(crate) fn target(&self) -> &IdentifiedEstimand {
-        &self.target
-    }
-    pub(crate) fn lowering(&self) -> &CheckedPropensityLowering {
-        &self.lowering
+    crate::analysis::checked_ref! {
+        pub(crate) fn context(&self) -> &CheckedPropensityContext { &self.context }
+        pub(crate) fn query(&self) -> &AverageEffectQuery { &self.query }
+        pub(crate) fn target(&self) -> &IdentifiedEstimand { &self.target }
+        pub(crate) fn lowering(&self) -> &CheckedPropensityLowering { &self.lowering }
     }
 
     /// Rebuild only the row-bound design; target and procedure selection stay frozen.
@@ -421,6 +423,51 @@ fn set_value(
     }
 }
 
+/// Read-only target and uncertainty binding for a prepared propensity route.
+#[derive(Clone, Debug)]
+pub struct CheckedPropensityInfo {
+    /// The selected weighting or matching estimator.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Adjustment variables in the checked target.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Population targeted by the bound design.
+    pub population: antecedent_core::TargetPopulation,
+    /// Source rows retained by the propensity preparation.
+    pub source_rows: std::sync::Arc<[u32]>,
+    /// Named uncertainty procedure.
+    pub uncertainty: std::sync::Arc<str>,
+    /// Bootstrap count only when the weighting procedure can use it.
+    pub bootstrap_replicates: Option<u32>,
+}
+
+impl Inspect for CheckedPropensityOperation {
+    type Info = CheckedPropensityInfo;
+
+    fn info(&self) -> CheckedPropensityInfo {
+        let lowering = self.lowering();
+        // The procedure is paired with its uncertainty when the operation is
+        // prepared, so the uncertainty alone names the estimator.
+        let (estimator, uncertainty, bootstrap_replicates) = match lowering.uncertainty {
+            CheckedPropensityUncertainty::HajekAnalyticAndBootstrap { bootstrap_replicates } => (
+                EstimatorId::PropensityWeighting,
+                Arc::from("hajek_analytic_and_optional_bootstrap"),
+                Some(bootstrap_replicates),
+            ),
+            CheckedPropensityUncertainty::AbadieImbensAnalytic { .. } => {
+                (EstimatorId::PropensityMatching, Arc::from("abadie_imbens_analytic"), None)
+            }
+        };
+        CheckedPropensityInfo {
+            estimator,
+            adjustment_set: Arc::clone(&lowering.adjustment),
+            population: lowering.population.clone(),
+            source_rows: Arc::clone(&lowering.source_rows),
+            uncertainty,
+            bootstrap_replicates,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
@@ -476,22 +523,29 @@ mod tests {
         let source_query = CausalQuery::AverageEffect(query);
         let identification =
             identify_static_query(IdentifierId::BackdoorAdjustment, &graph, &source_query).unwrap();
+        let estimand = identification.estimands[0].clone();
         let context = CheckedPropensityContext {
             source_query,
-            identification,
+            cache: Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                identification,
+                estimand,
+            }),
             estimand_index: 0,
-            identifier: IdentifierId::BackdoorAdjustment,
-            physical,
-            graph_class: GraphClass::Dag,
-            graph_version: 0,
-            support_status: None,
-            structure_source: StructureSource::Explicit,
-            inference: InferenceMode::Frequentist,
-            refute: RefuteSuite::None,
-            population_registry: None,
-            latency_mode: None,
-            latency_bootstrap_not_applied: None,
-            custom_validator_names: Arc::from([]),
+            common: Arc::new(crate::analysis::execute::CheckedStaticCommon {
+                identifier: IdentifierId::BackdoorAdjustment,
+                estimator,
+                physical: Arc::new(physical),
+                inference: InferenceMode::Frequentist,
+                refute: RefuteSuite::None,
+                graph_class: GraphClass::Dag,
+                graph_version: 0,
+                support_status: None,
+                structure_source: StructureSource::Explicit,
+                population_registry: None,
+                latency_mode: None,
+                custom_validator_names: Arc::from([]),
+                latency_bootstrap_not_applied: None,
+            }),
         };
         (data, context, selected_config)
     }
@@ -500,8 +554,8 @@ mod tests {
     fn weighting_and_matching_keep_distinct_uncertainty_and_known_truth() {
         for estimator in [EstimatorId::PropensityWeighting, EstimatorId::PropensityMatching] {
             let (data, context, config) = inputs(estimator);
-            let query = context.identification.average_effect().unwrap().clone();
-            let target = context.identification.estimands[0].clone();
+            let query = context.cache.identification.average_effect().unwrap().clone();
+            let target = context.cache.identification.estimands[0].clone();
             let operation =
                 CheckedPropensityOperation::prepare(&data, context, estimator, config).unwrap();
             assert_eq!(operation.lowering().functional, target.functional);
@@ -526,15 +580,15 @@ mod tests {
                             bootstrap_replicates: 24
                         }
                     ));
-                    assert!(estimate.se_bootstrap.is_some());
+                    assert!(estimate.se_bootstrap().is_some());
                 }
                 EstimatorId::PropensityMatching => {
                     assert!(matches!(
                         operation.lowering().uncertainty,
                         CheckedPropensityUncertainty::AbadieImbensAnalytic { .. }
                     ));
-                    assert!(estimate.se_analytic.is_finite());
-                    assert!(estimate.se_bootstrap.is_none());
+                    assert!(estimate.se_analytic().is_finite());
+                    assert!(estimate.se_bootstrap().is_none());
                 }
                 _ => unreachable!(),
             }

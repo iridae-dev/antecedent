@@ -63,7 +63,7 @@ def test_simultaneous_difference_band_round_trip_and_determinism(competing: bool
         for lower, point, upper in zip(band.lower, band.difference, band.upper, strict=True)
     )
     assert first.survival.band_unavailable_reason is None
-    body = ant.load(first.export()).artifact.payload
+    body = ant.load(first.export()).decoded_artifact.payload
     assert body["survival"]["difference_band"]["lower"] == pytest.approx(band.lower)
     assert body["survival"]["difference_band"]["upper"] == pytest.approx(band.upper)
 

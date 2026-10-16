@@ -1,6 +1,6 @@
-"""Ordered-response observation recovery (2.3 B2): a response chain ``R -> R``.
+"""Ordered-response observation recovery: a response chain ``R -> R``.
 
-A second, separate observation-recovery row. The 2.2 route
+A second, separate observation-recovery row. The single-response route
 (:mod:`antecedent.transport` ``identify_observation_recovery``) refuses every response-to-response
 edge; this row is exactly the graphs it refuses because of **one** response chain, with a
 different identifying order: the head response first, then the tail response given the head.
@@ -42,9 +42,11 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from ._columns import coerce_fields
 from ._native import consume_recovery_chain_artifact as _consume
 from ._native import recover_recovery_chain as _recover
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ._refusal import raise_refusal
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .graph import Admg
 
 __all__ = [
@@ -128,10 +130,10 @@ class PatternLaw:
             or len(only_second) != 2
         ):
             raise CausalValueError("both is 2 x 2 and only_first / only_second have two cells")
-        object.__setattr__(self, "both", both)
-        object.__setattr__(self, "only_first", only_first)
-        object.__setattr__(self, "only_second", only_second)
-        object.__setattr__(self, "neither", neither)
+        coerce_fields(self, both=both)
+        coerce_fields(self, only_first=only_first)
+        coerce_fields(self, only_second=only_second)
+        coerce_fields(self, neither=neither)
 
     def _cells(self) -> list[float]:
         return [*(c for row in self.both for c in row), *self.only_first, *self.only_second]
@@ -200,8 +202,8 @@ class ChainWitness:
     denominator: int
 
 
-class RecoveryChainRefusal(CausalUnsupportedError):
-    """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
+class RecoveryChainRefusal(StructuredRefusal):
+    """A :class:`StructuredRefusal` for the structured Rust refusal fields.
 
     ``detail`` is the namespaced ``recovery_chain.*`` slot (``.nonrecoverable_witness``,
     ``.unsupported_mechanism``, ``.invalid_query``, ``.positivity``, ``.invalid_observed_law``,
@@ -218,14 +220,7 @@ class RecoveryChainRefusal(CausalUnsupportedError):
     ) -> None:
         detail = str(refusal["detail"])
         message = refusal.get("message")
-        text = f"{detail}: {message}" if message else detail
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage.
-        self.stage: str = refusal.get("stage", "")
-        #: Namespaced ``recovery_chain.*`` detail.
-        self.detail: str = detail
-        #: Offending field, when there is one.
-        self.offending: str | None = refusal.get("offending")
+        super().__init__(refusal, text=f"{detail}: {message}" if message else detail)
         #: The verified witness of a nonrecoverable decision.
         self.witness: ChainWitness | None = witness
         #: The exportable artifact of a nonrecoverable decision.
@@ -236,11 +231,6 @@ def _refusal_of(code: str, detail: str, message: str) -> RecoveryChainRefusal:
     return RecoveryChainRefusal(
         {"code": code, "stage": "recovery_chain", "detail": detail, "message": message}
     )
-
-
-def _raise_refusal(payload: str | None) -> None:
-    if payload is not None:
-        raise RecoveryChainRefusal(json.loads(payload))
 
 
 def _witness(report: Mapping[str, Any]) -> ChainWitness:
@@ -406,7 +396,7 @@ def _call(
         memory_bytes=memory_bytes,
         cancel=cancel,
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, RecoveryChainRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native recovery returned neither a result nor a refusal")
     return json.loads(report), None if artifact is None else bytes(artifact)
@@ -508,7 +498,7 @@ def consume_recovery_chain_artifact(
         raise CausalTypeError("artifact must be bytes")
     data = bytes(artifact)
     report, refusal = _consume(data, seed=seed, memory_bytes=memory_bytes, cancel=cancel)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, RecoveryChainRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     parsed = json.loads(report)

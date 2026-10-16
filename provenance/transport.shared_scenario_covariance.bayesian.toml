@@ -1,0 +1,19 @@
+feature_id = "transport.shared_scenario_covariance.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "Independent normal priors at zero on the shared scenario covariance entries. The plug-in variance of each entry is the sampling variance of the covariance estimator: correction squared times the weighted second moment of the centered replicate products, divided by the number of rows. A wide scale stays at the enumerated covariance. A tight scale shrinks each entry toward 0 by the normal-normal weight. A constant matrix uses that sampling variance and is not refused for zero cross-entry spread. The scenario envelope stays a structural envelope. No interval.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/scenario_covariance.rs",
+]

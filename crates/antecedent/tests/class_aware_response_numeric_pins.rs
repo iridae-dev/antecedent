@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -206,7 +205,7 @@ fn response_values(result: &antecedent::StudyResult) -> Vec<f64> {
                 .collect();
         }
     }
-    let response = result.response.as_ref().expect("class-aware response payload");
+    let response = result.response().expect("class-aware response payload");
     match &response.estimate {
         ResponseIdentification::PointIdentified(value)
         | ResponseIdentification::PartiallyIdentified(value) => match value {
@@ -386,6 +385,8 @@ fn class_aware_curve_pins_against_ate_on_continuous_t() {
                     .run(&ExecutionContext::for_tests(1))
                     .unwrap()
                     .estimate
+                    .as_effect()
+                    .unwrap()
                     .ate
             };
             let study = build_response(&data, &graph, accepted, curve_query(&pin));

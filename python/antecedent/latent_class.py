@@ -1,4 +1,4 @@
-"""B4 latent-class (finite mixture) regime effects.
+"""Latent-class (finite mixture) regime effects.
 
 The population is a mixture of ``K`` latent regimes (``2 <= K <= 4``, declared, never
 selected). Within class ``k`` the outcome follows a Gaussian linear model in the treatment ``A``
@@ -42,16 +42,18 @@ data or result is refused too.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Any
 
 import numpy as np
 
 from ._native import consume_latent_class_artifact as _consume
 from ._native import evaluate_latent_class_effects as _evaluate
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ._refusal import raise_refusal
+from ._validate import count, non_finite_refusal, real
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
     "LatentClass",
@@ -68,8 +70,8 @@ __all__ = [
 _MAX_COUNT = 2**32 - 1
 
 
-class LatentClassRefusal(CausalUnsupportedError):
-    """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
+class LatentClassRefusal(StructuredRefusal):
+    """A :class:`StructuredRefusal` for the structured Rust refusal fields.
 
     ``reason_code`` is the registered code; ``detail`` is the namespaced ``family.slot`` slot:
     ``latent_class.randomization_not_declared``, ``latent_class.weak_class``,
@@ -81,23 +83,7 @@ class LatentClassRefusal(CausalUnsupportedError):
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
-        detail = str(refusal["detail"])
-        message = refusal.get("message")
-        text = f"{detail}: {message}" if message else detail
-        if refusal.get("offending"):
-            text = f"{text} at {refusal['offending']}"
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage.
-        self.stage: str = refusal.get("stage", "")
-        #: Namespaced ``family.slot`` detail.
-        self.detail: str = detail
-        #: Changed identity field, when a consumer refused one.
-        self.offending: str | None = refusal.get("offending")
-
-
-def _raise_refusal(payload: str | None) -> None:
-    if payload is not None:
-        raise LatentClassRefusal(json.loads(payload))
+        super().__init__(refusal)
 
 
 @dataclass(frozen=True, slots=True)
@@ -377,32 +363,16 @@ def _covariate_columns(covariates: Any) -> tuple[list[str], list[np.ndarray]]:
     return names, columns
 
 
-def _count(value: object, what: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int | np.integer):
-        raise CausalTypeError(f"{what} must be an integer")
-    number = int(value)
-    if not 0 <= number <= _MAX_COUNT:
-        raise CausalValueError(
-            f"{what} must lie in 0..={_MAX_COUNT}", reason_code="invalid_argument"
-        )
-    return number
+_count = partial(count, minimum=0, maximum=_MAX_COUNT, reason_code="invalid_argument")
 
 
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float | np.floating | np.integer):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise LatentClassRefusal(
-            {
-                "code": "invalid_argument",
-                "stage": "fit",
-                "detail": "latent_class.invalid_config",
-                "offending": what,
-                "message": f"{what} is not finite",
-            }
-        )
-    return number
+_real = partial(
+    real,
+    finite=True,
+    non_finite=non_finite_refusal(
+        LatentClassRefusal, stage="fit", detail="latent_class.invalid_config"
+    ),
+)
 
 
 def _seed(value: object) -> int:
@@ -490,7 +460,7 @@ def latent_class_effects(
     report, artifact, refusal = _evaluate(
         y, a, columns, names, json.dumps(config, allow_nan=False), "latent_class_effects"
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, LatentClassRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native latent-class fit returned neither a result nor a refusal"
@@ -526,7 +496,7 @@ def consume_latent_class_artifact(
         raise CausalTypeError("expected_identity must be a LatentClassIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, LatentClassRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)

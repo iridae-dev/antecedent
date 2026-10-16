@@ -20,7 +20,7 @@ use antecedent::analysis::recalc_cell::{
 use antecedent::analysis::recalc_dr::{DrEstimator, DrRequest, DrSession, execute_dr_with_receipt};
 use antecedent::analysis::recalc_receipt::{LawValue, TargetWeights, UtilitySpec};
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_estimate::{CellSaturatedAipw, DmlAte, DrLearner};
+use antecedent_estimate::{CellSaturatedAipw, DmlAte, DrLearner, ScoreTable};
 use antecedent_io::frozen_scores_artifact::FrozenScoreTable;
 use antecedent_learn::{LearnerSpec, LinearSpec};
 use serde_json::json;
@@ -74,8 +74,7 @@ fn portable(
         .map_err(|e| failure(seed, mode, "portable.encode", e))?;
     let verified = FrozenScoreTable::from_bytes(&bytes, Some(artifact.identity()))
         .map_err(|e| failure(seed, mode, "portable.decode", e))?;
-    let rows = verified
-        .score_table()
+    let rows = ScoreTable::from_frozen(&verified)
         .map_err(|e| failure(seed, mode, "portable.score_table", e))?
         .row_index
         .to_vec();

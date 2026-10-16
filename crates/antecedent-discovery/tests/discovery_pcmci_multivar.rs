@@ -21,15 +21,11 @@ use antecedent_data::{
     TimeSeriesData, ValidityBitmap,
 };
 use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
+use antecedent_test_support::{conformance_dir, load_expected_json};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/discovery/pcmci_multivar")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("discovery/pcmci_multivar")
 }
 
 fn close(a: f64, b: f64, atol: f64, rtol: f64) -> bool {
@@ -103,7 +99,7 @@ fn name_idx(names: &[String], name: &str) -> usize {
     reason = "one reference-parity scenario: fit, then compare edges, p-values and matrices against the stored reference in sequence"
 )]
 fn discovery_pcmci_multivar_edges_and_matrices() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     let tig = &expected["reference"];
     let outs = &tig["outputs"];
     assert_eq!(tig["available"].as_bool(), Some(true));

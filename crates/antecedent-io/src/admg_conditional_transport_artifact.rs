@@ -1,4 +1,4 @@
-//! Independent point-result artifacts for ADMG conditional transport (2.2B B1).
+//! Independent point-result artifacts for ADMG conditional transport .
 //!
 //! Format version 1 (`checked_admg_conditional_point_v1`). A consumer trusts
 //! nothing in the artifact. Before any work (before either digest is hashed) it
@@ -66,84 +66,11 @@ pub const ADMG_CONDITIONAL_ARTIFACT_FEATURE: &str = "checked_admg_conditional_po
 /// The only uncertainty claim of this route: exact laws, a point, no interval.
 pub const ADMG_CONDITIONAL_POINT_ONLY: &str = "point_only";
 
-/// Why an ADMG conditional transport artifact was refused. Every kind carries
-/// its registered `(reason code, admg_transport.* detail)` pair ([`Self::refusal`]).
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum AdmgConditionalArtifactError {
-    /// The feature marker, result shape or name mapping is not this format's.
-    #[error("admg_transport.invalid_artifact: unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// Another format version, refused before the payload is interpreted.
-    #[error("admg_transport.invalid_artifact: unsupported artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u32,
-    },
-    /// The artifact claims an interval or carries counted laws.
-    #[error("admg_transport.interval_withheld: the route publishes exact points only")]
-    IntervalWithheld,
-    /// A stored limit or collection exceeds the consumer's bound.
-    #[error("admg_transport.consumer_limits: consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored proof does not check, or the re-decision fails.
-    #[error("proof does not verify: {0}")]
-    ProofMismatch(IdentificationError),
-    /// The re-decided derivation, re-bound leaves or a recomputed point differ.
-    #[error("admg_transport.replay_mismatch: {0} does not replay")]
-    ReplayMismatch(&'static str),
-    /// A stored law is not a valid law or law set.
-    #[error("admg_transport.invalid_artifact: invalid law: {0}")]
-    LawInvalid(String),
-    /// The premises digest does not match the stored premises.
-    #[error("admg_transport.premises_mismatch: premises digest mismatch")]
-    PremisesMismatch,
-    /// The data-identity digest does not match the stored snapshot identities.
-    #[error("admg_transport.data_identity_mismatch: data identity digest mismatch")]
-    DataIdentityMismatch,
-    /// The caller's variable names are not the verified name mapping.
-    #[error("admg_transport.invalid_artifact: variable names do not match the verified mapping")]
-    NamesMismatch,
-}
-
-impl AdmgConditionalArtifactError {
-    /// The registered `(reason code, admg_transport.* detail)` pair of this failure.
-    #[must_use]
-    pub fn refusal(&self) -> (&'static str, &'static str) {
-        use antecedent_core::reason_code;
-        match self {
-            Self::UnsupportedSemantics(_)
-            | Self::UnsupportedVersion { .. }
-            | Self::LawInvalid(_)
-            | Self::NamesMismatch => {
-                (reason_code!("invalid_argument"), "admg_transport.invalid_artifact")
-            }
-            Self::IntervalWithheld => {
-                (reason_code!("cell_not_licensed"), "admg_transport.interval_withheld")
-            }
-            Self::LimitsExceeded(_) => {
-                (reason_code!("route_not_supported"), "admg_transport.consumer_limits")
-            }
-            Self::ProofMismatch(inner) => admg_conditional_refusal(inner).unwrap_or((
-                reason_code!("transport_not_certified"),
-                "admg_transport.invalid_derivation",
-            )),
-            Self::ReplayMismatch(_) => {
-                (reason_code!("transport_not_certified"), "admg_transport.replay_mismatch")
-            }
-            Self::PremisesMismatch => {
-                (reason_code!("transport_not_certified"), "admg_transport.premises_mismatch")
-            }
-            Self::DataIdentityMismatch => {
-                (reason_code!("transport_not_certified"), "admg_transport.data_identity_mismatch")
-            }
-        }
-    }
-}
-
+pub use antecedent_io_core::transport_errors::AdmgConditionalArtifactError;
 /// A conditional-route identification error as the io error a caller sees: the
 /// record's `reason=<code>: <detail>: ...` refusal when the route owns it.
 #[must_use]
+// doc(hidden): the facade maps refusals through it.
 #[doc(hidden)]
 pub fn admg_conditional_identification_error(error: IdentificationError) -> IoError {
     match admg_conditional_refusal(&error) {
@@ -182,6 +109,19 @@ impl Default for AdmgConditionalConsumeLimits {
             max_laws: 1024,
             max_law_cells: 1_000_000,
             max_requests: 64,
+        }
+    }
+}
+
+impl AdmgConditionalConsumeLimits {
+    /// The exact-law replay bounds, as the shared checks read them.
+    #[must_use]
+    pub const fn replay(&self) -> crate::ConsumeLimits {
+        crate::ConsumeLimits {
+            evaluation: self.evaluation,
+            max_support_rows: self.max_support_rows,
+            max_laws: self.max_laws,
+            max_law_cells: self.max_law_cells,
         }
     }
 }
@@ -368,7 +308,7 @@ fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<Strin
         .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
         .collect::<Vec<_>>();
     snapshots.sort();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &(
             "admg_conditional_data_v1",
@@ -376,8 +316,7 @@ fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<Strin
             bindings,
             snapshots,
         ),
-    )?
-    .to_hex())
+    )
 }
 
 fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
@@ -406,18 +345,11 @@ fn request_of(wire: &[(u32, ValueWire)]) -> Assignment {
     Assignment::from_pairs(wire.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())))
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
-/// Refuse any format version but `expected` before the payload is interpreted.
-fn peek_version(bytes: &[u8], expected: u32) -> Result<(), IoError> {
-    let peek: VersionPeek = crate::from_cbor(bytes)?;
-    if peek.version == expected {
+fn refuse_other_version(version: u32, expected: u32) -> Result<(), IoError> {
+    if version == expected {
         Ok(())
     } else {
-        Err(AdmgConditionalArtifactError::UnsupportedVersion { version: peek.version }.into())
+        Err(AdmgConditionalArtifactError::UnsupportedVersion { version }.into())
     }
 }
 
@@ -527,11 +459,7 @@ impl AdmgConditionalArtifactWire {
     /// # Errors
     /// The premises do not encode.
     pub fn expected_premises_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
-            IdentityDomain::TransportCertificate,
-            &self.premises_view(),
-        )?
-        .to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &self.premises_view())
     }
 
     /// The data-identity digest the stored snapshot ids should carry.
@@ -597,8 +525,9 @@ impl AdmgConditionalArtifactWire {
     /// [`AdmgConditionalArtifactError::UnsupportedVersion`] for another
     /// version, or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        peek_version(bytes, ADMG_CONDITIONAL_ARTIFACT_VERSION)?;
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            refuse_other_version(version, ADMG_CONDITIONAL_ARTIFACT_VERSION)
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -632,29 +561,25 @@ impl AdmgConditionalArtifactWire {
         {
             return Err(exceeded("query size"));
         }
-        if self.search_operations > limits.search.operations {
-            return Err(exceeded("search operation limit"));
+        if let Some(what) =
+            crate::search_bounds(self.search_operations, self.search_depth, limits.search)
+        {
+            return Err(exceeded(what));
         }
-        if self.search_depth > limits.search.depth {
-            return Err(exceeded("search depth limit"));
-        }
-        if self.operation_limit > limits.evaluation.operations {
-            return Err(exceeded("operation limit"));
-        }
-        if self.depth_limit > limits.evaluation.depth {
-            return Err(exceeded("depth limit"));
-        }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(exceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(exceeded("law count"));
+        let replay = limits.replay();
+        if let Some(what) = replay.budget(
+            self.operation_limit,
+            self.depth_limit,
+            self.max_support_rows,
+            self.laws.len(),
+        ) {
+            return Err(exceeded(what));
         }
         if self.requests.len() > limits.max_requests {
             return Err(exceeded("request count"));
         }
-        if self.laws.iter().any(|law| law.probabilities.len() > limits.max_law_cells) {
-            return Err(exceeded("law cells"));
+        if let Some(what) = replay.law_cells(&self.laws, false) {
+            return Err(exceeded(what));
         }
         Ok(())
     }
@@ -673,13 +598,19 @@ impl AdmgConditionalArtifactWire {
     ) -> Result<ConsumedAdmgConditional, IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(AdmgConditionalArtifactError::PremisesMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || AdmgConditionalArtifactError::PremisesMismatch.into(),
+        )?;
         let catalog = wire.catalog.to_catalog()?;
-        if data_digest(&catalog, &wire.laws)? != wire.data_digest {
-            return Err(AdmgConditionalArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.data_digest,
+            data_digest(&catalog, &wire.laws),
+            std::convert::identity,
+            || AdmgConditionalArtifactError::DataIdentityMismatch.into(),
+        )?;
         let graph = admg_from_wire(&wire.graph)?;
         let diagram = SelectionDiagram::try_new(
             graph,
@@ -842,7 +773,7 @@ impl AdmgConditionalObstructionWire {
         let mut graph = self.graph.clone();
         graph.directed.sort_unstable();
         graph.bidirected.sort_unstable();
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &ObstructionPremisesView {
                 tag: "admg_conditional_obstruction_v1",
@@ -852,8 +783,7 @@ impl AdmgConditionalObstructionWire {
                 proof: &self.proof,
                 variable_names: &self.variable_names,
             },
-        )?
-        .to_hex())
+        )
     }
 
     fn validate_shape(&self) -> Result<(), AdmgConditionalArtifactError> {
@@ -923,8 +853,9 @@ impl AdmgConditionalObstructionWire {
     /// [`AdmgConditionalArtifactError::UnsupportedVersion`] for another
     /// version, or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        peek_version(bytes, ADMG_CONDITIONAL_OBSTRUCTION_VERSION)?;
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            refuse_other_version(version, ADMG_CONDITIONAL_OBSTRUCTION_VERSION)
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -958,9 +889,12 @@ impl AdmgConditionalObstructionWire {
     ) -> Result<ConsumedAdmgConditionalObstruction, IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_bounds()?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(AdmgConditionalArtifactError::PremisesMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || AdmgConditionalArtifactError::PremisesMismatch.into(),
+        )?;
         let graph = admg_from_wire(&wire.graph)?;
         let diagram = SelectionDiagram::try_new(
             graph,

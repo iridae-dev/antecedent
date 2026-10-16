@@ -8,8 +8,9 @@ use antecedent::analysis::recalc_receipt::UtilitySpec;
 use antecedent::analysis::recalc_static::{
     StaticResponseRequest, StaticResponseSession, execute_static_response_with_receipt,
 };
+use antecedent_contract::{ExternalProgramClaim, ProgramBinding};
 use antecedent_core::recalc::{Branch, Stage, StageStatus};
-use antecedent_core::{ExecutionContext, ExternalProgramClaim, ProgramBinding, VariableId};
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_design::composition_boundary::{SupportPolicy, SupportedVerdict};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
@@ -58,7 +59,7 @@ fn fixture() -> (CompositeSession, CompositeRequest, reference::Provider, refere
     let binding = ProgramBinding {
         contract_id: antecedent_io::external_binding_wire::native_contract_identity(
             &graph_id,
-            result.response.as_ref().unwrap().identification_status.as_str(),
+            result.response().unwrap().identification_status.as_str(),
             None,
         )
         .unwrap(),
@@ -262,7 +263,7 @@ fn native_data_refresh_counts_real_factors_and_retains_both_providers() {
             .identities
             .data_snapshot
     );
-    let response = session.native().result().unwrap().response.as_ref().unwrap();
+    let response = session.native().result().unwrap().response().unwrap();
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean: means, .. },
     ) = &response.estimate
@@ -512,7 +513,7 @@ fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_
         serde_json::from_slice(&after.to_bytes().unwrap()).unwrap();
     mutated["source"]["selected_action"] = serde_json::json!("extend");
     mutated["identity"] = serde_json::json!("");
-    let digest = blake3::hash(&serde_json::to_vec(&mutated).unwrap()).to_hex().to_string();
+    let digest = antecedent_core::blake3_hex(&serde_json::to_vec(&mutated).unwrap());
     mutated["identity"] = serde_json::json!(digest);
     // Arbitrary JSON canonicalization also refuses; the independent consumer owns its canonical format.
     assert!(

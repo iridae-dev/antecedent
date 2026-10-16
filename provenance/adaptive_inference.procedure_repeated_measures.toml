@@ -1,0 +1,23 @@
+feature_id = "adaptive_inference.procedure_repeated_measures"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Design effect and unit-summary variance of repeated or clustered Gaussian measurements under a
+# declared within-unit correlation (compound symmetry, first-order autoregressive, or a unit random
+# effect), the exact binomial-mixture law of the contrast of arm means of unit summaries for a fixed
+# allocation, and a seeded simulation of an epsilon-greedy unit-level assignment. Standard
+# closed forms of the intraclass correlation and of generalized least squares weights; no primary
+# paper introduces this particular composition.
+papers = []
+implementation_deviations = [
+  "Gaussian outcomes, two arms, 2 to 32 measurements per unit; fixed or epsilon-greedy unit-level assignment with no interim analysis and no stopping.",
+  "The within-unit dependence is declared and never defaulted; independence assumed for dependent measurements is refused.",
+  "Exact forms and Monte Carlo error are reported separately; no coverage or calibration is claimed (derived_unmeasured).",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-stats/tests/adaptive_repeated_measures_oracle.rs",
+]

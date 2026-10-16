@@ -26,13 +26,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{
-    ExternalCapability, ExternalRefusal, ExternalTrustState, ScientificQuantity, SupportStatus,
+use antecedent_contract::{
+    ExternalCapability, ExternalRefusal, ExternalTrustState, ProviderTrust, ScientificQuantity,
 };
-use antecedent_io::IoError;
-use antecedent_io::distribution_artifact::{
-    DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
+use antecedent_core::{CanonicalWriter, SupportStatus};
+use antecedent_io_core::IoError;
+use antecedent_io_core::distribution_artifact::{
+    DistributionArtifact, DistributionCalibration, DistributionTrust,
 };
+
+use crate::signal::{RefusalBuilder, at_stage};
 
 use crate::decision_contract::{
     DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion, DecisionFunctional,
@@ -53,6 +56,25 @@ pub enum ProviderKind {
     ExternalAttested,
     /// An external object verified for its exact request.
     ExternalExactRequestVerified,
+}
+
+impl ProviderKind {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Native => "native",
+            Self::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
+            Self::ExternalExactRequestVerified => ProviderTrust::ExactRequestVerified.as_wire(),
+        }
+    }
+}
+
+fn trust_label(trust: DistributionTrust) -> &'static str {
+    match trust {
+        DistributionTrust::NativeLicensed => ProviderTrust::NativeLicensed.as_wire(),
+        DistributionTrust::ExternalAttested => ProviderTrust::ExternallyAttested.as_wire(),
+        DistributionTrust::VerifiedExtension => ProviderTrust::ExactRequestVerified.as_wire(),
+        DistributionTrust::Unverified => ProviderTrust::Unverified.as_wire(),
+    }
 }
 
 /// Calibration standing of an input after trust resolution.
@@ -217,7 +239,7 @@ impl ScalarClaim {
 #[derive(Clone, Debug, PartialEq)]
 // The joint law is the large variant; boxing it would change the public pattern
 // `InputSource::JointLaw(artifact)` used by callers and tests.
-#[allow(clippy::large_enum_variant)]
+#[allow(clippy::large_enum_variant, reason = "built once per call and moved, never stored in bulk")]
 pub enum InputSource {
     /// One mean per coordinate.
     Mean(MeanSource),
@@ -268,18 +290,22 @@ fn resolve_trust(evidence: &TrustEvidence, provider_id: &str, snapshot_id: &str)
             receipt: Some(ReceiptRef::Attestation { attestor: attestor.clone() }),
         },
         TrustEvidence::External(ExternalTrustState::ExactRequestVerified(receipt)) => {
-            let object = receipt.contract().identity();
-            if object.provider_id == provider_id && object.snapshot_id == snapshot_id {
-                Resolved {
+            // A receipt may verify several exact requests of one provider; the
+            // input is backed only by one that names this provider and snapshot.
+            let verified =
+                receipt.requests().iter().map(antecedent_contract::VerifiedRequest::identity).find(
+                    |object| object.provider_id == provider_id && object.snapshot_id == snapshot_id,
+                );
+            match verified {
+                Some(object) => Resolved {
                     kind: ProviderKind::ExternalExactRequestVerified,
                     trust: DistributionTrust::VerifiedExtension,
                     receipt: Some(ReceiptRef::Verification {
                         object_id: object.object_id.clone(),
                         request_id: object.request_id.clone(),
                     }),
-                }
-            } else {
-                unproven
+                },
+                None => unproven,
             }
         }
         // A missing record, a record for another provider or snapshot, and an
@@ -334,46 +360,23 @@ const fn calibration_status(
     }
 }
 
-fn absorb(hasher: &mut blake3::Hasher, part: &str) {
-    hasher.update(&u64::try_from(part.len()).unwrap_or(u64::MAX).to_le_bytes());
-    hasher.update(part.as_bytes());
-}
-
-fn absorb_quantity(hasher: &mut blake3::Hasher, quantity: &ScientificQuantity) {
-    absorb(hasher, &quantity.variable_id);
-    absorb(hasher, &quantity.population_id);
-    absorb(hasher, &quantity.regime_id);
-    absorb(hasher, &quantity.functional_id);
-    absorb(hasher, &quantity.transform_id);
-    absorb(hasher, &format!("{:?}", quantity.conditioning));
-    hasher.update(&quantity.horizon.to_le_bytes());
-}
-
-fn absorb_values(hasher: &mut blake3::Hasher, values: &[f64]) {
-    hasher.update(&u64::try_from(values.len()).unwrap_or(u64::MAX).to_le_bytes());
-    for value in values {
-        hasher.update(&value.to_le_bytes());
-    }
-}
-
 fn lineage_digest(
     source: &InputSource,
     coordinates: &[(ScientificQuantity, SupportStatus)],
     kind: ProviderKind,
     trust: DistributionTrust,
 ) -> String {
-    let mut hasher = blake3::Hasher::new();
-    absorb(&mut hasher, "antecedent.composition_boundary.input.v1");
+    let mut hasher = CanonicalWriter::new("antecedent.composition_boundary.input.v1");
     match source {
         InputSource::Mean(mean) => {
-            absorb(&mut hasher, "mean");
+            hasher.text("mean");
             for id in [&mean.provider_id, &mean.snapshot_id, &mean.causal_contract_id] {
-                absorb(&mut hasher, id);
+                hasher.text(id);
             }
-            absorb_values(&mut hasher, &mean.means);
+            hasher.reals(&mean.means);
         }
         InputSource::JointLaw(artifact) => {
-            absorb(&mut hasher, "joint_law");
+            hasher.text("joint_law");
             let identity = &artifact.metadata().identity;
             for id in [
                 &identity.source_id,
@@ -382,25 +385,25 @@ fn lineage_digest(
                 &identity.snapshot_id,
                 &identity.causal_contract_id,
             ] {
-                absorb(&mut hasher, id);
+                hasher.text(id);
             }
-            absorb_values(&mut hasher, artifact.draws());
+            hasher.reals(artifact.draws());
         }
         InputSource::Scalar(claim) => {
-            absorb(&mut hasher, "scalar");
+            hasher.text("scalar");
             for id in [&claim.provider_id, &claim.snapshot_id, &claim.causal_contract_id] {
-                absorb(&mut hasher, id);
+                hasher.text(id);
             }
-            absorb_values(&mut hasher, &[claim.value]);
+            hasher.reals(&[claim.value]);
         }
     }
     for (quantity, status) in coordinates {
-        absorb_quantity(&mut hasher, quantity);
-        absorb(&mut hasher, &format!("{status:?}"));
+        quantity.write_canonical(&mut hasher);
+        hasher.text(status.as_str());
     }
-    absorb(&mut hasher, &format!("{kind:?}"));
-    absorb(&mut hasher, &format!("{trust:?}"));
-    hasher.finalize().to_hex().to_string()
+    hasher.text(kind.label());
+    hasher.text(trust_label(trust));
+    hasher.finish_hex()
 }
 
 fn check_id(id: &str) -> Result<(), BoundaryError> {
@@ -510,7 +513,7 @@ impl DecisionInput {
             ExternalCapability::Mean,
             ExternalCapability::Covariance,
         ];
-        let meaning = antecedent_core::DistributionMeaning::from(artifact.semantic());
+        let meaning = antecedent_contract::DistributionMeaning::from(artifact.semantic());
         if meaning.answers_interventional_outcome_threshold() {
             capabilities.push(ExternalCapability::Intervention);
         }
@@ -592,6 +595,21 @@ impl DecisionInput {
         &self.provenance
     }
 
+    /// Weaken every coordinate's support to at most `floor`: a coordinate
+    /// keeps its own status when that is already weaker. A route that carries
+    /// a source across populations uses this so the label of the carrying
+    /// (its receipt) governs a law's coordinates, not the artifact's mask
+    /// alone. Never strengthens a status.
+    #[must_use]
+    pub fn with_support_floor(mut self, floor: SupportStatus) -> Self {
+        for (_, status) in &mut self.support.entries {
+            if status.severity() < floor.severity() {
+                *status = floor;
+            }
+        }
+        self
+    }
+
     /// Per-coordinate support.
     #[must_use]
     pub const fn support(&self) -> &SupportMap {
@@ -666,109 +684,101 @@ pub enum BoundaryError {
     UnknownInput(String),
 }
 
-fn refusal(code: &'static str, detail: &str) -> ExternalRefusal {
-    ExternalRefusal {
-        code,
-        stage: "compose",
-        detail: detail.to_owned(),
-        offending: None,
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
-    }
+fn refusal(code: &'static str, detail: &str) -> RefusalBuilder {
+    RefusalBuilder::new(code, "compose", detail)
 }
 
 impl BoundaryError {
     /// Structured refusal with a registered code and a namespaced detail.
     #[must_use]
-    #[allow(clippy::too_many_lines)]
     pub fn to_refusal(&self) -> ExternalRefusal {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let unsatisfied = antecedent_core::reason_code!("decision_contract_unsatisfied");
         let unverifiable = antecedent_core::reason_code!("attested_not_reverifiable");
         let shared = antecedent_core::reason_code!("scenario_aggregate_not_licensed");
         let dependence = antecedent_core::reason_code!("sampling_dependence_unknown");
-        let pair = |left: &String, right: &String| Some(format!("{left}~{right}"));
+        let pair = |left: &String, right: &String| format!("{left}~{right}");
         match self {
-            Self::InvalidInput(why) => ExternalRefusal {
-                expected: Some((*why).to_owned()),
-                ..refusal(invalid, "composition_boundary.invalid_input")
-            },
-            Self::Artifact(error) => ExternalRefusal {
-                supplied: Some(error.to_string()),
-                ..refusal(invalid, "composition_boundary.artifact_rebuild_failed")
-            },
-            Self::MetadataOnlyNativeClaim { input } => ExternalRefusal {
-                offending: Some(input.clone()),
-                remedy: Some("supply a native execution record for this provider and snapshot"),
-                ..refusal(unverifiable, "composition_boundary.metadata_only_native_claim")
-            },
-            Self::NativeRequired { input } => ExternalRefusal {
-                offending: Some(input.clone()),
-                remedy: Some("supply a native execution record, or relax the requirement"),
-                ..refusal(unverifiable, "composition_boundary.native_required")
-            },
-            Self::VerificationReceiptMissing { input } => ExternalRefusal {
-                offending: Some(input.clone()),
-                remedy: Some("supply an exact-request verification receipt for this object"),
-                ..refusal(
-                    antecedent_core::reason_code!("external_verification_failed"),
-                    "composition_boundary.verification_receipt_missing",
-                )
-            },
-            Self::Eval(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "compose";
-                value
+            Self::InvalidInput(why) => {
+                refusal(invalid, "composition_boundary.invalid_input").expected(*why).build()
             }
-            Self::UnsupportedActions { actions } => ExternalRefusal {
-                offending: Some(actions.join(",")),
-                remedy: Some("compare supported actions, or supply the missing coordinates"),
-                ..refusal(unsatisfied, "composition_boundary.unsupported_action_not_comparable")
-            },
-            Self::MeanIsNotADistribution { action } => ExternalRefusal {
-                offending: Some(action.clone()),
-                remedy: Some("supply an aligned joint law for this functional"),
-                ..refusal(unsatisfied, "composition_boundary.mean_is_not_a_distribution")
-            },
-            Self::PairedDrawsAcrossSources => ExternalRefusal {
-                remedy: Some("supply one aligned joint law covering every compared action"),
-                ..refusal(
-                    antecedent_core::reason_code!("joint_law_required"),
-                    "composition_boundary.paired_draws_across_sources",
-                )
-            },
-            Self::OperationNotDeclared => ExternalRefusal {
-                remedy: Some("declare pooling, borrowing, transport or evidence reuse"),
-                ..refusal(invalid, "composition_boundary.operation_not_declared")
-            },
-            Self::SharedEvidenceNotIndependent { left, right } => ExternalRefusal {
-                offending: pair(left, right),
-                remedy: Some("declare a covariance or joint-law route, or use another operation"),
-                ..refusal(shared, "composition_boundary.shared_evidence_not_independent")
-            },
-            Self::UnknownDependence { left, right } => ExternalRefusal {
-                offending: pair(left, right),
-                remedy: Some("declare how the two inputs depend on each other"),
-                ..refusal(dependence, "composition_boundary.unknown_dependence_is_not_independence")
-            },
-            Self::DependenceRouteNotLicensed { left, right } => ExternalRefusal {
-                offending: pair(left, right),
-                remedy: Some("name an aligned joint-law input that is one of the pair"),
-                ..refusal(dependence, "composition_boundary.dependence_route_not_licensed")
-            },
-            Self::ConflictingAtomsNotAveraged => ExternalRefusal {
-                remedy: Some("declare a probability for every atom, or report each atom"),
-                ..refusal(shared, "composition_boundary.conflicting_atoms_not_averaged")
-            },
+            Self::Artifact(error) => {
+                refusal(invalid, "composition_boundary.artifact_rebuild_failed")
+                    .supplied(error.to_string())
+                    .build()
+            }
+            Self::MetadataOnlyNativeClaim { input } => {
+                refusal(unverifiable, "composition_boundary.metadata_only_native_claim")
+                    .offending(input.clone())
+                    .remedy("supply a native execution record for this provider and snapshot")
+                    .build()
+            }
+            Self::NativeRequired { input } => {
+                refusal(unverifiable, "composition_boundary.native_required")
+                    .offending(input.clone())
+                    .remedy("supply a native execution record, or relax the requirement")
+                    .build()
+            }
+            Self::VerificationReceiptMissing { input } => refusal(
+                antecedent_core::reason_code!("external_verification_failed"),
+                "composition_boundary.verification_receipt_missing",
+            )
+            .offending(input.clone())
+            .remedy("supply an exact-request verification receipt for this object")
+            .build(),
+            Self::Eval(error) => at_stage(error.to_refusal(), "compose"),
+            Self::UnsupportedActions { actions } => {
+                refusal(unsatisfied, "composition_boundary.unsupported_action_not_comparable")
+                    .offending(actions.join(","))
+                    .remedy("compare supported actions, or supply the missing coordinates")
+                    .build()
+            }
+            Self::MeanIsNotADistribution { action } => {
+                refusal(unsatisfied, "composition_boundary.mean_is_not_a_distribution")
+                    .offending(action.clone())
+                    .remedy("supply an aligned joint law for this functional")
+                    .build()
+            }
+            Self::PairedDrawsAcrossSources => refusal(
+                antecedent_core::reason_code!("joint_law_required"),
+                "composition_boundary.paired_draws_across_sources",
+            )
+            .remedy("supply one aligned joint law covering every compared action")
+            .build(),
+            Self::OperationNotDeclared => {
+                refusal(invalid, "composition_boundary.operation_not_declared")
+                    .remedy("declare pooling, borrowing, transport or evidence reuse")
+                    .build()
+            }
+            Self::SharedEvidenceNotIndependent { left, right } => {
+                refusal(shared, "composition_boundary.shared_evidence_not_independent")
+                    .offending(pair(left, right))
+                    .remedy("declare a covariance or joint-law route, or use another operation")
+                    .build()
+            }
+            Self::UnknownDependence { left, right } => {
+                refusal(dependence, "composition_boundary.unknown_dependence_is_not_independence")
+                    .offending(pair(left, right))
+                    .remedy("declare how the two inputs depend on each other")
+                    .build()
+            }
+            Self::DependenceRouteNotLicensed { left, right } => {
+                refusal(dependence, "composition_boundary.dependence_route_not_licensed")
+                    .offending(pair(left, right))
+                    .remedy("name an aligned joint-law input that is one of the pair")
+                    .build()
+            }
+            Self::ConflictingAtomsNotAveraged => {
+                refusal(shared, "composition_boundary.conflicting_atoms_not_averaged")
+                    .remedy("declare a probability for every atom, or report each atom")
+                    .build()
+            }
             Self::InvalidAtomProbabilities => {
-                refusal(unsatisfied, "composition_boundary.atom_probabilities_invalid")
+                refusal(unsatisfied, "composition_boundary.atom_probabilities_invalid").build()
             }
-            Self::UnknownInput(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..refusal(invalid, "composition_boundary.unknown_input")
-            },
+            Self::UnknownInput(id) => {
+                refusal(invalid, "composition_boundary.unknown_input").offending(id.clone()).build()
+            }
         }
     }
 
@@ -1094,6 +1104,7 @@ fn run_source(
     result.map_err(BoundaryError::Eval)
 }
 
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 fn run_groups(
     contract: &DecisionContract,
     inputs: &[DecisionInput],
@@ -1434,6 +1445,7 @@ fn validate_route(
     route: &DependenceRoute,
     left: &DecisionInput,
     right: &DecisionInput,
+    row_pairing: bool,
 ) -> Result<(), BoundaryError> {
     let unlicensed = || BoundaryError::DependenceRouteNotLicensed {
         left: left.id.clone(),
@@ -1443,12 +1455,10 @@ fn validate_route(
     let Some(input) = source else {
         return Err(unlicensed());
     };
-    let aligned = matches!(
-        &input.source,
-        InputSource::JointLaw(artifact)
-            if artifact.metadata().identity.alignment == DrawAlignment::Joint
-    );
+    let aligned = rows_pairable(input);
     let capable = match route.kind {
+        // A covariance cannot pair draws row by row (`covariance_insufficient_for_nonlinear`).
+        RouteKind::Covariance if row_pairing => false,
         RouteKind::Covariance => {
             input.provenance.capabilities.contains(&ExternalCapability::Covariance)
         }
@@ -1507,6 +1517,20 @@ pub fn check_composition(
     relations: &[PairRelation],
     operation: Option<CompositionOperation>,
 ) -> Result<CompositionReceipt, BoundaryError> {
+    compose_checked(inputs, relations, operation, false)
+}
+
+/// Shared body of [`check_composition`] and [`check_paired_draws`].
+///
+/// `row_pairing` is set when the caller pairs draws row by row; a covariance
+/// then licenses no dependence, as the joint-law rule refuses a covariance for
+/// a nonlinear row-paired operation.
+fn compose_checked(
+    inputs: &[DecisionInput],
+    relations: &[PairRelation],
+    operation: Option<CompositionOperation>,
+    row_pairing: bool,
+) -> Result<CompositionReceipt, BoundaryError> {
     let Some(operation) = operation else {
         return Err(BoundaryError::OperationNotDeclared);
     };
@@ -1534,7 +1558,7 @@ pub fn check_composition(
             }
             let route = declared.and_then(|r| r.route.as_ref());
             if let Some(route) = route {
-                validate_route(route, left, right)?;
+                validate_route(route, left, right, row_pairing)?;
             }
             if let Err(issue) = pair_policy(operation, &relation) {
                 if let Some(route) = route {
@@ -1569,6 +1593,35 @@ pub fn check_composition(
     })
 }
 
+/// The alignment of an input's rows as the joint-law propagation rule reads
+/// it: the artifact's real pairing identity for one joint law, independent
+/// marginals for separately sampled draws, moments only otherwise.
+fn input_alignment(input: &DecisionInput) -> antecedent_contract::InputAlignment {
+    match &input.source {
+        InputSource::JointLaw(artifact) => artifact
+            .input_alignment()
+            .unwrap_or(antecedent_contract::InputAlignment::IndependentMarginals),
+        _ => antecedent_contract::InputAlignment::MomentsOnly,
+    }
+}
+
+/// Whether an input's rows are realizations of one joint law, decided by the
+/// joint-law propagation rule (`antecedent_contract::check_rows_pairable`).
+fn rows_pairable(input: &DecisionInput) -> bool {
+    // One input is checked against a partner of the same law, so only its own
+    // flag is decided here; distinct artifacts are compared by their real
+    // identities through `check_rows_pairable_across`.
+    let alignment = match input_alignment(input) {
+        antecedent_contract::InputAlignment::Aligned { .. } => {
+            antecedent_contract::InputAlignment::Aligned {
+                alignment_id: "declared_pairing".to_owned(),
+            }
+        }
+        other => other,
+    };
+    antecedent_contract::check_rows_pairable(&alignment).is_ok()
+}
+
 /// Check that the draws of `inputs` may be paired row by row.
 ///
 /// Pairing draws from separate sources treats them as independent, so this is
@@ -1583,14 +1636,18 @@ pub fn check_paired_draws(
     relations: &[PairRelation],
 ) -> Result<CompositionReceipt, BoundaryError> {
     let mut draw_count = None;
+    let alignments: Vec<antecedent_contract::InputAlignment> =
+        inputs.iter().map(input_alignment).collect();
     for input in inputs {
+        // The propagation rule decides whether the input's rows may be paired;
+        // the refusal keeps this module's existing error and detail.
         let InputSource::JointLaw(artifact) = &input.source else {
             return Err(BoundaryError::Eval(DecisionEvalError::JointLawRequired {
                 action: None,
                 supplied_alignment: "not_a_joint_law",
             }));
         };
-        if artifact.metadata().identity.alignment != DrawAlignment::Joint {
+        if !rows_pairable(input) {
             return Err(BoundaryError::Eval(DecisionEvalError::JointLawRequired {
                 action: None,
                 supplied_alignment: "not_a_joint_law",
@@ -1602,7 +1659,29 @@ pub fn check_paired_draws(
         }
         draw_count = Some(n);
     }
-    check_composition(inputs, relations, Some(CompositionOperation::StatisticalPooling))
+    let receipt =
+        compose_checked(inputs, relations, Some(CompositionOperation::StatisticalPooling), true)?;
+    // Separate artifacts are paired only when they carry the same alignment
+    // identity; a flag on each input alone cannot detect two different laws.
+    // A declared joint-law route is the pair's own pairing declaration.
+    for (i, left) in inputs.iter().enumerate() {
+        for (j, right) in inputs.iter().enumerate().skip(i + 1) {
+            let routed = find_relation(relations, &left.id, &right.id)
+                .and_then(|relation| relation.route.as_ref())
+                .is_some_and(|route| route.kind == RouteKind::JointLaw);
+            if routed {
+                continue;
+            }
+            let pair = [(left.id.as_str(), &alignments[i]), (right.id.as_str(), &alignments[j])];
+            if antecedent_contract::check_rows_pairable_across(&pair).is_err() {
+                return Err(BoundaryError::Eval(DecisionEvalError::JointLawRequired {
+                    action: None,
+                    supplied_alignment: "alignment_mismatch",
+                }));
+            }
+        }
+    }
+    Ok(receipt)
 }
 
 /// How structural atoms are to be combined.

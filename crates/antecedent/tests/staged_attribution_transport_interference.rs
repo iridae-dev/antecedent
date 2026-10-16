@@ -65,7 +65,7 @@ fn anomaly_attribution_known_truth() {
     let result = prepared.estimate(&data, &ctx()).unwrap();
     assert_eq!(result.support_status, Some(CellStatus::Licensed));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    let scores = result.anomaly.as_ref().expect("anomaly scores");
+    let scores = result.anomaly().expect("anomaly scores");
     let y = scores.iter().find(|s| s.target == VariableId::from_raw(1)).expect("y target");
     let (top_i, top) =
         y.scores.iter().enumerate().max_by(|a, b| a.1.partial_cmp(b.1).unwrap()).unwrap();
@@ -99,7 +99,7 @@ fn change_attribution_known_truth() {
     let result = prepared.estimate(&data, &ctx()).unwrap();
     assert_eq!(result.support_status, Some(CellStatus::Licensed));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    let change = result.change_attribution.as_ref().expect("change attribution");
+    let change = result.change_attribution().expect("change attribution");
     let expected = pin["change"]["total_change"].as_f64().unwrap();
     let tol = pin["change"]["tolerance"].as_f64().unwrap();
     assert!(
@@ -136,7 +136,7 @@ fn bayesian_attribution_shared_row_weight_known_truth() {
     assert_eq!(anomaly_posterior.draws.schema.n_quantities(), 1);
     assert!(anomaly_posterior.summaries.mean[0] > 0.0);
     let y_scores = anomaly
-        .anomaly
+        .anomaly()
         .as_ref()
         .unwrap()
         .iter()
@@ -221,7 +221,7 @@ fn transport_direct_trial_ipw_known_truth() {
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(result.estimand.method.as_ref(), "transport.sid.direct");
-    let transported = result.transport.as_ref().expect("transport estimate");
+    let transported = result.transport().expect("transport estimate");
     let atol = pin["tolerance"].as_f64().unwrap();
     assert!((transported.ipw - pin["ipw"].as_f64().unwrap()).abs() <= atol);
 }
@@ -265,7 +265,7 @@ fn interference_bernoulli_neighbor_count_known_truth() {
     assert_eq!(result.support_status, Some(CellStatus::Licensed));
     assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
     assert_eq!(result.estimand.method.as_ref(), "interference.design");
-    let estimated = result.interference.as_ref().expect("interference estimate");
+    let estimated = result.interference().expect("interference estimate");
     let expected = &pin["expected"];
     let atol = pin["tolerance"]["atol"].as_f64().unwrap();
     assert!(
@@ -338,7 +338,7 @@ fn bayesian_interference_fixed_network_posterior_matches_known_truth() {
     // to-minus-from contrast is beta-gamma=-1.
     let expected = fixture["expected_contrast"].as_f64().unwrap();
     let tolerance = fixture["tolerance"].as_f64().unwrap();
-    assert!((result.estimate.ate - expected).abs() < tolerance);
+    assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "interference.fixed_network_gaussian_potential_outcomes")));
 }
 
@@ -377,19 +377,19 @@ fn interference_click_executes_on_the_clicked_outcomes() {
     let (_, prepared) = two_unit_interference(&[1.0, 4.0]);
     let (moved, fresh) = two_unit_interference(&[2.0, 4.0]);
     let expected = fresh.estimate_retained(&ctx()).unwrap();
-    let expected = expected.interference.expect("interference estimate").contrast;
+    let expected = expected.interference().expect("interference estimate").contrast;
     // Unit 0 is exposed to (1, 0) and unit 1 to (0, 1), each with probability 1/4:
     // HT = 2/(2·0.25) − 4/(2·0.25) = −4.
     assert!((expected.horvitz_thompson + 4.0).abs() < 1e-12);
 
     let clicked = prepared.estimate(&moved, &ctx()).unwrap();
-    assert_eq!(clicked.interference.expect("interference estimate").contrast, expected);
+    assert_eq!(clicked.interference().expect("interference estimate").contrast, expected);
 
     let mut refreshed = prepared.clone();
     let result = refreshed.refresh(moved, &ctx()).unwrap();
-    assert_eq!(result.interference.expect("interference estimate").contrast, expected);
+    assert_eq!(result.interference().expect("interference estimate").contrast, expected);
     let again = refreshed.estimate_retained(&ctx()).unwrap();
-    assert_eq!(again.interference.expect("interference estimate").contrast, expected);
+    assert_eq!(again.interference().expect("interference estimate").contrast, expected);
     assert_eq!(
         refreshed.contract().unwrap().identities.data_snapshot,
         fresh.contract().unwrap().identities.data_snapshot,

@@ -24,26 +24,27 @@ pub mod overlap;
 pub mod overlap_rule;
 mod panel_slice;
 pub mod placebo;
+pub mod predictive_assessment;
 pub mod rcc;
 pub mod riesz;
 pub mod sensitivity;
 pub mod stability;
+mod streams;
 pub mod suite;
+mod tipping;
 pub mod unobserved_common_cause;
 pub mod validator;
 
 pub use bayesian_checks::{
-    DEFAULT_MAX_RELATIVE_PRIOR_RANGE, ExternalAlphaSensitivity, McmcDiagnosticsCheck,
-    PosteriorCalibrationOnSyntheticScm, PosteriorCalibrationReport, PosteriorPredictiveCheck,
-    PredictiveCheckKind, PredictiveCheckReport, PredictiveNoise, PriorPredictiveCheck,
-    PriorSensitivity, SbcReport, SerialDiscrepancy, SimulationBasedCalibration,
-    with_prior_sensitivity,
+    ExternalAlphaSensitivity, PosteriorPredictiveCheck, PredictiveCheckKind, PredictiveCheckReport,
+    PredictiveNoise, PriorPredictiveCheck, PriorSensitivity, SbcReport, SerialDiscrepancy,
+    SimulationBasedCalibration, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
 pub use common::{RefutationProblem, RefutationReport, TemporalRefitContext, stack_panel_tabular};
 pub use conflict::{
     ConflictPolicy, ConflictSignals, apply_conflict_and_compose, compose_with_conflict_policy,
-    estimate_conflict_signals, with_conflict_summary,
+    with_conflict_summary,
 };
 pub use custom::CustomEffectValidator;
 pub use data_subset::DataSubsetRefuter;
@@ -53,30 +54,26 @@ pub use evalue::{DEFAULT_EVALUE_THRESHOLD, EValue};
 pub use graph_refute::GraphRefuter;
 pub use joint_mechanism_sensitivity::{
     AxisTipping, FrontierPoint, JointDeviationSpec, JointFactor, JointFactorBound,
-    JointMechanismSensitivityResult, JointSensitivityError, JointSensitivityLimits,
-    JointSensitivityRange, JointSensitivityReceipt, JointSensitivityUncertainty, TippingBracket,
-    TippingStatus, z_transport_joint_mechanism_sensitivity,
-};
-#[cfg(feature = "calibration-internal")]
-pub use joint_mechanism_sensitivity::{
-    JointSensitivityInterval, joint_sensitivity_bootstrap_interval_internal,
+    JointMechanismSensitivityResult, JointSensitivityError, JointSensitivityInterval,
+    JointSensitivityLimits, JointSensitivityRange, JointSensitivityReceipt,
+    JointSensitivityUncertainty, TippingBracket, TippingStatus,
+    joint_sensitivity_bootstrap_interval_internal, z_transport_joint_mechanism_sensitivity,
 };
 pub use mechanism_sensitivity::{
     DiscreteKernelOptimizationReceipt, DiscreteKernelSensitivity, DiscreteKernelSensitivityError,
-    DiscreteKernelSensitivityResult, FIXED_GRAPH_SENSITIVITY_MAX_STRATA,
-    FixedGraphConditionalMechanismSensitivityResult, FixedGraphMechanismSensitivityResult,
-    FixedGraphMechanismSensitivitySpec, FixedGraphRootMechanismSensitivityResult,
-    FixedGraphSensitivityError, SourceOutcomeKernelRow, SourceParentLawRow, TargetParentLawRow,
-    ZTransportMechanismSensitivityResult, ZTransportSensitivityError,
-    fixed_graph_conditional_mechanism_sensitivity, fixed_graph_mechanism_sensitivity,
-    fixed_graph_root_mechanism_sensitivity, fixed_graph_treatment_level_sensitivity,
-    z_transport_mechanism_sensitivity,
+    DiscreteKernelSensitivityResult, FixedGraphConditionalMechanismSensitivityResult,
+    FixedGraphMechanismSensitivityResult, FixedGraphMechanismSensitivitySpec,
+    FixedGraphRootMechanismSensitivityResult, FixedGraphSensitivityError, SourceOutcomeKernelRow,
+    SourceParentLawRow, TargetParentLawRow, ZTransportMechanismSensitivityResult,
+    ZTransportSensitivityError, fixed_graph_conditional_mechanism_sensitivity,
+    fixed_graph_mechanism_sensitivity, fixed_graph_root_mechanism_sensitivity,
+    fixed_graph_treatment_level_sensitivity, z_transport_mechanism_sensitivity,
 };
 pub use mediation::QueryRefutationPlan;
 pub use msm_sensitivity::{
     MsmOutcomeLaw, MsmPoint, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,
     MsmSensitivityUncertainty, MsmStratum, MsmTipping, MsmTippingDirection, msm_ate_bounds_at,
-    msm_ate_sensitivity,
+    msm_ate_sensitivity, msm_dirichlet_posterior,
 };
 pub use overlap::OverlapRefuter;
 pub use overlap_rule::OverlapRuleRefuter;
@@ -92,12 +89,13 @@ pub use stability::{
     NullTransform, OrientationStability, OrientationStabilityReport, RegimeStability,
     RegimeStabilityReport, SyntheticNullCalibration, UndirectedLinkStability,
 };
-pub use suite::{BayesianSuiteContext, ValidationOutcome, ValidationSuite, ValidatorId};
+pub use suite::{
+    BayesianSuiteContext, ConfiguredValidator, ValidationOutcome, ValidationSuite, ValidatorId,
+};
 pub use unobserved_common_cause::UnobservedCommonCause;
-pub use validator::{PreparedRefutation, Validator, run_validator};
+pub use validator::{PreparedRefutation, Validator};
 
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests;

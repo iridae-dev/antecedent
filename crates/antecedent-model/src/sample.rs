@@ -2,25 +2,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{
     CausalRng, ExecutionContext, Intervention, MechanismOverride, StochasticPolicy,
 };
-use antecedent_kernels::standard_normal;
+use antecedent_kernels::{kish_ess, normalize_log_weights, standard_normal};
 
-use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatch, ValueBatchMut};
+use crate::batch::{MechanismWorkspace, ParentBatch, ValueBatch, ValueBatchMut};
 use crate::compile::{CompiledCausalModel, MechanismSlot};
 use crate::error::ModelError;
-use crate::mechanism::{evaluate_column, sample_column, sample_noise_column};
+use crate::mechanism::sample_column;
 use crate::overlay::{InterventionOverlay, ModelView};
 
 /// Sample `n_rows` observational draws from a fitted model.
@@ -220,6 +210,16 @@ fn noise_kind_override(family_id: &str) -> &'static str {
     }
 }
 
+/// Observed node values a conditional interventional sample is clamped to
+/// (`values[i]` is the evidence for `nodes[i]`).
+#[derive(Debug, Clone, Copy)]
+pub struct ConditionEvidence<'a> {
+    /// Conditioning nodes.
+    pub nodes: &'a [antecedent_graph::DenseNodeId],
+    /// Observed value of each conditioning node.
+    pub values: &'a [f64],
+}
+
 /// Sample under interventions conditioned on observed node values.
 ///
 /// Strategy:
@@ -236,17 +236,16 @@ fn noise_kind_override(family_id: &str) -> &'static str {
 /// # Errors
 ///
 /// Empty condition, intervened condition nodes, density failures, or empty weights.
-#[allow(clippy::too_many_lines)]
 pub fn sample_conditional_interventional(
     model: &CompiledCausalModel,
     interventions: &[Intervention],
-    condition_nodes: &[antecedent_graph::DenseNodeId],
-    condition_values: &[f64],
+    evidence: &ConditionEvidence<'_>,
     n_rows: usize,
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<ValueBatch, ModelError> {
+    let ConditionEvidence { nodes: condition_nodes, values: condition_values } = *evidence;
     if condition_nodes.is_empty() || condition_values.len() != condition_nodes.len() {
         return Err(ModelError::Shape {
             message: "conditional interventional sampling needs matching condition_nodes/values"
@@ -337,29 +336,19 @@ pub fn sample_conditional_interventional(
     }
 
     // Likelihood-weighting / SIR for continuous conditions.
-    sample_conditional_interventional_lw(
-        model,
-        interventions,
-        condition_nodes,
-        condition_values,
-        n_rows,
-        rng,
-        ws,
-        ctx,
-    )
+    sample_conditional_interventional_lw(model, interventions, evidence, n_rows, rng, ws, ctx)
 }
 
-#[allow(clippy::too_many_lines)] // one linear derivation; splitting it would scatter the argument
 fn sample_conditional_interventional_lw(
     model: &CompiledCausalModel,
     interventions: &[Intervention],
-    condition_nodes: &[antecedent_graph::DenseNodeId],
-    condition_values: &[f64],
+    evidence: &ConditionEvidence<'_>,
     n_rows: usize,
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<ValueBatch, ModelError> {
+    let ConditionEvidence { nodes: condition_nodes, values: condition_values } = *evidence;
     let n_nodes = model.n_nodes();
     let base_particles = n_rows.saturating_mul(20).max(64);
     let overlay = InterventionOverlay::from_interventions(model, interventions)?;
@@ -522,37 +511,21 @@ fn weighted_particles(
     Ok((particle_buf, log_w))
 }
 
-/// Kish effective sample size `1 / Σ w²` of normalized weights.
-fn kish_ess(weights: &[f64]) -> f64 {
-    1.0 / weights.iter().map(|w| w * w).sum::<f64>()
-}
-
 /// Self-normalised importance weights from log-weights, refusing an all-non-finite or
 /// zero-mass weight vector (no particle can then represent the conditional law).
 fn normalized_weights(log_w: &[f64]) -> Result<Vec<f64>, ModelError> {
-    let n_particles = log_w.len();
-    let max_lw = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    if !max_lw.is_finite() {
-        return Err(ModelError::Unsupported {
-            message: "conditional do: all likelihood weights are non-finite".into(),
-        });
-    }
-    let mut weights = vec![0.0; n_particles];
-    let mut sum_w = 0.0;
-    for p in 0..n_particles {
-        let w = (log_w[p] - max_lw).exp();
-        weights[p] = w;
-        sum_w += w;
-    }
-    if sum_w <= 0.0 {
-        return Err(ModelError::Unsupported {
-            message: "conditional do: likelihood weights sum to zero".into(),
-        });
-    }
-    for w in &mut weights {
-        *w /= sum_w;
-    }
-    Ok(weights)
+    normalize_log_weights(log_w).map_err(|why| ModelError::Unsupported {
+        message: format!("conditional do: likelihood weights unusable: {why}"),
+    })
+}
+
+/// Shape of a posterior-predictive sample: coefficient draws and rows sampled per draw.
+#[derive(Debug, Clone, Copy)]
+pub struct PredictiveDraws {
+    /// Rows sampled for each coefficient draw.
+    pub rows_per_draw: usize,
+    /// Coefficient draws.
+    pub n_draws: usize,
 }
 
 /// Posterior-predictive interventional sampling: for each coefficient draw block,
@@ -564,8 +537,7 @@ fn normalized_weights(log_w: &[f64]) -> Result<Vec<f64>, ModelError> {
 pub fn sample_posterior_predictive<F>(
     model: &mut CompiledCausalModel,
     interventions: &[Intervention],
-    n_rows_per_draw: usize,
-    n_draws: usize,
+    draws: PredictiveDraws,
     rng: &mut CausalRng,
     ws: &mut MechanismWorkspace,
     mut draw_updater: F,
@@ -574,6 +546,7 @@ pub fn sample_posterior_predictive<F>(
 where
     F: FnMut(usize, &mut CompiledCausalModel) -> Result<(), ModelError>,
 {
+    let PredictiveDraws { rows_per_draw: n_rows_per_draw, n_draws } = draws;
     let n_nodes = model.n_nodes();
     let total_rows = n_rows_per_draw.saturating_mul(n_draws);
     let mut all = vec![0.0; total_rows * n_nodes];
@@ -840,6 +813,10 @@ fn soft_gp_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismS
 /// # Errors
 ///
 /// Unsupported policy variants.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn sample_stochastic(
     policy: &StochasticPolicy,
     n_rows: usize,
@@ -879,75 +856,6 @@ pub fn sample_stochastic(
         }
         _ => Err(ModelError::Unsupported { message: "unknown stochastic policy".into() }),
     }
-}
-
-/// Structural path: sample noise then evaluate with overlays applied post-hoc for hard sets.
-///
-/// # Errors
-///
-/// Mechanism failures, or an overlay with a node both hard-set and shifted
-/// (see [`InterventionOverlay::validate`]).
-pub fn sample_structural_with_overlay(
-    view: &ModelView<'_>,
-    n_rows: usize,
-    rng: &mut CausalRng,
-    ws: &mut MechanismWorkspace,
-) -> Result<(ValueBatch, Vec<f64>), ModelError> {
-    view.overlay.validate()?;
-    let model = view.model;
-    let n_nodes = model.n_nodes();
-    let mut noise_buf = vec![0.0; n_rows * n_nodes];
-    {
-        let mut noise = NoiseBatchMut::new(n_rows, n_nodes, &mut noise_buf)?;
-        for gather in model.parent_gathers.iter() {
-            let idx = gather.child.as_usize();
-            let col = noise.column_mut(idx)?;
-            if view.overlay.hard_set[idx].is_some() || view.overlay.stochastic[idx].is_some() {
-                col.fill(0.0);
-            } else {
-                sample_noise_column(model.mechanisms.get(gather.child), n_rows, rng, col)?;
-            }
-        }
-    }
-    let mut values_buf = vec![0.0; n_rows * n_nodes];
-    let mut values = ValueBatchMut::new(n_rows, n_nodes, &mut values_buf)?;
-    let overlay = view.overlay.as_ref();
-    let mut parent_buf: Vec<f64> = Vec::new();
-    for gather in model.parent_gathers.iter() {
-        let node = gather.child;
-        let idx = node.as_usize();
-        let need = gather.n_parents().max(1).saturating_mul(n_rows);
-        if parent_buf.len() < need {
-            parent_buf.resize(need, 0.0);
-        }
-        gather.gather(values.values, n_rows, &mut parent_buf);
-        let parents = ParentBatch {
-            n_rows,
-            n_parents: gather.n_parents(),
-            values: &parent_buf[..gather.n_parents().saturating_mul(n_rows)],
-        };
-        let out = values.column_mut(idx)?;
-        if let Some(v) = overlay.hard_set[idx] {
-            out.fill(v);
-            continue;
-        }
-        if let Some(policy) = &overlay.stochastic[idx] {
-            sample_stochastic(policy, n_rows, rng, out)?;
-            apply_shift(out, overlay.shifts[idx]);
-            continue;
-        }
-        let noise_col = &noise_buf[idx * n_rows..(idx + 1) * n_rows];
-        let slot = if let Some(soft) = &overlay.soft[idx] {
-            let existing = model.mechanisms.get(node);
-            refuse_cross_family_soft(existing, soft)?;
-            soft_to_slot(soft, gather.n_parents())?
-        } else {
-            model.mechanisms.get(node).clone()
-        };
-        evaluate_column(&slot, parents, noise_col, out, ws)?;
-        apply_shift(out, overlay.shifts[idx]);
-    }
-    Ok((values.into_batch(), noise_buf))
 }
 
 #[cfg(test)]
@@ -1049,8 +957,7 @@ mod tests {
                 variable: y,
                 policy: StochasticPolicy::Gaussian { mean: 0.0, variance: 1.0 },
             }],
-            &[y_node],
-            &[0.5],
+            &ConditionEvidence { nodes: &[y_node], values: &[0.5] },
             10,
             &mut rng,
             &mut ws,
@@ -1098,8 +1005,7 @@ mod tests {
         let batch = sample_conditional_interventional(
             &model,
             &[Intervention::set(x, Value::f64(1.0))],
-            &[y_node],
-            &[y_cond],
+            &ConditionEvidence { nodes: &[y_node], values: &[y_cond] },
             n_rows,
             &mut rng,
             &mut ws,
@@ -1146,8 +1052,7 @@ mod tests {
             sample_conditional_interventional(
                 &model,
                 &[],
-                &[y_node],
-                &[value],
+                &ConditionEvidence { nodes: &[y_node], values: &[value] },
                 64,
                 &mut rng,
                 &mut ws,

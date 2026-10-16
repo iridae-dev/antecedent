@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (ci_orientation); do not edit -->
 # CI / orientation / kNN baselines
 
 Commit: ab88e55b (the commit that added this file; the measured commit was not written down)

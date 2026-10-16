@@ -12,6 +12,7 @@ from typing import Any, ClassVar, Literal, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from .._columns import coerce_fields
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 BetaKernel = tuple[float, float]
@@ -80,7 +81,7 @@ class NestedMarkovPrior:
                         "prior shapes must lie in [1,1000000]", reason_code="invalid_argument"
                     )
                 converted.append(value)
-            object.__setattr__(self, coordinate, tuple(converted))
+            coerce_fields(self, **{coordinate: tuple(converted)})
 
     def _wire(self) -> tuple[list[float], list[float]]:
         pairs = [getattr(self, name) for name in self.coordinates]
@@ -175,8 +176,7 @@ class NestedMarkovPosteriorCandidate:
             _native=native,
         )
         instance = object.__new__(cls)
-        for name, value in fields.items():
-            object.__setattr__(instance, name, value)
+        coerce_fields(instance, **fields)
         return instance
 
     def export(self) -> bytes:

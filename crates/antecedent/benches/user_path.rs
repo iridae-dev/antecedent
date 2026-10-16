@@ -6,11 +6,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs, clippy::too_many_lines)]
+#![allow(missing_docs, reason = "bench binaries are not public API")]
 
 use std::time::Instant;
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
@@ -82,10 +82,14 @@ fn report(name: &str, ctx: &ExecutionContext, result: &antecedent::StudyResult) 
         result.performance.wall_time_ns,
         result.performance.copy_count,
         result.performance.bytes_borrowed,
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "registers every measured user-path group against one shared fixture"
+)]
 fn bench_user_path(c: &mut Criterion) {
     let n = job_n();
     let data = tabular(n);
@@ -106,7 +110,9 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function("user_path_dag_ate_frequentist", |b| {
-        b.iter(|| black_box(frequentist.clone().run(&ctx).unwrap().estimate.ate));
+        b.iter(|| {
+            black_box(frequentist.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate)
+        });
     });
     let started = Instant::now();
     let freq_result = frequentist.run(&ctx).unwrap();
@@ -134,7 +140,7 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function("user_path_dag_ate_bayesian_laplace", |b| {
-        b.iter(|| black_box(bayesian.clone().run(&ctx).unwrap().estimate.ate));
+        b.iter(|| black_box(bayesian.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
     });
     report("dag_ate_bayesian_laplace", &ctx, &bayesian.run(&ctx).unwrap());
 
@@ -154,7 +160,9 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function("user_path_intervention_level", |b| {
-        b.iter(|| black_box(intervention.clone().run(&ctx).unwrap().estimate.ate));
+        b.iter(|| {
+            black_box(intervention.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate)
+        });
     });
     report("intervention_level", &ctx, &intervention.run(&ctx).unwrap());
 
@@ -185,7 +193,7 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function("user_path_kennedy_curve", |b| {
-        b.iter(|| black_box(curve.clone().run(&ctx).unwrap().estimate.ate));
+        b.iter(|| black_box(curve.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
     });
     report("kennedy_curve", &ctx, &curve.run(&ctx).unwrap());
 
@@ -197,9 +205,11 @@ fn bench_user_path(c: &mut Criterion) {
         vec![mask_a, mask_b],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0,
-        InferenceDiagnostics::analytic("user_path_gp"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("user_path_gp"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap();
     let mixture = Study::tabular(data)
@@ -210,7 +220,7 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function("user_path_graph_posterior_mixture", |b| {
-        b.iter(|| black_box(mixture.clone().run(&ctx).unwrap().estimate.ate));
+        b.iter(|| black_box(mixture.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
     });
     report("graph_posterior_mixture", &ctx, &mixture.run(&ctx).unwrap());
 
@@ -238,7 +248,7 @@ fn bench_user_path(c: &mut Criterion) {
         .build()
         .unwrap();
     c.bench_function("user_path_temporal_pulse", |b| {
-        b.iter(|| black_box(temporal.clone().run(&ctx).unwrap().estimate.ate));
+        b.iter(|| black_box(temporal.clone().run(&ctx).unwrap().estimate.as_effect().unwrap().ate));
     });
     report("temporal_pulse", &ctx, &temporal.run(&ctx).unwrap());
 }

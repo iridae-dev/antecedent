@@ -64,15 +64,6 @@ impl Parallelism {
     pub const fn bounded(max_threads: NonZeroThreadCount) -> Self {
         Self { max_threads }
     }
-
-    /// [`default_user_threads`] as a [`Parallelism`].
-    #[must_use]
-    pub fn default_user() -> Self {
-        Self {
-            max_threads: NonZeroThreadCount::new(default_user_threads())
-                .unwrap_or_else(NonZeroThreadCount::one),
-        }
-    }
 }
 
 /// Determinism requirements for reductions and scheduling.
@@ -368,10 +359,20 @@ impl CancellationToken {
     /// A token that cancels itself on its `checks + 1`-th observation, so a
     /// test can stop a search deterministically in the middle (every budget
     /// charge observes the token once). Not for production use.
+    // doc(hidden): test helper called from integration tests across the workspace.
     #[doc(hidden)]
     #[must_use]
     pub fn cancel_after_checks(checks: usize) -> Self {
         Self { cancelled: Arc::default(), trip_after: Some(Arc::new(AtomicUsize::new(checks))) }
+    }
+
+    /// A non-owning handle that does not keep this token alive.
+    #[must_use]
+    pub fn downgrade(&self) -> WeakCancellationToken {
+        WeakCancellationToken {
+            cancelled: Arc::downgrade(&self.cancelled),
+            trip_after: self.trip_after.clone(),
+        }
     }
 
     /// Request cancellation.
@@ -392,59 +393,153 @@ impl CancellationToken {
     }
 }
 
+/// A non-owning handle to a [`CancellationToken`].
+///
+/// It keeps the token's cancellation flag reachable without keeping the token
+/// alive: once every owner of the token is gone, [`Self::upgrade`] returns
+/// `None`. A queue of contexts waiting for a run can hold these without
+/// leaking the contexts that were built and dropped.
+#[derive(Clone, Debug)]
+pub struct WeakCancellationToken {
+    cancelled: std::sync::Weak<AtomicBool>,
+    trip_after: Option<Arc<AtomicUsize>>,
+}
+
+impl WeakCancellationToken {
+    /// The token, if any owner of it is still alive.
+    #[must_use]
+    pub fn upgrade(&self) -> Option<CancellationToken> {
+        Some(CancellationToken {
+            cancelled: self.cancelled.upgrade()?,
+            trip_after: self.trip_after.clone(),
+        })
+    }
+
+    /// Whether an owner of the token is still alive.
+    #[must_use]
+    pub fn is_alive(&self) -> bool {
+        self.cancelled.strong_count() > 0
+    }
+}
+
 /// Optional progress reporting sink.
 pub trait ProgressSink: Send + Sync {
     /// Report progress in `[0.0, 1.0]` with an optional stage label.
     fn report(&self, fraction: f64, stage: &str);
 }
 
-/// Closed set of RNG stream domains.
+/// RNG stream domain: a tag that keeps indexed stream families apart.
 ///
-/// Indexed families must use [`RngFactory::stream_for`] with a dedicated variant
+/// Indexed families must use [`RngFactory::stream_for`] with a dedicated domain
 /// rather than `CONST.wrapping_add(index)` into [`RngFactory::stream`]: additive
 /// family offsets collide across domains and, under an additive mixer, across
 /// adjacent master seeds.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-#[repr(u64)]
-pub enum StreamDomain {
+///
+/// The domains the workspace's own crates draw from are the associated
+/// constants below, tags `1..=19`. The set is open: a crate outside this
+/// workspace names its own domain with [`Self::external`], which accepts only
+/// tags from [`Self::EXTERNAL_BASE`] up so it cannot alias a built-in one. The
+/// tag is the only input a domain contributes to a derived stream, so the
+/// built-in constants derive exactly the streams the closed enum did.
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+pub struct StreamDomain(u64);
+
+// The built-in domains keep their former variant spellings so no call site changes.
+#[allow(
+    non_upper_case_globals,
+    reason = "the built-in domains keep their former variant spellings so no call site changes"
+)]
+impl StreamDomain {
+    /// First tag available to [`Self::external`]; lower tags are reserved for
+    /// the constants below.
+    pub const EXTERNAL_BASE: u64 = 1 << 16;
+
     /// IID / block / cluster / Bayesian bootstrap replicates.
-    Resample = 1,
+    pub const Resample: Self = Self(1);
     /// Lag-aligned temporal block-bootstrap families.
-    TemporalBlock = 2,
+    pub const TemporalBlock: Self = Self(2);
     /// Bayesian draw / posterior simulation streams.
-    Bayesian = 3,
+    pub const Bayesian: Self = Self(3);
     /// Structure-MCMC chains.
-    McmcStructure = 4,
+    pub const McmcStructure: Self = Self(4);
     /// Order-MCMC chains.
-    McmcOrder = 5,
+    pub const McmcOrder: Self = Self(5);
     /// DBN posterior MCMC chains.
-    McmcDbn = 6,
+    pub const McmcDbn: Self = Self(6);
     /// Graph-completion / identified-set posterior streams.
-    Completion = 7,
+    pub const Completion: Self = Self(7);
     /// Counterfactual abduction / action / prediction noise.
-    Counterfactual = 8,
+    pub const Counterfactual: Self = Self(8);
     /// Attribution Monte Carlo arms.
-    Attribution = 9,
+    pub const Attribution: Self = Self(9);
     /// Design ranking and allocation draws.
-    Design = 10,
+    pub const Design: Self = Self(10);
     /// Statistical transport / retargeting draws.
-    Transport = 11,
+    pub const Transport: Self = Self(11);
     /// Conditional-independence / CI null Monte Carlo.
-    StatsCi = 12,
+    pub const StatsCi: Self = Self(12);
     /// Learner-internal randomness (forest, GBT, neural).
-    Learner = 13,
+    pub const Learner: Self = Self(13);
     /// Estimator-local streams (AIPW, IV, RD, …).
-    Estimate = 14,
+    pub const Estimate: Self = Self(14);
     /// Temporal / DBN mediation block streams.
-    Mediation = 15,
+    pub const Mediation: Self = Self(15);
     /// Panel / interference path streams.
-    Panel = 16,
+    pub const Panel: Self = Self(16);
     /// Facade execute-path streams.
-    Execute = 17,
+    pub const Execute: Self = Self(17);
     /// Unit / integration test fixtures.
-    Test = 18,
+    pub const Test: Self = Self(18);
     /// Example programs.
-    Example = 19,
+    pub const Example: Self = Self(19);
+
+    /// A domain outside the built-in set.
+    ///
+    /// # Panics
+    /// If `tag` is below [`Self::EXTERNAL_BASE`]; in a `const` item this is a
+    /// compile-time error.
+    #[must_use]
+    pub const fn external(tag: u64) -> Self {
+        assert!(
+            tag >= Self::EXTERNAL_BASE,
+            "external stream domain tag collides with a built-in domain"
+        );
+        Self(tag)
+    }
+
+    /// The tag mixed into every stream this domain derives.
+    #[must_use]
+    pub const fn tag(self) -> u64 {
+        self.0
+    }
+}
+
+impl std::fmt::Debug for StreamDomain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self.0 {
+            1 => "Resample",
+            2 => "TemporalBlock",
+            3 => "Bayesian",
+            4 => "McmcStructure",
+            5 => "McmcOrder",
+            6 => "McmcDbn",
+            7 => "Completion",
+            8 => "Counterfactual",
+            9 => "Attribution",
+            10 => "Design",
+            11 => "Transport",
+            12 => "StatsCi",
+            13 => "Learner",
+            14 => "Estimate",
+            15 => "Mediation",
+            16 => "Panel",
+            17 => "Execute",
+            18 => "Test",
+            19 => "Example",
+            tag => return write!(f, "StreamDomain::external({tag})"),
+        };
+        f.write_str(name)
+    }
 }
 
 /// Factory for deterministic RNG streams.
@@ -476,19 +571,38 @@ impl RngFactory {
     /// for low-level ids that are already domain-unique.
     #[must_use]
     pub fn stream(&self, stream_id: u64) -> CausalRng {
-        CausalRng::from_seed(mix_seed(self.master_seed, stream_id))
+        CausalRng::from_seed(derive_stream(self.master_seed, stream_id))
     }
 
     /// Derive a stream for `(domain, index)`.
     ///
     /// Domain and index are packed without an additive family offset, then passed
-    /// through the single `mix_seed` mixer with the master seed.
+    /// through the single [`derive_stream`] mixer with the master seed.
     #[must_use]
     pub fn stream_for(&self, domain: StreamDomain, index: u64) -> CausalRng {
         // Odd multiplier so domain tags stay distinct under xor with index.
-        let stream_id = (domain as u64).wrapping_mul(0xD1B5_4A32_D192_ED03) ^ index;
+        let stream_id = domain.tag().wrapping_mul(0xD1B5_4A32_D192_ED03) ^ index;
         self.stream(stream_id)
     }
+}
+
+/// The `SplitMix64` increment (the golden-ratio gamma).
+pub const GOLDEN_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// The `SplitMix64` output finalizer: a bijective avalanche mix of one word.
+#[must_use]
+pub const fn mix64(mut z: u64) -> u64 {
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+/// Advance a `SplitMix64` state by [`GOLDEN_GAMMA`] and return its next output.
+///
+/// [`CausalRng::next_u64`] is exactly this step on its own state.
+pub fn splitmix64(state: &mut u64) -> u64 {
+    *state = state.wrapping_add(GOLDEN_GAMMA);
+    mix64(*state)
 }
 
 /// Deterministic SplitMix64-based RNG for library algorithms.
@@ -502,7 +616,7 @@ impl CausalRng {
     #[must_use]
     pub const fn from_seed(seed: u64) -> Self {
         // Avoid the all-zero fixed point of SplitMix by mixing once.
-        Self { state: seed ^ 0x9E37_79B9_7F4A_7C15 }
+        Self { state: seed ^ GOLDEN_GAMMA }
     }
 
     /// Restore from a previously exported [`Self::state`].
@@ -520,11 +634,7 @@ impl CausalRng {
     /// Next `u64` from the stream.
     #[must_use]
     pub fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
+        splitmix64(&mut self.state)
     }
 
     /// Next `f64` in `[0, 1)`.
@@ -532,10 +642,7 @@ impl CausalRng {
     pub fn next_f64(&mut self) -> f64 {
         // 53-bit mantissa extraction; precision loss vs full u64 is intentional.
         let bits = self.next_u64() >> 11;
-        #[allow(clippy::cast_precision_loss)]
-        {
-            bits as f64 * (1.0 / ((1u64 << 53) as f64))
-        }
+        bits as f64 * (1.0 / ((1u64 << 53) as f64))
     }
 }
 
@@ -544,7 +651,12 @@ impl CausalRng {
 /// The previous `master.wrapping_add(stream_id)` form made
 /// `(master=s, stream=k)` identical to `(s−δ, k+δ)`, so adjacent user seeds
 /// shared almost every bootstrap replicate stream.
-fn mix_seed(master: u64, stream_id: u64) -> u64 {
+///
+/// This is the seed [`RngFactory::stream`] hands to [`CausalRng::from_seed`]; it
+/// is a different mixer from the [`mix64`] finalizer (it keys two words), so the
+/// two are not interchangeable.
+#[must_use]
+pub const fn derive_stream(master: u64, stream_id: u64) -> u64 {
     let mut z = master.wrapping_mul(0xD6E8_FEB8_6659_FD93);
     z ^= stream_id.wrapping_mul(0xC2B2_AE3D_27D4_EB4F);
     z = (z ^ (z >> 32)).wrapping_mul(0x1656_67B1_9E37_79F9);
@@ -856,7 +968,7 @@ mod tests {
     }
 
     #[test]
-    fn mix_seed_rejects_additive_master_stream_alias() {
+    fn derive_stream_rejects_additive_master_stream_alias() {
         // (s, k) must not equal (s − 1, k + 1).
         for s in [1u64, 42, 1000, u64::MAX / 2, u64::MAX] {
             for k in [0u64, 1, 999, 0xA7E0_0001_1000] {
@@ -881,6 +993,59 @@ mod tests {
         assert_ne!(a, b);
         assert_ne!(a, c);
         assert_ne!(b, c);
+    }
+
+    #[test]
+    fn built_in_domain_tags_are_pinned() {
+        // The tag is the whole domain contribution to a derived stream; these
+        // are the values the closed enum carried, so they may never change.
+        let pinned = [
+            (StreamDomain::Resample, 1),
+            (StreamDomain::TemporalBlock, 2),
+            (StreamDomain::Bayesian, 3),
+            (StreamDomain::McmcStructure, 4),
+            (StreamDomain::McmcOrder, 5),
+            (StreamDomain::McmcDbn, 6),
+            (StreamDomain::Completion, 7),
+            (StreamDomain::Counterfactual, 8),
+            (StreamDomain::Attribution, 9),
+            (StreamDomain::Design, 10),
+            (StreamDomain::Transport, 11),
+            (StreamDomain::StatsCi, 12),
+            (StreamDomain::Learner, 13),
+            (StreamDomain::Estimate, 14),
+            (StreamDomain::Mediation, 15),
+            (StreamDomain::Panel, 16),
+            (StreamDomain::Execute, 17),
+            (StreamDomain::Test, 18),
+            (StreamDomain::Example, 19),
+        ];
+        for (domain, tag) in pinned {
+            assert_eq!(domain.tag(), tag);
+        }
+        let factory = RngFactory::from_seed(42);
+        let by_domain = factory.stream_for(StreamDomain::Transport, 5).state();
+        let by_hand = factory.stream(11u64.wrapping_mul(0xD1B5_4A32_D192_ED03) ^ 5).state();
+        assert_eq!(by_domain, by_hand);
+    }
+
+    #[test]
+    fn external_domains_stay_clear_of_built_in_tags() {
+        const OURS: StreamDomain = StreamDomain::external(StreamDomain::EXTERNAL_BASE);
+        assert_eq!(OURS.tag(), StreamDomain::EXTERNAL_BASE);
+        assert_ne!(OURS, StreamDomain::Example);
+        assert_eq!(format!("{:?}", StreamDomain::Resample), "Resample");
+        let factory = RngFactory::from_seed(42);
+        assert_ne!(
+            factory.stream_for(OURS, 0).state(),
+            factory.stream_for(StreamDomain::Example, 0).state()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "collides with a built-in domain")]
+    fn external_domain_below_the_base_is_refused() {
+        let _ = StreamDomain::external(StreamDomain::Example.tag());
     }
 
     #[test]

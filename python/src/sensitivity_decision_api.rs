@@ -1,4 +1,4 @@
-//! Bounded Python bridge for F17: an assumption-sensitivity surface consumed by a
+//! Bounded Python bridge for the sensitivity decision: an assumption-sensitivity surface consumed by a
 //! decision contract.
 //!
 //! Python builds the declarations (a surface, a contract, a coordinate sub-range);
@@ -7,6 +7,7 @@
 //! to raise as its own exception type. An assumption range is never a probability
 //! and never a sampling interval; composing the two is refused natively.
 
+use crate::bridge::{RefusalJson, check_declared_size, serialization};
 use antecedent::analysis::sensitivity_decision::{
     ActionUtility, AssumptionCoordinate, AssumptionRangeStatement, IdentifiedBound,
     MAX_SENSITIVITY_ARTIFACT_BYTES, PointSupport, SENSITIVITY_INFERENCE_CLAIM, SamplingInterval,
@@ -15,7 +16,8 @@ use antecedent::analysis::sensitivity_decision::{
     SensitivityIdentity, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
     UncertaintyRelationship, contract_from_artifact, decide,
 };
-use antecedent_core::{ScientificQuantity, reason_code};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::reason_code;
 use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use antecedent_design::decision_contract::StructuralPolicy;
 use antecedent_design::decision_eval::Verdict;
@@ -25,40 +27,21 @@ use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointSensitivityLimits,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::CausalSerializationError;
 use crate::transport_z_api::PreparedZTransportStage;
 
 const STAGE: &str = "sensitivity_decision";
 
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
-}
-
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_SENSITIVITY_ARTIFACT_BYTES {
-        return Err(PyValueError::new_err("sensitivity declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_SENSITIVITY_ARTIFACT_BYTES, "sensitivity")
 }
 
 fn refusal_json(code: &str, detail: &str, message: &str) -> String {
-    json!({
-        "code": code,
-        "stage": STAGE,
-        "detail": detail,
-        "offending": Value::Null,
-        "message": message,
-        "expected": Value::Null,
-        "supplied": Value::Null,
-        "remedy": Value::Null,
-    })
-    .to_string()
+    RefusalJson::new(code, STAGE, detail, message).json()
 }
 
 fn io_refusal(error: &IoError) -> String {
@@ -245,7 +228,7 @@ fn policy_from(name: &str) -> PyResult<StructuralPolicy> {
         "maximin" => StructuralPolicy::Maximin,
         "bayes_over_structures" => StructuralPolicy::BayesOverStructures,
         "report_only" => StructuralPolicy::ReportOnly,
-        other => return Err(PyValueError::new_err(format!("unknown structural policy `{other}`"))),
+        other => return Err(crate::value_err(format!("unknown structural policy `{other}`"))),
     })
 }
 
@@ -272,6 +255,7 @@ fn verdict_json(verdict: &StructuralVerdict) -> Value {
         StructuralVerdict::WorstCaseChoice(action) => {
             json!({"kind": "worst_case_choice", "action": action})
         }
+        StructuralVerdict::Tied(actions) => json!({"kind": "tied", "actions": actions}),
         StructuralVerdict::BayesChoice { action, evaluated_mass } => {
             json!({"kind": "bayes_choice", "action": action, "evaluated_mass": evaluated_mass})
         }
@@ -479,7 +463,7 @@ fn parse_factors(factors: Vec<(String, f64)>) -> Result<Vec<JointFactorBound>, S
         .collect()
 }
 
-/// Run the 2.2 joint mechanism sensitivity of a prepared z stage and adapt its
+/// Run the joint mechanism sensitivity of a prepared z stage and adapt its
 /// assumption range into a composition-ready artifact.
 #[pyfunction]
 #[pyo3(signature=(stage, factors, effect_json, grid_points, actions_json, causal_contract_id, *, decision_threshold=None, total_budget=None, tolerance=1e-9, frontier_points=17, max_operations=100_000, max_depth=64, max_memory_bytes=67_108_864, memory_bytes=None, cancel=None))]

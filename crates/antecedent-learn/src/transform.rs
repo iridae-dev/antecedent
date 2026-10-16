@@ -3,8 +3,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 use antecedent_core::ExecutionContext;
 
 use crate::design::{DesignView, RowSelection};
@@ -69,28 +67,10 @@ impl FittedTransformer for IdentityTransform {
     }
 }
 
-/// Stateless `ln(1 + ·)` applied to every entry except an exact all-ones first column.
-/// Does not fit on data.
-///
-/// A constant first column of exactly `1.0` is the design's intercept: it passes through
-/// unchanged. Transforming it would turn it into `ln 2`, after which no learner recognises
-/// an intercept column and an elastic net would penalize it as a slope.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Log1p;
-
-impl TransformerFactory for Log1p {
-    fn fit(
-        &self,
-        _x: DesignView<'_>,
-        _rows: RowSelection<'_>,
-        _ctx: &ExecutionContext,
-    ) -> Result<Box<dyn FittedTransformer>, LearnError> {
-        Ok(Box::new(Log1pTransform))
-    }
-}
-
+#[cfg(test)]
 struct Log1pTransform;
 
+#[cfg(test)]
 impl FittedTransformer for Log1pTransform {
     fn transform(
         &self,

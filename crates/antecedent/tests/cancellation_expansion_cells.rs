@@ -1,4 +1,4 @@
-//! Cancellation of the facade-level 2.2 E-cells (cost and cancellation checks): preflight and
+//! Cancellation of the facade-level preflight, batch and diagnostic cells (cost and cancellation checks): preflight and
 //! the rank-drop estimate, batch retarget and its max-t evaluator, the finite-action inverse
 //! outcome and the tier diagnostics. A context cancelled before the call yields the cell's
 //! typed cancellation stop and no partial report; a context tripped after `k` clean polls

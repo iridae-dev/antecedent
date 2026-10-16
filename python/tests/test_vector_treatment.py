@@ -1,4 +1,4 @@
-"""B4 joint vector-treatment coefficients through the Python facade.
+"""Joint vector-treatment coefficients through the Python facade.
 
 Every expected number is hand algebra on the frozen dataset (n = 6, columns ``1, t1, t2``):
 ``t1 = [1,0,1,0,0,1]``, ``t2 = [1,1,1,0,0,0]``, ``y = [3,2,5,1,0,4]``. ``b = [2.75, 0.75]``,
@@ -48,7 +48,7 @@ def normal_p(z: float) -> float:
     return math.erfc(abs(z) / math.sqrt(2.0))
 
 
-def test_b4_vector_coefficients_and_full_covariance_match_hand_algebra() -> None:
+def test_vector_coefficients_and_full_covariance_match_hand_algebra() -> None:
     result = fit()
     assert result.names == ("t1", "t2")
     assert result.coefficient("t1").estimate == pytest.approx(2.75, abs=1e-9)
@@ -73,7 +73,7 @@ def test_b4_vector_coefficients_and_full_covariance_match_hand_algebra() -> None
     assert result.null == vector_treatment.NULL
 
 
-def test_b4_vector_contrast_standard_error_uses_the_off_diagonal() -> None:
+def test_vector_contrast_standard_error_uses_the_off_diagonal() -> None:
     result = fit(contrasts=[DIFF, SUM])
     diff = result.contrast("diff")
     assert diff.estimate == pytest.approx(2.0, abs=1e-9)
@@ -90,7 +90,7 @@ def test_b4_vector_contrast_standard_error_uses_the_off_diagonal() -> None:
     assert diff.p_value == pytest.approx(normal_p(diff.z), abs=1e-9)
 
 
-def test_b4_vector_joint_wald_and_holm_match_closed_forms() -> None:
+def test_vector_joint_wald_and_holm_match_closed_forms() -> None:
     result = fit(contrasts=[DIFF, SUM])
     statistic = 85.5 / 6.5  # b' V^-1 b
     assert result.joint_wald.statistic == pytest.approx(statistic, abs=1e-9)
@@ -103,7 +103,7 @@ def test_b4_vector_joint_wald_and_holm_match_closed_forms() -> None:
     assert result.contrasts[high].p_holm == pytest.approx(max(holm_low, raw[high]), abs=1e-9)
 
 
-def test_b4_vector_calibration_is_unmeasured_and_says_so() -> None:
+def test_vector_calibration_is_unmeasured_and_says_so() -> None:
     result = fit()
     assert result.calibration == "unmeasured"
     assert result.inference_claim == "asymptotic_wald_calibration_unmeasured"
@@ -116,7 +116,7 @@ def test_b4_vector_calibration_is_unmeasured_and_says_so() -> None:
     assert summary["covariance"][0][1] == pytest.approx(-3.0 * S, abs=1e-9)
 
 
-def test_b4_vector_coefficient_order_follows_the_mapping() -> None:
+def test_vector_coefficient_order_follows_the_mapping() -> None:
     forward = fit()
     reversed_fit = joint_effects(Y, {"t2": X2, "t1": X1})
     assert reversed_fit.names == ("t2", "t1")
@@ -125,13 +125,13 @@ def test_b4_vector_coefficient_order_follows_the_mapping() -> None:
     assert reversed_fit.identity.treatment_id != forward.identity.treatment_id
 
 
-def test_b4_vector_adjustment_columns_are_shared() -> None:
+def test_vector_adjustment_columns_are_shared() -> None:
     result = fit(adjust={"w": W})
     assert result.adjustment == ("w",)
     assert result.identity.adjustment_set_id != fit().identity.adjustment_set_id
 
 
-def test_b4_vector_incompatible_adjustment_set_snapshot_and_rows_refuse() -> None:
+def test_vector_incompatible_adjustment_set_snapshot_and_rows_refuse() -> None:
     with pytest.raises(VectorTreatmentRefusal) as other_set:
         joint_effects(
             Y,
@@ -153,7 +153,7 @@ def test_b4_vector_incompatible_adjustment_set_snapshot_and_rows_refuse() -> Non
     assert short.value.detail == "vector_treatment.row_count_mismatch"
 
 
-def test_b4_vector_degenerate_designs_refuse_with_typed_details() -> None:
+def test_vector_degenerate_designs_refuse_with_typed_details() -> None:
     with pytest.raises(VectorTreatmentRefusal) as constant:
         joint_effects(Y, {"t1": X1, "t2": [1.0] * 6})
     assert constant.value.reason_code == "design_rank_deficient"
@@ -181,7 +181,7 @@ def test_b4_vector_degenerate_designs_refuse_with_typed_details() -> None:
     assert empty.value.detail == "vector_treatment.empty_contrast"
 
 
-def test_b4_vector_input_validation_is_typed() -> None:
+def test_vector_input_validation_is_typed() -> None:
     with pytest.raises(CausalTypeError):
         joint_effects(Y, [X1, X2])  # type: ignore[arg-type]
     with pytest.raises(CausalValueError):
@@ -197,7 +197,7 @@ def test_b4_vector_input_validation_is_typed() -> None:
         consume_joint_effects("not bytes")  # type: ignore[arg-type]
 
 
-def test_b4_vector_artifact_round_trip_recomputes_everything() -> None:
+def test_vector_artifact_round_trip_recomputes_everything() -> None:
     result = fit(contrasts=[DIFF, SUM], adjust={"w": W})
     again = consume_joint_effects(result.export(), expected_identity=result.identity)
     assert again.names == result.names
@@ -211,7 +211,7 @@ def test_b4_vector_artifact_round_trip_recomputes_everything() -> None:
     assert mapped.identity == result.identity
 
 
-def test_b4_vector_robust_covariance_embeds_the_rows_and_replays() -> None:
+def test_vector_robust_covariance_embeds_the_rows_and_replays() -> None:
     model = fit()
     robust = fit(covariance="hc1")
     assert robust.replay == "rows"
@@ -222,7 +222,7 @@ def test_b4_vector_robust_covariance_embeds_the_rows_and_replays() -> None:
     assert np.array_equal(again.covariance, robust.covariance)
 
 
-def test_b4_vector_robust_replay_above_the_row_cap_is_refused() -> None:
+def test_vector_robust_replay_above_the_row_cap_is_refused() -> None:
     n = 4097
     index = np.arange(n)
     columns = {"t1": (index % 7).astype(float), "t2": ((index + 3) % 7).astype(float)}
@@ -236,7 +236,7 @@ def test_b4_vector_robust_replay_above_the_row_cap_is_refused() -> None:
     assert joint_effects(outcome, columns).replay == "summary"
 
 
-def test_b4_vector_resealed_change_is_refused_against_the_retained_identity() -> None:
+def test_vector_resealed_change_is_refused_against_the_retained_identity() -> None:
     # One declared snapshot identity for all three: the default (a content digest of the
     # columns) would itself change with the data and be refused first as ``row_snapshot``.
     original = fit(contrasts=[DIFF], snapshot="snap")
@@ -256,7 +256,7 @@ def test_b4_vector_resealed_change_is_refused_against_the_retained_identity() ->
     assert contracts.value.offending == "contrasts"
 
 
-def test_b4_vector_corrupt_artifact_raises_a_serialization_error() -> None:
+def test_vector_corrupt_artifact_raises_a_serialization_error() -> None:
     data = bytearray(fit().export())
     data[len(data) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):

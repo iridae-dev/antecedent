@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the B4 joint vector-treatment fit.
+//! Bounded Python bridge for the joint vector-treatment fit.
 //!
 //! Python supplies the numeric columns and a small JSON declaration (snapshot, adjustment names,
 //! per-treatment adjustment set and snapshot, covariance kind, contrasts); the joint regression,
@@ -7,17 +7,17 @@
 //! as structured JSON for the Python layer to raise as its own exception type; corruption and
 //! unknown versions raise `CausalSerializationError`.
 
+use crate::bridge::{artifact_refusal_json, check_declared_size};
 use antecedent::analysis::vector_treatment::{
     AdjustmentColumnRequest, ContrastWire, TreatmentRequest, VectorTreatment,
     VectorTreatmentArtifactError, VectorTreatmentIdentity, VectorTreatmentRequest,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err, with_reason_code};
 
 /// Largest declaration / identity JSON accepted.
-const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
@@ -41,24 +41,11 @@ struct Declaration {
 }
 
 fn refusal_json(error: &VectorTreatmentArtifactError, stage: &'static str) -> Option<String> {
-    let (code, detail, text) = error.refusal()?;
     let offending = match error {
         VectorTreatmentArtifactError::IdentityMismatch { field } => Some(*field),
         _ => None,
     };
-    Some(
-        serde_json::json!({
-            "code": code,
-            "stage": stage,
-            "detail": detail,
-            "offending": offending,
-            "expected": serde_json::Value::Null,
-            "supplied": serde_json::Value::Null,
-            "remedy": serde_json::Value::Null,
-            "message": text,
-        })
-        .to_string(),
-    )
+    Some(artifact_refusal_json(stage, error.refusal()?, offending))
 }
 
 /// A non-refusal failure: a bound is a value error, everything else is a serialization error.
@@ -68,15 +55,12 @@ fn failure(error: &VectorTreatmentArtifactError) -> PyErr {
             value_err(format!("vector_treatment.limits_exceeded: {what}")),
             antecedent_core::reason_code!("invalid_argument"),
         ),
-        other => CausalSerializationError::new_err(other.to_string()),
+        other => crate::serialization_err(other.to_string()),
     }
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("vector treatment declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "vector treatment")
 }
 
 /// Fit the treatments jointly: `(report json, artifact bytes, refusal json)`.
@@ -131,7 +115,7 @@ fn evaluate_vector_treatment(
         Ok(done) => {
             let bytes = done.export(&artifact_id).map_err(|e| failure(&e))?;
             let report = serde_json::to_string(&done.report())
-                .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                .map_err(|e| crate::serialization_err(e.to_string()))?;
             Ok((Some(report), Some(bytes), None))
         }
         Err(error) => match refusal_json(&error, "fit") {
@@ -168,7 +152,7 @@ fn consume_vector_treatment_artifact(
     detach_catch(py, move || match VectorTreatment::consume(&artifact, expected.as_ref()) {
         Ok(done) => {
             let report = serde_json::to_string(&done.report())
-                .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                .map_err(|e| crate::serialization_err(e.to_string()))?;
             Ok((Some(report), None))
         }
         Err(error) => match refusal_json(&error, "consume") {

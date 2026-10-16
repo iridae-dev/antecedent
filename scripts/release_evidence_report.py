@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Report versioned promotion evidence and enforce explicit closed-cell dispositions.
+"""Report promotion evidence and enforce explicit closed-cell dispositions.
 
 This inventories cited evidence, not execution or calibration. A consistent report
 does not certify a release. The promotion runner and release-candidate gates still
-own those verdicts. Default: both retained 2.2 and current 2.3 registries.
+own those verdicts. Reads the one registry, parity/promotion.toml.
 """
 
 from __future__ import annotations
@@ -11,16 +11,15 @@ from __future__ import annotations
 import argparse
 import json
 import tempfile
+import tomllib
 from pathlib import Path
 
-import tomllib
-
-REPO = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as REPO
 
 
-def build_report(root: Path, releases: list[str]) -> dict:
+def build_report(root: Path) -> dict:
     dispositions = tomllib.loads(
-        (root / "parity/promotion_carryovers.toml").read_text()
+        (root / "parity/promotion_carryovers.toml").read_text(encoding="utf-8")
     )
     if dispositions.get("version") != 1:
         raise ValueError("unsupported carryover disposition version")
@@ -28,22 +27,17 @@ def build_report(root: Path, releases: list[str]) -> dict:
     by_id = {c["id"]: c for c in cells}
     if len(by_id) != len(cells):
         raise ValueError("duplicate carryover disposition")
-    registries = {}
-    all_records = {}
-    # Validate both registries even for a filtered report, so a stale disposition
-    # cannot hide behind a release filter.
-    for release in ("2.2", "2.3"):
-        registry = f"parity/promotion_{release.replace('.', '_')}.toml"
-        data = tomllib.loads((root / registry).read_text())
-        if data.get("release") != release:
-            raise ValueError(f"{registry}: release mismatch")
-        records = data.get("record", [])
-        registries[release] = (registry, records)
-        for record in records:
-            rid = record["id"]
-            if rid in all_records:
-                raise ValueError(f"duplicate promotion record {rid}")
-            all_records[rid] = record
+    registry = "parity/promotion.toml"
+    data = tomllib.loads((root / registry).read_text(encoding="utf-8"))
+    if "release" in data:
+        raise ValueError(f"{registry}: release field is not a claim")
+    records = data.get("record", [])
+    all_records: dict[str, dict] = {}
+    for record in records:
+        rid = record["id"]
+        if rid in all_records:
+            raise ValueError(f"duplicate promotion record {rid}")
+        all_records[rid] = record
     carried = {
         rid for rid, r in all_records.items() if r["status"] == "carried_forward"
     }
@@ -81,79 +75,72 @@ def build_report(root: Path, releases: list[str]) -> dict:
                 raise ValueError(
                     f"{rid}: {route['name']}: refusal reason absent from record"
                 )
-    output = []
-    for release in releases:
-        registry, records = registries[release]
-        summaries = []
-        for record in records:
-            summary = {
-                "id": record["id"],
-                "work_package": record["work_package"],
-                "status": record["status"],
-                "inference_claim": record["inference_claim"],
-                "owners": record.get("owners", []),
-                "coverage_records": record.get("coverage_records", []),
-                "fixtures": record.get("fixtures", []),
-                "routes": record.get("routes", []),
-            }
-            if record["id"] in by_id:
-                summary["carryover"] = by_id[record["id"]]
-                summary["refusals"] = record.get("refusals", [])
-            summaries.append(summary)
-        output.append({"release": release, "registry": registry, "records": summaries})
+    summaries = []
+    for record in records:
+        summary = {
+            "id": record["id"],
+            "capability": record.get("capability", ""),
+            "status": record["status"],
+            "inference_claim": record["inference_claim"],
+            "owners": record.get("owners", []),
+            "coverage_records": record.get("coverage_records", []),
+            "fixtures": record.get("fixtures", []),
+            "routes": record.get("routes", []),
+        }
+        if record["id"] in by_id:
+            summary["carryover"] = by_id[record["id"]]
+            summary["refusals"] = record.get("refusals", [])
+        summaries.append(summary)
     return {
         "report_kind": "promotion_evidence_inventory",
         "execution_verified": False,
         "calibration_verified": False,
         "release_certified": False,
-        "releases": output,
+        "registry": registry,
+        "records": summaries,
     }
 
 
 def render(report: dict) -> str:
     lines = ["Promotion evidence inventory (execution and calibration not verified)"]
-    for release in report["releases"]:
-        records = release["records"]
-        counts = {
-            state: sum(r["status"] == state for r in records)
-            for state in sorted({r["status"] for r in records})
-        }
+    records = report["records"]
+    counts = {
+        state: sum(r["status"] == state for r in records)
+        for state in sorted({r["status"] for r in records})
+    }
+    lines += [
+        "",
+        f"{report['registry']}; {len(records)} records; {counts}",
+    ]
+    for record in records:
+        lines.append(
+            f"  {record['id']}: {record['status']}; "
+            f"claim={record['inference_claim']}; "
+            f"{len(record['fixtures'])} cited fixtures; "
+            f"{len(record['routes'])} routes; "
+            f"{len(record['coverage_records'])} allocated coverage records"
+        )
+        if "carryover" not in record:
+            continue
+        disposition = record["carryover"]
         lines += [
-            "",
-            (
-                f"{release['release']}: {release['registry']}; "
-                f"{len(records)} records; {counts}"
-            ),
+            f"    failed gates: {', '.join(disposition['failed_gates'])}",
+            f"    gap: {disposition['detail']}",
+            f"    owners: {', '.join(record['owners'])}",
+            f"    corrective action: {disposition['corrective_action']}",
         ]
-        for record in records:
-            lines.append(
-                f"  {record['id']}: {record['status']}; "
-                f"claim={record['inference_claim']}; "
-                f"{len(record['fixtures'])} cited fixtures; "
-                f"{len(record['routes'])} routes; "
-                f"{len(record['coverage_records'])} allocated coverage records"
-            )
-            if "carryover" not in record:
-                continue
-            disposition = record["carryover"]
-            lines += [
-                f"    failed gates: {', '.join(disposition['failed_gates'])}",
-                f"    gap: {disposition['detail']}",
-                f"    owners: {', '.join(record['owners'])}",
-                f"    corrective action: {disposition['corrective_action']}",
+        for route in record["routes"]:
+            details = [
+                r["detail"]
+                for r in record["refusals"]
+                if r["code"] == route["reason_code"]
             ]
-            for route in record["routes"]:
-                details = [
-                    r["detail"]
-                    for r in record["refusals"]
-                    if r["code"] == route["reason_code"]
-                ]
-                lines.append(
-                    f"    unchanged closed route: {route['name']} -> "
-                    f"{route['reason_code']} "
-                    f"({', '.join(details)}); refusal evidence: "
-                    f"{route['refusal_test']}::{route['refusal_assertion']}"
-                )
+            lines.append(
+                f"    unchanged closed route: {route['name']} -> "
+                f"{route['reason_code']} "
+                f"({', '.join(details)}); refusal evidence: "
+                f"{route['refusal_test']}::{route['refusal_assertion']}"
+            )
     lines += [
         "",
         (
@@ -165,32 +152,52 @@ def render(report: dict) -> str:
 
 
 def self_test() -> int:
-    # Overlay only registry inputs: no measurement, build or release gate runs.
+    # Pin synthetic closed records: promotion in the live registry must not
+    # remove the very broken-input controls this checker is meant to exercise.
+    # No measurement, build or release gate runs.
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         (root / "parity").mkdir()
-        paths = [
-            "promotion_2_2.toml",
-            "promotion_2_3.toml",
-            "promotion_carryovers.toml",
-        ]
-        for name in paths:
-            (root / "parity" / name).write_text((REPO / "parity" / name).read_text())
-        report = build_report(root, ["2.2", "2.3"])
-        assert len(report["releases"]) == 2
+        (root / "parity/promotion.toml").write_text(
+            "\n".join(
+                f'''[[record]]
+id = "{rid}"
+status = "carried_forward"
+inference_claim = "none"
+owners = ["synthetic_owner"]
+routes = [{{ name = "synthetic.{index}", status = "closed", reason_code = "cell_not_licensed", refusal_test = "synthetic.rs", refusal_assertion = "refuses_{index}" }}]
+refusals = [{{ code = "cell_not_licensed", detail = "synthetic.closed" }}]
+'''
+                for index, rid in enumerate(["sensitivity.joint_uncertainty", "synthetic.transport"])
+            )
+        , encoding="utf-8", newline="\n")
+        (root / "parity/promotion_carryovers.toml").write_text(
+            '''version = 1
+[[cell]]
+id = "sensitivity.joint_uncertainty"
+failed_gates = ["public_interval_producer", "independent_public_interval_consumer"]
+detail = "Synthetic public interval gap."
+corrective_action = "Implement and exercise both synthetic routes."
+[[cell]]
+id = "synthetic.transport"
+failed_gates = ["synthetic_transport"]
+detail = "Synthetic transport gap."
+corrective_action = "Add independent transport evidence."
+'''
+        , encoding="utf-8", newline="\n")
+        report = build_report(root)
+        assert report["records"]
         assert not any(
             report[k]
             for k in ("execution_verified", "calibration_verified", "release_certified")
         )
-        assert "2.3: parity/promotion_2_3.toml" in render(report)
-        assert len(build_report(root, ["2.2"])["releases"]) == 1
-        assert len(build_report(root, ["2.3"])["releases"]) == 1
-        baseline = (root / "parity/promotion_carryovers.toml").read_text()
+        assert "parity/promotion.toml;" in render(report)
+        baseline = (root / "parity/promotion_carryovers.toml").read_text(encoding="utf-8")
         correction = tomllib.loads(baseline)["cell"][1]["corrective_action"]
         for before, after, expected in [
-            ('id = "2.3A.X4.joint_bayesian_transport"', 'id = "unknown"', "mismatch"),
+            ('id = "sensitivity.joint_uncertainty"', 'id = "unknown"', "mismatch"),
             (
-                'failed_gates = ["whole_posterior_calibration"]',
+                'failed_gates = ["public_interval_producer", "independent_public_interval_consumer"]',
                 "failed_gates = []",
                 "precise failed gates",
             ),
@@ -203,40 +210,42 @@ def self_test() -> int:
             assert before in baseline
             (root / "parity/promotion_carryovers.toml").write_text(
                 baseline.replace(before, after, 1)
-            )
+            , encoding="utf-8", newline="\n")
             try:
-                build_report(root, ["2.2"])
+                build_report(root)
             except ValueError as error:
                 assert expected in str(error), str(error)
             else:
                 raise AssertionError(f"mutation accepted: {expected}")
-        (root / "parity/promotion_carryovers.toml").write_text(baseline)
+        (root / "parity/promotion_carryovers.toml").write_text(baseline, encoding="utf-8", newline="\n")
         duplicate = baseline[
             baseline.index("[[cell]]") : baseline.index(
                 "[[cell]]", baseline.index("[[cell]]") + 1
             )
         ]
-        (root / "parity/promotion_carryovers.toml").write_text(baseline + duplicate)
+        (root / "parity/promotion_carryovers.toml").write_text(baseline + duplicate, encoding="utf-8", newline="\n")
         try:
-            build_report(root, ["2.3"])
+            build_report(root)
         except ValueError as error:
             assert "duplicate carryover disposition" in str(error)
         else:
             raise AssertionError("duplicate disposition accepted")
-        (root / "parity/promotion_carryovers.toml").write_text(baseline)
-        registry = root / "parity/promotion_2_3.toml"
-        original = registry.read_text()
+        (root / "parity/promotion_carryovers.toml").write_text(baseline, encoding="utf-8", newline="\n")
+        registry = root / "parity/promotion.toml"
+        original = registry.read_text(encoding="utf-8")
         # All carried routes must be closed regardless of the report filter.
+        carried_at = original.index('id = "sensitivity.joint_uncertainty"')
+        closed_at = original.index('status = "closed"', carried_at)
         registry.write_text(
-            original.replace('status = "closed"', 'status = "licensed"', 1)
-        )
+            original[:closed_at] + 'status = "licensed"' + original[closed_at + len('status = "closed"') :]
+        , encoding="utf-8", newline="\n")
         try:
-            build_report(root, ["2.2"])
+            build_report(root)
         except ValueError as error:
             assert "every carried route must remain closed" in str(error)
         else:
             raise AssertionError("licensed carried route accepted")
-        registry.write_text(original)
+        registry.write_text(original, encoding="utf-8", newline="\n")
         # Losing an executable refusal citation must fail even when the route
         # still has a reason code and remains closed.
         first = next(
@@ -245,38 +254,31 @@ def self_test() -> int:
             if r["status"] == "carried_forward"
         )
         assertion = first["routes"][0]["refusal_assertion"]
-        registry.write_text(
-            original.replace(
-                f'refusal_assertion = "{assertion}"', 'refusal_assertion = ""', 1
-            )
-        )
+        carried_at = original.index(f'id = "{first["id"]}"')
+        token = f'refusal_assertion = "{assertion}"'
+        at = original.index(token, carried_at)
+        registry.write_text(original[:at] + 'refusal_assertion = ""' + original[at + len(token) :], encoding="utf-8", newline="\n")
         try:
-            build_report(root, ["2.3"])
+            build_report(root)
         except ValueError as error:
             assert "unchanged refusal refusal_assertion required" in str(error)
         else:
             raise AssertionError("absent refusal assertion accepted")
-        registry.write_text(original)
+        registry.write_text(original, encoding="utf-8", newline="\n")
     print("release_evidence_report self-test: ok")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--release-version", choices=("2.2", "2.3", "all"), default="all"
-    )
     parser.add_argument("--root", type=Path, default=REPO)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
     if args.self_test:
         return self_test()
-    releases = (
-        ["2.2", "2.3"] if args.release_version == "all" else [args.release_version]
-    )
     try:
-        report = build_report(args.root, releases)
+        report = build_report(args.root)
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, f"release evidence inventory: FAIL: {error}\n")
     print(json.dumps(report, indent=2) if args.json else render(report))

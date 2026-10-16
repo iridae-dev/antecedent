@@ -1,0 +1,44 @@
+{
+  "contract": {
+    "component": "dose_decision",
+    "consumes": [
+      {
+        "calibration": "not_required",
+        "dependence": "unconstrained",
+        "measurement_models": [],
+        "name": "effect",
+        "operations": [
+          "mean"
+        ],
+        "provenance": [],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "outcome",
+          "transform_id": "identity",
+          "units": "mg/dL",
+          "variable_id": "schema:ldl_change",
+          "variable_name": "ldl_change",
+          "version": 1
+        },
+        "semantic_identity": "estimand:ate",
+        "support": {
+          "kind": "real",
+          "levels": null,
+          "lower_bits": null,
+          "upper_bits": null
+        },
+        "uncertainty": null
+      }
+    ],
+    "produces": []
+  },
+  "contract_identity": "63e4d7a77cb1f4fed4072690de85b8a058c2a4814ed9ee642e47453a6e9f7f55",
+  "feature": "interface_contract_v1",
+  "identity": "9ed876dc770d28f4a83b1909403324c5db6139711fa71285b1df0233e0f9bb79",
+  "required_features": [],
+  "version": 1
+}

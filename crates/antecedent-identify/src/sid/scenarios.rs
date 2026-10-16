@@ -42,7 +42,7 @@
 //! input of the classical catalog route reaches it today; it is kept for routes
 //! that can return an undecided scenario.
 //!
-//! # Conditional scenario questions (2.2B B1)
+//! # Conditional scenario questions
 //!
 //! A set may instead ask the conditional question `P*(y | do(x), w)`
 //! ([`ScenarioQuestion::Conditional`], [`decide_conditional_transport_scenarios`]).
@@ -119,9 +119,9 @@ pub fn unaccounted_after(identified: f64) -> f64 {
 /// `search.cancelled`) is carried beside it.
 pub const SCENARIO_UNEVALUATED_DETAIL: &str = "scenarios.unevaluated_budget";
 /// Registered runtime-refusal code of an unevaluated scenario: the same
-/// `transport_budget_cancel` every 2.2 transport search reports for a budget
+/// `transport_budget_cancel` every transport search reports for a budget
 /// or cancellation stop, never a verdict about the scenario.
-pub const SCENARIO_UNEVALUATED_CODE: &str = reason_code!("transport_budget_cancel");
+pub(crate) const SCENARIO_UNEVALUATED_CODE: &str = reason_code!("transport_budget_cancel");
 
 /// A refused scenario set: a registered top-level reason code and a stable
 /// `scenarios.*` detail.
@@ -181,7 +181,7 @@ impl ScenarioCoordinate {
     /// no claim about which numbers occur, but every domain is numeric, so a
     /// non-finite or non-numeric value belongs to no domain and is refused.
     #[must_use]
-    #[allow(clippy::float_cmp)] // Domain membership is exact, not approximate equality.
+    #[allow(clippy::float_cmp, reason = "Domain membership is exact, not approximate equality")]
     pub fn accepts(&self, value: &Value) -> bool {
         let value = value.as_f64();
         match self.domain {
@@ -542,10 +542,10 @@ impl TransportScenarioSet {
 /// The one transport question every scenario of a set is decided against.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ScenarioQuestion {
-    /// `P*(y | do(x))`, decided by the classical catalog sID route (2.2A A2).
+    /// `P*(y | do(x))`, decided by the classical catalog sID route.
     Classical(ClassicalTransportQuery),
     /// `P*(y | do(x), w)`, decided by the bounded ADMG conditional transport
-    /// route (2.2B B1): at most 6 observed variables, 0-3 treatments and 1-3
+    /// route: at most 6 observed variables, 0-3 treatments and 1-3
     /// conditioned variables.
     Conditional(ConditionalTransportQuery),
 }
@@ -752,7 +752,7 @@ pub fn decide_transport_scenarios(
 }
 
 /// Decide every scenario independently against one conditional question
-/// `P*(y | do(x), w)` (2.2B B1) and the same catalog.
+/// `P*(y | do(x), w)` and the same catalog.
 ///
 /// Each scenario is decided by the bounded ADMG conditional route (the rule-2
 /// reduction, re-checked by the independent checker; the reduced joint through
@@ -871,7 +871,7 @@ pub fn decide_scenario_question(
         };
         decisions.push(ScenarioDecision { scenario: scenario.clone(), outcome });
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)] // At most 64 scenarios.
+            #[allow(clippy::cast_precision_loss, reason = "At most 64 scenarios")]
             progress.report(decisions.len() as f64 / total as f64, "transport scenarios");
         }
     }

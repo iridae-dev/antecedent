@@ -4,8 +4,13 @@
 use super::bayesian_specialist_path::{
     BayesianSpecialistInputs, check_bayesian_iv_scope, check_bayesian_rd_scope,
 };
-use super::*;
+use super::{
+    Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, DataInput, ExecutionContext,
+    InferenceMode, PhysicalExecutionPlan, RefuteSuite, SharpRdConfig, SharpRdIdentifier, Study,
+    StudyResult, TabularData,
+};
 use crate::RdConfig;
+use crate::analysis::prepared::Inspect;
 use crate::strategy_table::{
     EstimatorId, IdentifierId, identify_static_query, require_identified, select_estimand,
 };
@@ -26,10 +31,9 @@ pub(crate) enum BayesianSpecialistFamily {
 pub(crate) struct CheckedBayesianSpecialistOperation {
     query: AverageEffectQuery,
     family: BayesianSpecialistFamily,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     config: BayesianConfig,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 /// Read-only target and procedure retained for a checked Bayesian IV or sharp-RD route.
@@ -62,7 +66,7 @@ impl CheckedBayesianSpecialistOperation {
     #[inline(never)]
     pub(crate) fn checked(
         study: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<Self>>, CausalError> {
         let CausalQuery::AverageEffect(query) = &study.query else {
             return Ok(None);
@@ -87,26 +91,26 @@ impl CheckedBayesianSpecialistOperation {
         {
             return Ok(None);
         }
-        let estimator = plan.logical.record.estimator.as_deref().and_then(|id| id.parse().ok());
-        let identifier = plan.logical.record.identifier.as_deref().and_then(|id| id.parse().ok());
-        let (family, identifier, estimator) = match (estimator, identifier) {
-            (Some(EstimatorId::BayesianIvJointLinear), Some(IdentifierId::Iv)) => (
-                BayesianSpecialistFamily::IvJointLinear,
-                IdentifierId::Iv,
-                EstimatorId::BayesianIvJointLinear,
-            ),
-            (Some(EstimatorId::BayesianRdLocalLinear), Some(IdentifierId::RdSharp)) => {
-                let Some(rd) = study.rd else {
-                    return Ok(None);
-                };
-                (
-                    BayesianSpecialistFamily::RdLocalLinear(rd),
-                    IdentifierId::RdSharp,
-                    EstimatorId::BayesianRdLocalLinear,
-                )
-            }
-            _ => return Ok(None),
-        };
+        let binding = plan.binding();
+        let (family, identifier, estimator) =
+            match (binding.estimator.named(), binding.identifier.named()) {
+                (Some(EstimatorId::BayesianIvJointLinear), Some(IdentifierId::Iv)) => (
+                    BayesianSpecialistFamily::IvJointLinear,
+                    IdentifierId::Iv,
+                    EstimatorId::BayesianIvJointLinear,
+                ),
+                (Some(EstimatorId::BayesianRdLocalLinear), Some(IdentifierId::RdSharp)) => {
+                    let Some(rd) = study.rd else {
+                        return Ok(None);
+                    };
+                    (
+                        BayesianSpecialistFamily::RdLocalLinear(rd),
+                        IdentifierId::RdSharp,
+                        EstimatorId::BayesianRdLocalLinear,
+                    )
+                }
+                _ => return Ok(None),
+            };
         // A sharp design binds its target to the cutoff population at build;
         // the joint IV model estimates the all-observed contrast only.
         let population_matches = match (&family, &query.target_population) {
@@ -121,20 +125,19 @@ impl CheckedBayesianSpecialistOperation {
             return Ok(None);
         }
         let target = CausalQuery::AverageEffect(query.clone());
-        let (identification, estimand) = match family {
-            BayesianSpecialistFamily::IvJointLinear => {
-                match study.identification_cache.as_deref() {
-                    Some(cache) if cache.identification.query == target => {
-                        (cache.identification.clone(), cache.estimand.clone())
-                    }
-                    _ => {
-                        let identification = identify_static_query(identifier, graph, &target)?;
-                        require_identified(&identification)?;
-                        let estimand = select_estimand(&identification, estimator)?;
-                        (identification, estimand)
-                    }
+        let cache = match family {
+            BayesianSpecialistFamily::IvJointLinear => match study.identification_cache.as_ref() {
+                Some(cache) if cache.identification.query == target => Arc::clone(cache),
+                _ => {
+                    let identification = identify_static_query(identifier, graph, &target)?;
+                    require_identified(&identification)?;
+                    let estimand = select_estimand(&identification, estimator)?;
+                    Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                        identification,
+                        estimand,
+                    })
                 }
-            }
+            },
             BayesianSpecialistFamily::RdLocalLinear(rd) => {
                 let identification = SharpRdIdentifier::new(SharpRdConfig::new(
                     rd.running_variable,
@@ -145,24 +148,76 @@ impl CheckedBayesianSpecialistOperation {
                 .map_err(CausalError::from)?;
                 require_identified(&identification)?;
                 let estimand = select_estimand(&identification, estimator)?;
-                (identification, estimand)
+                Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+                    identification,
+                    estimand,
+                })
             }
         };
         match family {
-            BayesianSpecialistFamily::IvJointLinear => check_bayesian_iv_scope(&estimand, config)?,
+            BayesianSpecialistFamily::IvJointLinear => {
+                check_bayesian_iv_scope(&cache.estimand, config)?
+            }
             BayesianSpecialistFamily::RdLocalLinear(_) => check_bayesian_rd_scope(query, config)?,
         }
         Ok(Some(Box::new(Self {
             query: query.clone(),
             family,
-            identification,
-            estimand,
+            cache,
             config: config.clone(),
             physical: plan.clone(),
         })))
     }
 
-    pub(crate) fn info(&self) -> CheckedBayesianSpecialistInfo {
+    /// Execute the retained model on `data` through the study's result context.
+    ///
+    /// # Errors
+    ///
+    /// Estimation failure or a retained plan that no longer binds its target.
+    pub(crate) fn execute(
+        &self,
+        study: &Study,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if self.cache.identification.query != CausalQuery::AverageEffect(self.query.clone())
+            || self.physical.logical.query != CausalQuery::AverageEffect(self.query.clone())
+        {
+            return Err(CausalError::Compile {
+                message: "checked Bayesian specialist operation lost its target binding".into(),
+            });
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled {
+                stage: super::super::stage::STAGE_ESTIMATE_POINT,
+            });
+        }
+        let inputs = BayesianSpecialistInputs {
+            identification: &self.cache.identification,
+            estimand: &self.cache.estimand,
+            config: &self.config,
+            identify_cached: true,
+        };
+        match self.family {
+            BayesianSpecialistFamily::IvJointLinear => {
+                study.execute_bayesian_iv_identified(data, &self.query, &self.physical, inputs, ctx)
+            }
+            BayesianSpecialistFamily::RdLocalLinear(rd) => study.execute_bayesian_rd_identified(
+                data,
+                &self.query,
+                &self.physical,
+                rd,
+                inputs,
+                ctx,
+            ),
+        }
+    }
+}
+
+impl Inspect for CheckedBayesianSpecialistOperation {
+    type Info = CheckedBayesianSpecialistInfo;
+
+    fn info(&self) -> CheckedBayesianSpecialistInfo {
         let (identifier, estimator, rd) = match self.family {
             BayesianSpecialistFamily::IvJointLinear => {
                 (IdentifierId::Iv, EstimatorId::BayesianIvJointLinear, None)
@@ -179,50 +234,6 @@ impl CheckedBayesianSpecialistOperation {
             prior_scale: self.config.prior_scale,
             rd,
             plan_id: Arc::clone(&self.physical.record.plan_id),
-        }
-    }
-
-    /// Execute the retained model on `data` through the study's result context.
-    ///
-    /// # Errors
-    ///
-    /// Estimation failure or a retained plan that no longer binds its target.
-    pub(crate) fn execute(
-        &self,
-        study: &Study,
-        data: &TabularData,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        if self.identification.query != CausalQuery::AverageEffect(self.query.clone())
-            || self.physical.logical.query != CausalQuery::AverageEffect(self.query.clone())
-        {
-            return Err(CausalError::Compile {
-                message: "checked Bayesian specialist operation lost its target binding".into(),
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
-        let inputs = BayesianSpecialistInputs {
-            identification: &self.identification,
-            estimand: &self.estimand,
-            config: &self.config,
-            identify_cached: true,
-        };
-        match self.family {
-            BayesianSpecialistFamily::IvJointLinear => {
-                study.execute_bayesian_iv_identified(data, &self.query, &self.physical, inputs, ctx)
-            }
-            BayesianSpecialistFamily::RdLocalLinear(rd) => study.execute_bayesian_rd_identified(
-                data,
-                &self.query,
-                &self.physical,
-                rd,
-                inputs,
-                ctx,
-            ),
         }
     }
 }

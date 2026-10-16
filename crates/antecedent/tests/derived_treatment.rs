@@ -1,4 +1,4 @@
-//! 2.2 E5 derived treatments: the declaration classifies each source column, exclusions need a
+//! Derived treatments: the declaration classifies each source column, exclusions need a
 //! declared causal rule, leakage, duplicated constituents, rank failure and illegal values are
 //! refused with the columns named (nothing is dropped), and a declared joint cell runs through
 //! the factorized estimator with an unsupported cell refused alone.

@@ -126,17 +126,15 @@ pub struct TransportResponseGridEstimate {
 /// probabilities, non-finite response weights, samples without both source and target rows, an
 /// `identification` that is [`TransportIdentification::NotCertified`], or a recursive-
 /// factorization certificate.
-#[allow(clippy::too_many_arguments)]
 pub fn transport_augmented_response_grid(
     identification: &TransportIdentification,
     outcome: &[f64],
     trial: &[bool],
     selection_probability: &[f64],
-    grid: &[f64],
-    observed_regression: &[f64],
-    target_regression: &[f64],
-    response_weight: &[f64],
+    inputs: &ResponseGridInputs<'_>,
 ) -> Result<TransportResponseGridEstimate, EstimationError> {
+    let ResponseGridInputs { grid, observed_regression, target_regression, response_weight } =
+        *inputs;
     require_dahabreh_compatible_formula(identification, "transport response grid")?;
     let n = outcome.len();
     let cells = n
@@ -219,6 +217,20 @@ pub fn transport_augmented_response_grid(
     })
 }
 
+/// The intervention grid and the grid-local regressions and weights of
+/// [`transport_augmented_response_grid`], laid out as documented there.
+#[derive(Clone, Copy, Debug)]
+pub struct ResponseGridInputs<'a> {
+    /// Intervention levels.
+    pub grid: &'a [f64],
+    /// Source outcome regression at the observed source treatment, per row.
+    pub observed_regression: &'a [f64],
+    /// `target_regression[g * n + i]`: the regression at `grid[g]` for target row `i`.
+    pub target_regression: &'a [f64],
+    /// `response_weight[g * n + i]`: the local smoothing weight for source row `i`.
+    pub response_weight: &'a [f64],
+}
+
 /// Transport a randomized binary-treatment contrast from trial participants to nonparticipants.
 ///
 /// `trial[i]` is true for source-trial rows. `selection_probability` is `P(S=1|X)` and
@@ -247,6 +259,56 @@ pub fn trial_to_target_effect(
     treatment_probability: &[f64],
     outcome_regressions: Option<(&[f64], &[f64])>,
 ) -> Result<TransportEffectEstimate, EstimationError> {
+    Ok(trial_to_target_parts(
+        identification,
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+        outcome_regressions,
+    )?
+    .0)
+}
+
+/// Per-row AIPW contributions from the same execution as [`trial_to_target_effect`].
+///
+/// Each entry is that row's contribution to the augmented sum, scaled by `n / n_target`,
+/// so the sample mean of the table is the augmented estimate.
+///
+/// # Errors
+///
+/// The same input and certificate refusals as [`trial_to_target_effect`].
+pub fn trial_aipw_row_scores(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    outcome_regressions: Option<(&[f64], &[f64])>,
+) -> Result<Vec<f64>, EstimationError> {
+    Ok(trial_to_target_parts(
+        identification,
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+        outcome_regressions,
+    )?
+    .1)
+}
+
+pub(crate) fn trial_to_target_parts(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    outcome_regressions: Option<(&[f64], &[f64])>,
+) -> Result<(TransportEffectEstimate, Vec<f64>), EstimationError> {
     require_dahabreh_compatible_formula(identification, "trial-to-target effect")?;
     let n = outcome.len();
     if let Some((mu0, mu1)) = outcome_regressions {
@@ -263,6 +325,7 @@ pub fn trial_to_target_effect(
     )?;
     let mut ipw_sum = 0.0;
     let mut augmentation_sum = 0.0;
+    let mut terms = vec![0.0; n];
     let mut selection_weights = Vec::new();
     let mut treatment_weights = Vec::new();
     let mut trial_selection_probabilities = Vec::new();
@@ -287,24 +350,37 @@ pub fn trial_to_target_effect(
                 if !mu.is_finite() {
                     return Err(EstimationError::data_msg("outcome regressions must be finite"));
                 }
-                augmentation_sum += sign * weight * (outcome[i] - mu);
+                let term = sign * weight * (outcome[i] - mu);
+                augmentation_sum += term;
+                terms[i] = term;
             }
         } else if let Some((mu0, mu1)) = outcome_regressions {
             if !mu0[i].is_finite() || !mu1[i].is_finite() {
                 return Err(EstimationError::data_msg("outcome regressions must be finite"));
             }
-            augmentation_sum += mu1[i] - mu0[i];
+            let term = mu1[i] - mu0[i];
+            augmentation_sum += term;
+            terms[i] = term;
         }
     }
     let target_n = target_n as f64;
-    Ok(TransportEffectEstimate {
-        ipw: ipw_sum / target_n,
-        aipw: outcome_regressions.map(|_| augmentation_sum / target_n),
-        overlap: TransportOverlapReport {
-            selection: diagnostic(&trial_selection_probabilities, &selection_weights),
-            treatment: diagnostic(&trial_treatment_probabilities, &treatment_weights),
+    let row_scores = if outcome_regressions.is_some() {
+        let scale = n as f64 / target_n;
+        terms.iter().map(|term| term * scale).collect()
+    } else {
+        Vec::new()
+    };
+    Ok((
+        TransportEffectEstimate {
+            ipw: ipw_sum / target_n,
+            aipw: outcome_regressions.map(|_| augmentation_sum / target_n),
+            overlap: TransportOverlapReport {
+                selection: diagnostic(&trial_selection_probabilities, &selection_weights),
+                treatment: diagnostic(&trial_treatment_probabilities, &treatment_weights),
+            },
         },
-    })
+        row_scores,
+    ))
 }
 
 /// Bayesian-bootstrap draws for the identified trial-to-target IPW contrast.
@@ -320,7 +396,6 @@ pub fn trial_to_target_effect(
 ///
 /// Uncertified identification, invalid inputs, fewer than two draws, or a trial
 /// without observed units in both treatment arms.
-#[allow(clippy::too_many_arguments)] // Each slice is a distinct aligned trial/target input.
 pub fn trial_to_target_bayesian_bootstrap(
     identification: &TransportIdentification,
     outcome: &[f64],
@@ -328,9 +403,9 @@ pub fn trial_to_target_bayesian_bootstrap(
     trial: &[bool],
     selection_probability: &[f64],
     treatment_probability: &[f64],
-    n_draws: usize,
-    seed: u64,
+    sampling: crate::util::DrawSpec,
 ) -> Result<Vec<f64>, EstimationError> {
+    let crate::util::DrawSpec { draws: n_draws, seed } = sampling;
     require_dahabreh_compatible_formula(identification, "Bayesian trial-to-target effect")?;
     let target_n = validate_trial_to_target_inputs(
         outcome,
@@ -367,8 +442,8 @@ pub fn trial_to_target_bayesian_bootstrap(
     let mut rng = CausalRng::from_seed(seed);
     let mut draws = Vec::with_capacity(n_draws);
     for _ in 0..n_draws {
-        let weights: Vec<f64> =
-            source_rows.iter().map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let weights =
+            antecedent_kernels::bayesian_bootstrap_weights(&mut rng, source_rows.len(), false);
         let normalizer: f64 = weights.iter().sum();
         if !normalizer.is_finite() || normalizer <= 0.0 {
             return Err(EstimationError::stats_msg(
@@ -513,7 +588,7 @@ pub const fn transport_outcome_kind(error: &antecedent_expr::EvalError) -> Trans
 /// Whether an exact-evaluation failure is a support failure of one replicate
 /// or draw, which a bootstrap counts and skips rather than propagates.
 #[must_use]
-pub const fn is_support_failure(error: &antecedent_expr::EvalError) -> bool {
+pub(crate) const fn is_support_failure(error: &antecedent_expr::EvalError) -> bool {
     matches!(transport_outcome_kind(error), TransportOutcomeKind::SupportFailure)
 }
 
@@ -538,7 +613,7 @@ pub fn refuse_eval(error: &antecedent_expr::EvalError) -> EstimationError {
 
 /// The registered refusal when a transport budget is exhausted.
 #[must_use]
-pub fn refuse_budget(message: impl Into<String>) -> EstimationError {
+pub(crate) fn refuse_budget(message: impl Into<String>) -> EstimationError {
     EstimationError::refused(antecedent_core::reason_code!("transport_budget_cancel"), message)
 }
 
@@ -563,7 +638,7 @@ pub fn refuse_cancelled(
 /// Weight magnitude above which a transport weight counts as extreme in
 /// diagnostics. A tripwire for reporting, not an inferential cutoff — no
 /// trimming or clipping is applied at this value.
-pub const EXTREME_WEIGHT_THRESHOLD: f64 = 10.0;
+pub(crate) const EXTREME_WEIGHT_THRESHOLD: f64 = 10.0;
 
 fn diagnostic(probabilities: &[f64], weights: &[f64]) -> TransportOverlapDiagnostic {
     TransportOverlapDiagnostic {
@@ -739,7 +814,7 @@ pub(crate) fn compile_exact_z_transport(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
     use antecedent_core::same_intervention_level;
-    use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
+    use antecedent_expr::{EvalError, ExactEvaluationPlan, ExactEvaluationSpec, LawTolerance};
 
     require_treatment_request(functional.treatments(), &request)?;
     // A source factor that exchanged a treatment cites the experiment at the
@@ -769,13 +844,15 @@ pub(crate) fn compile_exact_z_transport(
     // A factor whose exchanged coordinate is bound by an enclosing summation
     // names no single regime; the concrete world selects its law.
     ExactEvaluationPlan::compile(
-        functional.arena(),
-        functional.root(),
+        ExactEvaluationSpec {
+            arena: functional.arena(),
+            root: functional.root(),
+            outcomes: functional.outcomes().clone(),
+            request,
+            limits,
+            tolerance: LawTolerance::default(),
+        },
         data.with_world_bound_leaves(functional.cited_regimes()),
-        functional.outcomes().clone(),
-        request,
-        limits,
-        LawTolerance::default(),
         ctx,
     )
 }
@@ -956,13 +1033,15 @@ pub fn prepare_exact_transport(
     require_treatment_request(&query.treatments, &request)?;
     validate_exact_laws(functional.catalog(), &data)?;
     antecedent_expr::ExactEvaluationPlan::compile(
-        functional.arena(),
-        functional.root(),
+        antecedent_expr::ExactEvaluationSpec {
+            arena: functional.arena(),
+            root: functional.root(),
+            outcomes: query.outcomes.clone(),
+            request,
+            limits,
+            tolerance: antecedent_expr::LawTolerance::default(),
+        },
         data,
-        query.outcomes.clone(),
-        request,
-        limits,
-        antecedent_expr::LawTolerance::default(),
         ctx,
     )
 }
@@ -1017,7 +1096,10 @@ mod tests {
 
     use super::*;
 
-    #[allow(clippy::too_many_lines)] // Central fixture wires the complete source catalog and law.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "central fixture wires the complete source catalog and law"
+    )]
     fn checked_z_fixture(
         empirical: bool,
     ) -> (antecedent_identify::BoundZTransportFunctional, ExactTransportData) {
@@ -1289,8 +1371,7 @@ mod tests {
                 &source,
                 &[0.5; 4],
                 &[0.5; 4],
-                10_000,
-                41,
+                crate::util::DrawSpec::new(10_000, 41),
             )
             .unwrap()
         };
@@ -1309,8 +1390,7 @@ mod tests {
                 &source,
                 &[0.5; 4],
                 &[0.5; 4],
-                100,
-                41,
+                crate::util::DrawSpec::new(100, 41)
             )
             .is_err()
         );
@@ -1476,10 +1556,12 @@ mod tests {
             &[1.0, 3.0, 0.0, 0.0],
             &[true, true, false, false],
             &[0.5; 4],
-            &[0.0, 1.0],
-            &[1.0, 3.0, 0.0, 0.0],
-            &[1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0],
-            &[1.0; 8],
+            &ResponseGridInputs {
+                grid: &[0.0, 1.0],
+                observed_regression: &[1.0, 3.0, 0.0, 0.0],
+                target_regression: &[1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0],
+                response_weight: &[1.0; 8],
+            },
         )
         .unwrap_err();
         assert!(err.to_string().contains("recursive factorization"));
@@ -1492,13 +1574,15 @@ mod tests {
             &[1.0, 3.0, 0.0, 0.0],
             &[true, true, false, false],
             &[0.5; 4],
-            &[0.0, 1.0],
-            &[1.0, 3.0, 0.0, 0.0],
-            &[
-                1.0, 1.0, 1.0, 1.0, // target predictions at a=0
-                3.0, 3.0, 3.0, 3.0, // target predictions at a=1
-            ],
-            &[1.0; 8],
+            &ResponseGridInputs {
+                grid: &[0.0, 1.0],
+                observed_regression: &[1.0, 3.0, 0.0, 0.0],
+                target_regression: &[
+                    1.0, 1.0, 1.0, 1.0, // target predictions at a=0
+                    3.0, 3.0, 3.0, 3.0, // target predictions at a=1
+                ],
+                response_weight: &[1.0; 8],
+            },
         )
         .unwrap();
         assert_eq!(&*estimate.grid, &[0.0, 1.0]);
@@ -1513,13 +1597,15 @@ mod tests {
             &[1.0, 3.0, 0.0, 0.0],
             &[true, true, false, false],
             &[0.5; 4],
-            &[0.0, 1.0],
-            &[1.0, 3.0, 0.0, 0.0],
-            &[
-                1.0, 1.0, 1.0, 1.0, // target predictions at a=0
-                3.0, 3.0, 3.0, 3.0, // target predictions at a=1
-            ],
-            &[1.0; 8],
+            &ResponseGridInputs {
+                grid: &[0.0, 1.0],
+                observed_regression: &[1.0, 3.0, 0.0, 0.0],
+                target_regression: &[
+                    1.0, 1.0, 1.0, 1.0, // target predictions at a=0
+                    3.0, 3.0, 3.0, 3.0, // target predictions at a=1
+                ],
+                response_weight: &[1.0; 8],
+            },
         )
         .unwrap_err();
         assert!(
@@ -1534,10 +1620,12 @@ mod tests {
             &[2.0, 4.0, 0.0],
             &[true, true, false],
             &[0.5; 3],
-            &[0.0],
-            &[1.0, 3.0, 0.0],
-            &[0.0, 0.0, 5.0],
-            &[0.5, 0.5, 0.0],
+            &ResponseGridInputs {
+                grid: &[0.0],
+                observed_regression: &[1.0, 3.0, 0.0],
+                target_regression: &[0.0, 0.0, 5.0],
+                response_weight: &[0.5, 0.5, 0.0],
+            },
         )
         .unwrap();
         assert!((estimate.mean[0] - 6.0).abs() < f64::EPSILON);
@@ -1550,10 +1638,12 @@ mod tests {
             &[2.0, 4.0, 0.0],
             &[true, true, false],
             &[0.5; 3],
-            &[0.0],
-            &[1.0, 3.0, 0.0],
-            &[0.0, 0.0, 5.0],
-            &[-0.25, 0.75, 0.0],
+            &ResponseGridInputs {
+                grid: &[0.0],
+                observed_regression: &[1.0, 3.0, 0.0],
+                target_regression: &[0.0, 0.0, 5.0],
+                response_weight: &[-0.25, 0.75, 0.0],
+            },
         )
         .unwrap();
         assert!((estimate.mean[0] - 5.5).abs() < f64::EPSILON);
@@ -1570,13 +1660,15 @@ mod tests {
             &[1.0, 3.0, f64::NAN, 0.0],
             &[true, true, false, false],
             &[0.5; 4],
-            &[0.0, 1.0],
-            &[1.0, 3.0, 1.0, 1.0],
-            &[
-                1.0, 1.0, 1.0, 1.0, // target predictions at a=0
-                3.0, 3.0, 3.0, 3.0, // target predictions at a=1
-            ],
-            &[1.0; 8],
+            &ResponseGridInputs {
+                grid: &[0.0, 1.0],
+                observed_regression: &[1.0, 3.0, 1.0, 1.0],
+                target_regression: &[
+                    1.0, 1.0, 1.0, 1.0, // target predictions at a=0
+                    3.0, 3.0, 3.0, 3.0, // target predictions at a=1
+                ],
+                response_weight: &[1.0; 8],
+            },
         )
         .unwrap_err();
         assert!(err.to_string().contains("must be finite"));

@@ -2,8 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
+use crate::strategy_table::EstimatorId;
+use crate::strategy_table::IdentifierId;
 use crate::{BayesianConfig, InferenceMode};
 use antecedent_core::CausalQuery;
+use std::sync::Arc;
 
 use super::builder::RefuteSuite;
 use super::checked_temporal_effect::CheckedTemporalEffectOperation;
@@ -85,10 +89,43 @@ pub(super) fn checked_bayesian_settings(
     let InferenceMode::Bayesian(config) = inference else {
         return Err(CausalError::Compile { message: requires_bayesian.into() });
     };
-    if !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full) {
+    if !validation.is_point() {
         return Err(CausalError::Unsupported { message: validation_support });
     }
     Ok(config.clone())
+}
+
+/// Read-only target and procedure of a sealed Bayesian `TemporalDag` effect.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianTemporalDagEffectInfo {
+    /// Exact pulse or one-step sustained target.
+    pub query: antecedent_core::TemporalEffectQuery,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Requested posterior draws.
+    pub posterior_draws: usize,
+    /// Signature of the retained `TemporalDag`.
+    pub graph_signature: std::sync::Arc<str>,
+}
+
+impl Inspect for CheckedBayesianTemporalEffectOperation {
+    type Info = CheckedBayesianTemporalDagEffectInfo;
+
+    fn info(&self) -> CheckedBayesianTemporalDagEffectInfo {
+        let target = self.target();
+        CheckedBayesianTemporalDagEffectInfo {
+            query: target.query().clone(),
+            identifier: IdentifierId::TemporalBackdoorUnfolded,
+            estimator: EstimatorId::temporal_effect_procedure(target.query(), true),
+            validation: self.validation(),
+            posterior_draws: self.config().n_draws,
+            graph_signature: Arc::from(target.graph_signature()),
+        }
+    }
 }
 
 #[cfg(test)]

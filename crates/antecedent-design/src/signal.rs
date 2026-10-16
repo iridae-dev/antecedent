@@ -14,13 +14,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::sync::{Arc, Mutex, OnceLock};
 
-use antecedent_core::{
-    CausalRng, ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
+use antecedent_contract::{
+    ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
     ProviderObjectIdentity, ScientificQuantity,
 };
+use antecedent_core::{CanonicalWriter, CausalRng, is_blank};
 
 use crate::candidate::CandidateDesign;
 use crate::error::DesignError;
@@ -68,20 +69,24 @@ pub struct SignalRequest {
     pub limits: SignalLimits,
 }
 
-fn put_str(hasher: &mut blake3::Hasher, value: &str) {
-    hasher.update(&(value.len() as u64).to_le_bytes());
-    hasher.update(value.as_bytes());
-}
-
-fn put_f64s(hasher: &mut blake3::Hasher, values: &[f64]) {
-    hasher.update(&(values.len() as u64).to_le_bytes());
-    for value in values {
-        hasher.update(&value.to_le_bytes());
+/// Digest of a native signal law: the family label, and for the Gaussian-mean family its noise
+/// variance. The one implementation behind both the provider's `law_digest` and the design
+/// ranking artifact's replay of it.
+pub(crate) fn native_law_digest(family: &str, parameters: &[f64]) -> String {
+    let mut hasher = CanonicalWriter::new("antecedent.signal.native_law.v1");
+    hasher.text(family);
+    if family == "gaussian_mean" {
+        hasher.reals(parameters);
     }
+    hasher.finish_hex()
 }
 
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
+/// A count-prefixed table of rows, each a count-prefixed sequence of reals.
+fn rows(hasher: &mut CanonicalWriter, table: &[Vec<f64>]) {
+    hasher.word(table.len() as u64);
+    for row in table {
+        hasher.reals(row);
+    }
 }
 
 impl SignalRequest {
@@ -92,17 +97,17 @@ impl SignalRequest {
     /// Blank identities, missing lineage or conditional-independence assumption,
     /// invalid coordinates, a zero sample size, or one above the declared limit.
     pub fn validate(&self) -> Result<(), SignalError> {
-        if blank(&self.candidate_id) || blank(&self.prior_id) {
+        if is_blank(&self.candidate_id) || is_blank(&self.prior_id) {
             return Err(SignalError::InvalidRequest("candidate and prior identities"));
         }
         if self.state_quantity.validate().is_err() || self.observation_quantity.validate().is_err()
         {
             return Err(SignalError::InvalidRequest("state and observation coordinates"));
         }
-        if self.evidence_lineage.is_empty() || self.evidence_lineage.iter().any(|l| blank(l)) {
+        if self.evidence_lineage.is_empty() || self.evidence_lineage.iter().any(|l| is_blank(l)) {
             return Err(SignalError::MissingLineage);
         }
-        if blank(&self.conditional_independence) {
+        if is_blank(&self.conditional_independence) {
             return Err(SignalError::ConditionalIndependenceMissing);
         }
         if self.sample_size == 0 {
@@ -118,24 +123,19 @@ impl SignalRequest {
     /// leaves it unchanged; any other change alters it.
     #[must_use]
     pub fn fingerprint(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "antecedent.signal_request.v1");
-        put_str(&mut hasher, &self.candidate_id);
-        put_str(&mut hasher, &self.prior_id);
-        put_str(&mut hasher, &format!("{:?}", self.state_quantity));
-        put_str(&mut hasher, &format!("{:?}", self.observation_quantity));
-        hasher.update(&self.sample_size.to_le_bytes());
-        hasher.update(&self.rng_seed.to_le_bytes());
+        let mut hasher = CanonicalWriter::new("antecedent.signal_request.v1");
+        hasher.text(&self.candidate_id).text(&self.prior_id);
+        self.state_quantity.write_canonical(&mut hasher);
+        self.observation_quantity.write_canonical(&mut hasher);
+        hasher.word(self.sample_size).word(self.rng_seed);
         let mut lineage = self.evidence_lineage.clone();
         lineage.sort();
-        hasher.update(&(lineage.len() as u64).to_le_bytes());
-        for item in &lineage {
-            put_str(&mut hasher, item);
-        }
-        put_str(&mut hasher, &self.conditional_independence);
-        hasher.update(&self.limits.max_sample_size.to_le_bytes());
-        hasher.update(&(self.limits.max_support as u64).to_le_bytes());
-        hasher.finalize().to_hex().to_string()
+        hasher.texts(&lineage);
+        hasher
+            .text(&self.conditional_independence)
+            .word(self.limits.max_sample_size)
+            .word(self.limits.max_support as u64);
+        hasher.finish_hex()
     }
 }
 
@@ -229,26 +229,32 @@ impl SignalReceipt {
     /// request, provider, update mode, trust or law changes it.
     #[must_use]
     pub fn identity(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "antecedent.signal_receipt.v1");
-        put_str(&mut hasher, &self.request_fingerprint);
-        put_str(&mut hasher, &self.family);
-        put_str(&mut hasher, self.update_mode.as_str());
-        put_str(&mut hasher, self.trust.as_str());
-        put_str(&mut hasher, self.attestor.as_deref().unwrap_or(""));
-        if let Some(identity) = &self.provider_identity {
-            for part in [
-                &identity.provider_id,
-                &identity.object_id,
-                &identity.version_id,
-                &identity.snapshot_id,
-                &identity.request_id,
-            ] {
-                put_str(&mut hasher, part);
+        let mut hasher = CanonicalWriter::new("antecedent.signal_receipt.v1");
+        hasher
+            .text(&self.request_fingerprint)
+            .text(&self.family)
+            .text(self.update_mode.as_str())
+            .text(self.trust.as_str())
+            .opt_text(self.attestor.as_deref());
+        match &self.provider_identity {
+            Some(identity) => {
+                hasher.word(1);
+                for part in [
+                    &identity.provider_id,
+                    &identity.object_id,
+                    &identity.version_id,
+                    &identity.snapshot_id,
+                    &identity.request_id,
+                ] {
+                    hasher.text(part);
+                }
+            }
+            None => {
+                hasher.word(0);
             }
         }
-        put_str(&mut hasher, &self.law_digest);
-        hasher.finalize().to_hex().to_string()
+        hasher.text(&self.law_digest);
+        hasher.finish_hex()
     }
 }
 
@@ -300,6 +306,48 @@ impl std::fmt::Debug for PreparedSignal {
             .field("bound_states", &self.bound_states)
             .finish()
     }
+}
+
+/// How many prepared laws to keep for a later seal. A ranking seals the laws it
+/// just evaluated; older entries fall off so a process that evaluates without
+/// sealing does not retain every law it has ever prepared.
+const RETAINED_LAW_CAP: usize = 256;
+
+struct RetainedLaws {
+    order: VecDeque<String>,
+    by_id: HashMap<String, PreparedSignal>,
+}
+
+fn retained_laws() -> &'static Mutex<RetainedLaws> {
+    static LAWS: OnceLock<Mutex<RetainedLaws>> = OnceLock::new();
+    LAWS.get_or_init(|| Mutex::new(RetainedLaws { order: VecDeque::new(), by_id: HashMap::new() }))
+}
+
+/// Remember the law `evaluate_evsi` just prepared, keyed by receipt identity.
+///
+/// The receipt identity covers the law digest. [`recall_prepared`] returns it to `seal`.
+pub(crate) fn remember_prepared(prepared: &PreparedSignal) {
+    let id = prepared.receipt.identity();
+    let mut slot = retained_laws().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(existing) = slot.by_id.get_mut(&id) {
+        *existing = prepared.clone();
+        return;
+    }
+    while slot.order.len() >= RETAINED_LAW_CAP {
+        if let Some(old) = slot.order.pop_front() {
+            slot.by_id.remove(&old);
+        } else {
+            break;
+        }
+    }
+    slot.order.push_back(id.clone());
+    slot.by_id.insert(id, prepared.clone());
+}
+
+/// The prepared law whose receipt identity is `identity`, if it is still retained.
+pub(crate) fn recall_prepared(identity: &str) -> Option<PreparedSignal> {
+    let slot = retained_laws().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    slot.by_id.get(identity).cloned()
 }
 
 /// Candidate-specific predictive observation law and posterior update.
@@ -359,21 +407,98 @@ pub enum SignalError {
     PosteriorIncoherent,
 }
 
-pub(crate) fn make_refusal(
+/// The one place this crate fills an [`ExternalRefusal`].
+///
+/// The contract constructor owns the field set. Call sites set the optional fields
+/// here, and [`Self::build`] forwards them to `ExternalRefusal::new`.
+pub(crate) struct RefusalBuilder {
     code: &'static str,
     stage: &'static str,
-    detail: &str,
-) -> ExternalRefusal {
-    ExternalRefusal {
-        code,
-        stage,
-        detail: detail.to_owned(),
-        offending: None,
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: None,
+    detail: String,
+    offending: Option<String>,
+    expected: Option<String>,
+    supplied: Option<String>,
+    capability: Option<ExternalCapability>,
+    remedy: Option<&'static str>,
+}
+
+impl RefusalBuilder {
+    /// A refusal with no optional fields.
+    pub(crate) fn new(code: &'static str, stage: &'static str, detail: &str) -> Self {
+        Self {
+            code,
+            stage,
+            detail: detail.to_owned(),
+            offending: None,
+            expected: None,
+            supplied: None,
+            capability: None,
+            remedy: None,
+        }
     }
+
+    /// Name the offending coordinate.
+    pub(crate) fn offending(mut self, value: impl Into<String>) -> Self {
+        self.offending = Some(value.into());
+        self
+    }
+
+    /// Name the offending coordinate when there is one.
+    pub(crate) fn offending_opt(mut self, value: Option<String>) -> Self {
+        self.offending = value;
+        self
+    }
+
+    /// Record the expected semantics.
+    pub(crate) fn expected(mut self, value: impl Into<String>) -> Self {
+        self.expected = Some(value.into());
+        self
+    }
+
+    /// Record the supplied semantics.
+    pub(crate) fn supplied(mut self, value: impl Into<String>) -> Self {
+        self.supplied = Some(value.into());
+        self
+    }
+
+    /// Record the missing operation.
+    pub(crate) fn capability(mut self, value: ExternalCapability) -> Self {
+        self.capability = Some(value);
+        self
+    }
+
+    /// Record a remedy.
+    pub(crate) fn remedy(mut self, value: &'static str) -> Self {
+        self.remedy = Some(value);
+        self
+    }
+
+    /// The structured refusal.
+    pub(crate) fn build(self) -> ExternalRefusal {
+        let mut value = ExternalRefusal::new(self.code, self.stage, self.detail);
+        if let Some(offending) = self.offending {
+            value = value.with_offending(offending);
+        }
+        if let Some(expected) = self.expected {
+            value = value.with_expected(expected);
+        }
+        if let Some(supplied) = self.supplied {
+            value = value.with_supplied(supplied);
+        }
+        if let Some(capability) = self.capability {
+            value = value.with_capability(capability);
+        }
+        if let Some(remedy) = self.remedy {
+            value = value.with_remedy(remedy);
+        }
+        value
+    }
+}
+
+/// Keep a nested error's refusal and name the stage that surfaced it.
+pub(crate) fn at_stage(mut refusal: ExternalRefusal, stage: &'static str) -> ExternalRefusal {
+    refusal.stage = stage;
+    refusal
 }
 
 impl SignalError {
@@ -381,68 +506,71 @@ impl SignalError {
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
-        let at = |code, detail: &str| make_refusal(code, "declare", detail);
+        let at = |code, detail: &str| RefusalBuilder::new(code, "declare", detail);
         match self {
-            Self::InvalidRequest(what) => ExternalRefusal {
-                offending: Some((*what).to_owned()),
-                ..at(
-                    antecedent_core::reason_code!("invalid_argument"),
-                    "signal_provider.invalid_request",
-                )
-            },
-            Self::MissingLineage => at(signal, "signal_provider.missing_lineage"),
+            Self::InvalidRequest(what) => at(
+                antecedent_core::reason_code!("invalid_argument"),
+                "signal_provider.invalid_request",
+            )
+            .offending(*what)
+            .build(),
+            Self::MissingLineage => at(signal, "signal_provider.missing_lineage").build(),
             Self::ConditionalIndependenceMissing => {
-                at(signal, "signal_provider.conditional_independence_missing")
+                at(signal, "signal_provider.conditional_independence_missing").build()
             }
-            Self::SampleSizeInvalid => at(signal, "signal_provider.sample_size_invalid"),
-            Self::ComputationalLimit(what) => ExternalRefusal {
-                offending: Some((*what).to_owned()),
-                ..at(signal, "signal_provider.computational_limit")
-            },
+            Self::SampleSizeInvalid => at(signal, "signal_provider.sample_size_invalid").build(),
+            Self::ComputationalLimit(what) => {
+                at(signal, "signal_provider.computational_limit").offending(*what).build()
+            }
             Self::InvalidObject => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
                 "signal_provider.invalid_object",
-            ),
-            Self::InvalidTable(what) => ExternalRefusal {
-                offending: Some((*what).to_owned()),
-                ..at(signal, "signal_provider.invalid_table")
-            },
+            )
+            .build(),
+            Self::InvalidTable(what) => {
+                at(signal, "signal_provider.invalid_table").offending(*what).build()
+            }
             Self::RequestFingerprintMismatch => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
                 "signal_provider.request_fingerprint_mismatch",
-            ),
-            Self::CandidateMismatch => at(signal, "signal_provider.candidate_mismatch"),
-            Self::PriorMismatch => at(signal, "signal_provider.prior_mismatch"),
-            Self::SampleSizeMismatch { declared, requested } => ExternalRefusal {
-                expected: Some(requested.to_string()),
-                supplied: Some(declared.to_string()),
-                ..at(signal, "signal_provider.sample_size_mismatch")
-            },
+            )
+            .build(),
+            Self::CandidateMismatch => at(signal, "signal_provider.candidate_mismatch").build(),
+            Self::PriorMismatch => at(signal, "signal_provider.prior_mismatch").build(),
+            Self::SampleSizeMismatch { declared, requested } => {
+                at(signal, "signal_provider.sample_size_mismatch")
+                    .expected(requested.to_string())
+                    .supplied(declared.to_string())
+                    .build()
+            }
             Self::ObservationQuantityMismatch => at(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 "signal_provider.observation_quantity_mismatch",
-            ),
+            )
+            .build(),
             Self::PosteriorQuantityMismatch => at(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
                 "signal_provider.posterior_quantity_mismatch",
-            ),
-            Self::CapabilityMissing(capability) => ExternalRefusal {
-                capability: Some(*capability),
-                ..at(
-                    antecedent_core::reason_code!("external_capability_missing"),
-                    "signal_provider.capability_missing",
-                )
-            },
+            )
+            .build(),
+            Self::CapabilityMissing(capability) => at(
+                antecedent_core::reason_code!("external_capability_missing"),
+                "signal_provider.capability_missing",
+            )
+            .capability(*capability)
+            .build(),
             Self::TrustNativeClaimed => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
                 "signal_provider.trust_native_claimed",
-            ),
+            )
+            .build(),
             Self::TrustMismatch => at(
                 antecedent_core::reason_code!("external_binding_mismatch"),
                 "signal_provider.trust_mismatch",
-            ),
-            Self::LawIncoherent => at(signal, "signal_provider.law_incoherent"),
-            Self::PosteriorIncoherent => at(signal, "signal_provider.posterior_incoherent"),
+            )
+            .build(),
+            Self::LawIncoherent => at(signal, "signal_provider.law_incoherent").build(),
+            Self::PosteriorIncoherent => at(signal, "signal_provider.posterior_incoherent").build(),
         }
     }
 }
@@ -549,10 +677,7 @@ impl NativeGaussianMeanSignal {
 impl SignalProvider for NativeGaussianMeanSignal {
     fn prepare(&self, request: &SignalRequest) -> Result<PreparedSignal, SignalError> {
         request.validate()?;
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "gaussian_mean");
-        put_f64s(&mut hasher, &[self.signal.noise_variance()]);
-        let digest = hasher.finalize().to_hex().to_string();
+        let digest = native_law_digest("gaussian_mean", &[self.signal.noise_variance()]);
         Ok(native_prepared(request, "gaussian_mean", Arc::new(self.signal), digest))
     }
 }
@@ -572,9 +697,7 @@ impl SignalProvider for NativeBinomialSignal {
         if too_large {
             return Err(SignalError::ComputationalLimit("support"));
         }
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "binomial");
-        let digest = hasher.finalize().to_hex().to_string();
+        let digest = native_law_digest("binomial", &[]);
         Ok(native_prepared(request, "binomial", Arc::new(BinomialSignal), digest))
     }
 }
@@ -748,7 +871,7 @@ fn validate_values(values: &ExternalDecisionValues) -> Result<(), SignalError> {
     }
     let mut ids: Vec<&String> = values.action_ids.iter().collect();
     ids.sort();
-    if values.action_ids.iter().any(|id| blank(id)) || ids.windows(2).any(|w| w[0] == w[1]) {
+    if values.action_ids.iter().any(|id| is_blank(id)) || ids.windows(2).any(|w| w[0] == w[1]) {
         return Err(SignalError::InvalidTable("blank or duplicate action id"));
     }
     if !all_probabilities(&values.branch_probabilities)
@@ -800,30 +923,25 @@ impl ExternalSignalBody {
     }
 
     fn digest(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, self.mode().as_str());
-        hasher.update(&self.sample_size.to_le_bytes());
-        put_str(&mut hasher, &format!("{:?}", self.state_quantity));
-        put_str(&mut hasher, &format!("{:?}", self.observation_quantity));
+        let mut hasher = CanonicalWriter::new("antecedent.signal.external_law.v1");
+        hasher.text(self.mode().as_str()).word(self.sample_size);
+        self.state_quantity.write_canonical(&mut hasher);
+        self.observation_quantity.write_canonical(&mut hasher);
         match &self.law {
             ExternalLaw::Likelihood { states, statistics, probabilities } => {
-                put_f64s(&mut hasher, states);
-                put_f64s(&mut hasher, statistics);
-                probabilities.iter().for_each(|row| put_f64s(&mut hasher, row));
+                hasher.reals(states).reals(statistics);
+                rows(&mut hasher, probabilities);
             }
             ExternalLaw::Posterior { states, statistics, predictive, posterior } => {
-                put_f64s(&mut hasher, states);
-                put_f64s(&mut hasher, statistics);
-                put_f64s(&mut hasher, predictive);
-                posterior.iter().for_each(|row| put_f64s(&mut hasher, row));
+                hasher.reals(states).reals(statistics).reals(predictive);
+                rows(&mut hasher, posterior);
             }
             ExternalLaw::DecisionValues(values) => {
-                put_f64s(&mut hasher, &values.branch_probabilities);
-                values.action_ids.iter().for_each(|id| put_str(&mut hasher, id));
-                values.values.iter().for_each(|row| put_f64s(&mut hasher, row));
+                hasher.reals(&values.branch_probabilities).texts(&values.action_ids);
+                rows(&mut hasher, &values.values);
             }
         }
-        hasher.finalize().to_hex().to_string()
+        hasher.finish_hex()
     }
 }
 
@@ -875,7 +993,7 @@ impl ExternalFiniteSignal {
 }
 
 impl DecisionSignal<f64> for ExternalFiniteSignal {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "external_finite_law"
     }
 
@@ -961,7 +1079,7 @@ impl ExternalSignal {
         match &trust {
             ExternalTrustState::NativeLicensed => return Err(SignalError::TrustNativeClaimed),
             ExternalTrustState::ExternallyAttested { attestor } => {
-                if blank(attestor) {
+                if is_blank(attestor) {
                     return Err(SignalError::TrustMismatch);
                 }
             }

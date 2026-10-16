@@ -1,6 +1,6 @@
 //! Original-source semantic projections and actual checked native operation resolution.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use crate::{detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err, value_err_code, with_reason_code};
 use antecedent::analysis::composition::BundleLimits;
 use antecedent::analysis::source_evidence::SourceResolution;
 use antecedent::analysis::source_projection::source_resolved_consumer;
@@ -12,9 +12,7 @@ use pyo3::types::PyDict;
 
 fn error(error: antecedent_io::IoError) -> PyErr {
     match error {
-        antecedent_io::IoError::Refused { code, message } => {
-            with_reason_code(value_err(message), code)
-        }
+        antecedent_io::IoError::Refused { code, message } => value_err_code(code, message),
         other => invalid("source_projection.original_consumer_refused", other.to_string()),
     }
 }
@@ -44,7 +42,7 @@ fn produce_source_projection(
     projection_json: &str,
 ) -> PyResult<(String, Vec<u8>)> {
     bounded(source)?;
-    if projection_json.len() > 1024 * 1024 {
+    if projection_json.len() > crate::bridge::MAX_CONFIG_DECLARATION_BYTES {
         return Err(invalid(
             "source_projection.limits_exceeded",
             "projection declaration exceeds byte bound",

@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import pathlib
 from typing import Any
 
 import antecedent
 import numpy as np
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 PIN = load_json(_ROOT / "conformance/bayesian/known_truth_mixtures/expected.json")
 STATIC = PIN["static_average_effect"]
 TEMPORAL = PIN["temporal_effect"]

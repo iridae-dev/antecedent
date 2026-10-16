@@ -2,11 +2,12 @@
 //! The model-support query is distinct from the requested contrast: changing causal roles
 //! invalidates identification and fit; selecting another finite contrast reuses coefficients.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use super::recalc_common::{Fields, dag_from_edges, float_bytes, identity, literal};
 use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder,
     TargetWeights, UtilitySpec, decide,
 };
-use crate::graph::{Dag, DenseNodeId};
+use crate::graph::Dag;
 use antecedent_core::ExecutionContext;
 use antecedent_core::VariableId;
 use antecedent_core::recalc::{
@@ -15,7 +16,7 @@ use antecedent_core::recalc::{
 };
 use antecedent_estimate::adjustment_resume::{AdjustedFit, count_adjusted_model_fits};
 use antecedent_estimate::categorical_treatment::{
-    CategoricalTreatmentInput, CategoricalTreatmentSpec,
+    CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelScale, MonotonicityDirection,
 };
 use antecedent_estimate::vector_treatment::{
     NamedColumn, TreatmentColumn, VectorCovariance, VectorTreatmentInput, VectorTreatmentOptions,
@@ -88,14 +89,54 @@ pub struct AdjustedRequest {
     /// Net benefit utility.
     pub utility: UtilitySpec,
 }
-fn identity(label: &str, parts: &[Vec<u8>]) -> StageIdentity {
-    StageIdentity::of(label, &parts.iter().map(Vec::as_slice).collect::<Vec<_>>())
+fn level_scale_tag(scale: LevelScale) -> &'static str {
+    match scale {
+        LevelScale::Unordered => "unordered",
+        LevelScale::Ordered => "ordered",
+    }
 }
-fn literal(label: &str, value: &str) -> StageIdentity {
-    StageIdentity::of(label, &[value.as_bytes()])
+fn model_fields(model: &AdjustedModel) -> Fields {
+    match model {
+        AdjustedModel::Linear { covariance } => {
+            Fields::new().text("linear").text(covariance.as_str())
+        }
+        AdjustedModel::Glm { family, options } => Fields::new()
+            .text("glm")
+            .text(crate::analysis::contract_identity::glm_family(*family))
+            .wire(&crate::analysis::contract_identity::glm_options(options)),
+        AdjustedModel::Categorical { spec, levels } => {
+            let mut fields = Fields::new()
+                .text("categorical")
+                .texts(levels)
+                .texts(&spec.declared_levels)
+                .text(level_scale_tag(spec.scale))
+                .text(&spec.reference)
+                .len(spec.min_level_rows)
+                .len(spec.pairwise.len());
+            for (from, to) in &spec.pairwise {
+                fields = fields.text(from).text(to);
+            }
+            fields
+                .text(match spec.monotonicity {
+                    None => "none",
+                    Some(MonotonicityDirection::NonDecreasing) => "non_decreasing",
+                    Some(MonotonicityDirection::NonIncreasing) => "non_increasing",
+                })
+                .text(spec.covariance.as_str())
+        }
+    }
 }
-fn numbers(values: &[f64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect()
+fn contrast_identity(contrast: &AdjustedContrast) -> StageIdentity {
+    match contrast {
+        AdjustedContrast::Numeric { active, control } => Fields::new()
+            .text("numeric")
+            .reals(active)
+            .reals(control)
+            .identity("adjusted.mean_contrast"),
+        AdjustedContrast::Categorical { from, to } => {
+            Fields::new().text("categorical").text(from).text(to).identity("adjusted.mean_contrast")
+        }
+    }
 }
 impl AdjustedRequest {
     /// Own identities including model-support roles and contrast-specific law inputs.
@@ -107,14 +148,16 @@ impl AdjustedRequest {
         edges.dedup();
         ids.set(
             Stage::Graph,
-            literal("adjusted.graph", &format!("{}:{edges:?}", self.columns.len())),
+            Fields::new().len(self.columns.len()).pairs(&edges).identity("adjusted.graph"),
         );
         ids.set(
             Stage::Query,
-            literal(
-                "adjusted.model_support_query",
-                &format!("{:?}:{}:{:?}:mean", self.treatments, self.outcome, self.adjustment),
-            ),
+            Fields::new()
+                .ids(&self.treatments)
+                .word(u64::from(self.outcome))
+                .ids(&self.adjustment)
+                .text("mean")
+                .identity("adjusted.model_support_query"),
         );
         ids.set(
             Stage::Regime,
@@ -137,7 +180,12 @@ impl AdjustedRequest {
             |t| {
                 identity(
                     "adjusted.target",
-                    &[numbers(&t.weights), format!("{:?}", t.depends_on).into_bytes()],
+                    &[
+                        float_bytes(&t.weights),
+                        Fields::new()
+                            .ids(&t.depends_on.iter().map(|id| id.raw()).collect::<Vec<_>>())
+                            .into_bytes(),
+                    ],
                 )
             },
         );
@@ -145,7 +193,7 @@ impl AdjustedRequest {
         let mut data = Vec::new();
         for (name, values) in &self.columns {
             data.push(name.as_bytes().to_vec());
-            data.push(numbers(values));
+            data.push(float_bytes(values));
         }
         ids.set(Stage::DataSnapshot, identity("adjusted.snapshot", &data));
         ids.set(
@@ -158,18 +206,20 @@ impl AdjustedRequest {
         // Numeric models declare their finite continuous parametric support. Categorical
         // level/reference changes are model-design changes, never just a selected contrast.
         let grid = match &self.model {
-            AdjustedModel::Categorical { spec, .. } => {
-                format!("{:?}:{:?}:{}", spec.declared_levels, spec.scale, spec.reference)
-            }
-            _ => "parametric.finite_numeric".into(),
+            AdjustedModel::Categorical { spec, .. } => Fields::new()
+                .texts(&spec.declared_levels)
+                .text(level_scale_tag(spec.scale))
+                .text(&spec.reference)
+                .identity("adjusted.support"),
+            _ => literal("adjusted.support", "parametric.finite_numeric"),
         };
-        ids.set(Stage::TreatmentGrid, literal("adjusted.support", &grid));
+        ids.set(Stage::TreatmentGrid, grid);
         ids.set(
             Stage::LearnerFoldsRng,
             identity(
                 "adjusted.model",
                 &[
-                    format!("{:?}", self.model).into_bytes(),
+                    model_fields(&self.model).into_bytes(),
                     ctx.rng.master_seed().to_le_bytes().to_vec(),
                 ],
             ),
@@ -178,7 +228,7 @@ impl AdjustedRequest {
             Stage::Utility,
             identity(
                 "adjusted.utility",
-                &[numbers(&[self.utility.benefit_per_unit, self.utility.cost])],
+                &[float_bytes(&[self.utility.benefit_per_unit, self.utility.cost])],
             ),
         );
         ids.set(
@@ -189,7 +239,7 @@ impl AdjustedRequest {
             Stage::ScoreArtifact,
             literal("adjusted.fit", "retained.coefficients.full_covariance.v1"),
         );
-        ids.set(Stage::Law, literal("adjusted.mean_contrast", &format!("{:?}", self.contrast)));
+        ids.set(Stage::Law, contrast_identity(&self.contrast));
         ids.set(Stage::Decision, literal("adjusted.decision", "net_benefit"));
         ids
     }
@@ -205,18 +255,7 @@ impl AdjustedRequest {
         }
     }
     fn graph(&self) -> Result<Dag, RecalcRunError> {
-        let n = u32::try_from(self.columns.len())
-            .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
-        let mut graph = Dag::with_variables(n);
-        let mut edges = self.edges.clone();
-        edges.sort_unstable();
-        edges.dedup();
-        for (a, b) in edges {
-            graph
-                .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-                .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
-        }
-        Ok(graph)
+        dag_from_edges(self.columns.len(), &self.edges, "recalc.invalid_graph")
     }
     #[allow(
         clippy::float_cmp,
@@ -415,11 +454,6 @@ impl AdjustedSession {
     pub fn prediction_columns(&self) -> Option<&[String]> {
         self.live.as_ref().map(|live| live.prediction_columns.as_ref())
     }
-    /// Checked joint-backdoor certificate retained independently of numerical data.
-    #[must_use]
-    pub fn checked_adjustment(&self) -> Option<&CheckedJointAdjustment> {
-        self.live.as_ref().map(|live| live.checked.as_ref())
-    }
     /// Predict means with retained fit: adjustment features then numeric/dummy treatments.
     ///
     /// # Errors
@@ -436,6 +470,93 @@ impl AdjustedSession {
 fn recomputed(plan: &RecalcPlan, stage: Stage) -> bool {
     matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }))
 }
+/// Refuses a fit whose design and Gram matrices would exceed the memory budget.
+fn guard_adjusted_memory(
+    request: &AdjustedRequest,
+    ctx: &ExecutionContext,
+) -> Result<(), RecalcRunError> {
+    let n = request.columns.first().map_or(0, |(_, values)| values.len()) as u64;
+    let k = match &request.model {
+        AdjustedModel::Categorical { spec, .. } => spec.declared_levels.len().saturating_sub(1),
+        _ => request.treatments.len(),
+    };
+    let p = (1 + request.adjustment.len() + k) as u64;
+    let bytes = n
+        .saturating_mul(p)
+        .saturating_mul(64)
+        .saturating_add(p.saturating_mul(p).saturating_mul(64));
+    if ctx
+        .memory
+        .hard_limit_bytes
+        .into_iter()
+        .chain(ctx.memory.soft_limit_bytes)
+        .any(|limit| bytes > limit)
+    {
+        return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
+    }
+    Ok(())
+}
+
+/// Refits the adjusted model from the request, or reuses the live fit.
+fn adjusted_fit(
+    request: &AdjustedRequest,
+    requested: &StageIdentities,
+    plan: &RecalcPlan,
+    held: Option<&Live>,
+    recorder: &mut ReceiptRecorder,
+) -> Result<Arc<AdjustedFit>, RecalcRunError> {
+    Ok(if recomputed(plan, Stage::ScoreArtifact) {
+        let input = request.input(&requested.own(Stage::DataSnapshot).to_hex());
+        let (fit, n) = count_adjusted_model_fits(|| match &request.model {
+            AdjustedModel::Linear { covariance } => AdjustedFit::linear(
+                &input,
+                &VectorTreatmentOptions { covariance: *covariance, contrasts: vec![] },
+            ),
+            AdjustedModel::Glm { family, options } => AdjustedFit::glm(&input, *family, options),
+            AdjustedModel::Categorical { spec, levels } => AdjustedFit::categorical(
+                &CategoricalTreatmentInput {
+                    outcome: input.outcome,
+                    row_snapshot: input.row_snapshot,
+                    adjustment: input.adjustment,
+                    levels: levels.clone(),
+                },
+                spec,
+            ),
+        });
+        recorder.record(Counter::ModelFit, n);
+        Arc::new(fit.map_err(|e| RecalcRunError::Execution(e.into()))?)
+    } else {
+        held.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.fit.clone()
+    })
+}
+
+/// Names the design columns the fitted model predicts from: adjustment, then treatment or level indicators.
+fn prediction_columns(request: &AdjustedRequest) -> Vec<String> {
+    request
+        .adjustment
+        .iter()
+        .map(|id| request.columns[*id as usize].0.clone())
+        .chain(match &request.model {
+            AdjustedModel::Categorical { spec, .. } => {
+                let mut levels = spec.declared_levels.clone();
+                if spec.scale == antecedent_estimate::categorical_treatment::LevelScale::Unordered {
+                    levels.sort();
+                }
+                levels
+                    .into_iter()
+                    .filter(|level| level != &spec.reference)
+                    .map(|level| format!("level:{level}"))
+                    .collect::<Vec<_>>()
+            }
+            _ => request
+                .treatments
+                .iter()
+                .map(|id| request.columns[*id as usize].0.clone())
+                .collect(),
+        })
+        .collect()
+}
+
 /// Execute the shared plan, measuring actual completed model solves inside numeric kernels.
 ///
 /// # Errors
@@ -469,25 +590,7 @@ pub fn execute_adjusted_with_receipt(
         return Err(RecalcRunError::Refused(Box::new(plan)));
     }
     if recomputed(&plan, Stage::ScoreArtifact) {
-        let n = request.columns.first().map_or(0, |(_, values)| values.len()) as u64;
-        let k = match &request.model {
-            AdjustedModel::Categorical { spec, .. } => spec.declared_levels.len().saturating_sub(1),
-            _ => request.treatments.len(),
-        };
-        let p = (1 + request.adjustment.len() + k) as u64;
-        let bytes = n
-            .saturating_mul(p)
-            .saturating_mul(64)
-            .saturating_add(p.saturating_mul(p).saturating_mul(64));
-        if ctx
-            .memory
-            .hard_limit_bytes
-            .into_iter()
-            .chain(ctx.memory.soft_limit_bytes)
-            .any(|limit| bytes > limit)
-        {
-            return Err(RecalcRunError::Request("recalc.memory_budget_exceeded"));
-        }
+        guard_adjusted_memory(request, ctx)?;
     }
     let mut recorder = ReceiptRecorder::new();
     let held = session.live.as_ref();
@@ -499,31 +602,7 @@ pub fn execute_adjusted_with_receipt(
         } else {
             held.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::Identification))?.checked.clone()
         };
-        let fit = if recomputed(&plan, Stage::ScoreArtifact) {
-            let input = request.input(&requested.own(Stage::DataSnapshot).to_hex());
-            let (fit, n) = count_adjusted_model_fits(|| match &request.model {
-                AdjustedModel::Linear { covariance } => AdjustedFit::linear(
-                    &input,
-                    &VectorTreatmentOptions { covariance: *covariance, contrasts: vec![] },
-                ),
-                AdjustedModel::Glm { family, options } => {
-                    AdjustedFit::glm(&input, *family, options)
-                }
-                AdjustedModel::Categorical { spec, levels } => AdjustedFit::categorical(
-                    &CategoricalTreatmentInput {
-                        outcome: input.outcome,
-                        row_snapshot: input.row_snapshot,
-                        adjustment: input.adjustment,
-                        levels: levels.clone(),
-                    },
-                    spec,
-                ),
-            });
-            recorder.record(Counter::ModelFit, n);
-            Arc::new(fit.map_err(|e| RecalcRunError::Execution(e.into()))?)
-        } else {
-            held.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.fit.clone()
-        };
+        let fit = adjusted_fit(request, &requested, &plan, held, &mut recorder)?;
         let law = if recomputed(&plan, Stage::Law) {
             let (active, control) = match &request.contrast {
                 AdjustedContrast::Numeric { active, control } => (active.clone(), control.clone()),
@@ -546,31 +625,7 @@ pub fn execute_adjusted_with_receipt(
         };
         // Keep the checked graph in live state; it is the proof context bound by identities.
         let _ = checked.graph();
-        let prediction_columns: Vec<_> = request
-            .adjustment
-            .iter()
-            .map(|id| request.columns[*id as usize].0.clone())
-            .chain(match &request.model {
-                AdjustedModel::Categorical { spec, .. } => {
-                    let mut levels = spec.declared_levels.clone();
-                    if spec.scale
-                        == antecedent_estimate::categorical_treatment::LevelScale::Unordered
-                    {
-                        levels.sort();
-                    }
-                    levels
-                        .into_iter()
-                        .filter(|level| level != &spec.reference)
-                        .map(|level| format!("level:{level}"))
-                        .collect::<Vec<_>>()
-                }
-                _ => request
-                    .treatments
-                    .iter()
-                    .map(|id| request.columns[*id as usize].0.clone())
-                    .collect(),
-            })
-            .collect();
+        let prediction_columns = prediction_columns(request);
         Ok(Live { checked, fit, law, decision, prediction_columns: Arc::from(prediction_columns) })
     };
     let live = execute()?;

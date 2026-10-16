@@ -4,9 +4,9 @@
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StructureSource, Study,
 };
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, SlotAvailability,
-    VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
@@ -83,7 +83,10 @@ fn sealed_and_one_shot_bayesian_conditional_agree_on_a_wide_table() {
     };
     assert!(projected(&one_shot), "one-shot projects the unused column away");
     assert!(projected(&sealed), "sealed execution projects the unused column away");
-    assert_eq!(sealed.estimate.ate.to_bits(), one_shot.estimate.ate.to_bits());
+    assert_eq!(
+        sealed.estimate.as_effect().unwrap().ate.to_bits(),
+        one_shot.estimate.as_effect().unwrap().ate.to_bits()
+    );
 }
 
 #[test]
@@ -186,9 +189,9 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
             // is the empirical-population mean of the conditional contrast.
             // Both modifiers have mean zero and the independent SCM mean is 2.
             assert!(
-                (result.estimate.ate - 2.0).abs() < 0.2,
+                (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
                 "{coordinate}: {}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 96);
             assert!(result.posterior.as_ref().unwrap().draws.schema.quantities.len() >= 7);
@@ -202,7 +205,10 @@ fn bayesian_conditional_effect_keeps_target_prior_and_procedure_after_builder_dr
                 );
             }
             let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-            assert_eq!(refreshed.estimate.ate.to_bits(), result.estimate.ate.to_bits());
+            assert_eq!(
+                refreshed.estimate.as_effect().unwrap().ate.to_bits(),
+                result.estimate.as_effect().unwrap().ate.to_bits()
+            );
 
             let artifact = prepared
                 .encode_contracted_result(

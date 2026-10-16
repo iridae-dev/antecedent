@@ -1,4 +1,4 @@
-//! Python binding for the matched case-control conditional odds ratio (2.2 E7).
+//! Python binding for the matched case-control conditional odds ratio.
 use crate::transport_common::execution_context;
 use antecedent_estimate::{
     EstimationError, conditional_odds_ratio, parse_matched_estimand, parse_matched_sampling,

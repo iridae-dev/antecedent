@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use numpy::{PyReadonlyArray1, PyReadonlyArray2};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+
+use crate::detach_catch;
 
 /// Simultaneous difference band: times, difference, lower, upper, ok replicates,
 /// and the exact graphless band license (`Some("licensed")`) when the published
@@ -89,6 +90,7 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
     reason = "grid membership tests match exact recorded durations against exact grid times, not approximate quantities"
 )]
 fn randomized_survival_ipcw(
+    py: Python<'_>,
     duration: PyReadonlyArray1<'_, f64>,
     event_observed: Vec<bool>,
     treated: Vec<bool>,
@@ -101,18 +103,18 @@ fn randomized_survival_ipcw(
     let g = censoring_survival.as_array();
     let n = duration.len();
     if n == 0 || event_observed.len() != n || treated.len() != n || g.nrows() != n {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "duration, event_observed, treatment, and censoring survival rows must have equal non-zero length",
         ));
     }
     if !tau.is_finite() || tau <= 0.0 {
-        return Err(PyValueError::new_err("tau must be finite and positive"));
+        return Err(crate::value_err("tau must be finite and positive"));
     }
     if !minimum_probability.is_finite() || minimum_probability <= 0.0 || minimum_probability > 1.0 {
-        return Err(PyValueError::new_err("minimum_probability must be finite and in (0, 1]"));
+        return Err(crate::value_err("minimum_probability must be finite and in (0, 1]"));
     }
     if duration.iter().any(|time| !time.is_finite() || *time < 0.0) {
-        return Err(PyValueError::new_err("durations must be finite and non-negative"));
+        return Err(crate::value_err("durations must be finite and non-negative"));
     }
     if times.len() < 2
         || times.len() != g.ncols()
@@ -121,12 +123,12 @@ fn randomized_survival_ipcw(
         || times.iter().any(|time| !time.is_finite())
         || times.windows(2).any(|pair| pair[1] <= pair[0])
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "times must be a strictly increasing grid from zero through tau and match censoring_survival columns",
         ));
     }
     if (0..n).any(|i| duration[i] <= tau && !times.iter().any(|time| *time == duration[i])) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "times must include every observed duration at or before tau",
         ));
     }
@@ -137,14 +139,14 @@ fn randomized_survival_ipcw(
             .iter()
             .any(|value| !value.is_finite() || *value < minimum_probability || *value > 1.0)
         {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "censoring survival values violate the declared positivity floor or lie outside (0, 1]",
             ));
         }
         if (row[0] - 1.0).abs() > 1e-10
             || row.windows(2).into_iter().any(|pair| pair[1] > pair[0] + 1e-10)
         {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "censoring survival rows must start at one and be non-increasing",
             ));
         }
@@ -152,36 +154,42 @@ fn randomized_survival_ipcw(
     }
     for arm in [false, true] {
         if !(0..n).any(|i| treated[i] == arm) {
-            return Err(PyValueError::new_err(
-                "IPCW survival requires units in both treatment arms",
-            ));
+            return Err(crate::value_err("IPCW survival requires units in both treatment arms"));
         }
         if !(0..n).any(|i| treated[i] == arm && duration[i] >= tau) {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "tau must not exceed the observed follow-up horizon in either arm",
             ));
         }
     }
     let event_codes = event_observed.iter().map(|event| i64::from(*event)).collect::<Vec<_>>();
-    let (summary, kernel_minimum_g) =
+    let duration = duration.to_vec();
+    let survival = g.iter().copied().collect::<Vec<_>>();
+    let (summary, kernel_minimum_g) = detach_catch(py, move || {
         antecedent_estimate::survival::randomized_survival_ipcw_summary(
-            &duration.to_vec(),
-            &event_codes,
-            &treated,
-            &times,
-            &g.iter().copied().collect::<Vec<_>>(),
+            &antecedent_estimate::survival::SurvivalRows {
+                duration: &duration,
+                event_code: &event_codes,
+                treated: &treated,
+                delayed_entry: None,
+            },
+            &antecedent_estimate::survival::KnownCensoring {
+                times: &times,
+                survival: &survival,
+                minimum_probability,
+            },
             tau,
-            minimum_probability,
             antecedent_estimate::survival::SurvivalEndpoint::Survival,
         )
-        .map_err(PyValueError::new_err)?;
+        .map_err(crate::value_err)
+    })?;
     debug_assert!((minimum_g - kernel_minimum_g).abs() <= 1e-10);
     Ok((
         summary.times,
         summary.control,
         summary.treated,
-        summary.rmst_control.expect("survival summary has RMST"),
-        summary.rmst_treated.expect("survival summary has RMST"),
+        summary.rmst_control.ok_or_else(|| crate::value_err("survival summary is missing RMST"))?,
+        summary.rmst_treated.ok_or_else(|| crate::value_err("survival summary is missing RMST"))?,
         summary.minimum_event_risk_set_by_arm[0],
         summary.minimum_event_risk_set_by_arm[1],
         kernel_minimum_g,
@@ -195,6 +203,7 @@ fn randomized_survival_ipcw(
     reason = "grid membership tests match exact recorded durations against exact grid times, not approximate quantities"
 )]
 fn randomized_cumulative_incidence_ipcw(
+    py: Python<'_>,
     duration: PyReadonlyArray1<'_, f64>,
     event_cause: Vec<i64>,
     treated: Vec<bool>,
@@ -208,30 +217,30 @@ fn randomized_cumulative_incidence_ipcw(
     let g = censoring_survival.as_array();
     let n = duration.len();
     if n == 0 || event_cause.len() != n || treated.len() != n || g.nrows() != n {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "duration, event_cause, treatment, and censoring survival rows must have equal non-zero length",
         ));
     }
     if !tau.is_finite() || tau <= 0.0 || target_cause <= 0 {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "tau must be positive and target_cause must be a positive event code",
         ));
     }
     if !minimum_probability.is_finite() || minimum_probability <= 0.0 || minimum_probability > 1.0 {
-        return Err(PyValueError::new_err("minimum_probability must be finite and in (0, 1]"));
+        return Err(crate::value_err("minimum_probability must be finite and in (0, 1]"));
     }
     if duration.iter().any(|time| !time.is_finite() || *time < 0.0) {
-        return Err(PyValueError::new_err("durations must be finite and non-negative"));
+        return Err(crate::value_err("durations must be finite and non-negative"));
     }
     if event_cause.iter().any(|&cause| cause < 0) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "event_cause codes must be non-negative; zero denotes censoring",
         ));
     }
     let causes: std::collections::BTreeSet<i64> =
         event_cause.iter().copied().filter(|&c| c > 0).collect();
     if causes.len() < 2 || !causes.contains(&target_cause) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "at least two event causes must be observed and target_cause must be among them",
         ));
     }
@@ -242,12 +251,12 @@ fn randomized_cumulative_incidence_ipcw(
         || times.iter().any(|t| !t.is_finite())
         || times.windows(2).any(|w| w[1] <= w[0])
     {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "times must be a strictly increasing grid from zero through tau and match censoring_survival columns",
         ));
     }
     if (0..n).any(|i| duration[i] <= tau && !times.iter().any(|t| *t == duration[i])) {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "times must include every observed duration at or before tau",
         ));
     }
@@ -255,12 +264,12 @@ fn randomized_cumulative_incidence_ipcw(
     for i in 0..n {
         let row = g.row(i);
         if row.iter().any(|v| !v.is_finite() || *v < minimum_probability || *v > 1.0) {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "censoring survival values violate the declared positivity floor or lie outside (0, 1]",
             ));
         }
         if (row[0] - 1.0).abs() > 1e-10 || row.windows(2).into_iter().any(|w| w[1] > w[0] + 1e-10) {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "censoring survival rows must start at one and be non-increasing",
             ));
         }
@@ -270,23 +279,31 @@ fn randomized_cumulative_incidence_ipcw(
         if !(0..n).any(|i| treated[i] == arm)
             || !(0..n).any(|i| treated[i] == arm && duration[i] >= tau)
         {
-            return Err(PyValueError::new_err(
+            return Err(crate::value_err(
                 "IPCW cumulative incidence requires both arms observed through tau",
             ));
         }
     }
-    let (summary, kernel_minimum_g) =
+    let duration = duration.to_vec();
+    let survival = g.iter().copied().collect::<Vec<_>>();
+    let (summary, kernel_minimum_g) = detach_catch(py, move || {
         antecedent_estimate::survival::randomized_survival_ipcw_summary(
-            &duration.to_vec(),
-            &event_cause,
-            &treated,
-            &times,
-            &g.iter().copied().collect::<Vec<_>>(),
+            &antecedent_estimate::survival::SurvivalRows {
+                duration: &duration,
+                event_code: &event_cause,
+                treated: &treated,
+                delayed_entry: None,
+            },
+            &antecedent_estimate::survival::KnownCensoring {
+                times: &times,
+                survival: &survival,
+                minimum_probability,
+            },
             tau,
-            minimum_probability,
             antecedent_estimate::survival::SurvivalEndpoint::CumulativeIncidence { target_cause },
         )
-        .map_err(PyValueError::new_err)?;
+        .map_err(crate::value_err)
+    })?;
     debug_assert!((minimum_g - kernel_minimum_g).abs() <= 1e-10);
     Ok((
         summary.times,

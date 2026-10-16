@@ -1,4 +1,4 @@
-//! B4 latent-class (finite mixture) regime effects.
+//! Latent-class (finite mixture) regime effects.
 //!
 //! # The cell
 //!
@@ -122,18 +122,21 @@ use antecedent_core::reason_code;
 use crate::effect_constancy::CalibrationStatus;
 use crate::error::EstimationError;
 use crate::splitmix::{mix64, splitmix64};
+use crate::util::dot;
+use crate::util::{count, refuse};
+use crate::vector_treatment::DesignSummary;
 
 /// Most latent classes accepted.
 pub const LATENT_CLASS_MAX_CLASSES: usize = 4;
 
 /// Most restarts accepted.
-pub const LATENT_CLASS_MAX_RESTARTS: usize = 64;
+pub(crate) const LATENT_CLASS_MAX_RESTARTS: usize = 64;
 
 /// Most covariates accepted.
-pub const LATENT_CLASS_MAX_COVARIATES: usize = 64;
+pub(crate) const LATENT_CLASS_MAX_COVARIATES: usize = 64;
 
 /// Most bootstrap replicates accepted.
-pub const LATENT_CLASS_MAX_BOOTSTRAP: usize = 5000;
+pub(crate) const LATENT_CLASS_MAX_BOOTSTRAP: usize = 5000;
 
 /// Inference claim of the route.
 pub const LATENT_CLASS_INFERENCE_CLAIM: &str = "point_with_bootstrap_se";
@@ -256,6 +259,8 @@ pub struct LatentClassEffect {
     pub residual_variance: f64,
     /// Effective class size: the sum of the class's responsibilities.
     pub effective_n: f64,
+    /// Weighted normal equations of this class. The treatment is the first slope column.
+    pub design: DesignSummary,
 }
 
 /// Bootstrap bookkeeping.
@@ -312,14 +317,6 @@ pub struct LatentClassResult {
     pub caveat: &'static str,
 }
 
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
-}
-
 fn as_u64(n: usize) -> u64 {
     u64::try_from(n).unwrap_or(u64::MAX)
 }
@@ -328,10 +325,6 @@ fn as_u64(n: usize) -> u64 {
 #[allow(clippy::cast_precision_loss, reason = "a 53-bit integer is exact in f64")]
 fn unit_draw(bits: u64) -> f64 {
     (bits >> 11) as f64 / (1_u64 << 53) as f64
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 /// The prepared regression problem: rows `z_i = [1, a_i, x_i...]`.
@@ -526,45 +519,6 @@ fn validate_data(
     Ok((problem, limits))
 }
 
-/// Solve `A x = b` for a symmetric positive-definite `A` (lower triangle read) by Cholesky;
-/// `None` when a pivot is not safely positive.
-fn solve_spd(matrix: &[f64], rhs: &[f64], dim: usize) -> Option<Vec<f64>> {
-    let mut lower = vec![0.0; dim * dim];
-    for i in 0..dim {
-        for j in 0..=i {
-            let mut acc = matrix[i * dim + j];
-            for k in 0..j {
-                acc -= lower[i * dim + k] * lower[j * dim + k];
-            }
-            if i == j {
-                if acc.is_nan() || acc <= 1e-12 * matrix[i * dim + i] || !acc.is_finite() {
-                    return None;
-                }
-                lower[i * dim + i] = acc.sqrt();
-            } else {
-                lower[i * dim + j] = acc / lower[j * dim + j];
-            }
-        }
-    }
-    let mut forward = vec![0.0; dim];
-    for i in 0..dim {
-        let mut acc = rhs[i];
-        for k in 0..i {
-            acc -= lower[i * dim + k] * forward[k];
-        }
-        forward[i] = acc / lower[i * dim + i];
-    }
-    let mut solution = vec![0.0; dim];
-    for i in (0..dim).rev() {
-        let mut acc = forward[i];
-        for k in (i + 1)..dim {
-            acc -= lower[k * dim + i] * solution[k];
-        }
-        solution[i] = acc / lower[i * dim + i];
-    }
-    Some(solution)
-}
-
 /// Weighted least squares of `y` on the problem's design.
 fn wls(problem: &Problem, weights: &[f64]) -> Option<Vec<f64>> {
     let dim = problem.d;
@@ -583,7 +537,39 @@ fn wls(problem: &Problem, weights: &[f64]) -> Option<Vec<f64>> {
             }
         }
     }
-    solve_spd(&gram, &rhs, dim)
+    crate::util::solve_spd(&gram, &rhs, dim)
+}
+
+/// Weighted normal equations of one class: `X'WX`, `X'Wy` and the weighted residual sum of squares.
+fn class_design(problem: &Problem, weights: &[f64]) -> DesignSummary {
+    let dim = problem.d;
+    let mut gram = vec![0.0; dim * dim];
+    let mut xty = vec![0.0; dim];
+    let mut n_rows = 0usize;
+    for (idx, &weight) in weights.iter().enumerate() {
+        if weight <= 0.0 {
+            continue;
+        }
+        n_rows += 1;
+        let zi = problem.row(idx);
+        for row in 0..dim {
+            xty[row] += weight * zi[row] * problem.y[idx];
+            for col in 0..dim {
+                gram[row * dim + col] += weight * zi[row] * zi[col];
+            }
+        }
+    }
+    let beta = wls(problem, weights).unwrap_or_else(|| vec![0.0; dim]);
+    let mut rss = 0.0;
+    for (idx, &weight) in weights.iter().enumerate() {
+        if weight <= 0.0 {
+            continue;
+        }
+        let fitted = dot(problem.row(idx), &beta);
+        let resid = problem.y[idx] - fitted;
+        rss += weight * resid * resid;
+    }
+    DesignSummary { n_rows, first_treatment: 1, gram, xty, rss }
 }
 
 fn e_step(problem: &Problem, params: &Params, resp: &mut [Vec<f64>]) -> f64 {
@@ -820,12 +806,6 @@ fn permutations(k: usize) -> Vec<Vec<usize>> {
     out
 }
 
-fn sample_sd(values: &[f64]) -> f64 {
-    let m = count(values.len());
-    let mean = values.iter().sum::<f64>() / m;
-    (values.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (m - 1.0)).sqrt()
-}
-
 fn mixture_average(params: &Params) -> f64 {
     params.weights.iter().zip(&params.beta).map(|(w, b)| w * b[1]).sum()
 }
@@ -905,11 +885,13 @@ fn bootstrap_se(
             "fewer than two bootstrap replicates converged to a non-degenerate fit",
         ));
     }
-    let effects =
-        (0..k).map(|c| sample_sd(&replicates.iter().map(|r| r.0[c]).collect::<Vec<_>>())).collect();
-    let weights =
-        (0..k).map(|c| sample_sd(&replicates.iter().map(|r| r.1[c]).collect::<Vec<_>>())).collect();
-    let average = sample_sd(&replicates.iter().map(|r| r.2).collect::<Vec<_>>());
+    let effects = (0..k)
+        .map(|c| crate::util::sample_std(&replicates.iter().map(|r| r.0[c]).collect::<Vec<_>>()))
+        .collect();
+    let weights = (0..k)
+        .map(|c| crate::util::sample_std(&replicates.iter().map(|r| r.1[c]).collect::<Vec<_>>()))
+        .collect();
+    let average = crate::util::sample_std(&replicates.iter().map(|r| r.2).collect::<Vec<_>>());
     let summary = LatentClassBootstrap { requested, succeeded, failed: requested - succeeded };
     Ok(Some(BootstrapSe { effects, weights, average, summary }))
 }
@@ -978,6 +960,7 @@ pub fn fit_latent_class_effects(
             covariate_coefficients: params.beta[c][2..].to_vec(),
             residual_variance: params.sigma2[c],
             effective_n: resp[c].iter().sum(),
+            design: class_design(&problem, &resp[c]),
         })
         .collect();
     let min_effect_gap =

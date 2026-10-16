@@ -1,11 +1,13 @@
 //! Lazy finite unfolding of temporal DAGs and graph-review artifacts.
 //!
-//! Stationary algorithms query edges on demand via [`LazyUnfoldedTemporalGraph`].
-//! Full materialisation is available when a static [`Dag`] is required.
+//! [`LazyUnfoldedTemporalGraph`] holds the template and window indexer; [`materialize`] replicates
+//! the in-window edges into a static [`Dag`]. Per-edge queries exist only as the test oracle for
+//! that replication.
+//!
+//! [`materialize`]: LazyUnfoldedTemporalGraph::materialize
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_wrap)]
 #![cfg_attr(
     test,
     allow(
@@ -78,11 +80,13 @@ impl TemporalDag {
 }
 
 impl LazyUnfoldedTemporalGraph {
-    /// Whether a concrete directed edge exists under the template replication.
+    /// Whether a concrete directed edge exists under the template replication. Test oracle
+    /// for [`Self::materialize`].
     ///
     /// # Errors
     ///
     /// Endpoints outside the indexer window.
+    #[cfg(test)]
     pub fn has_edge(&self, from: TemporalNodeKey, to: TemporalNodeKey) -> Result<bool, GraphError> {
         let _ = self.indexer.dense_id(from).map_err(|_| GraphError::InvalidEndpoints {
             message: "unfold endpoint outside window",
@@ -129,11 +133,15 @@ impl LazyUnfoldedTemporalGraph {
                 insert_replicated_edges(&mut dag, &self.indexer, from_key, to_key)?;
             }
         }
+        if dag.topological_order().is_none() {
+            return Err(GraphError::Cycle { from: 0, to: 0 });
+        }
 
         Ok(UnfoldedTemporalGraph { dag, indexer: self.indexer.clone() })
     }
 }
 
+#[cfg(test)]
 fn edge_matches(
     template_from: TemporalNodeKey,
     template_to: TemporalNodeKey,
@@ -159,6 +167,7 @@ pub(crate) fn stationary_shifts(
     (lower - a_offset.min(b_offset))..=(upper - a_offset.max(b_offset))
 }
 
+#[allow(clippy::cast_possible_wrap, reason = "node and lag counts are bounded far below i64::MAX")]
 fn insert_replicated_edges(
     dag: &mut Dag,
     indexer: &TemporalIndexer,
@@ -192,10 +201,8 @@ fn insert_replicated_edges(
         if from == to {
             continue;
         }
-        match dag.insert_directed(from, to) {
-            Ok(()) | Err(GraphError::DuplicateEdge { .. }) => {}
-            Err(e) => return Err(e),
-        }
+        // Stationary shifts of an acyclic template stay acyclic. Duplicates are ignored.
+        dag.directed_mut().push_if_absent(from, to);
     }
     Ok(())
 }
@@ -362,7 +369,6 @@ pub fn ensure_lagged(
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names)]
 mod tests {
     use antecedent_core::TemporalIndexer;
     use antecedent_core::{Lag, VariableId};
@@ -557,6 +563,7 @@ mod tests {
     }
 
     /// Reconstruct a DAG by querying every lazy `has_edge` pair in-window.
+    #[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
     fn dag_from_lazy_scan(lazy: &LazyUnfoldedTemporalGraph) -> Dag {
         let mut dag = Dag::from_unfolding(&lazy.indexer).unwrap();
         let min_off = -(lazy.indexer.history() as i32);
@@ -586,6 +593,7 @@ mod tests {
 
     /// Lazy `has_edge` agrees with materialize over random small stationary templates.
     #[test]
+    #[allow(clippy::cast_possible_wrap, reason = "fixture dimensions are small literals")]
     fn property_lazy_unfold_matches_materialize_on_small_templates() {
         use antecedent_core::CausalRng;
 

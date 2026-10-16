@@ -1,7 +1,7 @@
 //! Conditional continuous-dose response using supplied dose densities.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Value of a fixed baseline-group dose rule under a kernel-smoothed intervention.
 /// The target is the average response over the prespecified kernel window,
@@ -40,27 +40,59 @@ pub struct DosePolicyValue {
     pub minimum_dose_density: f64,
 }
 
+/// Observed rows of a fixed dose-policy evaluation, aligned by row.
+#[derive(Clone, Copy, Debug)]
+pub struct DoseRows<'a> {
+    /// Outcome per row.
+    pub outcome: &'a [f64],
+    /// Observed dose per row.
+    pub dose: &'a [f64],
+    /// Baseline group label per row.
+    pub groups: &'a [String],
+    /// Supplied observed-dose density per row.
+    pub density: &'a [f64],
+}
+
+/// Fixed group-to-dose rules for the policy and its reference, each naming every
+/// observed group exactly once.
+#[derive(Clone, Copy, Debug)]
+pub struct DoseRules<'a> {
+    /// Policy dose per group.
+    pub policy: &'a [(String, f64)],
+    /// Reference dose per group.
+    pub reference: &'a [(String, f64)],
+}
+
+/// The prespecified kernel window of a fixed dose-policy evaluation.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DoseWindow {
+    /// Epanechnikov kernel half-width, in dose units.
+    pub bandwidth: f64,
+    /// Fewest rows any local window may hold (at least two).
+    pub min_local_support: usize,
+    /// Whether the supplied density is known rather than estimated; pointwise intervals
+    /// require it.
+    pub density_known: bool,
+}
+
 /// Evaluate fixed group-to-dose policy and reference rules on the same rows.
 ///
 /// Group labels and both rules must be set without using these outcomes. The
 /// group fractions are fixed at their observed values. Independent subjects,
 /// conditional exchangeability within the supplied groups, a correct known
 /// dose density, and local positivity are required for the pointwise intervals.
-// arity and length mirror the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "per-group local fit of both rules in one loop that accumulates the shared support and weight diagnostics, then the interval assembly"
+)]
 pub fn fixed_dose_policy_value(
-    outcome: &[f64],
-    dose: &[f64],
-    groups: &[String],
-    density: &[f64],
-    policy: &[(String, f64)],
-    reference: &[(String, f64)],
-    bandwidth: f64,
-    min_local_support: usize,
-    density_known: bool,
+    rows: &DoseRows<'_>,
+    rules: &DoseRules<'_>,
+    window: &DoseWindow,
 ) -> Result<DosePolicyValue, String> {
-    use std::collections::BTreeMap;
+    let DoseRows { outcome, dose, groups, density } = *rows;
+    let DoseRules { policy, reference } = *rules;
+    let DoseWindow { bandwidth, min_local_support, density_known } = *window;
     let n = outcome.len();
     if n < 2
         || dose.len() != n
@@ -358,10 +390,6 @@ mod policy_tests {
     )]
     use super::*;
 
-    fn uniform(state: u64) -> f64 {
-        crate::splitmix::unit_f64(crate::splitmix::mix64(state))
-    }
-
     #[test]
     fn fixed_group_dose_policy_paired_intervals_cover_kernel_smoothed_truth() {
         const N: usize = 800;
@@ -381,12 +409,7 @@ mod policy_tests {
         let mut covered = [0_usize; 3];
         for replicate in 0..REPLICATES {
             let dose = (0..N)
-                .map(|i| {
-                    uniform(
-                        (replicate as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                            ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
-                    )
-                })
+                .map(|i| crate::splitmix::keyed_unit(replicate as u64, i as u64))
                 .collect::<Vec<_>>();
             let outcome = (0..N)
                 .map(|i| {
@@ -396,12 +419,21 @@ mod policy_tests {
                 })
                 .collect::<Vec<_>>();
             let fit = fixed_dose_policy_value(
-                &outcome, &dose, &groups, &density, &policy, &reference, 0.2, 80, true,
+                &DoseRows { outcome: &outcome, dose: &dose, groups: &groups, density: &density },
+                &DoseRules { policy: &policy, reference: &reference },
+                &DoseWindow { bandwidth: 0.2, min_local_support: 80, density_known: true },
             )
             .unwrap();
             if replicate == 0 {
                 let external = fixed_dose_policy_value(
-                    &outcome, &dose, &groups, &density, &policy, &reference, 0.2, 80, false,
+                    &DoseRows {
+                        outcome: &outcome,
+                        dose: &dose,
+                        groups: &groups,
+                        density: &density,
+                    },
+                    &DoseRules { policy: &policy, reference: &reference },
+                    &DoseWindow { bandwidth: 0.2, min_local_support: 80, density_known: false },
                 )
                 .unwrap();
                 assert_eq!(external.incremental_value, fit.incremental_value);
@@ -410,15 +442,14 @@ mod policy_tests {
                 assert!(external.incremental_interval_95.is_none());
                 let weak_density = vec![0.1; N];
                 let weak = fixed_dose_policy_value(
-                    &outcome,
-                    &dose,
-                    &groups,
-                    &weak_density,
-                    &policy,
-                    &reference,
-                    0.2,
-                    80,
-                    true,
+                    &DoseRows {
+                        outcome: &outcome,
+                        dose: &dose,
+                        groups: &groups,
+                        density: &weak_density,
+                    },
+                    &DoseRules { policy: &policy, reference: &reference },
+                    &DoseWindow { bandwidth: 0.2, min_local_support: 80, density_known: true },
                 )
                 .unwrap();
                 assert!(weak.incremental_interval_95.is_none());
@@ -458,12 +489,7 @@ mod policy_tests {
         let mut covered = [0_usize; 3];
         for rep in 0..REPLICATES {
             let dose = (0..N)
-                .map(|i| {
-                    uniform(
-                        (rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                            ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
-                    )
-                })
+                .map(|i| crate::splitmix::keyed_unit(rep as u64, i as u64))
                 .collect::<Vec<_>>();
             let outcome = (0..N)
                 .map(|i| {
@@ -473,7 +499,9 @@ mod policy_tests {
                 })
                 .collect::<Vec<_>>();
             let fit = fixed_dose_policy_value(
-                &outcome, &dose, &groups, &density, &policy, &reference, 0.2, 80, true,
+                &DoseRows { outcome: &outcome, dose: &dose, groups: &groups, density: &density },
+                &DoseRules { policy: &policy, reference: &reference },
+                &DoseWindow { bandwidth: 0.2, min_local_support: 80, density_known: true },
             )
             .unwrap();
             let intervals =
@@ -502,31 +530,31 @@ mod policy_tests {
         let reference = [("a".to_string(), 0.3)];
         assert!(
             fixed_dose_policy_value(
-                &outcome,
-                &dose,
-                &groups,
-                &density,
-                &[],
-                &reference,
-                0.2,
-                2,
-                true
+                &DoseRows { outcome: &outcome, dose: &dose, groups: &groups, density: &density },
+                &DoseRules { policy: &[], reference: &reference },
+                &DoseWindow { bandwidth: 0.2, min_local_support: 2, density_known: true }
             )
             .is_err()
         );
         assert!(
             fixed_dose_policy_value(
-                &outcome, &dose, &groups, &density, &policy, &reference, 0.05, 10, true
+                &DoseRows { outcome: &outcome, dose: &dose, groups: &groups, density: &density },
+                &DoseRules { policy: &policy, reference: &reference },
+                &DoseWindow { bandwidth: 0.05, min_local_support: 10, density_known: true }
             )
             .is_err()
         );
         let fit = fixed_dose_policy_value(
-            &outcome, &dose, &groups, &density, &policy, &reference, 0.2, 2, true,
+            &DoseRows { outcome: &outcome, dose: &dose, groups: &groups, density: &density },
+            &DoseRules { policy: &policy, reference: &reference },
+            &DoseWindow { bandwidth: 0.2, min_local_support: 2, density_known: true },
         )
         .unwrap();
         assert!(fit.incremental_interval_95.is_none());
         let fit = fixed_dose_policy_value(
-            &outcome, &dose, &groups, &density, &policy, &reference, 0.2, 2, false,
+            &DoseRows { outcome: &outcome, dose: &dose, groups: &groups, density: &density },
+            &DoseRules { policy: &policy, reference: &reference },
+            &DoseWindow { bandwidth: 0.2, min_local_support: 2, density_known: false },
         )
         .unwrap();
         assert!(fit.incremental_interval_95.is_none());

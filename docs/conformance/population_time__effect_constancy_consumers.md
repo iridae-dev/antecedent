@@ -12,7 +12,7 @@ excludes an outcome mismatch. Point policy utilities are exactly zero versus the
 original effect, including equal-value ties and an empty intersection across
 opposite-signed effects.
 
-`crates/antecedent/tests/effect_constancy_consumers.rs` executes original F18
+`crates/antecedent/tests/effect_constancy_consumers.rs` executes original effect-constancy
 artifact consumption, the original bank filter/rank and original affine policy
 engine. `python/tests/test_effect_constancy_review.py` exercises those consumers
 and verifies original source replay in a fresh interpreter.

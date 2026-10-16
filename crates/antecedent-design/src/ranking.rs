@@ -1,12 +1,12 @@
 //! In-memory design ranking value: the record a later wave serializes as a
 //! `DesignRankingArtifact`.
 //!
-//! A [`DesignRanking`] binds the decision contract identity, the semantic candidate
+//! A [`RankingRecord`] binds the decision contract identity, the semantic candidate
 //! ids, each candidate's signal provider identity and update mode, the source
 //! distribution digests, RNG and error, and the cost mapping to a deterministic
-//! canonical order. Its [`DesignRanking::identity`] is invariant to the order the
+//! canonical order. Its [`RankingRecord::identity`] is invariant to the order the
 //! candidates were supplied in and changes with any altered signal, update, source,
-//! cost mapping, value or order. When no probabilistic model is licensed the 2.2
+//! cost mapping, value or order. When no probabilistic model is licensed the structural
 //! ordering is preserved: verified structural sufficiency first, then lower cost
 //! units, then lower sample budget, then semantic id.
 //!
@@ -14,10 +14,13 @@
 
 use std::collections::BTreeMap;
 
-use antecedent_core::ExternalRefusal;
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::CanonicalWriter;
 
-use crate::evsi::{CostToUtilityMap, EvsiReport, IntegrationMethod, SearchReceipt};
-use crate::signal::{SignalTrustLabel, SignalUpdateMode, make_refusal};
+use crate::evsi::{
+    CostToUtilityMap, EvsiCandidateRow, EvsiReport, IntegrationMethod, SearchReceipt,
+};
+use crate::signal::{RefusalBuilder, SignalTrustLabel, SignalUpdateMode};
 use crate::study_planner::StudyCost;
 
 /// What the ranking is ordered by.
@@ -27,7 +30,7 @@ pub enum DesignRankingBasis {
     Evsi,
     /// Net value of information under a valid cost-to-utility mapping.
     NetValue,
-    /// 2.2 verified structural sufficiency and cost (no probabilistic model).
+    /// Verified structural sufficiency and cost (no probabilistic model).
     StructuralSufficiencyCost,
 }
 
@@ -45,7 +48,7 @@ impl DesignRankingBasis {
 
 /// One probabilistically ranked candidate.
 #[derive(Clone, Debug, PartialEq)]
-pub struct RankingEntry {
+pub struct EvsiRankRow {
     /// Candidate semantic id.
     pub semantic_id: String,
     /// Rank (0 best).
@@ -80,6 +83,29 @@ pub struct RankingEntry {
     pub provider_trust: SignalTrustLabel,
 }
 
+impl From<&EvsiCandidateRow> for EvsiRankRow {
+    fn from(row: &EvsiCandidateRow) -> Self {
+        Self {
+            semantic_id: row.semantic_id.clone(),
+            rank: row.rank,
+            evsi: row.evsi,
+            mc_stderr: row.integration.stderr,
+            replicates: row.integration.replicates,
+            integration: row.integration.method,
+            evpi: row.evpi,
+            sample_size: row.sample_size,
+            study_cost_amount: row.study_cost.amount,
+            study_cost_unit: row.study_cost.unit.clone(),
+            net_value: row.net_value,
+            rank_uncertain: row.rank_uncertain,
+            signal_identity: row.signal_receipt.identity(),
+            request_fingerprint: row.signal_receipt.request_fingerprint.clone(),
+            update_mode: row.update_mode,
+            provider_trust: row.provider_trust,
+        }
+    }
+}
+
 /// A candidate with a verified structural verdict, for the no-model ordering.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StructuralCandidate {
@@ -106,7 +132,7 @@ pub struct StructuralEntry {
 
 /// The in-memory ranking value.
 #[derive(Clone, Debug, PartialEq)]
-pub struct DesignRanking {
+pub struct RankingRecord {
     /// Basis of the order.
     pub basis: DesignRankingBasis,
     /// Decision contract identity (`None` for a structural ranking).
@@ -120,7 +146,7 @@ pub struct DesignRanking {
     /// Source distribution digests (sorted).
     pub source_digests: Vec<String>,
     /// Probabilistic entries in canonical order (empty for a structural ranking).
-    pub entries: Vec<RankingEntry>,
+    pub entries: Vec<EvsiRankRow>,
     /// Structural entries in canonical order (empty for a probabilistic ranking).
     pub structural: Vec<StructuralEntry>,
     /// Search receipt of the evaluation.
@@ -150,54 +176,33 @@ impl RankingError {
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
-        let at = |code, detail: &str| make_refusal(code, "consume", detail);
+        let at = |code, detail: &str| RefusalBuilder::new(code, "consume", detail);
         match self {
             Self::Empty => {
                 at(antecedent_core::reason_code!("invalid_argument"), "design_ranking.empty")
+                    .build()
             }
-            Self::DuplicateCandidate(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "design_ranking.duplicate_candidate")
-            },
-            Self::SignalMismatch(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "design_ranking.signal_mismatch")
-            },
-            Self::SourceDigestMismatch => at(signal, "design_ranking.source_digest_mismatch"),
-            Self::CostMappingMismatch => ExternalRefusal {
-                remedy: Some("replay with the cost mapping the ranking was computed under"),
-                ..at(
-                    antecedent_core::reason_code!("design_cost_units_mismatch"),
-                    "design_ranking.cost_units_mismatch",
-                )
-            },
-            Self::ContractMismatch => at(signal, "design_ranking.contract_mismatch"),
+            Self::DuplicateCandidate(id) => {
+                at(signal, "design_ranking.duplicate_candidate").offending(id.clone()).build()
+            }
+            Self::SignalMismatch(id) => {
+                at(signal, "design_ranking.signal_mismatch").offending(id.clone()).build()
+            }
+            Self::SourceDigestMismatch => {
+                at(signal, "design_ranking.source_digest_mismatch").build()
+            }
+            Self::CostMappingMismatch => at(
+                antecedent_core::reason_code!("design_cost_units_mismatch"),
+                "design_ranking.cost_units_mismatch",
+            )
+            .remedy("replay with the cost mapping the ranking was computed under")
+            .build(),
+            Self::ContractMismatch => at(signal, "design_ranking.contract_mismatch").build(),
         }
     }
 }
 
-fn put_str(hasher: &mut blake3::Hasher, value: &str) {
-    hasher.update(&(value.len() as u64).to_le_bytes());
-    hasher.update(value.as_bytes());
-}
-
-fn put_f64(hasher: &mut blake3::Hasher, value: f64) {
-    hasher.update(&value.to_le_bytes());
-}
-
-fn put_opt_f64(hasher: &mut blake3::Hasher, value: Option<f64>) {
-    match value {
-        Some(v) => {
-            hasher.update(&[1]);
-            put_f64(hasher, v);
-        }
-        None => {
-            hasher.update(&[0]);
-        }
-    }
-}
-
-impl DesignRanking {
+impl RankingRecord {
     /// Build the probabilistic ranking from an EVSI report and the digests of the
     /// source distributions (prior sources and external laws) it was computed from.
     ///
@@ -208,28 +213,8 @@ impl DesignRanking {
         if report.candidates.is_empty() {
             return Err(RankingError::Empty);
         }
-        let mut entries: Vec<RankingEntry> = report
-            .candidates
-            .iter()
-            .map(|c| RankingEntry {
-                semantic_id: c.semantic_id.clone(),
-                rank: c.rank,
-                evsi: c.evsi,
-                mc_stderr: c.integration.stderr,
-                replicates: c.integration.replicates,
-                integration: c.integration.method,
-                evpi: c.evpi,
-                sample_size: c.sample_size,
-                study_cost_amount: c.study_cost.amount,
-                study_cost_unit: c.study_cost.unit.clone(),
-                net_value: c.net_value,
-                rank_uncertain: c.rank_uncertain,
-                signal_identity: c.signal_receipt.identity(),
-                request_fingerprint: c.signal_receipt.request_fingerprint.clone(),
-                update_mode: c.update_mode,
-                provider_trust: c.provider_trust,
-            })
-            .collect();
+        let mut entries: Vec<EvsiRankRow> =
+            report.candidates.iter().map(EvsiRankRow::from).collect();
         entries.sort_by(|a, b| a.rank.cmp(&b.rank).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
         let mut digests = source_digests.to_vec();
         digests.sort();
@@ -250,7 +235,7 @@ impl DesignRanking {
         })
     }
 
-    /// Build the 2.2 structural ranking: verified sufficiency first, then fewer cost
+    /// Build the structural ranking: verified sufficiency first, then fewer cost
     /// units, then smaller sample budget, then semantic id.
     ///
     /// # Errors
@@ -301,7 +286,7 @@ impl DesignRanking {
     }
 
     /// The probabilistic ranking when a licensed model produced `probabilistic`,
-    /// otherwise the preserved 2.2 structural ranking.
+    /// otherwise the preserved structural ranking.
     ///
     /// # Errors
     ///
@@ -320,59 +305,62 @@ impl DesignRanking {
     /// supplied in.
     #[must_use]
     pub fn identity(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "antecedent.design_ranking.v1");
-        put_str(&mut hasher, self.basis.as_str());
-        put_str(&mut hasher, self.decision_contract_identity.as_deref().unwrap_or(""));
-        put_str(&mut hasher, self.utility_unit.as_deref().unwrap_or(""));
-        if let Some(map) = &self.cost_mapping {
-            hasher.update(&[1]);
-            put_str(&mut hasher, &map.cost_unit);
-            put_str(&mut hasher, &map.utility_unit);
-            put_f64(&mut hasher, map.utility_per_cost);
-        } else {
-            hasher.update(&[0]);
+        let mut hasher = CanonicalWriter::new("antecedent.design_ranking.v1");
+        hasher
+            .text(self.basis.as_str())
+            .opt_text(self.decision_contract_identity.as_deref())
+            .opt_text(self.utility_unit.as_deref());
+        match &self.cost_mapping {
+            Some(map) => {
+                hasher
+                    .word(1)
+                    .text(&map.cost_unit)
+                    .text(&map.utility_unit)
+                    .real(map.utility_per_cost);
+            }
+            None => {
+                hasher.word(0);
+            }
         }
-        hasher.update(&self.rng_seed.unwrap_or(0).to_le_bytes());
-        for digest in &self.source_digests {
-            put_str(&mut hasher, digest);
-        }
-        let mut entries: Vec<&RankingEntry> = self.entries.iter().collect();
+        hasher.opt_word(self.rng_seed).texts(&self.source_digests);
+        let mut entries: Vec<&EvsiRankRow> = self.entries.iter().collect();
         entries.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
+        hasher.word(entries.len() as u64);
         for e in entries {
-            put_str(&mut hasher, &e.semantic_id);
-            hasher.update(&(e.rank as u64).to_le_bytes());
-            put_f64(&mut hasher, e.evsi);
-            put_f64(&mut hasher, e.mc_stderr);
-            hasher.update(&e.replicates.to_le_bytes());
-            put_str(&mut hasher, e.integration.as_str());
-            put_f64(&mut hasher, e.evpi);
-            hasher.update(&e.sample_size.to_le_bytes());
-            put_f64(&mut hasher, e.study_cost_amount);
-            put_str(&mut hasher, &e.study_cost_unit);
-            put_opt_f64(&mut hasher, e.net_value);
-            hasher.update(&[u8::from(e.rank_uncertain)]);
-            put_str(&mut hasher, &e.signal_identity);
-            put_str(&mut hasher, &e.request_fingerprint);
-            put_str(&mut hasher, e.update_mode.as_str());
-            put_str(&mut hasher, e.provider_trust.as_str());
+            hasher
+                .text(&e.semantic_id)
+                .word(e.rank as u64)
+                .real(e.evsi)
+                .real(e.mc_stderr)
+                .word(e.replicates)
+                .text(e.integration.as_str())
+                .real(e.evpi)
+                .word(e.sample_size)
+                .real(e.study_cost_amount)
+                .text(&e.study_cost_unit)
+                .opt_real(e.net_value)
+                .word(u64::from(e.rank_uncertain))
+                .text(&e.signal_identity)
+                .text(&e.request_fingerprint)
+                .text(e.update_mode.as_str())
+                .text(e.provider_trust.as_str());
         }
         let mut structural: Vec<&StructuralEntry> = self.structural.iter().collect();
         structural.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
+        hasher.word(structural.len() as u64);
         for s in structural {
-            put_str(&mut hasher, &s.semantic_id);
-            hasher.update(&(s.rank as u64).to_le_bytes());
-            hasher.update(&[u8::from(s.verified_sufficient)]);
-            hasher.update(&s.cost.units.to_le_bytes());
-            hasher.update(&s.cost.sample_budget.to_le_bytes());
+            hasher
+                .text(&s.semantic_id)
+                .word(s.rank as u64)
+                .word(u64::from(s.verified_sufficient))
+                .word(s.cost.units)
+                .word(s.cost.sample_budget);
         }
-        hasher.update(&[u8::from(self.search.truncated)]);
+        hasher.word(u64::from(self.search.truncated));
         let mut unevaluated = self.search.unevaluated_ids.clone();
         unevaluated.sort();
-        for id in &unevaluated {
-            put_str(&mut hasher, id);
-        }
-        hasher.finalize().to_hex().to_string()
+        hasher.texts(&unevaluated);
+        hasher.finish_hex()
     }
 
     /// Replay check against independently retained inputs: the decision contract

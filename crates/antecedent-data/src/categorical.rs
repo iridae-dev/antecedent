@@ -26,6 +26,12 @@ impl CategoryCode {
     pub const fn raw(self) -> u32 {
         self.0
     }
+
+    /// Convert to `usize` for indexing.
+    #[must_use]
+    pub const fn as_usize(self) -> usize {
+        self.0 as usize
+    }
 }
 
 /// One level in a category domain.

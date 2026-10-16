@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -158,7 +159,9 @@ def test_from_discovery_and_session_guards():
 
 def test_encode_decode_edge_lists_and_admg():
     static = AcceptedGraph.from_graph([("a", "b"), ("b", "c")], algorithm_id="hand")
-    restored = AcceptedGraph.from_json(static.to_json())
+    document = static.to_json()
+    assert list(json.loads(document)) == sorted(json.loads(document))
+    restored = AcceptedGraph.from_json(document)
     assert list(restored) == [("a", "b"), ("b", "c")]
     assert "a" in restored
     assert ("a", "b") in restored

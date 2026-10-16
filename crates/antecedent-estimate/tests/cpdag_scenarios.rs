@@ -1,4 +1,4 @@
-//! Exact execution of the DAG completions of a CPDAG against an enumerated SCM (2.3A X2).
+//! Exact execution of the DAG completions of a CPDAG against an enumerated SCM.
 //!
 //! The chain `a - b - c` has three completions: `a -> b -> c`, `a <- b -> c` and
 //! `a <- b <- c`. One target joint law is enumerated from the finite SCM
@@ -221,7 +221,7 @@ fn close(a: f64, b: f64) -> bool {
 }
 
 #[test]
-fn x2_cpdag_enumerated_truth_effects_and_envelope() {
+fn cpdag_enumerated_truth_effects_and_envelope() {
     let report = report(chain(), &shared());
     assert_eq!(report.completions.len(), 3);
     assert_eq!((report.identified, report.unidentified, report.unevaluated), (3, 0, 0));
@@ -257,7 +257,7 @@ fn x2_cpdag_enumerated_truth_effects_and_envelope() {
 }
 
 #[test]
-fn x2_cpdag_missing_evidence_status() {
+fn cpdag_missing_evidence_status() {
     // The backward completion is bound to a catalog that lacks the outcome.
     let ids = report(chain(), &shared());
     let (a, b, c) = (id_of(&ids, &FORWARD), id_of(&ids, &FORK), id_of(&ids, &BACKWARD));
@@ -300,7 +300,7 @@ fn x2_cpdag_missing_evidence_status() {
 }
 
 #[test]
-fn x2_cpdag_permutation_envelope() {
+fn cpdag_permutation_envelope() {
     let canonical = report(chain(), &shared());
     let permuted = report(permuted_chain(), &shared());
     assert_eq!(canonical.cpdag_identity, permuted.cpdag_identity);
@@ -315,7 +315,7 @@ fn x2_cpdag_permutation_envelope() {
 }
 
 #[test]
-fn x2_cpdag_budget_stop_partial_report() {
+fn cpdag_budget_stop_partial_report() {
     // Enumeration stops after one of three completions (three orientation
     // attempts); the other two are counted separately, never as identified.
     let ctx = ExecutionContext::for_tests(1);

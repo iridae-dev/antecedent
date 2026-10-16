@@ -1,21 +1,16 @@
 """Observed-data posterior and simultaneous composite artifact axes."""
 
-from pathlib import Path
-
 import antecedent
 import numpy as np
 import pytest
 from antecedent.estimation import PreparedAnalysis
 from antecedent.observation import IndependentGiven, RightCensored
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
 
 def test_observed_temporal_posterior_and_response_roundtrip_together():
-    pin = load_json(
-        Path(__file__).resolve().parents[2]
-        / "conformance/bayesian/temporal_observed_response/expected.json"
-    )
+    pin = load_json(REPO_ROOT / "conformance/bayesian/temporal_observed_response/expected.json")
     rng = np.random.default_rng(pin["seed"])
     x = rng.normal(size=pin["rows"])
     latent = (
@@ -55,12 +50,12 @@ def test_observed_temporal_posterior_and_response_roundtrip_together():
     # The response projection exposes bands; the composite artifact retains draws.
     decoded = antecedent.artifacts.loads(plan.export_artifact())
     assert decoded.payload_kind == "analysis_result"
-    assert decoded.payload["estimate"] is None
-    assert decoded.payload["response"] is not None
-    assert decoded.payload["posterior_artifact"] is not None
-    certificates = decoded.payload["temporal_identification"]
+    assert decoded.to_dict()["payload"]["estimate"] is None
+    assert decoded.to_dict()["payload"]["response"] is not None
+    assert decoded.to_dict()["payload"]["posterior_artifact"] is not None
+    certificates = decoded.to_dict()["payload"]["temporal_identification"]
     assert [entry["horizon"] for entry in certificates] == pin["horizons"]
-    namespace = decoded.payload["identification_variables"]
+    namespace = decoded.to_dict()["payload"]["identification_variables"]
     assert len(namespace) > 4
     assert all(0 <= node["variable"] < 4 for node in namespace)
     assert any(node["offset"] < 0 for node in namespace)
@@ -69,12 +64,12 @@ def test_observed_temporal_posterior_and_response_roundtrip_together():
     again = antecedent.artifacts.loads(
         antecedent.artifacts.dumps(
             "analysis_result",
-            decoded.payload,
+            decoded.to_dict()["payload"],
             variable_names=decoded.variable_names,
             artifact_id="observed-response-roundtrip",
         )
     )
-    assert again.payload == decoded.payload
+    assert again.to_dict()["payload"] == decoded.to_dict()["payload"]
     assert again.variable_names == decoded.variable_names
     values = np.asarray(result.response.values).reshape(-1)
     truth = [2 + 0.75 * x.mean(), 2 + 1.5 * x.mean(), 3.5 + 0.75 * x.mean(), 2.75 + 1.5 * x.mean()]

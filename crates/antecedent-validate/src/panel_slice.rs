@@ -21,8 +21,9 @@ use crate::error::ValidationError;
 #[derive(Clone, Debug)]
 pub struct PanelSliceTemplate<'a> {
     original: &'a PanelData,
-    /// Payload pointer of each baseline stacked column (`None` for empty).
-    baseline_ptrs: Vec<Option<*const u8>>,
+    /// Payload address of each baseline stacked column (`None` for empty). Only compared,
+    /// never dereferenced, so it is an address and the template stays `Send + Sync`.
+    baseline_ptrs: Vec<Option<usize>>,
     /// Number of columns on the original panel schema (appended RCC columns sit after this).
     original_ncols: usize,
     offsets: Vec<usize>,
@@ -120,17 +121,17 @@ impl<'a> PanelSliceTemplate<'a> {
     }
 }
 
-fn payload_ptr(col: &OwnedColumn) -> Option<*const u8> {
+fn payload_ptr(col: &OwnedColumn) -> Option<usize> {
     match col {
         OwnedColumn::Float64(c) => {
             let s = c.values.as_slice();
-            (!s.is_empty()).then(|| s.as_ptr().cast())
+            (!s.is_empty()).then(|| s.as_ptr().addr())
         }
-        OwnedColumn::Int64(c) => (!c.values.is_empty()).then(|| c.values.as_ptr().cast()),
-        OwnedColumn::Boolean(c) => (!c.values.is_empty()).then(|| c.values.as_ptr().cast()),
-        OwnedColumn::Categorical(c) => (!c.codes.is_empty()).then(|| c.codes.as_ptr().cast()),
-        OwnedColumn::Timestamp(c) => (!c.values_ns.is_empty()).then(|| c.values_ns.as_ptr().cast()),
-        OwnedColumn::FixedVector(c) => (!c.values.is_empty()).then(|| c.values.as_ptr().cast()),
+        OwnedColumn::Int64(c) => (!c.values.is_empty()).then(|| c.values.as_ptr().addr()),
+        OwnedColumn::Boolean(c) => (!c.values.is_empty()).then(|| c.values.as_ptr().addr()),
+        OwnedColumn::Categorical(c) => (!c.codes.is_empty()).then(|| c.codes.as_ptr().addr()),
+        OwnedColumn::Timestamp(c) => (!c.values_ns.is_empty()).then(|| c.values_ns.as_ptr().addr()),
+        OwnedColumn::FixedVector(c) => (!c.values.is_empty()).then(|| c.values.as_ptr().addr()),
     }
 }
 

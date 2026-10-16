@@ -60,7 +60,7 @@ fn python_sampler(seed: u64) -> Options {
 fn error(e: IoError) -> PyErr {
     match e {
         IoError::Refused { code, message } if code == reason_code!("invalid_argument") => {
-            crate::with_reason_code(crate::value_err(message), code)
+            crate::value_err_code(code, message)
         }
         IoError::Refused { code, message } => crate::refusal(code, message),
         other => crate::with_reason_code(
@@ -92,7 +92,7 @@ impl Candidate {
             ));
         }
         let bytes = artifact.export().map_err(error)?;
-        let identity = blake3::hash(&bytes).to_hex().to_string();
+        let identity = antecedent_core::blake3_hex(&bytes);
         Ok(Self { artifact, bytes, identity })
     }
 }
@@ -146,13 +146,13 @@ fn consume_nested_markov_posterior_candidate(
     bytes: &[u8],
     expected_identity: &str,
 ) -> PyResult<Candidate> {
-    if bytes.len() > 16 * 1024 * 1024 {
+    if bytes.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
         return Err(crate::with_reason_code(
             crate::value_err("nested_markov.bayesian_artifact_limits: candidate byte bound"),
             reason_code!("invalid_argument"),
         ));
     }
-    if blake3::hash(bytes).to_hex().as_str() != expected_identity {
+    if antecedent_core::blake3_hex(bytes) != expected_identity {
         return Err(crate::with_reason_code(
             crate::value_err(
                 "nested_markov.bayesian_identity_mismatch: candidate identity differs from expected",
@@ -194,7 +194,7 @@ fn nested_markov_posterior_measured(
 ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
     crate::measured_inference_api::before_work(
         0,
-        16 * 1024 * 1024,
+        crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
         memory_limit_bytes,
         cancel.as_ref(),
     )?;

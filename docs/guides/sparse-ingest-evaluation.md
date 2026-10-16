@@ -1,4 +1,4 @@
-# Sparse and columnar ingest evaluation (2.2 E7)
+# Sparse and columnar ingest evaluation
 
 **Decision: dense fallback retained; the measurement below records the evaluation.**
 No library code changes. The accepted schema, the estimand and the single design builder are

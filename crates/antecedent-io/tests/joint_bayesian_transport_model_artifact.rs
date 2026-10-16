@@ -1,4 +1,4 @@
-//! 2.3A X4 `x4_joint_posterior_artifact`: the joint Bayesian transport model artifact
+//! The joint Bayesian transport model artifact
 //! (model, priors with provenance, data identities, exact posterior, aligned joint
 //! draws, diagnostics, identification, calibration `unmeasured`) replays independently.
 //!
@@ -25,6 +25,7 @@ use antecedent_io::joint_bayesian_transport_artifact::{
     DataIdentityWire, JointBayesianArtifactWire, JointBayesianConsumeLimits,
     JointBayesianExpectation, PriorProvenanceWire,
 };
+use antecedent_io::model_codes::{GraphClassCode, SourceDependenceCode, SourceSharingCode};
 use std::sync::Arc;
 
 const DRAWS: usize = 3000;
@@ -233,7 +234,7 @@ fn oracle(sources: &[SourceData]) -> (Vec<f64>, Vec<Vec<f64>>) {
 // ---------------------------------------------------------------- tests
 
 #[test]
-fn x4_joint_posterior_artifact_replays_value_for_value_against_the_exact_oracle() {
+fn joint_posterior_artifact_replays_value_for_value_against_the_exact_oracle() {
     let (wire, fit) = built();
     let bytes = wire.export().expect("export");
     let (loaded, replayed) = consume(&bytes).expect("a faithful artifact replays");
@@ -267,7 +268,7 @@ fn x4_joint_posterior_artifact_replays_value_for_value_against_the_exact_oracle(
 }
 
 #[test]
-fn x4_joint_posterior_artifact_enforces_an_expected_identity() {
+fn joint_posterior_artifact_enforces_an_expected_identity() {
     let (wire, _) = built();
     let bytes = wire.export().expect("export");
     let expected = JointBayesianExpectation {
@@ -310,7 +311,7 @@ fn x4_joint_posterior_artifact_enforces_an_expected_identity() {
 type Mutation = (&'static str, fn(&mut JointBayesianArtifactWire));
 
 #[test]
-fn x4_joint_posterior_artifact_refuses_resealed_semantic_mutations() {
+fn joint_posterior_artifact_refuses_resealed_semantic_mutations() {
     let (wire, _) = built();
     let mutations: [Mutation; 10] = [
         ("prior mean", |w| w.model.invariant_prior.mean[0] = 0.75),
@@ -320,7 +321,7 @@ fn x4_joint_posterior_artifact_refuses_resealed_semantic_mutations() {
         ("target covariate", |w| w.target.covariates[0][0] += 0.01),
         ("draw count", |w| w.options.draws += 1),
         ("seed", |w| w.options.seed += 1),
-        ("sharing", |w| w.model.sharing = "shared_varying_block".into()),
+        ("sharing", |w| w.model.sharing = SourceSharingCode::SharedVaryingBlock),
         ("rng id", |w| w.result.draws.rng_id = "splitmix64_box_muller_v1:seed=1:stream=0".into()),
         ("stored posterior", |w| w.result.posterior_mean[0] += 1e-9),
     ];
@@ -332,10 +333,10 @@ fn x4_joint_posterior_artifact_refuses_resealed_semantic_mutations() {
     let message = refusal(&resealed(&wire, |w| w.model.features = vec![8]));
     assert!(message.contains("bayesian_transport.feature_mismatch"), "{message}");
     // A changed graph class is refused as unsupported before any fit.
-    let message = refusal(&resealed(&wire, |w| w.model.graph = "admg".into()));
+    let message = refusal(&resealed(&wire, |w| w.model.graph = GraphClassCode::Admg));
     assert!(message.contains("bayesian_transport.unsupported_graph"), "{message}");
     // Undeclared source dependence is refused.
-    let message = refusal(&resealed(&wire, |w| w.model.dependence = "unknown".into()));
+    let message = refusal(&resealed(&wire, |w| w.model.dependence = SourceDependenceCode::Unknown));
     assert!(message.contains("bayesian_transport.source_dependence"), "{message}");
     // Without resealing, an edited observation breaks the data identity digest.
     let mut edited = wire.clone();
@@ -350,7 +351,7 @@ fn x4_joint_posterior_artifact_refuses_resealed_semantic_mutations() {
 }
 
 #[test]
-fn x4_joint_posterior_artifact_refuses_prior_bank_and_likelihood_double_use() {
+fn joint_posterior_artifact_refuses_prior_bank_and_likelihood_double_use() {
     let overlapping = PriorProvenance::Bank {
         bank_id: "bank-1".into(),
         consumed: vec![DataIdentity { snapshot_digest: "snap-s1".into(), datum_ids: vec![] }],
@@ -403,7 +404,7 @@ fn x4_joint_posterior_artifact_refuses_prior_bank_and_likelihood_double_use() {
 }
 
 #[test]
-fn x4_joint_posterior_artifact_refuses_an_unknown_version_foreign_feature_and_claim() {
+fn joint_posterior_artifact_refuses_an_unknown_version_foreign_feature_and_claim() {
     let (wire, _) = built();
     let mut future = wire.clone();
     future.version = 7;
@@ -424,7 +425,7 @@ fn x4_joint_posterior_artifact_refuses_an_unknown_version_foreign_feature_and_cl
 }
 
 #[test]
-fn x4_joint_posterior_artifact_refuses_stored_sizes_above_the_consumer_limits() {
+fn joint_posterior_artifact_refuses_stored_sizes_above_the_consumer_limits() {
     let (wire, _) = built();
     let bytes = wire.export().expect("export");
     let tight = [

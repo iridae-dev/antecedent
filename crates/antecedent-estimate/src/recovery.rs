@@ -1,4 +1,4 @@
-//! Exact evaluation of a checked observation-recovery formula (2.2B X10) and of
+//! Exact evaluation of a checked observation-recovery formula and of
 //! the downstream effect identified from the recovered law.
 //!
 //! The recovery formula is evaluated by the shared compiled evaluator over the
@@ -23,7 +23,7 @@ use std::sync::Arc;
 use antecedent_core::{CatalogDistribution, ExecutionContext, Value, VariableId};
 use antecedent_expr::{
     Assignment, DiscreteAxis, EvalContext, ExactDiscreteLaw, ExactDistribution,
-    ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData, LawOrigin,
+    ExactEvaluationLimits, ExactEvaluationPlan, ExactEvaluationSpec, ExactTransportData, LawOrigin,
 };
 use antecedent_identify::recovery::MISSING_LEVEL;
 use antecedent_identify::{
@@ -113,7 +113,10 @@ impl Axes {
 
 /// Check the table against the derivation's observed distribution and the
 /// deterministic proxy model, and return its decoded axes.
-#[allow(clippy::too_many_lines)] // One pass: identity, bounds, axes, levels and the proxy model.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one pass: identity, bounds, axes, levels and the proxy model"
+)]
 fn check_observed(
     derivation: &RecoveryDerivation,
     observed: &ExactDiscreteLaw,
@@ -370,13 +373,15 @@ pub fn evaluate_recovered_effect(
         .map_err(|e| refuse(HandoffMismatch, e.to_string()))?
         .with_world_bound_leaves(vec![law.regime()]);
     let plan = ExactEvaluationPlan::compile(
-        effect.arena(),
-        effect.root(),
+        ExactEvaluationSpec {
+            arena: effect.arena(),
+            root: effect.root(),
+            outcomes: effect.outcomes().to_vec().into(),
+            request,
+            limits,
+            tolerance: law.tolerance(),
+        },
         data,
-        effect.outcomes().to_vec(),
-        request,
-        limits,
-        law.tolerance(),
         ctx,
     )
     .map_err(|e| refuse(InvalidQuery, format!("effect request does not compile: {e}")))?;

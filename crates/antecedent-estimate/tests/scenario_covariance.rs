@@ -1,4 +1,4 @@
-//! 2.3A A1 (X2): shared-data covariance of scenario estimates over one row sample.
+//! Shared-data covariance of scenario estimates over one row sample.
 //!
 //! The units are six complete rows `(z, x, y)` of a tiny discrete SCM sample. Every
 //! scenario estimator is a plug-in functional of the resampled rows' cell proportions.
@@ -17,10 +17,11 @@ use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
+use antecedent_estimate::posterior_mean::{PosteriorRequest, covariance_entry_posterior};
 use antecedent_estimate::scenario_covariance::{
     CovarianceMethod, ExactEnumerationOptions, MAX_REPLICATES, MAX_SCENARIOS, RowDependence,
     ScenarioCovariance, ScenarioRowEstimator, SharedRowBootstrapOptions,
-    exact_enumeration_covariance, shared_row_bootstrap_covariance,
+    covariance_estimator_moments, exact_enumeration_covariance, shared_row_bootstrap_covariance,
 };
 
 type Row = (u8, u8, u8);
@@ -219,7 +220,7 @@ fn enumerate_tuples() -> Oracle {
 // ---- positive: shared rows -------------------------------------------------------------
 
 #[test]
-fn x2_shared_rows_covariance_exact_matches_closed_form() {
+fn shared_rows_covariance_exact_matches_closed_form() {
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let out = exact_enumeration_covariance(&family, &exact_options(), &ctx()).unwrap();
     assert_eq!(out.method, CovarianceMethod::ExactEnumeration);
@@ -251,7 +252,7 @@ fn x2_shared_rows_covariance_exact_matches_closed_form() {
 }
 
 #[test]
-fn x2_shared_rows_covariance_bootstrap_matches_oracle_and_shared_design_matters() {
+fn shared_rows_covariance_bootstrap_matches_oracle_and_shared_design_matters() {
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let out = shared_row_bootstrap_covariance(&family, &boot_options(20_260_101), &ctx()).unwrap();
     assert_eq!(out.method.label(), "shared_row_bootstrap");
@@ -290,7 +291,7 @@ fn x2_shared_rows_covariance_bootstrap_matches_oracle_and_shared_design_matters(
 }
 
 #[test]
-fn x2_shared_rows_covariance_adjustment_pair_with_joint_dropping_matches_tuple_enumeration() {
+fn shared_rows_covariance_adjustment_pair_with_joint_dropping_matches_tuple_enumeration() {
     let family = vec![fallible("adjusted", adjusted), fallible("crude", crude)];
     let oracle = enumerate_tuples();
     assert!(oracle.failed_fraction > 0.0, "empty strata must occur");
@@ -344,7 +345,7 @@ fn both_methods_refuse(family: &[ScenarioRowEstimator], code: &str, detail: &str
 }
 
 #[test]
-fn x2_independent_rows_mismatched_snapshot_refuses() {
+fn independent_rows_mismatched_snapshot_refuses() {
     let family = vec![
         linear("a", "snapshot:one", units("u"), score_a),
         linear("b", "snapshot:two", units("u"), score_b),
@@ -353,7 +354,7 @@ fn x2_independent_rows_mismatched_snapshot_refuses() {
 }
 
 #[test]
-fn x2_independent_rows_mismatched_or_reordered_units_refuse() {
+fn independent_rows_mismatched_or_reordered_units_refuse() {
     let mut reordered = units("u");
     reordered.swap(0, 1);
     let family =
@@ -367,7 +368,7 @@ fn x2_independent_rows_mismatched_or_reordered_units_refuse() {
 }
 
 #[test]
-fn x2_independent_rows_declared_independent_or_unknown_dependence_refuses() {
+fn independent_rows_declared_independent_or_unknown_dependence_refuses() {
     for dependence in [RowDependence::IndependentSample, RowDependence::Unknown] {
         let family = vec![
             linear("a", SNAPSHOT, units("u"), score_a),
@@ -378,7 +379,7 @@ fn x2_independent_rows_declared_independent_or_unknown_dependence_refuses() {
 }
 
 #[test]
-fn x2_independent_rows_duplicate_unit_ids_refuse_without_a_cluster_map() {
+fn independent_rows_duplicate_unit_ids_refuse_without_a_cluster_map() {
     let mut dup = units("u");
     dup[3] = dup[2].clone();
     let family =
@@ -387,7 +388,7 @@ fn x2_independent_rows_duplicate_unit_ids_refuse_without_a_cluster_map() {
 }
 
 #[test]
-fn x2_independent_rows_bounds_and_arguments_refuse() {
+fn independent_rows_bounds_and_arguments_refuse() {
     // Too many scenarios.
     let many: Vec<ScenarioRowEstimator> = (0..=MAX_SCENARIOS)
         .map(|i| linear(&format!("s{i}"), SNAPSHOT, units("u"), score_a))
@@ -433,7 +434,7 @@ fn x2_independent_rows_bounds_and_arguments_refuse() {
 }
 
 #[test]
-fn x2_independent_rows_failing_estimators_and_cancellation_refuse() {
+fn independent_rows_failing_estimators_and_cancellation_refuse() {
     let failing = vec![
         linear_by_name("a"),
         ScenarioRowEstimator::new("broken", SNAPSHOT, units("u"), |_| {
@@ -491,7 +492,7 @@ fn assert_permuted(first: &ScenarioCovariance, second: &ScenarioCovariance, name
 }
 
 #[test]
-fn x2_covariance_permutation_reorders_rows_and_columns_identically() {
+fn covariance_permutation_reorders_rows_and_columns_identically() {
     let names = ["a", "b", "c"];
     let first_order = family_in_order(&["a", "b", "c"]);
     let second_order = family_in_order(&["c", "a", "b"]);
@@ -515,7 +516,36 @@ fn x2_covariance_permutation_reorders_rows_and_columns_identically() {
 // ---- replay ----------------------------------------------------------------------------
 
 #[test]
-fn x2_covariance_replay_is_bit_identical_and_identity_sensitive() {
+fn row_identity_digest_is_the_canonical_stream_of_the_ordered_unit_ids() {
+    // Golden vector: the digest is BLAKE3 of the documented canonical framing (a length-
+    // prefixed domain tag, then each unit id as length-prefixed text), so it is rebuilt here
+    // from the framing alone and pinned.
+    let cov =
+        shared_row_bootstrap_covariance(&family_in_order(&["a", "b"]), &boot_options(42), &ctx())
+            .unwrap();
+    let mut writer =
+        antecedent_core::CanonicalWriter::new("antecedent.estimate.scenario_covariance.rows");
+    for id in units("u") {
+        writer.text(&id);
+    }
+    assert_eq!(cov.row_identity_digest, writer.finish_hex());
+    assert_eq!(
+        cov.row_identity_digest,
+        "07a1c08b91f9778a2a42e520e0097ebb20e9e438bd7da562f1e21c41d74f7b7a"
+    );
+    // The exact-enumeration replicate digest folds the family identity, then each of the 462
+    // count vectors of six units with its success flag; derived independently in Python.
+    let exact =
+        exact_enumeration_covariance(&family_in_order(&["a", "b"]), &exact_options(), &ctx())
+            .unwrap();
+    assert_eq!(
+        exact.replicate_digest,
+        "4e4aac34418b577a7fa50cd77a12aa99343d426a34a93e4b28a8ed741bd99d47"
+    );
+}
+
+#[test]
+fn covariance_replay_is_bit_identical_and_identity_sensitive() {
     let make = || family_in_order(&["a", "b"]);
     let first = shared_row_bootstrap_covariance(&make(), &boot_options(42), &ctx()).unwrap();
     let second = shared_row_bootstrap_covariance(&make(), &boot_options(42), &ctx()).unwrap();
@@ -523,7 +553,8 @@ fn x2_covariance_replay_is_bit_identical_and_identity_sensitive() {
     assert_eq!(first.covariance, second.covariance);
     assert_eq!(first.replicate_ids, second.replicate_ids);
     assert_eq!(first.replicate_digest, second.replicate_digest);
-    assert_eq!(first.replicate_digest.len(), 32);
+    // A BLAKE3 digest in hex: 32 bytes, 64 characters.
+    assert_eq!(first.replicate_digest.len(), 64);
 
     let exact_1 = exact_enumeration_covariance(&make(), &exact_options(), &ctx()).unwrap();
     let exact_2 = exact_enumeration_covariance(&make(), &exact_options(), &ctx()).unwrap();
@@ -557,4 +588,86 @@ fn x2_covariance_replay_is_bit_identical_and_identity_sensitive() {
     let reseeded = shared_row_bootstrap_covariance(&make(), &boot_options(43), &ctx()).unwrap();
     assert_ne!(reseeded.replicate_ids, first.replicate_ids);
     assert_ne!(reseeded.replicate_digest, first.replicate_digest);
+}
+
+fn normal_normal_weight(variance: f64, scale: f64) -> f64 {
+    let precision = 1.0 / variance;
+    precision / (precision + 1.0 / (scale * scale))
+}
+
+#[test]
+fn scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix() {
+    let family = vec![linear_by_name("a"), linear_by_name("b")];
+    let out = exact_enumeration_covariance(&family, &exact_options(), &ctx()).unwrap();
+    assert_eq!(out.entry_sampling_variance.len(), out.covariance.len());
+    assert!(
+        out.entry_sampling_variance.iter().all(|variance| variance.is_finite() && *variance > 0.0)
+    );
+    let mean = covariance_entry_posterior(
+        &out.covariance,
+        &out.entry_sampling_variance,
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+    )
+    .unwrap();
+    for (got, expected) in mean.iter().zip(&out.covariance) {
+        assert!((got - expected).abs() < 1e-8, "{got} vs {expected}");
+    }
+}
+
+#[test]
+fn scenario_covariance_posterior_refuses_an_external_power_prior() {
+    let error =
+        covariance_entry_posterior(&[0.1, 0.2], &[0.1, 0.2], PosteriorRequest::ExternalPower)
+            .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("scenario_covariance_posterior.external_power_prior"), "{message}");
+}
+
+#[test]
+fn scenario_covariance_posterior_consumer_replays_the_shrunk_entries() {
+    let family = vec![linear_by_name("a"), linear_by_name("b")];
+    let out = exact_enumeration_covariance(&family, &exact_options(), &ctx()).unwrap();
+    assert_ne!(out.entry(0, 0), out.entry(0, 1));
+    let produced = covariance_entry_posterior(
+        &out.covariance,
+        &out.entry_sampling_variance,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+    )
+    .unwrap();
+    for ((got, entry), variance) in
+        produced.iter().zip(&out.covariance).zip(&out.entry_sampling_variance)
+    {
+        let weight = normal_normal_weight(*variance, 1.0);
+        assert!((got - weight * entry).abs() < 1e-12, "{got} vs {}", weight * entry);
+        assert!(got.abs() < entry.abs());
+    }
+
+    // Identical scenario replicates: every covariance entry is the same, so the
+    // cross-entry spread is 0. The sampling variance is the variance of the
+    // replicate products, and the posterior mean is finite.
+    let replicates = [0.0, 0.0, 1.0, 1.0, 3.0, 3.0];
+    let (covariance, variance) =
+        covariance_estimator_moments(&replicates, &[1.0, 1.0, 1.0], 2, 1.0, 3).unwrap();
+    assert!(covariance.iter().all(|entry| (entry - covariance[0]).abs() < 1e-12));
+    assert!(variance.iter().all(|entry| (entry - variance[0]).abs() < 1e-12));
+    assert!(variance[0] > 0.0);
+    let dev = [-4.0 / 3.0, -1.0 / 3.0, 5.0 / 3.0];
+    let products: Vec<f64> = dev.iter().map(|d| d * d).collect();
+    let moment = products.iter().sum::<f64>() / 3.0;
+    let kappa =
+        products.iter().map(|product| (product - moment) * (product - moment)).sum::<f64>() / 3.0;
+    let sampling_variance = kappa / 3.0;
+    assert!((variance[0] - sampling_variance).abs() < 1e-12);
+    assert!((covariance[0] - moment).abs() < 1e-12);
+    let constant = covariance_entry_posterior(
+        &covariance,
+        &variance,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+    )
+    .unwrap();
+    let weight = normal_normal_weight(sampling_variance, 1.0);
+    for got in &constant {
+        assert!(got.is_finite());
+        assert!((got - weight * moment).abs() < 1e-12);
+    }
 }

@@ -35,7 +35,7 @@ fn declared_input(
 fn error(e: IoError) -> PyErr {
     match e {
         IoError::Refused { code, message } if code == reason_code!("invalid_argument") => {
-            crate::with_reason_code(crate::value_err(message), code)
+            crate::value_err_code(code, message)
         }
         IoError::Refused { code, message } => crate::refusal(code, message),
         other => crate::value_err(other.to_string()),
@@ -53,7 +53,7 @@ struct Candidate {
 impl Candidate {
     fn from_artifact(artifact: NestedFisherArtifact) -> PyResult<Self> {
         let bytes = artifact.export().map_err(error)?;
-        let identity = blake3::hash(&bytes).to_hex().to_string();
+        let identity = antecedent_core::blake3_hex(&bytes);
         Ok(Self { artifact, bytes, identity })
     }
 }
@@ -111,7 +111,7 @@ fn consume_nested_markov_fisher_candidate(
     if bytes.len() > 256 * 1024 {
         return Err(crate::value_err("nested_markov.fisher_artifact_limits: candidate byte bound"));
     }
-    if blake3::hash(bytes).to_hex().as_str() != expected_identity {
+    if antecedent_core::blake3_hex(bytes) != expected_identity {
         return Err(crate::with_reason_code(
             crate::value_err(
                 "nested_markov.fisher_identity_mismatch: candidate identity differs from expected",

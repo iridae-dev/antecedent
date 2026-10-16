@@ -1,11 +1,12 @@
 //! Python bindings for the DAG completions of a CPDAG and the shared-data
-//! covariance of scenario estimates (2.3A X2).
+//! covariance of scenario estimates.
 //!
 //! Python builds the declarations; every identity, check and refusal rule is
 //! Rust's. A coded refusal comes back as structured JSON
 //! (`{"code", "detail", "message"}`) for the Python layer to raise as its own
 //! typed exception; failures that are not refusals (cancellation, resource
 //! budgets, serialization) raise the ordinary transport exceptions.
+use crate::bridge::{RefusalJson, check_declared_size};
 use crate::graphs::{Admg, Cpdag};
 use crate::transport_common::{
     RegimeCheck, assignment_from_pairs, error, execution_context, frame_named_artifact, parse_laws,
@@ -35,7 +36,7 @@ const COVARIANCE_PREFIX: &[u8] = b"ANTECEDENT-SCENARIO-COVARIANCE\x01";
 const CPDAG_SCOPE: &str = "cpdag_completion_scenarios_structural_envelope";
 const COVARIANCE_SCOPE: &str = "shared_row_covariance_point_only";
 /// Largest spec JSON the covariance bridge accepts.
-const MAX_SPEC_JSON_BYTES: usize = 8 * 1024 * 1024;
+const MAX_SPEC_JSON_BYTES: usize = crate::bridge::MAX_SPEC_DECLARATION_BYTES;
 
 /// One declared coordinate: `(name, domain, cardinality, unit)`.
 type CoordinateTuple = (String, String, Option<u32>, Option<String>);
@@ -47,16 +48,7 @@ type EvidenceTuple<'py> =
 type Refusal = String;
 
 fn refusal_json(code: &str, message: &str) -> Refusal {
-    let (detail, text) = match message.split_once(": ") {
-        Some((head, rest))
-            if head.contains('.')
-                && head.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.') =>
-        {
-            (head, rest)
-        }
-        _ => ("", message),
-    };
-    serde_json::json!({ "code": code, "detail": detail, "message": text }).to_string()
+    RefusalJson::from_coded_message(code, "cpdag_scenario", message).json()
 }
 
 /// A coded refusal as JSON; anything else (cancellation, resource budgets,
@@ -396,9 +388,7 @@ fn cpdag_completion_scenarios_stage(
             query,
             bound,
             budget,
-            data,
-            request,
-            evaluation,
+            antecedent::CpdagEvaluation { data, request, limits: evaluation },
             &ctx,
         )
         .and_then(|prepared| prepared.estimate(&ctx).map(|report| (prepared, report)));
@@ -531,9 +521,7 @@ fn scenario_shared_covariance_stage(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<(Option<ScenarioCovarianceRun>, Option<Refusal>)> {
-    if spec_json.len() > MAX_SPEC_JSON_BYTES {
-        return Err(crate::value_err("the covariance declaration is too large"));
-    }
+    check_declared_size(spec_json, MAX_SPEC_JSON_BYTES, "covariance")?;
     let spec: CovarianceSpec = match serde_json::from_str(spec_json) {
         Ok(spec) => spec,
         Err(e) => {

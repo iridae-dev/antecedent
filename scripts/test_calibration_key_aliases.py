@@ -12,8 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import calibration_key_aliases as aliases
-
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
 
 
 class CalibrationIdentityAliasTests(unittest.TestCase):
@@ -80,12 +79,13 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / ".git").write_text("gitdir: elsewhere", encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "primary 2.3.0"):
+            branch = aliases.archived_capture_branch()
+            with self.assertRaisesRegex(ValueError, f"primary {branch}"):
                 aliases.clean_main_source(root)
             (root / ".git").unlink()
             (root / ".git").mkdir()
             with patch.object(aliases.subprocess, "run", side_effect=[
-                subprocess.CompletedProcess([], 0, stdout="2.3.0\n"),
+                subprocess.CompletedProcess([], 0, stdout=f"{branch}\n"),
                 subprocess.CompletedProcess([], 0, stdout=" M dirty.rs\n"),
             ]), self.assertRaisesRegex(ValueError, "clean committed main"):
                 aliases.clean_main_source(root)
@@ -123,14 +123,16 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
                        "normalization_tolerance_bits": "3fb999999999999a", "small_cell_count_bits": "4014000000000000",
                        "treated_level_bits": "3ff0000000000000", "control_level_bits": "0000000000000000"},
         }
+        branch = aliases.archived_capture_branch()
+
         def native_receipt(value: dict) -> dict:
             text = "RECOVERY_IDENTITY_PROOF=" + json.dumps(value) + "\ntest result: ok. 1 passed; 0 failed;\n"
-            return {"version": 1, "source_sha": source, "branch": "2.3.0", "proof": value,
+            return {"version": 1, "source_sha": source, "branch": branch, "proof": value,
                     "log": text, "log_sha256": aliases.sha256(text)}
         raw = {key: value for key, value in original.items() if key not in calibration_facets.NOT_EMITTED}
         raw["functional"] = canonical
         text = "synthetic backend fixture log\n"
-        replay = {"version": 1, "source_sha": source, "branch": "2.3.0", "record_id": aliases.RECORD_ID,
+        replay = {"version": 1, "source_sha": source, "branch": branch, "record_id": aliases.RECORD_ID,
                   "logs": {"recovery.log": {"text": text, "sha256": aliases.sha256(text)}},
                   "raw_main_replay_record": raw}
         # Mock only the physical log backend. Scientific comparison runs the
@@ -157,6 +159,28 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
             check(native_receipt(changed), replay, raw)
         with self.assertRaisesRegex(ValueError, "main-branch source"):
             check(native_receipt(proof), replay | {"source_sha": "0" * 40}, raw)
+
+    def test_reviewed_label_rename_adds_only_the_renamed_canonical_spelling(self) -> None:
+        legacy = "recovery_scientific.v1:x10.recovery.v1|graph=g"
+        alias = {"record_id": "r", "measurement_sha": "m", "original_functional": "orig",
+                 "canonical_functional": "recovered_effect:" + legacy + ":treated=1"}
+        [renamed] = aliases.renamed_identities(alias)
+        self.assertEqual(
+            renamed["canonical_functional"],
+            "recovered_effect:recovery_scientific.v1:binary_observation_recovery.v1|graph=g"
+            ":treated=1",
+        )
+        self.assertEqual(
+            {k: v for k, v in renamed.items() if k != "canonical_functional"},
+            {k: v for k, v in alias.items() if k != "canonical_functional"},
+        )
+        # A canonical spelling that already uses the new name or lacks the token
+        # is not rewritten, and a repeated token is never guessed at.
+        for text in ("recovered_effect:recovery_scientific.v1:binary_observation_recovery.v1|g",
+                     "recovered_effect:other", legacy + ";" + legacy):
+            self.assertEqual(
+                aliases.renamed_identities(alias | {"canonical_functional": text}), [],
+            )
 
     def test_original_record_values_axes_and_provenance_are_immutable(self) -> None:
         metadata = self.pending_metadata()

@@ -1,16 +1,23 @@
-//! `PyO3` bindings — : Arrow load, `analyze_ate` (incl. Bayesian),
-//! `analyze`, `discover_pcmci`, `discover_pcmci_plus`, GCM fit/sample/CF.
+//! `PyO3` bindings for the Antecedent extension module (`antecedent._native`).
+//!
+//! Arrow and NumPy ingestion, graph handles, discovery, estimation, and the
+//! prepared-analysis entry points live in the modules below. Unsafe FFI is
+//! confined to [`ffi`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(missing_docs)]
-#![allow(unsafe_code)] // required by PyO3
+#![deny(clippy::disallowed_methods)]
+#![allow(clippy::doc_markdown, reason = "docs quote Python names and signatures")]
+#![allow(clippy::needless_pass_by_value, reason = "PyO3 extracts owned arguments from Python")]
+#![allow(clippy::too_many_arguments, reason = "native signatures mirror the Python entry points")]
 #![allow(
-    clippy::doc_markdown,
-    clippy::needless_pass_by_value,
-    clippy::too_many_arguments,
     clippy::too_many_lines,
-    clippy::fn_params_excessive_bools
+    reason = "section builders and the module table are one function each"
+)]
+#![allow(
+    clippy::fn_params_excessive_bools,
+    reason = "effort and license flags are separate Python keywords"
 )]
 #![cfg_attr(
     test,
@@ -24,37 +31,51 @@
 #[cfg(test)]
 include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
 
+mod adaptive_inference_api;
+mod adaptive_procedure_api;
 mod artifact_api;
 mod ate_api;
 mod attribution_api;
 mod batch_retarget_api;
 pub(crate) mod bayesian;
 mod bounds_api;
+mod bridge;
 mod callbacks;
 mod candidate_screen_api;
 mod categorical_treatment_api;
 mod closed_pilot_api;
+mod cohort_decision_api;
 mod compact_export_api;
 mod composition_api;
 mod composition_bundle_api;
+mod composition_verification_api;
 mod counterfactual_id_api;
 mod cpdag_scenario_api;
 mod cross_world_api;
+mod cross_world_execution_api;
 mod decision_api;
+mod decision_reliability_api;
+#[allow(dead_code, reason = "signature literals are checked against this table in tests")]
+mod defaults;
 mod derived_treatment_api;
 mod descriptive_api;
 mod design_api;
 mod design_ranking_api;
+mod discovered_transport_api;
 mod discovery_api;
+mod discretized_composition_api;
 mod distribution_api;
 mod dose_grid_api;
 mod effect_constancy_api;
 mod effect_constancy_review_api;
 mod estimator_config;
+mod evidence_ledger_api;
 mod execution_attempt_api;
 mod experiment_api;
 mod external_api;
 mod factorial_api;
+mod ffi;
+mod forward_source_api;
 mod functional_source_api;
 mod gcm_api;
 mod graph_build;
@@ -65,6 +86,7 @@ mod interference_saturation_api;
 mod interrupt;
 mod inverse_outcome_api;
 mod inverse_query_api;
+mod joint_law_propagation_api;
 mod joint_transport_api;
 mod latent_class_api;
 mod learned_continuous_api;
@@ -72,14 +94,18 @@ mod learned_joint_api;
 mod learned_trial_api;
 mod matched_case_control_api;
 mod measured_inference_api;
+mod measurement_model_api;
+mod mechanism_composition_api;
 mod mechanism_discrepancy_api;
 mod msm_sensitivity_api;
 mod nested_bayesian_api;
 mod nested_fisher_api;
 mod nonlinear_mediation_api;
 mod observation_api;
+mod observation_query_api;
 mod observational_interference_api;
 mod policy_api;
+mod predictive_assessment_api;
 mod preflight_api;
 mod prepared_api;
 mod prepared_options;
@@ -104,11 +130,18 @@ mod recalc_temporal_api;
 mod recovery_api;
 mod recovery_chain_api;
 mod regimes_api;
+mod registry;
+mod sequential_evaluation_api;
+pub(crate) use registry::transport_defaults;
+mod interface_contract_api;
+mod provider_callbacks_api;
 mod repair_api;
 mod response_api;
 mod rollout_api;
 mod scalar_decision_api;
 mod scenario_invariance_api;
+mod scientific_bridge_api;
+mod selective_discovery_api;
 mod sensitivity_decision_api;
 mod sensitivity_source_api;
 mod smoothed_dose_api;
@@ -125,28 +158,30 @@ mod temporal_license;
 mod temporal_transport_api;
 mod transport_admg_conditional_api;
 mod transport_common;
+mod transport_counterfactual_api;
+mod transport_counterfactual_sampled_api;
 mod transport_exact_api;
 mod transport_grid_api;
 mod transport_interference_api;
 mod transport_joint_sensitivity_api;
 mod transport_mixed_api;
 mod transport_mz_api;
+mod transport_revalidation_api;
 mod transport_scenario_api;
 mod transport_statistical_api;
 mod transport_z_api;
+mod transported_constructors_api;
 mod transported_counterfactual_api;
+mod transported_response_api;
 mod vector_treatment_api;
 
-pub(crate) use ate_api::{
-    GraphEdge, ate_result_from_analysis, panel_discovery_builder, panel_multi_dataset_constraints,
-};
+pub(crate) use ate_api::{GraphEdge, ate_result_from_analysis};
 pub(crate) use discovery_api::{
     DiscoveredLink, PcmciDiscoveryResult, series_from_batch, tabular_from_batch,
 };
 pub(crate) use graph_build::{
-    dag_from_named_edges, parse_dummy_ci_modes, parse_time_dummy_encoding, pool_panel_series,
-    require_named_graph_order, schema_var_id, series_from_tabular, space_dummy_ci_from_bool,
-    temporal_dag_from_lagged_edges, temporal_dag_from_schema_edges, time_dummy_ci_from_bool,
+    dag_from_named_edges, parse_dummy_ci_modes, require_named_graph_order, schema_var_id,
+    series_from_tabular, temporal_dag_from_lagged_edges, temporal_dag_from_schema_edges,
 };
 pub(crate) use temporal_api::{
     AnalysisResult, GcmIteResult, GcmSampleResult, MediationEffectsSummary, PredictSummary,
@@ -157,14 +192,14 @@ pub(crate) fn parse_within_tier(
     within_tier: Option<&str>,
 ) -> PyResult<antecedent_graph::WithinTier> {
     let Some(raw) = within_tier else {
-        return Err(PyValueError::new_err("within_tier is required when tiers are supplied"));
+        return Err(crate::value_err("within_tier is required when tiers are supplied"));
     };
     match raw.to_ascii_lowercase().as_str() {
         "codetermined" => Ok(antecedent_graph::WithinTier::CoDetermined),
         "unknown" => Ok(antecedent_graph::WithinTier::Unknown),
-        other => Err(PyValueError::new_err(format!(
-            "within_tier must be codetermined|unknown, got {other}"
-        ))),
+        other => {
+            Err(crate::value_err(format!("within_tier must be codetermined|unknown, got {other}")))
+        }
     }
 }
 
@@ -187,10 +222,9 @@ use std::sync::Arc;
 use antecedent::design::{DecisionProblem, evaluate_decision as facade_evaluate_decision};
 use antecedent::discovery::{
     DiscoverParams, DiscoveryPerformanceRecord, LaggedParent, MultiDatasetConstraints, PcSepsets,
-    RegimeAssignment, ScoredLink, SpaceDummyCiMode, StaticDiscoverParams, TimeDummyCiMode,
-    discover_fci as facade_discover_fci, discover_ges as facade_discover_ges,
-    discover_jpcmci_plus as facade_discover_jpcmci_plus, discover_lingam as facade_discover_lingam,
-    discover_lpcmci as facade_discover_lpcmci,
+    RegimeAssignment, ScoredLink, StaticDiscoverParams, discover_fci as facade_discover_fci,
+    discover_ges as facade_discover_ges, discover_jpcmci_plus as facade_discover_jpcmci_plus,
+    discover_lingam as facade_discover_lingam, discover_lpcmci as facade_discover_lpcmci,
     discover_lpcmci_panel as facade_discover_lpcmci_panel,
     discover_notears as facade_discover_notears, discover_pc as facade_discover_pc,
     discover_pcmci as facade_discover_pcmci, discover_pcmci_panel as facade_discover_pcmci_panel,
@@ -214,17 +248,11 @@ use antecedent::gcm::{
     mechanism_change_detection as facade_mechanism_change_detection, sample_do as facade_sample_do,
     sample_interventional_distribution as facade_sample_interventional_distribution,
 };
-use antecedent::io::{
-    dag_from_dot as facade_dag_from_dot,
-    dag_from_networkx_adjacency as facade_dag_from_networkx_adjacency,
-    dag_to_dot as facade_dag_to_dot, dag_to_json as facade_dag_to_json,
-    dag_to_networkx_adjacency as facade_dag_to_networkx_adjacency, decode_causal_posterior_bytes,
-    encode_causal_posterior_bytes,
-};
+use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::review::{PendingCpdagReview, PendingGraphReview};
 use antecedent::{
-    AcceptedGraph, BayesianConfig, CausalError as RustCausalError, EstimatorId, FdrControl,
-    IdentifierId, InferenceMode, RefuteSuite, Study,
+    AcceptedGraph, BayesianConfig, CausalError as RustCausalError, InferenceMode, RefuteSuite,
+    Study,
 };
 use antecedent_core::{
     AllocationMethod, AttributionComponents, CachePolicy, CausalRng, ChangeAttributionQuery,
@@ -234,10 +262,9 @@ use antecedent_core::{
     TargetPopulation, TemporalEffectQuery, TemporalPolicy, UnitChangeQuery, VERSION, Value,
     VariableId,
 };
-use antecedent_data::TimeDummyEncoding;
 use antecedent_data::{
-    ArrowCColumn, DataError, EventData, MultiEnvironmentData, PanelData, PanelUnit, TableView,
-    TimeSeriesData, tabular_from_arrow_c_columns, tabular_from_record_batch,
+    DataError, MultiEnvironmentData, TableView, TimeSeriesData, tabular_from_arrow_c_columns,
+    tabular_from_record_batch,
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
 use antecedent_graph::{
@@ -256,7 +283,7 @@ use arrow_array::{Float64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
 use numpy::{PyArray1, PyArray2, PyArrayMethods, PyReadonlyArray1};
 use pyo3::create_exception;
-use pyo3::exceptions::{PyException, PyValueError};
+use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::sync::PyOnceLock;
 use pyo3::types::PyDict;
@@ -390,14 +417,41 @@ fn set_value_error_class(py: Python<'_>, cls: Py<PyAny>) {
 
 /// Invalid input at a native entry point, as the registered `CausalValueError`
 /// (a `CausalValidateError` that is also a `ValueError`).
+///
+/// The message is unchanged. A registered `reason=<code>:` prefix already in
+/// the message is copied onto `reason_code`.
 pub(crate) fn value_err(message: impl AsRef<str>) -> PyErr {
     let message = message.as_ref();
+    attach_reason_from_message(value_error_of(message), message)
+}
+
+/// [`value_err`] with an explicit registered reason code.
+///
+/// The code is an attribute. It is not written into the message.
+pub(crate) fn value_err_code(code: &str, message: impl AsRef<str>) -> PyErr {
+    with_reason_code(value_error_of(message.as_ref()), code)
+}
+
+fn value_error_of(message: &str) -> PyErr {
     Python::attach(|py| {
         VALUE_ERROR_CLASS
             .get(py)
             .and_then(|cls| cls.bind(py).call1((message,)).ok())
             .map_or_else(|| CausalValidateError::new_err(message.to_string()), PyErr::from_value)
     })
+}
+
+/// A serialization failure, as `CausalSerializationError`.
+///
+/// A registered `reason=<code>:` prefix already in the message is copied onto
+/// `reason_code`. The message text is the argument unchanged.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "this is the constructor the serialization ban redirects callers to"
+)]
+pub(crate) fn serialization_err(message: impl AsRef<str>) -> PyErr {
+    let message = message.as_ref();
+    attach_reason_from_message(CausalSerializationError::new_err(message.to_string()), message)
 }
 
 /// A refusal, as the registered Python class, carrying its `reason=<code>:` prefix.
@@ -505,14 +559,12 @@ pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Refu
                 Ok(RefuteSuite::PlaceboAndRcc)
             }
             "none" | "off" | "false" | "0" => Ok(RefuteSuite::None),
-            other => Err(PyValueError::new_err(format!(
+            other => Err(crate::value_err(format!(
                 "unknown refute={other:?}; use True|False|\"full\"|\"placebo\"|\"cheap\"|\"none\""
             ))),
         };
     }
-    Err(PyValueError::new_err(
-        "refute= must be bool or str (True|False|\"full\"|\"placebo\"|\"none\")",
-    ))
+    Err(crate::value_err("refute= must be bool or str (True|False|\"full\"|\"placebo\"|\"none\")"))
 }
 
 // --- Discovery review acceptance helpers -----------------------------------------
@@ -632,9 +684,28 @@ pub(crate) fn py_err<E: IntoCausalPyErr>(e: E) -> PyErr {
     e.into_antecedent_py_err()
 }
 
+/// A `usize` index that has to cross the binding as a `u32` id.
+///
+/// Failure is an input error. It is not saturated and not zero.
+pub(crate) fn fit_u32(index: usize) -> PyResult<u32> {
+    u32::try_from(index).map_err(|_| value_err(format!("index {index} does not fit in u32")))
+}
+
 /// Fallback for domain errors not covered by [`IntoCausalPyErr`].
+///
+/// Stays a root `CausalError` (these are not invalid-argument failures). A
+/// registered `reason=<code>:` prefix in the message is copied onto `reason_code`.
 pub(crate) fn py_msg(e: impl ToString) -> PyErr {
-    CausalError::new_err(e.to_string())
+    let message = e.to_string();
+    attach_reason_from_message(domain_err(&message), &message)
+}
+
+#[allow(
+    clippy::disallowed_methods,
+    reason = "root CausalError is the domain fallback; invalid input uses value_err"
+)]
+fn domain_err(message: &str) -> PyErr {
+    CausalError::new_err(message.to_string())
 }
 
 /// Convert a Rust panic payload into a typed Python error so panics never cross FFI.
@@ -720,6 +791,16 @@ fn reason_code_in_message(message: &str) -> Option<&str> {
         .map(|(code, _)| code)
 }
 
+/// Copy a registered reason code out of `message` onto `err`, leaving the message as it is.
+fn attach_reason_from_message(err: PyErr, message: &str) -> PyErr {
+    match reason_code_in_message(message)
+        .filter(|code| antecedent_core::reason_code::is_registered(code))
+    {
+        Some(code) => with_reason_code(err, code),
+        None => err,
+    }
+}
+
 impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         let code = reason_code_of(&self);
@@ -754,7 +835,7 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
         RustCausalError::Model(e) => CausalModelError::new_err(e.to_string()),
         RustCausalError::Counterfactual(e) => CausalCounterfactualError::new_err(e.to_string()),
         RustCausalError::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
-        RustCausalError::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
+        RustCausalError::Serialization(e) => crate::serialization_err(e.to_string()),
         RustCausalError::Data(e) => CausalDataError::new_err(e.to_string()),
         RustCausalError::Graph(e) => CausalGraphError::new_err(e.to_string()),
         RustCausalError::Design(e) => CausalDesignError::new_err(e.to_string()),
@@ -772,6 +853,9 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
         RustCausalError::Schema(e) => CausalDataError::new_err(e.to_string()),
         RustCausalError::SchemaMismatch { detail } => CausalDataError::new_err(detail),
         RustCausalError::Compile { message } => CausalCompileError::new_err(message),
+        RustCausalError::Rejected(failure) => {
+            CausalCompileError::new_err(failure.message().to_owned())
+        }
         RustCausalError::NotIdentified { status, search_capped, message } => {
             not_identified_py_err(status.as_str(), search_capped, message)
         }
@@ -784,7 +868,7 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
             message,
             hint,
         } => review_required_py_err(
-            kind,
+            kind.as_str().to_owned(),
             algorithm,
             pending_edge_count,
             pending_edges,
@@ -1672,53 +1756,55 @@ pub(crate) fn shared_study_sections(
     let latency_mode =
         result.performance.latency_mode.as_ref().map(std::string::ToString::to_string);
     let bootstrap_replicates_ok =
-        result.performance.bootstrap_replicates_ok.or(estimate.bootstrap_replicates_ok);
-    let cancelled = result.performance.cancelled || estimate.bootstrap_cancelled;
+        result.performance.bootstrap_replicates_ok.or(estimate.uncertainty.bootstrap.replicates_ok);
+    let cancelled = result.performance.cancelled || estimate.uncertainty.bootstrap.cancelled;
     let stage_timings: Vec<(String, u64)> =
         result.performance.stage_timings_ns.iter().map(|(s, ns)| (s.to_string(), *ns)).collect();
     let identification = IdentificationSection {
         status: identification_status.clone(),
         method: method.clone(),
         adjustment_set: adjustment_set.clone(),
-        assumption_count: estimate.assumptions.len(),
+        assumption_count: estimate.provenance.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
     };
-    let (distribution_atoms, mean_interval) =
-        distribution_sections(names, result.distribution.as_ref());
-    let overlap_ess = estimate.overlap_report.as_ref().and_then(|r| r.ess);
-    let overlap_propensity_min = estimate.overlap_report.as_ref().map(|r| r.propensity_min);
+    let (distribution_atoms, mean_interval) = distribution_sections(names, result.distribution());
+    let overlap_ess = estimate.diagnostics.overlap_report.as_ref().and_then(|r| r.ess);
+    let overlap_propensity_min =
+        estimate.diagnostics.overlap_report.as_ref().map(|r| r.propensity_min);
     let estimate = EstimateSection {
         ate: estimate.ate.is_finite().then_some(estimate.ate),
-        se_analytic: estimate.se_analytic,
-        se_bootstrap: estimate.se_bootstrap,
+        se_analytic: estimate.se_analytic(),
+        se_bootstrap: estimate.se_bootstrap(),
         estimator_id: estimator_id.clone(),
         method: method.clone(),
         overlap_ess,
         overlap_propensity_min,
-        functional_means: estimate.score_inference.as_ref().map(|s| s.raw_means.clone()).or_else(
+        functional_means: estimate.scores.inference.as_ref().map(|s| s.raw_means.clone()).or_else(
             || {
                 estimate
-                    .score_table
+                    .scores
+                    .table
                     .as_ref()
                     .and_then(|t| t.summarize(None).ok().map(|s| s.means.to_vec()))
             },
         ),
         joint_covariance: estimate
-            .joint_covariance
+            .joint
+            .covariance
             .as_ref()
             .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
-        score_inference: estimate.score_inference.as_ref().map(ScoreInferenceSection::from),
-        scenario_effects: estimate.scenario_effects.as_ref().map(|v| v.to_vec()),
-        scenario_intervals: estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
-        exceedance_cdf: estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
-        monotone_rearranged: estimate.monotone_rearranged,
+        score_inference: estimate.scores.inference.as_ref().map(ScoreInferenceSection::from),
+        scenario_effects: estimate.scenarios.effects.as_ref().map(|v| v.to_vec()),
+        scenario_intervals: estimate.scenarios.intervals.as_ref().map(|v| v.to_vec()),
+        exceedance_cdf: estimate.joint.exceedance_cdf.as_ref().map(|v| v.to_vec()),
+        monotone_rearranged: estimate.joint.monotone_rearranged,
         interaction_structurally_zero: result
-            .response
+            .response()
             .as_ref()
             .map(|r| r.interaction_structurally_zero)
-            .or(Some(estimate.interaction_structurally_zero)),
-        unit_effects_homogeneous: Some(estimate.unit_effects_homogeneous),
-        score_table: estimate.score_table.as_ref().map(|t| ScoreTableSection {
+            .or(Some(estimate.joint.interaction_structurally_zero)),
+        unit_effects_homogeneous: Some(estimate.heterogeneity.unit_effects_homogeneous),
+        score_table: estimate.scores.table.as_ref().map(|t| ScoreTableSection {
             n_rows: t.n_rows,
             n_folds: t.n_folds,
             provenance: t.nuisance_provenance.to_string(),
@@ -1733,11 +1819,12 @@ pub(crate) fn shared_study_sections(
             treatment: t.treatment.raw(),
             intervened: t.intervened.iter().map(|v| v.raw()).collect(),
         }),
-        simultaneous_interval: estimate.simultaneous_interval,
-        adjusted_p_values: estimate.adjusted_p_values,
-        family_contrast: estimate.family_contrast,
-        family_contrast_interval: estimate.family_contrast_interval,
+        simultaneous_interval: estimate.family.simultaneous_interval,
+        adjusted_p_values: estimate.family.adjusted_p_values,
+        family_contrast: estimate.family.contrast,
+        family_contrast_interval: estimate.family.contrast_interval,
         candidate_selection: estimate
+            .family
             .candidate_selection
             .as_ref()
             .map(|s| CandidateSelectionSection {
@@ -1760,23 +1847,28 @@ pub(crate) fn shared_study_sections(
                     disjoint: s.disjoint,
                 })
             }),
-        evalue: estimate.evalue,
-        evalue_threshold: estimate.evalue_threshold,
+        evalue: estimate.diagnostics.evalue,
+        evalue_threshold: estimate.diagnostics.evalue_threshold,
         distribution_atoms,
         mean_interval,
-        cate: estimate.cate.as_ref().map(|c| c.to_vec()),
-        cate_se: estimate.cate_se.as_ref().map(|c| c.to_vec()),
-        cate_leaf_dispersion: estimate.cate_leaf_dispersion.as_ref().map(|c| c.to_vec()),
-        outcome_oof_r2: estimate.outcome_oof_r2,
-        treatment_oof_logloss: estimate.treatment_oof_logloss,
-        crossfit_folds: estimate.crossfit_folds,
-        crossfit_seed: estimate.crossfit_seed,
+        cate: estimate.heterogeneity.cate.as_ref().map(|c| c.to_vec()),
+        cate_se: estimate.heterogeneity.cate_se.as_ref().map(|c| c.to_vec()),
+        cate_leaf_dispersion: estimate
+            .heterogeneity
+            .cate_leaf_dispersion
+            .as_ref()
+            .map(|c| c.to_vec()),
+        outcome_oof_r2: estimate.crossfit.outcome_oof_r2,
+        treatment_oof_logloss: estimate.crossfit.treatment_oof_logloss,
+        crossfit_folds: estimate.crossfit.folds,
+        crossfit_seed: estimate.crossfit.seed,
         learner_provenance: estimate
+            .crossfit
             .learner_provenance
             .iter()
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
             .collect(),
-        penalized_fallback: estimate.penalized.as_ref().and_then(|report| {
+        penalized_fallback: estimate.diagnostics.penalized.as_ref().and_then(|report| {
             report.fallback.as_ref().map(|f| {
                 (
                     f.failed_fit.stage.to_string(),
@@ -1787,10 +1879,15 @@ pub(crate) fn shared_study_sections(
                 )
             })
         }),
-        penalized_support: estimate.penalized.as_ref().map_or_else(Vec::new, |report| {
-            report.selected_support.iter().map(|s| (s.fold, s.names.clone())).collect()
-        }),
+        penalized_support: estimate
+            .diagnostics
+            .penalized
+            .as_ref()
+            .map_or_else(Vec::new, |report| {
+                report.selected_support.iter().map(|s| (s.fold, s.names.clone())).collect()
+            }),
         penalized_bootstrap: estimate
+            .diagnostics
             .penalized
             .as_ref()
             .and_then(|report| report.variance.as_ref())
@@ -2132,8 +2229,8 @@ pub(crate) struct PerformanceSection {
     bytes_borrowed: Option<u64>,
 }
 
-/// Decoded posterior artifact for Python consumers .
-#[pyclass]
+/// Decoded posterior artifact for Python consumers.
+#[pyclass(frozen)]
 struct PosteriorArtifact {
     #[pyo3(get)]
     n_draws: usize,
@@ -2344,7 +2441,7 @@ impl PosteriorArtifact {
                                 if cur.eq(dt)? {
                                     Ok(arr)
                                 } else {
-                                    Err(PyValueError::new_err(
+                                    Err(crate::value_err(
                                         "Unable to avoid a copy while casting PosteriorArtifact \
                                          dtype; pass copy=True to allow a conversion",
                                     ))
@@ -2359,78 +2456,6 @@ impl PosteriorArtifact {
             },
         }
     }
-
-    /// Zero-copy float64 view of `draws` for `np.asarray` / `memoryview`.
-    unsafe fn __getbuffer__(
-        slf: Bound<'_, Self>,
-        view: *mut pyo3::ffi::Py_buffer,
-        flags: std::os::raw::c_int,
-    ) -> PyResult<()> {
-        use pyo3::exceptions::PyBufferError;
-        use pyo3::ffi;
-        if view.is_null() {
-            return Err(PyBufferError::new_err("View is null"));
-        }
-        if (flags & ffi::PyBUF_WRITABLE) == ffi::PyBUF_WRITABLE {
-            return Err(PyBufferError::new_err("PosteriorArtifact draws are read-only"));
-        }
-        let borrowed = slf.borrow();
-        let data = borrowed.draws.as_slice();
-        let n =
-            isize::try_from(data.len()).map_err(|_| PyBufferError::new_err("draws too large"))?;
-        let itemsize = isize::try_from(std::mem::size_of::<f64>()).expect("f64 size");
-        let nbytes = n.saturating_mul(itemsize);
-        unsafe {
-            (*view).obj = slf.as_ptr();
-            ffi::Py_INCREF((*view).obj);
-            (*view).buf = data.as_ptr().cast::<std::ffi::c_void>().cast_mut();
-            (*view).len = nbytes;
-            (*view).readonly = 1;
-            (*view).itemsize = itemsize;
-            (*view).format = if (flags & ffi::PyBUF_FORMAT) == ffi::PyBUF_FORMAT {
-                std::ffi::CString::new("d").expect("format").into_raw()
-            } else {
-                std::ptr::null_mut()
-            };
-            (*view).ndim = 1;
-            (*view).shape = if (flags & ffi::PyBUF_ND) == ffi::PyBUF_ND {
-                let shape = Box::new([n]);
-                Box::into_raw(shape).cast()
-            } else {
-                std::ptr::null_mut()
-            };
-            (*view).strides = if (flags & ffi::PyBUF_STRIDES) == ffi::PyBUF_STRIDES {
-                let strides = Box::new([itemsize]);
-                Box::into_raw(strides).cast()
-            } else {
-                std::ptr::null_mut()
-            };
-            (*view).suboffsets = std::ptr::null_mut();
-            (*view).internal = std::ptr::null_mut();
-        }
-        Ok(())
-    }
-
-    #[allow(clippy::unused_self)]
-    unsafe fn __releasebuffer__(&self, view: *mut pyo3::ffi::Py_buffer) {
-        if view.is_null() {
-            return;
-        }
-        unsafe {
-            if !(*view).format.is_null() {
-                drop(std::ffi::CString::from_raw((*view).format));
-                (*view).format = std::ptr::null_mut();
-            }
-            if !(*view).shape.is_null() {
-                drop(Box::from_raw((*view).shape.cast::<[isize; 1]>()));
-                (*view).shape = std::ptr::null_mut();
-            }
-            if !(*view).strides.is_null() {
-                drop(Box::from_raw((*view).strides.cast::<[isize; 1]>()));
-                (*view).strides = std::ptr::null_mut();
-            }
-        }
-    }
 }
 
 pub(crate) fn columns_to_batch(
@@ -2438,16 +2463,16 @@ pub(crate) fn columns_to_batch(
     columns: &[PyReadonlyArray1<'_, f64>],
 ) -> PyResult<RecordBatch> {
     if names.len() != columns.len() {
-        return Err(PyValueError::new_err("names and columns must have the same length"));
+        return Err(crate::value_err("names and columns must have the same length"));
     }
     if columns.is_empty() {
-        return Err(PyValueError::new_err("at least one column required"));
+        return Err(crate::value_err("at least one column required"));
     }
     let n = columns[0].as_array().len();
     for (i, col) in columns.iter().enumerate() {
         let len = col.as_array().len();
         if len != n {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "column length mismatch: '{}' has length {}, '{}' has length {}",
                 names[0], n, names[i], len
             )));
@@ -2463,10 +2488,17 @@ pub(crate) fn columns_to_batch(
         .iter()
         .map(|c| {
             let view = c.as_array();
-            let array = if view.iter().any(|v| v.is_nan()) {
+            let contiguous = view.as_slice();
+            let has_nan = contiguous.map_or_else(
+                || view.iter().any(|v| v.is_nan()),
+                |values| values.iter().any(|v| v.is_nan()),
+            );
+            let array = if has_nan {
                 Float64Array::from(
                     view.iter().map(|&v| (!v.is_nan()).then_some(v)).collect::<Vec<Option<f64>>>(),
                 )
+            } else if let Some(values) = contiguous {
+                Float64Array::from(values.to_vec())
             } else {
                 Float64Array::from_iter_values(view.iter().copied())
             };
@@ -2511,23 +2543,17 @@ fn load_float64_columns(
 
 /// Load float64 columns from Arrow C Data Interface exporters (PyArrow / `__arrow_c_array__`).
 ///
-/// Prefers zero-copy borrow of contiguous float64 value buffers.
+/// Prefers zero-copy borrow of contiguous float64 value buffers. Borrowed buffers must remain
+/// unchanged, with no writes through writable aliases, during this call. This conversion probe
+/// returns only metadata and retains no data; analysis and prepared-study calls can retain the
+/// same kind of borrow for as long as their native data handles live.
 #[pyfunction]
 fn load_float64_arrow_c_columns(
-    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<ArrowLoadInfo> {
     catch_ffi(|| {
-        if names.len() != columns.len() {
-            return Err(CausalDataError::new_err("names and columns length mismatch"));
-        }
-        let mut cdi_cols = Vec::with_capacity(columns.len());
-        for (name, obj) in names.into_iter().zip(columns) {
-            let (array, schema) = take_arrow_c_array(py, &obj)?;
-            // SAFETY: capsules were produced by a compliant Arrow CDI exporter.
-            cdi_cols.push(unsafe { ArrowCColumn::from_ffi(name, array, schema) });
-        }
+        let cdi_cols = ffi::arrow_c_columns(names, columns)?;
         let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
         let column_names: Vec<String> =
             loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
@@ -2542,82 +2568,28 @@ fn load_float64_arrow_c_columns(
     })
 }
 
-/// Extract CDI structs from an object exporting `__arrow_c_array__`.
-fn take_arrow_c_array(
-    py: Python<'_>,
-    obj: &Bound<'_, PyAny>,
-) -> PyResult<(antecedent_data::FfiArrowArray, antecedent_data::FfiArrowSchema)> {
-    use pyo3::types::PyCapsule;
-
-    let export = obj.call_method0("__arrow_c_array__")?;
-    let tuple = export.cast::<pyo3::types::PyTuple>()?;
-    if tuple.len() != 2 {
-        return Err(CausalDataError::new_err(
-            "__arrow_c_array__ must return (schema_capsule, array_capsule)",
-        ));
-    }
-    let schema_cap = tuple.get_item(0)?.cast_into::<PyCapsule>()?;
-    let array_cap = tuple.get_item(1)?.cast_into::<PyCapsule>()?;
-
-    let schema_name = c"arrow_schema";
-    let array_name = c"arrow_array";
-
-    let schema_ptr = schema_cap
-        .pointer_checked(Some(schema_name))?
-        .as_ptr()
-        .cast::<antecedent_data::FfiArrowSchema>();
-    let array_ptr = array_cap
-        .pointer_checked(Some(array_name))?
-        .as_ptr()
-        .cast::<antecedent_data::FfiArrowArray>();
-    if schema_ptr.is_null() || array_ptr.is_null() {
-        return Err(CausalDataError::new_err("null Arrow C Data capsule pointer"));
-    }
-
-    // SAFETY: capsules export valid CDI structs; we move them out and leave released empties
-    // so the capsule destructor is a no-op.
-    let schema = unsafe { std::ptr::read(schema_ptr) };
-    let array = unsafe { std::ptr::read(array_ptr) };
-    unsafe {
-        std::ptr::write(schema_ptr, antecedent_data::FfiArrowSchema::empty());
-        std::ptr::write(array_ptr, antecedent_data::FfiArrowArray::empty());
-    }
-    let _ = py;
-    Ok((array, schema))
-}
-
 pub(crate) fn tabular_from_arrow_c_objs(
-    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<(antecedent_data::TabularData, u64)> {
-    if names.len() != columns.len() {
-        return Err(CausalDataError::new_err("names and columns length mismatch"));
-    }
-    let mut cdi_cols = Vec::with_capacity(columns.len());
-    for (name, obj) in names.into_iter().zip(columns) {
-        let (array, schema) = take_arrow_c_array(py, &obj)?;
-        // SAFETY: capsules were produced by a compliant Arrow CDI exporter.
-        cdi_cols.push(unsafe { ArrowCColumn::from_ffi(name, array, schema) });
-    }
+    let cdi_cols = ffi::arrow_c_columns(names, columns)?;
     let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
     Ok((loaded.data, loaded.bytes_borrowed))
 }
 
 /// NumPy float64 columns or Arrow CDI exporters → owned [`TabularData`].
 pub(crate) fn tabular_from_py_columns(
-    py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<(antecedent_data::TabularData, Option<u64>)> {
     if names.len() != columns.len() {
         // Preserve the pre-unification ValueError for NumPy callers that catch it.
-        return Err(PyValueError::new_err("names and columns must have the same length"));
+        return Err(crate::value_err("names and columns must have the same length"));
     }
     let use_arrow = !columns.is_empty()
         && columns.iter().all(|c| c.hasattr("__arrow_c_array__").is_ok_and(|ok| ok));
     if use_arrow {
-        let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names, columns)?;
+        let (data, bytes_borrowed) = tabular_from_arrow_c_objs(names, columns)?;
         return Ok((data, Some(bytes_borrowed)));
     }
     let mut np = Vec::with_capacity(columns.len());
@@ -2721,275 +2693,7 @@ impl PyCancellationToken {
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    register_native_errors(m)?;
-    register_native_functions(m)?;
-    register_native_classes(m)?;
-    gcm_api::register(m)?;
-    state_api::register(m)?;
-    prepared_api::register(m)?;
-    bayesian::register(m)?;
-    stability::register(m)?;
-    prior_bank::register(m)?;
-    prior_signal_api::register(m)?;
-    response_api::register(m)?;
-    temporal_license::register(m)?;
-    transport_interference_api::register(m)?;
-    transport_exact_api::register(m)?;
-    transport_grid_api::register(m)?;
-    transport_statistical_api::register(m)?;
-    transport_z_api::register(m)?;
-    transport_joint_sensitivity_api::register(m)?;
-    transport_mixed_api::register(m)?;
-    study_planning_api::register(m)?;
-    repair_api::register(m)?;
-    recovery_api::register(m)?;
-    closed_pilot_api::register(m)?;
-    nested_fisher_api::register(m)?;
-    nested_bayesian_api::register(m)?;
-    learned_joint_api::register(m)?;
-    measured_inference_api::register(m)?;
-    joint_transport_api::register(m)?;
-    msm_sensitivity_api::register(m)?;
-    mechanism_discrepancy_api::register(m)?;
-    inverse_outcome_api::register(m)?;
-    inverse_query_api::register(m)?;
-    sensitivity_decision_api::register(m)?;
-    sensitivity_source_api::register(m)?;
-    transport_admg_conditional_api::register(m)?;
-    transport_mz_api::register(m)?;
-    transport_scenario_api::register(m)?;
-    cpdag_scenario_api::register(m)?;
-    temporal_transport_api::register(m)?;
-    temporal_extension_api::register(m)?;
-    cross_world_api::register(m)?;
-    counterfactual_id_api::register(m)?;
-    learned_trial_api::register(m)?;
-    learned_continuous_api::register(m)?;
-    smoothed_dose_api::register(m)?;
-    derived_treatment_api::register(m)?;
-    matched_case_control_api::register(m)?;
-    descriptive_api::register(m)?;
-    candidate_screen_api::register(m)?;
-    preflight_api::register(m)?;
-    observation_api::register(m)?;
-    bounds_api::register(m)?;
-    artifact_api::register(m)?;
-    decision_api::register(m)?;
-    distribution_api::register(m)?;
-    external_api::register(m)?;
-    effect_constancy_api::register(m)?;
-    effect_constancy_review_api::register(m)?;
-    recalc_api::register(m)?;
-    recalc_adjusted_api::register(m)?;
-    recalc_dr_api::register(m)?;
-    recalc_design_api::register(m)?;
-    recalc_bayesian_api::register(m)?;
-    recalc_temporal_api::register(m)?;
-    recalc_external_api::register(m)?;
-    recalc_composite_api::register(m)?;
-    execution_attempt_api::register(m)?;
-    source_evidence_api::register(m)?;
-    source_projection_api::register(m)?;
-    proposal_arrival_api::register(m)?;
-    recalc_static_api::register(m)?;
-    recalc_cell_api::register(m)?;
-    dose_grid_api::register(m)?;
-    recovery_chain_api::register(m)?;
-    vector_treatment_api::register(m)?;
-    categorical_treatment_api::register(m)?;
-    compact_export_api::register(m)?;
-    nonlinear_mediation_api::register(m)?;
-    latent_class_api::register(m)?;
-    temporal_counterfactual_api::register(m)?;
-    transported_counterfactual_api::register(m)?;
-    scenario_invariance_api::register(m)?;
-    provider_api::register(m)?;
-    composition_api::register(m)?;
-    composition_bundle_api::register(m)?;
-    program_claims_api::register(m)?;
-    m.add("__version__", antecedent_core::VERSION)?;
-    // Surfaced so the Python package can refuse to stay silent when an
-    // unoptimized extension sneaks in: a stale editable install rebuilt through
-    // PEP 517/660 defaults to Cargo's debug profile, which keeps every estimate
-    // bit-identical while making analyze_ate ~50x slower.
-    m.add("__build_optimized__", !cfg!(debug_assertions))?;
-    Ok(())
-}
-
-fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // Every exception reads `remedy`: `None` unless the refusal names one (see
-    // [`with_remedy`]), so a caller never needs `getattr(err, "remedy", None)`.
-    m.py().get_type::<CausalError>().setattr("remedy", m.py().None())?;
-    m.py().get_type::<CausalError>().setattr("refusal_fields", m.py().None())?;
-    m.add("CausalError", m.py().get_type::<CausalError>())?;
-    m.add("CausalIdentifyError", m.py().get_type::<CausalIdentifyError>())?;
-    m.add("CausalEstimateError", m.py().get_type::<CausalEstimateError>())?;
-    m.add("CausalValidateError", m.py().get_type::<CausalValidateError>())?;
-    m.add("CausalDiscoveryError", m.py().get_type::<CausalDiscoveryError>())?;
-    m.add("CausalModelError", m.py().get_type::<CausalModelError>())?;
-    m.add("CausalCounterfactualError", m.py().get_type::<CausalCounterfactualError>())?;
-    m.add("CausalAttributionError", m.py().get_type::<CausalAttributionError>())?;
-    m.add("CausalDataError", m.py().get_type::<CausalDataError>())?;
-    m.add("CausalGraphError", m.py().get_type::<CausalGraphError>())?;
-    m.add("CausalDesignError", m.py().get_type::<CausalDesignError>())?;
-    m.add("CausalStateError", m.py().get_type::<CausalStateError>())?;
-    m.add("CausalSerializationError", m.py().get_type::<CausalSerializationError>())?;
-    m.add("CausalCompileError", m.py().get_type::<CausalCompileError>())?;
-    m.add("CausalResourceError", m.py().get_type::<CausalResourceError>())?;
-    m.add("CausalReviewError", m.py().get_type::<CausalReviewError>())?;
-    m.add("CausalUnsupportedError", m.py().get_type::<CausalUnsupportedError>())?;
-    m.add("CausalCancelledError", m.py().get_type::<CausalCancelledError>())?;
-    Ok(())
-}
-
-/// Inference settings the transport query modalities apply when a caller omits them.
-pub(crate) mod transport_defaults {
-    /// Bootstrap replicates of a statistical transport query.
-    pub(crate) const BOOTSTRAP: u32 = 199;
-    /// Central coverage level of a statistical transport interval.
-    pub(crate) const COVERAGE_LEVEL: f64 = 0.95;
-}
-
-/// The study builder's omitted-default table, read from the builder itself.
-///
-/// `bootstrap` applies on resampling routes (the builder omits it on static and
-/// Bayesian response surfaces and counterfactuals); `refute` is downgraded to
-/// `none` on a cell that does not license it; `latency` is never injected.
-#[pyfunction]
-fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
-    let dict = PyDict::new(py);
-    dict.set_item("bootstrap", antecedent::StudyBuilder::OMITTED_BOOTSTRAP)?;
-    dict.set_item(
-        "refute",
-        match antecedent::StudyBuilder::OMITTED_REFUTE {
-            RefuteSuite::None => "none",
-            RefuteSuite::Cheap => "cheap",
-            RefuteSuite::PlaceboAndRcc => "placebo",
-            RefuteSuite::Full => "full",
-        },
-    )?;
-    dict.set_item("latency", py.None())?;
-    // Draw budgets belong to the Bayesian backend constructors.
-    dict.set_item("n_draws", BayesianConfig::laplace().n_draws)?;
-    dict.set_item("n_draws_hmc", BayesianConfig::hmc().n_draws)?;
-    // Keyword defaults the native signatures repeat as literals; a test compares them here.
-    dict.set_item("discovery_alpha", antecedent::discovery_defaults::DEFAULT_ALPHA)?;
-    dict.set_item(
-        "discovery_max_cond_size",
-        antecedent::discovery_defaults::DEFAULT_MAX_COND_SIZE,
-    )?;
-    dict.set_item("prior_scale", BayesianConfig::laplace().prior_scale)?;
-    // Propensity overlap default shared by every propensity-score estimator.
-    let antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } =
-        antecedent_estimate::default_propensity_overlap()
-    else {
-        unreachable!("the default propensity overlap policy requires diagnostics");
-    };
-    dict.set_item("overlap_clip", clip)?;
-    dict.set_item("overlap_trim", trim)?;
-    // Inference settings of the transport query modalities.
-    dict.set_item("transport_bootstrap", transport_defaults::BOOTSTRAP)?;
-    dict.set_item("transport_coverage_level", transport_defaults::COVERAGE_LEVEL)?;
-    Ok(dict.into())
-}
-
-#[pyfunction]
-fn identification_status_names() -> Vec<String> {
-    use antecedent_core::IdentificationStatus as S;
-    fn name(status: S) -> String {
-        match status {
-            S::NonparametricallyIdentified
-            | S::IdentifiedUnderParametricRestrictions
-            | S::IdentifiedUnderPriorRestrictions
-            | S::PartiallyIdentified
-            | S::GraphDependent
-            | S::NotIdentified => format!("{status:?}"),
-        }
-    }
-    [
-        S::NonparametricallyIdentified,
-        S::IdentifiedUnderParametricRestrictions,
-        S::IdentifiedUnderPriorRestrictions,
-        S::PartiallyIdentified,
-        S::GraphDependent,
-        S::NotIdentified,
-    ]
-    .into_iter()
-    .map(name)
-    .collect()
-}
-
-/// Registered runtime-refusal reason codes (`parity/reason_codes.toml`), the
-/// list `CausalUnsupportedError(reason_code=...)` validates against.
-#[pyfunction]
-fn runtime_refusal_codes() -> Vec<&'static str> {
-    antecedent_core::reason_code::RUNTIME_REFUSAL_CODES.to_vec()
-}
-
-fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
-    m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
-    m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
-    m.add_function(wrap_pyfunction!(set_unsupported_error_class, m)?)?;
-    m.add_function(wrap_pyfunction!(set_value_error_class, m)?)?;
-    m.add_function(wrap_pyfunction!(set_not_identified_error_class, m)?)?;
-    m.add_function(wrap_pyfunction!(omitted_defaults, m)?)?;
-    m.add_function(wrap_pyfunction!(default_user_threads, m)?)?;
-    m.add_function(wrap_pyfunction!(identification_status_names, m)?)?;
-    m.add_function(wrap_pyfunction!(runtime_refusal_codes, m)?)?;
-    ate_api::register(m)?;
-    discovery_api::register(m)?;
-    temporal_api::register(m)?;
-    attribution_api::register(m)?;
-    graph_io::register(m)?;
-    design_api::register(m)?;
-    design_ranking_api::register(m)?;
-    policy_api::register(m)?;
-    experiment_api::register(m)?;
-    interference_saturation_api::register(m)?;
-    observational_interference_api::register(m)?;
-    factorial_api::register(m)?;
-    regimes_api::register(m)?;
-    quasi_api::register(m)?;
-    survival_api::register(m)?;
-    Ok(())
-}
-
-fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<CausalPendingEdge>()?;
-    m.add_class::<ArrowLoadInfo>()?;
-    m.add_class::<AteAnalysisResult>()?;
-    m.add_class::<RefutationReportView>()?;
-    m.add_class::<IdentificationSection>()?;
-    m.add_class::<EstimateSection>()?;
-    m.add_class::<CandidateSelectionSection>()?;
-    m.add_class::<DistributionAtomSection>()?;
-    m.add_class::<ProbabilityIntervalSection>()?;
-    m.add_class::<ScoreTableSection>()?;
-    m.add_class::<ScoreInferenceSection>()?;
-    m.add_class::<PosteriorSection>()?;
-    m.add_class::<ValidationSection>()?;
-    m.add_class::<ValidationFailureSection>()?;
-    m.add_class::<PerformanceSection>()?;
-    m.add_class::<PyCancellationToken>()?;
-    m.add_class::<PosteriorArtifact>()?;
-    m.add_class::<AnalysisResult>()?;
-    m.add_class::<DiscoveredLink>()?;
-    m.add_class::<GraphEdge>()?;
-    m.add_class::<PcmciDiscoveryResult>()?;
-    m.add_class::<RpcmciDiscoverySummary>()?;
-    m.add_class::<MediationEffectsSummary>()?;
-    m.add_class::<PredictSummary>()?;
-    m.add_class::<GcmIteResult>()?;
-    m.add_class::<GcmSampleResult>()?;
-    m.add_class::<graphs::Dag>()?;
-    m.add_class::<graphs::Cpdag>()?;
-    m.add_class::<graphs::Pag>()?;
-    m.add_class::<graphs::Admg>()?;
-    m.add_class::<graphs::TemporalDag>()?;
-    m.add_class::<graphs::TemporalCpdag>()?;
-    m.add_class::<graphs::TemporalPag>()?;
-    Ok(())
+    registry::register_module(m)
 }
 
 #[cfg(test)]

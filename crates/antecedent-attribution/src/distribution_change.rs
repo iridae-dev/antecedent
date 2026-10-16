@@ -8,9 +8,10 @@
 
 use std::sync::Arc;
 
+#[cfg(test)]
+use antecedent_core::VariableId;
 use antecedent_core::{
-    AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
-    ShapleyConfig, VariableId,
+    AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
@@ -20,8 +21,8 @@ use antecedent_model::{
 };
 
 use crate::change_common::{
-    ChangeOptions, DISTRIBUTION_STREAM, run_change_allocation, sample_outcome_law, stream_tag,
-    total_change,
+    ChangeAllocation, ChangeOptions, DISTRIBUTION_STREAM, run_change_allocation,
+    sample_outcome_law, stream_tag, total_change,
 };
 use crate::coalition::full_coalition_mask;
 use crate::error::AttributionError;
@@ -104,7 +105,8 @@ fn validate_distribution_change_query(
 ///
 /// As [`distribution_change`]; fewer than 2 replicates or a level outside `(0, 1)`;
 /// [`AttributionError::Cancelled`] when the context is cancelled.
-pub fn distribution_change_with_fit_uncertainty(
+#[cfg(test)]
+pub(crate) fn distribution_change_with_fit_uncertainty(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
     query: &ChangeAttributionQuery,
@@ -326,36 +328,13 @@ fn distribution_change_with_mechanisms(
     let v_full = payoff.value(full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
-    run_change_allocation(
-        query.outcome,
-        &players,
-        &query.allocation,
-        &mut payoff,
-        total,
-        Arc::from([]),
-        ctx,
-        Some(graph_model),
-    )
-}
-
-/// Convenience: Shapley Monte Carlo distribution-change with defaults.
-///
-/// # Errors
-///
-/// See [`distribution_change`].
-pub fn distribution_change_shapley(
-    graph_model: &CompiledCausalModel,
-    data: &TabularData,
-    outcome: VariableId,
-    baseline: antecedent_core::PopulationSelector,
-    comparison: antecedent_core::PopulationSelector,
-    shapley: ShapleyConfig,
-    ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, AttributionError> {
-    let query = ChangeAttributionQuery::new(outcome, baseline, comparison)
-        .with_components(AttributionComponents::Mechanisms)
-        .with_allocation(AllocationMethod::Shapley { approximation: shapley });
-    distribution_change(graph_model, data, &query, &DistributionChangeOptions::default(), ctx)
+    let request = ChangeAllocation {
+        outcome: query.outcome,
+        players: &players,
+        allocation: &query.allocation,
+        model_for_paths: Some(graph_model),
+    };
+    run_change_allocation(&request, &mut payoff, total, Arc::from([]), ctx)
 }
 
 pub(crate) fn mechanism_players(
@@ -494,6 +473,25 @@ impl crate::change_common::CachedOutcomeLawPayoff for MechanismSwapPayoff<'_> {
 impl CoalitionPayoff for MechanismSwapPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, mask)
+    }
+
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        Some(Box::new(MechanismSwapPayoff {
+            hybrid: self.hybrid.clone(),
+            baseline: self.baseline.clone(),
+            comparison: self.comparison.clone(),
+            player_kinds: self.player_kinds.clone(),
+            player_dense: self.player_dense.clone(),
+            scratch_mask: self.scratch_mask,
+            outcome: self.outcome,
+            measure: self.measure,
+            n_samples: self.n_samples,
+            seed: self.seed,
+            ctx: self.ctx,
+            ws: MechanismWorkspace::default(),
+            values_buf: Vec::new(),
+            baseline_law: self.baseline_law,
+        }))
     }
 }
 
@@ -681,7 +679,10 @@ mod tests {
     /// The row bootstrap reports estimation uncertainty the permutation-sampling standard error
     /// cannot: exact Shapley has none of the latter (`stderr` is `None`), yet refitting on
     /// resampled 40-row populations moves the contributions.
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact constants: the values compared are representable results, not measurements"
+    )]
     #[test]
     fn fit_uncertainty_is_a_row_bootstrap_of_the_refit_attribution() {
         let (model, data) = two_period_chain_with_noise();
@@ -1048,5 +1049,94 @@ mod tests {
         // Independent fixture truth: Y shifts by +5 while X's population is unchanged.
         assert!((result.total_change - 5.0).abs() < 0.3, "{}", result.total_change);
         assert!((sum - result.total_change).abs() < 1e-8);
+    }
+
+    /// Four mechanism players, so the coalition schedule is wide enough to be evaluated
+    /// on worker threads: the attribution is bit-identical at every thread count.
+    #[test]
+    fn mechanism_swap_attribution_does_not_depend_on_thread_count() {
+        let n = 120usize;
+        let mut b = CausalSchemaBuilder::new();
+        for name in ["x0", "x1", "x2", "y"] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(if name == "y" {
+                    RoleHint::OutcomeCandidate
+                } else {
+                    RoleHint::Context
+                }),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut columns: Vec<Vec<f64>> = (0..4).map(|_| Vec::with_capacity(n)).collect();
+        for i in 0..n {
+            let shifted = if i < n / 2 { 0.0 } else { 1.0 };
+            let wobble = |k: f64| ((i as f64 + 1.0) * k).sin();
+            let x0 = wobble(0.37) + 0.1 * (i % 7) as f64;
+            let x1 = (0.8 + 0.5 * shifted) * x0 + 0.3 * wobble(1.1) + shifted;
+            let x2 = 0.6 * x1 - 0.4 * x0 + 0.2 * wobble(2.3) + 0.5 * shifted;
+            let y = (1.2 + shifted) * x2 + 0.5 * x1 + 0.25 * wobble(3.7) + 2.0 * shifted;
+            for (column, value) in columns.iter_mut().zip([x0, x1, x2, y]) {
+                column.push(value);
+            }
+        }
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = columns
+            .into_iter()
+            .enumerate()
+            .map(|(k, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(k as u32),
+                        Arc::from(values),
+                        validity.clone(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(4);
+        for (from, to) in [(0, 1), (0, 2), (1, 2), (2, 3), (1, 3)] {
+            g.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let model = CompiledCausalModel::compile(g).unwrap();
+        let attribute = |approximation: ShapleyConfig, measure: DifferenceMeasure, threads: u32| {
+            let query = ChangeAttributionQuery::new(
+                VariableId::from_raw(3),
+                PopulationSelector::TimeRange { start: 0, end: 60 },
+                PopulationSelector::TimeRange { start: 60, end: 120 },
+            )
+            .with_allocation(AllocationMethod::Shapley { approximation });
+            let mut ctx = ExecutionContext::for_tests(21);
+            ctx.parallelism = antecedent_core::Parallelism::bounded(
+                antecedent_core::NonZeroThreadCount::new(threads).unwrap(),
+            );
+            ctx.cache_policy = CachePolicy::enabled(Some(1_000_000));
+            let options = DistributionChangeOptions { measure, n_samples: 300, seed: 5 };
+            let result = distribution_change(&model, &data, &query, &options, &ctx).unwrap();
+            let values: Vec<u64> =
+                result.contributions.iter().map(|c| c.contribution.to_bits()).collect();
+            (values, result.total_change.to_bits(), result.budget.evaluations)
+        };
+        for approximation in [ShapleyConfig::exact(), ShapleyConfig::monte_carlo(30).with_seed(3)] {
+            for measure in [DifferenceMeasure::MeanDiff, DifferenceMeasure::GaussianKl] {
+                let serial = attribute(approximation, measure, 1);
+                assert_eq!(serial.0.len(), 4, "four mechanism players");
+                for threads in [2u32, 4] {
+                    assert_eq!(
+                        attribute(approximation, measure, threads),
+                        serial,
+                        "{approximation:?} {measure:?} threads={threads}"
+                    );
+                }
+            }
+        }
     }
 }

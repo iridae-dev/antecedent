@@ -1,7 +1,7 @@
 //! Checked natural-direct-effect operation and detached numeric replay.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::{RefuteSuite, Study};
+use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{CausalQuery, ExecutionContext, NestedCounterfactualQuery, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
@@ -50,8 +50,15 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     let first = prepared.estimate(&data, &ctx).unwrap();
     // Known SCM truth: Y(x,m)=1.7x+4m+epsilon, so the natural direct
     // effect is 1.7*(2-(-1))=5.1 with the mediator frozen at M(-1).
-    assert!((first.estimate.ate - 5.1).abs() < 0.001, "{}", first.estimate.ate);
-    assert_eq!(one_shot.estimate.ate.to_bits(), first.estimate.ate.to_bits());
+    assert!(
+        (first.estimate.as_effect().unwrap().ate - 5.1).abs() < 0.001,
+        "{}",
+        first.estimate.as_effect().unwrap().ate
+    );
+    assert_eq!(
+        one_shot.estimate.as_effect().unwrap().ate.to_bits(),
+        first.estimate.as_effect().unwrap().ate.to_bits()
+    );
     assert_eq!(
         one_shot.executed_contract.as_ref().unwrap().identities.program,
         prepared.contract().unwrap().identities.program
@@ -65,7 +72,11 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     ])
     .unwrap();
     let refreshed = prepared.refresh(shifted, &ctx).unwrap();
-    assert!((refreshed.estimate.ate - first.estimate.ate).abs() < 1e-8);
+    assert!(
+        (refreshed.estimate.as_effect().unwrap().ate - first.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-8
+    );
     let artifact = prepared.encode_contracted_result(&refreshed, "nested-checked", &ctx).unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
     assert!(
@@ -84,7 +95,7 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
     assert!(contract.data_snapshot.as_ref().unwrap().nested_counterfactual_fit.is_some());
 
     let mut changed_body = consumed.body.clone();
-    changed_body.estimate = Some(refreshed.estimate.ate + 1.0);
+    changed_body.estimate = Some(refreshed.estimate.as_effect().unwrap().ate + 1.0);
     let unresolved = verify_contract_against_body(&consumed.header, &changed_body, contract);
     assert!(
         unresolved.iter().any(|reason| reason.as_ref() == "body.nested_counterfactual_estimate"),
@@ -155,4 +166,94 @@ fn natural_direct_effect_retains_worlds_and_replays_outcome_fit() {
             .any(|reason| reason.as_ref() == "dependencies.nested_counterfactual_fit_rank"),
         "{unresolved:?}"
     );
+}
+
+#[test]
+fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interval() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/nested_counterfactual/expected.json"
+    ))
+    .unwrap();
+    let index: Vec<f64> = (0..300).map(f64::from).collect();
+    let x: Vec<f64> = index.iter().map(|i| (i * 0.37).sin()).collect();
+    let m: Vec<f64> = index.iter().zip(&x).map(|(i, x)| 0.8 * x + (i * 0.91).cos()).collect();
+    let y: Vec<f64> = index
+        .iter()
+        .zip(&x)
+        .zip(&m)
+        .map(|((i, x), m)| 1.7 * x + 4.0 * m + (i * 0.23).sin() * 0.01)
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("x", x.as_slice()),
+        ("m", m.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    for (source, target) in [(0, 1), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    let query = NestedCounterfactualQuery::with_levels(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        VariableId::from_raw(2),
+        -1.0,
+        2.0,
+    )
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(41);
+    let builder = Study::tabular(data.clone())
+        .graph(graph.clone())
+        .query(CausalQuery::NestedCounterfactual(query))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None);
+    let study = builder.clone().build().unwrap();
+    assert_eq!(study.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    let prepared = study.prepare(&ctx).unwrap();
+    drop(builder);
+    drop(study);
+    let retained = prepared.checked_nested_counterfactual_operation().unwrap();
+    assert_eq!(retained.query(), &query);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(
+        prepared.contract().unwrap().identities.program,
+        result.executed_contract.as_ref().unwrap().identities.program
+    );
+    let expected = pin["reference"]["natural_direct_effect"].as_f64().unwrap();
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - expected).abs() < 0.05,
+        "posterior mean {} vs linear-Gaussian pin {expected}",
+        result.estimate.as_effect().unwrap().ate
+    );
+    assert!(result.interval.is_none());
+    assert!(result.posterior.is_none());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "counterfactual.nested.posterior_mean_only")
+    );
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "counterfactual.nested.shared_exogenous")
+    );
+
+    let refused = Study::tabular(
+        TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap(),
+    )
+    .graph(AcceptedGraph::from(graph))
+    .query(CausalQuery::NestedCounterfactual(query))
+    .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+    .build();
+    assert!(refused.is_err(), "accepted structures stay refused");
 }

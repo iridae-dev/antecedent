@@ -1,4 +1,4 @@
-//! Exact execution of one finite two-step temporal transport sequence (2.2A, X5).
+//! Exact execution of one finite two-step temporal transport sequence.
 //!
 //! The fixture is the known temporal SCM of `common::temporal_fixture`: a
 //! baseline `b`, step covariates `l1` and `l2` (the latter a time-varying
@@ -13,10 +13,13 @@ mod common;
 
 use antecedent_core::{ExecutionContext, SearchLimits, SearchStop, Value};
 use antecedent_estimate::EstimationError;
+use antecedent_estimate::posterior_mean::{
+    DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
+};
 use antecedent_estimate::temporal_transport::{
     PreparedTemporalSequence, TEMPORAL_INFERENCE_CLAIM, history_support, prepare_temporal_sequence,
 };
-use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
+use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::sid::temporal_sequence::{
     MechanismAssumption, TEMPORAL_HORIZON_DETAIL, TEMPORAL_INVALID_SEQUENCE, TemporalOutcome,
     TemporalSequenceDecision, TemporalSequenceError, decide_temporal_transport_sequence,
@@ -36,6 +39,32 @@ fn ctx() -> ExecutionContext {
 fn decide(seq: &[Value], budget: SearchLimits) -> TemporalSequenceDecision {
     decide_temporal_transport_sequence(&spec(), seq, "source", "target", &catalog(), budget, &ctx())
         .unwrap()
+}
+
+fn posterior_laws(data: &ExactTransportData, scale: f64) -> ExactTransportData {
+    let laws: Vec<ExactDiscreteLaw> = data
+        .laws()
+        .iter()
+        .map(|law| {
+            let filled = dirichlet_supported_mean(
+                law.probabilities(),
+                PosteriorRequest::IndependentNormal { scale },
+                DirichletNamespace::TwoStepTemporal,
+            )
+            .unwrap();
+            ExactDiscreteLaw::try_new(
+                law.population(),
+                law.regime(),
+                law.interventions().to_vec(),
+                law.axes().to_vec(),
+                filled,
+                law.snapshot_identity(),
+                law.tolerance(),
+            )
+            .unwrap()
+        })
+        .collect();
+    ExactTransportData::try_new(laws, data.max_support_rows()).unwrap()
 }
 
 fn prepare(
@@ -69,6 +98,45 @@ fn the_whole_sequence_matches_the_target_interventional_truth() {
         let source = truth(&source_scm(), [a1, a2]);
         assert!((source - expected).abs() > 0.05, "{a1}{a2}: source {source} vs target {expected}");
     }
+}
+
+#[test]
+fn two_step_posterior_mean_stays_at_the_target_truth() {
+    let seq = sequence(1.0, 0.0);
+    let updated = posterior_laws(&laws(&source_scm(), &target_scm(), &[]), 1e-8);
+    let report = prepare_temporal_sequence(
+        decide(&seq, BUDGET),
+        updated,
+        ExactEvaluationLimits::default(),
+        &ctx(),
+    )
+    .unwrap()
+    .evaluate(&ctx())
+    .unwrap();
+    assert!((report.mean - truth(&target_scm(), [1, 0])).abs() < 1e-5);
+}
+
+#[test]
+fn two_step_posterior_refuses_an_external_power_prior() {
+    let error = dirichlet_supported_mean(
+        &[0.25, 0.75],
+        PosteriorRequest::ExternalPower,
+        DirichletNamespace::TwoStepTemporal,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("two_step_posterior.external_power_prior"), "{message}");
+}
+
+#[test]
+fn two_step_posterior_consumer_replays_the_dirichlet_weights() {
+    let produced = dirichlet_supported_mean(
+        &[1.0, 3.0],
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        DirichletNamespace::TwoStepTemporal,
+    )
+    .unwrap();
+    assert!((produced[0] - 2.0 / 6.0).abs() < 1e-12 && (produced[1] - 4.0 / 6.0).abs() < 1e-12);
 }
 
 #[test]

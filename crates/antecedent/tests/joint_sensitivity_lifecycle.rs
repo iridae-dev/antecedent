@@ -1,7 +1,8 @@
-//! 2.2B X3 lifecycle: the prepared z stage evaluates joint mechanism
+//! Lifecycle: the prepared z stage evaluates joint mechanism
 //! deviations, exports a version 3 artifact, and an independent consumer
-//! replays it; mutations fail for the right reason and the interval route is
-//! closed.
+//! replays it; mutations fail for the right reason. The public interval is
+//! the measured endpoint bootstrap; the range artifact still refuses a
+//! forged sampling interval.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,6 +25,7 @@ use antecedent_core::{
     RegimeBinding, RegimeId, RegimeKind, SamplingDesign, Value, VariableCoordinate, VariableDomain,
     VariableId,
 };
+use antecedent_estimate::{percentile_interval, z_transport_bootstrap_law_draws};
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
     LawTolerance,
@@ -127,6 +129,41 @@ fn probabilities(shift: f64) -> Vec<f64> {
         }
     }
     out
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a probability in [0, 1] scaled by n = 80 and rounded is a small non-negative count"
+)]
+fn empirical_counts() -> ExactTransportData {
+    let n = 80u64;
+    let mut counts: Vec<u64> =
+        probabilities(0.0).iter().map(|p| (*p * n as f64).round() as u64).collect();
+    let sum: u64 = counts.iter().sum();
+    match sum.cmp(&n) {
+        std::cmp::Ordering::Less => *counts.last_mut().unwrap() += n - sum,
+        std::cmp::Ordering::Greater => counts[0] -= sum - n,
+        std::cmp::Ordering::Equal => {}
+    }
+    let total = counts.iter().sum::<u64>() as f64;
+    let binary = |variable| DiscreteAxis {
+        variable,
+        values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+    };
+    let law = ExactDiscreteLaw::try_empirical(
+        "source",
+        RegimeId::from_raw(0),
+        [antecedent_expr::InterventionAssignment::concrete(Z, Value::Bool(false))],
+        [binary(W), binary(X), binary(Y)],
+        counts.iter().map(|c| *c as f64 / total).collect::<Vec<_>>(),
+        "snapshot-0",
+        LawTolerance::default(),
+    )
+    .unwrap()
+    .with_empirical_counts(counts)
+    .unwrap();
+    ExactTransportData::try_new([law], 64).unwrap()
 }
 
 fn data(shift: f64) -> ExactTransportData {
@@ -700,21 +737,91 @@ fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier() {
 }
 
 #[test]
-fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
+fn the_endpoint_bootstrap_interval_replays() {
+    let deviation = spec();
+    let mut stage_builder = builder();
+    stage_builder.data = empirical_counts();
+    let diagram = stage_builder.diagram.clone();
+    let functional = stage_builder.functional.clone();
+    let prepared = prepare(&stage_builder);
+    drop(stage_builder);
+    let ctx = ExecutionContext::for_tests(1);
+    // The retained plan executes; the interval reads that plan's laws.
+    let point = prepared.estimate(&ctx).unwrap();
+    assert!(!point.distribution().probabilities.is_empty());
+    let published =
+        prepared.joint_mechanism_sensitivity_interval(&deviation, 199, 0.95, &ctx).unwrap();
+    assert!(
+        published.lower.is_finite()
+            && published.upper.is_finite()
+            && published.lower <= published.upper
+    );
+    assert_eq!(published.level, 0.95);
+    assert!(published.coverage_target.starts_with("one_sided:"));
+    // Rebuild the endpoints from the saved count table, the deviation spec, and
+    // a fresh seed. The draws and the range are public; this is not a second
+    // call of the interval producer.
+    let replay = ExecutionContext::for_tests(1);
+    let draws = z_transport_bootstrap_law_draws(&functional, prepared.data(), 199, &replay)
+        .unwrap()
+        .unwrap();
+    let mut lows = Vec::new();
+    let mut highs = Vec::new();
+    for draw in draws.into_iter().flatten() {
+        let range = z_transport_joint_mechanism_sensitivity(
+            &diagram,
+            &functional,
+            &draw,
+            &deviation,
+            &replay,
+        )
+        .unwrap();
+        lows.push(range.range.minimum);
+        highs.push(range.range.maximum);
+    }
+    let (lower, _) = percentile_interval(&lows, 0.95).unwrap();
+    let (_, upper) = percentile_interval(&highs, 0.95).unwrap();
+    assert_eq!(published.lower.to_bits(), lower.to_bits());
+    assert_eq!(published.upper.to_bits(), upper.to_bits());
+    for (replicates, level) in [(198, 0.95), (1, 0.95), (2001, 0.95), (199, 0.9), (199, 1.0)] {
+        let error = prepared
+            .joint_mechanism_sensitivity_interval(&deviation, replicates, level, &ctx)
+            .unwrap_err();
+        assert_eq!(
+            refused(&error),
+            ("route_not_supported", "joint_sensitivity.bounds_exceeded".into()),
+            "replicates={replicates} level={level}"
+        );
+    }
+}
+
+#[test]
+fn the_declared_composition_names_the_endpoint_bootstrap() {
+    let mut stage_builder = builder();
+    stage_builder.data = empirical_counts();
+    let prepared = prepare(&stage_builder);
+    drop(stage_builder);
+    let ctx = ExecutionContext::for_tests(1);
+    // The retained plan executes; the composition reads that plan's laws.
+    let point = prepared.estimate(&ctx).unwrap();
+    assert!(!point.distribution().probabilities.is_empty());
+    assert!(!prepared.program().factor_requirements().is_empty());
+    let interval = prepared.joint_mechanism_sensitivity_interval(&spec(), 199, 0.95, &ctx).unwrap();
+    assert_eq!(interval.method, "conservative_endpoint_percentile_bootstrap");
+    assert!(interval.coverage_target.starts_with("one_sided:"));
+    assert_eq!(interval.level, 0.95);
+    assert_eq!(interval.replicates_requested, 199);
+}
+
+#[test]
+fn the_range_artifact_refuses_a_forged_sampling_interval() {
     let built = builder();
     let prepared = prepare(&built);
     drop(built);
     let ctx = ExecutionContext::for_tests(1);
-    let error = prepared.joint_mechanism_sensitivity_interval(&spec(), &ctx).unwrap_err();
-    assert_eq!(
-        refused(&error),
-        ("cell_not_licensed", "joint_sensitivity.interval_withheld".into())
-    );
-    // Every evaluation reports the interval withheld, never attaches one.
     let result = prepared.joint_mechanism_sensitivity(&spec(), &ctx).unwrap();
     assert_eq!(result.uncertainty.reason_code, "cell_not_licensed");
     assert_eq!(result.uncertainty.detail, "joint_sensitivity.interval_withheld");
-    // A consumer refuses an artifact that carries an interval.
     let mut wire = artifact();
     wire.body.sampling.interval = Some([0.0, 1.0]);
     reseal(&mut wire);
@@ -726,7 +833,7 @@ fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
 }
 
 #[test]
-fn the_v2_sensitivity_artifact_is_unchanged_and_rejects_v3() {
+fn the_one_factor_sensitivity_artifact_is_unchanged_and_refuses_the_joint_format() {
     let built = builder();
     let prepared = prepare(&built);
     let ctx = ExecutionContext::for_tests(1);
@@ -761,8 +868,8 @@ fn the_v2_sensitivity_artifact_is_unchanged_and_rejects_v3() {
     );
 }
 
-/// Cross-format: a 2.1 z-transport point artifact (version 2) is refused by the
-/// 2.2 mz-transport consumer (version 1) by version, before its payload is read.
+/// Cross-format: a z-transport point artifact (version 2) is refused by the
+/// mz-transport consumer (version 1) by version, before its payload is read.
 #[test]
 fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
     let built = builder();
@@ -781,7 +888,7 @@ fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
 #[test]
 fn source_backed_sensitivity_replays_full_original_source_and_rejects_changed_surface() {
     use antecedent::analysis::sensitivity_source::SourceBackedSensitivity;
-    use antecedent_core::{QuantityRole, ScientificQuantity};
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
     use antecedent_io::sensitivity_artifact::{ActionUtility, SensitivityArtifact, UtilityTerm};
     let original = artifact();
     let prepared = prepare(&builder());

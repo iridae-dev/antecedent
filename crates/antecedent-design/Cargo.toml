@@ -12,28 +12,57 @@ keywords.workspace = true
 categories.workspace = true
 description = "Experimental-design ranking (heuristic graph-channel entropy, unlock-list identification mass, Gram SE reduction, preposterior value of sample information) and decision utilities for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
-antecedent-graph = { version = "2.3.0", path = "../antecedent-graph" }
-antecedent-identify = { version = "2.3.0", path = "../antecedent-identify" }
-antecedent-io = { version = "2.3.0", path = "../antecedent-io" }
-antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
-antecedent-prob = { version = "2.3.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.3.0", path = "../antecedent-stats" }
+antecedent-core = { workspace = true }
+antecedent-contract = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-identify = { workspace = true }
+# The artifact layer below the estimators: design never depends on antecedent-estimate,
+# antecedent-validate or the estimator-bound `antecedent-io`. Cross-layer tests that need
+# a fitted result live in the `antecedent` crate.
+antecedent-io-core = { workspace = true }
+antecedent-kernels = { workspace = true }
+antecedent-prob = { workspace = true }
+antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-blake3 = { workspace = true }
 ciborium = { workspace = true }
 
 [dev-dependencies]
+blake3 = { workspace = true }
+antecedent-test-support = { workspace = true }
 criterion = { workspace = true }
-serde_json = { workspace = true }
 
 [[bench]]
 name = "design_rank"
 harness = false
+
+[[bench]]
+name = "inverse_evsi"
+harness = false
+
+[[test]]
+name = "decision_reliability_calibration"
+path = "tests/decision_reliability_calibration.rs"
+
+[[test]]
+name = "decision_reliability_interval_calibration"
+path = "tests/decision_reliability_interval_calibration.rs"
+
+[[test]]
+name = "evsi_precision_calibration"
+path = "tests/evsi_precision_calibration.rs"
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"
+
+[[test]]
+name = "suite_02"
+path = "tests/suite_02.rs"

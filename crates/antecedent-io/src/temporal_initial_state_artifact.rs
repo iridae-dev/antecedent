@@ -1,5 +1,5 @@
 //! Independent artifact for the target-marginal initial-state estimand of the
-//! finite two-step sequence (2.3A, X5 `uncertain_initial_state`).
+//! finite two-step sequence (`uncertain_initial_state`).
 //!
 //! Format version 1. The artifact records the initial-state variable and the time
 //! order of the sequence's coordinates, the source and target regimes, the graph
@@ -13,7 +13,7 @@
 //! accepts only an artifact whose stored values, labels and identities are
 //! bit-for-bit what the replay produced.
 //!
-//! This artifact is not the 2.2 specified-initial-state sequence artifact: it
+//! This artifact is not the specified-initial-state sequence artifact: it
 //! carries a different feature marker, a different `kind`, no exact laws and no
 //! catalog, and neither decoder accepts the other's bytes. The two result labels
 //! are fixed strings and a consumer refuses a swapped or renamed label, so a
@@ -34,7 +34,8 @@ pub const TEMPORAL_INITIAL_STATE_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE: &str = "temporal_initial_state_target_law_v1";
 /// The artifact kind; a different kind is a different artifact.
-pub const TEMPORAL_INITIAL_STATE_ARTIFACT_KIND: &str = "temporal_initial_state_marginalization";
+pub const TEMPORAL_INITIAL_STATE_ARTIFACT_KIND: &str =
+    crate::artifact_kinds::TEMPORAL_INITIAL_STATE;
 
 const PREFIX: &str = "temporal_initial_state_artifact";
 
@@ -453,11 +454,6 @@ pub struct TemporalInitialStateArtifactWire {
     pub seal: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl TemporalInitialStateArtifactWire {
     /// Build an artifact from the queries and the panel, and replay it once so a
     /// producer never writes an artifact its own consumer would refuse.
@@ -513,11 +509,10 @@ impl TemporalInitialStateArtifactWire {
     pub fn compute_seal(&self) -> Result<String, IoError> {
         let mut body = self.clone();
         body.seal = String::new();
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &("temporal_initial_state_seal_v1", body),
-        )?
-        .to_hex())
+        )
     }
 
     /// Encode as CBOR.
@@ -533,11 +528,13 @@ impl TemporalInitialStateArtifactWire {
     /// # Errors
     /// An unsupported version, a decoding failure, or a foreign feature or kind.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != TEMPORAL_INITIAL_STATE_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == TEMPORAL_INITIAL_STATE_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         if wire.required_features != [TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE]
             || wire.kind != TEMPORAL_INITIAL_STATE_ARTIFACT_KIND
         {

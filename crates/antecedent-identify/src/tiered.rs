@@ -33,10 +33,10 @@ pub const TIERED_JOINT_ADJUSTMENT_REFUSE: &str = "no joint generalized back-door
 
 /// The single-treatment tier closure fails the generalized back-door check on the
 /// supplied ADMG (open back-door, or a drawn treatment↔outcome edge).
-pub const TIERED_ADJUSTMENT_REFUSE: &str = "tier closure is not a generalized back-door set on the CoDetermined ADMG; open back-door or a drawn treatment↔outcome edge";
+pub(crate) const TIERED_ADJUSTMENT_REFUSE: &str = "tier closure is not a generalized back-door set on the CoDetermined ADMG; open back-door or a drawn treatment↔outcome edge";
 
 /// Unknown-tier joint cells have no single ADMG and no cell-AIPW score table.
-pub const TIERED_JOINT_UNKNOWN_REFUSE: &str = "Unknown-tier joint InterventionResponse has no single ADMG; two canonical scenarios are not a cell-AIPW license";
+pub(crate) const TIERED_JOINT_UNKNOWN_REFUSE: &str = "Unknown-tier joint InterventionResponse has no single ADMG; two canonical scenarios are not a cell-AIPW license";
 
 /// Identify an average effect under a declared tier background.
 ///
@@ -607,11 +607,12 @@ mod tests {
         // closure measures roughly cubic in p (unoptimized: ~230 ms at p=200,
         // ~8.1 s at p=667). An absolute bound measures the machine, not the
         // algorithm, and fails under parallel test load; bound the growth
-        // instead. Each round times both sizes back to back, so the pair
-        // shares whatever load the machine is under and their ratio cancels
-        // it; the median over rounds discards a round a spike split.
-        // Doubling p costs ~8x when cubic; 12x leaves headroom and still
-        // rejects a quartic regression (16x).
+        // instead. Load only ever adds time to a run, so the minimum over
+        // rounds is the closest measurement of the algorithm's own cost at
+        // each size, and the ratio of the two minima is stable where a ratio
+        // of paired single runs is not (a spike on either side of one pair
+        // moves it by multiples). Doubling p costs ~8x when cubic; 12x leaves
+        // headroom and still rejects a quartic regression (16x).
         assert_joint_width_identified(100, |_| true);
         assert_joint_width_identified(200, |_| true);
         let (small_schema, small_bg) = facet_width_joint(100);
@@ -623,16 +624,17 @@ mod tests {
             identify_tiered_joint(bg, schema, query).unwrap();
             started.elapsed()
         };
-        let mut ratios: Vec<f64> = (0..7)
-            .map(|_| {
-                let small = time(&small_bg, &small_schema, &small_query);
-                let large = time(&large_bg, &large_schema, &large_query);
-                large.as_secs_f64() / small.as_secs_f64().max(1e-6)
-            })
-            .collect();
-        ratios.sort_by(f64::total_cmp);
-        let median = ratios[ratios.len() / 2];
-        assert!(median < 12.0, "p 100 -> 200 grew {median:.1}x (per round: {ratios:.1?})");
+        let mut small_best = std::time::Duration::MAX;
+        let mut large_best = std::time::Duration::MAX;
+        for _ in 0..7 {
+            small_best = small_best.min(time(&small_bg, &small_schema, &small_query));
+            large_best = large_best.min(time(&large_bg, &large_schema, &large_query));
+        }
+        let growth = large_best.as_secs_f64() / small_best.as_secs_f64().max(1e-6);
+        assert!(
+            growth < 12.0,
+            "p 100 -> 200 grew {growth:.1}x (best of 7: {small_best:?} -> {large_best:?})"
+        );
         let large = time(&large_bg, &large_schema, &large_query);
         assert!(large.as_secs() < 10, "200-node joint closure took {large:?}");
     }
@@ -827,7 +829,7 @@ mod tests {
         let admg = background.to_admg(&schema).unwrap();
         let query = joint_query(&schema, "t1", "t2", "y");
         // Generic subset search lists z + every co-facet. Pin 16 so this fixture
-        // still overflows after Default moved to 40; v15 covers the new default.
+        // still overflows after Default moved to 40; the default-limit tests cover that default.
         let generic = GeneralizedAdjustmentIdentifier {
             config: crate::generalized::GeneralizedAdjustmentConfig {
                 max_candidates: 16,
@@ -913,7 +915,7 @@ mod tests {
         }
         for i in 0..ordered.node_count() {
             let from = node_of(&reordered, variable_at(i)).unwrap();
-            for &child in ordered.children(DenseNodeId::from_raw(u32::try_from(i).unwrap())) {
+            for &child in ordered.children(DenseNodeId::from_index(i)) {
                 let to = node_of(&reordered, variable_at(child.as_usize())).unwrap();
                 reordered.insert_directed(from, to).unwrap();
             }

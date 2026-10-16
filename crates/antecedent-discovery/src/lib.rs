@@ -20,7 +20,26 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-pub mod algorithm;
+mod debug_ci {
+    macro_rules! debug_with_ci {
+        ($ty:ident $(, $field:ident)*) => {
+            impl std::fmt::Debug for $ty {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    f.debug_struct(stringify!($ty))
+                        .field("constraints", &self.constraints)
+                        .field("ci", &"<dyn ConditionalIndependence>")
+                        .field("fdr", &self.fdr)
+                        $(.field(stringify!($field), &self.$field))*
+                        .finish()
+                }
+            }
+        };
+    }
+    pub(crate) use debug_with_ci;
+}
+
+pub(crate) use debug_ci::debug_with_ci;
+
 pub mod ci;
 pub mod ci_screened_posterior;
 pub mod combinations;
@@ -54,12 +73,14 @@ pub mod result;
 pub mod rfci;
 pub mod rpcmci;
 pub mod rule_scheduling;
+pub mod selective;
 mod static_skeleton;
 pub mod structure_mcmc;
+#[cfg(test)]
+mod test_tables;
 pub mod uncovered_paths;
 pub mod weakly_minimal;
 
-pub use algorithm::DiscoveryAlgorithm;
 pub use ci::{
     CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, PartialCorrelation,
@@ -74,30 +95,23 @@ pub use constraints::{
     TemporalConstraints, TimeDummyCiMode,
 };
 pub use dbn_posterior::{
-    DBN_EXACT_MAX_LAG, DBN_EXACT_MAX_VARS, DbnPosterior, temporal_cpdag_from_dbn_masks,
-    temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
+    DbnPosterior, temporal_cpdag_from_dbn_masks, temporal_dag_from_dbn_masks,
+    temporal_pag_from_dbn_masks,
 };
-pub use discriminating_paths::{
-    DiscriminatingPath, DiscriminatingPathBudget, find_discriminating_paths,
-};
+pub use discriminating_paths::DiscriminatingPathBudget;
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
-pub use evidence::{
-    cpdag_evidence_from_oriented, cpdag_from_scored_links, graph_evidence_from_scored,
-    graph_evidence_from_scored_with_sepsets, pag_evidence_from_oriented, pag_from_scored_links,
-    symmetrize_contemporaneous_links, threshold_scored_links, threshold_scored_links_bh,
-};
+pub use evidence::threshold_scored_links;
 pub use exact_enumeration::ExactDagPosterior;
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
 pub use graph_posterior::{
     EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine, GraphPrior,
-    adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
-    admg_from_adjacency_mask, allows_graph_posterior, cpdag_from_adjacency_mask,
-    dag_from_adjacency_mask, edge_bit, has_edge, mask_is_dag, n_directed_edges,
-    pag_from_adjacency_mask, parents_of, publish_graph_posterior, set_edge,
+    SamplingSummary, adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
+    admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask, edge_bit,
+    has_edge, mask_is_dag, n_directed_edges, pag_from_adjacency_mask, parents_of, set_edge,
 };
-pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
+pub use jpcmci_plus::JpcmciPlus;
 pub use lingam::{DirectLingam, StaticDagDiscoveryResult};
 pub use lpcmci::Lpcmci;
 pub use notears::{Notears, NotearsDiscoveryResult};
@@ -105,27 +119,22 @@ pub use order_mcmc::OrderMcmc;
 pub use orientation::{
     MeekR1, MeekR2, MeekR3, MeekR4, OrientCollider, OrientationError, OrientationQueue,
     OrientationRule, OrientationState, PagOps, RuleDelta, run_orientation_to_fixed_point,
-    run_static_orientation_to_fixed_point,
 };
 pub use pc::{Pc, StaticCpdagDiscoveryResult};
 pub use pcmci::Pcmci;
 pub use pcmci_plus::PcmciPlus;
-pub use possible_d_sep::{PossibleDSepBudget, pds_triple_ok, possible_d_sep};
+pub use possible_d_sep::{PossibleDSepBudget, possible_d_sep};
 pub use result::{
-    AlgorithmRecord, CpdagDiscoveryResult, CpdagGraphEvidence, DagDiscoveryResult,
-    DagGraphEvidence, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, LaggedParent,
-    PagDiscoveryResult, PagGraphEvidence, PcSepsets, ScoredLink, SepsetKey,
+    AlgorithmRecord, CpdagDiscoveryResult, DagDiscoveryResult, DiscoveryDiagnostic,
+    DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult, EdgeEvidence, EvidenceSource,
+    GraphEvidence, LaggedLink, LaggedParent, PagDiscoveryResult, PcSepsets, ScoredLink,
 };
 pub use rfci::Rfci;
 pub use rpcmci::{
-    RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, regime_edge_counts,
-    two_regime_half_split,
+    RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, two_regime_half_split,
 };
 pub use rule_scheduling::{
-    FciOrientationRule, LpcmciApr, LpcmciDiscriminatingPathRule, LpcmciMmr, LpcmciOrientCollider,
-    LpcmciOrientationRule, LpcmciR1, LpcmciR2, LpcmciR3, LpcmciR8, LpcmciR9, LpcmciR10,
-    default_fci_rules, default_lpcmci_rules, run_fci_orientation_to_fixed_point,
+    LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciOrientationRule, LpcmciR1,
     run_lpcmci_orientation,
 };
 pub use structure_mcmc::StructureMcmc;

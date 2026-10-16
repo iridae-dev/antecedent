@@ -38,6 +38,6 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent/tests/bayesian_robust_ate.rs (bayesian_robust_ate_all_observed_staged_known_truth)",
  "crates/antecedent-estimate/tests/bayesian_robust_ate_calibration.rs (repeated_sampling_is_scoped_to_one_correct_linear_nuisance: bounded misspecification and overlap scenarios)",
- "conformance/estimate/bayesian_robust_ate (synthetic known-truth fixture: truth 2.0 with a correctly specified logistic propensity and a misspecified linear outcome nuisance)",
+ "conformance/estimate/bayesian_robust_ate (synthetic known-truth fixture: truth with a correctly specified logistic propensity and a misspecified linear outcome nuisance)",
  "python/tests/test_bayesian_estimator_lifecycle.py",
 ]

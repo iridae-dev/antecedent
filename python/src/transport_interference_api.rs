@@ -1095,6 +1095,49 @@ fn roundtrip_expr_arena(wire_json: &str, root: u32) -> PyResult<ReloadedExpressi
 }
 
 #[pyfunction]
+#[pyo3(signature = (identification, *, outcome, trial, selection_probability, grid, observed_regression, target_regression, response_weight))]
+#[allow(clippy::too_many_arguments)]
+fn estimate_transport_response_grid(
+    py: Python<'_>,
+    identification: PyRef<'_, TransportIdentificationResult>,
+    outcome: Vec<f64>,
+    trial: Vec<bool>,
+    selection_probability: Vec<f64>,
+    grid: Vec<f64>,
+    observed_regression: Vec<f64>,
+    target_regression: Vec<f64>,
+    response_weight: Vec<f64>,
+) -> PyResult<String> {
+    let certificate = identification.identification.clone();
+    let estimate = detach_catch(py, move || {
+        antecedent_estimate::transport_augmented_response_grid(
+            &certificate,
+            &outcome,
+            &trial,
+            &selection_probability,
+            &antecedent_estimate::ResponseGridInputs {
+                grid: &grid,
+                observed_regression: &observed_regression,
+                target_regression: &target_regression,
+                response_weight: &response_weight,
+            },
+        )
+        .map_err(py_err)
+    })?;
+    Ok(serde_json::json!({
+        "grid": estimate.grid.as_ref(), "mean": estimate.mean.as_ref(),
+        "source_effective_sample_size": estimate.source_effective_sample_size.as_ref(),
+        "selection_overlap": {
+            "probability_min": estimate.selection_overlap.probability_min,
+            "probability_max": estimate.selection_overlap.probability_max,
+            "effective_sample_size": estimate.selection_overlap.effective_sample_size,
+            "extreme_weight_count": estimate.selection_overlap.extreme_weight_count,
+        },
+    })
+    .to_string())
+}
+
+#[pyfunction]
 #[pyo3(signature = (
     identification, outcome, treatment, trial, selection_probability, treatment_probability, *,
     mu0=None, mu1=None
@@ -1260,6 +1303,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(identify_transport, m)?)?;
     m.add_function(wrap_pyfunction!(roundtrip_expr_arena, m)?)?;
     m.add_function(wrap_pyfunction!(estimate_trial_transport, m)?)?;
+    m.add_function(wrap_pyfunction!(estimate_transport_response_grid, m)?)?;
     m.add_function(wrap_pyfunction!(estimate_network_interference, m)?)?;
     Ok(())
 }

@@ -1,0 +1,18 @@
+feature_id = "transport.handoff_artifact"
+implementation_crate = "antecedent-io-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Portable checksummed record (transport_handoff_v1) of a transported claim handed to an
+# external consumer. Serialization and re-derivation only; no primary paper.
+papers = []
+implementation_deviations = [
+  "A declaration, not proof: it does not establish that the populations are those of the data, that the selection diagram holds, or that the consumer will use the claim as declared. It never presents the claim as native target data and carries no interval, posterior or calibration of its own.",
+  "A consumer trusts no stored identity: it rebuilds the offer and consumer contract, re-derives the port, re-runs the connection decision and recomputes identities. A stored native_target_only policy is refused.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-io-core/tests/transport_handoff_artifact.rs",
+]

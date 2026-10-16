@@ -1,0 +1,23 @@
+feature_id = "decision_reliability.ranking_probability_interval"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Wilson (1927) score interval, Wald normal interval, Bonferroni multiple-comparison bounds
+# (Hsu 1981, multiple comparisons with the best); no external implementation is translated.
+papers = [
+  { title = "Wilson (1927), Probable Inference, the Law of Succession, and Statistical Inference, JASA 22(158)", sections = ["score interval for a binomial proportion"] },
+  { title = "Hsu (1981), Simultaneous Confidence Intervals for All Distances from the Best, Annals of Statistics 9(5)", sections = ["simultaneous confidence intervals for all distances from the best"] },
+]
+implementation_deviations = [
+  "Publishes a ranking probability, utility interval, optimality confidence set and selection-corrected interval only where a current attesting whole-procedure coverage record measured them at the candidate-set size, Monte Carlo budget, selection rule, coupling and serial dependence; the record is resolved from the shipped coverage table and every other coordinate refuses cell_not_licensed.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/decision_reliability.rs",
+  "crates/antecedent-design/tests/decision_reliability_intervals.rs",
+  "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
+  "crates/antecedent/tests/decision_reliability_facade.rs",
+]

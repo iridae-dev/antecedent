@@ -1,4 +1,4 @@
-"""Categorical treatments: ordered and unordered regimes with a declared reference (B4).
+"""Categorical treatments: ordered and unordered regimes with a declared reference.
 
 One question: what is the adjusted effect of each declared level of a categorical treatment
 against a declared reference level, and, when the levels are ordered, do the adjusted level
@@ -51,14 +51,18 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ._b4_refusal import StructuredRefusal
 from ._native import consume_categorical_treatment_artifact as _consume
 from ._native import evaluate_categorical_treatment as _evaluate
+from ._refusal import StructuredRefusal
+from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "CategoricalEffects",
@@ -213,7 +217,7 @@ class CategoricalTreatmentIdentity:
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class CategoricalEffects:
+class CategoricalEffects(ScientificResult):
     """The categorical fit: level and pairwise contrasts, multiplicity, tests and the artifact.
 
     ``level_order`` is the canonical order used (the declared order when ``ordered``, sorted
@@ -243,11 +247,17 @@ class CategoricalEffects:
     calibration: str
     inference_claim: str
     identity: CategoricalTreatmentIdentity
-    artifact: bytes = field(repr=False)
+    _artifact_bytes: bytes = field(repr=False)
+
+    def artifact(self) -> ExportedArtifact[CategoricalEffects]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``categorical_treatment_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
     def effect(self, level: str) -> LevelEffect:
         """The contrast of ``level`` against the reference (the reference itself is zero)."""
@@ -429,7 +439,7 @@ def _result(report_json: str, artifact: bytes) -> CategoricalEffects:
         calibration=report["calibration"],
         inference_claim=report["inference_claim"],
         identity=CategoricalTreatmentIdentity(**report["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 
@@ -532,8 +542,8 @@ def categorical_effects(
         },
     }
     report, artifact, refusal = _evaluate(
-        y.tolist(),
-        [v.tolist() for v in adjustment.values()],
+        y,
+        list(adjustment.values()),
         labels,
         json.dumps(declaration, allow_nan=False),
         _name(artifact_id, "artifact_id"),

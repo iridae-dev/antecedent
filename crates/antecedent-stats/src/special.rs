@@ -2,16 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_lossless)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 /// Gauss–Hermite rule for the standard normal: `(nodes, weights)` with
 /// `E[g(Z)] ≈ Σ w_i g(z_i)`, exact for polynomials of degree up to `2n − 1`.
 ///
@@ -100,55 +90,23 @@ pub fn gauss_legendre(n: usize) -> (Vec<f64>, Vec<f64>) {
     (nodes, weights)
 }
 
-/// The 97.5% standard-normal quantile — the two-sided 95% critical value `z_{0.975}`.
+/// The 97.5% standard-normal quantile, the two-sided 95% critical value `z_{0.975}`.
 ///
-/// A single owner for the constant that a Wald 95% interval multiplies its standard error
-/// by. Equal to `normal_ppf(0.975)` to full `f64` precision, but a `const` so it carries no
-/// evaluation cost and reads identically at every interval site.
-pub const NORMAL_Q975: f64 = 1.959_963_984_540_054;
+/// Re-export of the kernels constant, the single workspace owner.
+pub use antecedent_kernels::NORMAL_Q975;
 
-/// Standard-normal PPF: Acklam's rational approximation refined by one Halley step.
-///
-/// Acklam's approximation alone has relative error ~1.6e-9 at p=0.975, rising to ~7.6e-9
-/// in the far tails (p=1e-12, 1e-15) — inconsistent with the ~1e-13 accuracy of the
-/// Cody-rational `erf`/`erfc` in `antecedent-kernels`, which back the CDF/PDF used here.
-/// One Halley (second-order Newton) correction against the exact CDF/PDF brings this to
-/// near machine epsilon for ordinary probabilities. Subnormal probabilities have
-/// reduced relative precision. Returns infinities at 0 and 1, and NaN outside [0, 1].
+/// Standard-normal PPF: an alias of [`antecedent_kernels::norm_inv`], the one high-accuracy
+/// owner (Acklam seed plus one Halley step, a few ulps over the normal range). Returns
+/// infinities at 0 and 1, and NaN outside [0, 1].
+#[inline]
 #[must_use]
 pub fn normal_ppf(p: f64) -> f64 {
-    let x0 = antecedent_kernels::norm_inv(p);
-    if !x0.is_finite() {
-        return x0;
-    }
-    // One Halley refinement step against the exact (Cody-rational) normal CDF/PDF:
-    // for f(x) = Phi(x) - p, phi = f'(x), and f''(x) = -x * phi(x), the Halley update
-    // 2 f f' / (2 f'^2 - f f'') simplifies to 2f / (2*phi + f*x). This converts Acklam's
-    // ~1e-9 starting error into a near-machine-epsilon result in a single step.
-    //
-    // For p > 0.5 (x0 > 0), compute the residual via the survival function instead of the
-    // CDF: `norm_cdf` saturates to exactly 1.0 once x exceeds ~8, which would silently
-    // erase the sub-ulp information the refinement needs in the upper tail. `norm_sf`
-    // stays accurate there by construction, and Phi(x) - p == -(Sf(x) - (1 - p)).
-    let f = if p <= 0.5 {
-        antecedent_kernels::norm_cdf(x0) - p
-    } else {
-        -(antecedent_kernels::norm_sf(x0) - (1.0 - p))
-    };
-    let phi = antecedent_kernels::norm_pdf(x0);
-    let denom = 2.0 * phi + f * x0;
-    if phi > 0.0 && denom.is_finite() && denom != 0.0 {
-        let refined = x0 - 2.0 * f / denom;
-        if refined.is_finite() {
-            return refined;
-        }
-    }
-    x0
+    antecedent_kernels::norm_inv(p)
 }
 
 /// Digamma `ψ(z) = d/dz ln Γ(z)` (reflection + asymptotic series).
 #[must_use]
-pub fn digamma(mut z: f64) -> f64 {
+pub(crate) fn digamma(mut z: f64) -> f64 {
     if !(z.is_finite() && z > 0.0) {
         return f64::NAN;
     }
@@ -182,7 +140,7 @@ pub fn digamma(mut z: f64) -> f64 {
 
 /// Trigamma `ψ₁(z) = d²/dz² ln Γ(z)` (reflection + asymptotic series).
 #[must_use]
-pub fn trigamma(mut z: f64) -> f64 {
+pub(crate) fn trigamma(mut z: f64) -> f64 {
     if !(z.is_finite() && z > 0.0) {
         return f64::NAN;
     }
@@ -231,7 +189,7 @@ pub fn ln_gamma(z: f64) -> f64 {
         // through every caller. `scipy.special.gammaln` returns +Inf at these poles by
         // convention, so detect them directly rather than trusting the reflection formula's
         // floating-point residual.
-        #[allow(clippy::float_cmp)] // exact-integer test, not a computed-value comparison
+        #[allow(clippy::float_cmp, reason = "exact-integer test, not a computed-value comparison")]
         if z <= 0.0 && z == z.trunc() {
             return f64::INFINITY;
         }
@@ -279,7 +237,7 @@ fn ln_beta(a: f64, b: f64) -> f64 {
 
 /// Regularized incomplete beta `I_x(a, b)`.
 #[must_use]
-pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
+pub(crate) fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
     regularized_incomplete_beta_with_complement(x, 1.0 - x, a, b)
 }
 
@@ -437,6 +395,19 @@ pub fn student_t_ppf(p: f64, df: f64) -> f64 {
     if p > 0.5 { t } else { -t }
 }
 
+/// Chi-square survival function `P(χ²_df > statistic)` through the regularized upper
+/// incomplete gamma, `Q(df / 2, statistic / 2)`.
+///
+/// A non-positive `statistic` gives `1.0`. `df` is converted through `u32` (saturating),
+/// so a degrees-of-freedom count beyond `u32::MAX` is treated as `u32::MAX`.
+#[must_use]
+pub fn chi_square_sf(statistic: f64, df: usize) -> f64 {
+    if statistic <= 0.0 {
+        return 1.0;
+    }
+    gamma_q(f64::from(u32::try_from(df).unwrap_or(u32::MAX)) * 0.5, statistic * 0.5)
+}
+
 /// Regularized upper incomplete gamma `Q(a, x)`.
 #[must_use]
 pub fn gamma_q(a: f64, x: f64) -> f64 {
@@ -507,6 +478,18 @@ fn gamma_q_cf(a: f64, x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chi_square_sf_matches_closed_forms() {
+        // df = 2: survival is exp(-x / 2).
+        for x in [0.5, 2.0, 7.3] {
+            assert!((chi_square_sf(x, 2) - (-x / 2.0).exp()).abs() < 1e-12);
+        }
+        assert!((chi_square_sf(0.0, 3) - 1.0).abs() < f64::EPSILON);
+        assert!((chi_square_sf(-1.0, 3) - 1.0).abs() < f64::EPSILON);
+        // 95th percentile of chi-square(1) is 3.841458820694124.
+        assert!((chi_square_sf(3.841_458_820_694_124, 1) - 0.05).abs() < 1e-9);
+    }
 
     #[test]
     fn gauss_hermite_reproduces_normal_moments_exactly() {
@@ -861,7 +844,7 @@ mod tests {
 #[cfg(test)]
 mod ppf_domain_tests {
     #[test]
-    #[allow(clippy::float_cmp)] // exact conservative adjustment / infinite endpoints
+    #[allow(clippy::float_cmp, reason = "exact conservative adjustment / infinite endpoints")]
     fn ppf_preserves_mathematical_domain_and_tiny_probabilities() {
         use super::normal_ppf;
         assert_eq!(normal_ppf(0.0), f64::NEG_INFINITY);

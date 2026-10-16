@@ -15,17 +15,12 @@ use antecedent_stats::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependenceTest, ConfidenceMethod, GSquared,
     Gpdc, KnnDependence, SignificanceMethod,
 };
-use serde_json::Value as JsonValue;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 
 type CiColumns = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/discovery/ci_stats")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse")
+    conformance_dir("discovery/ci_stats")
 }
 
 fn load_cols() -> CiColumns {
@@ -79,7 +74,7 @@ fn run_ci(
 
 #[test]
 fn discovery_ci_stats_gpdc_cmiknn_gsquared() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     let tig = &expected["reference"];
     let outs = &tig["outputs"];
     assert_eq!(tig["available"].as_bool(), Some(true));

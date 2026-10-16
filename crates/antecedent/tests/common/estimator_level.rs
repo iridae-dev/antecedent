@@ -14,7 +14,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "each integration test binary includes this module and uses a subset of it"
+)]
 
 use super::calibration::Construction;
 

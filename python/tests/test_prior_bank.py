@@ -646,7 +646,7 @@ def test_alpha_prior_sensitivity_on_composed_prior():
     assert sens is not None
     assert sens.alphas is not None
     assert len(sens.alphas) == 5
-    assert sens.scales == []
+    assert sens.scales == ()
     assert all(np.isfinite(m) for m in sens.effect_means)
     m0, m1 = sens.effect_means[0], sens.effect_means[-1]
     assert abs(m1 - 8.0) < abs(m0 - 8.0)

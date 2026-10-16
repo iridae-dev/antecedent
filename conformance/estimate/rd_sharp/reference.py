@@ -81,14 +81,29 @@ def build_block() -> dict:
     }
 
 
+def values_close(left: object, right: object) -> bool:
+    """Float documents compare with ``np.isclose``, not ``!=``."""
+    if isinstance(left, bool) or isinstance(right, bool):
+        return left == right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return bool(np.isclose(left, right, equal_nan=True))
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(values_close(left[k], right[k]) for k in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(
+            values_close(a, b) for a, b in zip(left, right, strict=True)
+        )
+    return left == right
+
+
 def main() -> None:
     path = HERE / "expected.json"
     fixture = json.loads(path.read_text(encoding="utf-8"))
     block = build_block()
     if "--write" in sys.argv:
         fixture["se_reference"] = block
-        path.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8")
-    if "--check" in sys.argv and fixture.get("se_reference") != block:
+        path.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8", newline="\n")
+    if "--check" in sys.argv and not values_close(fixture.get("se_reference"), block):
         raise SystemExit("expected.json se_reference is stale; rerun with --write")
     print(json.dumps(block["expected"], indent=2))
 

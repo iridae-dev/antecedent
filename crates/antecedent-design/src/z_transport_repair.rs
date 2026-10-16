@@ -2,7 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{EvidenceObligation, EvidenceRegime, ExecutionContext, reason_code};
+use antecedent_contract::EvidenceObligation;
+use antecedent_core::{EvidenceRegime, ExecutionContext, reason_code};
 use antecedent_identify::{
     IdentificationError, SidLimits, bind_z_transport_catalog, verify_z_transport_derivation,
 };
@@ -101,8 +102,14 @@ impl ZTransportRepairFamily {
             Ok(preview) => preview,
             Err(error) => return Ok(FamilyVerdict::Invalid { reasons: vec![error.to_string()] }),
         };
-        // Constructor guarantees a checked positive formula.
-        let derivation = self.snapshot.derivation().expect("checked repair formula");
+        // Constructor guarantees a checked positive formula. A missing one is a
+        // certification failure, not a panic, and the success path still verifies
+        // that same derivation.
+        let Some(derivation) = self.snapshot.derivation() else {
+            return Ok(FamilyVerdict::NotCertified {
+                reasons: vec!["z-transport repair has no checked formula".into()],
+            });
+        };
         let verification = verify_z_transport_derivation(
             self.snapshot.diagram(),
             self.snapshot.query(),

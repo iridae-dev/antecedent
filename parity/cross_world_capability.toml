@@ -1,0 +1,170 @@
+# Theorem-scoped capability matrix of cross-world execution.
+# Checked against antecedent_counterfactual::selective::matrix::ROWS by
+# crates/antecedent-counterfactual/tests/capability_matrix_registry.rs.
+version = 1
+
+[[row]]
+id = "counterfactual.finite_markovian_scm.marginal"
+quantity = "counterfactual_marginal"
+model = "finite_markovian_scm"
+conditioning = ["no_evidence", "factual_evidence"]
+history = ["no_history"]
+evidence = ["declared_mechanisms"]
+population = "single"
+coupling = "not_required"
+status = "executed"
+route = "antecedent_counterfactual::selective::FiniteScmExecutor"
+theorem = "Markovian SCM over finite variables with independent finite exogenous terms and declared mechanisms: a counterfactual marginal is the push-forward of the exogenous posterior given the factual evidence through the intervened equations (abduction-action-prediction; Pearl 2009 ch. 7; Balke and Pearl 1994), enumerated exactly. Model adequacy is a premise, not a check."
+remedy = ""
+
+[[row]]
+id = "counterfactual.finite_markovian_scm.joint"
+quantity = "counterfactual_joint"
+model = "finite_markovian_scm"
+conditioning = ["no_evidence", "factual_evidence"]
+history = ["no_history"]
+evidence = ["declared_mechanisms"]
+population = "single"
+coupling = "shared_abduced_exogenous"
+status = "executed"
+route = "antecedent_counterfactual::selective::FiniteScmExecutor"
+theorem = "As the finite Markovian marginal row; an event over several worlds is the probability under the one exogenous posterior every world reads, so it is computed from coupled worlds only."
+remedy = ""
+
+[[row]]
+id = "natural_path_specific.finite_markovian_scm"
+quantity = "natural_path_specific"
+model = "finite_markovian_scm"
+conditioning = ["no_evidence", "factual_evidence"]
+history = ["no_history"]
+evidence = ["declared_mechanisms"]
+population = "single"
+coupling = "shared_abduced_exogenous"
+status = "executed"
+route = "antecedent_counterfactual::selective::FiniteScmExecutor"
+theorem = "As the finite Markovian row; a world reads a parent from another world (nested counterfactual; Pearl 2001 natural effects) and every world reads one exogenous posterior state."
+remedy = ""
+
+[[row]]
+id = "temporal.fixed_population_two_slice"
+quantity = "temporal"
+model = "additive_linear_two_slice"
+conditioning = ["factual_evidence"]
+history = ["fixed_population_two_slice"]
+evidence = ["supplied_fitted_identity"]
+population = "single"
+coupling = "shared_abduced_exogenous"
+status = "executed"
+route = "antecedent_counterfactual::temporal_cross_world::staged::TemporalExecutor"
+theorem = "Fixed, fully observed, Markovian two-slice linear-Gaussian additive-noise SCM: each unit's exogenous history is recovered exactly from its factual trajectory and both named action histories are replayed against it (temporal_cross_world theorem)."
+remedy = ""
+
+[[row]]
+id = "transported.path_specific_static_additive_linear"
+quantity = "transported_cross_world"
+model = "additive_linear_static_transported"
+conditioning = ["no_evidence"]
+history = ["no_history"]
+evidence = ["supplied_fitted_identity"]
+population = "transported"
+coupling = "shared_abduced_exogenous"
+status = "existing_theorem_route"
+route = "antecedent_counterfactual::transported_path_specific::evaluate_transported_path_specific"
+theorem = "Selection nodes only into covariates or the treatment, additive noise, invariant noise law, support inclusion (transported_path_specific theorem). Keeps its own boundary; it does not abduce a target-population factual unit."
+remedy = ""
+
+[[row]]
+id = "transported.cross_world_execution"
+quantity = "transported_cross_world"
+model = "finite_markovian_scm"
+conditioning = []
+history = []
+evidence = []
+population = "transported"
+coupling = "shared_abduced_exogenous"
+status = "closed"
+route = "none"
+theorem = "No joint theorem composes a transport license with factual abduction in a target population; a transport identification supplies no abduction, shared-noise or per-world receipts."
+refusal_code = "cell_not_licensed"
+refusal_detail = "cross_world_execution.transported_row_closed"
+remedy = "supply a transport license for the quantity, a fixed-population cross-world license, and the cross-population invariance of the exogenous law with target-population factual evidence; the static additive linear case has its own theorem-scoped route"
+
+[[row]]
+id = "model.semi_markovian"
+quantity = "counterfactual_joint"
+model = "semi_markovian"
+conditioning = []
+history = []
+evidence = []
+population = "single"
+coupling = "shared_abduced_exogenous"
+status = "closed"
+route = "none"
+theorem = "An exogenous term shared by two endogenous variables is latent confounding; the identification and coupling theorem is stated for independent exogenous terms."
+refusal_code = "cross_world_not_identified"
+refusal_detail = "cross_world_execution.non_markovian"
+remedy = "declare one independent exogenous term per mechanism (a Markovian model), or use an identification route that accepts the latent structure"
+
+[[row]]
+id = "model.nonparametric_admg"
+quantity = "counterfactual_joint"
+model = "nonparametric_admg"
+conditioning = []
+history = []
+evidence = []
+population = "single"
+coupling = "shared_abduced_exogenous"
+status = "closed"
+route = "none"
+theorem = "A cross-world joint law is not identified by a graph alone; mechanisms and a noise law must be declared."
+refusal_code = "cross_world_not_identified"
+refusal_detail = "cross_world_execution.mechanisms_not_declared"
+remedy = "declare the mechanisms and the exogenous law (a finite Markovian SCM or the two-slice additive linear model), or ask an interventional rather than a cross-world question"
+
+[[row]]
+id = "history.incompatible"
+quantity = "temporal"
+model = "additive_linear_two_slice"
+conditioning = []
+history = []
+evidence = []
+population = "single"
+coupling = "shared_abduced_exogenous"
+status = "closed"
+route = "none"
+theorem = "Mechanisms hold for the history or regime they were declared under; evidence from another history needs a new compatibility and identification check."
+refusal_code = "route_not_supported"
+refusal_detail = "cross_world_execution.incompatible_history"
+remedy = "declare the mechanisms for the history the evidence was gathered under, or establish and supply the invariance of the mechanisms across the two histories"
+
+[[row]]
+id = "intervention.soft"
+quantity = "counterfactual_marginal"
+model = "finite_markovian_scm"
+conditioning = []
+history = []
+evidence = []
+population = "single"
+coupling = "not_required"
+status = "closed"
+route = "none"
+theorem = "Worlds are defined by hard interventions; a stochastic or policy intervention adds a randomization law whose coupling across worlds is not declared."
+refusal_code = "route_not_supported"
+refusal_detail = "cross_world_execution.soft_intervention"
+remedy = "express each world as hard interventions, or declare the intervention's own exogenous term as part of the SCM"
+
+[[row]]
+id = "evidence.fit_from_data"
+quantity = "counterfactual_marginal"
+model = "finite_markovian_scm"
+conditioning = []
+history = []
+evidence = []
+population = "single"
+coupling = "not_required"
+status = "closed"
+route = "none"
+theorem = "A finite SCM's exogenous law is not identified from observational data alone; fitting needs declared constraints."
+refusal_code = "route_not_supported"
+refusal_detail = "cross_world_execution.finite_fitting_not_executed"
+remedy = "declare the mechanisms and the exogenous law, or use the partial-identification route that returns bounds on the counterfactual"

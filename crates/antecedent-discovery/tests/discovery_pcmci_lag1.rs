@@ -21,15 +21,11 @@ use antecedent_data::{
     TimeSeriesData, ValidityBitmap,
 };
 use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
+use antecedent_test_support::{conformance_dir, load_expected_json};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/discovery/pcmci_lag1")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("discovery/pcmci_lag1")
 }
 
 fn load_series(expected: &JsonValue) -> (TimeSeriesData, Vec<VariableId>) {
@@ -97,7 +93,7 @@ fn name_to_id(name: &str) -> VariableId {
 
 #[test]
 fn discovery_pcmci_lag1_exact_parents() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     assert_eq!(expected["tolerance_class"].as_str().unwrap(), "Exact");
     let max_lag = expected["max_lag"].as_u64().unwrap() as u32;
     let alpha = expected["alpha"].as_f64().unwrap();

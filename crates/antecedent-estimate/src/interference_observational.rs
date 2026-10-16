@@ -84,7 +84,10 @@ pub struct ObservationalExposureInterval {
 ///
 /// Refuses invalid dimensions, exposure levels, propensities, topology, empirical
 /// support, or fewer than two partial-interference clusters.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the specification, compute exposures, then one pass accumulates the weighted sums, supports and cluster influence that the estimates read"
+)]
 pub fn estimate_observational_exposure(
     data: &NetworkData,
     outcome: antecedent_core::VariableId,
@@ -114,8 +117,7 @@ pub fn estimate_observational_exposure(
     if [spec.from.own, spec.from.neighbors, spec.to.own, spec.to.neighbors]
         .iter()
         .any(|value| !value.is_finite())
-        || ((spec.from.own - spec.to.own).abs() <= 1e-12
-            && (spec.from.neighbors - spec.to.neighbors).abs() <= 1e-12)
+        || crate::interference::exposure_levels_approx_eq(spec.from, spec.to)
     {
         return Err(EstimationError::data_msg(
             "exposure contrast levels must be finite and distinct",
@@ -177,10 +179,8 @@ pub fn estimate_observational_exposure(
     let mut maximum_probability: f64 = 0.0;
     for i in 0..n {
         let observed_level = observed[i];
-        let is_from = (observed_level.own - spec.from.own).abs() <= 1e-12
-            && (observed_level.neighbors - spec.from.neighbors).abs() <= 1e-12;
-        let is_to = (observed_level.own - spec.to.own).abs() <= 1e-12
-            && (observed_level.neighbors - spec.to.neighbors).abs() <= 1e-12;
+        let is_from = crate::interference::exposure_levels_approx_eq(observed_level, spec.from);
+        let is_to = crate::interference::exposure_levels_approx_eq(observed_level, spec.to);
         let from_score = if is_from { outcomes[i] / spec.propensity_from[i] } else { 0.0 };
         let to_score = if is_to { outcomes[i] / spec.propensity_to[i] } else { 0.0 };
         from_sum += from_score;
@@ -285,21 +285,6 @@ mod tests {
 
     use super::{ObservationalExposureSpec, estimate_observational_exposure};
 
-    struct XorShift(u64);
-
-    impl XorShift {
-        fn next(&mut self) -> u64 {
-            self.0 ^= self.0 << 13;
-            self.0 ^= self.0 >> 7;
-            self.0 ^= self.0 << 17;
-            self.0
-        }
-
-        fn uniform(&mut self) -> f64 {
-            (self.next() >> 11) as f64 / (1_u64 << 53) as f64
-        }
-    }
-
     #[test]
     fn observational_known_exposure_interval_covers_known_truth() {
         // Fixed finite population of unit potential outcomes; per-unit exposure is
@@ -327,7 +312,7 @@ mod tests {
             .map(|unit| 0.5 * (unit / 2 % 5) as f64 + 0.1 * (unit % 2) as f64)
             .collect::<Vec<_>>();
         let probabilities = vec![0.25; CLUSTERS * 2];
-        let mut rng = XorShift(0x39F1_77C4_2B8E_A013);
+        let mut rng = crate::splitmix::FixtureRng::new(0x39F1_77C4_2B8E_A013);
         let mut covered = 0_usize;
         let mut supported = 0_usize;
         for _ in 0..REPLICATES {

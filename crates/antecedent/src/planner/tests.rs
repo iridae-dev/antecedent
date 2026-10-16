@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use antecedent_contract::{DataClassification, LogicalAnalysisPlanRecord};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, DataClassification, ExecutionContext,
-    LogicalAnalysisPlanRecord, MemoryBudget, TemporalEffectQuery, VariableId,
+    AverageEffectQuery, CausalQuery, ExecutionContext, MemoryBudget, TemporalEffectQuery,
+    VariableId,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TabularData, TimeSeriesData};
 use antecedent_graph::{Dag, TemporalDag};
@@ -362,8 +363,8 @@ fn refuses_temporal_query_vars_not_in_temporal_dag() {
     graph.add_lagged(VariableId::from_raw(8), antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
     let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
     let err = compile_logical_temporal_effect(&data, &graph, &query, None, false).unwrap_err();
-    let CausalError::Compile { message } = err else {
-        panic!("expected CausalError::Compile, got {err:?}");
+    let Some(message) = err.compile_message() else {
+        panic!("expected a compile refusal, got {err:?}");
     };
     assert!(
         message.contains("not in temporal graph"),
@@ -489,8 +490,8 @@ fn compile_temporal_response_refuses_unlicensed_observation() {
         [ObservationAssumption::IndependentGiven(StdArc::from([]))],
     );
     let err = compile_logical_temporal_response(&data, &graph, &query, false).unwrap_err();
-    let CausalError::Compile { message } = err else {
-        panic!("expected Compile, got {err:?}");
+    let Some(message) = err.compile_message() else {
+        panic!("expected a compile refusal, got {err:?}");
     };
     assert!(message.contains(TEMPORAL_OBSERVATION_UNLICENSED), "stable refuse, got {message}");
 }

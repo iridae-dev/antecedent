@@ -8,12 +8,15 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, StructureSource, Study,
 };
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
-    ResponseValue, SlotAvailability, VariableId,
+    ResponseValue, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg};
+use antecedent_discovery::{
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
+};
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
@@ -62,7 +65,7 @@ fn fixture() -> (TabularData, Admg, ResponseQuery) {
 }
 
 fn means(result: &antecedent::StudyResult) -> &[f64] {
-    match &result.response.as_ref().expect("response result").estimate {
+    match &result.response().expect("response result").estimate {
         antecedent_core::ResponseIdentification::PointIdentified(ResponseValue::Surface {
             mean,
             ..
@@ -207,7 +210,7 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
         // The frequentist general-ID curve now publishes a pointwise confidence
         // band formed from the front-door plug-in bootstrap SE, reported as
         // `bootstrap_se` (there is no exposed influence function on this route).
-        match &result.response.as_ref().expect("response").uncertainty {
+        match &result.response().expect("response").uncertainty {
             antecedent_core::ResponseUncertainty::PointwiseBand {
                 lower,
                 upper,
@@ -292,9 +295,11 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
         vec![key, key],
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("admg_graph_posterior_curve_checked"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("admg_graph_posterior_curve_checked"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Admg);

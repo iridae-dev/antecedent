@@ -1,5 +1,5 @@
 //! Coverage of the published cluster-DML Wald interval `estimate ± t_{G-1} · se` (record
-//! `2.2E.E4.clustered_dml_aipw`).
+//! `estimate.clustered_dml_aipw`).
 //!
 //! Clustered data with a cluster-level random effect on the outcome, a covariate and the
 //! treatment effect; the population average effect is 2. The scored interval is the
@@ -8,13 +8,10 @@
 //! grid varies the number of clusters.
 //!
 //! `cluster_dml_t_wald_interval` is registered in `scripts/gate_calibration.sh` (`run_cd`) and
-//! is measured once at the release cut; until then the coverage record is the only missing
-//! piece. A fixed-seed test of the same construction without a record is
+//! its coverage is unmeasured: the coverage record is the only missing piece. A fixed-seed test of the same construction without a record is
 //! `crates/antecedent-estimate/tests/cluster_dml_known_truth.rs`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![allow(clippy::cast_precision_loss)]
 
 mod common;
 

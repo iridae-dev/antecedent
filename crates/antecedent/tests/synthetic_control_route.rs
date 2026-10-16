@@ -54,7 +54,7 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     let ctx = ExecutionContext::for_tests(11);
     let result =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&ctx).unwrap();
-    let fit = result.synthetic_control.as_ref().unwrap();
+    let fit = result.synthetic_control().unwrap();
     assert!((fit.effect - 5.0).abs() < 1e-5);
     assert!(fit.pre_treatment_rmse < 1e-5);
     assert_eq!(fit.donor_weights.len(), 3);
@@ -63,7 +63,7 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     assert_eq!(fit.n_post_periods, 2);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_with_unlicensed_placebo_rank");
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption)
             .contains("convex_donor_combination_is_a_valid_counterfactual")
@@ -71,7 +71,7 @@ fn synthetic_control_retained_route_recovers_truth_and_preserves_point_only_clai
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let retained = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(retained.synthetic_control, result.synthetic_control);
+    assert_eq!(retained.synthetic_control(), result.synthetic_control());
     let bytes = prepared.encode_contracted_result(&retained, "synthetic-control", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.synthetic_control.as_ref().unwrap();
@@ -132,7 +132,7 @@ fn retained_synthetic_did_recovers_additive_truth_and_round_trips_weights() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.synthetic_did.as_ref().unwrap();
+    let fit = result.synthetic_did().unwrap();
     assert!((fit.effect - 7.0).abs() < 1e-8);
     assert_eq!((fit.n_donors, fit.n_pre_periods, fit.n_post_periods), (3, 3, 1));
     assert_eq!(fit.time_weights.len(), 3);
@@ -162,7 +162,7 @@ fn uniform_unit_randomization_enumerates_sharp_null_and_seals_p_value() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.synthetic_control.as_ref().unwrap();
+    let fit = result.synthetic_control().unwrap();
     assert_eq!(fit.randomization_statistics.len(), 4);
     let observed =
         fit.randomization_statistics.iter().find(|(unit, _)| unit.as_ref() == "treated").unwrap().1;
@@ -216,7 +216,7 @@ fn nonzero_constant_effect_null_round_trips_and_refuses_missing_assignment() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.synthetic_control.as_ref().unwrap();
+    let fit = result.synthetic_control().unwrap();
     let observed =
         fit.randomization_statistics.iter().find(|(unit, _)| unit.as_ref() == "treated").unwrap().1;
     assert!(observed < 1e-5);
@@ -246,7 +246,7 @@ fn augmented_uniform_assignment_tests_the_adjusted_effect_and_seals_artifact() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.synthetic_control.as_ref().unwrap();
+    let fit = result.synthetic_control().unwrap();
     assert_eq!(
         fit.uncertainty.as_ref(),
         "point_only_augmented_with_exact_unit_randomization_p_value_no_interval"
@@ -307,7 +307,7 @@ fn exact_unit_randomization_is_superuniform_over_all_sharp_null_assignments() {
         )
         .with_uniform_unit_randomization();
         let result = Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap();
-        let fit = result.synthetic_control.unwrap();
+        let fit = result.synthetic_control().unwrap();
         p_values.push(fit.randomization_p_value.unwrap());
         assert_eq!(fit.randomization_statistics.len(), 8);
     }
@@ -340,13 +340,13 @@ fn augmented_synthetic_control_recovers_outside_hull_truth_and_seals_artifact() 
     let prepared =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.synthetic_control.as_ref().unwrap();
+    let fit = result.synthetic_control().unwrap();
     assert!((fit.unadjusted_effect.unwrap() - 9.0).abs() < 1e-5);
     assert!((fit.outcome_model_correction.unwrap() - 4.0).abs() < 1e-4);
     assert!((fit.effect - 5.0).abs() < 1e-4);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_augmented_no_interval");
     assert_eq!(result.interval.as_ref().unwrap().method, IntervalMethod::None);
-    assert!(result.estimate.as_effect().unwrap().se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     assert!(result.identification.required_assumptions.entries.iter().any(|record| {
         format!("{:?}", record.assumption).contains("donor_ridge_outcome_model_transports")
     }));

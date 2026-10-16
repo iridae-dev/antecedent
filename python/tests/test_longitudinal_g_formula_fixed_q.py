@@ -30,7 +30,7 @@ def test_fixed_known_q_interval_round_trips_and_default_stays_point_only() -> No
     assert value.value_interval_95[0] < 3.0 < value.value_interval_95[1]
     assert value.uncertainty == "pointwise_subject_score_conditional_fixed_known_q_95"
     assert "fixed_known_outcome_predictions" in " ".join(result.assumptions or [])
-    artifact = ant.load(result.export()).artifact.payload
+    artifact = ant.load(result.export()).decoded_artifact.payload
     assert artifact["query"]["longitudinal_regime"]["known_fixed_outcome_predictions"] is True
     assert artifact["longitudinal_regime"]["value_interval_95"] == pytest.approx(
         value.value_interval_95

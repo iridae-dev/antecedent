@@ -1,6 +1,5 @@
 //! Frozen structural truth through the licensed staged handle.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 use antecedent::estimate::validate_static_pair;
 use antecedent::{AcceptedGraph, EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
@@ -67,7 +66,7 @@ fn static_kinds_known_truth() {
                 let prepared = study.prepare(&ctx).unwrap();
                 let result = prepared.estimate(&data, &ctx).unwrap();
                 assert!(
-                    (result.estimate.ate - pin[key].as_f64().unwrap()).abs()
+                    (result.estimate.as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs()
                         < pin["tolerance"].as_f64().unwrap(),
                     "{key}: {:?}",
                     result.estimate
@@ -100,7 +99,7 @@ fn static_kinds_known_truth() {
         .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let cf = result.counterfactual.as_ref().unwrap();
+    let cf = result.counterfactual().unwrap();
     assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.03);
     assert_eq!(cf.unit_effects.len(), 500);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"));
@@ -152,7 +151,11 @@ fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
     let mut prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate_retained(&ctx).unwrap();
     let expected = pin["reference"]["natural_direct_effect"].as_f64().unwrap();
-    assert!((result.estimate.ate - expected).abs() < 1e-3, "{:?}", result.estimate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - expected).abs() < 1e-3,
+        "{:?}",
+        result.estimate
+    );
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
     assert!(result.interval.is_none(), "this route is point-only until separately calibrated");
 
@@ -171,9 +174,12 @@ fn fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs() {
     ])
     .unwrap();
     let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
-    assert!(refreshed.estimate.ate.is_finite());
+    assert!(refreshed.estimate.as_effect().unwrap().ate.is_finite());
     let retained = prepared.estimate_retained(&ctx).unwrap();
-    assert_eq!(retained.estimate.ate.to_bits(), refreshed.estimate.ate.to_bits());
+    assert_eq!(
+        retained.estimate.as_effect().unwrap().ate.to_bits(),
+        refreshed.estimate.as_effect().unwrap().ate.to_bits()
+    );
 
     // A well-formed but incompatible DAG is refused with the stable cross-world reason.
     let mut incompatible = Dag::with_variables(4);
@@ -334,7 +340,7 @@ fn confounded_static_kinds_are_not_the_observational_association() {
             .estimate(&data, &ctx)
             .unwrap();
         assert!(
-            (result.estimate.ate - pin[key].as_f64().unwrap()).abs()
+            (result.estimate.as_effect().unwrap().ate - pin[key].as_f64().unwrap()).abs()
                 < pin["tolerance"].as_f64().unwrap(),
             "{key}: {:?}",
             result.estimate
@@ -356,7 +362,7 @@ fn confounded_static_kinds_are_not_the_observational_association() {
         .unwrap()
         .estimate(&data, &ctx)
         .unwrap();
-    let cf = result.counterfactual.as_ref().unwrap();
+    let cf = result.counterfactual().unwrap();
     assert!((cf.mean_ite - pin["counterfactual_mean"].as_f64().unwrap()).abs() < 0.03);
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"));
     assert!((cf.mean_ite - naive_ite).abs() > pin["tolerance"].as_f64().unwrap());
@@ -420,8 +426,8 @@ fn accepted_counterfactual_matches_explicit() {
     assert_eq!(accepted.structure_source, antecedent::StructureSource::Accepted);
     assert_eq!(explicit.structure_source, antecedent::StructureSource::Explicit);
     assert_eq!(accepted.logical_plan.estimator.as_deref(), Some("gcm.fit"));
-    let explicit_cf = explicit.counterfactual.as_ref().unwrap();
-    let accepted_cf = accepted.counterfactual.as_ref().unwrap();
+    let explicit_cf = explicit.counterfactual().unwrap();
+    let accepted_cf = accepted.counterfactual().unwrap();
     assert!((accepted_cf.mean_ite - explicit_cf.mean_ite).abs() < 1e-12);
     assert_eq!(accepted_cf.unit_effects, explicit_cf.unit_effects);
     assert!(accepted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));

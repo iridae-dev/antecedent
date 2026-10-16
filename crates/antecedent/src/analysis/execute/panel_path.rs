@@ -1,6 +1,31 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::completion_fit_memo::{CompletionFitMemo, ResponseFitKey};
+use super::sequential_validation::SequentialValidation;
+use super::{
+    AnalyticSeKind, Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte,
+    BootstrapAccounting, CausalError, CausalPosterior, CausalQuery, CausalResponse, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, DiscoveryEstimationSplit, EffectEstimate,
+    EstimationWorkspace, EstimatorId, ExecutionContext, GraphEffectDraws, GraphIdentFlag,
+    IdentificationBasis, IdentificationResult, IdentificationStatus, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant,
+    ObservationSpec, OverlapPolicy, PanelData, PhysicalExecutionPlan, PredictiveCheckReport,
+    PriorSet, RefutationRun, RefuteSuite, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
+    TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery, TemporalIndexer,
+    TemporalLinearAdjustment, TemporalRefitContext, TemporalResponseEstimator, UNFOLDED_LINEAR_SEM,
+    apply_temporal_prior_sensitivity, bayesian_gcomp, bayesian_temporal_gcomp,
+    bootstrap_has_enough_successes, completion_fit_seed, effect_from_posterior, elapsed_ns,
+    envelope_se_omits_between_atom_variance, envelope_to_identification_result_for,
+    identification_status_ok_for_case, identified_set_interval_diagnostics,
+    identify_cached_diagnostic, mag_sequential_unevaluable_diagnostic, mix_weighted_analytic_se,
+    nan_effect, posterior_identified_set_interval, provenance_ids, push_conflict_diagnostics,
+    report_identify_compute, require_identified, resolve_bayesian_prior_with_conflict,
+    same_fit_inputs, same_fitted_mechanisms, same_fitted_problem, select_estimand,
+    sequential_linear_sem_assumption, stack_panel_tabular, temporal_refuter_average,
+    with_conflict_summary,
+};
+use crate::planner::RouteDefaults;
 use antecedent_core::StreamDomain;
 
 impl super::Study {
@@ -16,34 +41,6 @@ impl super::Study {
         )
     }
 
-    /// Multi-environment Pulse / single-step Sustained: the environments are the
-    /// clusters of one pooled panel regression.
-    ///
-    /// Reading only `environment(0)` would answer the query on one environment and
-    /// publish it as the multi-environment claim, and the answer would depend on the
-    /// argument order.
-    pub(super) fn execute_multi_env_temporal(
-        &self,
-        multi: &antecedent_data::MultiEnvironmentData,
-        graph: &TemporalDag,
-        query: &TemporalEffectQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let units: Vec<antecedent_data::PanelUnit> = multi
-            .environments()
-            .iter()
-            .enumerate()
-            .map(|(index, series)| antecedent_data::PanelUnit {
-                unit_id: u32::try_from(index).unwrap_or(u32::MAX),
-                series: series.clone(),
-            })
-            .collect();
-        let panel = PanelData::try_new(units)
-            .map_err(|error| CausalError::Compile { message: format!("multi-env: {error}") })?;
-        self.execute_pooled_panel(&panel, graph, query, physical, ctx, PanelClusters::Environments)
-    }
-
     pub(super) fn execute_panel(
         &self,
         panel: &PanelData,
@@ -55,7 +52,7 @@ impl super::Study {
         self.execute_pooled_panel(panel, graph, query, physical, ctx, PanelClusters::Units)
     }
 
-    fn execute_pooled_panel(
+    pub(super) fn execute_pooled_panel(
         &self,
         panel: &PanelData,
         graph: &TemporalDag,
@@ -66,24 +63,8 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         self.refuse_unlicensed_panel(panel)?;
         let started = Instant::now();
-        let (identification, estimand, indexer, identify_cached) = if let Some(cache) =
-            self.temporal_identification_cache.as_deref()
-        {
-            let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
-                message: "prepared panel identification cache missing query horizon".into(),
-            })?;
-            (entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true)
-        } else {
-            let id_res = TemporalBackdoorIdentifier::new()
-                .with_parent_adjustment_fallback()
-                .identify_temporal(graph, query)
-                .map_err(CausalError::from)?;
-            report_identify_compute(ctx);
-            let identification = id_res.result;
-            require_identified(&identification)?;
-            let estimand = select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)?;
-            (identification, estimand, id_res.indexer, false)
-        };
+        let (identification, estimand, indexer, identify_cached) =
+            self.identify_pooled_panel(graph, query, ctx)?;
         require_identified(&identification)?;
 
         let unit_ids = panel_unit_ids(panel);
@@ -99,53 +80,15 @@ impl super::Study {
         let (prep, cluster_ids, _) = atom.stacked(&unit_ids)?;
         let mut diagnostics = vec![pooled_panel_estimand_diagnostic(clusters, unit_ids.len())];
 
-        let (estimate, mut posterior, estimate_artifact, estimate_op) = match &self.inference {
-            InferenceMode::Bayesian(cfg) => {
-                let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
-                let mut bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
-                bprep.unit_ids = Some(cluster_ids.clone());
-                let (resolved_prior, conflict_summary) =
-                    resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
-                bayes.inner.prior = resolved_prior;
-                let mut ws = BayesianGCompWorkspace::default();
-                let mut posterior = bayes
-                    .fit(&bprep, identification.status, &mut ws, ctx)
-                    .map_err(CausalError::from)?;
-                if let Some(summary) = conflict_summary {
-                    posterior = with_conflict_summary(posterior, summary);
-                }
-                let estimate = effect_from_posterior(&posterior)?;
-                (
-                    estimate,
-                    Some(posterior),
-                    "estimate.bayesian_temporal_gcomp.panel",
-                    "estimate.bayesian.temporal.gcomp.panel",
-                )
-            }
-            InferenceMode::Frequentist => {
-                let mut estimate =
-                    atom.fit(&unit_ids, ctx, identification.required_assumptions.clone())?;
-                estimate.assumptions.push(panel_estimand_assumption(clusters, unit_ids.len()));
-                let boot = panel_unit_bootstrap(
-                    std::slice::from_ref(&atom),
-                    self.bootstrap_replicates,
-                    ctx,
-                );
-                boot.attach(&mut estimate, self.bootstrap_replicates);
-                diagnostics.push(panel_cluster_se_diagnostic(clusters, unit_ids.len()));
-                diagnostics.extend(boot.diagnostic(clusters, self.bootstrap_replicates));
-                (
-                    estimate,
-                    None,
-                    "estimate.temporal_linear_adjustment.panel",
-                    "estimate.temporal.linear.adjustment.panel",
-                )
-            }
+        let design = PooledPanelDesign {
+            atom: &atom,
+            prep: &prep,
+            cluster_ids: &cluster_ids,
+            unit_ids: &unit_ids,
         };
+        let (estimate, mut posterior, estimate_artifact, estimate_op) = self
+            .fit_pooled_panel_estimate(&design, &identification, clusters, &mut diagnostics, ctx)?;
 
-        let stacked = stack_panel_tabular(panel).map_err(CausalError::from)?;
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
-        let mut refute_ws = EstimationWorkspace::default();
         let temporal_ctx = TemporalRefitContext {
             indexer: &indexer,
             temporal_query: query,
@@ -154,71 +97,60 @@ impl super::Study {
             time_index: None,
             panel: Some(panel),
         };
-        let (mut refutations, na_diagnostics) = run_refuters(
-            &stacked,
+        let (mut refutations, na_diagnostics) = self.refute_pooled_panel(
+            panel,
+            temporal_ctx,
             &estimand,
-            &ate_q,
             &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
             if posterior.is_some() {
                 EstimatorId::BayesianTemporalGcomp.as_str()
             } else {
                 EstimatorId::TemporalLinearAdjustment.as_str()
             },
-            &self.custom_validators,
-            Some(temporal_ctx),
+            ctx,
         )?;
         diagnostics.extend(na_diagnostics);
 
-        // Panel Bayesian: α-grid under Full when external compose is present (mirror temporal).
-        if matches!(self.refute, RefuteSuite::Full) {
-            if let (InferenceMode::Bayesian(cfg), Some(post)) = (&self.inference, &posterior) {
-                let mut bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
-                bprep.unit_ids = Some(cluster_ids.clone());
-                posterior = Some(apply_temporal_prior_sensitivity(
-                    cfg,
-                    &bprep,
-                    identification.status,
-                    post,
-                    estimate.ate,
-                    ctx,
-                    &mut refutations,
-                )?);
-            }
-        }
+        posterior = self.pooled_panel_prior_sensitivity(
+            &design,
+            identification.status,
+            estimate.ate,
+            posterior,
+            &mut refutations,
+            ctx,
+        )?;
 
         if let Some(cs) = posterior.as_ref().and_then(|p| p.conflict_summary.as_ref()) {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
 
-        let (bootstrap_replicates_ok, cancelled) =
-            (estimate.bootstrap_replicates_ok, estimate.bootstrap_cancelled);
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: if posterior.is_some() {
-                EstimatorId::BayesianTemporalGcomp
-            } else {
-                EstimatorId::TemporalLinearAdjustment
-            },
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok,
-            cancelled,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        let (bootstrap_replicates_ok, cancelled) = (
+            estimate.uncertainty.bootstrap.replicates_ok,
+            estimate.uncertainty.bootstrap.cancelled,
+        );
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    if posterior.is_some() {
+                        EstimatorId::BayesianTemporalGcomp
+                    } else {
+                        EstimatorId::TemporalLinearAdjustment
+                    },
+                ),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(bootstrap_replicates_ok)
+            .cancelled(cancelled)
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "identify.temporal_backdoor",
                     "identify.temporal.backdoor.unfolded",
@@ -227,8 +159,153 @@ impl super::Study {
                 posterior,
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
+    }
+
+    /// Pooled panel estimate under the study's inference mode, with its provenance ids.
+    fn fit_pooled_panel_estimate(
+        &self,
+        design: &PooledPanelDesign<'_>,
+        identification: &IdentificationResult,
+        clusters: PanelClusters,
+        diagnostics: &mut Vec<Diagnostic>,
+        ctx: &ExecutionContext,
+    ) -> Result<(EffectEstimate, Option<CausalPosterior>, &'static str, &'static str), CausalError>
+    {
+        Ok(match &self.inference {
+            InferenceMode::Bayesian(cfg) => {
+                let (estimate, posterior) = fit_pooled_panel_bayesian(
+                    cfg,
+                    design.prep,
+                    design.cluster_ids,
+                    identification.status,
+                    ctx,
+                )?;
+                (
+                    estimate,
+                    Some(posterior),
+                    "estimate.bayesian_temporal_gcomp.panel",
+                    "estimate.bayesian.temporal.gcomp.panel",
+                )
+            }
+            InferenceMode::Frequentist => {
+                let estimate = self.fit_pooled_panel_frequentist(
+                    design.atom,
+                    design.unit_ids,
+                    identification,
+                    clusters,
+                    diagnostics,
+                    ctx,
+                )?;
+                (
+                    estimate,
+                    None,
+                    "estimate.temporal_linear_adjustment.panel",
+                    "estimate.temporal.linear.adjustment.panel",
+                )
+            }
+        })
+    }
+
+    /// Prior-sensitivity grid of a Bayesian panel under the Full suite (a no-op otherwise).
+    fn pooled_panel_prior_sensitivity(
+        &self,
+        design: &PooledPanelDesign<'_>,
+        status: IdentificationStatus,
+        ate: f64,
+        posterior: Option<CausalPosterior>,
+        refutations: &mut Vec<antecedent_validate::RefutationReport>,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<CausalPosterior>, CausalError> {
+        // Panel Bayesian: α-grid under Full when external compose is present (mirror temporal).
+        if matches!(self.refute, RefuteSuite::Full) {
+            if let (InferenceMode::Bayesian(cfg), Some(post)) = (&self.inference, &posterior) {
+                let mut bprep = BayesianGComputationAte::from_prepared_estimation(design.prep);
+                bprep.unit_ids = Some(design.cluster_ids.to_vec());
+                return Ok(Some(apply_temporal_prior_sensitivity(
+                    cfg,
+                    &bprep,
+                    status,
+                    post,
+                    ate,
+                    ctx,
+                    refutations,
+                )?));
+            }
+        }
+        Ok(posterior)
+    }
+
+    /// Identifies the panel's pooled Pulse estimand, or reads the prepared horizon entry.
+    fn identify_pooled_panel(
+        &self,
+        graph: &TemporalDag,
+        query: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<(IdentificationResult, IdentifiedEstimand, TemporalIndexer, bool), CausalError>
+    {
+        if let Some(cache) = self.temporal_identification_cache.as_deref() {
+            let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
+                message: "prepared panel identification cache missing query horizon".into(),
+            })?;
+            Ok((entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true))
+        } else {
+            let id_res = TemporalBackdoorIdentifier::new()
+                .with_parent_adjustment_fallback()
+                .identify_temporal(graph, query)
+                .map_err(CausalError::from)?;
+            report_identify_compute(ctx);
+            let identification = id_res.result;
+            require_identified(&identification)?;
+            let estimand = select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)?;
+            Ok((identification, estimand, id_res.indexer, false))
+        }
+    }
+
+    /// Pooled frequentist panel fit with its unit bootstrap and cluster-SE disclosures.
+    fn fit_pooled_panel_frequentist(
+        &self,
+        atom: &PanelPulseAtom,
+        unit_ids: &[u32],
+        identification: &IdentificationResult,
+        clusters: PanelClusters,
+        diagnostics: &mut Vec<Diagnostic>,
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, CausalError> {
+        let mut estimate = atom.fit(unit_ids, ctx, identification.required_assumptions.clone())?;
+        estimate.provenance.assumptions.push(panel_estimand_assumption(clusters, unit_ids.len()));
+        let boot = panel_unit_bootstrap(std::slice::from_ref(atom), self.bootstrap_replicates, ctx);
+        boot.attach(&mut estimate, self.bootstrap_replicates);
+        diagnostics.push(panel_cluster_se_diagnostic(clusters, unit_ids.len()));
+        diagnostics.extend(boot.diagnostic(clusters, self.bootstrap_replicates));
+        Ok(estimate)
+    }
+
+    /// Runs the refutation suite on the stacked panel table.
+    fn refute_pooled_panel(
+        &self,
+        panel: &PanelData,
+        temporal: TemporalRefitContext<'_>,
+        estimand: &IdentifiedEstimand,
+        estimate: &EffectEstimate,
+        estimator: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        let stacked = stack_panel_tabular(panel).map_err(CausalError::from)?;
+        let ate_q = temporal_refuter_average(temporal.temporal_query);
+        let mut refute_ws = EstimationWorkspace::default();
+        RefutationRun {
+            data: &stacked,
+            estimand,
+            query: &ate_q,
+            estimate,
+            suite: self.refute,
+            estimator,
+            custom: &self.custom_validators,
+            temporal: Some(temporal),
+        }
+        .reports(&mut refute_ws, None, ctx)
     }
 
     /// Identify the class once for a panel class effect (or read the prepared
@@ -239,19 +316,13 @@ impl super::Study {
         query: &TemporalEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<
-        (IdentifierId, crate::analysis::prepared::CachedTemporalClassIdentification, bool),
+        (IdentifierId, Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, bool),
         CausalError,
     > {
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.clone(), true)
+            if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
+                (Arc::clone(cache), true)
             } else {
                 report_identify_compute(ctx);
                 (self.identify_temporal_class(identifier_id, query)?, false)
@@ -280,7 +351,7 @@ impl super::Study {
         if query.is_multi_step_sustained() {
             return self.execute_panel_class_sequential(panel, query, physical, ctx);
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if self.inference.is_bayesian() {
             return self.execute_panel_class_bayesian(panel, query, physical, ctx);
         }
         let started = Instant::now();
@@ -291,6 +362,98 @@ impl super::Study {
             super::temporal_path::temporal_class_envelope_diagnostic(envelope, self.graph.class()),
             pooled_panel_estimand_diagnostic(PanelClusters::Units, panel.unit_count()),
         ];
+        let unit_ids = panel_unit_ids(panel);
+        let PanelClassMixture {
+            ate,
+            se_analytic,
+            estimand,
+            assumptions,
+            fitted,
+            refute_atoms,
+            atom_values,
+        } = self
+            .fit_panel_class_atoms(panel, query, &bundle.envelope, &unit_ids, ctx)?
+            .into_mixture()?;
+        let boot = panel_unit_bootstrap(&fitted, self.bootstrap_replicates, ctx);
+        self.push_panel_class_disclosures(
+            &mut diagnostics,
+            &boot,
+            fitted.len(),
+            panel.unit_count(),
+        );
+        let (refutations, na_diagnostics) = self.panel_class_pulse_refutations(
+            panel,
+            query,
+            &refute_atoms,
+            EstimatorId::TemporalLinearAdjustment.as_str(),
+            ctx,
+        )?;
+        diagnostics.extend(na_diagnostics);
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        let mut estimate = EffectEstimate::from_parts(
+            ate,
+            se_analytic,
+            BootstrapAccounting::cancelled(ctx.cancellation.is_cancelled()),
+            assumptions,
+            OverlapPolicy::ExplicitOverride,
+            None,
+            None,
+        );
+        boot.attach(&mut estimate, self.bootstrap_replicates);
+        let bootstrap_ok = estimate.uncertainty.bootstrap.replicates_ok;
+        let cancelled = estimate.uncertainty.bootstrap.cancelled;
+        let identification = envelope_to_identification_result_for(
+            envelope,
+            CausalQuery::TemporalEffect(query.clone()),
+        );
+        let structural = super::temporal_path::temporal_class_structural_mixture(
+            envelope,
+            crate::result::StructuralWeightBasis::CompletionEnumeration,
+            None,
+            &atom_values,
+        );
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, EstimatorId::TemporalLinearAdjustment),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(bootstrap_ok)
+            .cancelled(cancelled)
+            .extras(IdentifiedExecuteExtras {
+                certificate: Some(crate::Identification::TemporalEnvelope {
+                    envelope: (*bundle.envelope).clone(),
+                    strategy: identifier_id,
+                    structure_version: self.graph.version(),
+                }),
+                structural_response: Some(structural),
+                diagnostics: Some(diagnostics),
+                bootstrap_replicates_requested: (self.bootstrap_replicates > 0)
+                    .then_some(Some(self.bootstrap_replicates)),
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Fits the pooled Pulse design of every identified completion in the class envelope.
+    fn fit_panel_class_atoms(
+        &self,
+        panel: &PanelData,
+        query: &TemporalEffectQuery,
+        envelope: &antecedent_identify::TemporalClassEnvelope,
+        unit_ids: &[u32],
+        ctx: &ExecutionContext,
+    ) -> Result<PanelClassFits, CausalError> {
+        let bundle_envelope = &envelope.envelope;
         let mut weighted_ate = 0.0;
         let mut se_items = Vec::new();
         let mut total_w = 0.0;
@@ -298,10 +461,9 @@ impl super::Study {
         let mut assumptions = antecedent_core::AssumptionSet::default();
         let mut fitted = Vec::new();
         let mut refute_atoms = Vec::new();
-        let mut atom_values: Vec<Option<f64>> = vec![None; envelope.cases.len()];
-        let unit_ids = panel_unit_ids(panel);
+        let mut atom_values: Vec<Option<f64>> = vec![None; bundle_envelope.cases.len()];
         for (i, (case, indexer)) in
-            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
+            bundle_envelope.cases.iter().zip(envelope.indexers.iter()).enumerate()
         {
             if !identification_status_ok_for_case(case.result.status)
                 || case.result.estimands.is_empty()
@@ -319,9 +481,9 @@ impl super::Study {
                 ctx,
                 w,
             )?;
-            let mut estimate =
-                atom.fit(&unit_ids, ctx, case.result.required_assumptions.clone())?;
+            let mut estimate = atom.fit(unit_ids, ctx, case.result.required_assumptions.clone())?;
             estimate
+                .provenance
                 .assumptions
                 .push(panel_estimand_assumption(PanelClusters::Units, unit_ids.len()));
             refute_atoms.push(PanelRefuteAtom {
@@ -331,31 +493,40 @@ impl super::Study {
                 estimate: estimate.clone(),
             });
             weighted_ate += w * estimate.ate;
-            se_items.push((w, estimate.se_analytic));
+            se_items.push((w, estimate.se_analytic()));
             total_w += w;
             atom_values[i] = Some(estimate.ate);
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
+                assumptions = estimate.provenance.assumptions.clone();
             }
             fitted.push(atom);
         }
-        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-            return Err(CausalError::Compile {
-                message: "panel class-aware envelope had no estimable identified cases".into(),
-            });
-        }
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "panel class-aware envelope missing estimand".into(),
-        })?;
-        let ate = weighted_ate / total_w;
-        let se_analytic = mix_weighted_analytic_se(se_items);
-        let boot = panel_unit_bootstrap(&fitted, self.bootstrap_replicates, ctx);
-        if boot.se.is_none() && fitted.len() > 1 {
+        Ok(PanelClassFits {
+            weighted_ate,
+            se_items,
+            total_w,
+            primary_estimand,
+            assumptions,
+            fitted,
+            refute_atoms,
+            atom_values,
+        })
+    }
+
+    /// Discloses the SE route and completion count of a panel class Pulse.
+    fn push_panel_class_disclosures(
+        &self,
+        diagnostics: &mut Vec<Diagnostic>,
+        boot: &PanelUnitBootstrap,
+        fitted: usize,
+        units: usize,
+    ) {
+        if boot.se.is_none() && fitted > 1 {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
-        if fitted.len() == 1 {
-            diagnostics.push(panel_cluster_se_diagnostic(PanelClusters::Units, unit_ids.len()));
+        if fitted == 1 {
+            diagnostics.push(panel_cluster_se_diagnostic(PanelClusters::Units, units));
         }
         diagnostics.extend(boot.diagnostic(PanelClusters::Units, self.bootstrap_replicates));
         diagnostics.push(Diagnostic::new(
@@ -363,80 +534,38 @@ impl super::Study {
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!(
-                "panel class Pulse fits {} identified completions on {} units; \
-                 mixture weights are completion masses, not stacked-row circular blocks",
-                fitted.len(),
-                panel.unit_count()
+                "panel class Pulse fits {fitted} identified completions on {units} units; \
+                 mixture weights are completion masses, not stacked-row circular blocks"
             ),
         ));
-        let (refutations, na_diagnostics) = self.panel_class_pulse_refutations(
-            panel,
-            query,
-            &refute_atoms,
-            EstimatorId::TemporalLinearAdjustment.as_str(),
-            ctx,
-        )?;
-        diagnostics.extend(na_diagnostics);
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
+    }
+
+    /// Envelope and estimand disclosures that open a Bayesian panel class effect.
+    fn panel_class_bayesian_disclosures(
+        &self,
+        envelope: &antecedent_identify::IdentificationEnvelope<
+            antecedent_identify::TemporalCompletionGraph,
+        >,
+        no_class_prior: bool,
+        panel_units: usize,
+    ) -> Vec<Diagnostic> {
+        let mut diagnostics = vec![super::temporal_path::temporal_class_envelope_diagnostic(
+            envelope,
+            self.graph.class(),
+        )];
+        if no_class_prior {
+            diagnostics.push(super::temporal_path::enumeration_not_probability_diagnostic());
         }
-        let mut estimate = EffectEstimate::from_parts(
-            ate,
-            se_analytic,
-            None,
-            None,
-            None,
-            ctx.cancellation.is_cancelled(),
-            false,
-            assumptions,
-            OverlapPolicy::ExplicitOverride,
-            None,
-            None,
-        );
-        boot.attach(&mut estimate, self.bootstrap_replicates);
-        let bootstrap_ok = estimate.bootstrap_replicates_ok;
-        let cancelled = estimate.bootstrap_cancelled;
-        let identification = envelope_to_identification_result_for(
-            envelope,
-            CausalQuery::TemporalEffect(query.clone()),
-        );
-        let structural = super::temporal_path::temporal_class_structural_mixture(
-            envelope,
-            crate::result::StructuralWeightBasis::CompletionEnumeration,
-            None,
-            &atom_values,
-        );
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::TemporalLinearAdjustment,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: bootstrap_ok,
-            cancelled,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
-                    strategy: identifier_id,
-                    structure_version: self.graph.version(),
-                }),
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                bootstrap_replicates_requested: (self.bootstrap_replicates > 0)
-                    .then_some(Some(self.bootstrap_replicates)),
-                ..Default::default()
-            },
-        }))
+        diagnostics.push(pooled_panel_estimand_diagnostic(PanelClusters::Units, panel_units));
+        diagnostics.push(Diagnostic::new(
+            "estimate.temporal_effect.panel.class.bayesian_units",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "each completion is the panel hierarchical GLS posterior (unit random intercepts) \
+             of its pooled design; completion posteriors are mixed only under a caller class \
+             prior",
+        ));
+        diagnostics
     }
 
     /// Bayesian panel class Pulse / single-step Sustained under the series class-prior
@@ -465,163 +594,28 @@ impl super::Study {
             .as_ref()
             .map(|prior| prior.masses_for_envelope(&bundle.envelope))
             .transpose()?;
-        let mut diagnostics = vec![super::temporal_path::temporal_class_envelope_diagnostic(
+        let mut diagnostics = self.panel_class_bayesian_disclosures(
             envelope,
-            self.graph.class(),
-        )];
-        if class_masses.is_none() {
-            diagnostics.push(super::temporal_path::enumeration_not_probability_diagnostic());
-        }
-        diagnostics
-            .push(pooled_panel_estimand_diagnostic(PanelClusters::Units, panel.unit_count()));
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal_effect.panel.class.bayesian_units",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "each completion is the panel hierarchical GLS posterior (unit random intercepts) \
-             of its pooled design; completion posteriors are mixed only under a caller class \
-             prior",
-        ));
-        let unit_ids = panel_unit_ids(panel);
-        let mut weights = Vec::new();
-        let mut flags = Vec::new();
-        let mut keys = Vec::new();
-        let mut per_graph = Vec::new();
-        let mut fits: Vec<(
-            u64,
-            antecedent_estimate::PreparedBayesianProblem,
-            Option<PriorSet>,
-            u64,
-        )> = Vec::new();
-        let mut posteriors: Vec<(u64, CausalPosterior)> = Vec::new();
-        let mut case_means: Vec<Option<f64>> = vec![None; envelope.cases.len()];
-        let mut primary_estimand = None;
-        let mut envelope_conflict = None;
-        let mut refute_atoms = Vec::new();
-        let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
-        let mut ws = BayesianGCompWorkspace::default();
-        for (i, (case, indexer)) in
-            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
-        {
-            let key = case.graph.fingerprint();
-            keys.push(key);
-            weights.push(class_masses.as_ref().map_or(case.weight.0, |masses| masses[i]));
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            }
-            flags.push(GraphIdentFlag::Identified);
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-            let atom = PanelPulseAtom::prepare(
-                panel,
-                &estimand,
-                query,
-                indexer,
-                self.split.as_ref(),
-                ctx,
-                weights[i],
-            )?;
-            let (prep, cluster_ids, _) = atom.stacked(&unit_ids)?;
-            let mut bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
-            bprep.unit_ids = Some(cluster_ids);
-            let (resolved, conflict) =
-                resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
-            // Each completion draws from its own seed stream; completions fitting the
-            // same problem under the same prior share a seed, so one model carries one
-            // posterior.
-            let seed = fits
-                .iter()
-                .find(|(_, fitted, prior, _)| {
-                    *prior == resolved && same_fitted_problem(fitted, &bprep)
-                })
-                .map_or_else(|| completion_fit_seed(ctx, key), |(_, _, _, seed)| *seed);
-            bayes.inner.prior.clone_from(&resolved);
-            bayes.inner.seed = seed;
-            let mut posterior =
-                bayes.fit(&bprep, case.result.status, &mut ws, ctx).map_err(CausalError::from)?;
-            if let Some(summary) = conflict.as_ref() {
-                push_conflict_diagnostics(&mut diagnostics, summary);
-                posterior = with_conflict_summary(posterior, summary.clone());
-            }
-            envelope_conflict = envelope_conflict.or(conflict);
-            let mut atom_estimate = effect_from_posterior(&posterior)?;
-            atom_estimate.assumptions = case.result.required_assumptions.clone();
-            case_means[i] = Some(atom_estimate.ate);
-            refute_atoms.push(PanelRefuteAtom {
-                key,
-                estimand: estimand.clone(),
-                indexer: indexer.clone(),
-                estimate: atom_estimate,
-            });
-            if let Some(draws) = posterior
-                .effect_column()
-                .and_then(|col| posterior.draws.column(col).ok().map(|d| Arc::from(d.to_vec())))
-            {
-                per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: draws });
-            }
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand);
-            }
-            fits.push((key, bprep, resolved, seed));
-            posteriors.push((key, posterior));
-        }
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "panel class-aware envelope had no estimable identified cases".into(),
-        })?;
-        let evaluable_mass_positive = fits
-            .iter()
-            .any(|(key, ..)| keys.iter().zip(&weights).any(|(k, w)| k == key && *w > 0.0));
-        let (estimate, posterior, weight_basis) =
-            super::temporal_path::mix_class_effect_posteriors(
-                super::temporal_path::ClassPosteriorMix {
-                    class_prior_supplied: class_masses.is_some(),
-                    truncated_completions: envelope.truncated_completions,
-                    evaluable_mass_positive,
-                    weights,
-                    flags,
-                    keys,
-                    per_graph: &per_graph,
-                    conflict: envelope_conflict,
-                    label: "panel_temporal_class_envelope",
-                },
-                posteriors.iter().map(|(_, posterior)| posterior),
+            class_masses.is_none(),
+            panel.unit_count(),
+        );
+        let mut state = PanelClassPosteriors::new(
+            cfg,
+            panel,
+            query,
+            ctx,
+            self.split.as_ref(),
+            envelope.cases.len(),
+        );
+        state.fit_cases(&bundle.envelope, class_masses.as_deref(), &mut diagnostics)?;
+        let PanelClassBayesianMix { estimate, posterior, structural, estimand, refute_atoms } =
+            state.mix(
+                envelope,
+                class_masses.as_deref(),
+                self.bootstrap_replicates,
+                panel.total_rows(),
                 &mut diagnostics,
             )?;
-        let mut structural = super::temporal_path::temporal_class_structural_mixture(
-            envelope,
-            weight_basis,
-            class_masses.as_deref(),
-            &case_means,
-        );
-        structural.identified_set_interval = posterior_identified_set_interval(
-            posteriors.iter().map(|(_, posterior)| posterior),
-            panel.total_rows(),
-            envelope.truncated_completions > 0,
-        );
-        diagnostics.extend(
-            structural
-                .identified_set_interval
-                .as_ref()
-                .into_iter()
-                .flat_map(identified_set_interval_diagnostics),
-        );
-        for atom in &mut structural.atoms {
-            atom.posterior = posteriors
-                .iter()
-                .find(|(key, _)| *key == atom.graph_key)
-                .map(|(_, posterior)| posterior.clone());
-        }
-        if self.bootstrap_replicates > 0 {
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal_effect.panel.class.bootstrap_not_used",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "Bayesian panel class effects carry posterior uncertainty; requested bootstrap \
-                 replicates are not used",
-            ));
-        }
         let (refutations, na_diagnostics) = self.panel_class_pulse_refutations(
             panel,
             query,
@@ -637,27 +631,23 @@ impl super::Study {
             envelope,
             CausalQuery::TemporalEffect(query.clone()),
         );
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::BayesianTemporalGcomp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, EstimatorId::BayesianTemporalGcomp),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
+                    envelope: (*bundle.envelope).clone(),
                     strategy: identifier_id,
                     structure_version: self.graph.version(),
                 }),
@@ -670,8 +660,8 @@ impl super::Study {
                 )),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// The panel Pulse refuters of every fitted completion, as the DAG panel route
@@ -691,7 +681,7 @@ impl super::Study {
             return Ok((reports, diagnostics));
         }
         let stacked = stack_panel_tabular(panel).map_err(CausalError::from)?;
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let ate_q = temporal_refuter_average(query);
         let mut workspace = EstimationWorkspace::default();
         for atom in atoms {
             let temporal_ctx = TemporalRefitContext {
@@ -702,19 +692,17 @@ impl super::Study {
                 time_index: None,
                 panel: Some(panel),
             };
-            let (mut local, local_diagnostics) = run_refuters(
-                &stacked,
-                &atom.estimand,
-                &ate_q,
-                &atom.estimate,
-                &mut workspace,
-                None,
-                ctx,
-                self.refute,
+            let (mut local, local_diagnostics) = RefutationRun {
+                data: &stacked,
+                estimand: &atom.estimand,
+                query: &ate_q,
+                estimate: &atom.estimate,
+                suite: self.refute,
                 estimator,
-                &self.custom_validators,
-                Some(temporal_ctx),
-            )?;
+                custom: &self.custom_validators,
+                temporal: Some(temporal_ctx),
+            }
+            .reports(&mut workspace, None, ctx)?;
             for report in &mut local {
                 report.refuter = Arc::from(format!("completion.{}.{}", atom.key, report.refuter));
             }
@@ -724,16 +712,10 @@ impl super::Study {
         Ok((reports, diagnostics))
     }
 
-    pub(super) fn execute_panel_response(
-        &self,
-        panel: &PanelData,
-        graph: &TemporalDag,
+    /// Refuses panel response queries outside the licensed slice and returns their temporal spec.
+    fn panel_response_temporal_spec(
         query: &ResponseQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        self.refuse_unlicensed_panel(panel)?;
-        let started = Instant::now();
+    ) -> Result<&antecedent_core::TemporalResponseSpec, CausalError> {
         if query.observation != ObservationSpec::Complete {
             return Err(CausalError::Unsupported {
                 message: "panel response is licensed for complete observations only",
@@ -754,7 +736,20 @@ impl super::Study {
                           series sequential owner",
             });
         }
-        let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
+        Ok(temporal)
+    }
+
+    /// Per-horizon temporal identification of a panel response, from the prepared cache when present.
+    fn panel_response_identification(
+        &self,
+        graph: &TemporalDag,
+        query: &ResponseQuery,
+        temporal: &antecedent_core::TemporalResponseSpec,
+        treatment: antecedent_core::VariableId,
+        outcome: antecedent_core::VariableId,
+        ctx: &ExecutionContext,
+    ) -> Result<(Arc<crate::analysis::prepared::CachedTemporalIdentification>, bool), CausalError>
+    {
         let (cache, identify_cached) =
             if let Some(cache) = self.temporal_identification_cache.clone() {
                 (cache, true)
@@ -763,17 +758,83 @@ impl super::Study {
                 (
                     Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
                         graph,
-                        treatment,
-                        outcome,
-                        temporal,
-                        &query.target_population,
                         EstimatorId::TemporalResponseGcomp,
-                        None,
-                        crate::analysis::prepared::single_step_dose(query)?,
+                        &crate::analysis::prepared::TemporalResponseIdentificationRequest {
+                            treatment,
+                            outcome,
+                            temporal,
+                            target_population: &query.target_population,
+                            schedule: None,
+                            dose: crate::analysis::prepared::single_step_dose(query)?,
+                        },
                     )?),
                     false,
                 )
             };
+        Ok((cache, identify_cached))
+    }
+
+    /// Discloses the unit-average estimand, band contract and skipped refuters of a panel response.
+    fn push_panel_response_disclosures(
+        &self,
+        diagnostics: &mut Vec<Diagnostic>,
+        units: usize,
+        response: &CausalResponse,
+    ) {
+        diagnostics.push(Diagnostic::new(
+            "estimate.temporal_response.panel.cluster_units",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "panel response averages {units} unit surfaces; pointwise bands use \
+                 between-unit cluster variation, not stacked-row circular blocks"
+            ),
+        ));
+        diagnostics.push(unit_average_estimand_diagnostic(
+            "estimate.temporal_response.panel.estimand",
+            units,
+        ));
+        diagnostics.push(panel_between_unit_band_diagnostic(units));
+        diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
+        if self.inference.is_bayesian() {
+            diagnostics.push(Diagnostic::new(
+                "estimate.temporal_response.panel.bayesian_cluster_band",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "Bayesian panel response mixes per-unit posterior means; the published band is \
+                 frequentist between-unit cluster variation, not a posterior interval",
+            ));
+        }
+        diagnostics.push(Diagnostic::new(
+            "response.simultaneous_band_withheld",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "panel response withholds a simultaneous band: series circular-block simultaneous \
+             coverage does not transfer to a unit-cluster contract",
+        ));
+        diagnostics.push(Diagnostic::new(
+            "refute.temporal_response.skipped",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "scalar ATE refuters are not applicable to a function-valued temporal response",
+        ));
+        diagnostics.extend(response.support.warnings.iter().cloned());
+    }
+
+    pub(super) fn execute_panel_response(
+        &self,
+        panel: &PanelData,
+        graph: &TemporalDag,
+        query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.refuse_unlicensed_panel(panel)?;
+        let started = Instant::now();
+        let temporal = Self::panel_response_temporal_spec(query)?;
+        let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
+        let (cache, identify_cached) =
+            self.panel_response_identification(graph, query, temporal, treatment, outcome, ctx)?;
         let mut aligned = Vec::with_capacity(temporal.horizons.len());
         for &horizon in temporal.horizons.iter() {
             let entry = cache.get(horizon).ok_or_else(|| CausalError::Compile {
@@ -797,16 +858,13 @@ impl super::Study {
             panel,
             &aligned,
             query,
-            aggregate_status,
-            &aggregate_assumptions,
+            IdentificationBasis { status: aggregate_status, assumptions: &aggregate_assumptions },
             &self.inference,
             ctx,
             &mut diagnostics,
         )?;
-        let mut response = average_unit_panel_responses(
-            &unit_responses,
-            matches!(self.inference, InferenceMode::Bayesian(_)),
-        )?;
+        let mut response =
+            average_unit_panel_responses(&unit_responses, self.inference.is_bayesian())?;
         if let Some(per_horizon) = response.horizon_identification.as_mut() {
             for (record, entry) in Arc::make_mut(per_horizon).iter_mut().zip(&aligned) {
                 record.status = entry.identification.status;
@@ -826,69 +884,25 @@ impl super::Study {
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal_response.panel.cluster_units",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "panel response averages {} unit surfaces; pointwise bands use between-unit \
-                 cluster variation, not stacked-row circular blocks",
-                unit_responses.len()
-            ),
-        ));
-        diagnostics.push(unit_average_estimand_diagnostic(
-            "estimate.temporal_response.panel.estimand",
-            unit_responses.len(),
-        ));
-        diagnostics.push(panel_between_unit_band_diagnostic(unit_responses.len()));
-        diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal_response.panel.bayesian_cluster_band",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "Bayesian panel response mixes per-unit posterior means; the published band is \
-                 frequentist between-unit cluster variation, not a posterior interval",
-            ));
-        }
-        diagnostics.push(Diagnostic::new(
-            "response.simultaneous_band_withheld",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Warning,
-            "panel response withholds a simultaneous band: series circular-block simultaneous \
-             coverage does not transfer to a unit-cluster contract",
-        ));
-        diagnostics.push(Diagnostic::new(
-            "refute.temporal_response.skipped",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "scalar ATE refuters are not applicable to a function-valued temporal response",
-        ));
-        diagnostics.extend(response.support.warnings.iter().cloned());
+        self.push_panel_response_disclosures(&mut diagnostics, unit_responses.len(), &response);
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                EstimatorId::TemporalResponseBayesian
-            } else {
-                EstimatorId::TemporalResponseGcomp
-            },
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    EstimatorId::temporal_response_for(&self.inference),
+                ),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "identify.temporal_backdoor",
                     "identify.temporal.backdoor.unfolded",
@@ -901,8 +915,8 @@ impl super::Study {
                 response: Some(response),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub(super) fn execute_panel_class_response(
@@ -914,141 +928,37 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         self.refuse_unlicensed_panel(panel)?;
         let started = Instant::now();
-        if query.observation != ObservationSpec::Complete {
-            return Err(CausalError::Unsupported {
-                message: "panel response is licensed for complete observations only",
-            });
-        }
-        let Some(temporal) = query.temporal.as_ref() else {
-            return Err(CausalError::Compile {
-                message: "panel response route requires TemporalResponseSpec".into(),
-            });
-        };
-        if antecedent_estimate::plan_from_response_query(query)
-            .map_err(CausalError::from)?
-            .and_then(|plan| plan.mechanism_overlays())
-            .is_some()
-        {
-            return Err(CausalError::Unsupported {
-                message: "panel multi-step Sequence overlays are not licensed; keep the \
-                          series sequential owner",
-            });
-        }
+        let temporal = Self::panel_response_temporal_spec(query)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(IdentifierId::GeneralizedAdjustment.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let identify_cached = self.temporal_class_cache_covers(&temporal.horizons);
-        if self.temporal_class_identification_cache.is_some() && !identify_cached {
-            return Err(CausalError::Compile {
-                message: "prepared panel class identification cache missing a requested horizon"
-                    .into(),
-            });
-        }
-        let mut diagnostics = Vec::new();
-        let mut assembly = super::temporal_path::ClassResponseAssembly::new(query, temporal)?;
-        let mut class_weights =
-            super::temporal_path::TemporalClassWeights::new(self.class_prior.as_ref());
-        let mut primary_estimand = None;
-        let mut primary_identification = None;
-        let mut primary_envelope = None;
-        let mut assumptions = antecedent_core::AssumptionSet::default();
-        let mut n_fitted = 0usize;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
+        let identify_cached = self.panel_class_response_cache_covers(temporal)?;
+        let run = PanelClassResponseRun {
+            panel,
+            query,
+            temporal,
+            treatment,
+            outcome,
+            identifier_id,
+            identify_cached,
+            ctx,
+        };
+        let mut state = PanelClassResponseState::new(
+            super::temporal_path::ClassResponseAssembly::new(query, temporal)?,
+            super::temporal_path::TemporalClassWeights::new(self.class_prior.as_ref()),
+        );
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
-            let horizon_query = TemporalEffectQuery {
-                treatment,
-                outcome,
-                policy: temporal.policy.clone(),
-                control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-                active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
-                horizon_steps: horizon,
-                max_history_lag: temporal.max_history_lag,
-                target_population: query.target_population.clone(),
-            };
-            if !identify_cached {
-                report_identify_compute(ctx);
-            }
-            let bundle = self.identify_temporal_class(identifier_id, &horizon_query)?;
-            let envelope = &bundle.envelope.envelope;
-            diagnostics.push(super::temporal_path::temporal_class_envelope_diagnostic(
-                envelope,
-                self.graph.class(),
-            ));
-            if matches!(envelope.status, IdentificationStatus::NotIdentified)
-                || envelope.identified_weight.0 <= 0.0
-            {
-                return Err(CausalError::not_identified(
-                    envelope.status,
-                    envelope.truncated_completions > 0,
-                    "panel class-aware response not identified (no identified mass in envelope)",
-                ));
-            }
-            let weights = class_weights.for_envelope(&bundle.envelope)?;
-            assembly.begin_horizon(envelope);
-            let mut qh = query.clone();
-            let mut temporal_h = temporal.clone();
-            temporal_h.horizons = Arc::from([horizon]);
-            qh.temporal = Some(temporal_h);
-            n_fitted = 0;
-            for (case_index, (case, indexer)) in
-                envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
-            {
-                if !identification_status_ok_for_case(case.result.status)
-                    || case.result.estimands.is_empty()
-                {
-                    assembly.push_unevaluated(
-                        horizon_index,
-                        case_index,
-                        weights[case_index],
-                        case.result.status,
-                    );
-                    continue;
-                }
-                let estimand =
-                    select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-                let entry = crate::analysis::prepared::CachedTemporalHorizonIdentification {
-                    horizon,
-                    identification: case.result.clone(),
-                    estimand: estimand.clone(),
-                    indexer: indexer.clone(),
-                };
-                let unit_responses = fit_unit_panel_responses(
-                    panel,
-                    &[&entry],
-                    &qh,
-                    case.result.status,
-                    &case.result.required_assumptions,
-                    &self.inference,
-                    ctx,
-                    &mut diagnostics,
-                )?;
-                let response = average_unit_panel_responses(
-                    &unit_responses,
-                    matches!(self.inference, InferenceMode::Bayesian(_)),
-                )?;
-                let atom_assumptions = response.assumptions.clone();
-                assembly.push_atom(
-                    horizon_index,
-                    case_index,
-                    weights[case_index],
-                    case.result.status,
-                    horizon,
-                    response,
-                )?;
-                n_fitted += 1;
-                if primary_estimand.is_none() {
-                    primary_estimand = Some(estimand);
-                    primary_identification = Some(case.result.clone());
-                    primary_envelope = Some(bundle.envelope.clone());
-                    assumptions = atom_assumptions;
-                }
-            }
-            assembly.end_horizon(horizon_index, horizon)?;
+            self.fit_panel_class_response_horizon(&run, &mut state, horizon_index, horizon)?;
         }
+        let PanelClassResponseState {
+            mut diagnostics,
+            assembly,
+            primary_estimand,
+            primary_identification,
+            primary_envelope,
+            assumptions,
+            n_fitted,
+            ..
+        } = state;
         let super::temporal_path::ClassResponseParts {
             response,
             response_envelope,
@@ -1075,6 +985,197 @@ impl super::Study {
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "panel class-aware response missing estimand".into(),
         })?;
+        self.push_panel_class_response_disclosures(
+            &mut diagnostics,
+            n_fitted,
+            panel.unit_count(),
+            &response,
+            identify_cached,
+        );
+        let structural = self.panel_class_response_structural(
+            assembly,
+            response_envelope,
+            temporal.horizons.len(),
+            [identified_mass, unidentified_mass, unevaluable_mass],
+        );
+        Ok(self.finish_class_response_tail(super::temporal_path::ClassResponseTail {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            endpoints: (treatment, outcome),
+            envelope: primary_envelope,
+            response,
+            structural,
+            diagnostics,
+            identify_cached,
+            bootstrap_replicates: None,
+            started,
+            ctx,
+            refutations: Vec::new(),
+            identify_provenance: None,
+            estimate_provenance: None,
+        }))
+    }
+
+    /// Whether the prepared class cache covers every requested horizon of the panel response.
+    fn panel_class_response_cache_covers(
+        &self,
+        temporal: &antecedent_core::TemporalResponseSpec,
+    ) -> Result<bool, CausalError> {
+        let identify_cached = self.temporal_class_cache_covers(&temporal.horizons);
+        if self.temporal_class_identification_cache.is_some() && !identify_cached {
+            return Err(CausalError::Compile {
+                message: "prepared panel class identification cache missing a requested horizon"
+                    .into(),
+            });
+        }
+        Ok(identify_cached)
+    }
+
+    /// Opens one horizon of a panel class response: identifies its envelope and builds its query.
+    fn open_panel_class_response_horizon(
+        &self,
+        run: &PanelClassResponseRun<'_>,
+        state: &mut PanelClassResponseState<'_>,
+        horizon: u32,
+    ) -> Result<
+        (
+            Arc<crate::analysis::prepared::CachedTemporalClassIdentification>,
+            Vec<f64>,
+            ResponseQuery,
+        ),
+        CausalError,
+    > {
+        let horizon_query = super::temporal_path::unit_contrast_query(
+            run.temporal,
+            (run.treatment, run.outcome),
+            horizon,
+            run.query.target_population.clone(),
+        );
+        if !run.identify_cached {
+            report_identify_compute(run.ctx);
+        }
+        let bundle = self.identify_temporal_class(run.identifier_id, &horizon_query)?;
+        let envelope = &bundle.envelope.envelope;
+        state.diagnostics.push(super::temporal_path::temporal_class_envelope_diagnostic(
+            envelope,
+            self.graph.class(),
+        ));
+        if matches!(envelope.status, IdentificationStatus::NotIdentified)
+            || envelope.identified_weight.0 <= 0.0
+        {
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "panel class-aware response not identified (no identified mass in envelope)",
+            ));
+        }
+        let weights = state.class_weights.for_envelope(&bundle.envelope)?;
+        state.assembly.begin_horizon(envelope);
+        let mut qh = run.query.clone();
+        let mut temporal_h = run.temporal.clone();
+        temporal_h.horizons = Arc::from([horizon]);
+        qh.temporal = Some(temporal_h);
+        Ok((bundle, weights, qh))
+    }
+
+    /// Fits every identified completion of one horizon and records it in the class assembly.
+    fn fit_panel_class_response_horizon(
+        &self,
+        run: &PanelClassResponseRun<'_>,
+        state: &mut PanelClassResponseState<'_>,
+        horizon_index: usize,
+        horizon: u32,
+    ) -> Result<(), CausalError> {
+        let (bundle, weights, qh) = self.open_panel_class_response_horizon(run, state, horizon)?;
+        let envelope = &bundle.envelope.envelope;
+        state.n_fitted = 0;
+        let mut unit_fits: CompletionFitMemo<Vec<CausalResponse>, ResponseFitKey> =
+            CompletionFitMemo::default();
+        for (case_index, (case, indexer)) in
+            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
+        {
+            if !identification_status_ok_for_case(case.result.status)
+                || case.result.estimands.is_empty()
+            {
+                state.assembly.push_unevaluated(
+                    horizon_index,
+                    case_index,
+                    weights[case_index],
+                    case.result.status,
+                );
+                continue;
+            }
+            let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+            let entry = crate::analysis::prepared::CachedTemporalHorizonIdentification {
+                horizon,
+                identification: case.result.clone(),
+                estimand: estimand.clone(),
+                indexer: indexer.clone(),
+            };
+            // Completions given the same estimand, indexer, status and
+            // state.assumptions fit every unit once: the run.panel, the horizon's
+            // query, the inference mode and the seed are fixed here, and
+            // the conflict state.diagnostics of a repeated fit are already
+            // present (they are reported once per distinct message).
+            let fit_key = ResponseFitKey::new(
+                &estimand,
+                indexer,
+                case.result.status,
+                &case.result.required_assumptions,
+            );
+            let unit_responses = if let Some(hit) = unit_fits.get(&fit_key) {
+                hit.clone()
+            } else {
+                let fitted = fit_unit_panel_responses(
+                    run.panel,
+                    &[&entry],
+                    &qh,
+                    IdentificationBasis {
+                        status: case.result.status,
+                        assumptions: &case.result.required_assumptions,
+                    },
+                    &self.inference,
+                    run.ctx,
+                    &mut state.diagnostics,
+                )?;
+                unit_fits.insert(fit_key, fitted.clone());
+                fitted
+            };
+            let response =
+                average_unit_panel_responses(&unit_responses, self.inference.is_bayesian())?;
+            let atom_assumptions = response.assumptions.clone();
+            state.assembly.push_atom(
+                horizon_index,
+                case_index,
+                weights[case_index],
+                case.result.status,
+                horizon,
+                response,
+            )?;
+            state.n_fitted += 1;
+            if state.primary_estimand.is_none() {
+                state.primary_estimand = Some(estimand);
+                state.primary_identification = Some(case.result.clone());
+                state.primary_envelope = Some(bundle.envelope.clone());
+                state.assumptions = atom_assumptions;
+            }
+        }
+        state.assembly.end_horizon(horizon_index, horizon)?;
+        state.assembly.end_horizon(horizon_index, horizon)
+    }
+
+    /// Disclosures of a panel class response: completion count, band contract, estimand.
+    fn push_panel_class_response_disclosures(
+        &self,
+        diagnostics: &mut Vec<Diagnostic>,
+        n_fitted: usize,
+        panel_units: usize,
+        response: &CausalResponse,
+        identify_cached: bool,
+    ) {
         diagnostics.push(Diagnostic::new(
             "estimate.temporal_response.panel.class.cluster_units",
             DiagnosticKind::Scientific,
@@ -1086,7 +1187,7 @@ impl super::Study {
             ),
         ));
         diagnostics.extend(super::temporal_path::class_response_identified_set_diagnostics(
-            matches!(self.inference, InferenceMode::Bayesian(_)),
+            self.inference.is_bayesian(),
             self.class_prior.is_some(),
         ));
         diagnostics.push(Diagnostic::new(
@@ -1098,23 +1199,34 @@ impl super::Study {
         ));
         diagnostics.push(unit_average_estimand_diagnostic(
             "estimate.temporal_response.panel.estimand",
-            panel.unit_count(),
+            panel_units,
         ));
-        diagnostics.push(panel_between_unit_band_diagnostic(panel.unit_count()));
+        diagnostics.push(panel_between_unit_band_diagnostic(panel_units));
         diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
         diagnostics.extend(response.support.warnings.iter().cloned());
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
+    }
+
+    /// Structural mixture of a panel class response, with the caller-prior conditional mean.
+    fn panel_class_response_structural(
+        &self,
+        assembly: super::temporal_path::ClassResponseAssembly,
+        response_envelope: antecedent_core::ResponseEnvelope,
+        n_horizons: usize,
+        masses: [f64; 3],
+    ) -> crate::result::StructuralResponseMixture {
+        let [identified_mass, unidentified_mass, unevaluable_mass] = masses;
         let conditional = self.class_prior.as_ref().and_then(|_| {
             super::temporal_path::temporal_class_response_mean(
                 &assembly.structural_atoms,
                 &response_envelope,
-                temporal.horizons.len(),
+                n_horizons,
                 assembly.full_mass_scope,
             )
         });
-        let structural = crate::result::StructuralResponseMixture {
+        crate::result::StructuralResponseMixture {
             weight_basis: if self.class_prior.is_some() {
                 crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
             } else {
@@ -1130,44 +1242,200 @@ impl super::Study {
             conditional_on_identified: conditional,
             full_mass_scope: assembly.full_mass_scope,
             truncated_atoms: assembly.truncated_atoms,
+        }
+    }
+
+    /// Disclosures that open a panel class sequential effect.
+    fn panel_class_sequential_disclosures(
+        &self,
+        envelope: &antecedent_identify::IdentificationEnvelope<
+            antecedent_identify::TemporalCompletionGraph,
+        >,
+        panel_units: usize,
+        bayesian_without_class_prior: bool,
+    ) -> Vec<Diagnostic> {
+        let mut diagnostics = vec![super::temporal_path::temporal_class_envelope_diagnostic(
+            envelope,
+            self.graph.class(),
+        )];
+        diagnostics.push(unit_average_estimand_diagnostic(
+            "estimate.temporal_effect.panel.estimand",
+            panel_units,
+        ));
+        diagnostics.push(Diagnostic::new(
+            "estimate.temporal.sustained_window",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "each completion's sequential contrast propagates through all intervened times and \
+             is fit per panel unit, then averaged with equal unit weight; bidirected MAG \
+             completions stay unevaluable",
+        ));
+        if bayesian_without_class_prior {
+            diagnostics.push(super::temporal_path::enumeration_not_probability_diagnostic());
+        }
+        diagnostics
+    }
+
+    /// Fits each directed completion on every unit's own series, sharing seeds between
+    /// completions whose fitted mechanisms coincide.
+    fn fit_panel_sequential_completions(
+        run: &PanelSequentialRun<'_>,
+        envelope: &antecedent_identify::TemporalClassEnvelope,
+        class_masses: Option<&[f64]>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<PanelSequentialFits, CausalError> {
+        let mut fits = PanelSequentialFits {
+            weights: Vec::new(),
+            flags: Vec::new(),
+            keys: Vec::new(),
+            atom_values: vec![None; envelope.envelope.cases.len()],
+            per_graph: Vec::new(),
+            atoms: Vec::new(),
+            primary_estimand: None,
+            unevaluable_weight: 0.0,
         };
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                EstimatorId::TemporalResponseBayesian
-            } else {
-                EstimatorId::TemporalResponseGcomp
-            },
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: primary_envelope.map(|envelope| {
-                    crate::Identification::TemporalEnvelope {
-                        envelope,
-                        strategy: identifier_id,
-                        structure_version: self.graph.version(),
-                    }
-                }),
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                response: Some(response),
-                bootstrap_replicates_requested: Some(None),
-                ..Default::default()
-            },
-        }))
+        for (i, (case, indexer)) in
+            envelope.envelope.cases.iter().zip(envelope.indexers.iter()).enumerate()
+        {
+            let key = case.graph.fingerprint();
+            fits.keys.push(key);
+            let weight = class_masses.map_or(case.weight.0, |masses| masses[i]);
+            fits.weights.push(weight);
+            if !identification_status_ok_for_case(case.result.status)
+                || case.result.estimands.is_empty()
+            {
+                fits.flags.push(GraphIdentFlag::Unidentified);
+                continue;
+            }
+            let Some(dag) = case.graph.sequential_dag() else {
+                fits.flags.push(GraphIdentFlag::Unidentified);
+                fits.unevaluable_weight += weight;
+                diagnostics.push(mag_sequential_unevaluable_diagnostic(key));
+                continue;
+            };
+            let estimand = select_estimand(&case.result, EstimatorId::TemporalSequentialGcomp)
+                .or_else(|_| {
+                    select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)
+                })?;
+            fits.flags.push(GraphIdentFlag::Identified);
+            let mut assumptions = case.result.required_assumptions.clone();
+            assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
+            // Each completion's unit posteriors draw from that completion's seed; a
+            // completion whose fitted unit mechanisms coincide with an earlier one's
+            // is refit on that completion's seed, so one model carries one posterior.
+            let mut seed = completion_fit_seed(run.ctx, key);
+            let atom = loop {
+                let atom = fit_panel_sequential_atom(
+                    run.panel,
+                    PanelAtomProblem { dag: &dag, indexer, estimand: &estimand, query: run.query },
+                    IdentificationBasis { status: case.result.status, assumptions: &assumptions },
+                    run.bayes,
+                    seed,
+                    run.ctx,
+                )?;
+                let shared = fits
+                    .atoms
+                    .iter()
+                    .find(|(_, _, earlier)| {
+                        run.bayes.is_some()
+                            && earlier.seed != seed
+                            && earlier.same_mechanisms(&atom)
+                    })
+                    .map(|(_, _, earlier)| earlier.seed);
+                match shared {
+                    Some(shared) => seed = shared,
+                    None => break atom,
+                }
+            };
+            fits.atom_values[i] = Some(atom.mean());
+            if let Some(draws) = atom.mean_draws() {
+                fits.per_graph
+                    .push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
+            }
+            fits.primary_estimand.get_or_insert(estimand);
+            fits.atoms.push((weight, key, atom));
+        }
+        Ok(fits)
+    }
+
+    /// Mixes the fitted completions into the panel effect: class posterior, frozen-weight
+    /// unit mixture with its between-unit SE, or an unevaluable NaN effect.
+    fn mix_panel_sequential_estimate(
+        run: &PanelSequentialRun<'_>,
+        fits: &mut PanelSequentialFits,
+        class_masses_supplied: bool,
+        truncated_completions: usize,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<
+        (EffectEstimate, Option<CausalPosterior>, crate::result::StructuralWeightBasis),
+        CausalError,
+    > {
+        let total_weight: f64 = fits.weights.iter().sum();
+        let unevaluable_share =
+            if total_weight > 0.0 { fits.unevaluable_weight / total_weight } else { 0.0 };
+        let evaluable_weight: f64 = fits.atoms.iter().map(|(weight, ..)| *weight).sum();
+        let (estimate, posterior, weight_basis) = if run.bayes.is_some() {
+            let (estimate, mut posterior, basis) =
+                super::temporal_path::mix_class_effect_posteriors(
+                    super::temporal_path::ClassPosteriorMix {
+                        class_prior_supplied: class_masses_supplied,
+                        truncated_completions,
+                        evaluable_mass_positive: evaluable_weight > 0.0,
+                        weights: std::mem::take(&mut fits.weights),
+                        flags: std::mem::take(&mut fits.flags),
+                        keys: std::mem::take(&mut fits.keys),
+                        per_graph: &fits.per_graph,
+                        conflict: None,
+                        label: "panel_temporal_class_sequential",
+                    },
+                    std::iter::empty(),
+                    diagnostics,
+                )?;
+            // Unevaluable (bidirected) completions are flagged unidentified for the
+            // mixture, which never draws from them; their share is unevaluable mass.
+            if let Some(mixed) = posterior.as_mut() {
+                mixed.unidentified_mass = (mixed.unidentified_mass - unevaluable_share).max(0.0);
+            }
+            (estimate, posterior, basis)
+        } else if evaluable_weight > 0.0 {
+            // Frozen completion weights: each unit's mixture contrast, averaged over
+            // units, with the between-unit SE of that per-unit mixture (it carries the
+            // completions' covariance through the shared units).
+            let units = run.panel.unit_count();
+            let unit_mixture: Vec<f64> = (0..units)
+                .map(|u| {
+                    fits.atoms
+                        .iter()
+                        .map(|(w, _, atom)| w / evaluable_weight * atom.unit_ates[u])
+                        .sum()
+                })
+                .collect();
+            let ate = unit_mixture.iter().sum::<f64>() / units as f64;
+            let se = antecedent_stats::sample_std(&unit_mixture) / (units as f64).sqrt()
+                * antecedent_stats::few_cluster_t_ratio(units, PANEL_INTERVAL_LEVEL);
+            diagnostics.push(Diagnostic::new(
+                "estimate.temporal_effect.panel.between_unit_se",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "SE is sd/sqrt(N) of the {} completions' frozen-weight mixture contrast over \
+                     N={units} units, with N-1 degrees of freedom, scaled by t_(N-1)/z = {:.4} \
+                     so estimate ± 1.96·SE is the 95% t_(N-1) interval",
+                    fits.atoms.len(),
+                    antecedent_stats::few_cluster_t_ratio(units, PANEL_INTERVAL_LEVEL),
+                ),
+            ));
+            let mut assumptions = fits.atoms[0].2.assumptions.clone();
+            assumptions.push(panel_estimand_assumption(PanelClusters::UnitAverage, units));
+            (
+                EffectEstimate::new(ate, se, assumptions, OverlapPolicy::ExplicitOverride),
+                None,
+                crate::result::StructuralWeightBasis::CompletionEnumeration,
+            )
+        } else {
+            (nan_effect(), None, crate::result::StructuralWeightBasis::CompletionEnumeration)
+        };
+        Ok((estimate, posterior, weight_basis))
     }
 
     /// Panel class multi-step Sustained: every directed completion's sequential
@@ -1198,197 +1466,41 @@ impl super::Study {
         } else {
             None
         };
-        let mut diagnostics = vec![super::temporal_path::temporal_class_envelope_diagnostic(
+        let mut diagnostics = self.panel_class_sequential_disclosures(
             envelope,
-            self.graph.class(),
-        )];
-        diagnostics.push(unit_average_estimand_diagnostic(
-            "estimate.temporal_effect.panel.estimand",
             panel.unit_count(),
-        ));
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal.sustained_window",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "each completion's sequential contrast propagates through all intervened times and \
-             is fit per panel unit, then averaged with equal unit weight; bidirected MAG \
-             completions stay unevaluable",
-        ));
-        if bayes.is_some() && class_masses.is_none() {
-            diagnostics.push(super::temporal_path::enumeration_not_probability_diagnostic());
-        }
-        let mut weights = Vec::new();
-        let mut flags = Vec::new();
-        let mut keys = Vec::new();
-        let mut atom_values: Vec<Option<f64>> = vec![None; envelope.cases.len()];
-        let mut per_graph = Vec::new();
-        let mut atoms: Vec<(f64, u64, PanelSequentialAtom)> = Vec::new();
-        let mut primary_estimand = None;
-        let mut unevaluable_weight = 0.0;
-        for (i, (case, indexer)) in
-            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
-        {
-            let key = case.graph.fingerprint();
-            keys.push(key);
-            let weight = class_masses.as_ref().map_or(case.weight.0, |masses| masses[i]);
-            weights.push(weight);
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            }
-            let Some(dag) = case.graph.sequential_dag() else {
-                flags.push(GraphIdentFlag::Unidentified);
-                unevaluable_weight += weight;
-                diagnostics.push(Diagnostic::new(
-                    "estimate.temporal_class.mag_sequential_unevaluable",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!(
-                        "completion {key} has bidirected edges; sequential g-comp is unevaluable"
-                    ),
-                ));
-                continue;
-            };
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalSequentialGcomp)
-                .or_else(|_| {
-                    select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)
-                })?;
-            flags.push(GraphIdentFlag::Identified);
-            let mut assumptions = case.result.required_assumptions.clone();
-            assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::ParametricRestriction(
-                    antecedent_core::ParametricAssumption {
-                        id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(
-                            "linear additive mechanisms on the identified unfolded DAG",
-                        ),
-                    },
-                ),
-                source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                    algorithm: Arc::from("temporal.sequential.gcomp"),
-                },
-                scope: antecedent_core::AssumptionScope::Estimation,
-                status: antecedent_core::AssumptionStatus::Declared,
-            });
-            // Each completion's unit posteriors draw from that completion's seed; a
-            // completion whose fitted unit mechanisms coincide with an earlier one's
-            // is refit on that completion's seed, so one model carries one posterior.
-            let mut seed = completion_fit_seed(ctx, key);
-            let atom = loop {
-                let atom = fit_panel_sequential_atom(
-                    panel,
-                    &dag,
-                    indexer,
-                    &estimand,
-                    query,
-                    case.result.status,
-                    &assumptions,
-                    bayes.as_ref(),
-                    seed,
-                    ctx,
-                )?;
-                let shared = atoms
-                    .iter()
-                    .find(|(_, _, earlier)| {
-                        bayes.is_some() && earlier.seed != seed && earlier.same_mechanisms(&atom)
-                    })
-                    .map(|(_, _, earlier)| earlier.seed);
-                match shared {
-                    Some(shared) => seed = shared,
-                    None => break atom,
-                }
-            };
-            atom_values[i] = Some(atom.mean());
-            if let Some(draws) = atom.mean_draws() {
-                per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws) });
-            }
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand);
-            }
-            atoms.push((weight, key, atom));
-        }
-        if atoms.is_empty() {
+            bayes.is_some() && class_masses.is_none(),
+        );
+        let run = PanelSequentialRun { panel, query, bayes: bayes.as_ref(), ctx };
+        let mut fits = Self::fit_panel_sequential_completions(
+            &run,
+            &bundle.envelope,
+            class_masses.as_deref(),
+            &mut diagnostics,
+        )?;
+        if fits.atoms.is_empty() {
             return Err(CausalError::Compile {
                 message: "panel class-aware multi-step envelope had no evaluable directed \
                           completions"
                     .into(),
             });
         }
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
+        let estimand = fits.primary_estimand.take().ok_or_else(|| CausalError::Compile {
             message: "panel class-aware sequential envelope missing estimand".into(),
         })?;
-        let total_weight: f64 = weights.iter().sum();
-        let unevaluable_share =
-            if total_weight > 0.0 { unevaluable_weight / total_weight } else { 0.0 };
-        let evaluable_weight: f64 = atoms.iter().map(|(weight, ..)| *weight).sum();
-        let (estimate, posterior, weight_basis) = if bayes.is_some() {
-            let (estimate, mut posterior, basis) =
-                super::temporal_path::mix_class_effect_posteriors(
-                    super::temporal_path::ClassPosteriorMix {
-                        class_prior_supplied: class_masses.is_some(),
-                        truncated_completions: envelope.truncated_completions,
-                        evaluable_mass_positive: evaluable_weight > 0.0,
-                        weights,
-                        flags,
-                        keys,
-                        per_graph: &per_graph,
-                        conflict: None,
-                        label: "panel_temporal_class_sequential",
-                    },
-                    std::iter::empty(),
-                    &mut diagnostics,
-                )?;
-            // Unevaluable (bidirected) completions are flagged unidentified for the
-            // mixture, which never draws from them; their share is unevaluable mass.
-            if let Some(mixed) = posterior.as_mut() {
-                mixed.unidentified_mass = (mixed.unidentified_mass - unevaluable_share).max(0.0);
-            }
-            (estimate, posterior, basis)
-        } else if evaluable_weight > 0.0 {
-            // Frozen completion weights: each unit's mixture contrast, averaged over
-            // units, with the between-unit SE of that per-unit mixture (it carries the
-            // completions' covariance through the shared units).
-            let units = panel.unit_count();
-            let unit_mixture: Vec<f64> = (0..units)
-                .map(|u| {
-                    atoms.iter().map(|(w, _, atom)| w / evaluable_weight * atom.unit_ates[u]).sum()
-                })
-                .collect();
-            let ate = unit_mixture.iter().sum::<f64>() / units as f64;
-            let se = antecedent_stats::sample_std(&unit_mixture) / (units as f64).sqrt()
-                * antecedent_stats::few_cluster_t_ratio(units, PANEL_INTERVAL_LEVEL);
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal_effect.panel.between_unit_se",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "SE is sd/sqrt(N) of the {} completions' frozen-weight mixture contrast over \
-                     N={units} units, with N-1 degrees of freedom, scaled by t_(N-1)/z = {:.4} \
-                     so estimate ± 1.96·SE is the 95% t_(N-1) interval",
-                    atoms.len(),
-                    antecedent_stats::few_cluster_t_ratio(units, PANEL_INTERVAL_LEVEL),
-                ),
-            ));
-            let mut assumptions = atoms[0].2.assumptions.clone();
-            assumptions.push(panel_estimand_assumption(PanelClusters::UnitAverage, units));
-            (
-                EffectEstimate::new(ate, se, assumptions, OverlapPolicy::ExplicitOverride),
-                None,
-                crate::result::StructuralWeightBasis::CompletionEnumeration,
-            )
-        } else {
-            (nan_effect(), None, crate::result::StructuralWeightBasis::CompletionEnumeration)
-        };
+        let (estimate, posterior, weight_basis) = Self::mix_panel_sequential_estimate(
+            &run,
+            &mut fits,
+            class_masses.is_some(),
+            envelope.truncated_completions,
+            &mut diagnostics,
+        )?;
+        let PanelSequentialFits { atoms, atom_values, unevaluable_weight, .. } = fits;
         let (refutations, validation_diagnostics, predictive_checks) =
             self.panel_sequential_validation(panel, query, &atoms, bayes.as_ref(), ctx)?;
         diagnostics.extend(validation_diagnostics);
         if self.bootstrap_replicates > 0 {
-            diagnostics.push(
-                panel_unit_average_bootstrap_note(self.bootstrap_replicates)
-                    .expect("a positive replicate request always yields the note"),
-            );
+            diagnostics.extend(panel_unit_average_bootstrap_note(self.bootstrap_replicates));
         }
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
@@ -1397,39 +1509,30 @@ impl super::Study {
             envelope,
             CausalQuery::TemporalEffect(query.clone()),
         );
-        let mut structural = super::temporal_path::temporal_class_structural_mixture(
+        let structural = panel_sequential_structural_mixture(
             envelope,
             weight_basis,
             class_masses.as_deref(),
             &atom_values,
+            unevaluable_weight,
         );
-        let total: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
-        if total > 0.0 {
-            structural.unevaluable_mass = unevaluable_weight / total;
-            structural.unidentified_mass =
-                (structural.unidentified_mass - structural.unevaluable_mass).max(0.0);
-        }
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::TemporalSequentialGcomp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, EstimatorId::TemporalSequentialGcomp),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
+                    envelope: (*bundle.envelope).clone(),
                     strategy: identifier_id,
                     structure_version: self.graph.version(),
                 }),
@@ -1443,8 +1546,8 @@ impl super::Study {
                 )),
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     /// Sequential validation of every completion on every unit's own series (the
@@ -1480,16 +1583,20 @@ impl super::Study {
                 });
                 let (mut local, local_diagnostics, local_checks) =
                     super::sequential_validation::validate_sequential(
-                        &unit.series,
-                        query,
+                        SequentialValidation {
+                            data: &unit.series,
+                            query,
+                            suite: self.refute,
+                            custom: &self.custom_validators,
+                            predictive_sims: super::super::latency::predictive_check_sims(
+                                self.latency_mode,
+                            ),
+                        },
                         std::slice::from_ref(&validation_atom),
-                        self.refute,
-                        &self.custom_validators,
                         unit_bayes.as_ref(),
                         posterior.as_mut(),
                         fit.estimate.ate,
                         ctx,
-                        super::super::latency::predictive_check_sims(self.latency_mode),
                     )?;
                 for report in &mut local {
                     report.refuter = Arc::from(format!(
@@ -1798,17 +1905,16 @@ fn panel_unit_average_bootstrap_note(requested: u32) -> Option<Diagnostic> {
 /// Bayesian inference a caller prior (explicit, artifact or external composition) is
 /// resolved against each unit's design with the series resolver, and its conflict
 /// diagnostics are reported once per distinct message.
-#[allow(clippy::too_many_arguments)]
 fn fit_unit_panel_responses(
     panel: &PanelData,
     entries: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
     query: &ResponseQuery,
-    status: IdentificationStatus,
-    assumptions: &antecedent_core::AssumptionSet,
+    basis: IdentificationBasis<'_>,
     inference: &InferenceMode,
     ctx: &ExecutionContext,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<Vec<CausalResponse>, CausalError> {
+    let IdentificationBasis { status, assumptions } = basis;
     let span = entries.iter().map(|entry| indexer_span(&entry.indexer)).max().unwrap_or(0);
     refuse_short_panel_units(panel, span)?;
     let identifications: Vec<_> =
@@ -1843,10 +1949,12 @@ fn fit_unit_panel_responses(
                     estimator
                         .estimate_bayesian(
                             &unit.series,
-                            &identifications,
+                            antecedent_estimate::TemporalIdentification {
+                                horizons: &identifications,
+                                status,
+                                assumptions: assumptions.clone(),
+                            },
                             query,
-                            status,
-                            assumptions.clone(),
                             &bayes,
                             ctx,
                         )
@@ -1944,45 +2052,57 @@ impl PanelSequentialAtom {
     }
 }
 
+/// The retained DBN, lag indexer, estimand and query one panel sequential atom fits.
+#[derive(Clone, Copy)]
+struct PanelAtomProblem<'a> {
+    dag: &'a TemporalDag,
+    indexer: &'a TemporalIndexer,
+    estimand: &'a IdentifiedEstimand,
+    query: &'a TemporalEffectQuery,
+}
+
 /// Fit one completion's sequential contrast on every unit's own series.
 ///
 /// A unit that yields a non-finite contrast refuses the completion: the survivor
 /// mean is not the panel effect. Under Bayesian inference each unit draws from its
 /// own stream of `seed`.
-#[allow(clippy::too_many_arguments)]
 fn fit_panel_sequential_atom(
     panel: &PanelData,
-    dag: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    query: &TemporalEffectQuery,
-    status: IdentificationStatus,
-    assumptions: &antecedent_core::AssumptionSet,
+    atom: PanelAtomProblem<'_>,
+    basis: IdentificationBasis<'_>,
     bayes: Option<&BayesianGComputationAte>,
     seed: u64,
     ctx: &ExecutionContext,
 ) -> Result<PanelSequentialAtom, CausalError> {
+    let PanelAtomProblem { dag, indexer, estimand, query } = atom;
+    let IdentificationBasis { status, assumptions } = basis;
     refuse_short_panel_units(panel, indexer_span(indexer))?;
     let mut units = Vec::with_capacity(panel.unit_count());
     let mut unit_ates = Vec::with_capacity(panel.unit_count());
     let mut last_assumptions = assumptions.clone();
     for (index, unit) in panel.units().iter().enumerate() {
-        let unit_seed =
-            completion_fit_seed(ctx, seed ^ (index as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+        let unit_seed = completion_fit_seed(
+            ctx,
+            seed ^ (index as u64 + 1).wrapping_mul(antecedent_core::GOLDEN_GAMMA),
+        );
         let unit_bayes =
             bayes.map(|estimator| BayesianGComputationAte { seed: unit_seed, ..estimator.clone() });
         let mut mechanisms = Vec::new();
         let (estimate, posterior) =
             antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                &unit.series,
-                dag,
-                indexer,
-                estimand,
+                &antecedent_estimate::SequentialProblem {
+                    data: &unit.series,
+                    graph: dag,
+                    indexer,
+                    estimand,
+                },
                 query,
-                status,
-                assumptions.clone(),
-                0,
-                unit_bayes.as_ref(),
+                antecedent_estimate::SequentialInference {
+                    status,
+                    assumptions: assumptions.clone(),
+                    bootstrap_replicates: 0,
+                    bayesian: unit_bayes.as_ref(),
+                },
                 ctx,
                 Some(&mut mechanisms),
             )
@@ -1997,7 +2117,7 @@ fn fit_panel_sequential_atom(
             });
         }
         unit_ates.push(estimate.ate);
-        last_assumptions = estimate.assumptions.clone();
+        last_assumptions = estimate.provenance.assumptions.clone();
         units.push(PanelSequentialUnitFit { estimate, posterior, mechanisms, seed: unit_seed });
     }
     Ok(PanelSequentialAtom {
@@ -2010,6 +2130,475 @@ fn fit_panel_sequential_atom(
         units,
         unit_ates,
     })
+}
+
+/// Bayesian pooled panel posterior with the resolved prior and its conflict summary.
+fn fit_pooled_panel_bayesian(
+    cfg: &BayesianConfig,
+    prep: &antecedent_estimate::PreparedEstimationProblem,
+    cluster_ids: &[u32],
+    status: IdentificationStatus,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, CausalPosterior), CausalError> {
+    let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
+    let mut bprep = BayesianGComputationAte::from_prepared_estimation(prep);
+    bprep.unit_ids = Some(cluster_ids.to_vec());
+    let (resolved_prior, conflict_summary) =
+        resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
+    bayes.inner.prior = resolved_prior;
+    let mut ws = BayesianGCompWorkspace::default();
+    let mut posterior = bayes.fit(&bprep, status, &mut ws, ctx).map_err(CausalError::from)?;
+    if let Some(summary) = conflict_summary {
+        posterior = with_conflict_summary(posterior, summary);
+    }
+    let estimate = effect_from_posterior(&posterior)?;
+    Ok((estimate, posterior))
+}
+
+/// The mass-weighted panel class effect with the completions behind it.
+struct PanelClassMixture {
+    ate: f64,
+    se_analytic: f64,
+    estimand: IdentifiedEstimand,
+    assumptions: antecedent_core::AssumptionSet,
+    fitted: Vec<PanelPulseAtom>,
+    refute_atoms: Vec<PanelRefuteAtom>,
+    atom_values: Vec<Option<f64>>,
+}
+
+/// Fitted completions of a panel class Pulse with the sums its mixture reads.
+struct PanelClassFits {
+    weighted_ate: f64,
+    se_items: Vec<(f64, f64)>,
+    total_w: f64,
+    primary_estimand: Option<IdentifiedEstimand>,
+    assumptions: antecedent_core::AssumptionSet,
+    fitted: Vec<PanelPulseAtom>,
+    refute_atoms: Vec<PanelRefuteAtom>,
+    atom_values: Vec<Option<f64>>,
+}
+
+/// Running per-completion fits of a Bayesian panel class effect.
+struct PanelClassPosteriors<'a> {
+    cfg: &'a BayesianConfig,
+    panel: &'a PanelData,
+    query: &'a TemporalEffectQuery,
+    ctx: &'a ExecutionContext,
+    split: Option<&'a DiscoveryEstimationSplit>,
+    unit_ids: Vec<u32>,
+    bayes: antecedent_estimate::BayesianTemporalGcomp,
+    ws: BayesianGCompWorkspace,
+    weights: Vec<f64>,
+    flags: Vec<GraphIdentFlag>,
+    keys: Vec<u64>,
+    per_graph: Vec<GraphEffectDraws>,
+    fits: Vec<(
+        u64,
+        antecedent_estimate::PreparedBayesianProblem,
+        Option<PriorSet>,
+        u64,
+        IdentificationStatus,
+    )>,
+    posteriors: Vec<(u64, CausalPosterior)>,
+    case_means: Vec<Option<f64>>,
+    primary_estimand: Option<IdentifiedEstimand>,
+    envelope_conflict: Option<antecedent_prob::ConflictSummary>,
+    refute_atoms: Vec<PanelRefuteAtom>,
+}
+
+impl<'a> PanelClassPosteriors<'a> {
+    /// Empty running fits for an envelope of `n_cases` completions.
+    fn new(
+        cfg: &'a BayesianConfig,
+        panel: &'a PanelData,
+        query: &'a TemporalEffectQuery,
+        ctx: &'a ExecutionContext,
+        split: Option<&'a DiscoveryEstimationSplit>,
+        n_cases: usize,
+    ) -> Self {
+        Self {
+            cfg,
+            panel,
+            query,
+            ctx,
+            split,
+            unit_ids: panel_unit_ids(panel),
+            bayes: bayesian_temporal_gcomp(cfg, ctx),
+            ws: BayesianGCompWorkspace::default(),
+            weights: Vec::new(),
+            flags: Vec::new(),
+            keys: Vec::new(),
+            per_graph: Vec::new(),
+            fits: Vec::new(),
+            posteriors: Vec::new(),
+            case_means: vec![None; n_cases],
+            primary_estimand: None,
+            envelope_conflict: None,
+            refute_atoms: Vec::new(),
+        }
+    }
+}
+
+/// The Bayesian panel class effect with its structural mixture and refutation atoms.
+struct PanelClassBayesianMix {
+    estimate: EffectEstimate,
+    posterior: Option<CausalPosterior>,
+    structural: crate::result::StructuralResponseMixture,
+    estimand: IdentifiedEstimand,
+    refute_atoms: Vec<PanelRefuteAtom>,
+}
+
+impl PanelClassPosteriors<'_> {
+    /// Fits every identified completion of the envelope, recording masses and flags in order.
+    fn fit_cases(
+        &mut self,
+        envelope: &antecedent_identify::TemporalClassEnvelope,
+        class_masses: Option<&[f64]>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<(), CausalError> {
+        for (i, (case, indexer)) in
+            envelope.envelope.cases.iter().zip(envelope.indexers.iter()).enumerate()
+        {
+            let key = case.graph.fingerprint();
+            self.keys.push(key);
+            self.weights.push(class_masses.map_or(case.weight.0, |masses| masses[i]));
+            if !identification_status_ok_for_case(case.result.status)
+                || case.result.estimands.is_empty()
+            {
+                self.flags.push(GraphIdentFlag::Unidentified);
+                continue;
+            }
+            self.flags.push(GraphIdentFlag::Identified);
+            self.fit_case(i, key, &case.result, indexer, diagnostics)?;
+        }
+        Ok(())
+    }
+
+    /// Mixes the completion posteriors into the class effect and its structural mixture.
+    fn mix(
+        self,
+        envelope: &antecedent_identify::IdentificationEnvelope<
+            antecedent_identify::TemporalCompletionGraph,
+        >,
+        class_masses: Option<&[f64]>,
+        bootstrap_replicates: u32,
+        total_rows: usize,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<PanelClassBayesianMix, CausalError> {
+        let PanelClassPosteriors {
+            weights,
+            flags,
+            keys,
+            per_graph,
+            fits,
+            posteriors,
+            case_means,
+            primary_estimand,
+            envelope_conflict,
+            refute_atoms,
+            ..
+        } = self;
+        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
+            message: "panel class-aware envelope had no estimable identified cases".into(),
+        })?;
+        let evaluable_mass_positive = fits
+            .iter()
+            .any(|(key, ..)| keys.iter().zip(&weights).any(|(k, w)| k == key && *w > 0.0));
+        let (estimate, posterior, weight_basis) =
+            super::temporal_path::mix_class_effect_posteriors(
+                super::temporal_path::ClassPosteriorMix {
+                    class_prior_supplied: class_masses.is_some(),
+                    truncated_completions: envelope.truncated_completions,
+                    evaluable_mass_positive,
+                    weights,
+                    flags,
+                    keys,
+                    per_graph: &per_graph,
+                    conflict: envelope_conflict,
+                    label: "panel_temporal_class_envelope",
+                },
+                posteriors.iter().map(|(_, posterior)| posterior),
+                diagnostics,
+            )?;
+        let structural = panel_class_structural_mixture(
+            envelope,
+            weight_basis,
+            class_masses,
+            &case_means,
+            &posteriors,
+            total_rows,
+            diagnostics,
+        );
+        if bootstrap_replicates > 0 {
+            diagnostics.push(Diagnostic::new(
+                "estimate.temporal_effect.panel.class.bootstrap_not_used",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "Bayesian panel class effects carry posterior uncertainty; requested bootstrap \
+                 replicates are not used",
+            ));
+        }
+        Ok(PanelClassBayesianMix { estimate, posterior, structural, estimand, refute_atoms })
+    }
+}
+
+impl PanelClassPosteriors<'_> {
+    /// Fits one identified completion's panel posterior, reusing an earlier identical fit.
+    fn fit_case(
+        &mut self,
+        i: usize,
+        key: u64,
+        result: &IdentificationResult,
+        indexer: &TemporalIndexer,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<(), CausalError> {
+        let estimand = select_estimand(result, EstimatorId::TemporalLinearAdjustment)?;
+        let atom = PanelPulseAtom::prepare(
+            self.panel,
+            &estimand,
+            self.query,
+            indexer,
+            self.split,
+            self.ctx,
+            self.weights[i],
+        )?;
+        let (prep, cluster_ids, _) = atom.stacked(&self.unit_ids)?;
+        let mut bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+        bprep.unit_ids = Some(cluster_ids);
+        let (resolved, conflict) =
+            resolve_bayesian_prior_with_conflict(self.cfg, &bprep, Some(self.ctx))?;
+        // Each completion draws from its own seed stream; completions fitting the
+        // same problem under the same prior share a seed, so one model carries one
+        // posterior.
+        let seed = self
+            .fits
+            .iter()
+            .find(|(_, fitted, prior, _, _)| {
+                *prior == resolved && same_fitted_problem(fitted, &bprep)
+            })
+            .map_or_else(|| completion_fit_seed(self.ctx, key), |(_, _, _, seed, _)| *seed);
+        self.bayes.inner.prior.clone_from(&resolved);
+        self.bayes.inner.seed = seed;
+        // An earlier completion that fitted every input of this fit (the
+        // problem down to its unit ids and labels, the resolved prior, the
+        // seed it shares, and the identification status) already holds
+        // this posterior, conflict summary included: the fit is
+        // deterministic in exactly those inputs.
+        let same_fit = self.fits.iter().position(|(_, fitted, prior, fitted_seed, status)| {
+            *prior == resolved
+                && *fitted_seed == seed
+                && *status == result.status
+                && same_fit_inputs(fitted, &bprep)
+        });
+        let posterior = if let Some(at) = same_fit {
+            if let Some(summary) = conflict.as_ref() {
+                push_conflict_diagnostics(diagnostics, summary);
+            }
+            self.posteriors[at].1.clone()
+        } else {
+            let mut posterior = self
+                .bayes
+                .fit(&bprep, result.status, &mut self.ws, self.ctx)
+                .map_err(CausalError::from)?;
+            if let Some(summary) = conflict.as_ref() {
+                push_conflict_diagnostics(diagnostics, summary);
+                posterior = with_conflict_summary(posterior, summary.clone());
+            }
+            posterior
+        };
+        self.envelope_conflict = self.envelope_conflict.take().or(conflict);
+        let mut atom_estimate = effect_from_posterior(&posterior)?;
+        atom_estimate.provenance.assumptions = result.required_assumptions.clone();
+        self.case_means[i] = Some(atom_estimate.ate);
+        self.refute_atoms.push(PanelRefuteAtom {
+            key,
+            estimand: estimand.clone(),
+            indexer: indexer.clone(),
+            estimate: atom_estimate,
+        });
+        if let Some(draws) = posterior
+            .effect_column()
+            .and_then(|col| posterior.draws.column(col).ok().map(|d| Arc::from(d.to_vec())))
+        {
+            self.per_graph.push(GraphEffectDraws { graph_key: key, effect_draws: draws });
+        }
+        self.primary_estimand.get_or_insert(estimand);
+        self.fits.push((key, bprep, resolved, seed, result.status));
+        self.posteriors.push((key, posterior));
+
+        Ok(())
+    }
+}
+
+/// Structural mixture of a Bayesian panel class effect, with the identified-set interval attached.
+fn panel_class_structural_mixture(
+    envelope: &antecedent_identify::IdentificationEnvelope<
+        antecedent_identify::TemporalCompletionGraph,
+    >,
+    weight_basis: crate::result::StructuralWeightBasis,
+    class_masses: Option<&[f64]>,
+    case_means: &[Option<f64>],
+    posteriors: &[(u64, CausalPosterior)],
+    total_rows: usize,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> crate::result::StructuralResponseMixture {
+    let mut structural = super::temporal_path::temporal_class_structural_mixture(
+        envelope,
+        weight_basis,
+        class_masses,
+        case_means,
+    );
+    structural.identified_set_interval = posterior_identified_set_interval(
+        posteriors.iter().map(|(_, posterior)| posterior),
+        total_rows,
+        envelope.truncated_completions > 0,
+    );
+    diagnostics.extend(
+        structural
+            .identified_set_interval
+            .as_ref()
+            .into_iter()
+            .flat_map(identified_set_interval_diagnostics),
+    );
+    for atom in &mut structural.atoms {
+        atom.posterior = posteriors
+            .iter()
+            .find(|(key, _)| *key == atom.graph_key)
+            .map(|(_, posterior)| posterior.clone());
+    }
+    structural
+}
+
+/// Borrowed inputs of every horizon of a panel class response.
+struct PanelClassResponseRun<'a> {
+    panel: &'a PanelData,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    treatment: antecedent_core::VariableId,
+    outcome: antecedent_core::VariableId,
+    identifier_id: IdentifierId,
+    identify_cached: bool,
+    ctx: &'a ExecutionContext,
+}
+
+/// Accumulated horizons of a panel class response.
+struct PanelClassResponseState<'a> {
+    diagnostics: Vec<Diagnostic>,
+    assembly: super::temporal_path::ClassResponseAssembly,
+    class_weights: super::temporal_path::TemporalClassWeights<'a>,
+    primary_estimand: Option<IdentifiedEstimand>,
+    primary_identification: Option<IdentificationResult>,
+    primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    assumptions: antecedent_core::AssumptionSet,
+    n_fitted: usize,
+}
+
+impl<'a> PanelClassResponseState<'a> {
+    /// Empty accumulation for a class response over `assembly`'s horizons.
+    fn new(
+        assembly: super::temporal_path::ClassResponseAssembly,
+        class_weights: super::temporal_path::TemporalClassWeights<'a>,
+    ) -> Self {
+        Self {
+            diagnostics: Vec::new(),
+            assembly,
+            class_weights,
+            primary_estimand: None,
+            primary_identification: None,
+            primary_envelope: None,
+            assumptions: antecedent_core::AssumptionSet::default(),
+            n_fitted: 0,
+        }
+    }
+}
+
+/// Borrowed inputs of a panel class sequential fit.
+#[derive(Clone, Copy)]
+struct PanelSequentialRun<'a> {
+    panel: &'a PanelData,
+    query: &'a TemporalEffectQuery,
+    bayes: Option<&'a BayesianGComputationAte>,
+    ctx: &'a ExecutionContext,
+}
+
+/// Directed completions of a panel class sequential effect, fitted on every unit.
+struct PanelSequentialFits {
+    weights: Vec<f64>,
+    flags: Vec<GraphIdentFlag>,
+    keys: Vec<u64>,
+    atom_values: Vec<Option<f64>>,
+    per_graph: Vec<GraphEffectDraws>,
+    atoms: Vec<(f64, u64, PanelSequentialAtom)>,
+    primary_estimand: Option<IdentifiedEstimand>,
+    unevaluable_weight: f64,
+}
+
+impl PanelClassFits {
+    /// Mass-weighted effect and analytic SE, refusing an envelope with no estimable completion.
+    fn into_mixture(self) -> Result<PanelClassMixture, CausalError> {
+        let PanelClassFits {
+            weighted_ate,
+            se_items,
+            total_w,
+            primary_estimand,
+            assumptions,
+            fitted,
+            refute_atoms,
+            atom_values,
+        } = self;
+        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+            return Err(CausalError::Compile {
+                message: "panel class-aware envelope had no estimable identified cases".into(),
+            });
+        }
+        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
+            message: "panel class-aware envelope missing estimand".into(),
+        })?;
+        let ate = weighted_ate / total_w;
+        let se_analytic = mix_weighted_analytic_se(se_items);
+        Ok(PanelClassMixture {
+            ate,
+            se_analytic,
+            estimand,
+            assumptions,
+            fitted,
+            refute_atoms,
+            atom_values,
+        })
+    }
+}
+
+/// Structural mixture of a panel class sequential effect, with the unevaluable share split out.
+fn panel_sequential_structural_mixture(
+    envelope: &antecedent_identify::IdentificationEnvelope<
+        antecedent_identify::TemporalCompletionGraph,
+    >,
+    weight_basis: crate::result::StructuralWeightBasis,
+    class_masses: Option<&[f64]>,
+    atom_values: &[Option<f64>],
+    unevaluable_weight: f64,
+) -> crate::result::StructuralResponseMixture {
+    let mut structural = super::temporal_path::temporal_class_structural_mixture(
+        envelope,
+        weight_basis,
+        class_masses,
+        atom_values,
+    );
+    let total: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
+    if total > 0.0 {
+        structural.unevaluable_mass = unevaluable_weight / total;
+        structural.unidentified_mass =
+            (structural.unidentified_mass - structural.unevaluable_mass).max(0.0);
+    }
+    structural
+}
+
+/// Prepared pooled-panel design the estimate and sensitivity stages read.
+struct PooledPanelDesign<'a> {
+    atom: &'a PanelPulseAtom,
+    prep: &'a antecedent_estimate::PreparedEstimationProblem,
+    cluster_ids: &'a [u32],
+    unit_ids: &'a [u32],
 }
 
 /// One fitted completion of a panel class Pulse, kept for its refuters.
@@ -2060,7 +2649,7 @@ fn indexer_span(indexer: &TemporalIndexer) -> usize {
 /// What a pooled panel regression clusters on, and (for the record only) the
 /// equal-weight average of per-cluster fits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum PanelClusters {
+pub(super) enum PanelClusters {
     /// Panel units.
     Units,
     /// Environments of a multi-environment study.
@@ -2236,7 +2825,8 @@ fn panel_cluster_se_fit(
     let mut workspace = EstimationWorkspace::default();
     let mut estimate =
         estimator.fit(prep, &mut workspace, ctx, assumptions).map_err(CausalError::from)?;
-    estimate.se_analytic *= antecedent_stats::few_cluster_t_ratio(clusters, PANEL_INTERVAL_LEVEL);
+    estimate.uncertainty.analytic.se *=
+        antecedent_stats::few_cluster_t_ratio(clusters, PANEL_INTERVAL_LEVEL);
     Ok(estimate)
 }
 
@@ -2264,10 +2854,10 @@ impl PanelUnitBootstrap {
         if requested == 0 {
             return;
         }
-        estimate.se_bootstrap = self.se;
-        estimate.bootstrap_replicates_ok = Some(self.completed);
-        estimate.bootstrap_replicates_failed = Some(self.failed);
-        estimate.bootstrap_cancelled = self.cancelled;
+        estimate.uncertainty.bootstrap.se = self.se;
+        estimate.uncertainty.bootstrap.replicates_ok = Some(self.completed);
+        estimate.uncertainty.bootstrap.replicates_failed = Some(self.failed);
+        estimate.uncertainty.bootstrap.cancelled = self.cancelled;
     }
 
     fn diagnostic(&self, clusters: PanelClusters, requested: u32) -> Option<Diagnostic> {

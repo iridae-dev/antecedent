@@ -2,107 +2,128 @@
 
 ## Python environment
 
-These examples use Antecedent from PyPI and Python 3.11 or later:
+Use Python 3.11 or later. Released-package setup:
 
+<!-- generated:release:python-pin:begin -->
 ```bash
-python -m pip install "antecedent>=2.3.0,<2.4" pandas matplotlib ipykernel jupyterlab
+python -m pip install "antecedent>=2.4.0,<2.5" pandas matplotlib ipykernel jupyterlab
 ```
+<!-- generated:release:python-pin:end -->
 
-Download an example notebook and open it with `jupyter lab`. If you have the repository locally, run `jupyter lab examples/notebooks` from its root. Choose the kernel for the Python environment where you installed Antecedent.
-
-For Google Colab, **Runtime → Run all**. If you upgrade after importing Antecedent, restart the kernel or Colab session.
-
-## Start with one analysis
-
-Run the [first analysis](python/analysis_workflow.py):
+Before the release is published, install from the 2.4 checkout using [installation](../docs/installation.md#testing-the-24-branch-before-publication). Select the notebook kernel for your installed environment and restart after upgrading an imported native extension.
 
 ```bash
 python examples/python/analysis_workflow.py
+python examples/python/notebook_to_system_24.py
+jupyter lab examples/notebooks
+cargo run -p antecedent --example ate_quickstart
 ```
 
-It creates a simulated experiment with a treatment effect of 2, estimates that effect, and then repeats the analysis on updated data. It also shows how to save and reload the result. Read the [step-by-step guide](../docs/python-workflow.md) for installation, expected output, and explanations.
+Follow [the notebook-to-system tutorial](../docs/guides/notebook-to-system.md), [bring your own data](../docs/guides/your-data.md), or [measurement to decision](../docs/tutorials/measurement-to-decision.md). The published site includes executed notebook previews; the source notebooks remain free of saved outputs.
 
-Choose an example below by the question you want to answer. All datasets are simulated. The assertions check the examples; they do not validate assumptions for your own data.
+<!-- generated:example-catalog:begin -->
 
-## Notebooks
+All datasets are simulated. Runtime estimates assume a warm installed environment and exclude installation and Rust's first compilation. First native imports and notebook-kernel setup can add substantial time; machine, workload and optional dependencies affect elapsed time. Assertions check these examples, not your causal assumptions.
 
-See Antecedent on a real decision. Open a notebook locally or in Google Colab after the setup above. Run all cells to generate the tables, plots, and reports in your environment.
+## Start and reuse
 
-### [Paid-search attribution](notebooks/marketing_channel_structural_uncertainty.ipynb)
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **First analysis** — Estimate, inspect, refresh and reload one synthetic average effect. <details><summary>Claim scope</summary>Average-effect execution, immutable refresh history, and saved-result acceptance; inspect interval calibration.</details> | beginner / up to 1 min | none | [python](python/analysis_workflow.py) |
+| **Artifact consumer** — Check independent consumption, wrong identity and altered bytes. <details><summary>Claim scope</summary>Identity-bound consumption, wrong-identity and malformed-container refusals; loading does not recreate a live study.</details> | beginner / up to 1 min | none | [python](python/artifact_consumer.py) |
+| **Artifact producer** — Store bytes and a separately retainable producer expectation. <details><summary>Claim scope</summary>Separately retainable scientific identity and bytes; saving does not establish real-world causal validity.</details> | beginner / up to 1 min | none | [python](python/artifact_producer.py) |
+| **CausalState workflow** — Update an analysis as data arrive and identify outdated results <details><summary>Claim scope</summary>State updates and explicit stale-result handling as observations arrive.</details> | beginner / up to 1 min | none | [python](python/causal_state_workflow.py) · [rust](rust/causal_state_workflow.rs) |
+| **Notebook to system** — Retain identification, refute an execution, guard design updates, compose a mean and consume bytes in a fresh process. <details><summary>Claim scope</summary>Retained average effect, randomized ITT, declared mean composition, and independent identity-bound consumption.</details> | beginner / up to 5 min | pandas, matplotlib, ipykernel | [python](python/notebook_to_system_24.py) · [notebook](notebooks/notebook_to_system_24.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/notebook_to_system_24.ipynb) |
+| **Refusal and repair** — Refuse changed design assignments and an unlicensed interval, then use valid neighboring routes. <details><summary>Claim scope</summary>Changed randomized-design bindings and an unlicensed composed interval; explicit repreparation preserves the preceding result.</details> | beginner / up to 1 min | none | [python](python/refusal_recipes.py) |
+| **Bring your own table** — Read a temporary CSV, check numeric columns, prepare and inspect an average effect. <details><summary>Claim scope</summary>Reviewed numeric table and declared DAG average effect; missing values require an explicit observation policy.</details> | beginner / up to 1 min | pandas | [python](python/your_data.py) |
 
-See how a naive marketing dashboard can materially overstate paid-search impact by crediting the campaign for demand that would have existed anyway. Compare results under uncertain graph directions with an estimate conditional on a reviewed graph.
+## Bayesian evidence
 
-### [Campaign evidence transfer](notebooks/sales_campaign_prior_transfer.ipynb)
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **Prior bank surveys** — Select and combine evidence from earlier surveys <details><summary>Claim scope</summary>Declared historical-evidence selection and pooling with source and target compatibility checks.</details> | intermediate / up to 5 min | none | [python](python/prior_bank_surveys.py) · [rust](rust/prior_bank_surveys.rs) |
+| **Sequential Bayes** — Use one batch’s results as prior evidence for the next <details><summary>Claim scope</summary>Posterior evidence transferred between compatible analyses under their declared models and evidence policy.</details> | intermediate / up to 5 min | none | [python](python/sequential_bayes.py) · [rust](rust/sequential_bayes.rs) |
+| **Can last quarter's campaign inform this quarter's sales analysis?** — Transfer historical campaign evidence and update it with current observations. <details><summary>Claim scope</summary>Historical treatment-effect posterior transfer with target compatibility and new-data updating.</details> | intermediate / up to 5 min | pandas, matplotlib, ipykernel | [notebook](notebooks/sales_campaign_prior_transfer.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
 
-Use evidence from a previous sales campaign without assuming the new campaign is identical. Antecedent transfers the historical treatment-effect posterior into a different target model, then lets current data update—or contradict—it.
+## Decisions and composition
 
-### [Marketing experiment design](notebooks/marketing_experiment_design.ipynb)
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **Declared adaptive procedure** — Enumerate a tiny procedure under supplied truths, keeping undefined contrast mass visible. <details><summary>Claim scope</summary>Derived procedure report conditional on declared design and truths</details> | intermediate / up to 1 min | none | [python](python/adaptive_procedure.py) |
+| **Composed product spread** — Compute a product from one aligned law and distinguish its spread from interval coverage. <details><summary>Claim scope</summary>Point and uncalibrated spread under one aligned joint law</details> | intermediate / up to 1 min | none | [python](python/composed_uncertainty.py) |
+| **Composition bundle** — Export a composed decision and consume it under a retained identity <details><summary>Claim scope</summary>Portable composition with independently retained identities and checked downstream consumption.</details> | intermediate / up to 1 min | none | [python](python/composition_bundle.py) |
+| **Decision lifecycle** — Analyze, bind external evidence, inspect, decide, then rank the next study <details><summary>Claim scope</summary>Checked decision contracts consume native or bound external claims while retaining their different standing.</details> | intermediate / up to 1 min | none | [python](python/decision_lifecycle.py) |
+| **Measurement to decision** — Correct exposure prevalence, pool disjoint evidence and revise a finite-model decision. <details><summary>Claim scope</summary>Declared misclassification correction, disjoint fixed-effect pooling, finite mechanisms and affine point decisions.</details> | intermediate / up to 1 min | none | [python](python/measurement_to_decision.py) |
+| **Rank designs** — Rank candidate experiments by identification probability <details><summary>Claim scope</summary>Identification-oriented ranking of declared studies; inspect objective, budgets and Monte Carlo readings.</details> | intermediate / up to 5 min | none | [python](python/rank_designs.py) · [rust](rust/rank_designs.rs) |
+| **Expected value of a study** — Rank candidate studies by expected value of sample information <details><summary>Claim scope</summary>Expected-value study ranking under the supplied planning model and utility declarations.</details> | intermediate / up to 5 min | none | [python](python/rank_designs_evsi.py) |
+| **Recalculation with frozen scores** — Recompute a decision with zero refits; resume from exported scores <details><summary>Claim scope</summary>Retargeting retained scores and portable resume under the original supported data and score identities.</details> | intermediate / up to 1 min | none | [python](python/recalc_cell_resume.py) |
+| **Repair and evidence obligations** — State the evidence a contract owes and which study would repair it <details><summary>Claim scope</summary>Evidence obligations and declared study repairs; a repair plan is not new observed evidence.</details> | intermediate / up to 1 min | none | [python](python/repair_obligations.py) |
+| **Which marketing experiment should we run next?** — Rank investments that resolve a marketing identification problem. <details><summary>Claim scope</summary>Budgeted study ranking under the declared marketing causal question and study costs.</details> | intermediate / up to 5 min | pandas, matplotlib, ipykernel | [notebook](notebooks/marketing_experiment_design.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/marketing_experiment_design.ipynb) |
 
-Compare a holdout experiment, better intent data and additional CRM records to determine which investment actually resolves the causal question. Antecedent identifies the best feasible action under a £40,000 budget and shows why collecting more of the same data would not fix the attribution problem.
+## Discovery and identification
 
-### [Continuous causal response](notebooks/continuous_causal_response.ipynb)
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **Uncertain graph directions** — Estimate a range of effects when some edge directions are unknown <details><summary>Claim scope</summary>Class-preserving bounds or partial answer; a reviewed orientation changes the structural declaration.</details> | intermediate / up to 1 min | none | [python](python/class_preserving_cpdag.py) · [rust](rust/class_preserving_cpdag.rs) |
+| **Discover then estimate** — Discover once, accept a DAG, re-estimate many times <details><summary>Claim scope</summary>Estimation conditional on an explicitly accepted discovered DAG; acceptance does not make discovery certain.</details> | intermediate / up to 5 min | none | [python](python/discover_then_estimate.py) · [rust](rust/discover_then_estimate.rs) |
+| **Identify only** — Identification without fitting <details><summary>Claim scope</summary>Identification and derivation without numerical fitting.</details> | intermediate / up to 1 min | none | [rust](rust/identify_only.rs) |
+| **Should we increase paid-search spend?** — Compare naive marketing attribution with effects under uncertain graph directions. <details><summary>Claim scope</summary>Attribution conditional on graph completions versus a reviewed graph; preserve unidentified structural mass.</details> | intermediate / up to 5 min | pandas, matplotlib, ipykernel | [notebook](notebooks/marketing_channel_structural_uncertainty.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
 
-Ask how the outcome changes with dose, how steep the curve is, and how that
-slope changes across the data. Check where the data support those answers.
+## Estimation and designs
 
-### [Pricing, availability and latent demand](notebooks/pricing_availability_latent_demand.ipynb)
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **Randomized experiment** — Estimate a randomized ITT effect; design inputs named by data column <details><summary>Claim scope</summary>Randomized ITT under declared assignment probabilities and units; inspect graphless support and interval standing.</details> | beginner / up to 1 min | none | [python](python/experiment_randomized_effect.py) |
+| **Factorial cell means** — 2x2 Bernoulli factorial main effects and interaction (point utility) <details><summary>Claim scope</summary>Declared Bernoulli factorial cell means, main effects and interaction.</details> | intermediate / up to 1 min | none | [python](python/factorial_cell_means.py) |
+| **IHDP-style propensity / AIPW** — Synthetic IHDP-like covariates → assumed DAG → IPW + AIPW + refute <details><summary>Claim scope</summary>Synthetic IHDP-like covariates under an assumed DAG; IPW and AIPW effects and refutation.</details> | intermediate / up to 1 min | none | [python](python/ihdp_propensity_e2e.py) |
+| **MSM sensitivity** — Marginal-sensitivity bounds and tipping point for a stratified ATE <details><summary>Claim scope</summary>Assumption-sensitivity range and tipping point for a stratified average effect; not a confidence interval.</details> | intermediate / up to 1 min | none | [python](python/msm_sensitivity.py) |
+| **Policy value** — Held-out value of a fixed binary policy under known propensities <details><summary>Claim scope</summary>Held-out value of a fixed binary policy under known assignment propensities.</details> | intermediate / up to 1 min | none | [python](python/policy_value_evaluation.py) |
+| **Propensity weighting** — Adjust for treatment selection using inverse-probability weights <details><summary>Claim scope</summary>Average effect via propensity weighting under a reviewed DAG; inspect overlap and interval standing.</details> | beginner / up to 1 min | none | [python](python/propensity_weighting.py) · [rust](rust/propensity_weighting.rs) |
+| **Difference-in-differences** — 2x2 and balanced-panel DiD point utilities <details><summary>Claim scope</summary>Two-period and balanced-panel difference-in-differences under their declared design assumptions.</details> | intermediate / up to 1 min | none | [python](python/quasi_difference_in_differences.py) |
+| **Sales analysis** — Explore average, mediated, individual, and delayed effects <details><summary>Claim scope</summary>Simulated average, mediated, individual and temporal effects, each under its own declared question.</details> | intermediate / up to 5 min | none | [python](python/sales_spreadsheet_e2e.py) · [rust](rust/sales_spreadsheet_e2e.rs) |
+| **Mediation and individual effects** — Separate direct and mediated effects; estimate individual effects <details><summary>Claim scope</summary>Average, mediated and individual effects under the declared static model and supported query-specific routes.</details> | intermediate / up to 1 min | none | [python](python/staged_static_kinds.py) · [rust](rust/staged_static_kinds.rs) |
+| **Survival RMST** — Randomized survival curve and RMST by arm <details><summary>Claim scope</summary>Randomized survival and restricted mean survival time under declared observation and assignment assumptions.</details> | intermediate / up to 1 min | none | [python](python/survival_rmst.py) |
+| **ATE quickstart** — Build and run an average-effect analysis <details><summary>Claim scope</summary>Parametric linear average-effect point with bootstrap and refutation disabled.</details> | beginner / up to 1 min | none | [rust](rust/ate_quickstart.rs) |
+| **GCM do** — Fit a GCM and sample under `do(·)` <details><summary>Claim scope</summary>Interventional samples under fitted, declared causal mechanisms.</details> | intermediate / up to 1 min | none | [rust](rust/gcm_do.rs) |
+| **How does the outcome change with dose?** — Inspect supported doses, response values and derivatives. <details><summary>Claim scope</summary>Supported response and derivative coordinates under an explicit dose-response model.</details> | intermediate / up to 5 min | pandas, matplotlib, ipykernel | [notebook](notebooks/continuous_causal_response.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/continuous_causal_response.ipynb) |
+| **Pricing, availability, and latent demand** — Distinguish inventory-limited sales from latent demand. <details><summary>Claim scope</summary>Demand response under an explicit censoring premise; unsupported derivative requests are refused.</details> | intermediate / up to 5 min | pandas, matplotlib, ipykernel | [notebook](notebooks/pricing_availability_latent_demand.ipynb) · [Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/pricing_availability_latent_demand.ipynb) |
 
-Show why inventory-limited sales are not demand. Estimate a demand curve under an explicit censoring assumption, then see why
-the same method refuses a demand derivative.
+## Interoperability
 
-## Scripts
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **DoWhy handoff** — Exchange a reviewed backdoor graph with DoWhy (optional dependency) <details><summary>Claim scope</summary>Reviewed backdoor graph exchange; each library owns its own fit and scientific interpretation.</details> | intermediate / up to 1 min | pandas, dowhy (optional) | [python](python/dowhy_handoff.py) |
+| **EconML handoff** — Compare adjusted average effects with EconML CATE predictions (optional dependency) <details><summary>Claim scope</summary>Antecedent supplies adjustment columns; the optional EconML fit owns its conditional-effect output.</details> | intermediate / up to 1 min | econml (optional) | [python](python/econml_cate_handoff.py) |
 
-Choose Python or Rust for each workflow.
+## Temporal and longitudinal
 
-[The Python analysis workflow](python/analysis_workflow.py) demonstrates the one-call
-API, retained study, inspection, refresh, and verified artifact loading.
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **Manufacturing temporal** — Estimate how a pressure change affects later defects <details><summary>Claim scope</summary>Lagged intervention effect under an explicit temporal graph; horizons and support remain part of the claim.</details> | intermediate / up to 1 min | none | [python](python/manufacturing_temporal.py) · [rust](rust/manufacturing_temporal.rs) |
+| **PCMCI pulse discovery** — Discover a lagged graph and estimate a pulse effect in simulated data <details><summary>Claim scope</summary>Pulse effect conditional on an accepted lagged graph discovered from the simulated series.</details> | intermediate / up to 5 min | none | [python](python/pcmci_pulse_benchmark.py) |
+| **Longitudinal regime value** — Value of a static treatment rule by inverse-probability g-formula <details><summary>Claim scope</summary>Static longitudinal-regime value by inverse-probability g-formula under declared histories and probabilities.</details> | intermediate / up to 1 min | none | [python](python/regime_value.py) |
+| **Temporal response curve** — Compare pressure levels and their effects over time <details><summary>Claim scope</summary>Temporal response grid under declared lag structure; inspect each requested coordinate and uncertainty.</details> | intermediate / up to 1 min | none | [python](python/temporal_response_curve.py) · [rust](rust/temporal_response_curve.rs) |
 
-```bash
-# Python (from repo root, with the environment above activated)
-python examples/python/<name>.py
+## Transport
 
-# Rust
-cargo run -p antecedent --example <name>
-```
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **ML and transport lifecycle** — Prepare, estimate, inspect and reload fitted models and transport results <details><summary>Claim scope</summary>Supported learner-backed estimation and transport with retained model and artifact identity.</details> | intermediate / up to 1 min | none | [python](python/cohesive_ml_transport.py) |
+| **Mechanism discrepancy** — Test whether a node's mechanism differs between source and target <details><summary>Claim scope</summary>Diagnostic comparison of source and target mechanisms; a diagnostic does not prove invariance.</details> | intermediate / up to 1 min | none | [python](python/mechanism_discrepancy.py) |
+| **Provider transport handoff** — Seal a declared transported offer to a callback input and refuse a native-only consumer. <details><summary>Claim scope</summary>Transported external claim; handoff checks do not prove numerical transport</details> | intermediate / up to 1 min | none | [python](python/provider_transport.py) |
+| **Scenario invariance** — Why each transport scenario answers as it does: selection and invariances <details><summary>Claim scope</summary>Inspection of explicitly declared transport scenarios and their invariance assumptions.</details> | intermediate / up to 1 min | none | [python](python/scenario_invariance.py) |
+| **Transport an exact law** — Single-source exact-law transport of a response grid <details><summary>Claim scope</summary>Transported response from supplied exact finite laws; no sampling interval is inferred.</details> | intermediate / up to 1 min | none | [python](python/transport_exact.py) · [rust](rust/transport_exact.rs) |
+| **Complementary-source grid** — Combined sources identify a target curve; one source does not <details><summary>Claim scope</summary>Complementary finite source laws identify a grid; missing laws retain unsupported coordinates.</details> | intermediate / up to 1 min | none | [python](python/transport_meta_grid.py) · [rust](rust/transport_meta_grid.rs) |
+| **Transport a source table** — Single-source empirical transport of a response grid <details><summary>Claim scope</summary>Empirical-table transported grid; inspect local support and bootstrap calibration at this coordinate.</details> | intermediate / up to 1 min | none | [python](python/transport_statistical.py) · [rust](rust/transport_statistical.rs) |
+| **Transported counterfactual** — Transport direct and indirect effects under a shared additive model; inspect refusals <details><summary>Claim scope</summary>Static transported path-specific contrast under the supported shared affine-additive model.</details> | intermediate / up to 1 min | none | [python](python/transported_counterfactual.py) |
+| **Transported measurement** — Correct target prevalence under explicitly invariant source sensitivity and specificity. <details><summary>Claim scope</summary>Conditional point and uncalibrated standard error under declared invariance</details> | intermediate / up to 1 min | none | [python](python/transported_measurement.py) |
 
-| Example | Description | Python | Rust |
-| ------- | ----------- | ------ | ---- |
-| Propensity weighting | Adjust for treatment selection using inverse-probability weights | [python](python/propensity_weighting.py) | [rust](rust/propensity_weighting.rs) |
-| IHDP-style propensity / AIPW | Synthetic IHDP-like covariates → assumed DAG → IPW + AIPW + refute | [python](python/ihdp_propensity_e2e.py) | — |
-| Mediation and individual effects | Separate direct and mediated effects; estimate individual effects | [python](python/staged_static_kinds.py) | [rust](rust/staged_static_kinds.rs) |
-| Uncertain graph directions | Estimate a range of effects when some edge directions are unknown | [python](python/class_preserving_cpdag.py) | [rust](rust/class_preserving_cpdag.rs) |
-| Manufacturing temporal | Estimate how a pressure change affects later defects | [python](python/manufacturing_temporal.py) | [rust](rust/manufacturing_temporal.rs) |
-| Temporal response curve | Compare pressure levels and their effects over time | [python](python/temporal_response_curve.py) | [rust](rust/temporal_response_curve.rs) |
-| Discover then estimate | Discover once, accept a DAG, re-estimate many times | [python](python/discover_then_estimate.py) | [rust](rust/discover_then_estimate.rs) |
-| Sequential Bayes | Use one batch’s results as prior evidence for the next | [python](python/sequential_bayes.py) | [rust](rust/sequential_bayes.rs) |
-| Prior bank surveys | Select and combine evidence from earlier surveys | [python](python/prior_bank_surveys.py) | [rust](rust/prior_bank_surveys.rs) |
-| Rank designs | Rank candidate experiments by identification probability | [python](python/rank_designs.py) | [rust](rust/rank_designs.rs) |
-| CausalState workflow | Update an analysis as data arrive and identify outdated results | [python](python/causal_state_workflow.py) | [rust](rust/causal_state_workflow.rs) |
-| Sales analysis | Explore average, mediated, individual, and delayed effects | [python](python/sales_spreadsheet_e2e.py) | [rust](rust/sales_spreadsheet_e2e.rs) |
-| Transport a source table | Single-source empirical transport of a response grid | [python](python/transport_statistical.py) | [rust](rust/transport_statistical.rs) |
-| Transport an exact law | Single-source exact-law transport of a response grid | [python](python/transport_exact.py) | [rust](rust/transport_exact.rs) |
-| Complementary-source grid | Combined sources identify a target curve; one source does not | [python](python/transport_meta_grid.py) | [rust](rust/transport_meta_grid.rs) |
-| Randomized experiment | Estimate a randomized ITT effect; design inputs named by data column | [python](python/experiment_randomized_effect.py) | — |
-| Factorial cell means | 2x2 Bernoulli factorial main effects and interaction (point utility) | [python](python/factorial_cell_means.py) | — |
-| Policy value | Held-out value of a fixed binary policy under known propensities | [python](python/policy_value_evaluation.py) | — |
-| Difference-in-differences | 2x2 and balanced-panel DiD point utilities | [python](python/quasi_difference_in_differences.py) | — |
-| Longitudinal regime value | Value of a static treatment rule by inverse-probability g-formula | [python](python/regime_value.py) | — |
-| Survival RMST | Randomized survival curve and RMST by arm | [python](python/survival_rmst.py) | — |
-| Decision lifecycle | Analyze, bind external evidence, inspect, decide, then rank the next study | [python](python/decision_lifecycle.py) | — |
-| MSM sensitivity | Marginal-sensitivity bounds and tipping point for a stratified ATE | [python](python/msm_sensitivity.py) | — |
-| Mechanism discrepancy | Test whether a node's mechanism differs between source and target | [python](python/mechanism_discrepancy.py) | — |
-| Scenario invariance | Why each transport scenario answers as it does: selection and invariances | [python](python/scenario_invariance.py) | — |
-| Transported counterfactual | Transport direct and indirect effects under a shared additive model; inspect refusals | [python](python/transported_counterfactual.py) | — |
-| Recalculation with frozen scores | Recompute a decision with zero refits; resume from exported scores | [python](python/recalc_cell_resume.py) | — |
-| Composition bundle | Export a composed decision and consume it under a retained identity | [python](python/composition_bundle.py) | — |
-| Repair and evidence obligations | State the evidence a contract owes and which study would repair it | [python](python/repair_obligations.py) | — |
-| Expected value of a study | Rank candidate studies by expected value of sample information | [python](python/rank_designs_evsi.py) | — |
-| ML and transport lifecycle | Prepare, estimate, inspect and reload fitted models and transport results | [python](python/cohesive_ml_transport.py) | — |
-| DoWhy handoff | Exchange a reviewed backdoor graph with DoWhy (optional dependency) | [python](python/dowhy_handoff.py) | — |
-| EconML handoff | Compare adjusted average effects with EconML CATE predictions (optional dependency) | [python](python/econml_cate_handoff.py) | — |
-| PCMCI pulse discovery | Discover a lagged graph and estimate a pulse effect in simulated data | [python](python/pcmci_pulse_benchmark.py) | — |
-| ATE quickstart | Build and run an average-effect analysis | — | [rust](rust/ate_quickstart.rs) |
-| Identify only | Identification without fitting | — | [rust](rust/identify_only.rs) |
-| GCM do | Fit a GCM and sample under `do(·)` | — | [rust](rust/gcm_do.rs) |
+## Performance
 
-The `transport_statistical`, `transport_exact` and `transport_meta_grid` scripts use `antecedent.transport.Transport`, which is absent from the 1.x releases (it arrived in 2.0). Callers moving 1.11 names should read the [transport migration](../docs/migrations/2.0-transport-day1.md). The scripts share one workflow and differ only in evidence. Rust uses the native `StudyBuilder` stage path; Python uses `analyze(Transport(...))`. Exact and complementary-source examples make no sampling-coverage claim.
+| Example and question | Level / estimated runtime | Dependencies beyond Antecedent | Run / open |
+| --- | --- | --- | --- |
+| **Python ingest performance** — Measure Python-to-native ingest overhead with repeatable workload inputs. <details><summary>Claim scope</summary>Numerical timing; no scientific claim</details> | advanced / up to 5 min | pandas | [python](python/bench_python_overhead.py) |
+
+For exact claim settings, inspect each result and check the support matrix. Optional handoff dependencies are needed to exercise their external half; an absent dependency prints a skip.
+
+<!-- generated:example-catalog:end -->

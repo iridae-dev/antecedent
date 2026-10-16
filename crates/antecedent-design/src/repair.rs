@@ -12,7 +12,7 @@
 //!
 //! * [`TransportRepairFamily`] re-runs the catalog-aware classical transport
 //!   identifier ([`antecedent_identify::identify_catalog_transport`], the same
-//!   call [`crate::plan_transport_evidence`] makes) on a previewed catalog and
+//!   call the transport planner makes) on a previewed catalog and
 //!   re-verifies the derivation with
 //!   [`antecedent_identify::verify_classical_transport`];
 //! * [`BackdoorRepairFamily`] re-runs the back-door identifier on the one joint
@@ -35,11 +35,14 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
+use antecedent_contract::{
+    EvidenceObligation, EvidenceObligationKind, ObligationProvenance, ObligationRecord,
+    ObligationRegime, ObligationScope,
+};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, EvidenceCatalog, EvidenceCatalogDelta, EvidenceObligation,
-    EvidenceObligationKind, EvidenceRegime, ExecutionContext, IdentificationStatus,
-    ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope, SearchBudget,
-    SearchLimits, SearchReceipt, SearchStop, VariableId, reason_code,
+    AverageEffectQuery, CausalQuery, EvidenceCatalog, EvidenceCatalogDelta, EvidenceRegime,
+    ExecutionContext, IdentificationStatus, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
+    VariableId, reason_code,
 };
 use antecedent_graph::{
     BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace, NodeRef, SelectionDiagram,
@@ -63,7 +66,7 @@ pub const REPAIR_MAX_OPERATIONS: usize = 100_000;
 /// Largest memory cap, in bytes, a repair request may declare.
 pub const REPAIR_MAX_MEMORY_BYTES: u64 = 256 * 1024 * 1024;
 /// Most explored or unevaluated subsets a receipt lists; the total is counted.
-pub const REPAIR_RECEIPT_REGIONS: usize = 1024;
+pub(crate) const REPAIR_RECEIPT_REGIONS: usize = 1024;
 
 /// How a candidate subset fared against the family's theorem checker.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -366,29 +369,78 @@ fn subset_label(ids: &[Arc<str>]) -> String {
     format!("subset:[{}]", ids.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(","))
 }
 
-/// Lexicographic `k`-combinations of `0..n`.
-fn combinations(n: usize, k: usize) -> Vec<Vec<usize>> {
-    let mut out = Vec::new();
-    if k == 0 || k > n {
-        return out;
+/// Lexicographic `k`-combinations of `0..n`, one subset at a time.
+struct LexCombinations {
+    n: usize,
+    k: usize,
+    idx: Vec<usize>,
+    started: bool,
+}
+
+impl LexCombinations {
+    fn new(n: usize, k: usize) -> Self {
+        Self { n, k, idx: Vec::new(), started: false }
     }
-    let mut idx: Vec<usize> = (0..k).collect();
-    loop {
-        out.push(idx.clone());
-        let mut i = k;
+}
+
+impl Iterator for LexCombinations {
+    type Item = Vec<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.k == 0 || self.k > self.n {
+            return None;
+        }
+        if !self.started {
+            self.idx = (0..self.k).collect();
+            self.started = true;
+            return Some(self.idx.clone());
+        }
+        let mut i = self.k;
         let pos = loop {
             if i == 0 {
-                return out;
+                return None;
             }
             i -= 1;
-            if idx[i] != i + n - k {
+            if self.idx[i] != i + self.n - self.k {
                 break i;
             }
         };
-        idx[pos] += 1;
-        let start = idx[pos];
-        for (offset, slot) in idx.iter_mut().skip(pos + 1).enumerate() {
+        self.idx[pos] += 1;
+        let start = self.idx[pos];
+        for (offset, slot) in self.idx.iter_mut().skip(pos + 1).enumerate() {
             *slot = start + 1 + offset;
+        }
+        Some(self.idx.clone())
+    }
+}
+
+/// Subsets of `0..n` of size `1..=depth`, smaller sizes first, each size lexicographic.
+struct Subsets {
+    n: usize,
+    depth: usize,
+    k: usize,
+    inner: LexCombinations,
+}
+
+impl Subsets {
+    fn new(n: usize, depth: usize) -> Self {
+        Self { n, depth, k: 1, inner: LexCombinations::new(n, 1) }
+    }
+}
+
+impl Iterator for Subsets {
+    type Item = Vec<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.k == 0 || self.k > self.depth {
+                return None;
+            }
+            if let Some(combo) = self.inner.next() {
+                return Some(combo);
+            }
+            self.k += 1;
+            self.inner = LexCombinations::new(self.n, self.k);
         }
     }
 }
@@ -509,7 +561,7 @@ struct Walk {
 }
 
 /// Whether `combo` contains a subset already verified sufficient.
-fn covered(sufficient: &[&Vec<usize>], combo: &[usize]) -> bool {
+fn covered(sufficient: &[Vec<usize>], combo: &[usize]) -> bool {
     sufficient.iter().any(|s| s.iter().all(|i| combo.contains(i)))
 }
 
@@ -519,7 +571,8 @@ impl Searcher<'_> {
     /// only); a stop leaves every remaining subset unevaluated.
     fn walk(
         &self,
-        combos: &[Vec<usize>],
+        n_studies: usize,
+        depth: usize,
         budget: &mut SearchBudget<'_>,
         ctx: &ExecutionContext,
     ) -> Walk {
@@ -530,23 +583,22 @@ impl Searcher<'_> {
             dominated: 0,
             stop: None,
         };
-        let mut sufficient: Vec<&Vec<usize>> = Vec::new();
-        let mut stopped_at = None;
-        for (at, combo) in combos.iter().enumerate() {
-            if covered(&sufficient, combo) {
+        let mut sufficient: Vec<Vec<usize>> = Vec::new();
+        let mut combos = Subsets::new(n_studies, depth);
+        let mut stopped = None;
+        for combo in combos.by_ref() {
+            if covered(&sufficient, &combo) {
                 walk.dominated += 1;
                 continue;
             }
             let bytes = (combo.len() as u64).saturating_mul(1024).saturating_add(4096);
             if let Err(stop) = budget.charge(combo.len(), bytes) {
-                walk.stop = Some(stop);
-                stopped_at = Some(at);
+                stopped = Some((stop, combo));
                 break;
             }
-            match self.evaluate(combo, ctx) {
+            match self.evaluate(&combo, ctx) {
                 Err(RepairCancelled) => {
-                    walk.stop = Some(SearchStop::Cancelled);
-                    stopped_at = Some(at);
+                    stopped = Some((SearchStop::Cancelled, combo));
                     break;
                 }
                 Ok(outcome) => {
@@ -557,15 +609,17 @@ impl Searcher<'_> {
                 }
             }
         }
-        if let Some(at) = stopped_at {
-            for combo in &combos[at..] {
-                if covered(&sufficient, combo) {
+        if let Some((stop, combo)) = stopped {
+            walk.stop = Some(stop);
+            let mut rest = std::iter::once(combo).chain(combos);
+            for combo in rest.by_ref() {
+                if covered(&sufficient, &combo) {
                     continue;
                 }
                 walk.unevaluated_total += 1;
                 if walk.unevaluated.len() < REPAIR_RECEIPT_REGIONS {
                     walk.unevaluated.push(self.outcome(
-                        combo,
+                        &combo,
                         RepairClassification::Unevaluated,
                         Vec::new(),
                         None,
@@ -690,9 +744,7 @@ pub fn repair(
             .collect(),
     };
     let depth = limits.search.depth.min(studies.len());
-    let combos: Vec<Vec<usize>> =
-        (1..=depth).flat_map(|k| combinations(studies.len(), k)).collect();
-    let walk = searcher.walk(&combos, &mut budget, ctx);
+    let walk = searcher.walk(studies.len(), depth, &mut budget, ctx);
     let mut explored = Vec::new();
     for outcome in &walk.evaluated {
         if explored.len() < REPAIR_RECEIPT_REGIONS {
@@ -1067,7 +1119,7 @@ impl BackdoorRepairFamily {
                 needed.insert(self.outcome);
                 let list = needed.iter().map(|v| v.raw().to_string()).collect::<Vec<_>>().join(",");
                 out.push(
-                    EvidenceObligation::try_new(antecedent_core::EvidenceObligationSpec {
+                    EvidenceObligation::try_new(antecedent_contract::EvidenceObligationSpec {
                         quantities: std::collections::BTreeMap::new(),
                         kind: EvidenceObligationKind::ProvideJointLaw,
                         scope: ObligationScope::Factor,
@@ -1088,7 +1140,7 @@ impl BackdoorRepairFamily {
             }
             LawAnalysis::NotIdentified(reason) | LawAnalysis::Failed(reason) => {
                 out.push(
-                    EvidenceObligation::try_new(antecedent_core::EvidenceObligationSpec {
+                    EvidenceObligation::try_new(antecedent_contract::EvidenceObligationSpec {
                         quantities: std::collections::BTreeMap::new(),
                         kind: EvidenceObligationKind::EstablishAssumption,
                         scope: ObligationScope::Program,
@@ -1366,5 +1418,30 @@ impl BackdoorRepairFamily {
             );
         }
         FamilyVerdict::Insufficient { reasons }
+    }
+}
+
+#[cfg(test)]
+mod subset_order_tests {
+    use super::Subsets;
+
+    #[test]
+    fn subsets_stay_lexicographic_by_increasing_size() {
+        let got: Vec<Vec<usize>> = Subsets::new(4, 2).collect();
+        assert_eq!(
+            got,
+            vec![
+                vec![0],
+                vec![1],
+                vec![2],
+                vec![3],
+                vec![0, 1],
+                vec![0, 2],
+                vec![0, 3],
+                vec![1, 2],
+                vec![1, 3],
+                vec![2, 3],
+            ]
+        );
     }
 }

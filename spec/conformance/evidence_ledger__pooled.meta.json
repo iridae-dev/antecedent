@@ -1,0 +1,536 @@
+{
+  "feature": "evidence_ledger_v1",
+  "head": "81aa54361d04f238d483b3933d1f3d80f4e3ceef171c466ec565785f5c4f7b1e",
+  "identity": "b36d763a3eb209258f2c4fe925b31cbbf0dc65f028aa0a58b75cf2173e19c3c2",
+  "operations": [
+    {
+      "effect": {
+        "created_result": null,
+        "created_source": "a3dadc1936536aee3b54242d140ecfe846cc24aa978805f436e01c0577b32f78",
+        "detected_overlaps": [],
+        "replaced_result": null,
+        "retired_source": null,
+        "revalidation": []
+      },
+      "id": "d9d4dff386d6b66645c4a8e9a92e0b2f6d0cc562c4e7a12cec61c1d95e43682f",
+      "kind": "add",
+      "reason": null,
+      "request": null,
+      "source": {
+        "kind": "observation_set",
+        "label": "study_1",
+        "lineage": {
+          "inputs": [],
+          "kind": "original",
+          "likelihood": null,
+          "of": null,
+          "prior": null,
+          "transform": null
+        },
+        "observations": [
+          "b25cb1429743bee4ebe5e10cfc093fb70a05bc23c51f8bb3e237767037a58a85",
+          "bebc9e27b3229aaadef5187cccea96747f86f2fbdeca20080e2fb39deb5f98a4",
+          "6b59265e73b31cde52adfbab4b9a538b16562126fddb42d84e920240e5b841f2",
+          "27fe4025a91d81f80ebe8593256e1ac7afdbd33dfa0913da6a005d234b04ed89",
+          "a69164d739392f157e44ca7b04b393a7bd0c64864b76e496f2012a5a880fa0d2",
+          "191d264c9aaaba53fb601b6df8fbff684039ae80598178df5f3a456d8da5c792",
+          "a5b0444b0accac932e2d33c76bb6dcca16e08a140a02caaf3fb6a3b2c0c6cd62",
+          "f79f661f345e292af668f85fea6a75cb2bb5cb1e5767e4c6e772c86b710641b2",
+          "8241ef4b6b1f9eab1d70045f7e0bb2efc15186f34bbfeb7addf7d72c598c1e2d",
+          "501f0793fb8735f5f8b61ee77b8ddc20f9a5f97d1e20f0709588158e10c2471e",
+          "022876c18a7d8e15af2fc609fd6c21846dc76a2b658f2aabf98fd6272072f61b",
+          "2e30386b4ca7f02669af1f1c6ea82adad663a7f34df2610a874b496093e75604",
+          "a30ffebed7094a09ef0f97c0f6f8809b1389e8a14a5edd9d421ab639830254d0",
+          "65e20c9fc2e2d5bce14b8a4f46af2ffe93e591950fa5c26d3573354ade1077b3",
+          "4568b63d0f61d471450ac2408690fdbbc742610ae4e9bfe2be63a0ae9b005aff",
+          "a0468a0aac1a08b66d01f82c3d5c5d6f398b8e91ae5481a90a545dba7e9d6a5b",
+          "3719649be931711e310becad81c7d85fe55f5700b35985d585bd0c95a5e42048",
+          "955ba6e0bf5e18d782c79324b026d8417d4b2bd0974a9d3727131b135f8e9f42",
+          "258dad1bcb83bb85a3f144423a55171068881680832e3441cf5b13c205f1ecf3",
+          "39987a208e90d231dc7de92a24f68f1a26a9917749d7a1e9c2224d3d3e030afc",
+          "c9bc9c3868baccade0def9aa80878c91a88312257959c80c22fed58c5f1b6b4c",
+          "be2cdc8f6a5bc63c7e6669033514434cf75d1af60d7444b3b9f3413e72d03957",
+          "6ec3f814c7be7ef5f20855b7e3cd14e1831e40216d41bc4df3a73509559009ec",
+          "eaaf96c20ef3615370dd172665776cdda1e21c8e37b2e1ec5a9f76bb1f0a0fa2",
+          "3f4edb2cd66da3adf528148617679d98a42e12a3c4232c373e34d69da1587a35",
+          "2718a6d69be8bb3c85d82c6f3beb57d2f0b3459903d20ba8444e37b56d9a39b7",
+          "914e487fefb0375e5469f9b0a0cde6a3abaafd7d9e4b4c5a161e9dc853e1e3ea",
+          "e8d643955ebedda393f14f7aa3f7d8f6b943f5b5d654bdbd8b17dc60dbdf8099",
+          "fa7f95b2588426538bebebe99e5835a91c123c09ace69a2626183ae8714e3379",
+          "2fa5956ca96aee81d10970f3193599bfc37c57a819c57ebaba253a5d676c754b",
+          "9020cf125933321e759ca1b24f77385ba3ca163516919f2b2c1fb750cadc978d",
+          "136a234282d23943c8d3bad7d1cc96e6efafec257db5370c7df82c81cdd639cc",
+          "76fe18ee9d0fc9744688126d11bca70c4a334266fe7c6d407f8b09b9c4dc58d5",
+          "3f721a80c36a429bd1a27b2f4f94f72cc3af7349a0499f4f4ab0a34989f06b68",
+          "7283ebdd32eaf7afae2430f84c1c0a3519b6d7c4134e8c003a2a26d9b5bf7f76",
+          "08cd2aa862e65899cea39d29b34f5adde813f12a8b7ef97f5e72d535dc659af5",
+          "a2827a02a8194ee6b1c283bcc55f32f382e762fbb8ebd0a6349b836f94f86ec4",
+          "bbc98dfad9df2fa4b6c1a8db2f0e020c029cc454177f71b2bb732723efb2787f",
+          "5bffe5da196c84b7ec4f5bb5c8d6a2a3a3b371c6637e81415706e2e2efde2f15",
+          "e3dba1f6883a59aea49df187613294c8df1231922a54224c94ae565b3e2ef8d8"
+        ],
+        "transport": null
+      },
+      "target": null
+    },
+    {
+      "effect": {
+        "created_result": null,
+        "created_source": "b0f3d8eae25eb7a83683266786827147e2a946bdd523f854ca650da2c0d2f014",
+        "detected_overlaps": [],
+        "replaced_result": null,
+        "retired_source": null,
+        "revalidation": []
+      },
+      "id": "fedf60b09d90afe0fa52e33cabbd7c3e1b4e80a108d7a78d81d3dd7eda9c5277",
+      "kind": "add",
+      "reason": null,
+      "request": null,
+      "source": {
+        "kind": "observation_set",
+        "label": "study_2",
+        "lineage": {
+          "inputs": [],
+          "kind": "original",
+          "likelihood": null,
+          "of": null,
+          "prior": null,
+          "transform": null
+        },
+        "observations": [
+          "0235288fdcb309d5bef5eda26832bb7d822467082e3cd22e506836ea22ba87a1",
+          "7e4324517a1fc2a353e0c814e596e5e3655699aa4757172f622340242abf6ea5",
+          "2db34489439f1c4ffe9ffaded7bf304a1ded7293645cbf3a975618c56df9941f",
+          "eea237594565b6400e5d06a43498e9ca0b020f9e490a38d9293347c06866d217",
+          "0b1aa9904aa0d71e86fcd4d58a3703ff53a683c444f928097a2fdf5c59ba203f",
+          "30e097e5886d8644c0e4bb79c9b87896dad30a672a39ddd27fb9dee5634c35ca",
+          "d5270e89d0d1da2f488389a455dfecae35a0dc86eaeb72d1cef90bd003d0ab68",
+          "03df23ee31c0e97e34fed4fcafb6f84cffbda9be4ceafa886a0f7b89047f61e6",
+          "28a00002f68eb145ce725119814acb7ab8bf6592f2d5b3199376aedfe247e9c6",
+          "7fe9b1f6caa2befa09045b0acf84413e694a00ccff96713c6b3cc57d1b4e5f89",
+          "1228a32cc2e651f7c25930a445b8a0c2577115c29563ec7df7d62050b4e865d8",
+          "17aa0e118ba2a79ff8ba556f7479d879ec0b6e9754ac5dfbfad5cae6ae6ec9cd",
+          "4f37f4d1debbbc2fcc9cdb764b17f5ff17bbd3911c91c0f3b290ebc5f056742c",
+          "c0c91996b26c06b2869035867646cf7185542bd3494073c3fbc79a2e7d7d0a55",
+          "d8a2df6e66232886a9276f88a9338b09b2d0f683273981ed7314f3c8a3e2f156",
+          "14efbe66b5b9dd90e7e808bd9d90b7ceb923dfdb98771cab63b1eb2454657d59",
+          "ac026c518ce722c9aaa08a5f90f456825f21f0d0e8f73cf7057e557ce9155b81",
+          "a54fc3e1d39d0bf83e41dead0823929b47d122a9f08973769155dcf5a57e092c",
+          "633d8464384788d000062e82646aaf6566e0a30c699f45c354875d06c3f395c0",
+          "958e3dfc938bca2906b40bdadc5bab0e04376aa4d42ae20c862906b00310325a",
+          "017d543cc3c68a3be0123b308c542707325f19a54ea45f7309b4b5daeced2006",
+          "e888eb83e16cbd2520471df83a0ef4d3565ab44c2562f93ecb4c6d9d399eb457",
+          "c891cf20eab42a7b5cb40d929f2fcf39bd35150b8f88d747ba266b86ab13569b",
+          "53915fe4672478c312dcce3866dfee8c963424f1c8d481793a6343a85e5d8fa8",
+          "cc7a2cb1db9afda219d0fb3d4536896abf15e0cf4ddaf1a36dabd9fc9fbce66b",
+          "6837448f8903a8b194be364b66c3f349ee77f25ca3c63b11435b1adec3eb634d",
+          "8440e137e620a456a8c7488c27c1be49142f92d55fafca0aab5ddf28e125972f",
+          "e721efe8c2c11efc647e7b084673008ecfb82b487aad1252448a4d9d327c711f",
+          "82930ca8ecc581a91907fdb23ec5e49cc29738ca2f20b49f6f02a5ce8e865921",
+          "8bc83e0183ecd9f713cb77b1f913535b6a355fca7c5d09757c1fcf76f3e4518b",
+          "9ddb2c8d7f4f065ba996579ebfbd857eb1a30b1109c4391658d4371eb4e984fd",
+          "26e300126bfc0219bf442ba1ffb0add77d87c90e991a42bbdd521324864460c4",
+          "8ff3cd004958b8315a208c2c4805636d5f02a2eb03ffc6ad321976c4a6e9a50d",
+          "1a0ee398affaae68a5f2cec0b6803b71f3596fc851349810d7660fdd63d3cd4b",
+          "90468a686242e0b76d4baa2207d94b78d8d5998e1f9f57151a625738e50cf9b7",
+          "4409f6f4807ab9773e8e6523f399596132c88f38375a45d00c38d51c83606b42",
+          "cdbdad0c5bcf088476808ed2b0baa0a447ba3e99fc7a41b81d9c2938c2116a88",
+          "81f0fb59372b67b6e91b2b332ab7da0fe6fad3a82f74517bb07c01d764d38f49",
+          "83d16788e26770c27842e69d63dbe7463e43b747a3c64571343facca6f200708",
+          "9fdb44d13c011183d86524c94b203657ffeb7795d45708c75f34c0f91b938658",
+          "488921282fc08d61c911ada223c350a66988b283bd09e4e0924091104d0c43f8",
+          "e9781594e1f15df966d9537404048a46430b29dfa414d96d4980739a24d43823",
+          "620a3388001e71d39ffeb653a7b316402aab098f1459331c6553969a961482a5",
+          "f9e922ad24d43ee0d36d1c26c7d49b0cb6d6e4b7e2322265080e3c4568b2d392",
+          "c0fc8685761520d4830ffc058cfd441928eafe0749bce87e635b1b257925522d",
+          "899fcba496ac7a89bab4135b8bb1f7e177f068a0d08663f9da9fc81783590d25",
+          "275871ea164f975d29c85d9089b42fbbe7e26661e42f263a3eb5f82f91f0d050",
+          "084e1643be309992002cd6ba46ab56bf807cddea790390d21b111a50eea28c09",
+          "8bec861bbcfe0b93d906a6b05fef3893ef0ea430f04d67a2560175c4ccd28890",
+          "2707acd39e621210577ba95c40c0f445ab1592d4a4628bf5f043738dccce26db"
+        ],
+        "transport": null
+      },
+      "target": null
+    },
+    {
+      "effect": {
+        "created_result": null,
+        "created_source": "38d4f7ab162767ac42b4f662696c89c3d2807975f7ed461bff47e69496e839eb",
+        "detected_overlaps": [],
+        "replaced_result": null,
+        "retired_source": null,
+        "revalidation": []
+      },
+      "id": "5be42bb998c81b95c74682ca6aa40718165f31f0181839c02ebdc498dc05645c",
+      "kind": "add",
+      "reason": null,
+      "request": null,
+      "source": {
+        "kind": "observation_set",
+        "label": "study_3",
+        "lineage": {
+          "inputs": [],
+          "kind": "original",
+          "likelihood": null,
+          "of": null,
+          "prior": null,
+          "transform": null
+        },
+        "observations": [
+          "438c672775fc725a2d6d6852acac95cdcd6a4b886f988ca683413c47f5f6bdd8",
+          "d66bf42a637643fbcc476471ab4a61081ae8ace79a066c772798f98f70866e53",
+          "71ac2d65d2cf4c29515a2fa6259e376c7cf8c941e884f86f54f0cd3db43276e9",
+          "f8687aac93a1019914839f05033ac9a59552cd2902931ef4c6bce3fa91604ad3",
+          "ccf7143a4406ed0108dcd176743179753f46fcc24b0684702a5e9b7127303712",
+          "dde951bc7a87f15a948a1bded9beb817333cc6e81e8c9d84bfc4e49eb61fcbff",
+          "e0da6d3c29e58be4d63004217e62e6657774aaf15e0f89b023b8c99771e65407",
+          "704ed8a1840e8f87197ab36029b85a7c260cf790b95031ebf297251c7b11e0dd",
+          "3c8d8d94707e2b2f78fb99697914f91e44d7c0581462bfcff28fa04520b1c0fb",
+          "2fd66440932c28623397f9d25edee7f07f87644f42ec2d79816c725564c286aa",
+          "dc609356eff26073ea726bbb14b25622edafcdd5b0d15b767f267073718d36d2",
+          "122b9e4372df9d4ee992c93011653dabcdc14fd60d6a81b7bae1d4d774ff0d5f",
+          "6488d8e6db75a6fc2b3cbf2d4510fcf56cad7a765c763323e230ef35c3205c05",
+          "2481a769702a17eaabf5bc54feba029102441a325699ec8ae7f4928025be9c3c",
+          "ddf5ab2e73ae6b130c4001e239c4508c25b1d970c3b8f6f210b5d5b36162cd31",
+          "76f63063f0b58a102da0d5d0d883aeb287594015b50693fe1846db39bbd521b5",
+          "c883581f223911bb90c33d64374f0938bda542f6e642331a2b8483b921fc13c1",
+          "f6fd25e0365311b6f9d3c94f218ad850869c6f1b5a28c7df017375719f7913a3",
+          "36383525fdd985e717e15f6e6fc525c42be1134586188b5665f3f4611d2440de",
+          "26b25bf5675f9d86538451caa44f3daf5e2cfa67cfe4f34bd408fbfd28363240",
+          "1a7a80ce0f8ffb8ac15495621dc2268c04c95507d0d227b391921865b427bfdc",
+          "bc2984cb4b54374c5b09d4b73951d1ee0a6a79cb11beaabab18573666482088c",
+          "caff2599c3491c4d480edc08b4141c7f0dc23afa7b762f8bcda69c1feac6f435",
+          "dee44c3e8dc3ee16c5a97c3453d19fc659c72e38cdf2d7db5af765b769a1512c",
+          "6d93a9c2c9995df49642ac89160f0ee217fb8913fb6b806319af0f68c271f9dc",
+          "9f06ec970129d385691d77a5d2641795496c4fddf2d51b68a8d1badea09906c4",
+          "338ab11d0abe2c7d17252da3ac973baf2daab46adbc2141106fc9055bbd4b4e7",
+          "7a4167d518ed766d2a50ab7382414a84d86669fd0d1a6c126425b0968b25bb38",
+          "5899ed65d675689639b22c8c36251752afa477f1ad05c0ec96a787d56550a2e0",
+          "ad7286a75b13f4b5a9e1b989c502d32fc33eb01d0b33d2abcb3267e280f5b753"
+        ],
+        "transport": null
+      },
+      "target": null
+    },
+    {
+      "effect": {
+        "created_result": null,
+        "created_source": "1c4715114c38851844783314afbdfd9bcfe39cc227f8adbb4e3aab610a0ffe86",
+        "detected_overlaps": [
+          {
+            "existing": "38d4f7ab162767ac42b4f662696c89c3d2807975f7ed461bff47e69496e839eb",
+            "shared": 10
+          }
+        ],
+        "replaced_result": null,
+        "retired_source": null,
+        "revalidation": []
+      },
+      "id": "ca57c712fc67d1d8b75b36d4b59324a7cd0f1bf229bd0ce35f0f1c0b3b550de1",
+      "kind": "add",
+      "reason": null,
+      "request": null,
+      "source": {
+        "kind": "observation_set",
+        "label": "study_4",
+        "lineage": {
+          "inputs": [],
+          "kind": "original",
+          "likelihood": null,
+          "of": null,
+          "prior": null,
+          "transform": null
+        },
+        "observations": [
+          "1a7a80ce0f8ffb8ac15495621dc2268c04c95507d0d227b391921865b427bfdc",
+          "bc2984cb4b54374c5b09d4b73951d1ee0a6a79cb11beaabab18573666482088c",
+          "caff2599c3491c4d480edc08b4141c7f0dc23afa7b762f8bcda69c1feac6f435",
+          "dee44c3e8dc3ee16c5a97c3453d19fc659c72e38cdf2d7db5af765b769a1512c",
+          "6d93a9c2c9995df49642ac89160f0ee217fb8913fb6b806319af0f68c271f9dc",
+          "9f06ec970129d385691d77a5d2641795496c4fddf2d51b68a8d1badea09906c4",
+          "338ab11d0abe2c7d17252da3ac973baf2daab46adbc2141106fc9055bbd4b4e7",
+          "7a4167d518ed766d2a50ab7382414a84d86669fd0d1a6c126425b0968b25bb38",
+          "5899ed65d675689639b22c8c36251752afa477f1ad05c0ec96a787d56550a2e0",
+          "ad7286a75b13f4b5a9e1b989c502d32fc33eb01d0b33d2abcb3267e280f5b753",
+          "c37cf8de65558445b6a935ce1849abdadb5ed192798598b691742943fced4cad",
+          "81579082beb0c76566505edff0fbde046b8676ffa5e9edb3d76100cb1505649c",
+          "47929484fd59f2f6a46e5c4b6138efcd60d00c1cecfb149d011fe084a3a8077f",
+          "d5529c6387652a5dba3a593fce524c8a7a213bdaf123e5cb36143cc2b13ea00a",
+          "b407fe0dbc39f83dc7c0fdefcb6ea092f528bb7be60d322d3ef36ecc3202d5ab",
+          "7a8cc5c345bb3e0a7c6a3f76bdc59a1ced9f56f61f33a193d5ab86cace47407c",
+          "7ace3ddda19c560731a8cf3ee049bc923d4097bcae2142564b1fbdd547086426",
+          "b8a69608e57dd2119c19de56f554b92ced92883b0922889647bcc46a50bb0746",
+          "23217f54755448f79daa4bb1deccb601bd2170ee2c9f95d30e3b90e2efb98adc",
+          "c7d975b641d29d87384da245545855774753dcc4e599a4d800d2f3b1e6b6d864",
+          "8c33b90621f900637c3ebe58e243499cdf1d61ede1fa4a5bb2b42ebce960e338",
+          "29440451287501a82df54dd5ac34cb7bbede9e6c2c26954d5197b29382c2bf28",
+          "f8ec7c14a6c0931614f11a9a914786e3944f458a6182e934251a39b1abb09039",
+          "1bf32a39ce04398c6eddba27939ad3a180055a98e17832fb7117ecd0a88b41f2",
+          "4a9b4a8e9c2c2092c5f04a776994625465c3faf36957f32865498aa9edcfc5e9",
+          "c82f0b8c066be371a77cbc20fe504845b17305f8accabeb4a4c50e639532c420",
+          "25582d2d84701bcb566bd841bd21f49a94e6d8c85516ebce0d34bb00cc7a57d3",
+          "1cdeb779ad553e02e2f13926dd04e336b0090dea3913464cd4385e02b8b2ae57",
+          "2c0b26a171bb49635e08d7f533d84142b3b17f12e1803845652482451127a894",
+          "7a8fab99ce6f1e8667e2b040c946d7ca128f7837fee96d1f5a4ba7e5b8d78e07",
+          "e596976cf8f8d3612d02fc96b9a319e69f5ab0057cb07fe3a6982d81bd2c6e32",
+          "83e9156bc6c6870089796f7459d13d8538cce408250304946f5671e500ef7a91",
+          "eb7ce34838ac87d43303232f66352d89a230984cd0f6dd18a33c2b2cf6fa12e6",
+          "f813d7e5da77f2cc82b4b71d3b9f183f7462c4c4ce3a5c7a223a645429e7d96c",
+          "27b07abf98fef0ca4844183f3c5ee19a16f3010ece4a0615907cac62a79bc7f5",
+          "8df8b0c679259e15439e191cf2f5e52f3ee4ad992f59a76493c988d4fbe2b6da",
+          "cee1234e5cbecd2c96cb8148e646a0c9e0acc87d93f558c117b9ea320a98c24b",
+          "e1173e8fcaea5b67174001cc5746b00dc95caa96434dab6b287c1f06a5a70640",
+          "0df8aee270b1edde03ff3401000e029987d1d86b0810fa37285ac9e68cffb6e6",
+          "61debf15d7ae88e3f6f9854afd91e52118d785f5a3754c72b60958fed344a2ff"
+        ],
+        "transport": null
+      },
+      "target": null
+    },
+    {
+      "effect": {
+        "created_result": null,
+        "created_source": "aa0b5d0a11dd1fa64b6fdf849acb5c09bcfe6aa027b05f44d42175353f212b07",
+        "detected_overlaps": [],
+        "replaced_result": null,
+        "retired_source": null,
+        "revalidation": []
+      },
+      "id": "312e80b933a5c7b4b737d464699dd2878e6027c4a7dd0a13929de94b9dc3a86d",
+      "kind": "add",
+      "reason": null,
+      "request": null,
+      "source": {
+        "kind": "external_claim",
+        "label": "vendor_claim",
+        "lineage": {
+          "inputs": [],
+          "kind": "original",
+          "likelihood": null,
+          "of": null,
+          "prior": null,
+          "transform": null
+        },
+        "observations": null,
+        "transport": null
+      },
+      "target": null
+    },
+    {
+      "effect": {
+        "created_result": "8f93fa7182ab27a50a9b0988634e7289d3c0a778ab67288ef681a207929060ca",
+        "created_source": null,
+        "detected_overlaps": [],
+        "replaced_result": null,
+        "retired_source": null,
+        "revalidation": []
+      },
+      "id": "916eef7fc0106108ef5cd7bae9955da13fc524e400d887fea9bc784479a2824b",
+      "kind": "combine",
+      "reason": null,
+      "request": {
+        "dependence": {
+          "covariance": null,
+          "has_cross_covariance": false,
+          "kind": "independent",
+          "rho_hi_bits": null,
+          "rho_lo_bits": null
+        },
+        "kind": "statistical_pooling",
+        "label": "independent_pool",
+        "likelihood": [],
+        "native": [],
+        "of": null,
+        "priors": [],
+        "replaces": null,
+        "sources": [
+          "a3dadc1936536aee3b54242d140ecfe846cc24aa978805f436e01c0577b32f78",
+          "b0f3d8eae25eb7a83683266786827147e2a946bdd523f854ca650da2c0d2f014",
+          "38d4f7ab162767ac42b4f662696c89c3d2807975f7ed461bff47e69496e839eb"
+        ],
+        "stage": null,
+        "transported": []
+      },
+      "source": null,
+      "target": null
+    },
+    {
+      "effect": {
+        "created_result": "27be96550e0558190dcef183890739bb344edd47737d756b677db407af5bbb07",
+        "created_source": null,
+        "detected_overlaps": [],
+        "replaced_result": null,
+        "retired_source": null,
+        "revalidation": []
+      },
+      "id": "ec2522129874f94875c3d37a23b2d93edc748a357e16be6a98f646e1f1b5a3c8",
+      "kind": "combine",
+      "reason": null,
+      "request": {
+        "dependence": {
+          "covariance": "5315d605cef6c2c0a11de7ed4523b6cb3d4189092fe5d25a84cc04f8986b35b2",
+          "has_cross_covariance": true,
+          "kind": "declared_covariance",
+          "rho_hi_bits": null,
+          "rho_lo_bits": null
+        },
+        "kind": "statistical_pooling",
+        "label": "covariance_pool",
+        "likelihood": [],
+        "native": [],
+        "of": null,
+        "priors": [],
+        "replaces": null,
+        "sources": [
+          "38d4f7ab162767ac42b4f662696c89c3d2807975f7ed461bff47e69496e839eb",
+          "1c4715114c38851844783314afbdfd9bcfe39cc227f8adbb4e3aab610a0ffe86"
+        ],
+        "stage": null,
+        "transported": []
+      },
+      "source": null,
+      "target": null
+    },
+    {
+      "effect": {
+        "created_result": "b3ea42845c01939f6437498e593b572288ffd6177e6832566a52b3478ea6dde5",
+        "created_source": null,
+        "detected_overlaps": [],
+        "replaced_result": null,
+        "retired_source": null,
+        "revalidation": []
+      },
+      "id": "81aa54361d04f238d483b3933d1f3d80f4e3ceef171c466ec565785f5c4f7b1e",
+      "kind": "combine",
+      "reason": null,
+      "request": {
+        "dependence": {
+          "covariance": null,
+          "has_cross_covariance": false,
+          "kind": "assumption_range",
+          "rho_hi_bits": 4606281698874543309,
+          "rho_lo_bits": 0
+        },
+        "kind": "statistical_pooling",
+        "label": "range_pool",
+        "likelihood": [],
+        "native": [],
+        "of": null,
+        "priors": [],
+        "replaces": null,
+        "sources": [
+          "38d4f7ab162767ac42b4f662696c89c3d2807975f7ed461bff47e69496e839eb",
+          "aa0b5d0a11dd1fa64b6fdf849acb5c09bcfe6aa027b05f44d42175353f212b07"
+        ],
+        "stage": null,
+        "transported": []
+      },
+      "source": null,
+      "target": null
+    }
+  ],
+  "state_digest": "ff5a860377bf9e20e6ac582925781f46ecdfa27be6441c4bc952a98ccf4b6935",
+  "syntheses": [
+    {
+      "covariance": [],
+      "estimates": [
+        0,
+        4611686018427387904,
+        4618441417868443648
+      ],
+      "method": "fixed_effect_inverse_variance",
+      "prior_mean": null,
+      "prior_variance": null,
+      "result": "8f93fa7182ab27a50a9b0988634e7289d3c0a778ab67288ef681a207929060ca",
+      "rho_hi": null,
+      "rho_lo": null,
+      "sources": [
+        "a3dadc1936536aee3b54242d140ecfe846cc24aa978805f436e01c0577b32f78",
+        "b0f3d8eae25eb7a83683266786827147e2a946bdd523f854ca650da2c0d2f014",
+        "38d4f7ab162767ac42b4f662696c89c3d2807975f7ed461bff47e69496e839eb"
+      ],
+      "tau_probabilities": [],
+      "tau_support": [],
+      "values": [
+        4609112532926033334,
+        4603322190547985554,
+        4620049846306790253,
+        4603322190547985554,
+        4598818590920615058,
+        4594314991293244562
+      ],
+      "variances": [
+        4607182418800017408,
+        4611686018427387904,
+        4616189618054758400
+      ]
+    },
+    {
+      "covariance": [
+        4607182418800017408,
+        4607182418800017408,
+        4607182418800017408,
+        4616189618054758400
+      ],
+      "estimates": [
+        4607182418800017408,
+        4613937818241073152
+      ],
+      "method": "fixed_effect_gls",
+      "prior_mean": null,
+      "prior_variance": null,
+      "result": "27be96550e0558190dcef183890739bb344edd47737d756b677db407af5bbb07",
+      "rho_hi": null,
+      "rho_lo": null,
+      "sources": [
+        "38d4f7ab162767ac42b4f662696c89c3d2807975f7ed461bff47e69496e839eb",
+        "1c4715114c38851844783314afbdfd9bcfe39cc227f8adbb4e3aab610a0ffe86"
+      ],
+      "tau_probabilities": [],
+      "tau_support": [],
+      "values": [
+        4607182418800017408,
+        4607182418800017408,
+        4608683618675807574,
+        4607182418800017408,
+        0
+      ],
+      "variances": []
+    },
+    {
+      "covariance": [],
+      "estimates": [
+        4607182418800017408,
+        4613937818241073152
+      ],
+      "method": "dependence_envelope",
+      "prior_mean": null,
+      "prior_variance": null,
+      "result": "b3ea42845c01939f6437498e593b572288ffd6177e6832566a52b3478ea6dde5",
+      "rho_hi": 4606281698874543309,
+      "rho_lo": 0,
+      "sources": [
+        "38d4f7ab162767ac42b4f662696c89c3d2807975f7ed461bff47e69496e839eb",
+        "aa0b5d0a11dd1fa64b6fdf849acb5c09bcfe6aa027b05f44d42175353f212b07"
+      ],
+      "tau_probabilities": [],
+      "tau_support": [],
+      "values": [
+        13817687028148020375,
+        4606281698874543309,
+        4608983858650965606,
+        0,
+        4603064841997850096,
+        4606281698874543309,
+        4607182418800017408,
+        4602678819172646912
+      ],
+      "variances": [
+        4607182418800017408,
+        4611686018427387904
+      ]
+    }
+  ],
+  "version": 1
+}

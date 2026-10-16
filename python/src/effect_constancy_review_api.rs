@@ -1,9 +1,9 @@
-//! Original F18 artifact consumption feeding the original bank and point decision engines.
+//! Original effect-constancy artifact consumption feeding the original bank and point decision engines.
 use std::collections::BTreeMap;
 
 use antecedent::analysis::effect_constancy::EffectConstancyIdentity;
 use antecedent::analysis::effect_constancy_consumers::{ConstancyConsumers, PriorPartitionBinding};
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_artifact::{contract_from_json, mean_result_to_json};
 use antecedent_io::prior_bank::{
     EstimandFingerprint, PriorCatalog, PriorSourceMeta, PriorSourceRef, TargetDesign,
@@ -55,6 +55,12 @@ fn invalid(message: impl std::fmt::Display) -> PyErr {
 }
 
 /// Recompute source evidence and invoke its explicitly declared downstream consumer.
+/// The sealed effect-constancy artifact and the review request over it.
+const MAX_ARTIFACT_BYTES: usize = crate::bridge::MAX_DATA_DECLARATION_BYTES;
+const MAX_REQUEST_BYTES: usize = crate::bridge::MAX_DATA_DECLARATION_BYTES;
+/// The retained expected identity: a handful of digests.
+const MAX_IDENTITY_BYTES: usize = 4096;
+
 #[pyfunction]
 fn review_effect_constancy(
     py: Python<'_>,
@@ -62,9 +68,9 @@ fn review_effect_constancy(
     identity_json: &str,
     request_json: &str,
 ) -> PyResult<String> {
-    if artifact.as_bytes().len() > 64 * 1024 * 1024
-        || request_json.len() > 64 * 1024 * 1024
-        || identity_json.len() > 4096
+    if artifact.as_bytes().len() > MAX_ARTIFACT_BYTES
+        || request_json.len() > MAX_REQUEST_BYTES
+        || identity_json.len() > MAX_IDENTITY_BYTES
     {
         return Err(invalid("byte limit exceeded"));
     }
@@ -85,9 +91,11 @@ fn review_effect_constancy(
             ReviewWire::Prior { sources, target, target_partition, bindings } => {
                 if sources.len() > 1024
                     || bindings.len() > 1024
-                    || sources
-                        .iter()
-                        .any(|s| s.artifact.as_ref().is_some_and(|a| a.len() > 16 * 1024 * 1024))
+                    || sources.iter().any(|s| {
+                        s.artifact
+                            .as_ref()
+                            .is_some_and(|a| a.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES)
+                    })
                 {
                     return Err(invalid("prior catalog exceeds bounds"));
                 }

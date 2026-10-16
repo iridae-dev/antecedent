@@ -1,0 +1,30 @@
+# Algorithm provenance for provider_callback.replay_policy (see docs/provider-callbacks.md).
+
+feature_id = "provider_callback.replay_policy"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: the protocol is predicate evaluation over declared records (equality of
+# identities, set inclusion of operations, replay-contract tables) and validation of returned
+# values against a declared support. It is not a statistical method and implements no published
+# estimator, so there is nothing to cite.
+papers = [
+]
+
+implementation_deviations = [
+  "The decision is relative to the declarations: a declared dependency set, state identity, stream identity or trust level is a statement the provider owns, and the protocol does not verify it.",
+  "Output validation checks that an answer is a well-formed object of the declared quantity (shape, finiteness, support, monotone distribution and quantile functions); it does not check the provider's numerical truth.",
+  "The wall-clock bound is enforced after an in-process call returns, so a late result is discarded but the call is not preempted.",
+  "No interval, posterior guarantee, joint law, identification licence or native trust is produced; the interface projection is point-only or unmeasured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "reference Gaussian callback compared with tabulated standard-normal values and the conjugate-normal posterior mean",
+  "hand-enumerated identity, reuse and effect-policy tables with invocation counters on the supplied provider",
+  "resealed single-field edits of stored declarations, requests and outputs by an independent artifact consumer",
+]

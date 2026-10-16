@@ -3,10 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::JointSensitivityArtifactWire;
-use antecedent_core::{
-    CompositionLink, CompositionStage, ExecutionContext, ProvenanceChain, ScientificQuantity,
-    reason_code,
-};
+use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain, ScientificQuantity};
+use antecedent_core::{ExecutionContext, reason_code};
 use antecedent_io::sensitivity_artifact::SensitivityArtifact;
 use antecedent_io::{IoError, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize};
@@ -81,7 +79,8 @@ impl SourceBackedSensitivity {
         let mut links = self.surface.provenance_chain()?.links().to_vec();
         let original = &self.original.body.provenance;
         let baseline = format!("baseline_artifact:{}", original.baseline_artifact_digest);
-        let source = format!("joint_sensitivity_source:{}", blake3::hash(&self.source).to_hex());
+        let source =
+            format!("joint_sensitivity_source:{}", antecedent_core::blake3_hex(&self.source));
         let evidence = format!("sensitivity_premises:{}", self.original.premises_digest);
         let link = |id, stage, parents| CompositionLink {
             id,
@@ -105,13 +104,32 @@ impl SourceBackedSensitivity {
     }
     /// Query source scientific standing and complete native derivation.
     /// # Errors
-    /// Invalid original chain.
-    /// # Panics
-    /// Only if a validated native derivation chain loses one of its own links.
+    /// Invalid original chain, or a lineage link whose digest is not in that chain.
     pub fn summary(&self) -> Result<serde_json::Value, IoError> {
         let chain = self.provenance_chain()?;
+        let mut lineage = Vec::new();
+        for link in chain.links() {
+            let digest = chain
+                .digest_of(&link.id)
+                .map_err(|_| sensitivity_invalid("sensitivity_source.lineage_digest"))?;
+            let mut parent_digests = Vec::new();
+            for id in &link.parents {
+                parent_digests.push(
+                    chain
+                        .digest_of(id)
+                        .map_err(|_| sensitivity_invalid("sensitivity_source.lineage_digest"))?,
+                );
+            }
+            lineage.push(serde_json::json!({
+                "id": link.id,
+                "stage": link.stage.as_str(),
+                "parents": link.parents,
+                "digest": digest,
+                "parent_digests": parent_digests,
+            }));
+        }
         Ok(serde_json::json!({
-            "source_artifact_digest":blake3::hash(&self.source).to_hex().to_string(),
+            "source_artifact_digest":antecedent_core::blake3_hex(&self.source),
             "baseline_artifact_digest":self.original.body.provenance.baseline_artifact_digest,
             "premises_digest":self.original.premises_digest,"data_digest":self.original.data_digest,
             "source_provenance":self.original.body.provenance,
@@ -119,11 +137,7 @@ impl SourceBackedSensitivity {
             "native_authority_issued":false,"calibration_license_issued":false,
             "uncertainty":self.surface.uncertainty(),
             "coordinates":self.surface.quantities().iter().map(|q| &q.quantity).collect::<Vec<_>>(),
-            "lineage":chain.links().iter().map(|link| serde_json::json!({
-                "id":link.id,"stage":link.stage.as_str(),"parents":link.parents,
-                "digest":chain.digest_of(&link.id).expect("validated link"),
-                "parent_digests":link.parents.iter().map(|id| chain.digest_of(id).expect("validated parent")).collect::<Vec<_>>()
-            })).collect::<Vec<_>>()
+            "lineage":lineage
         }))
     }
     /// Export the complete source and original surface, preserving original formats.

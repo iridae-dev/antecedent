@@ -20,7 +20,7 @@ workspace = true
 
 [features]
 default = ["ml-full", "ml-neural"]
-calibration-internal = ["antecedent/calibration-internal", "antecedent-io/calibration-internal", "antecedent-estimate/calibration-internal"]
+calibration-internal = ["antecedent/calibration-internal", "antecedent-io/calibration-internal", "antecedent-estimate/calibration-internal", "antecedent-validate/calibration-internal"]
 ml-gbdt = ["antecedent/ml-gbdt", "antecedent-estimate/ml-gbdt"]
 ml-forest = ["antecedent/ml-forest", "antecedent-estimate/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
@@ -28,26 +28,30 @@ ml-neural = ["antecedent/ml-neural", "antecedent-estimate/ml-neural"]
 
 [dependencies]
 blake3.workspace = true
-antecedent-core = { path = "../crates/antecedent-core" }
-antecedent-data = { path = "../crates/antecedent-data", features = ["arrow"] }
-antecedent = { path = "../crates/antecedent" }
-antecedent-io = { path = "../crates/antecedent-io" }
-antecedent-prob = { path = "../crates/antecedent-prob" }
+antecedent-core = { workspace = true }
+antecedent-contract = { workspace = true }
+antecedent-data = { workspace = true, features = ["arrow"] }
+antecedent = { workspace = true }
+antecedent-io = { workspace = true }
+antecedent-prob = { workspace = true }
 # Type conversion only (mediation estimand / graph construction for analyze*).
-antecedent-expr = { path = "../crates/antecedent-expr" }
-antecedent-graph = { path = "../crates/antecedent-graph" }
-antecedent-identify = { path = "../crates/antecedent-identify" }
-antecedent-design = { path = "../crates/antecedent-design" }
-antecedent-model = { path = "../crates/antecedent-model" }
-antecedent-attribution = { path = "../crates/antecedent-attribution" }
-antecedent-stats = { path = "../crates/antecedent-stats" }
-antecedent-validate = { path = "../crates/antecedent-validate" }
-antecedent-discovery = { path = "../crates/antecedent-discovery" }
+antecedent-expr = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-identify = { workspace = true }
+antecedent-design = { workspace = true }
+antecedent-model = { workspace = true }
+antecedent-attribution = { workspace = true }
+antecedent-stats = { workspace = true }
+antecedent-validate = { workspace = true }
+antecedent-discovery = { workspace = true }
 # Concrete estimator structs for the `estimator_config=` parser; the
 # `antecedent` facade re-exports `EstimatorSpec` but not the structs it wraps.
-antecedent-estimate = { path = "../crates/antecedent-estimate" }
-antecedent-learn = { path = "../crates/antecedent-learn" }
-pyo3 = { workspace = true, features = ["multiple-pymethods"] }
+antecedent-estimate = { workspace = true }
+antecedent-learn = { workspace = true }
+# `extension-module` is also set on the workspace pyo3 dependency: this cdylib
+# must not link libpython. `build.rs` links libpython only into the test harness.
+# `multiple-pymethods` is the second impl on Dag, Cpdag, Pag, and Admg.
+pyo3 = { workspace = true, features = ["extension-module", "multiple-pymethods"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
 numpy = { workspace = true }
@@ -57,4 +61,4 @@ serde_json = { workspace = true }
 [build-dependencies]
 # Same version as the pyo3 the extension links. Used only to discover libpython
 # for the cargo-test harness; the cdylib stays an extension module.
-pyo3-build-config = "0.29"
+pyo3-build-config = { workspace = true }

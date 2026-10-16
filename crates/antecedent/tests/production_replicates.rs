@@ -154,10 +154,25 @@ fn assert_full(result: &StudyResult, requested: u32, label: &str) {
         Some(requested),
         "{label}: requested"
     );
-    assert_eq!(result.estimate.bootstrap_replicates_ok, Some(requested), "{label}: ok count");
+    assert_eq!(
+        result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+        Some(requested),
+        "{label}: ok count"
+    );
     assert!(!result.performance.early_stopped, "{label}: early_stopped");
-    assert!(!result.estimate.bootstrap_early_stopped, "{label}: estimate early_stopped");
-    assert!(result.estimate.se_bootstrap.is_some_and(|se| se.is_finite() && se > 0.0), "{label}");
+    assert!(
+        !result.estimate.as_effect().unwrap().uncertainty.bootstrap.early_stopped,
+        "{label}: estimate early_stopped"
+    );
+    assert!(
+        result
+            .estimate
+            .as_effect()
+            .unwrap()
+            .se_bootstrap()
+            .is_some_and(|se| se.is_finite() && se > 0.0),
+        "{label}"
+    );
 }
 
 #[test]
@@ -217,11 +232,14 @@ fn production_static_mediation_se_matches_calibration_context_at_b800() {
         let c = static_run(&data, &dag, mediation_query(contrast), 800, &calibration);
         assert_full(&p, 800, "production mediation");
         assert_full(&c, 800, "calibration mediation");
-        let (se_p, se_c) = (p.estimate.se_bootstrap.unwrap(), c.estimate.se_bootstrap.unwrap());
+        let (se_p, se_c) = (
+            p.estimate.as_effect().unwrap().se_bootstrap().unwrap(),
+            c.estimate.as_effect().unwrap().se_bootstrap().unwrap(),
+        );
         assert!(
             (se_p - se_c).abs() <= 1e-9 * se_c.abs().max(1.0),
             "{contrast:?}: production SE {se_p} vs calibration SE {se_c}"
         );
-        assert_eq!(p.estimate.ate, c.estimate.ate);
+        assert_eq!(p.estimate.as_effect().unwrap().ate, c.estimate.as_effect().unwrap().ate);
     }
 }

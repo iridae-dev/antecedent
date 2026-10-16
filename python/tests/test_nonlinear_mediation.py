@@ -1,4 +1,4 @@
-"""B4 nonlinear continuous-mediator mediation through the Python facade.
+"""Nonlinear continuous-mediator mediation through the Python facade.
 
 Every expected number is the closed form of an exact structural model on a deterministic crossed
 grid (the same dataset as ``crates/antecedent-estimate/tests/nonlinear_mediation.rs``).
@@ -118,7 +118,7 @@ def run(g: dict[str, np.ndarray], **kwargs):
     return mediation_effects(g["treatment"], g["mediator"], g["outcome"], {"x": g["x"]}, **kwargs)
 
 
-def test_b4_mediation_exact_scm_recovers_closed_form_effects() -> None:
+def test_mediation_exact_scm_recovers_closed_form_effects() -> None:
     s = scm()
     result = run(grid(s))
     nde, nie, te = truth(s)
@@ -133,7 +133,7 @@ def test_b4_mediation_exact_scm_recovers_closed_form_effects() -> None:
     assert result.natural_direct_se is None
 
 
-def test_b4_mediation_total_equals_direct_plus_indirect_off_base() -> None:
+def test_mediation_total_equals_direct_plus_indirect_off_base() -> None:
     s = scm(c2=-0.35, delta=-0.5, alpha=0.4, b1=-0.2)
     result = run(grid(s), quadrature_nodes=10)
     nde, nie, te = truth(s)
@@ -143,7 +143,7 @@ def test_b4_mediation_total_equals_direct_plus_indirect_off_base() -> None:
     assert result.total == pytest.approx(te, abs=1e-8)
 
 
-def test_b4_mediation_reports_integration_error_and_refuses_above_tolerance() -> None:
+def test_mediation_reports_integration_error_and_refuses_above_tolerance() -> None:
     s = scm(c3=0.2)
     g = grid(s)
     nde, nie, te = truth(s)
@@ -174,7 +174,7 @@ def test_b4_mediation_reports_integration_error_and_refuses_above_tolerance() ->
         "unmeasured_mediator_outcome_confounding",
     ],
 )
-def test_b4_mediation_confounding_flags_refuse(flag: str) -> None:
+def test_mediation_confounding_flags_refuse(flag: str) -> None:
     premises = dataclasses.replace(IGNORABLE, **{flag: True})
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm()), premises=premises)
@@ -184,7 +184,7 @@ def test_b4_mediation_confounding_flags_refuse(flag: str) -> None:
     assert_registered_refusal(caught.value)
 
 
-def test_b4_mediation_treatment_induced_confounder_and_cross_world_refuse() -> None:
+def test_mediation_treatment_induced_confounder_and_cross_world_refuse() -> None:
     induced = MediationPremises(treatment_induced_confounders=("L",), cross_world_independence=True)
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm()), premises=induced)
@@ -197,7 +197,7 @@ def test_b4_mediation_treatment_induced_confounder_and_cross_world_refuse() -> N
     assert_registered_refusal(caught.value)
 
 
-def test_b4_mediation_interventional_estimand_is_closed() -> None:
+def test_mediation_interventional_estimand_is_closed() -> None:
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm()), estimand=MediationEstimand.INTERVENTIONAL_EFFECTS)
     assert caught.value.detail == "nonlinear_mediation.interventional_effects_closed"
@@ -207,7 +207,7 @@ def test_b4_mediation_interventional_estimand_is_closed() -> None:
         run(grid(scm()), estimand="interventional_effects")
 
 
-def test_b4_mediation_weak_overlap_refuses() -> None:
+def test_mediation_weak_overlap_refuses() -> None:
     # alpha = 6: the control mediator law sits far outside the treated arm's mediator range.
     with pytest.raises(MediationRefusal) as caught:
         run(grid(scm(alpha=6.0)))
@@ -222,7 +222,7 @@ def test_b4_mediation_weak_overlap_refuses() -> None:
     assert caught.value.detail == "nonlinear_mediation.overlap"
 
 
-def test_b4_mediation_bootstrap_is_seeded_unmeasured_and_has_no_interval() -> None:
+def test_mediation_bootstrap_is_seeded_unmeasured_and_has_no_interval() -> None:
     g = grid(scm())
     a = run(g, bootstrap_replicates=30, seed=7)
     b = run(g, bootstrap_replicates=30, seed=7)
@@ -242,7 +242,7 @@ def test_b4_mediation_bootstrap_is_seeded_unmeasured_and_has_no_interval() -> No
     assert other.natural_direct_se != a.natural_direct_se
 
 
-def test_b4_mediation_records_premises_declared_versus_checked() -> None:
+def test_mediation_records_premises_declared_versus_checked() -> None:
     result = run(grid(scm()))
     status = {p.name: p.status for p in result.premises}
     assert status["cross_world_independence"] == "declared"
@@ -257,7 +257,7 @@ def test_b4_mediation_records_premises_declared_versus_checked() -> None:
     assert "assumption:cross_world_independence" in result.assumptions
 
 
-def test_b4_mediation_artifact_round_trips_and_checks_the_retained_identity() -> None:
+def test_mediation_artifact_round_trips_and_checks_the_retained_identity() -> None:
     result = run(grid(scm()), bootstrap_replicates=8, seed=3)
     again = consume_mediation_artifact(result.export(), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
@@ -268,7 +268,7 @@ def test_b4_mediation_artifact_round_trips_and_checks_the_retained_identity() ->
     assert from_mapping.identity == result.identity
 
 
-def test_b4_mediation_artifact_refuses_a_resealed_change_against_retained_identity() -> None:
+def test_mediation_artifact_refuses_a_resealed_change_against_retained_identity() -> None:
     original = run(grid(scm()))
     g = grid(scm())
     g["outcome"] = g["outcome"].copy()
@@ -285,7 +285,7 @@ def test_b4_mediation_artifact_refuses_a_resealed_change_against_retained_identi
     assert_registered_refusal(caught.value)
 
 
-def test_b4_mediation_artifact_corruption_and_type_errors() -> None:
+def test_mediation_artifact_corruption_and_type_errors() -> None:
     result = run(grid(scm()))
     corrupt = bytearray(result.export())
     corrupt[len(corrupt) // 2] ^= 0xFF

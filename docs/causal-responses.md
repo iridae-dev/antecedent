@@ -323,7 +323,7 @@ when any cell reads fewer than 15 effective rows.
   Set / Shift designs; there a lagged outcome in the adjustment set would need
   outcome ancestry that repeats at every earlier slice, which temporal backdoor
   identification does not certify, so it refuses first. No replicate row pairs values
-  across a block junction. The raw-series replicate that 1.8 used for Sequence
+  across a block junction. The raw-series replicate that an earlier release used for Sequence
   overlays measured 31–81% coverage for a nominal 95% band and is gone.
 - **Bayesian.** The simultaneous credible band uses posterior draws of the
   grid around the posterior mean: joint Gibbs draws for
@@ -360,7 +360,7 @@ Bayesian responses (posterior intervals), static responses, and `cell.aipw`
 refuse a positive `bootstrap=` rather than ignoring it.
 
 Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
-is measured by `crates/antecedent/tests/v19_temporal_response_calibration.rs`
+is measured by `crates/antecedent/tests/temporal_response_calibration.rs`
 (run via `scripts/gate_calibration.sh`, 400 replicates, `n = 160`). Gated: iid and
 AR(1) `ρ = 0.5` residuals on every Frequentist cell, and both the dose curve
 (0.945–0.948 pointwise, 0.948 simultaneous) and the shift response (0.943
@@ -437,7 +437,7 @@ its covariates. With the additive outcome nuisance this is the per-row
 constant `c_i = mu(a_i, x_i) - ∫ mu(a_i, x) dP_n(x) = h(x_i) - mean h(x)` from
 the row's own cross-fit fold, identical at every grid point. Without it the
 pointwise band under-covered at nominal 0.90 on a confounded linear law
-(`crates/antecedent/tests/v19_static_calibration.rs`; that pre-fix run was not
+(`crates/antecedent/tests/static_calibration.rs`; that pre-fix run was not
 retained). The values
 still condition on the fitted nuisances and bandwidth: second-order nuisance
 error and bandwidth selection are not inside them.
@@ -490,10 +490,10 @@ validation `none`, under Frequentist and Bayesian inference; see the
 [support matrix](support-matrix.md), which carries each cell's evidence.
 PAG/ADMG/CPDAG derivative, graph-posterior, observation-adjusted, and
 cheap/full coordinates remain refused. Mean curves on `Cpdag` / `Pag` are a
-separate 1.4 cell, not a derivative license. The definitions below are the
+separate class-aware cell, not a derivative license. The definitions below are the
 licensed forms, not a license to run every constructor argument. Repeated-
 sampling coverage of every published derivative interval is gated in
-`crates/antecedent/tests/v19_derivative_calibration.rs`.
+`crates/antecedent/tests/derivative_calibration.rs`.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.
@@ -539,7 +539,7 @@ sampling coverage of every published derivative interval is gated in
   Both ride the same matrix cell. Frequentist `log_scale="treatment"` publishes
   `|a|` times the bias-corrected slope interval. `log_scale="outcome"` and
   transformed second derivatives publish joint-covariance delta-method
-  intervals, whose coverage is not yet calibrated for those scales.
+  intervals, whose coverage is not calibrated for those scales.
 - `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
   plug-in gradients with at most two treatments, a common adjustment set, and
   a shared complete-case row set. The target surface is an unpenalized cubic
@@ -559,7 +559,7 @@ sampling coverage of every published derivative interval is gated in
   Its 90% coverage is measured over the gate's three sample-size points as
   `response_jacobian_dag_frequentist_nominal_90_coverage` and
   `directional_derivative_dag_frequentist_nominal_90_coverage` in
-  `v19_derivative_calibration.rs`. The public route remains point-only while
+  `derivative_calibration.rs`. The public route remains point-only while
   those records and the interval route are reviewed for promotion; one
   directional coordinate narrowly missed an exploratory 8,000-repetition
   threshold, although the prescribed gate passed. For an interval today, run the query with Bayesian
@@ -667,8 +667,8 @@ censoring, and other unsupported mechanism/assumption/estimator combinations
 fail closed rather than returning the response of the observed proxy.
 
 See the runnable, deterministic notebooks for a
-[complete-observation response](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb)
-and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/main/examples/notebooks/pricing_availability_latent_demand.ipynb).
+[complete-observation response](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/continuous_causal_response.ipynb)
+and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/notebooks/pricing_availability_latent_demand.ipynb).
 
 ### Static intervention-level uncertainty
 

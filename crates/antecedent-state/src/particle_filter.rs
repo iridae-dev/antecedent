@@ -48,13 +48,13 @@ pub struct ParticleFilterState {
     /// Observations incorporated so far.
     pub n_obs: u64,
     /// Data catalog version stamp.
-    pub data_version: u64,
+    data_version: u64,
     /// Model parameters.
-    pub params: LgssmParams,
+    params: LgssmParams,
     /// Opaque [`CausalRng`] continuation state.
-    pub rng_state: u64,
+    rng_state: u64,
     /// Retention.
-    pub retention: RetentionPolicy,
+    retention: RetentionPolicy,
     /// Per-step scratch buffers (excluded from equality; see [`StepScratch`]).
     scratch: StepScratch,
 }
@@ -116,19 +116,19 @@ impl ParticleFilterState {
         })
     }
 
-    /// Effective sample size `1 / Σ w²` with normalized weights.
+    /// Kish effective sample size `1 / Σ w²` of the normalized weights
+    /// ([`antecedent_kernels::kish_ess`]); `NaN` when the weights are
+    /// impossible (no finite positive mass), never a uniform-looking value.
     #[must_use]
     pub fn ess(&self) -> f64 {
-        let weights = normalized_weights(&self.log_weights);
-        let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-        if sum_sq <= 0.0 { 0.0 } else { 1.0 / sum_sq }
+        antecedent_kernels::kish_ess(&normalized_weights(&self.log_weights))
     }
 
     /// Weighted mean of the latent particles.
     #[must_use]
     pub fn weighted_mean(&self) -> f64 {
         let weights = normalized_weights(&self.log_weights);
-        weights.iter().zip(self.particles.iter()).map(|(w, x)| w * x).sum()
+        antecedent_kernels::dot(&weights, &self.particles)
     }
 
     /// One bootstrap-filter step: predict → update with `y` → resample if ESS low.
@@ -185,8 +185,7 @@ impl ParticleFilterState {
         std::mem::swap(&mut self.particles, &mut self.scratch.particles);
         std::mem::swap(&mut self.log_weights, &mut self.scratch.log_weights);
         self.n_obs = self.n_obs.saturating_add(1);
-        let sum_sq: f64 = self.scratch.weights.iter().map(|w| w * w).sum();
-        let ess = 1.0 / sum_sq;
+        let ess = antecedent_kernels::kish_ess(&self.scratch.weights);
         if ess < 0.5 * self.n_particles as f64 {
             systematic_resample(self, &mut rng);
         }
@@ -226,22 +225,17 @@ fn normalized_weights(log_w: &[f64]) -> Vec<f64> {
 /// Allocation-free core of [`normalized_weights`]: same arithmetic, writing
 /// into a caller-owned buffer.
 fn normalized_weights_into(log_w: &[f64], out: &mut Vec<f64>) -> Result<(), StateError> {
-    let max = log_w.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    out.clear();
-    if !max.is_finite() || log_w.iter().any(|value| value.is_nan() || *value == f64::INFINITY) {
-        return Err(StateError::Numerical("particle weights have no finite positive mass".into()));
-    }
-    out.extend(log_w.iter().map(|lw| (lw - max).exp()));
-    let sum: f64 = out.iter().sum();
-    for wi in out {
-        *wi /= sum;
-    }
-    Ok(())
+    antecedent_kernels::normalize_log_weights_into(log_w, out)
+        .map_err(|why| StateError::Numerical(format!("particle weights unusable: {why}")))
 }
 
 /// Resample using the normalized weights already in `state.scratch.weights`
 /// (refreshed by the caller this step); swaps the particle buffers and zeroes
 /// `log_weights` in place instead of reallocating either.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn systematic_resample(state: &mut ParticleFilterState, rng: &mut CausalRng) {
     let n = state.n_particles;
     let u0 = rng.next_f64() / n as f64;

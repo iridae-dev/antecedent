@@ -71,15 +71,15 @@ use crate::overlap::OverlapPolicy;
 use crate::util::{BootstrapSeResult, stats_err};
 
 /// Largest number of distinct treatment values treated as arms.
-pub const MAX_TREATMENT_LEVELS: usize = 32;
+pub(crate) const MAX_TREATMENT_LEVELS: usize = 32;
 /// Largest per-mediator distinct-value count for which [`FrontDoorOutcomeModel::Auto`]
 /// selects the saturated cell-mean model.
-pub const MAX_SATURATED_MEDIATOR_LEVELS: usize = 16;
+pub(crate) const MAX_SATURATED_MEDIATOR_LEVELS: usize = 16;
 
 /// Stable id of the positivity requirement checked by the saturated model.
-pub const SATURATED_ASSUMPTION_ID: &str = "frontdoor.functional.saturated_cells";
+pub(crate) const SATURATED_ASSUMPTION_ID: &str = "frontdoor.functional.saturated_cells";
 /// Stable id of the arm-linear outcome-model restriction.
-pub const ARM_LINEAR_ASSUMPTION_ID: &str = "frontdoor.functional.arm_linear_outcome";
+pub(crate) const ARM_LINEAR_ASSUMPTION_ID: &str = "frontdoor.functional.arm_linear_outcome";
 
 const ALGORITHM: &str = "frontdoor.functional";
 
@@ -395,7 +395,6 @@ fn level_index(levels: &[f64], value: f64) -> Option<usize> {
     levels.binary_search_by(|probe| probe.total_cmp(&(value + 0.0))).ok()
 }
 
-#[allow(clippy::too_many_arguments)]
 fn contrast(
     sample: &Sample<'_>,
     active: f64,
@@ -707,7 +706,7 @@ mod tests {
     }
 
     fn records(effect: &EffectEstimate, id: &str) -> bool {
-        effect.assumptions.entries.iter().any(|r| match &r.assumption {
+        effect.provenance.assumptions.entries.iter().any(|r| match &r.assumption {
             Assumption::ParametricRestriction(p) => p.id.as_ref() == id,
             Assumption::Custom { id: custom, .. } => custom.as_ref() == id,
             _ => false,
@@ -878,8 +877,8 @@ mod tests {
         let effect =
             fit(&no_bootstrap(FrontDoorOutcomeModel::Auto), &data, &frontdoor_estimand()).unwrap();
         assert!(records(&effect, ARM_LINEAR_ASSUMPTION_ID), "continuous M must select arm-linear");
-        assert!(effect.se_analytic < 0.05, "se={}", effect.se_analytic);
-        assert!((effect.ate - 2.0).abs() < 4.0 * effect.se_analytic, "ate={}", effect.ate);
+        assert!(effect.se_analytic() < 0.05, "se={}", effect.se_analytic());
+        assert!((effect.ate - 2.0).abs() < 4.0 * effect.se_analytic(), "ate={}", effect.ate);
 
         let linear = FrontDoorTwoStage { bootstrap_replicates: 0, ..FrontDoorTwoStage::new() };
         let prep = linear.prepare(&data, &frontdoor_estimand(), &query()).unwrap();
@@ -904,8 +903,8 @@ mod tests {
         for seed in 0..reps {
             let effect = fit(&est, &draw(1000 + seed), &frontdoor_estimand()).unwrap();
             estimates.push(effect.ate);
-            mean_se += effect.se_analytic / reps as f64;
-            if (effect.ate - truth).abs() <= 1.959_963_984_540_054 * effect.se_analytic {
+            mean_se += effect.se_analytic() / reps as f64;
+            if (effect.ate - truth).abs() <= antecedent_stats::NORMAL_Q975 * effect.se_analytic() {
                 covered += 1.0 / reps as f64;
             }
         }
@@ -972,8 +971,8 @@ mod tests {
         let data = binary_scm_draw(3000, 77);
         let est = FrontDoorFunctional::new().with_bootstrap_replicates(400);
         let effect = fit(&est, &data, &frontdoor_estimand()).unwrap();
-        let boot = effect.se_bootstrap.expect("bootstrap SE");
-        let rel = (effect.se_analytic - boot).abs() / boot;
-        assert!(rel < 0.15, "analytic={} boot={boot}", effect.se_analytic);
+        let boot = effect.se_bootstrap().expect("bootstrap SE");
+        let rel = (effect.se_analytic() - boot).abs() / boot;
+        assert!(rel < 0.15, "analytic={} boot={boot}", effect.se_analytic());
     }
 }

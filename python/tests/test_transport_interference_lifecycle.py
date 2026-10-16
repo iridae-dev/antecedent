@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import json
 import warnings
-from pathlib import Path
 
 import antecedent as ant
 import numpy as np
@@ -35,10 +34,10 @@ from antecedent.estimation import PreparedAnalysis
 from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TransportQuery
 
-from _repo_text import read_text
+from _repo_text import REPO_ROOT, read_text
 from _sealed_loads import assert_answer_kept
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = REPO_ROOT
 TRANSPORT_PIN = json.loads(
     read_text(ROOT / "conformance" / "estimate" / "staged_transport" / "expected.json")
 )
@@ -156,7 +155,7 @@ def _assert_lifecycle(
     assert_answer_kept(loaded)
     assert not loaded.acceptance.verified
     assert dependency in loaded.acceptance.unresolved
-    assert loaded.artifact.payload_kind == "analysis_result"
+    assert loaded.decoded_artifact.payload_kind == "analysis_result"
     assert loaded.answer == result.answer
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id
@@ -165,7 +164,7 @@ def _assert_lifecycle(
     assert loaded.export() == result.export()
 
     # The calibration slot carries the key a harness-measured record binds under.
-    basis = loaded.artifact.contract["claim"]["calibration"]["basis"]["key"]
+    basis = loaded.decoded_artifact.contract["claim"]["calibration"]["basis"]["key"]
     assert {name: basis[name] for name in key} == key
     assert basis["level"] == pytest.approx(0.95)
 
@@ -273,7 +272,7 @@ def test_cluster_partial_interference_retains_study_and_refuses_cross_cluster_ed
     assert "partial_interference" in " ".join(result.assumptions or [])
     assert result.study.refresh({"y": [2.0] * 4 + [5.0] * 4}).estimate.ate == pytest.approx(3.0)
     loaded = ant.load(result.export())
-    assert loaded.artifact.payload["estimate"] == pytest.approx(2.0)
+    assert loaded.decoded_artifact.to_dict()["payload"]["estimate"] == pytest.approx(2.0)
 
     crossed = ant.InterferenceQuery(
         query.assignment,
@@ -541,7 +540,7 @@ def test_transport_catalog_survives_prepared_execution_and_export() -> None:
         refute="none",
     )
     loaded = ant.load(result.export())
-    restored_catalog = loaded.artifact.payload["query"]["transport"]["catalog"]
+    restored_catalog = loaded.decoded_artifact.to_dict()["payload"]["query"]["transport"]["catalog"]
     assert [r["label"] for r in restored_catalog["regimes"]] == ["randomized-a", "target-x"]
     assert restored_catalog["target_sampling"] == "representative_sample"
     assert restored_catalog["regimes"][0]["interventions"] == [0]

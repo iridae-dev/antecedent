@@ -1,4 +1,4 @@
-//! Planning-time cost counts of the 2.2 fit routes (cost and cancellation checks): penalized
+//! Planning-time cost counts of the fit routes (cost and cancellation checks): penalized
 //! AIPW, clustered DML, the DML score route, batch retarget and the factorized joint cells.
 //!
 //! Every expectation is a hand count from the declared configuration (grid x (inner folds + 1)
@@ -102,8 +102,12 @@ fn penalized_aipw_cost_is_the_grid_times_inner_folds_per_outer_fold() {
 
     let result = study.run(&ctx).unwrap();
     let effect = result.estimate.as_effect().unwrap();
-    assert_eq!(effect.crossfit_folds, cost.crossfit_folds.map(|f| usize::try_from(f).unwrap()));
-    assert_eq!(effect.learner_provenance.len(), 5, "one selected penalty per counted fold");
+    assert_eq!(effect.crossfit.folds, cost.crossfit_folds.map(|f| usize::try_from(f).unwrap()));
+    assert_eq!(
+        effect.crossfit.learner_provenance.len(),
+        5,
+        "one selected penalty per counted fold"
+    );
 
     // The count grows with the grid and with the inner folds.
     let fits = |grid: &[f64], inner| {
@@ -164,7 +168,7 @@ fn dml_cost_uses_the_declared_folds_and_score() {
 
     let ctx = ExecutionContext::for_tests(5);
     let result = study(&data, &graph, DmlAte::new().with_folds(7)).run(&ctx).unwrap();
-    assert_eq!(result.estimate.as_effect().unwrap().crossfit_folds, Some(7));
+    assert_eq!(result.estimate.as_effect().unwrap().crossfit.folds, Some(7));
 }
 
 /// A retarget fits nothing: the cost is the claim, contrast and row counts the reweighting reads.

@@ -13,11 +13,13 @@ import re
 import shutil
 import subprocess
 import sys
-import tomllib
 import time
+import tomllib
 from collections import defaultdict
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
+
+from _repo import cargo_target_feature_args, test_target
 
 root = Path(sys.argv[1]).resolve()
 ledger = Path(sys.argv[2])
@@ -73,14 +75,15 @@ def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
 failures: list[str] = []
 
 
-def check(label: str, cmd: list[str], cwd: Path, counter, exact: bool) -> None:
+def check(labels: list[str], cmd: list[str], cwd: Path, counter, exact: bool) -> None:
+    label = ", ".join(labels)
     code, log = run(cmd, cwd)
     passed, failed = counter(log)
     wanted = "exactly 1" if exact else "at least 1"
     ok = code == 0 and failed == 0 and (passed == 1 if exact else passed >= 1)
     if not ok:
         tail = "\n".join(log.splitlines()[-40:])
-        failures.append(label)
+        failures.extend(labels)
         print(
             f"FAIL: {label}: exit={code} passed={passed} failed={failed} "
             f"(want {wanted} passed, 0 failed)\n  $ {' '.join(cmd)}\n{tail}"
@@ -107,7 +110,7 @@ def child_module_dir(test_rel: str) -> Path:
     return path.with_suffix("")
 
 
-@lru_cache(maxsize=None)
+@cache
 def rust_listing(crate: str, target: tuple[str, ...], ignored: bool = False):
     command = ["cargo", "test", "-p", crate, *target, "--", "--list"]
     if ignored:
@@ -150,7 +153,7 @@ def filters(value) -> list[str]:
     return [p.strip() for p in parts if isinstance(p, str) and p.strip()]
 
 
-rows = tomllib.loads((root / ledger).read_text()).get(table, [])
+rows = tomllib.loads((root / ledger).read_text(encoding="utf-8")).get(table, [])
 if not rows:
     print(f"FAIL: {ledger} has no [[{table}]] rows")
     sys.exit(1)
@@ -189,11 +192,13 @@ for row in rows:
         continue
     crate, kind, stem = m.groups()
     if kind == "tests":
-        target = ["--test", stem.split("/")[0]]
-        module = None
+        name, prefix = test_target(crate, stem.split("/")[0], root)
+        target = ["--test", name]
+        module = prefix or None
     else:
         target = ["--lib"]
         module = lib_module(test_rel)
+    target.extend(cargo_target_feature_args(root / "crates" / crate / "Cargo.toml", target))
     name, problem = resolve_rust(crate, target, assertion, test_rel, module)
     if problem:
         failures.append(cid)
@@ -241,7 +246,7 @@ for (crate, target), members in rust_batches.items():
         # Attribute a failed target to its exact cited tests as well.
         before = len(failures)
         for name, labels in members.items():
-            check(", ".join(labels), ["cargo", "test", "-p", crate, *target,
+            check(labels, ["cargo", "test", "-p", crate, *target,
                                       "--", "--exact", name], root, cargo_counts, exact=True)
         if len(failures) == before:
             failures.append(f"{crate} {' '.join(target)} batch")
@@ -281,7 +286,7 @@ if python_nodes:
         print(f"FAIL: Python batch failed although cited nodes passed alone:\n{log[-3000:]}")
 
 for (crate, target, part), labels in filter_batches.items():
-    check(", ".join(labels), ["cargo", "test", "-p", crate, *target, "--", part], root, cargo_counts, exact=False)
+    check(labels, ["cargo", "test", "-p", crate, *target, "--", part], root, cargo_counts, exact=False)
 
 if failures:
     print(f"{gate}: {len(failures)} failing row(s): {', '.join(failures)}")

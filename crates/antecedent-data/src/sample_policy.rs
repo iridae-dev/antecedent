@@ -16,22 +16,11 @@ pub enum MissingPolicy {
 
 /// How the optional analysis mask is applied.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
+#[non_exhaustive]
 pub enum MaskPolicy {
     /// Intersect the analysis mask with complete-case / validity filtering.
     #[default]
     Honor,
     /// Ignore the analysis mask (still apply missingness policy).
-    Ignore,
-}
-
-/// How observation weights are exposed on the prepared sample.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
-pub enum WeightPolicy {
-    /// Use storage weights when present; otherwise unit weights.
-    #[default]
-    Honor,
-    /// Always use unit weights.
-    Unit,
-    /// Ignore weights entirely (`PreparedSample.weights` is `None`).
     Ignore,
 }

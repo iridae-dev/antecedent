@@ -1,4 +1,4 @@
-//! F18 `EffectConstancy` artifact (`effect_constancy_v1`).
+//! `EffectConstancy` artifact (`effect_constancy_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one global effect-constancy test:
 //!
@@ -24,9 +24,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::io::Cursor;
-
-use antecedent_estimate::EstimationError;
+use antecedent_core::CanonicalWriter;
 use antecedent_estimate::effect_constancy::{
     ConstancyConclusion, ContrastFamily, EFFECT_CONSTANCY_INFERENCE_CLAIM,
     EFFECT_CONSTANCY_MAX_PARTITIONS, EFFECT_CONSTANCY_NULL, EffectConstancyResult,
@@ -35,10 +33,7 @@ use antecedent_estimate::effect_constancy::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const EFFECT_CONSTANCY_ARTIFACT_VERSION: u16 = 1;
@@ -49,7 +44,7 @@ pub const EFFECT_CONSTANCY_CALIBRATION: &str = "unmeasured";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
-const ARTIFACT_KIND: &str = "effect_constancy_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::EFFECT_CONSTANCY;
 const META_SECTION: &str = "effect_constancy_meta";
 const NUMBERS_SECTION: &str = "effect_constancy_numbers";
 const DEPENDENCE_INDEPENDENT: &str = "independent";
@@ -57,89 +52,14 @@ const DEPENDENCE_COVARIANCE: &str = "covariance";
 const FAMILY_ALL_PAIRS: &str = "all_pairs";
 const FAMILY_AGAINST_REFERENCE: &str = "against_reference";
 
-/// Why an effect-constancy artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum EffectConstancyArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("effect constancy artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported effect constancy artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate or caveat that is not this format's.
-    #[error("unsupported effect constancy semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("effect constancy consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed effect constancy artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("effect_constancy.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored result differs from the recomputed one.
-    #[error("stored effect constancy result does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("effect constancy artifact does not encode: {0}")]
-    Encode(String),
-    /// The core test refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl EffectConstancyArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core-test refusal and for a changed identity field; absent for corruption,
-    /// unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "effect_constancy.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for EffectConstancyArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for EffectConstancyArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why an effect-constancy artifact was refused or could not be produced.
+    EffectConstancyArtifactError,
+    "effect constancy",
+    "effect_constancy",
+    "result",
+    false
+);
 
 fn invalid_request(message: &str) -> EffectConstancyArtifactError {
     EffectConstancyArtifactError::Refused {
@@ -300,15 +220,16 @@ pub struct ResultWire {
 }
 
 impl ResultWire {
-    fn from_result(result: &EffectConstancyResult) -> Self {
-        Self {
+    fn from_result(result: &EffectConstancyResult) -> Result<Self, EffectConstancyArtifactError> {
+        Ok(Self {
             statistic_kind: match result.test.statistic_kind {
                 HeterogeneityStatistic::CochranQ => "cochran_q",
                 HeterogeneityStatistic::WaldChiSquare => "wald_chi_square",
             }
             .to_owned(),
             statistic: result.test.statistic,
-            degrees_of_freedom: u32::try_from(result.test.degrees_of_freedom).unwrap_or(u32::MAX),
+            degrees_of_freedom: u32::try_from(result.test.degrees_of_freedom)
+                .map_err(|_| EffectConstancyArtifactError::LimitsExceeded("degrees of freedom"))?,
             p_value: result.test.p_value,
             conclusion: match result.conclusion {
                 ConstancyConclusion::NotRejected => "not_rejected",
@@ -330,7 +251,7 @@ impl ResultWire {
                     rejected: c.rejected,
                 })
                 .collect(),
-        }
+        })
     }
 }
 
@@ -426,11 +347,6 @@ pub struct EffectConstancyReportWire {
     pub identity: EffectConstancyIdentity,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
-}
-
 fn support_of(tag: &str) -> Result<PartitionSupport, EffectConstancyArtifactError> {
     match tag {
         "supported" => Ok(PartitionSupport::Supported),
@@ -491,34 +407,6 @@ fn estimate_of(wire: &PartitionWire) -> Result<PartitionEstimate, EffectConstanc
     })
 }
 
-/// Length-prefixed canonical byte builder hashed with BLAKE3.
-struct Canon(Vec<u8>);
-
-impl Canon {
-    fn new(tag: &str) -> Self {
-        let mut canon = Self(Vec::new());
-        canon.text(tag);
-        canon
-    }
-
-    fn word(&mut self, word: u64) {
-        self.0.extend_from_slice(&word.to_le_bytes());
-    }
-
-    fn text(&mut self, text: &str) {
-        self.word(text.len() as u64);
-        self.0.extend_from_slice(text.as_bytes());
-    }
-
-    fn real(&mut self, value: f64) {
-        self.word(value.to_bits());
-    }
-
-    fn finish(&self) -> String {
-        blake3::hash(&self.0).to_hex().to_string()
-    }
-}
-
 fn identity_of(
     estimates: &[PartitionEstimate],
     dependence: &PartitionDependence,
@@ -529,7 +417,7 @@ fn identity_of(
     let mut order: Vec<usize> = (0..k).collect();
     order.sort_by(|&a, &b| estimates[a].label.cmp(&estimates[b].label).then(a.cmp(&b)));
 
-    let mut partitions = Canon::new("effect_constancy_v1.partitions");
+    let mut partitions = CanonicalWriter::new("effect_constancy_v1.partitions");
     partitions.word(k as u64);
     for &i in &order {
         partitions.text(&estimates[i].label);
@@ -537,16 +425,18 @@ fn identity_of(
         partitions.text(support_tag(estimates[i].support));
     }
 
-    let mut estimand = Canon::new("effect_constancy_v1.estimand");
+    let mut estimand = CanonicalWriter::new("effect_constancy_v1.estimand");
     let shared = &estimates[0].estimand;
     estimand.text(&shared.estimand);
     estimand.text(&shared.units);
     estimand.text(&shared.regime);
     estimand.text(&shared.population);
 
-    let mut covariance = Canon::new("effect_constancy_v1.covariance");
+    let mut covariance = CanonicalWriter::new("effect_constancy_v1.covariance");
     match dependence {
-        PartitionDependence::Independent => covariance.text(DEPENDENCE_INDEPENDENT),
+        PartitionDependence::Independent => {
+            covariance.text(DEPENDENCE_INDEPENDENT);
+        }
         PartitionDependence::Covariance(matrix) => {
             covariance.text(DEPENDENCE_COVARIANCE);
             for &i in &order {
@@ -557,9 +447,11 @@ fn identity_of(
         }
     }
 
-    let mut family_id = Canon::new("effect_constancy_v1.family");
+    let mut family_id = CanonicalWriter::new("effect_constancy_v1.family");
     match family {
-        ContrastFamily::AllPairs => family_id.text(FAMILY_ALL_PAIRS),
+        ContrastFamily::AllPairs => {
+            family_id.text(FAMILY_ALL_PAIRS);
+        }
         ContrastFamily::AgainstReference(reference) => {
             family_id.text(FAMILY_AGAINST_REFERENCE);
             family_id.text(reference);
@@ -567,18 +459,18 @@ fn identity_of(
     }
     family_id.real(alpha);
 
-    let mut evidence = Canon::new("effect_constancy_v1.evidence");
+    let mut evidence = CanonicalWriter::new("effect_constancy_v1.evidence");
     for &i in &order {
         evidence.real(estimates[i].effect);
         evidence.real(estimates[i].standard_error);
     }
 
-    let partition_id = partitions.finish();
-    let estimand_id = estimand.finish();
-    let covariance_id = covariance.finish();
-    let family_digest = family_id.finish();
-    let evidence_id = evidence.finish();
-    let mut whole = Canon::new("effect_constancy_v1.identity");
+    let partition_id = partitions.finish_hex();
+    let estimand_id = estimand.finish_hex();
+    let covariance_id = covariance.finish_hex();
+    let family_digest = family_id.finish_hex();
+    let evidence_id = evidence.finish_hex();
+    let mut whole = CanonicalWriter::new("effect_constancy_v1.identity");
     for part in [
         partition_id.as_str(),
         estimand_id.as_str(),
@@ -596,7 +488,7 @@ fn identity_of(
         null: EFFECT_CONSTANCY_NULL.to_owned(),
         family_id: family_digest,
         evidence_id,
-        digest: whole.finish(),
+        digest: whole.finish_hex(),
     }
 }
 
@@ -673,14 +565,10 @@ fn request_of(
     if numbers.len() != count * 8 {
         return Err(EffectConstancyArtifactError::Malformed("numbers section length".into()));
     }
-    let values: Vec<f64> = numbers
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect();
+    let values = crate::width::f64s_from_le_bytes(numbers);
+    let mut rest = values.as_slice();
+    let effects = crate::width::split_reals(&mut rest, k);
+    let errors = crate::width::split_reals(&mut rest, k);
     let partitions = meta
         .partitions
         .iter()
@@ -690,16 +578,13 @@ fn request_of(
             coordinate: p.coordinate.clone(),
             support: p.support.clone(),
             estimand: p.estimand.clone(),
-            effect: values[i],
-            standard_error: values[k + i],
+            effect: effects[i],
+            standard_error: errors[i],
         })
         .collect();
     Ok(EffectConstancyRequestWire {
         partitions,
-        dependence: DependenceWire {
-            kind: meta.dependence.clone(),
-            covariance: values[2 * k..].to_vec(),
-        },
+        dependence: DependenceWire { kind: meta.dependence.clone(), covariance: rest.to_vec() },
         family: meta.family.clone(),
         alpha: meta.alpha,
     })
@@ -712,42 +597,48 @@ fn request_of(
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
     meta: &EffectConstancyMeta,
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, EffectConstancyArtifactError> {
-    let encode = |e: crate::IoError| EffectConstancyArtifactError::Encode(e.to_string());
+    encode_parts_impl(meta, numbers, artifact_id)
+}
+
+fn encode_parts_impl(
+    meta: &EffectConstancyMeta,
+    numbers: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, EffectConstancyArtifactError> {
     if artifact_id.trim().is_empty() {
         return Err(EffectConstancyArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(NUMBERS_SECTION, "application/octet-stream", numbers),
-            ],
-            provenance: ProvenanceWire { note: "effect_constancy_point_only_unmeasured".into() },
+    let meta_bytes =
+        to_cbor(meta).map_err(|error| EffectConstancyArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "effect_constancy_point_only_unmeasured",
+            max_bytes: MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(NUMBERS_SECTION, numbers.to_vec()),
+        &[
+            crate::OutSection {
+                id: META_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            crate::OutSection {
+                id: NUMBERS_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: numbers,
+            },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES {
-        return Err(EffectConstancyArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+    )
+    .map_err(|error| crate::map_artifact_check!(error, EffectConstancyArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -757,37 +648,35 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(EffectConstancyMeta, Vec<u8>), EffectConstancyArtifactError> {
-    if bytes.len() > MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES {
-        return Err(EffectConstancyArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 2
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != NUMBERS_SECTION
-    {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
+    bytes: &[u8],
+) -> Result<(EffectConstancyMeta, Vec<u8>), EffectConstancyArtifactError> {
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES,
+        &[META_SECTION, NUMBERS_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, EffectConstancyArtifactError))?;
+    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(EffectConstancyArtifactError::Malformed("unsupported container layout".into()));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    if declared.is_none_or(|total| total > MAX_EFFECT_CONSTANCY_ARTIFACT_BYTES as u64) {
-        return Err(EffectConstancyArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != EFFECT_CONSTANCY_ARTIFACT_VERSION {
-        return Err(EffectConstancyArtifactError::UnsupportedVersion { version: peek.version });
-    }
-    let meta: EffectConstancyMeta = from_cbor(meta_section.as_bytes())?;
-    let numbers = reader.load_section(NUMBERS_SECTION)?;
-    Ok((meta, numbers.as_bytes().to_vec()))
+    };
+    let meta = crate::decode_with_version(&meta_bytes, |version| {
+        if version == EFFECT_CONSTANCY_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(EffectConstancyArtifactError::UnsupportedVersion { version })
+        }
+    })?;
+    Ok((meta, payload))
 }
 
 /// A produced or consumed constancy artifact: the declared request, the recomputed result and
@@ -829,7 +718,7 @@ impl EffectConstancyArtifact {
             dependence: request.dependence.kind.clone(),
             family: request.family.clone(),
             identity: computed.identity,
-            result: ResultWire::from_result(&computed.result),
+            result: ResultWire::from_result(&computed.result)?,
             caveats: vec![NON_REJECTION_CAVEAT.to_owned(), POWER_CAVEAT.to_owned()],
         };
         Ok(Self { meta, request: request.clone(), result: computed.result })
@@ -895,7 +784,7 @@ impl EffectConstancyArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, EffectConstancyArtifactError> {
-        encode_parts(&self.meta, &numbers_of(&self.request), artifact_id)
+        encode_parts_impl(&self.meta, &numbers_of(&self.request), artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -912,7 +801,7 @@ impl EffectConstancyArtifact {
         bytes: &[u8],
         expected: Option<&EffectConstancyIdentity>,
     ) -> Result<Self, EffectConstancyArtifactError> {
-        let (meta, numbers) = decode_parts(bytes)?;
+        let (meta, numbers) = decode_parts_impl(bytes)?;
         if meta.feature != EFFECT_CONSTANCY_ARTIFACT_FEATURE {
             return Err(EffectConstancyArtifactError::UnsupportedSemantics("feature marker"));
         }
@@ -933,7 +822,7 @@ impl EffectConstancyArtifact {
         if let Some(field) = identity_diff(&meta.identity, &computed.identity) {
             return Err(EffectConstancyArtifactError::IdentityMismatch { field });
         }
-        if meta.result != ResultWire::from_result(&computed.result) {
+        if meta.result != ResultWire::from_result(&computed.result)? {
             return Err(EffectConstancyArtifactError::ResultMismatch(
                 "statistic, p-value or contrasts",
             ));

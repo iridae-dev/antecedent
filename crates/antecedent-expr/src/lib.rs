@@ -13,6 +13,12 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+/// `VariableId::from_raw`, shared by this crate's tests.
+#[cfg(test)]
+pub(crate) fn test_variable(raw: u32) -> antecedent_core::VariableId {
+    antecedent_core::VariableId::from_raw(raw)
+}
+
 pub mod estimand;
 pub mod eval;
 pub mod exact;
@@ -22,14 +28,14 @@ pub use exact::{
     DiscreteAxis, ExactDiscreteLaw, ExactLawError, ExactTransportData, LawOrigin, LawTolerance,
 };
 pub use exact_plan::{
-    ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactSupportRecord,
+    ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactEvaluationSpec,
+    ExactSupportRecord,
 };
-pub mod latex;
-pub mod pretty;
 pub mod program;
 pub mod provider;
 mod render;
 pub mod simplify;
+mod walk;
 
 pub use estimand::{EstimandMethod, IdentifiedEstimand, RdDesignParams};
 pub use eval::CompiledEvaluator;
@@ -39,15 +45,11 @@ pub use program::{
 };
 pub use provider::{
     Assignment, DistributionProvider, EmpiricalTableProvider, EvalContext, EvalError, FactorSpec,
-    GaussianDensityProvider, PosteriorDrawProvider, QuadratureNodes,
 };
 pub use simplify::SimplifyError;
 
 mod scope;
 pub use scope::{LeafBinding, LeafSignature};
-
-use latex::latex_expr;
-use pretty::pretty_expr;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -216,6 +218,19 @@ impl ExprListId {
     pub const fn raw(self) -> u32 {
         self.0
     }
+}
+
+/// The coordinates of a distribution leaf before population and regime tagging.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct DistributionLeaf {
+    /// Variables in the factor.
+    pub variables: VarSetId,
+    /// Conditioning set.
+    pub conditioned_on: VarSetId,
+    /// Intervention set (empty for observational).
+    pub intervention: InterventionSetId,
+    /// Domain.
+    pub domain: DomainRef,
 }
 
 /// Semantic expression node (no derivation metadata).
@@ -578,17 +593,14 @@ impl CausalExprArena {
     /// # Errors
     ///
     /// [`ExprError::RegimeDomainMismatch`] when `regime_kind` disagrees with `domain`.
-    #[allow(clippy::too_many_arguments)]
     pub fn intern_distribution_tagged(
         &mut self,
-        variables: VarSetId,
-        conditioned_on: VarSetId,
-        intervention: InterventionSetId,
-        domain: DomainRef,
+        leaf: DistributionLeaf,
         population: impl Into<Arc<str>>,
         regime: Option<RegimeId>,
         regime_kind: Option<DomainRef>,
     ) -> Result<ExprId, ExprError> {
+        let DistributionLeaf { variables, conditioned_on, intervention, domain } = leaf;
         if let (Some(_), Some(kind)) = (regime, regime_kind) {
             if kind != domain {
                 return Err(ExprError::RegimeDomainMismatch);
@@ -1167,13 +1179,13 @@ impl CausalExprArena {
     /// Pretty-print an expression (diagnostics only; not an equality key).
     #[must_use]
     pub fn pretty(&self, id: ExprId) -> String {
-        pretty_expr(self, id)
+        render::render_expr(self, id, &render::PRETTY)
     }
 
     /// Render an expression as LaTeX (diagnostics only; not an equality key).
     #[must_use]
     pub fn latex(&self, id: ExprId) -> String {
-        latex_expr(self, id)
+        render::render_expr(self, id, &render::LATEX)
     }
 }
 

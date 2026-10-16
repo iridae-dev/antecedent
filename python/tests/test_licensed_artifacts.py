@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from antecedent import artifacts
 
-from _repo_text import load_toml
+from _repo_text import REPO_ROOT, load_toml
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 _LICENSED = load_toml(_ROOT / "parity" / "support_licensed.toml")
 
 _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {
@@ -158,6 +156,38 @@ _QUERY_PAYLOADS: dict[str, tuple[dict[str, object], list[str]]] = {
             }
         },
         ["t", "y"],
+    ),
+    "TemporalConditionalPulse": (
+        {
+            "temporal_effect": {
+                "treatment": 0,
+                "outcome": 1,
+                "policy": {"pulse": {"at": 0}},
+                "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
+                "active": {"set": {"variable": 0, "value": {"float64": 1.0}}},
+                "horizon_steps": 1,
+                "max_history_lag": None,
+                "target_population": "all_observed",
+                "effect_modifiers": [2],
+            }
+        },
+        ["t", "y", "w"],
+    ),
+    "TemporalConditionalSustained": (
+        {
+            "temporal_effect": {
+                "treatment": 0,
+                "outcome": 1,
+                "policy": {"sustained": {"from": 0, "until": 0}},
+                "control": {"set": {"variable": 0, "value": {"float64": 0.0}}},
+                "active": {"set": {"variable": 0, "value": {"float64": 1.0}}},
+                "horizon_steps": 1,
+                "max_history_lag": None,
+                "target_population": "all_observed",
+                "effect_modifiers": [2],
+            }
+        },
+        ["t", "y", "w"],
     ),
 }
 
@@ -346,11 +376,11 @@ def test_licensed_query_artifact_round_trips(query: str) -> None:
     payload, names = _QUERY_PAYLOADS[query]
     encoded = artifacts.dumps("query", payload, variable_names=names, artifact_id=query)
     decoded = artifacts.loads(encoded)
-    assert decoded.payload == payload
+    assert decoded.to_dict()["payload"] == payload
     again = artifacts.loads(
         artifacts.dumps(
             decoded.payload_kind,
-            decoded.payload,
+            decoded.to_dict()["payload"],
             variable_names=decoded.variable_names,
             artifact_id=decoded.artifact_id,
         )
@@ -366,9 +396,9 @@ def test_temporal_response_attachment_round_trips(query: str) -> None:
         "query", payload, variable_names=["t", "y"], artifact_id=f"{query}_temporal"
     )
     decoded = artifacts.loads(encoded)
-    assert decoded.payload == payload
-    assert decoded.payload["response"]["temporal"]["horizons"] == [1, 2]
-    assert decoded.payload["response"]["temporal"]["policy"] == {"pulse": {"at": 0}}
+    assert decoded.to_dict()["payload"] == payload
+    assert decoded.to_dict()["payload"]["response"]["temporal"]["horizons"] == [1, 2]
+    assert decoded.to_dict()["payload"]["response"]["temporal"]["policy"] == {"pulse": {"at": 0}}
 
 
 def test_response_without_temporal_field_decodes_as_static() -> None:
@@ -377,5 +407,5 @@ def test_response_without_temporal_field_decodes_as_static() -> None:
     decoded = artifacts.loads(
         artifacts.dumps("query", static_payload, variable_names=names, artifact_id="static")
     )
-    assert "temporal" not in decoded.payload["response"]
-    assert decoded.payload == static_payload
+    assert "temporal" not in decoded.to_dict()["payload"]["response"]
+    assert decoded.to_dict()["payload"] == static_payload

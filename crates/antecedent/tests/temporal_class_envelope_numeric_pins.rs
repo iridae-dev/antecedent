@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -165,6 +164,10 @@ fn build(data: &TimeSeriesData, graph: &ClassGraph, accepted: bool, query: Causa
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal class pulse pins and reuses envelope"
+)]
 fn temporal_class_pulse_pins_and_reuses_envelope() {
     let pin = pin();
     let data = series(&pin);
@@ -211,9 +214,9 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
                     result.diagnostics
                 );
                 assert!(
-                    (result.estimate.ate - expected).abs() < tol,
+                    (result.estimate.as_effect().unwrap().ate - expected).abs() < tol,
                     "{class} ate {} vs {expected}",
-                    result.estimate.ate
+                    result.estimate.as_effect().unwrap().ate
                 );
             }
             assert!(fresh.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"));
@@ -235,8 +238,12 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
             .unwrap()
             .run(&ExecutionContext::for_tests(1))
             .unwrap();
-            let se =
-                bootstrapped.estimate.se_bootstrap.unwrap_or_else(|| panic!("{class} mixture SE"));
+            let se = bootstrapped
+                .estimate
+                .as_effect()
+                .unwrap()
+                .se_bootstrap()
+                .unwrap_or_else(|| panic!("{class} mixture SE"));
             assert!(se.is_finite() && se > 0.0, "{class} mixture SE {se}");
             assert!(
                 bootstrapped.diagnostics.iter().any(|d| {
@@ -250,7 +257,7 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
                 }),
                 "{class} must not omit between-atom variance when atoms align"
             );
-            assert!((bootstrapped.estimate.ate - expected).abs() < tol);
+            assert!((bootstrapped.estimate.as_effect().unwrap().ate - expected).abs() < tol);
         }
         let cheap = match &graph {
             ClassGraph::Cpdag(g) => Study::series(data.clone()).graph(g.clone()),
@@ -268,7 +275,7 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
             cheap.diagnostics.iter().any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
             "{class} cheap must mix refuters across temporal completions"
         );
-        assert!((cheap.estimate.ate - expected).abs() < tol);
+        assert!((cheap.estimate.as_effect().unwrap().ate - expected).abs() < tol);
     }
 }
 
@@ -403,6 +410,10 @@ fn horizon_one_truth(kind: &str, adjustment: &[(usize, i32)]) -> (Vec<f64>, f64)
 /// z-adjusting completion, the omitted-variable-bias association for the other), which
 /// does not share the estimator's lag convention.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal class response returns completion identified set"
+)]
 fn temporal_class_response_returns_completion_identified_set() {
     let columns = class_response_columns(300);
     let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
@@ -439,7 +450,7 @@ fn temporal_class_response_returns_completion_identified_set() {
                 assert_eq!(envelope.dimension, if kind == "curve" { 2 } else { 1 });
                 assert_eq!(envelope.lower.len(), evals.len() * horizons.len());
                 assert!(matches!(
-                    result.response.as_ref().unwrap().estimate,
+                    result.response().unwrap().estimate,
                     ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(_))
                         | ResponseIdentification::GraphDependent(_)
                 ));
@@ -579,11 +590,15 @@ fn temporal_class_single_step_sustained_matches_pulse() {
             .run(&ExecutionContext::for_tests(1))
             .unwrap()
             .estimate
+            .as_effect()
+            .unwrap()
             .ate;
         let sustained = build(&data, &graph, false, sustained_query(&pin))
             .run(&ExecutionContext::for_tests(1))
             .unwrap()
             .estimate
+            .as_effect()
+            .unwrap()
             .ate;
         assert!(
             (pulse - sustained).abs() < 1e-10,
@@ -601,7 +616,6 @@ fn identified_pag_pin() -> serde_json::Value {
 
 /// Deterministic series of `identified_pag.json` (`law`), rebuilt exactly by
 /// `identified_pag_reference.py`.
-#[allow(clippy::many_single_char_names)]
 fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
     let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
     let names: Vec<&str> =
@@ -654,13 +668,17 @@ fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
     .unwrap()
 }
 
-/// R-10: positive multi-completion `TemporalPag` evidence for Frequentist Pulse
+/// Positive multi-completion `TemporalPag` evidence for Frequentist Pulse
 /// and single-step Sustained. Six of seven stationary MAG completions identify
 /// at two different lag-1 effects (adjust `z@-1`: 1.96; adjust nothing: 2.72);
 /// the reported point is their equal-weight mixture, pinned against the numpy
 /// reference. With replicates the mixture SE is the shared circular-block SE
 /// (every completion refit on the same resample), finite and positive.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal pag identified multi completion pulse and sustained"
+)]
 fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
     let pin = identified_pag_pin();
     let data = identified_pag_series(&pin);
@@ -731,9 +749,9 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
                         result.diagnostics
                     );
                     assert!(
-                        (result.estimate.ate - expected).abs() < tol,
+                        (result.estimate.as_effect().unwrap().ate - expected).abs() < tol,
                         "{tag}: mixture {} vs numpy reference {expected}",
-                        result.estimate.ate
+                        result.estimate.as_effect().unwrap().ate
                     );
                     let shared_block = result.diagnostics.iter().any(|d| {
                         d.code.as_ref() == "estimate.temporal_class.frequentist.shared_block"
@@ -742,7 +760,12 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
                         d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"
                     });
                     if boot > 0 {
-                        let se = result.estimate.se_bootstrap.expect("shared-block mixture SE");
+                        let se = result
+                            .estimate
+                            .as_effect()
+                            .unwrap()
+                            .se_bootstrap()
+                            .expect("shared-block mixture SE");
                         assert!(se.is_finite() && se > 0.0, "{tag}: SE {se}");
                         assert!(shared_block, "{tag}: shared circular-block diagnostic");
                         assert!(!omitted, "{tag}: finite SE must not claim omitted variance");
@@ -762,7 +785,12 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
                         );
                     }
                 }
-                assert!((fresh.estimate.ate - click.estimate.ate).abs() < 1e-12);
+                assert!(
+                    (fresh.estimate.as_effect().unwrap().ate
+                        - click.estimate.as_effect().unwrap().ate)
+                        .abs()
+                        < 1e-12
+                );
             }
         }
     }
@@ -800,9 +828,9 @@ fn temporal_cpdag_frequentist_pulse_and_sustained_all_structures_and_suites() {
                 let case = format!("{label} accepted={accepted} {suite:?}");
                 assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{case}");
                 assert!(
-                    (result.estimate.ate - expected).abs() < tol,
+                    (result.estimate.as_effect().unwrap().ate - expected).abs() < tol,
                     "{case}: ate {} vs {expected}",
-                    result.estimate.ate
+                    result.estimate.as_effect().unwrap().ate
                 );
                 if suite == RefuteSuite::None {
                     assert!(result.refutations.is_empty(), "{case}: none runs no refuter");

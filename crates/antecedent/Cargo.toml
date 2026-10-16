@@ -12,54 +12,68 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
+autotests = false
 
 [lints]
 workspace = true
 
 [features]
 default = []
-calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-io/calibration-internal"]
+calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-io/calibration-internal", "antecedent-validate/calibration-internal"]
 ml-gbdt = ["antecedent-estimate/ml-gbdt"]
 ml-forest = ["antecedent-estimate/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent-estimate/ml-neural"]
 
 [dependencies]
-antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.3.0", path = "../antecedent-data" }
-antecedent-discovery = { version = "2.3.0", path = "../antecedent-discovery" }
-antecedent-estimate = { version = "2.3.0", path = "../antecedent-estimate" }
-antecedent-expr = { version = "2.3.0", path = "../antecedent-expr" }
-antecedent-graph = { version = "2.3.0", path = "../antecedent-graph" }
-antecedent-identify = { version = "2.3.0", path = "../antecedent-identify" }
-antecedent-io = { version = "2.3.0", path = "../antecedent-io" }
-antecedent-prob = { version = "2.3.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.3.0", path = "../antecedent-stats" }
-antecedent-validate = { version = "2.3.0", path = "../antecedent-validate" }
-antecedent-model = { version = "2.3.0", path = "../antecedent-model" }
-antecedent-learn = { version = "2.3.0", path = "../antecedent-learn" }
-antecedent-counterfactual = { version = "2.3.0", path = "../antecedent-counterfactual" }
-antecedent-attribution = { version = "2.3.0", path = "../antecedent-attribution" }
-antecedent-design = { version = "2.3.0", path = "../antecedent-design" }
-antecedent-state = { version = "2.3.0", path = "../antecedent-state" }
-antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
+antecedent-core = { workspace = true }
+antecedent-contract = { workspace = true }
+antecedent-data = { workspace = true }
+antecedent-discovery = { workspace = true }
+antecedent-estimate = { workspace = true }
+antecedent-expr = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-identify = { workspace = true }
+antecedent-io = { workspace = true }
+antecedent-prob = { workspace = true }
+antecedent-stats = { workspace = true }
+antecedent-validate = { workspace = true }
+antecedent-model = { workspace = true }
+antecedent-learn = { workspace = true }
+antecedent-counterfactual = { workspace = true }
+antecedent-attribution = { workspace = true }
+antecedent-design = { workspace = true }
+antecedent-state = { workspace = true }
+antecedent-kernels = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 blake3 = { workspace = true }
 
 [dev-dependencies]
-antecedent = { path = ".", features = ["calibration-internal"] }
+antecedent-test-support = { workspace = true }
 criterion.workspace = true
 ciborium = { workspace = true }
-antecedent-identify = { version = "2.3.0", path = "../antecedent-identify", features = ["test-util"] }
+antecedent-identify = { workspace = true, features = ["test-util"] }
 # The calibration harness and lifecycle tests measure the closed X4 interval estimator.
-antecedent-estimate = { version = "2.3.0", path = "../antecedent-estimate", features = ["calibration-internal"] }
-antecedent-io = { version = "2.3.0", path = "../antecedent-io", features = ["calibration-internal"] }
+antecedent-estimate = { workspace = true, features = ["calibration-internal"] }
+antecedent-io = { workspace = true, features = ["calibration-internal", "test-util"] }
 # The X3 joint-sensitivity calibration harness measures the closed endpoint bootstrap.
-antecedent-validate = { version = "2.3.0", path = "../antecedent-validate", features = ["calibration-internal"] }
+antecedent-validate = { workspace = true, features = ["calibration-internal"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
+
+[[test]]
+name = "recalc_joint_bayesian"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "temporal_recalc_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "temporal_interval_activation"
+required-features = ["calibration-internal"]
 
 [[example]]
 name = "ate_quickstart"
@@ -152,3 +166,347 @@ harness = false
 [[bench]]
 name = "transport"
 harness = false
+
+[[test]]
+name = "adjusted_recalc_precision"
+path = "tests/adjusted_recalc_precision.rs"
+
+[[test]]
+name = "aipw_ate_route_evidence"
+path = "tests/aipw_ate_route_evidence.rs"
+
+[[test]]
+name = "artifact_compat_counterfactual_transport_golden"
+path = "tests/artifact_compat_counterfactual_transport_golden.rs"
+
+[[test]]
+name = "batch_retarget_calibration"
+path = "tests/batch_retarget_calibration.rs"
+
+[[test]]
+name = "bayesian_basis_prior_precision"
+path = "tests/bayesian_basis_prior_precision.rs"
+
+[[test]]
+name = "bayesian_recalc_calibration"
+path = "tests/bayesian_recalc_calibration.rs"
+
+[[test]]
+name = "bayesian_temporal"
+path = "tests/bayesian_temporal.rs"
+
+[[test]]
+name = "calibration_admg"
+path = "tests/calibration_admg.rs"
+
+[[test]]
+name = "calibration_anomaly_bayesian"
+path = "tests/calibration_anomaly_bayesian.rs"
+
+[[test]]
+name = "calibration_attribution_bayesian"
+path = "tests/calibration_attribution_bayesian.rs"
+
+[[test]]
+name = "calibration_backlog"
+path = "tests/calibration_backlog.rs"
+
+[[test]]
+name = "calibration_bayesian_static"
+path = "tests/calibration_bayesian_static.rs"
+
+[[test]]
+name = "calibration_counterfactual"
+path = "tests/calibration_counterfactual.rs"
+
+[[test]]
+name = "calibration_design"
+path = "tests/calibration_design.rs"
+
+[[test]]
+name = "calibration_design_bayesian"
+path = "tests/calibration_design_bayesian.rs"
+
+[[test]]
+name = "calibration_distribution_admg"
+path = "tests/calibration_distribution_admg.rs"
+
+[[test]]
+name = "calibration_estimate"
+path = "tests/calibration_estimate.rs"
+
+[[test]]
+name = "calibration_response"
+path = "tests/calibration_response.rs"
+
+[[test]]
+name = "calibration_temporal"
+path = "tests/calibration_temporal.rs"
+
+[[test]]
+name = "calibration_temporal_class"
+path = "tests/calibration_temporal_class.rs"
+
+[[test]]
+name = "checked_bayesian_dag_ate_route_evidence"
+path = "tests/checked_bayesian_dag_ate_route_evidence.rs"
+
+[[test]]
+name = "checked_bayesian_temporal_class_effect_route_evidence"
+path = "tests/checked_bayesian_temporal_class_effect_route_evidence.rs"
+
+[[test]]
+name = "checked_temporal_class_effect_route_evidence"
+path = "tests/checked_temporal_class_effect_route_evidence.rs"
+
+[[test]]
+name = "checked_temporal_graph_posterior_effect_route_evidence"
+path = "tests/checked_temporal_graph_posterior_effect_route_evidence.rs"
+
+[[test]]
+name = "class_posterior_calibration"
+path = "tests/class_posterior_calibration.rs"
+
+[[test]]
+name = "cluster_dml_calibration"
+path = "tests/cluster_dml_calibration.rs"
+
+[[test]]
+name = "compiler_consistency"
+path = "tests/compiler_consistency.rs"
+
+[[test]]
+name = "composition_exit_gate"
+path = "tests/composition_exit_gate.rs"
+
+[[test]]
+name = "conditional_ipcw"
+path = "tests/conditional_ipcw.rs"
+
+[[test]]
+name = "counterfactual_transport_lifecycle"
+path = "tests/counterfactual_transport_lifecycle.rs"
+
+[[test]]
+name = "cross_world_interval_calibration"
+path = "tests/cross_world_interval_calibration.rs"
+
+[[test]]
+name = "decision_claims"
+path = "tests/decision_claims.rs"
+
+[[test]]
+name = "derivative_calibration"
+path = "tests/derivative_calibration.rs"
+
+[[test]]
+name = "design_ar_precision_calibration"
+path = "tests/design_ar_precision_calibration.rs"
+
+[[test]]
+name = "evidence_synthesis_calibration"
+path = "tests/evidence_synthesis_calibration.rs"
+
+[[test]]
+name = "gcm"
+path = "tests/gcm.rs"
+
+[[test]]
+name = "generic_aipw_precision"
+path = "tests/generic_aipw_precision.rs"
+
+[[test]]
+name = "identity_contract"
+path = "tests/identity_contract.rs"
+
+[[test]]
+name = "joint_law_composed_interval_calibration"
+path = "tests/joint_law_composed_interval_calibration.rs"
+
+[[test]]
+name = "joint_sensitivity_calibration"
+path = "tests/joint_sensitivity_calibration.rs"
+
+[[test]]
+name = "latency_tiers"
+path = "tests/latency_tiers.rs"
+
+[[test]]
+name = "learned_continuous_calibration"
+path = "tests/learned_continuous_calibration.rs"
+
+[[test]]
+name = "licensed_compiler"
+path = "tests/licensed_compiler.rs"
+
+[[test]]
+name = "licensed_static_cells"
+path = "tests/licensed_static_cells.rs"
+
+[[test]]
+name = "linear_adjustment_route_evidence"
+path = "tests/linear_adjustment_route_evidence.rs"
+
+[[test]]
+name = "mixed_source_lifecycle"
+path = "tests/mixed_source_lifecycle.rs"
+
+[[test]]
+name = "mixture_interval_calibration"
+path = "tests/mixture_interval_calibration.rs"
+
+[[test]]
+name = "mz_transport_calibration"
+path = "tests/mz_transport_calibration.rs"
+
+[[test]]
+name = "one_shot_checked_aipw"
+path = "tests/one_shot_checked_aipw.rs"
+
+[[test]]
+name = "panel_calibration"
+path = "tests/panel_calibration.rs"
+
+[[test]]
+name = "predictive_score_interval_calibration"
+path = "tests/predictive_score_interval_calibration.rs"
+
+[[test]]
+name = "prepared_analysis"
+path = "tests/prepared_analysis.rs"
+
+[[test]]
+name = "prepared_rebind_custom_validators"
+path = "tests/prepared_rebind_custom_validators.rs"
+
+[[test]]
+name = "prepared_refresh_fits"
+path = "tests/prepared_refresh_fits.rs"
+
+[[test]]
+name = "prepared_refresh_row_rebind"
+path = "tests/prepared_refresh_row_rebind.rs"
+
+[[test]]
+name = "refute_second_click"
+path = "tests/refute_second_click.rs"
+
+[[test]]
+name = "response_facade"
+path = "tests/response_facade.rs"
+
+[[test]]
+name = "retained_score_precision"
+path = "tests/retained_score_precision.rs"
+
+[[test]]
+name = "retarget_alloc_count"
+path = "tests/retarget_alloc_count.rs"
+
+[[test]]
+name = "sample_split_effect_calibration"
+path = "tests/sample_split_effect_calibration.rs"
+
+[[test]]
+name = "scientific_bridge_interval_calibration"
+path = "tests/scientific_bridge_interval_calibration.rs"
+
+[[test]]
+name = "shared_workspace"
+path = "tests/shared_workspace.rs"
+
+[[test]]
+name = "smoothed_dose_calibration"
+path = "tests/smoothed_dose_calibration.rs"
+
+[[test]]
+name = "staged_derivatives"
+path = "tests/staged_derivatives.rs"
+
+[[test]]
+name = "staged_static_kinds"
+path = "tests/staged_static_kinds.rs"
+
+[[test]]
+name = "static_calibration"
+path = "tests/static_calibration.rs"
+
+[[test]]
+name = "static_envelope_calibration"
+path = "tests/static_envelope_calibration.rs"
+
+[[test]]
+name = "static_mixture_calibration"
+path = "tests/static_mixture_calibration.rs"
+
+[[test]]
+name = "study_planning_lifecycle"
+path = "tests/study_planning_lifecycle.rs"
+
+[[test]]
+name = "temporal_class_calibration"
+path = "tests/temporal_class_calibration.rs"
+
+[[test]]
+name = "temporal_frequentist"
+path = "tests/temporal_frequentist.rs"
+
+[[test]]
+name = "temporal_response_calibration"
+path = "tests/temporal_response_calibration.rs"
+
+[[test]]
+name = "temporal_response_facade"
+path = "tests/temporal_response_facade.rs"
+
+[[test]]
+name = "temporal_transport"
+path = "tests/temporal_transport.rs"
+
+[[test]]
+name = "transport_statistical_calibration"
+path = "tests/transport_statistical_calibration.rs"
+
+[[test]]
+name = "transported_constructors_facade"
+path = "tests/transported_constructors_facade.rs"
+
+[[test]]
+name = "transported_decision_facade"
+path = "tests/transported_decision_facade.rs"
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"
+
+[[test]]
+name = "suite_02"
+path = "tests/suite_02.rs"
+
+[[test]]
+name = "suite_03"
+path = "tests/suite_03.rs"
+
+[[test]]
+name = "suite_04"
+path = "tests/suite_04.rs"
+
+[[test]]
+name = "suite_05"
+path = "tests/suite_05.rs"
+
+[[test]]
+name = "suite_06"
+path = "tests/suite_06.rs"
+
+[[test]]
+name = "suite_07"
+path = "tests/suite_07.rs"
+
+[[test]]
+name = "suite_08"
+path = "tests/suite_08.rs"
+
+[[test]]
+name = "suite_09"
+path = "tests/suite_09.rs"

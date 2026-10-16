@@ -34,103 +34,52 @@
 #![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
 pub mod assumption;
-pub mod capability;
-pub mod claim;
-pub mod composition_provenance;
+pub mod calibration_basis;
 pub mod diagnostic;
 pub mod error;
-pub mod evidence_obligation;
 pub mod execution;
 pub mod execution_attempt;
-pub mod external;
-pub mod external_binding;
-pub mod external_refusal;
 pub mod identification;
 pub mod identity;
 pub mod ids;
 pub mod interval;
 pub mod intervention;
+pub mod measurement_model;
 pub mod node;
-pub mod obligation;
-pub mod plan;
-pub mod program_binding;
-pub mod provenance;
-pub mod quantity;
 pub mod query;
 pub mod reason_code;
-pub mod reasoning;
 pub mod recalc;
-pub mod transport_result;
-pub use transport_result::TransportGridFailure;
 pub mod response;
-pub mod response_coordinates;
-pub use response_coordinates::{
-    ResponseCoordinateLabels, ResponseCoordinateSkeleton, label_coordinates,
-    response_coordinate_skeleton, response_coordinates,
-};
 pub mod schema;
 pub mod search;
 pub use search::{
     DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
 };
 pub mod temporal;
+pub mod text;
 pub mod tolerance;
-pub mod transform;
 pub mod value;
 
 pub use assumption::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, ParametricAssumption, PriorAssumption,
 };
-pub use capability::{
-    BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
-    OperationReport, PremiseChange, SemanticApplicability,
-};
-pub use claim::{
-    AcceptanceReport, AttestedEvidence, CalibrationBasis, CalibrationView, ClaimCompatibility,
-    ClaimDomainAxis, ClaimDomains, ClaimEnvelope, ClaimFreshness, ClaimKind, ClaimOperation,
-    ConsumerProfile, DerivedClaim, DerivedClaimOutcome, DomainStatus, EvidenceDependence,
-    HandoffReceipt, HostOperation, SharedEvidenceRef, claim_compatibility, compose_claims,
-};
-pub use composition_provenance::{
-    CompositionLink, CompositionStage, MAX_CHAIN_LINKS, ProvenanceChain, ProvenanceChainError,
-};
+pub use calibration_basis::CalibrationBasis;
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
-pub use evidence_obligation::{
-    EvidenceObligation, EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec,
-    EvidenceOffer, MAX_OBLIGATION_COORDINATES, ObligationProvenance, ObligationRegime,
-    unresolved_assumption_obligations,
-};
 pub use execution::{
     ARCH_SIMD_COMPILED, AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy,
     CancellationToken, CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext,
     ExecutionReceipt, ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget,
     MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
-    StreamDomain, default_user_threads,
+    StreamDomain, WeakCancellationToken, default_user_threads,
 };
-pub use external::{
-    EvidenceProviderContract, ExternalCapability, ExternalCapabilityRequest, ExternalContractError,
-    ExternalEvidenceKind, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
-    ExternalVerificationError, LawProviderContract, NegotiatedExternalOperation,
-    ObjectVerificationReceipt, PosteriorProviderContract, ProviderObjectIdentity,
-    SignalProviderContract, UtilityMonotonicity, UtilityProviderContract, VerificationProbe,
-    VerificationProbeKind, verify_external_object,
-};
-pub use external_binding::{
-    BoundExternalClaim, BoundTrustLevel, CheckedCausalContract, CheckedEquivalence,
-    EquivalenceScope, ExternalBindingError, ExternalDistribution, ExternalPosterior,
-    ExternalResponse, ExternalResult, ExternalResultHeader, ExternalUncertaintyMeaning,
-    OBSERVATIONAL_REGIME, bind_external_result,
-};
-pub use external_refusal::{
-    ExternalRefusal, StructuredRefusal, capability_from_name, capability_name, probe_from_name,
-    probe_name,
-};
-pub use identification::IdentificationStatus;
+pub use execution::{GOLDEN_GAMMA, derive_stream, mix64, splitmix64};
+pub use identification::{IdentificationStatus, POSTERIOR_MASS_TOLERANCE};
 pub use identity::{
-    ContractIdentities, IDENTITY_FORMAT, IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef,
-    SemanticDigest,
+    CanonicalWriter, ContractIdentities, FNV1A_64_OFFSET, FNV1A_64_PRIME, Fnv1a64, IDENTITY_FORMAT,
+    IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef, SemanticDigest, blake3_hex, fnv1a_u64,
+    to_hex,
 };
 pub use ids::{
     CategoryDomainId, ComponentId, DistributionRef, DynamicRuleId, EnvironmentId, Lag, ModelId,
@@ -142,22 +91,9 @@ pub use intervention::{
     SequencedIntervention, StochasticPolicy, TemporalPolicy,
 };
 pub use node::NodeRef;
-pub use obligation::{ObligationKind, ObligationRecord, ObligationScope};
-pub use plan::{
-    BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
-    LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
-};
-pub use program_binding::{
-    ExternalProgramClaim, ProgramBinding, ProgramBoundClaim, ProgramCheck,
-    bind_external_result_to_program, check_external_against_program, dose_label,
-};
-pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
-pub use quantity::{
-    DistributionMeaning, QuantityCondition, QuantityMismatch, QuantityRole, ScientificQuantity,
-};
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
-    AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery,
+    AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery, CausalQueryKind,
     ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery,
     CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign,
     DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog,
@@ -187,27 +123,23 @@ pub use query::{
     WorldSpec,
 };
 pub use query::{SmoothedDoseTransportQuery, SmoothingKernel};
-pub use reasoning::{
-    AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,
-    UncertaintyComponent, UncertaintySlot, UncertaintySource,
-};
 pub use response::{
     CausalResponse, CredibleDraws, DiagnosticScope, HorizonIdentification, IdentifiedSet,
     IntervalInterpretation, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,
     ResponseValue, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
-    check_static_point_labels,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
     ValueType, VariableInProgress, VariableSchema,
 };
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
+pub use text::is_blank;
 pub use tolerance::ToleranceClass;
-pub use transform::{
-    LayerEffect, SemanticLayer, TransformEffect, TransformIntent, TransformationReport,
-    intent_effects,
-};
 pub use value::{Value, same_intervention_level};
+
+/// Label of a structural (Fréchet-Hoeffding) envelope over every coupling of
+/// the marginals; the single definition the contract and stats crates re-export.
+pub const STRUCTURAL_ENVELOPE_LABEL: &str = "structural_envelope";
 
 /// Library crate version string from Cargo.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

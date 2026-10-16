@@ -5,14 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from pathlib import Path
-
 import tomllib
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 SOURCE = ROOT / "parity/support_graphless.toml"
-RUST = ROOT / "crates/antecedent/src/support_graphless_data.rs"
-IO_RUST = ROOT / "crates/antecedent-io/src/support_graphless_data.rs"
+RUST = ROOT / "crates/antecedent-io-core/src/support_graphless_data.rs"
 DOC = ROOT / "docs/graphless-support-matrix.md"
 KEYS = ("family", "design", "method", "inference_claim")
 INTEGER_LIMITS = (
@@ -30,7 +28,7 @@ BOOLEAN_REQUIREMENTS = (
 
 
 def load_rows() -> list[dict]:
-    rows = tomllib.loads(SOURCE.read_text())["license"]
+    rows = tomllib.loads(SOURCE.read_text(encoding="utf-8"))["license"]
     seen: set[tuple[str, ...]] = set()
     for row in rows:
         key = tuple(row[field] for field in KEYS)
@@ -68,7 +66,7 @@ def load_rows() -> list[dict]:
             if not sep or not re.fullmatch(r"[a-zA-Z_][a-zA-Z_0-9]*", function):
                 raise ValueError(f"{key}: invalid {evidence} citation")
             source = ROOT / path
-            if not source.is_file() or not re.search(rf"\bfn\s+{function}\s*\(", source.read_text()):
+            if not source.is_file() or not re.search(rf"\bfn\s+{function}\s*\(", source.read_text(encoding="utf-8")):
                 raise ValueError(f"{key}: missing {evidence} function")
             if evidence == "known_truth_test" and (
                 "95_normal_interval" in row["inference_claim"]
@@ -77,7 +75,7 @@ def load_rows() -> list[dict]:
             ):
                 body = re.search(
                     rf"\bfn\s+{function}\s*\(\)\s*\{{(.*?)(?=\n\s*#\[test\]|\Z)",
-                    source.read_text(), re.DOTALL,
+                    source.read_text(encoding="utf-8"), re.DOTALL,
                 )
                 legacy_evidence = body is not None and all(token in body.group(1)
                     for token in ("REPLICATES: usize = 2_000", "0.93..=0.985", "covered", "interval_95"))
@@ -85,11 +83,11 @@ def load_rows() -> list[dict]:
                     token in body.group(1) for token in ("2_000", "coverage")) and any(
                     token in body.group(1) for token in ("interval_95", "intervals_95"))
                 did_evidence = row["family"] == "difference_in_differences" and body is not None \
-                    and "const REPLICATIONS: usize = 2_000" in source.read_text() \
+                    and "const REPLICATIONS: usize = 2_000" in source.read_text(encoding="utf-8") \
                     and all(token in body.group(1) for token in ("covered", "interval_95", "0.925..=0.975"))
                 switchback_evidence = row["design"] == "switchback" and body is not None \
                     and all(token in body.group(1) for token in ("2_000", "covered", "assert_eq!(rejected, 0")) \
-                    and all(token in source.read_text() for token in ("const TRUTH", "fit.interval_95", "fn unconditional_coverage"))
+                    and all(token in source.read_text(encoding="utf-8") for token in ("const TRUTH", "fit.interval_95", "fn unconditional_coverage"))
                 survival_evidence = row["family"] == "survival" and body is not None \
                     and all(token in body.group(1) for token in (
                         "const REPLICATIONS: usize = 2_000", "covered_rmst", "covered_tau",
@@ -104,22 +102,21 @@ def load_rows() -> list[dict]:
     return sorted(rows, key=lambda row: tuple(row[field] for field in KEYS))
 
 
-def rust(rows: list[dict], *, io: bool = False) -> str:
+def rust(rows: list[dict]) -> str:
     fields = (*KEYS, "assignment_unit", "known_truth_test", "retained_route_test", "limitations")
     lines = [
         "//! Generated from `parity/support_graphless.toml`; do not edit by hand.",
         "#[allow(clippy::struct_excessive_bools)] // One flat support row; the requires_* flags are independent gates.",
-        *(["#[allow(dead_code)] // Evidence citations are used by the generator gate, not IO validation."] if io else []),
-        "pub(super) struct GraphlessLicenseRow {",
-        *(f"    pub(super) {field}: &'static str," for field in fields),
-        *(f"    pub(super) {field}: usize," for field in INTEGER_LIMITS),
-        *(f"    pub(super) {field}: f64," for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS)),
-        "    pub(super) max_covariates: usize,",
-        "    pub(super) min_probability: f64,",
-        "    pub(super) all_reported_intervals: bool,",
-        *(f"    pub(super) {field}: bool," for field in BOOLEAN_REQUIREMENTS),
+        "pub(crate) struct GraphlessLicenseRow {",
+        *(f"    pub(crate) {field}: &'static str," for field in fields),
+        *(f"    pub(crate) {field}: usize," for field in INTEGER_LIMITS),
+        *(f"    pub(crate) {field}: f64," for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS)),
+        "    pub(crate) max_covariates: usize,",
+        "    pub(crate) min_probability: f64,",
+        "    pub(crate) all_reported_intervals: bool,",
+        *(f"    pub(crate) {field}: bool," for field in BOOLEAN_REQUIREMENTS),
         "}",
-        "pub(super) const LICENSES: &[GraphlessLicenseRow] = &[",
+        "pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[",
     ]
     for row in rows:
         lines.append("    GraphlessLicenseRow {")
@@ -180,12 +177,12 @@ def main() -> None:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     rows = load_rows()
-    for target, expected in ((RUST, rust(rows)), (IO_RUST, rust(rows, io=True)), (DOC, docs(rows))):
+    for target, expected in ((RUST, rust(rows)), (DOC, docs(rows))):
         if args.check:
-            if not target.exists() or target.read_text() != expected:
+            if not target.exists() or target.read_text(encoding="utf-8") != expected:
                 raise SystemExit(f"{target.relative_to(ROOT)} is stale; regenerate graphless support")
         else:
-            target.write_text(expected)
+            target.write_text(expected, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

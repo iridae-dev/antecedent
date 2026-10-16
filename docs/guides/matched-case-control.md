@@ -1,15 +1,15 @@
-# Matched case-control odds ratio (2.2 E7)
+# Matched case-control odds ratio
 
 `antecedent.matched.matched_case_control_odds_ratio` (Rust:
 `antecedent_estimate::conditional_odds_ratio`) estimates one quantity from matched
 sets sampled on the outcome: the **conditional odds ratio** of a binary exposure,
 by exact conditional likelihood (conditional logistic regression). It is a new
 design row, not a conversion of the AIPW result, and its claim is `point_only`.
-The record is `2.2E.E7.matched_case_control_odds_ratio` in
-`parity/promotion_2_2.toml`.
+The record is `estimate.matched_case_control_odds_ratio` in
+`parity/promotion.toml`.
 
-The safeguarded solve takes at most 500 Newton iterations. Artifact replay expands at
-most 10,000,000 reconstructed rows from the stored sufficient statistics.
+The safeguarded solve takes at most {{bound:estimate.matched_case_control_odds_ratio.max_iterations}} Newton iterations. Artifact replay expands at
+most {{bound:estimate.matched_case_control_odds_ratio.replay_max_rows}} reconstructed rows from the stored sufficient statistics.
 
 ```python
 from antecedent.matched import matched_case_control_odds_ratio
@@ -95,3 +95,5 @@ this cell takes neither.
 No interval is reported. A Wald interval `beta_hat +- z / sqrt(I(beta_hat))` rests on
 asymptotics (many informative sets, bounded set size, a fixed `beta`, independent sets)
 that no coverage record measures, so the route stays closed until one does.
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

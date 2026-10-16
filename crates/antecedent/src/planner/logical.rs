@@ -12,10 +12,10 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{DataClassification, LogicalAnalysisPlanRecord};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, DataClassification, Intervention, LogicalAnalysisPlanRecord,
-    ObservationSpec, ResponseFunctional, ResponseQuery, TargetPopulation, TemporalEffectQuery,
-    VariableId,
+    AverageEffectQuery, CausalQuery, Intervention, ObservationSpec, ResponseFunctional,
+    ResponseQuery, TargetPopulation, TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{DiscoveryEstimationSplit, TableView, TabularData, TimeSeriesData};
 use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
@@ -28,22 +28,45 @@ use crate::strategy_table::{
 
 use super::LogicalAnalysisPlan;
 
-/// Inputs needed to compile a logical plan for the static ATE path.
+/// Inputs shared by the static tabular compiles.
+///
+/// Each route alias parses `identifier` and `estimator` once inside its compile
+/// and keeps that route's refusal text. The structure field is `graph` for a
+/// DAG, a PAG, and a CPDAG.
 #[derive(Clone, Debug)]
-pub struct StaticAteCompileInput<'a> {
+pub(crate) struct StaticCompileInput<'a, G, Q> {
     /// Tabular data (classification + row count).
     pub data: &'a TabularData,
-    /// Graph.
-    pub graph: &'a Dag,
-    /// Query.
-    pub query: &'a AverageEffectQuery,
+    /// Accepted structure for this route.
+    pub graph: &'a G,
+    /// Query the plan records.
+    pub query: &'a Q,
     /// Validation suite id.
     pub validation_suite: Option<Arc<str>>,
-    /// Identifier id selected by the builder (defaults to `backdoor.adjustment`).
+    /// Identifier id selected by the builder, still a string until this compile parses it.
     pub identifier: Arc<str>,
-    /// Estimator id selected by the builder (defaults to `linear.adjustment.ate`).
+    /// Estimator id selected by the builder, still a string until this compile parses it.
     pub estimator: Arc<str>,
 }
+
+/// Static DAG average-effect compile input.
+pub(crate) type StaticAteCompileInput<'a> = StaticCompileInput<'a, Dag, AverageEffectQuery>;
+/// Static DAG response compile input.
+pub(crate) type StaticResponseCompileInput<'a> = StaticCompileInput<'a, Dag, ResponseQuery>;
+/// Static PAG average-effect compile input.
+pub(crate) type StaticPagAteCompileInput<'a> = StaticCompileInput<'a, Pag, AverageEffectQuery>;
+/// Static CPDAG average-effect compile input.
+pub(crate) type StaticCpdagAteCompileInput<'a> = StaticCompileInput<'a, Cpdag, AverageEffectQuery>;
+/// Static PAG response compile input.
+pub(crate) type StaticPagResponseCompileInput<'a> = StaticCompileInput<'a, Pag, ResponseQuery>;
+/// Static CPDAG response compile input.
+pub(crate) type StaticCpdagResponseCompileInput<'a> = StaticCompileInput<'a, Cpdag, ResponseQuery>;
+/// Interventional-distribution compile input.
+pub(crate) type StaticDistributionCompileInput<'a> =
+    StaticCompileInput<'a, Dag, antecedent_core::InterventionalDistributionQuery>;
+/// Path-specific natural-effect compile input.
+pub(crate) type StaticPathSpecificCompileInput<'a> =
+    StaticCompileInput<'a, Dag, antecedent_core::PathSpecificEffectQuery>;
 
 /// `linear.adjustment.ate` reports the treatment coefficient, the effect in the
 /// `AllObserved` population. On every graph class it refuses another target
@@ -64,56 +87,81 @@ fn refuse_linear_adjustment_population(
     Ok(())
 }
 
-/// Compile logical plan for static ATE .
+/// Compile logical plan for static ATE.
 ///
 /// # Errors
 ///
 /// Query validation failures, or an identifier/estimator pair not in the compile-time allowlist
 /// (see [`crate::strategy_table::validate_static_pair`]).
-pub fn compile_logical_static_ate(
+pub(crate) fn compile_logical_static_ate(
     input: StaticAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     validate_query_vars_in_dag(input.graph, input.query.treatment, input.query.outcome)?;
     let identifier: IdentifierId = input.identifier.parse()?;
     let estimator: EstimatorId = input.estimator.parse()?;
     validate_static_pair(identifier, estimator)?;
     refuse_linear_adjustment_population(estimator, input.query)?;
-    let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("static_ate"),
-        data_classification: DataClassification::Tabular,
-        discovery_algorithm: None,
-        graph_review_required: false,
-        identifier: Some(Arc::clone(&input.identifier)),
-        estimator: Some(Arc::clone(&input.estimator)),
-        validation_suite: input.validation_suite,
-        query_variables: Arc::from([input.query.treatment, input.query.outcome]),
-    };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::AverageEffect(input.query.clone()),
-        split: None,
-        row_count_hint: input.data.row_count() as u64,
-    };
+    finish_static_ate(
+        input.data,
+        input.query,
+        input.validation_suite,
+        input.identifier,
+        input.estimator,
+        "static_ate",
+    )
+}
+
+/// Assemble and validate a plan; every compile entry point ends here.
+fn finish_plan(
+    record: LogicalAnalysisPlanRecord,
+    query: CausalQuery,
+    split: Option<DiscoveryEstimationSplit>,
+    row_count_hint: u64,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    let plan = LogicalAnalysisPlan { record, query, split, row_count_hint };
     plan.validate()?;
     Ok(plan)
 }
 
-/// Inputs for a static-DAG continuous-response plan.
-#[derive(Clone, Debug)]
-pub struct StaticResponseCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// Accepted causal DAG.
-    pub graph: &'a Dag,
-    /// Response query.
-    pub query: &'a ResponseQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier selected by the builder.
-    pub identifier: Arc<str>,
-    /// Estimator selected by the builder.
-    pub estimator: Arc<str>,
+/// Record for a tabular plan with no discovery stage and no graph review.
+fn tabular_record(
+    plan_id: &'static str,
+    identifier: Arc<str>,
+    estimator: Arc<str>,
+    validation_suite: Option<Arc<str>>,
+    query_variables: Arc<[VariableId]>,
+) -> LogicalAnalysisPlanRecord {
+    LogicalAnalysisPlanRecord {
+        plan_id: Arc::from(plan_id),
+        data_classification: DataClassification::Tabular,
+        discovery_algorithm: None,
+        graph_review_required: false,
+        identifier: Some(identifier),
+        estimator: Some(estimator),
+        validation_suite,
+        query_variables,
+    }
+}
+
+/// Plan assembly shared by the DAG and class-aware (PAG / CPDAG) static ATE compiles,
+/// run after the caller has validated the strategy pair.
+fn finish_static_ate(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    validation_suite: Option<Arc<str>>,
+    identifier: Arc<str>,
+    estimator: Arc<str>,
+    plan_id: &'static str,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    let record = tabular_record(
+        plan_id,
+        identifier,
+        estimator,
+        validation_suite,
+        Arc::from([query.treatment, query.outcome]),
+    );
+    finish_plan(record, CausalQuery::AverageEffect(query.clone()), None, data.row_count() as u64)
 }
 
 /// Compile a continuous-response query over tabular data and a static DAG.
@@ -121,10 +169,10 @@ pub struct StaticResponseCompileInput<'a> {
 /// # Errors
 ///
 /// Invalid queries, out-of-range variables, or incompatible strategies.
-pub fn compile_logical_static_response(
+pub(crate) fn compile_logical_static_response(
     input: StaticResponseCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     let identifier: IdentifierId = input.identifier.parse()?;
     let estimator: EstimatorId = input.estimator.parse()?;
     validate_response_pair(identifier, estimator)?;
@@ -164,44 +212,22 @@ pub fn compile_logical_static_response(
     }
     let query_variables: Arc<[VariableId]> =
         treatments.iter().chain(outcomes.iter()).copied().collect::<Vec<_>>().into();
-    let plan = LogicalAnalysisPlan {
-        record: LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("static_response"),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: Some(input.identifier),
-            estimator: Some(input.estimator),
-            validation_suite: input.validation_suite,
+    finish_plan(
+        tabular_record(
+            "static_response",
+            input.identifier,
+            input.estimator,
+            input.validation_suite,
             query_variables,
-        },
-        query: CausalQuery::Response(input.query.clone()),
-        split: None,
-        row_count_hint: input.data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+        ),
+        CausalQuery::Response(input.query.clone()),
+        None,
+        input.data.row_count() as u64,
+    )
 }
 
 fn response_query_variables(functional: &ResponseFunctional) -> (Vec<VariableId>, Vec<VariableId>) {
     (functional.treatment_ids(), functional.outcome_ids())
-}
-
-/// Inputs for PAG ATE compile (class-aware identification).
-#[derive(Clone, Debug)]
-pub struct StaticPagAteCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// PAG.
-    pub pag: &'a Pag,
-    /// Query.
-    pub query: &'a AverageEffectQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (must be generalized.adjustment).
-    pub identifier: Arc<str>,
-    /// Estimator id.
-    pub estimator: Arc<str>,
 }
 
 /// Compile logical plan for static ATE on a PAG.
@@ -209,11 +235,11 @@ pub struct StaticPagAteCompileInput<'a> {
 /// # Errors
 ///
 /// Query validation or incompatible identifier/estimator.
-pub fn compile_logical_static_pag_ate(
+pub(crate) fn compile_logical_static_pag_ate(
     input: StaticPagAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    validate_query_vars_in_pag(input.pag, input.query.treatment, input.query.outcome)?;
+    input.query.validate()?;
+    validate_query_vars_in_pag(input.graph, input.query.treatment, input.query.outcome)?;
     compile_logical_static_class_ate(
         input.data,
         input.query,
@@ -225,33 +251,16 @@ pub fn compile_logical_static_pag_ate(
     )
 }
 
-/// Inputs for CPDAG ATE compile (class-aware MEC envelope).
-#[derive(Clone, Debug)]
-pub struct StaticCpdagAteCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// CPDAG.
-    pub cpdag: &'a Cpdag,
-    /// Query.
-    pub query: &'a AverageEffectQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (must be generalized.adjustment).
-    pub identifier: Arc<str>,
-    /// Estimator id.
-    pub estimator: Arc<str>,
-}
-
 /// Compile logical plan for static ATE on a CPDAG.
 ///
 /// # Errors
 ///
 /// Query validation or incompatible identifier/estimator.
-pub fn compile_logical_static_cpdag_ate(
+pub(crate) fn compile_logical_static_cpdag_ate(
     input: StaticCpdagAteCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    validate_query_vars_in_cpdag(input.cpdag, input.query.treatment, input.query.outcome)?;
+    input.query.validate()?;
+    validate_query_vars_in_cpdag(input.graph, input.query.treatment, input.query.outcome)?;
     compile_logical_static_class_ate(
         input.data,
         input.query,
@@ -287,41 +296,7 @@ fn compile_logical_static_class_ate(
     }
     validate_static_pair(identifier_id, estimator_id)?;
     refuse_linear_adjustment_population(estimator_id, query)?;
-    let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from(plan_id),
-        data_classification: DataClassification::Tabular,
-        discovery_algorithm: None,
-        graph_review_required: false,
-        identifier: Some(identifier),
-        estimator: Some(estimator),
-        validation_suite,
-        query_variables: Arc::from([query.treatment, query.outcome]),
-    };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::AverageEffect(query.clone()),
-        split: None,
-        row_count_hint: data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
-}
-
-/// Inputs for PAG response compile (same generalized-adjustment envelope as ATE).
-#[derive(Clone, Debug)]
-pub struct StaticPagResponseCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// PAG.
-    pub pag: &'a Pag,
-    /// Response query.
-    pub query: &'a ResponseQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (must be generalized.adjustment).
-    pub identifier: Arc<str>,
-    /// Estimator id.
-    pub estimator: Arc<str>,
+    finish_static_ate(data, query, validation_suite, identifier, estimator, plan_id)
 }
 
 /// Compile a `MeanCurve` / `InterventionResponse` query over a supplied PAG.
@@ -329,43 +304,28 @@ pub struct StaticPagResponseCompileInput<'a> {
 /// # Errors
 ///
 /// Invalid queries, unsupported functionals, or incompatible strategies.
-pub fn compile_logical_static_pag_response(
+pub(crate) fn compile_logical_static_pag_response(
     input: StaticPagResponseCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     require_class_aware_response(input.query, "PAG")?;
     let (treatments, outcomes) = response_query_variables(&input.query.functional);
     for &treatment in &treatments {
         for &outcome in &outcomes {
-            validate_query_vars_in_pag(input.pag, treatment, outcome)?;
+            validate_query_vars_in_pag(input.graph, treatment, outcome)?;
         }
     }
     compile_logical_class_response(
-        input.data,
-        input.query,
-        input.validation_suite,
-        input.identifier,
-        input.estimator,
+        ClassResponseCompile {
+            data: input.data,
+            query: input.query,
+            validation_suite: input.validation_suite,
+            identifier: input.identifier,
+            estimator: input.estimator,
+        },
         "static_pag_response",
         &treatments,
         &outcomes,
     )
-}
-
-/// Inputs for CPDAG response compile (same MEC envelope as ATE).
-#[derive(Clone, Debug)]
-pub struct StaticCpdagResponseCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// CPDAG.
-    pub cpdag: &'a Cpdag,
-    /// Response query.
-    pub query: &'a ResponseQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (must be generalized.adjustment).
-    pub identifier: Arc<str>,
-    /// Estimator id.
-    pub estimator: Arc<str>,
 }
 
 /// Compile a `MeanCurve` / `InterventionResponse` query over a supplied CPDAG.
@@ -373,22 +333,24 @@ pub struct StaticCpdagResponseCompileInput<'a> {
 /// # Errors
 ///
 /// Invalid queries, unsupported functionals, or incompatible strategies.
-pub fn compile_logical_static_cpdag_response(
+pub(crate) fn compile_logical_static_cpdag_response(
     input: StaticCpdagResponseCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
     require_class_aware_response(input.query, "CPDAG")?;
     let (treatments, outcomes) = response_query_variables(&input.query.functional);
     for &treatment in &treatments {
         for &outcome in &outcomes {
-            validate_query_vars_in_cpdag(input.cpdag, treatment, outcome)?;
+            validate_query_vars_in_cpdag(input.graph, treatment, outcome)?;
         }
     }
     compile_logical_class_response(
-        input.data,
-        input.query,
-        input.validation_suite,
-        input.identifier,
-        input.estimator,
+        ClassResponseCompile {
+            data: input.data,
+            query: input.query,
+            validation_suite: input.validation_suite,
+            identifier: input.identifier,
+            estimator: input.estimator,
+        },
         "static_cpdag_response",
         &treatments,
         &outcomes,
@@ -396,7 +358,7 @@ pub fn compile_logical_static_cpdag_response(
 }
 
 fn require_class_aware_response(query: &ResponseQuery, class_tag: &str) -> Result<(), CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     if query.temporal.is_some() {
         return Err(CausalError::Compile {
             message: format!("{class_tag} response does not accept a temporal attachment"),
@@ -420,17 +382,22 @@ fn require_class_aware_response(query: &ResponseQuery, class_tag: &str) -> Resul
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn compile_logical_class_response(
-    data: &TabularData,
-    query: &ResponseQuery,
+/// The query, data and strategy names shared by every class-aware response compile.
+struct ClassResponseCompile<'a> {
+    data: &'a TabularData,
+    query: &'a ResponseQuery,
     validation_suite: Option<Arc<str>>,
     identifier: Arc<str>,
     estimator: Arc<str>,
+}
+
+fn compile_logical_class_response(
+    input: ClassResponseCompile<'_>,
     plan_id: &'static str,
     treatments: &[VariableId],
     outcomes: &[VariableId],
 ) -> Result<LogicalAnalysisPlan, CausalError> {
+    let ClassResponseCompile { data, query, validation_suite, identifier, estimator } = input;
     let identifier_id: IdentifierId = identifier.parse()?;
     let estimator_id: EstimatorId = estimator.parse()?;
     if !matches!(identifier_id, IdentifierId::GeneralizedAdjustment) {
@@ -461,40 +428,12 @@ fn compile_logical_class_response(
     }
     let query_variables: Arc<[VariableId]> =
         treatments.iter().chain(outcomes.iter()).copied().collect::<Vec<_>>().into();
-    let plan = LogicalAnalysisPlan {
-        record: LogicalAnalysisPlanRecord {
-            plan_id: Arc::from(plan_id),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: Some(identifier),
-            estimator: Some(estimator),
-            validation_suite,
-            query_variables,
-        },
-        query: CausalQuery::Response(query.clone()),
-        split: None,
-        row_count_hint: data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
-}
-
-/// Compile logical plan for interventional-distribution queries.
-#[derive(Clone, Debug)]
-pub struct StaticDistributionCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// Graph.
-    pub graph: &'a Dag,
-    /// Distribution query.
-    pub query: &'a antecedent_core::InterventionalDistributionQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier (`general.id` / `auto`).
-    pub identifier: Arc<str>,
-    /// Estimator (`functional.distribution`).
-    pub estimator: Arc<str>,
+    finish_plan(
+        tabular_record(plan_id, identifier, estimator, validation_suite, query_variables),
+        CausalQuery::Response(query.clone()),
+        None,
+        data.row_count() as u64,
+    )
 }
 
 /// Compile logical plan for an interventional distribution.
@@ -502,10 +441,10 @@ pub struct StaticDistributionCompileInput<'a> {
 /// # Errors
 ///
 /// Query validation or incompatible identifier/estimator.
-pub fn compile_logical_distribution(
+pub(crate) fn compile_logical_distribution(
     input: StaticDistributionCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     if input.query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
             message: "functional.distribution only supports TargetPopulation::AllObserved".into(),
@@ -532,41 +471,19 @@ pub fn compile_logical_distribution(
             qvars.push(z);
         }
     }
-    let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("static_distribution"),
-        data_classification: DataClassification::Tabular,
-        discovery_algorithm: None,
-        graph_review_required: false,
-        identifier: Some(Arc::clone(&input.identifier)),
-        estimator: Some(Arc::clone(&input.estimator)),
-        validation_suite: input.validation_suite,
-        query_variables: Arc::from(qvars),
-    };
-    let plan = LogicalAnalysisPlan {
+    let record = tabular_record(
+        "static_distribution",
+        input.identifier,
+        input.estimator,
+        input.validation_suite,
+        Arc::from(qvars),
+    );
+    finish_plan(
         record,
-        query: CausalQuery::Distribution(input.query.clone()),
-        split: None,
-        row_count_hint: input.data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
-}
-
-/// Compile input for path-specific natural-effect queries.
-#[derive(Clone, Debug)]
-pub struct StaticPathSpecificCompileInput<'a> {
-    /// Tabular data.
-    pub data: &'a TabularData,
-    /// Graph.
-    pub graph: &'a Dag,
-    /// Path-specific query.
-    pub query: &'a antecedent_core::PathSpecificEffectQuery,
-    /// Validation suite id.
-    pub validation_suite: Option<Arc<str>>,
-    /// Identifier.
-    pub identifier: Arc<str>,
-    /// Estimator.
-    pub estimator: Arc<str>,
+        CausalQuery::Distribution(input.query.clone()),
+        None,
+        input.data.row_count() as u64,
+    )
 }
 
 /// Compile logical plan for path-specific natural effects.
@@ -574,10 +491,10 @@ pub struct StaticPathSpecificCompileInput<'a> {
 /// # Errors
 ///
 /// Query validation or incompatible identifier/estimator.
-pub fn compile_logical_path_specific(
+pub(crate) fn compile_logical_path_specific(
     input: StaticPathSpecificCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    input.query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    input.query.validate()?;
     if input.query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
             message: "functional.effect only supports TargetPopulation::AllObserved".into(),
@@ -593,31 +510,26 @@ pub fn compile_logical_path_specific(
             qvars.push(m);
         }
     }
-    let record = LogicalAnalysisPlanRecord {
-        plan_id: Arc::from("static_path_specific"),
-        data_classification: DataClassification::Tabular,
-        discovery_algorithm: None,
-        graph_review_required: false,
-        identifier: Some(Arc::clone(&input.identifier)),
-        estimator: Some(Arc::clone(&input.estimator)),
-        validation_suite: input.validation_suite,
-        query_variables: Arc::from(qvars),
-    };
-    let plan = LogicalAnalysisPlan {
+    let record = tabular_record(
+        "static_path_specific",
+        input.identifier,
+        input.estimator,
+        input.validation_suite,
+        Arc::from(qvars),
+    );
+    finish_plan(
         record,
-        query: CausalQuery::PathSpecific(input.query.clone()),
-        split: None,
-        row_count_hint: input.data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+        CausalQuery::PathSpecific(input.query.clone()),
+        None,
+        input.data.row_count() as u64,
+    )
 }
 
 /// Compile a `CoDetermined` joint `InterventionResponse` on the closure ADMG.
 ///
 /// # Errors
 /// Invalid query or identifier/estimator pair.
-pub fn compile_logical_codetermined_joint(
+pub(crate) fn compile_logical_codetermined_joint(
     data: &TabularData,
     admg: &Admg,
     query: &ResponseQuery,
@@ -625,7 +537,7 @@ pub fn compile_logical_codetermined_joint(
     identifier: Arc<str>,
     estimator: Arc<str>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     let identifier_id: IdentifierId = identifier.parse()?;
     let estimator_id: EstimatorId = estimator.parse()?;
     if identifier_id != IdentifierId::GeneralizedAdjustment || estimator_id != EstimatorId::CellAipw
@@ -646,23 +558,18 @@ pub fn compile_logical_codetermined_joint(
     }
     let query_variables: Arc<[VariableId]> =
         treatments.iter().chain(outcomes.iter()).copied().collect::<Vec<_>>().into();
-    let plan = LogicalAnalysisPlan {
-        record: LogicalAnalysisPlanRecord {
-            plan_id: Arc::from("codetermined_joint_response"),
-            data_classification: DataClassification::Tabular,
-            discovery_algorithm: None,
-            graph_review_required: false,
-            identifier: Some(identifier),
-            estimator: Some(estimator),
+    finish_plan(
+        tabular_record(
+            "codetermined_joint_response",
+            identifier,
+            estimator,
             validation_suite,
             query_variables,
-        },
-        query: CausalQuery::Response(query.clone()),
-        split: None,
-        row_count_hint: data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+        ),
+        CausalQuery::Response(query.clone()),
+        None,
+        data.row_count() as u64,
+    )
 }
 
 fn validate_query_vars_in_admg(
@@ -780,7 +687,7 @@ fn validate_query_vars_in_temporal_nodes(
 /// # Errors
 ///
 /// Modality / query validation failures.
-pub fn compile_logical_temporal_effect(
+pub(crate) fn compile_logical_temporal_effect(
     data: &TimeSeriesData,
     graph: &TemporalDag,
     query: &TemporalEffectQuery,
@@ -802,16 +709,14 @@ pub fn compile_logical_temporal_effect(
 /// # Errors
 ///
 /// Query validation failures or variables missing from the temporal DAG.
-pub fn compile_logical_temporal_response(
+pub(crate) fn compile_logical_temporal_response(
     data: &TimeSeriesData,
     graph: &TemporalDag,
     query: &ResponseQuery,
     review_required: bool,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    query
-        .require_licensed_temporal_observation()
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
+    query.require_licensed_temporal_observation()?;
     let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
         message: "temporal response compile requires ResponseQuery.temporal".into(),
     })?;
@@ -838,22 +743,13 @@ pub fn compile_logical_temporal_response(
         validation_suite: None,
         query_variables: Arc::from([treatment, outcome]),
     };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::Response(query.clone()),
-        split: None,
-        row_count_hint: data.row_count() as u64,
-    };
-    plan.validate()?;
-    Ok(plan)
+    finish_plan(record, CausalQuery::Response(query.clone()), None, data.row_count() as u64)
 }
 
 fn response_primary_pair(
     functional: &ResponseFunctional,
 ) -> Result<(VariableId, VariableId), CausalError> {
-    functional.primary_pair().ok_or_else(|| CausalError::Compile {
-        message: "response query has no treatment/outcome pair".into(),
-    })
+    crate::analysis::proof_support::require_primary_pair(functional)
 }
 
 /// Temporal effect plan with an explicit data classification (Event / Panel / Temporal).
@@ -861,7 +757,7 @@ fn response_primary_pair(
 /// # Errors
 ///
 /// Query validation failures.
-pub fn compile_logical_temporal_effect_classified(
+pub(crate) fn compile_logical_temporal_effect_classified(
     data: &TimeSeriesData,
     graph: &TemporalDag,
     query: &TemporalEffectQuery,
@@ -869,7 +765,7 @@ pub fn compile_logical_temporal_effect_classified(
     review_required: bool,
     data_classification: DataClassification,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    query.validate()?;
     validate_query_vars_in_temporal_dag(graph, query.treatment, query.outcome)?;
     if query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
@@ -892,14 +788,28 @@ pub fn compile_logical_temporal_effect_classified(
         validation_suite: None,
         query_variables: Arc::from([query.treatment, query.outcome]),
     };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::TemporalEffect(query.clone()),
-        split,
-        row_count_hint,
-    };
-    plan.validate()?;
-    Ok(plan)
+    finish_plan(record, CausalQuery::TemporalEffect(query.clone()), split, row_count_hint)
+}
+
+/// Inputs for [`compile_logical_temporal_class_effect`].
+#[derive(Clone, Debug)]
+pub(crate) struct TemporalClassEffectCompileInput<'a> {
+    /// Time-series data.
+    pub data: &'a TimeSeriesData,
+    /// Nodes of the supplied temporal class graph.
+    pub nodes: &'a [antecedent_graph::NodeRef],
+    /// Pulse or Sustained effect query.
+    pub query: &'a TemporalEffectQuery,
+    /// Discovery/estimation split, if any.
+    pub split: Option<DiscoveryEstimationSplit>,
+    /// Data classification recorded on the plan.
+    pub data_classification: DataClassification,
+    /// Plan id recorded on the plan.
+    pub plan_id: &'static str,
+    /// Identifier (must be generalized.adjustment).
+    pub identifier: Arc<str>,
+    /// Estimator id.
+    pub estimator: Arc<str>,
 }
 
 /// Pulse or Sustained on an incomplete `TemporalCpdag` or `TemporalPag`.
@@ -907,18 +817,20 @@ pub fn compile_logical_temporal_effect_classified(
 /// # Errors
 ///
 /// Query validation, multi-step Sustained, or incompatible identifier/estimator.
-#[allow(clippy::too_many_arguments)]
-pub fn compile_logical_temporal_class_effect(
-    data: &TimeSeriesData,
-    nodes: &[antecedent_graph::NodeRef],
-    query: &TemporalEffectQuery,
-    split: Option<DiscoveryEstimationSplit>,
-    data_classification: DataClassification,
-    plan_id: &'static str,
-    identifier: Arc<str>,
-    estimator: Arc<str>,
+pub(crate) fn compile_logical_temporal_class_effect(
+    input: TemporalClassEffectCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {
-    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let TemporalClassEffectCompileInput {
+        data,
+        nodes,
+        query,
+        split,
+        data_classification,
+        plan_id,
+        identifier,
+        estimator,
+    } = input;
+    query.validate()?;
     validate_query_vars_in_temporal_nodes(nodes, query.treatment, query.outcome)?;
     if query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
@@ -978,12 +890,5 @@ pub fn compile_logical_temporal_class_effect(
         validation_suite: None,
         query_variables: Arc::from([query.treatment, query.outcome]),
     };
-    let plan = LogicalAnalysisPlan {
-        record,
-        query: CausalQuery::TemporalEffect(query.clone()),
-        split,
-        row_count_hint,
-    };
-    plan.validate()?;
-    Ok(plan)
+    finish_plan(record, CausalQuery::TemporalEffect(query.clone()), split, row_count_hint)
 }

@@ -12,8 +12,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::type_complexity)]
-
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, PopulationRegistry, TargetPopulation,
 };
@@ -30,7 +28,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
-use crate::se::AnalyticSeKind;
+use crate::se::{AnalyticSeKind, SeSpec};
 use crate::util::{sample_std, stats_err};
 
 /// Scale on which the propensity-score matching distance (and [`PropensityMatching::caliper`])
@@ -237,7 +235,7 @@ impl PropensityMatching {
         let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
             problem,
-            &self.backend,
+            self.backend,
             &mut workspace.propensity,
             &self.glm_options,
         )?;
@@ -277,19 +275,23 @@ impl PropensityMatching {
             retained.as_deref(),
         )?;
         let result = matching_contrast(
-            &t_used,
-            &y_used,
-            &s_used,
-            1,
-            MatchingDistance::Absolute,
+            MatchingSample {
+                treatment: &t_used,
+                outcome: &y_used,
+                features: &s_used,
+                dim: 1,
+                distance: MatchingDistance::Absolute,
+            },
             &problem.target_population,
             self.caliper,
             workspace,
-            self.se_kind,
-            clusters_used.as_deref(),
+            SeSpec {
+                kind: self.se_kind,
+                cluster_ids: clusters_used.as_deref(),
+                multiway_ids: multiway_used.as_deref(),
+                panel_times: times_used.as_deref(),
+            },
             tw_used.as_deref(),
-            multiway_used.as_ref(),
-            times_used.as_deref(),
         )?;
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
@@ -310,21 +312,49 @@ impl PropensityMatching {
     }
 }
 
+/// One side of a match: row-major match features and the aligned outcomes.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MatchSide<'a> {
+    pub(crate) features: &'a [f64],
+    pub(crate) outcome: &'a [f64],
+}
+
+/// The sample a matched contrast is formed over.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MatchingSample<'a> {
+    pub(crate) treatment: &'a [f64],
+    pub(crate) outcome: &'a [f64],
+    /// Row-major match features (`dim` columns).
+    pub(crate) features: &'a [f64],
+    pub(crate) dim: usize,
+    pub(crate) distance: MatchingDistance,
+}
+
+/// The differences and the donor and query rows of one matching pass.
+pub(crate) struct MatchedDiffs {
+    /// Bias-corrected `query_y[q] − donor_y[matched]`, one per matched query.
+    pub(crate) diffs: Vec<f64>,
+    /// Local donor index used by each matched query (for `Kᵢ`).
+    pub(crate) donors: Vec<usize>,
+    /// Local index of each matched query.
+    pub(crate) queries: Vec<usize>,
+}
+
 /// Match each `query` row to its nearest `donor` row; returns bias-corrected
 /// `query_y[q] − donor_y[matched]` and the local donor indices used (for `Kᵢ`).
 ///
 /// Reuses [`PropensityEstimationWorkspace`]'s cached [`MatchingIndex`] when donor geometry
 /// is unchanged.
 pub(crate) fn match_diffs(
-    donor_features: &[f64],
-    donor_outcome: &[f64],
+    donors: MatchSide<'_>,
+    queries: MatchSide<'_>,
     dim: usize,
     distance: MatchingDistance,
-    query_features: &[f64],
-    query_outcome: &[f64],
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
-) -> Result<(Vec<f64>, Vec<usize>, Vec<usize>), EstimationError> {
+) -> Result<MatchedDiffs, EstimationError> {
+    let MatchSide { features: donor_features, outcome: donor_outcome } = donors;
+    let MatchSide { features: query_features, outcome: query_outcome } = queries;
     let n_donors = donor_outcome.len();
     if n_donors == 0 {
         return Err(EstimationError::data_msg("matching requires at least one donor row"));
@@ -366,7 +396,7 @@ pub(crate) fn match_diffs(
     }
     workspace.matching_donor_rows = donor_rows;
     workspace.matching_distances = distances;
-    Ok((diffs, used_donors, used_queries))
+    Ok(MatchedDiffs { diffs, donors: used_donors, queries: used_queries })
 }
 
 #[derive(Debug)]
@@ -381,22 +411,20 @@ pub(crate) struct MatchedEstimate {
 ///
 /// ATT matches treated→nearest control; ATC matches control→nearest treated (sign-flipped);
 /// ATE pools both directions' per-unit imputed effects (Abadie–Imbens style).
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "split by arm, match, then form the point, Abadie-Imbens variance and standard error from the same donor usage"
+)]
 pub(crate) fn matching_contrast(
-    treatment: &[f64],
-    outcome: &[f64],
-    features: &[f64],
-    dim: usize,
-    distance: MatchingDistance,
+    sample: MatchingSample<'_>,
     target: &TargetPopulation,
     caliper: Option<f64>,
     workspace: &mut PropensityEstimationWorkspace,
-    se_kind: AnalyticSeKind,
-    cluster_ids: Option<&[u32]>,
+    se: SeSpec<'_>,
     target_weights: Option<&[f64]>,
-    multiway_ids: Option<&Vec<Vec<u32>>>,
-    panel_times: Option<&[i64]>,
 ) -> Result<MatchedEstimate, EstimationError> {
+    let MatchingSample { treatment, outcome, features, dim, distance } = sample;
+    let SeSpec { kind: se_kind, cluster_ids, multiway_ids, panel_times } = se;
     if let Some(ids) = cluster_ids {
         if ids.len() != treatment.len() {
             return Err(EstimationError::data_msg("matching cluster_ids length != treatment rows"));
@@ -433,13 +461,11 @@ pub(crate) fn matching_contrast(
         Vec<usize>,
     ) = match target {
         TargetPopulation::Treated => {
-            let (diffs, donors, q_local) = match_diffs(
-                &control_feat,
-                &control_y,
+            let MatchedDiffs { diffs, donors, queries: q_local } = match_diffs(
+                MatchSide { features: &control_feat, outcome: &control_y },
+                MatchSide { features: &treated_feat, outcome: &treated_y },
                 dim,
                 distance,
-                &treated_feat,
-                &treated_y,
                 caliper,
                 workspace,
             )?;
@@ -447,13 +473,11 @@ pub(crate) fn matching_contrast(
             (diffs, donors, control_y.len(), rows)
         }
         TargetPopulation::Untreated => {
-            let (diffs, donors, q_local) = match_diffs(
-                &treated_feat,
-                &treated_y,
+            let MatchedDiffs { diffs, donors, queries: q_local } = match_diffs(
+                MatchSide { features: &treated_feat, outcome: &treated_y },
+                MatchSide { features: &control_feat, outcome: &control_y },
                 dim,
                 distance,
-                &control_feat,
-                &control_y,
                 caliper,
                 workspace,
             )?;
@@ -464,23 +488,20 @@ pub(crate) fn matching_contrast(
         TargetPopulation::AllObserved
         | TargetPopulation::Predicate(_)
         | TargetPopulation::CustomDistribution(_) => {
-            let (att_diffs, att_donors, att_q) = match_diffs(
-                &control_feat,
-                &control_y,
+            let MatchedDiffs { diffs: att_diffs, donors: att_donors, queries: att_q } =
+                match_diffs(
+                    MatchSide { features: &control_feat, outcome: &control_y },
+                    MatchSide { features: &treated_feat, outcome: &treated_y },
+                    dim,
+                    distance,
+                    caliper,
+                    workspace,
+                )?;
+            let MatchedDiffs { diffs: atc_raw, donors: atc_donors, queries: atc_q } = match_diffs(
+                MatchSide { features: &treated_feat, outcome: &treated_y },
+                MatchSide { features: &control_feat, outcome: &control_y },
                 dim,
                 distance,
-                &treated_feat,
-                &treated_y,
-                caliper,
-                workspace,
-            )?;
-            let (atc_raw, atc_donors, atc_q) = match_diffs(
-                &treated_feat,
-                &treated_y,
-                dim,
-                distance,
-                &control_feat,
-                &control_y,
                 caliper,
                 workspace,
             )?;
@@ -567,7 +588,7 @@ pub(crate) fn matching_contrast(
         // cluster, multiway or HAC sandwich over those contributions is not a valid
         // variance for the matching estimator.
         //
-        // Kept as a refusal (2.2) rather than derived, because no clustered influence
+        // Kept as a refusal rather than derived, because no clustered influence
         // function is available for this exact estimator:
         // - Fixed-M nearest-neighbour matching is not asymptotically linear in an influence
         //   function of one observation; its only linear representation is the
@@ -717,7 +738,7 @@ fn fit_linear_mean(features: &[f64], y: &[f64], dim: usize) -> Option<Vec<f64>> 
             }
         }
     }
-    solve_linear_system(&mut xtx, &mut xty, p)
+    crate::util::solve_spd(&xtx, &xty, p)
 }
 
 fn predict_linear(beta: &[f64], features: &[f64], dim: usize, row: usize) -> f64 {
@@ -729,47 +750,6 @@ fn predict_linear(beta: &[f64], features: &[f64], dim: usize, row: usize) -> f64
         y += beta[d + 1] * features[row * dim + d];
     }
     y
-}
-
-/// Gaussian elimination with partial pivoting; returns solution in `b`, or `None` if singular.
-fn solve_linear_system(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64>> {
-    for col in 0..p {
-        let mut pivot = col;
-        let mut best = a[col * p + col].abs();
-        for r in (col + 1)..p {
-            let v = a[r * p + col].abs();
-            if v > best {
-                best = v;
-                pivot = r;
-            }
-        }
-        if best < 1e-14 {
-            return None;
-        }
-        if pivot != col {
-            for c in 0..p {
-                a.swap(col * p + c, pivot * p + c);
-            }
-            b.swap(col, pivot);
-        }
-        let diag = a[col * p + col];
-        for r in (col + 1)..p {
-            let f = a[r * p + col] / diag;
-            for c in col..p {
-                a[r * p + c] -= f * a[col * p + c];
-            }
-            b[r] -= f * b[col];
-        }
-    }
-    let mut x = vec![0.0; p];
-    for i in (0..p).rev() {
-        let mut s = b[i];
-        for j in (i + 1)..p {
-            s -= a[i * p + j] * x[j];
-        }
-        x[i] = s / a[i * p + i];
-    }
-    Some(x)
 }
 
 #[cfg(test)]
@@ -790,6 +770,20 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn pivot_floor_follows_the_matrix_scale() {
+        // A design in units of 1e-8 is a scaled identity, not a singular system.
+        let tiny = [1e-16, 0.0, 0.0, 1e-16];
+        let tiny_b = [1e-16, 2e-16];
+        let x = crate::util::solve_spd(&tiny, &tiny_b, 2).expect("tiny identity");
+        assert!((x[0] - 1.0).abs() < 1e-6 && (x[1] - 2.0).abs() < 1e-6);
+        // A pair collinear to 1 part in 1e16 of a 1e16 Gram must be refused.
+        // An absolute 1e-14 floor accepts the residual pivot of 1.
+        let huge = [1e16, 1e16, 1e16, 1e16 + 1.0];
+        let huge_b = [1.0, 1.0];
+        assert!(crate::util::solve_spd(&huge, &huge_b, 2).is_none());
+    }
+
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         let mut rng =
             ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1234_u64);
@@ -799,7 +793,7 @@ mod tests {
         for i in 0..n {
             let zi = standard_normal(&mut rng);
             let logit = -0.5 + zi;
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             z[i] = zi;
@@ -924,6 +918,15 @@ mod tests {
         assert!(se_ate > se, "ATE form should exceed ATT form under reuse");
     }
 
+    fn homoskedastic() -> SeSpec<'static> {
+        SeSpec {
+            kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
+            multiway_ids: None,
+            panel_times: None,
+        }
+    }
+
     /// Donor outcomes belong to other clusters and times than the matched unit, so no
     /// cluster, multiway or HAC variance is published for matching.
     #[test]
@@ -942,19 +945,23 @@ mod tests {
         ] {
             let mut ws = PropensityEstimationWorkspace::default();
             let err = matching_contrast(
-                &t,
-                &y,
-                &x,
-                1,
-                MatchingDistance::Absolute,
+                MatchingSample {
+                    treatment: &t,
+                    outcome: &y,
+                    features: &x,
+                    dim: 1,
+                    distance: MatchingDistance::Absolute,
+                },
                 &TargetPopulation::AllObserved,
                 None,
                 &mut ws,
-                kind,
-                Some(&clusters),
+                SeSpec {
+                    kind,
+                    cluster_ids: Some(&clusters),
+                    multiway_ids: Some(&multiway),
+                    panel_times: Some(&times),
+                },
                 None,
-                Some(&multiway),
-                Some(&times),
             )
             .unwrap_err();
             assert!(
@@ -985,22 +992,21 @@ mod tests {
             }
             let mut ws = PropensityEstimationWorkspace::default();
             let est = matching_contrast(
-                &t,
-                &y,
-                &x,
-                1,
-                MatchingDistance::Absolute,
+                MatchingSample {
+                    treatment: &t,
+                    outcome: &y,
+                    features: &x,
+                    dim: 1,
+                    distance: MatchingDistance::Absolute,
+                },
                 &TargetPopulation::AllObserved,
                 None,
                 &mut ws,
-                AnalyticSeKind::Homoskedastic,
-                None,
-                None,
-                None,
+                homoskedastic(),
                 None,
             )
             .unwrap();
-            let z = 1.96;
+            let z = antecedent_stats::NORMAL_Q975;
             if (est.ate - 1.0).abs() <= z * est.se_analytic {
                 covered += 1;
             }
@@ -1024,13 +1030,13 @@ mod tests {
         let effect =
             est.fit(&prep, &mut ws, &ExecutionContext::for_tests(7), AssumptionSet::new()).unwrap();
         assert!(
-            effect.se_bootstrap.is_none(),
+            effect.se_bootstrap().is_none(),
             "NN matching must not store the invalid bootstrap SE"
         );
         assert!(
-            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
+            effect.se_analytic().is_finite() && effect.se_analytic() > 0.0,
             "se_analytic={}",
-            effect.se_analytic
+            effect.se_analytic()
         );
     }
 
@@ -1054,13 +1060,11 @@ mod tests {
         let raw_donors = donor_probs.clone();
         let raw_queries = query_probs.clone();
         let mut ws_raw = PropensityEstimationWorkspace::default();
-        let (raw_diffs, _, _) = match_diffs(
-            &raw_donors,
-            &donor_y,
+        let MatchedDiffs { diffs: raw_diffs, .. } = match_diffs(
+            MatchSide { features: &raw_donors, outcome: &donor_y },
+            MatchSide { features: &raw_queries, outcome: &query_y },
             1,
             MatchingDistance::Absolute,
-            &raw_queries,
-            &query_y,
             caliper,
             &mut ws_raw,
         )
@@ -1069,13 +1073,11 @@ mod tests {
         let logit_donors = logit(&donor_probs);
         let logit_queries = logit(&query_probs);
         let mut ws_logit = PropensityEstimationWorkspace::default();
-        let (logit_diffs, _, _) = match_diffs(
-            &logit_donors,
-            &donor_y,
+        let MatchedDiffs { diffs: logit_diffs, .. } = match_diffs(
+            MatchSide { features: &logit_donors, outcome: &donor_y },
+            MatchSide { features: &logit_queries, outcome: &query_y },
             1,
             MatchingDistance::Absolute,
-            &logit_queries,
-            &query_y,
             caliper,
             &mut ws_logit,
         )
@@ -1133,19 +1135,18 @@ mod tests {
 
         let mut ws = PropensityEstimationWorkspace::default();
         let out = matching_contrast(
-            &treatment,
-            &outcome,
-            &features,
-            1,
-            MatchingDistance::Absolute,
+            MatchingSample {
+                treatment: &treatment,
+                outcome: &outcome,
+                features: &features,
+                dim: 1,
+                distance: MatchingDistance::Absolute,
+            },
             &TargetPopulation::CustomDistribution(antecedent_core::DistributionRef::from_raw(1)),
             None,
             &mut ws,
-            AnalyticSeKind::Homoskedastic,
-            None,
+            homoskedastic(),
             Some(&weights),
-            None,
-            None,
         )
         .unwrap();
         assert!((out.ate - tau).abs() < 1e-12, "ate {} vs {tau}", out.ate);

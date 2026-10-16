@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from _py_closure import closure_nodes
 from test_evidence import (
     _attrs_before,
     _is_cfg_test,
@@ -71,7 +72,9 @@ def nontest_pair(path: Path, *, in_crate: bool = True) -> tuple[str, str]:
             for item in items:
                 if item.kind not in ("fn", "mod"):
                     continue
-                if _is_cfg_test(item.attrs) or any(re.sub(r"\s+", "", a) == "#[test]" for a in item.attrs):
+                if _is_cfg_test(item.attrs) or any(
+                    re.sub(r"\s+", "", a) == "#[test]" for a in item.attrs
+                ):
                     for k in range(item.start, item.body[1]):
                         if code[k] != "\n":
                             code[k] = skel[k] = " "
@@ -129,6 +132,29 @@ def _scan_literals(code: str, lo: int = 0, hi: int | None = None) -> list[tuple[
     return out
 
 
+def _compact_rust_tokens(code: str) -> str:
+    """Remove inter-token whitespace while preserving complete literal tokens.
+
+    Proof comparisons use this instead of deleting all whitespace: spaces inside
+    string and character literals are part of the emitted value and must remain
+    observable to the source proof.
+    """
+    pieces: list[str] = []
+    cursor = 0
+    while match := _LIT.search(code, cursor):
+        pieces.append(re.sub(r"\s+", "", code[cursor : match.start()]))
+        if match.group("hash") is not None:
+            hashes = match.group("hash")
+            close = code.find('"' + hashes, match.end())
+            end = len(code) if close < 0 else close + 1 + len(hashes)
+        else:
+            end = match.end()
+        pieces.append(code[match.start() : end])
+        cursor = end
+    pieces.append(re.sub(r"\s+", "", code[cursor:]))
+    return "".join(pieces)
+
+
 def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
     """Every string literal in non-test Rust source, with the const it initialises."""
     code, _ = nontest_pair(path, in_crate=in_crate)
@@ -143,9 +169,7 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
     return out
 
 
-def refusal_stage_literals(
-    path: Path, *, in_crate: bool = True
-) -> set[tuple[int, str]]:
+def refusal_stage_literals(path: Path, *, in_crate: bool = True) -> set[tuple[int, str]]:
     """Only exact RefusalFields.stage values are stage metadata, not reason details."""
     code, skel = nontest_pair(path, in_crate=in_crate)
     output = set()
@@ -158,9 +182,7 @@ def refusal_stage_literals(
         for match in pattern.finditer(code, opening + 1, closing):
             # Only direct struct members qualify, never nested messages/calls.
             prefix = skel[opening + 1 : match.start()]
-            if prefix.count("{") == prefix.count("}") and prefix.count(
-                "("
-            ) == prefix.count(")"):
+            if prefix.count("{") == prefix.count("}") and prefix.count("(") == prefix.count(")"):
                 line = code.count("\n", 0, match.start()) + 1
                 if (
                     sum(
@@ -173,9 +195,7 @@ def refusal_stage_literals(
     return output
 
 
-def finite_refusal_helpers(
-    path: Path, *, in_crate: bool = True
-) -> tuple[list[Lit], set[int]]:
+def finite_refusal_helpers(path: Path, *, in_crate: bool = True) -> tuple[list[Lit], set[int]]:
     """Expand a private leaf-module formatter only when every suffix is literal.
 
     This is a proof over the closed call set, not a waiver for dynamic strings.
@@ -220,12 +240,7 @@ def finite_refusal_helpers(
             continue
         # The parser's body range includes braces; no extra work or delegation
         # is admitted in this narrowly recognized formatter.
-        body = (
-            code[item.body[0] : item.body[1]]
-            .strip()
-            .removeprefix("{")
-            .removesuffix("}")
-        )
+        body = code[item.body[0] : item.body[1]].strip().removeprefix("{").removesuffix("}")
         matched = body_pattern.fullmatch(body)
         if not matched or (
             (matched["constructor"] == "refused_with_fields") != bool(matched["fields"])
@@ -267,13 +282,155 @@ def finite_refusal_helpers(
                 and code.count("\n", 0, item.body[0]) + 1
                 <= lit.line
                 <= code.count("\n", 0, item.body[1]) + 1
-                and sum(
-                    other.line == lit.line and other.value == lit.value
-                    for other in literals
-                )
+                and sum(other.line == lit.line and other.value == lit.value for other in literals)
                 == 1
             )
+    output.extend(sectioned_artifact_refusals(path, in_crate=in_crate))
     return output, proven_lines
+
+
+# This is the deliberately closed set of production invocations of
+# `sectioned_artifact_error!`. A new generated refusal namespace must be
+# reviewed here as well as registered in promotion.toml; arbitrary macro calls
+# or strings cannot create evidence for an unreviewed namespace.
+_SECTIONED_ARTIFACTS = {
+    "crates/antecedent-io/src/effect_constancy_artifact.rs": (
+        "effect_constancy",
+        False,
+    ),
+    "crates/antecedent-io/src/vector_treatment_artifact.rs": (
+        "vector_treatment",
+        False,
+    ),
+    "crates/antecedent-io/src/categorical_treatment_artifact.rs": (
+        "categorical_treatment",
+        False,
+    ),
+    "crates/antecedent-io/src/nonlinear_mediation_artifact.rs": (
+        "nonlinear_mediation",
+        True,
+    ),
+    "crates/antecedent-io/src/latent_class_artifact.rs": ("latent_class", True),
+    "crates/antecedent-io/src/mechanism_discrepancy_artifact.rs": (
+        "mechanism_discrepancy",
+        False,
+    ),
+    "crates/antecedent-io/src/predictive_assessment_artifact.rs": (
+        "predictive_assessment",
+        True,
+    ),
+}
+
+
+def _sectioned_error_macro_is_proven() -> bool:
+    """Recognize only the current macro arms that construct registered details."""
+    macro_path = (
+        Path(__file__).resolve().parents[1] / "crates/antecedent-io-core/src/artifact_codec.rs"
+    )
+    code, skel = nontest_pair(macro_path)
+    _, items = rust_items(macro_path)
+    definitions = [
+        item for item in items if item.kind == "macro" and item.name == "sectioned_artifact_error"
+    ]
+    if len(definitions) != 1:
+        return False
+    item = definitions[0]
+    if [re.sub(r"\s+", "", attr) for attr in _attrs_before(skel, code, item.start)] != [
+        "#[macro_export]"
+    ]:
+        return False
+    methods = [
+        method
+        for method in items
+        if method.kind == "fn"
+        and method.name == "refusal"
+        and item.body[0] < method.start < item.body[1]
+    ]
+    if len(methods) != 1:
+        return False
+    method = methods[0]
+    header = _compact_rust_tokens(code[method.start - 4 : method.body[0]])
+    body = _compact_rust_tokens(code[method.body[0] : method.body[1]])
+    expected_header = "pubfnrefusal(&self)->Option<(&'staticstr,String,String)>"
+    expected_body = (
+        "{matchself{Self::Refused{code,message}=>{let(detail,text)="
+        'message.split_once(": ").unwrap_or((message.as_str(),""));'
+        "Some((*code,detail.to_owned(),text.to_owned()))}"
+        'Self::IdentityMismatch{field}=>Some((antecedent_core::reason_code!("route_not_supported"),'
+        'format!("{contract}.wrong_contract",contract=$contract),'
+        'format!("{field} changed"),)),'
+        'Self::ResultMismatch(what)=>{if$report{Some((antecedent_core::reason_code!("invalid_argument"),'
+        'format!("{contract}.report_replay_mismatch",contract=$contract),'
+        'format!("the stored {what} does not replay"),))}else{None}}_=>None,}}'
+    )
+    return header == expected_header and body == expected_body
+
+
+def sectioned_artifact_refusals(path: Path, *, in_crate: bool = True) -> list[Lit]:
+    """Expand the closed production table of generated artifact refusals.
+
+    The macro definition is checked for the actual reason-code and detail
+    expressions. At each reviewed call site the namespace and report flag must
+    still match the finite table above. Only live invocation tokens are parsed;
+    strings and comments are blanked by the Rust lexer.
+    """
+    repo = Path(__file__).resolve().parents[1]
+    try:
+        relative = path.resolve().relative_to(repo).as_posix()
+    except ValueError:
+        return []
+    expected = _SECTIONED_ARTIFACTS.get(relative)
+    if expected is None or not _sectioned_error_macro_is_proven():
+        return []
+    code, skel = nontest_pair(path, in_crate=in_crate)
+    calls = list(re.finditer(r"(?<![\w:])crate::sectioned_artifact_error\s*!\s*([({\[])", skel))
+    if len(calls) != 1:
+        return []
+    if any(
+        re.sub(r"\s+", "", attr).startswith("#[cfg")
+        for attr in _attrs_before(skel, code, calls[0].start())
+    ):
+        return []
+    opening = calls[0].end() - 1
+    closing = _match_bracket(skel, opening)
+    # Split only on commas at this invocation's top level. Literal contents
+    # and nested attributes are blank in `skel`, so their punctuation cannot
+    # manufacture arguments.
+    parts: list[tuple[int, int]] = []
+    start = opening + 1
+    depth = 0
+    for index in range(start, closing):
+        char = skel[index]
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "," and depth == 0:
+            parts.append((start, index))
+            start = index + 1
+    if code[start:closing].strip():
+        parts.append((start, closing))
+    if len(parts) != 5:
+        return []
+    args = [code[lo:hi].strip() for lo, hi in parts]
+    name = re.fullmatch(r"[A-Z][A-Za-z0-9_]*", args[0])
+    literals = []
+    for arg in args[1:4]:
+        match = re.fullmatch(r'"([a-z][a-z0-9_ ]*)"', arg)
+        if not match:
+            return []
+        literals.append(match[1])
+    report = args[4]
+    if report not in {"true", "false"} or not name:
+        return []
+    _noun, contract, _replay = literals
+    if (contract, report == "true") != expected:
+        return []
+    line = code.count("\n", 0, calls[0].start()) + 1
+    emitted = [Lit(line, f"{contract}.wrong_contract", None, "route_not_supported")]
+    if report == "true":
+        emitted.append(Lit(line, f"{contract}.report_replay_mismatch", None, "invalid_argument"))
+    return emitted
 
 
 def shared_namespace_problems(
@@ -292,13 +449,9 @@ def shared_namespace_problems(
             "owner_record",
             "sources",
         }:
-            problems.append(
-                "shared namespace needs exactly namespace, owner_record, sources"
-            )
+            problems.append("shared namespace needs exactly namespace, owner_record, sources")
             continue
-        ns, owner, sources = (
-            declaration[k] for k in ("namespace", "owner_record", "sources")
-        )
+        ns, owner, sources = (declaration[k] for k in ("namespace", "owner_record", "sources"))
         if (
             not isinstance(ns, str)
             or not re.fullmatch(r"[a-z][a-z0-9_]*", ns)
@@ -324,12 +477,9 @@ def shared_namespace_problems(
             for path, _, _ in uses
         }
         if actual != set(sources) or any(
-            not p.endswith(".rs") or "/src/" not in p or ".." in Path(p).parts
-            for p in sources
+            not p.endswith(".rs") or "/src/" not in p or ".." in Path(p).parts for p in sources
         ):
-            problems.append(
-                f"{ns}: sources must exactly equal emitting production Rust files"
-            )
+            problems.append(f"{ns}: sources must exactly equal emitting production Rust files")
         owners = [r for r in records if r.get("id") == owner]
         if len(owners) != 1 or owners[0].get("status") not in {
             "promoted",
@@ -338,9 +488,7 @@ def shared_namespace_problems(
             problems.append(f"{ns}: missing implemented namespace owner")
             continue
         if declaration not in owners[0].get("shared_refusal_namespaces", []):
-            problems.append(
-                f"{ns}: owner must declare identical sources and self ownership"
-            )
+            problems.append(f"{ns}: owner must declare identical sources and self ownership")
         owned = {r.get("detail"): r.get("code") for r in owners[0].get("refusals", [])}
         if (
             any(
@@ -350,16 +498,14 @@ def shared_namespace_problems(
             )
             or not set(emissions.get(ns, {})) <= owned.keys()
         ):
-            problems.append(
-                f"{ns}: every emitted refusal pair must be declared by owner"
-            )
+            problems.append(f"{ns}: every emitted refusal pair must be declared by owner")
     if len(namespaces - seen) > 1:
         problems.append("refusal details must share one primary namespace")
     return problems
 
 
 def defensive_carrier_route_problems(root: Path) -> list[str]:
-    """Factory and fresh consumer permit exactly the six source-report routes."""
+    """Factory and fresh consumer permit exactly the declared source-report routes."""
     native, native_skel = nontest_pair(root / "python/src/measured_inference_api.rs")
     io, _ = nontest_pair(root / "crates/antecedent-io/src/measured_inference.rs")
     expected = {
@@ -369,6 +515,11 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         "nested_bayesian",
         "sampled_recovery",
         "temporal_interval",
+        "adaptive_interval",
+        "cohort_interval",
+        "count_fitted_interval",
+        "sampled_counterfactual_transport",
+        "split_effect",
     }
     _, native_items = rust_items(root / "python/src/measured_inference_api.rs")
     _, io_items = rust_items(root / "crates/antecedent-io/src/measured_inference.rs")
@@ -378,11 +529,12 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         if i.kind == "fn" and i.name == "source_report"
     ]
     consume = [
-        io[i.body[0] : i.body[1]]
-        for i in io_items
-        if i.kind == "fn" and i.name == "consume"
+        io[i.body[0] : i.body[1]] for i in io_items if i.kind == "fn" and i.name == "consume"
     ]
-    arms = lambda text: set(re.findall(r'"([a-z_]+)"\s*=>', text))
+
+    def arms(text: str) -> set[str]:
+        return set(re.findall(r'"([a-z_]+)"\s*=>', text))
+
     if (
         len(source) != 1
         or len(consume) != 1
@@ -395,7 +547,7 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         not in source[0]
     ):
         return [
-            "defensive source-only claim requires the exact six factory/fresh-consumer route match and no public constructor/setter"
+            "defensive source-only claim requires the exact declared factory/fresh-consumer route match and no public constructor/setter"
         ]
     # Every native IO factory call uses a literal member of the same finite
     # route set. Unknown/dynamic factory arguments and escaped aliases reject
@@ -404,13 +556,11 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
     constructor_count = 0
     for path in (root / "crates/antecedent-io/src").glob("**/*.rs"):
         code, skeleton = nontest_pair(path)
-        constructor_count += len(
-            re.findall(r"\bMeasuredInference\s*\{", skeleton)
-        ) - len(re.findall(r"\b(?:struct|impl)\s+MeasuredInference\s*\{", skeleton))
+        constructor_count += len(re.findall(r"\bMeasuredInference\s*\{", skeleton)) - len(
+            re.findall(r"\b(?:struct|impl)\s+MeasuredInference\s*\{", skeleton)
+        )
         if re.search(r"\bauthorize\s+as\b", skeleton):
-            return [
-                "defensive factory proof cannot permit an escaped authority helper alias"
-            ]
+            return ["defensive factory proof cannot permit an escaped authority helper alias"]
         code = re.sub(r"\buse\b[^;]+;", lambda m: " " * len(m[0]), code)
         for call in re.finditer(r"\bauthorize\b", code):
             if re.search(r"\bfn\s*$", code[: call.start()]):
@@ -423,7 +573,7 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
             factory_routes.add(argument[1])
     if factory_routes != expected or constructor_count != 1:
         return [
-            "defensive factory proof requires exactly the original six routes and one private authority constructor"
+            "defensive factory proof requires exactly the declared routes and one private authority constructor"
         ]
     # Native carrier and IO authority cannot deserialize or expose mutable
     # report/source fields. The checked authority bypasses this route match.
@@ -436,26 +586,19 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
             r"pub struct MeasuredInference\s*\{\s*report: MeasuredInferenceReport,\s*bytes: Arc<\[u8\]>,\s*source: Arc<\[u8\]>,\s*\}",
             io,
         )
-        or re.search(
-            r"#\[derive\([^]]*Deserialize[^]]*\)\]\s*pub struct MeasuredInference\b", io
-        )
+        or re.search(r"#\[derive\([^]]*Deserialize[^]]*\)\]\s*pub struct MeasuredInference\b", io)
     ):
-        return [
-            "defensive carrier route must remain opaque, immutable and non-deserializable"
-        ]
+        return ["defensive carrier route must remain opaque, immutable and non-deserializable"]
     return []
 
 
-def input_exception_evidence_problems(
-    entry: dict, path: Path, assertion: str
-) -> list[str]:
+def input_exception_evidence_problems(entry: dict, path: Path, assertion: str) -> list[str]:
     """Require class assertion plus absent reason code, including finite pytest cases."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     functions = [
         n
         for n in ast.walk(tree)
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and n.name == assertion
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == assertion
     ]
     if len(functions) != 1:
         return ["class-only evidence must name one ordinary test"]
@@ -468,9 +611,7 @@ def input_exception_evidence_problems(
             if entry["detail"] in text and entry["helper"] in text and "assert" in text
             else ["defensive evidence must assert the exact guarded source helper"]
         )
-    assertions = "\n".join(
-        ast.unparse(n) for n in ast.walk(fn) if isinstance(n, ast.Assert)
-    )
+    assertions = "\n".join(ast.unparse(n) for n in ast.walk(fn) if isinstance(n, ast.Assert))
     raises = [
         n
         for n in ast.walk(fn)
@@ -506,8 +647,7 @@ def input_exception_evidence_problems(
         ):
             continue
         if not any(
-            n.args and ast.unparse(n.args[0]) == "getattr(errors, exception)"
-            for n in raises
+            n.args and ast.unparse(n.args[0]) == "getattr(errors, exception)" for n in raises
         ):
             continue
         if any(
@@ -518,9 +658,7 @@ def input_exception_evidence_problems(
             for row in values
         ):
             return []
-    return [
-        "class-only runtime evidence must exercise the exact declared class/detail case"
-    ]
+    return ["class-only runtime evidence must exercise the exact declared class/detail case"]
 
 
 def typed_input_exception_problems(entry: dict, root: Path) -> list[str]:
@@ -574,23 +712,17 @@ def typed_input_exception_problems(entry: dict, root: Path) -> list[str]:
         ]
     defensive = entry.get("defensive_source_only", False)
     if defensive and detail != "measured_inference.source_report_not_supported":
-        return [
-            "live precondition/resource branch cannot be declared defensive_source_only"
-        ]
+        return ["live precondition/resource branch cannot be declared defensive_source_only"]
     if detail == "measured_inference.source_report_not_supported":
         if defensive is not True:
-            return [
-                "unreachable source-report guard must be explicitly defensive_source_only"
-            ]
+            return ["unreachable source-report guard must be explicitly defensive_source_only"]
         problems = defensive_carrier_route_problems(root)
         if problems:
             return problems
     code, skel = nontest_pair(root / source)
     helper = re.escape(str(entry["helper"]))
     literal = re.escape(detail)
-    call = re.compile(
-        helper + r'\s*\(\s*(?:format!\(\s*)?"' + literal + r'(?::[^"\n]*)?"'
-    )
+    call = re.compile(helper + r'\s*\(\s*(?:format!\(\s*)?"' + literal + r'(?::[^"\n]*)?"')
     matches = list(call.finditer(code))
     if not matches:
         return ["declared helper does not emit this literal in non-test source"]
@@ -603,9 +735,7 @@ def typed_input_exception_problems(entry: dict, root: Path) -> list[str]:
         not any(match.start() <= offset < match.end() for match in matches)
         for offset in occurrences
     ):
-        return [
-            "this class-only detail is also emitted outside its proven typed helper"
-        ]
+        return ["this class-only detail is also emitted outside its proven typed helper"]
     for wrapper in re.finditer(r"\bwith_reason_code\s*\(", skel):
         close = _match_bracket(skel, wrapper.end() - 1)
         if any(wrapper.end() <= match.start() < close for match in matches):
@@ -616,23 +746,83 @@ def typed_input_exception_problems(entry: dict, root: Path) -> list[str]:
         lib, _ = nontest_pair(root / "python/src/lib.rs")
         _, items = rust_items(root / "python/src/lib.rs")
         bodies = [
-            lib[i.body[0] : i.body[1]]
-            for i in items
-            if i.kind == "fn" and i.name == "value_err"
+            lib[i.body[0] : i.body[1]] for i in items if i.kind == "fn" and i.name == "value_err"
         ]
+        body = _compact_rust_tokens(bodies[0]) if len(bodies) == 1 else ""
         if (
             len(bodies) != 1
-            or "VALUE_ERROR_CLASS" not in bodies[0]
-            or "CausalValidateError::new_err" not in bodies[0]
-            or "reason_code" in bodies[0]
+            or body
+            != "{letmessage=message.as_ref();attach_reason_from_message(value_error_of(message),message)}"
         ):
             return [
                 "value_err no longer proves registered value-error mapping without a reason code"
             ]
+        lib, _ = nontest_pair(root / "python/src/lib.rs")
+        _, items = rust_items(root / "python/src/lib.rs")
+        value_errors = [
+            lib[item.body[0] : item.body[1]]
+            for item in items
+            if item.kind == "fn" and item.name == "value_error_of"
+        ]
+        value_error_body = _compact_rust_tokens(value_errors[0]) if len(value_errors) == 1 else ""
+        if (
+            len(value_errors) != 1
+            or value_error_body
+            != "{Python::attach(|py|{VALUE_ERROR_CLASS.get(py).and_then(|cls|cls.bind(py).call1((message,)).ok()).map_or_else(||CausalValidateError::new_err(message.to_string()),PyErr::from_value)})}"
+        ):
+            return ["value_err no longer proves its registered CausalValueError mapping"]
+        reason_helpers = {
+            item.name: _compact_rust_tokens(lib[item.body[0] : item.body[1]])
+            for item in items
+            if item.kind == "fn"
+            and item.name in {"reason_code_in_message", "attach_reason_from_message"}
+        }
+        if reason_helpers != {
+            "reason_code_in_message": '{antecedent_core::reason_code::split_prefix(message).or_else(||{message.split_once(": ").and_then(|(_,rest)|antecedent_core::reason_code::split_prefix(rest))}).map(|(code,_)|code)}',
+            "attach_reason_from_message": "{matchreason_code_in_message(message).filter(|code|antecedent_core::reason_code::is_registered(code)){Some(code)=>with_reason_code(err,code),None=>err,}}",
+        }:
+            return [
+                "value_err reason propagation no longer proves class-only literal messages remain uncoded"
+            ]
+        reason_path = root / "crates/antecedent-core/src/reason_code.rs"
+        reason_code, reason_skel = nontest_pair(reason_path)
+        _, reason_items = rust_items(reason_path)
+        split_prefix = [
+            _compact_rust_tokens(reason_code[item.body[0] : item.body[1]])
+            for item in reason_items
+            if item.kind == "fn" and item.name == "split_prefix"
+        ]
+        prefix_items = [
+            item for item in reason_items if item.kind == "const" and item.name == "PREFIX"
+        ]
+        prefix_declarations = list(re.finditer(r"(?<![\w])pub\s+const\s+PREFIX\b", reason_skel))
+        prefix_is_exact = False
+        if len(prefix_items) == len(prefix_declarations) == 1:
+            prefix_item = prefix_items[0]
+            prefix_start = prefix_declarations[0].start()
+            prefix_is_exact = (
+                prefix_start < prefix_item.start < prefix_item.body[1]
+                and not any(
+                    fn.body[0] < prefix_start < fn.body[1] for fn in reason_items if fn.kind == "fn"
+                )
+                and _compact_rust_tokens(reason_code[prefix_start : prefix_item.body[1]])
+                == 'pubconstPREFIX:&str=concat!("reason","=");'
+            )
+        if (
+            len(split_prefix) != 1
+            or split_prefix[0]
+            != "{letrest=message.strip_prefix(PREFIX)?;let(code,tail)=rest.split_once(':')?;Some((code.trim(),tail.trim_start()))}"
+            or not prefix_is_exact
+        ):
+            return ["registered reason prefix parser changed; class-only mapping needs review"]
+        if any(
+            "reason=" in value
+            for match in matches
+            for _, value in _scan_literals(code, match.start(), match.end())
+        ):
+            return ["class-only value_err literal now includes an explicit reason prefix"]
     if pair[0] == "CausalValueError":
-        errors = ast.parse(
-            (root / "python/antecedent/errors.py").read_text(encoding="utf-8")
-        )
+        errors = ast.parse((root / "python/antecedent/errors.py").read_text(encoding="utf-8"))
         registrations = [
             n
             for n in ast.walk(errors)
@@ -645,13 +835,10 @@ def typed_input_exception_problems(entry: dict, root: Path) -> list[str]:
             for n in ast.walk(errors)
             if isinstance(n, ast.ClassDef)
             and n.name == "CausalValueError"
-            and [ast.unparse(base) for base in n.bases]
-            == ["CausalValidateError", "ValueError"]
+            and [ast.unparse(base) for base in n.bases] == ["CausalValidateError", "ValueError"]
         ]
         if len(registrations) != 1 or len(classes) != 1:
-            return [
-                "registered value-error class mapping no longer matches the native helper"
-            ]
+            return ["registered value-error class mapping no longer matches the native helper"]
     return []
 
 
@@ -661,17 +848,71 @@ def ignored_test_literals(path: Path) -> dict[str, list[str]]:
     masked, items = rust_items(path.resolve())
     out: dict[str, list[str]] = {}
     for it in items:
-        if it.kind != "fn" or not any(re.sub(r"\s+", "", a).startswith("#[ignore") for a in it.attrs):
+        if it.kind != "fn" or not any(
+            re.sub(r"\s+", "", a).startswith("#[ignore") for a in it.attrs
+        ):
             continue
         lo, hi = it.body
-        out.setdefault(it.name, []).extend(value for _, value in _scan_literals(masked.code, lo, hi))
+        out.setdefault(it.name, []).extend(
+            value for _, value in _scan_literals(masked.code, lo, hi)
+        )
+    for name, values in _macro_generated_ignored_tests(masked, items).items():
+        out.setdefault(name, []).extend(values)
     return out
+
+
+def _macro_generated_ignored_tests(masked, items) -> dict[str, list[str]]:
+    """Ignored tests a test-generating `macro_rules!` of the file defines at its invocations.
+
+    A macro whose body carries `#[ignore` and declares `fn $name` expands, at each
+    invocation `m!(name, ...)`, to an `#[ignore]`d test called `name`. The generated test's
+    emitted literals are its own name (the first identifier argument), every string literal
+    among the arguments and the string literals of every file-level `const`/`static` the
+    arguments name (a harness passes its label table that way). Nothing outside the
+    invocation counts, so a macro that is defined and never invoked emits nothing.
+    """
+    skel, code = masked.skeleton, masked.code
+    constants = {it.name: it for it in items if it.kind == "const"}
+    out: dict[str, list[str]] = {}
+    for macro in (it for it in items if it.kind == "macro"):
+        body = code[macro.body[0] : macro.body[1]]
+        if "#[ignore" not in re.sub(r"\s+", "", body) or not re.search(r"\bfn\s+\$\w+", body):
+            continue
+        call = re.compile(r"(?<![\w$])" + re.escape(macro.name) + r"\s*!\s*[(\[{]")
+        for m in call.finditer(skel):
+            if macro.body[0] <= m.start() < macro.body[1]:
+                continue
+            end = _match_bracket(skel, m.end() - 1)
+            args = code[m.end() : end]
+            first = re.match(r"\s*([A-Za-z_]\w*)", args)
+            if not first:
+                continue
+            values = [first.group(1)]
+            values += [v for _, v in _scan_literals(code, m.end(), end)]
+            for ident in set(re.findall(r"[A-Za-z_]\w*", skel[m.end() : end])):
+                const = constants.get(ident)
+                if const is not None:
+                    values += [v for _, v in _scan_literals(code, const.body[0], const.body[1])]
+            out.setdefault(first.group(1), []).extend(values)
+    return out
+
+
+def ignored_test_emits_record(path: Path, name: str) -> bool:
+    """Whether the ignored test `name` can emit a coverage record: a test that scores only
+    through `CoverageTally::new` (a pass/fail gate, no `for_record` key) emits none."""
+    masked, items = rust_items(path.resolve())
+    for it in items:
+        if it.kind == "fn" and it.name == name:
+            body = masked.code[it.body[0] : it.body[1]]
+            if "CoverageTally::new(" in body and "for_record" not in body and "RecordKey" not in body:
+                return False
+    return True
 
 
 def python_fn_literals(path: Path) -> dict[str, list[str]]:
     """Function name -> string constants in its body, for every def of a Python file."""
     try:
-        tree = ast.parse(path.read_text(errors="ignore"))
+        tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
     except SyntaxError:
         return {}
     out: dict[str, list[str]] = {}
@@ -697,7 +938,8 @@ def _py_str(node: ast.AST) -> str | None:
         return None
     if isinstance(node, ast.JoinedStr):
         return "".join(
-            v.value if isinstance(v, ast.Constant) and isinstance(v.value, str) else "{}" for v in node.values
+            v.value if isinstance(v, ast.Constant) and isinstance(v.value, str) else "{}"
+            for v in node.values
         )
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
         left, right = _py_str(node.left), _py_str(node.right)
@@ -711,7 +953,7 @@ def python_literals(path: Path) -> list[Lit]:
     """Every string a Python file builds: constants (adjacent literals are already
     one constant), f-strings and `+` concatenations."""
     try:
-        tree = ast.parse(path.read_text(errors="ignore"))
+        tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
     except SyntaxError:
         return []
     # Documentation is not an emitted runtime string. In particular, a sentence
@@ -721,12 +963,21 @@ def python_literals(path: Path) -> list[Lit]:
     for scope in ast.walk(tree):
         if isinstance(scope, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             first = scope.body[0] if scope.body else None
-            if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
-                    and isinstance(first.value.value, str)):
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
                 docstrings.add(id(first.value))
     consts: dict[int, str] = {}
     for node in ast.walk(tree):
-        targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) else []
+        targets = (
+            node.targets
+            if isinstance(node, ast.Assign)
+            else [node.target]
+            if isinstance(node, ast.AnnAssign)
+            else []
+        )
         value = getattr(node, "value", None)
         if value is not None and any(isinstance(t, ast.Name) for t in targets):
             name = next(t.id for t in targets if isinstance(t, ast.Name))
@@ -735,7 +986,10 @@ def python_literals(path: Path) -> list[Lit]:
     seen: set[tuple[int, str]] = set()
     out: list[Lit] = []
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Constant, ast.JoinedStr, ast.BinOp)) and id(node) not in docstrings:
+        if (
+            isinstance(node, (ast.Constant, ast.JoinedStr, ast.BinOp))
+            and id(node) not in docstrings
+        ):
             value = _py_str(node)
             if value is not None and (node.lineno, value) not in seen:
                 seen.add((node.lineno, value))
@@ -752,14 +1006,18 @@ class Symbol:
     kind: str  # "type" | "function" | "other"
     hidden: bool  # #[doc(hidden)] (Rust) or a leading underscore (pyo3 export name)
     where: str  # "top" | "method" | "pyo3" | "python" | "export"
-    owner: str | None = None  # the Self type of an inherent-impl method (where "method") or the exposed pyclass of a #[pymethods] fn (where "pyo3")
+    owner: str | None = (
+        None  # the Self type of an inherent-impl method (where "method") or the exposed pyclass of a #[pymethods] fn (where "pyo3")
+    )
 
 
 _PUB = re.compile(
-    r"(?<![\w])pub(?!\s*\()\s+(?:async\s+|const\s+|unsafe\s+|extern\s+\"[^\"]*\"\s+)*(fn|struct|enum|trait)\s+([A-Za-z_]\w*)"
+    r"(?<![\w])pub(?!\s*\()\s+(?:async\s+|const\s+|unsafe\s+|extern\s+\"[^\"]*\"\s+)*(fn|struct|enum|trait|type)\s+([A-Za-z_]\w*)"
 )
 _IMPL = re.compile(r"\bimpl\b(?P<head>[^{;]*)\{")
-_TYPE_DECL = re.compile(r"(?<![\w])(pub(?:\s*\([^)]*\))?\s+)?(struct|enum|trait|union|type)\s+([A-Za-z_]\w*)")
+_TYPE_DECL = re.compile(
+    r"(?<![\w])(pub(?:\s*\([^)]*\))?\s+)?(struct|enum|trait|union|type)\s+([A-Za-z_]\w*)"
+)
 
 
 def _hidden(attrs: list[str]) -> bool:
@@ -772,7 +1030,11 @@ def _inside(ranges: list[tuple[int, int]], pos: int) -> bool:
 
 def _self_type(head: str) -> tuple[str | None, bool]:
     """(type name, is_trait_impl) of an `impl<...> [Trait for] Type<...>` head."""
-    head = re.sub(r"^\s*<.*?>\s*", "", head.strip(), count=1) if head.strip().startswith("<") else head.strip()
+    head = (
+        re.sub(r"^\s*<.*?>\s*", "", head.strip(), count=1)
+        if head.strip().startswith("<")
+        else head.strip()
+    )
     trait = re.search(r"\bfor\b", head) is not None
     if trait:
         head = head.split(" for ", 1)[-1]
@@ -780,12 +1042,61 @@ def _self_type(head: str) -> tuple[str | None, bool]:
     return (m.group(1) if m else None), trait
 
 
+def _sectioned_enum_symbols(
+    path: Path,
+    code: str,
+    skel: str,
+    fn_bodies: list[tuple[int, int]],
+    private_mods: list[tuple[int, int]],
+) -> list[Symbol]:
+    """Inventory the public enum produced by the one verified enum macro."""
+    macro_path = (
+        Path(__file__).resolve().parents[1] / "crates/antecedent-io-core/src/artifact_codec.rs"
+    )
+    macro_code, macro_skel = nontest_pair(macro_path)
+    _, macro_items = rust_items(macro_path)
+    definitions = [
+        item
+        for item in macro_items
+        if item.kind == "macro" and item.name == "sectioned_artifact_enum"
+    ]
+    if len(definitions) != 1:
+        return []
+    definition = definitions[0]
+    if [
+        re.sub(r"\s+", "", attr) for attr in _attrs_before(macro_skel, macro_code, definition.start)
+    ] != ["#[macro_export]"]:
+        return []
+    template = re.sub(r"\s+", "", macro_skel[definition.body[0] : definition.body[1]])
+    if "#[non_exhaustive]pubenum$name{" not in template:
+        return []
+    _, items = rust_items(path.resolve())
+    macro_ranges = [item.body for item in items if item.kind == "macro"]
+    output: list[Symbol] = []
+    for call in re.finditer(r"(?<![\w:])crate::sectioned_artifact_enum\s*!\s*([({\[])", skel):
+        pos = call.start()
+        if any(lo < pos < hi for lo, hi in (*fn_bodies, *private_mods, *macro_ranges)):
+            continue
+        if any(attr.startswith("#[cfg(") for attr in _attrs_before(skel, code, pos)):
+            continue
+        opening = call.end() - 1
+        closing = _match_bracket(skel, opening)
+        args = skel[opening + 1 : closing]
+        match = re.match(r"\s*(?:#\s*\[[^\]]*\]\s*)*([A-Z][A-Za-z0-9_]*)\s*\{", args)
+        if match:
+            name = match[1]
+            if not any(symbol.name == name and symbol.where == "top" for symbol in output):
+                output.append(Symbol(name, "type", False, "top"))
+    return output
+
+
 def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
-    """Public non-test `pub fn/struct/enum/trait` items and `pub use` re-exports:
+    """Public non-test `pub fn/struct/enum/trait/type` items and re-exports:
     top-level, in public modules, and methods of inherent `impl` blocks of public
     types (each carries its owner type, so two types' same-named methods stay
-    distinct). Items in fn bodies, in private modules and in impls of non-public
-    or trait types are not public API and are skipped."""
+    distinct). It also recognizes the enum emitted by the verified sectioned
+    artifact macro. Items in fn bodies, private modules and non-public or trait
+    impls are skipped."""
     code, skel = nontest_pair(path, in_crate=in_crate)
     if not code:
         return []
@@ -820,7 +1131,9 @@ def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
             lo, hi, tname, trait = max(enclosing, key=lambda i: i[0])
             if trait or m.group(1) != "fn" or not types_public.get(tname or "", True):
                 continue
-            if any(lo2 < pos < hi2 and (lo2, hi2) != (lo, hi) for lo2, hi2, *_ in enclosing if lo2 > lo):
+            if any(
+                lo2 < pos < hi2 and (lo2, hi2) != (lo, hi) for lo2, hi2, *_ in enclosing if lo2 > lo
+            ):
                 continue
             where, owner = "method", tname
         name, item = m.group(2), m.group(1)
@@ -830,17 +1143,26 @@ def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
         out.append(
             Symbol(
                 name,
-                "function" if item == "fn" else "type" if item in ("struct", "enum") else "other",
+                "function"
+                if item == "fn"
+                else "type"
+                if item in ("struct", "enum", "type")
+                else "other",
                 _hidden(_attrs_before(skel, code, keyword_at)),
                 where,
                 owner,
             )
         )
+    out.extend(_sectioned_enum_symbols(path, code, skel, fn_bodies, private_mods))
     # `pub use a::b::{X, y as z};` re-exports public API under the names it binds
     # (a glob `*` binds names this scan cannot see and is skipped).
     for m in _PUB_USE.finditer(skel):
         pos = m.start()
-        if _inside(fn_bodies, pos) or _inside(private_mods, pos) or any(lo < pos < hi for lo, hi, *_ in impls):
+        if (
+            _inside(fn_bodies, pos)
+            or _inside(private_mods, pos)
+            or any(lo < pos < hi for lo, hi, *_ in impls)
+        ):
             continue
         hidden = _hidden(_attrs_before(skel, code, m.start(1)))
         for name in _use_names(m.group("tree")):
@@ -908,7 +1230,11 @@ def pyo3_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
         # Every outer attribute of the fn: `#[pyfunction(name = "x")]` itself and a
         # `#[pyo3(name = "x")]` placed before or after it all rename the export.
         fn_at = skel.rfind("fn", m.end("attrs"), m.start("name"))
-        attrs = "".join(_attrs_before(skel, code, fn_at)) if fn_at >= 0 else m.group("args") + m.group("attrs")
+        attrs = (
+            "".join(_attrs_before(skel, code, fn_at))
+            if fn_at >= 0
+            else m.group("args") + m.group("attrs")
+        )
         add(m.group("name"), "function", attrs)
     for m in _PY_CLASS.finditer(code):
         add(m.group("name"), "type", m.group("args") + m.group("attrs"))
@@ -938,7 +1264,7 @@ def python_symbols(path: Path) -> dict[str, Symbol]:
     """Public top-level names of a Python file: `__all__` if it defines it (kinds
     resolved through `from .mod import Name`), else defs and classes without a
     leading underscore."""
-    tree = ast.parse(path.read_text(errors="ignore"))
+    tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
     kinds = {
         node.name: "type" if isinstance(node, ast.ClassDef) else "function"
         for node in tree.body
@@ -949,7 +1275,7 @@ def python_symbols(path: Path) -> dict[str, Symbol]:
             target = path.parent / (node.module.replace(".", "/") + ".py")
             if target.is_file():
                 try:
-                    inner = ast.parse(target.read_text(errors="ignore"))
+                    inner = ast.parse(target.read_text(errors="ignore", encoding="utf-8"))
                 except SyntaxError:
                     continue
                 for sub in inner.body:
@@ -961,7 +1287,13 @@ def python_symbols(path: Path) -> dict[str, Symbol]:
                                     "type" if isinstance(sub, ast.ClassDef) else "function",
                                 )
     for node in tree.body:
-        targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) else []
+        targets = (
+            node.targets
+            if isinstance(node, ast.Assign)
+            else [node.target]
+            if isinstance(node, ast.AnnAssign)
+            else []
+        )
         if any(isinstance(t, ast.Name) and t.id == "__all__" for t in targets) and isinstance(
             node.value, (ast.List, ast.Tuple)
         ):
@@ -971,7 +1303,9 @@ def python_symbols(path: Path) -> dict[str, Symbol]:
                 if isinstance(e, ast.Constant) and isinstance(e.value, str)
             }
     return {
-        name: Symbol(name, kind, False, "python") for name, kind in kinds.items() if not name.startswith("_")
+        name: Symbol(name, kind, False, "python")
+        for name, kind in kinds.items()
+        if not name.startswith("_")
     }
 
 
@@ -1026,13 +1360,19 @@ def rust_assertion_problems(path: Path, name: str) -> list[tuple[str, str]]:
     problems = []
     if any("should_panic" in re.sub(r"\s+", "", a) for a in fns[0].attrs):
         problems.append(
-            ("evidence_should_panic", f"test {name} is #[should_panic]; any panic passes it, so it observes no value")
+            (
+                "evidence_should_panic",
+                f"test {name} is #[should_panic]; any panic passes it, so it observes no value",
+            )
         )
     _code, skel = rust_closure_parts(path, name)
     real = [m for m in _RS_ASSERT.finditer(skel) if not _RS_TRIVIAL.match(skel, m.start())]
     if not real:
         problems.append(
-            ("evidence_no_assertion", f"test {name} contains no assertion (assert!/assert_eq!/assert_ne!/panic!/expect_err) in its body or helpers")
+            (
+                "evidence_no_assertion",
+                f"test {name} contains no assertion (assert!/assert_eq!/assert_ne!/panic!/expect_err) in its body or helpers",
+            )
         )
     return problems
 
@@ -1048,18 +1388,8 @@ def rust_assertion_args(path: Path, name: str) -> list[str]:
 
 
 def _py_closure(path: Path, name: str) -> list[ast.AST]:
-    tree = ast.parse(path.read_text(errors="ignore"))
-    defs = {n.name: n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
-    seen: set[str] = set()
-    todo, out = [name], []
-    while todo:
-        nm = todo.pop()
-        if nm in seen or nm not in defs:
-            continue
-        seen.add(nm)
-        out.append(defs[nm])
-        todo.extend(n.id for n in ast.walk(defs[nm]) if isinstance(n, ast.Name))
-    return out
+    tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
+    return closure_nodes(tree, name)
 
 
 _PY_CHECKS = {"raises", "warns", "fail", "deprecated_call"}
@@ -1073,7 +1403,11 @@ def _py_assertions(path: Path, name: str) -> list[ast.AST]:
                 if not (isinstance(node.test, ast.Constant) and node.test.value):
                     found.append(node)
             elif isinstance(node, ast.Call):
-                callee = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, "id", "")
+                callee = (
+                    node.func.attr
+                    if isinstance(node.func, ast.Attribute)
+                    else getattr(node.func, "id", "")
+                )
                 if callee in _PY_CHECKS or callee.startswith("assert"):
                     found.append(node)
     return found
@@ -1116,7 +1450,9 @@ def assertion_texts(path: Path, name: str) -> list[str]:
 
 # ----------------------------------------------------------- charge in a loop
 
-_LOOP = re.compile(r"\b(?:for|while|loop)\b|\.(?:try_for_each|for_each|try_fold|fold|map|filter_map|flat_map)\s*\(")
+_LOOP = re.compile(
+    r"\b(?:for|while|loop)\b|\.(?:try_for_each|for_each|try_fold|fold|map|filter_map|flat_map)\s*\("
+)
 
 
 _FN_QUALIFIER = re.compile(r"(?:async|const|unsafe|extern|\"C\")\Z")
@@ -1174,7 +1510,7 @@ def _referenced_elsewhere(name: str, path: Path) -> bool:
     for other in sorted(src.glob("**/*.rs")):
         if other.resolve() == path.resolve():
             continue
-        if name not in other.read_text(errors="ignore"):
+        if name not in other.read_text(errors="ignore", encoding="utf-8"):
             continue
         if pattern.search(nontest_pair(other, in_crate=True)[1]):
             return True
@@ -1223,7 +1559,10 @@ def charge_in_loop(path: Path, *, in_crate: bool = True) -> list[str]:
     looping = {
         name
         for name, bs in bodies.items()
-        if any(_LOOP.search(b) or re.search(rf"(?<![.\w])(?:Self::|self\.)?{re.escape(name)}\s*\(", b) for b in bs)
+        if any(
+            _LOOP.search(b) or re.search(rf"(?<![.\w])(?:Self::|self\.)?{re.escape(name)}\s*\(", b)
+            for b in bs
+        )
     }
     out = []
     for name, bs in bodies.items():

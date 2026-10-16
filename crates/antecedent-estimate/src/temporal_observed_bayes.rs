@@ -9,13 +9,6 @@
 //! corrected pseudo-outcomes are treated as complete Gaussian data.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::cast_possible_wrap,
-    clippy::doc_markdown,
-    clippy::needless_range_loop
-)]
 #![cfg_attr(
     test,
     allow(
@@ -28,18 +21,18 @@
 
 use crate::{
     BayesianGComputationAte, CausalPosterior, EstimationError, SequentialMechanismOverlay,
-    SequentialNodeOverlay, TemporalInterventionPlan, plan_from_response_query,
+    SequentialNodeOverlay, TemporalIdentification, TemporalInterventionPlan,
+    plan_from_response_query,
 };
 use antecedent_core::{
-    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, CausalRng, Diagnostic, DiagnosticKind, DiagnosticScope,
-    DiagnosticSeverity, ExecutionContext, HorizonIdentification, IdentificationStatus,
-    ObservationSpec, ParametricAssumption, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
-    SupportReport, SupportStatus, VariableId,
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
+    CausalResponse, CausalRng, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
+    ExecutionContext, HorizonIdentification, IdentificationStatus, ObservationSpec,
+    ParametricAssumption, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
+    SupportStatus, VariableId,
 };
 use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData};
-use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_kernels::{quantile_type7_sorted, standard_normal};
 use antecedent_prob::{
@@ -178,7 +171,9 @@ fn observations(
                 return Err(EstimationError::data_msg("observed outcome must be finite"));
             }
             if let Some((_, right)) = censor {
-                let bound = bounds.as_ref().expect("censoring column")[i];
+                let bound = bounds
+                    .as_ref()
+                    .ok_or_else(|| EstimationError::data_msg("censoring column is missing"))?[i];
                 if !bound.is_finite() || (right && y[i] > bound) || (!right && y[i] < bound) {
                     return Err(EstimationError::data_msg(
                         "event outcome contradicts its censoring bound",
@@ -187,7 +182,9 @@ fn observations(
             }
             result.push(Observation::Exact(y[i]));
         } else if let Some((_, right)) = censor {
-            let bound = bounds.as_ref().expect("censoring column")[i];
+            let bound = bounds
+                .as_ref()
+                .ok_or_else(|| EstimationError::data_msg("censoring column is missing"))?[i];
             if !bound.is_finite() {
                 return Err(EstimationError::data_msg("censoring bound must be finite"));
             }
@@ -288,13 +285,17 @@ fn mechanism_templates(
     let mut parents: BTreeMap<VariableId, Vec<(VariableId, usize)>> = BTreeMap::new();
     parents.insert(outcome, Vec::new());
     for node in 0..graph.node_count() {
-        let child = graph.temporal_key(DenseNodeId::from_raw(node as u32)).expect("temporal node");
+        let child = graph.temporal_key(DenseNodeId::from_raw(node as u32)).ok_or_else(|| {
+            EstimationError::data_msg("temporal node is missing from the unfolded graph")
+        })?;
         if child.offset != 0 {
             continue;
         }
         let entry = parents.entry(child.variable).or_default();
         for &p in graph.parents(DenseNodeId::from_raw(node as u32)) {
-            let parent = graph.temporal_key(p).expect("temporal parent");
+            let parent = graph.temporal_key(p).ok_or_else(|| {
+                EstimationError::data_msg("temporal parent is missing from the unfolded graph")
+            })?;
             entry.push((
                 parent.variable,
                 parent.offset.checked_neg().and_then(|lag| usize::try_from(lag).ok()).ok_or_else(
@@ -358,7 +359,10 @@ fn sweep(
     initial_variance: f64,
     rng: &mut CausalRng,
 ) -> Result<(), EstimationError> {
-    let owner = models.iter().find(|m| m.variable == outcome).expect("outcome mechanism");
+    let owner = models
+        .iter()
+        .find(|m| m.variable == outcome)
+        .ok_or_else(|| EstimationError::data_msg("outcome mechanism is missing"))?;
     for (row, &observation) in observations.iter().enumerate() {
         if matches!(observation, Observation::Exact(_)) {
             continue;
@@ -382,7 +386,10 @@ fn sweep(
             }
         }
         let value = latent_draw(linear / precision, 1.0 / precision.sqrt(), observation, rng)?;
-        data.get_mut(&outcome).expect("outcome")[row] = value;
+        let column = data
+            .get_mut(&outcome)
+            .ok_or_else(|| EstimationError::data_msg("latent outcome column is missing"))?;
+        column[row] = value;
     }
     Ok(())
 }
@@ -528,16 +535,19 @@ impl Evaluation {
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits; chain, warmup and per-chain iteration counts are sampler settings far below u32::MAX"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the identification, build the observed mechanisms, then fit and summarize every horizon and dose from the same draws"
+)]
 pub fn estimate_observed_temporal_response(
     data: &TimeSeriesData,
     graph: &TemporalDag,
-    identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
+    identified: TemporalIdentification<'_>,
     query: &ResponseQuery,
-    status: IdentificationStatus,
-    mut assumptions: AssumptionSet,
     estimator: &BayesianGComputationAte,
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, CausalPosterior), EstimationError> {
+    let TemporalIdentification { horizons: identifications, status, mut assumptions } = identified;
     query.validate()?;
     if ctx.cancellation.is_cancelled() {
         return Err(EstimationError::data_msg("observed temporal posterior cancelled"));
@@ -608,8 +618,12 @@ pub fn estimate_observed_temporal_response(
     let obs = observations(data, query, outcome)?;
     let mut base = BTreeMap::new();
     for node in 0..graph.node_count() {
-        let v =
-            graph.temporal_key(DenseNodeId::from_raw(node as u32)).expect("temporal node").variable;
+        let v = graph
+            .temporal_key(DenseNodeId::from_raw(node as u32))
+            .ok_or_else(|| {
+                EstimationError::data_msg("temporal node is missing from the unfolded graph")
+            })?
+            .variable;
         if v != outcome && !base.contains_key(&v) {
             let values = read_column(data, v)?;
             if values.iter().any(|v| !v.is_finite()) {
@@ -663,7 +677,9 @@ pub fn estimate_observed_temporal_response(
                     overlays
                 } else {
                     let TemporalInterventionPlan::Single { treatment, level, shift } = *plan else {
-                        unreachable!()
+                        return Err(EstimationError::unsupported(
+                            "a temporal intervention without mechanism overlays must be a single schedule",
+                        ));
                     };
                     temporal
                         .policy

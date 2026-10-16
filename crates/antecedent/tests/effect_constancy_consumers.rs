@@ -1,10 +1,10 @@
-//! Real downstream F18 consumers retain original evidence and point-only limitations.
+//! Real downstream effect-constancy consumers retain original evidence and point-only limitations.
 use antecedent::analysis::effect_constancy::{
     DependenceWire, EffectConstancy, EffectConstancyRequestWire, EffectEstimandWire, FamilyWire,
     PartitionWire,
 };
 use antecedent::analysis::effect_constancy_consumers::{ConstancyConsumers, PriorPartitionBinding};
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
@@ -49,8 +49,11 @@ fn original(effects: &[f64]) -> EffectConstancy {
     .unwrap()
 }
 fn consumer(original: &EffectConstancy) -> ConstancyConsumers {
-    ConstancyConsumers::consume(&original.export("f18-downstream").unwrap(), original.identity())
-        .unwrap()
+    ConstancyConsumers::consume(
+        &original.export("constancy-downstream").unwrap(),
+        original.identity(),
+    )
+    .unwrap()
 }
 fn effect() -> ScientificQuantity {
     ScientificQuantity {

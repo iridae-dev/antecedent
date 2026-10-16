@@ -23,3 +23,314 @@ samples = 18
 a = 0.00014579413282041394
 b = 8.239859423858286e-09
 samples = 18
+
+# ---- calibration capacity: the coordinates the uncertainty, transport and decision routes add
+# Hand-maintained planning rows; scripts/bench_cost_model.py does not write them and
+# estimate_cost never reads them (the parser ignores sections that are not
+# `coefficients.<estimator>`), so regenerating the file above must carry this block over.
+#
+#   seconds per grid-point task = a + b * replicates
+#
+# a is process startup plus fixed set-up, b the seconds one replicate of the coordinate's
+# work unit costs on the machine above (10 cores, one task at a time). The first pass runs
+# 400 replicates at three sample-size grid points (one point for deterministic cells); a
+# recheck re-runs a cell at 2000 replicates, extending the first run, and is costed for
+# 30 percent of the cells. `samples` counts the timed rows of target/calibration-timings.tsv
+# the basis cites; 0 means no timed comparable row exists and the figure is an analytic
+# upper bound that a pilot (ANTECEDENT_CALIBRATION_SMOKE) replaces. Nothing here is a
+# measurement and none of it licenses a claim.
+
+[calibration_capacity."adaptive_procedure_exact_gates"]
+a = 30.0
+b = 0.0
+samples = 0
+cells = 8
+grid_points = 1
+work_unit = "one exact enumeration of the declared law per cell"
+basis = "no timed comparable row: deterministic dynamic programme bounded by MAX_LAW_WORK; upper bound 30 s per cell until a pilot exists; closed-form rows of quadratic_dose_calibration (0.4 to 1.0 s) are the floor"
+first_pass_seconds = 240.0
+recheck_seconds = 0.0
+
+[calibration_capacity."adaptive_fixed_sample_exact_set"]
+a = 20.0
+b = 0.0
+samples = 0
+cells = 2
+grid_points = 1
+work_unit = "exact inversion over the 19-point nuisance grid and the contrast grid"
+basis = "no timed comparable row: 19 nuisance points x 4 contrasts x 5 sample sizes of closed-form binomial arithmetic; 20 s per cell upper bound"
+first_pass_seconds = 40.0
+recheck_seconds = 0.0
+
+[calibration_capacity."thompson_prior_predictive_credible"]
+a = 0.5
+b = 0.02
+samples = 3
+cells = 3
+grid_points = 3
+work_unit = "one stopped Beta-Bernoulli trial of 200 units with a posterior quadrature per unit"
+basis = "emitter written; startup 0.4 s from the smallest closed-form groups (quadratic_dose_calibration); per replicate 200 posterior evaluations at about 0.1 ms; no timed row for the quadrature itself"
+first_pass_seconds = 76.5
+recheck_seconds = 86.4
+
+[calibration_capacity."adaptive_weighting_simulation_wald"]
+a = 0.5
+b = 0.01
+samples = 23
+cells = 6
+grid_points = 3
+work_unit = "one stopped epsilon-greedy trial with weights"
+basis = "same trial loop as the Thompson row without the per-unit quadrature; bounded by mz_transport_calibration median 5.5 s per 400 replicates (b = 0.013)"
+first_pass_seconds = 81.0
+recheck_seconds = 86.4
+
+[calibration_capacity."adaptive_repeated_measures"]
+a = 0.5
+b = 0.012
+samples = 23
+cells = 12
+grid_points = 3
+work_unit = "one trial of up to 250 units x 10 measurements and a cluster-robust variance"
+basis = "same order as mz_transport_calibration median 5.5 s per 400 replicates; marginal work is the unit-summary reduction"
+first_pass_seconds = 190.8
+recheck_seconds = 207.4
+
+[calibration_capacity."composed_linear_interval"]
+a = 0.4
+b = 0.004
+samples = 48
+cells = 8
+grid_points = 3
+work_unit = "two correlated fits, a covariance and 1000 to 10000 aligned draws"
+basis = "learned_joint_calibration and joint_bayesian_transport_calibration medians 1.1 to 1.2 s per 400 replicates (b = 0.002); 10000-draw cells double the draw work"
+first_pass_seconds = 48.0
+recheck_seconds = 46.1
+
+[calibration_capacity."composed_nonlinear_aligned_conjugate"]
+a = 0.4
+b = 0.01
+samples = 47
+cells = 6
+grid_points = 3
+work_unit = "conjugate posterior draws pushed through a nonlinear functional"
+basis = "joint_bayesian_transport_calibration max 3.8 s and mz_transport_calibration median 5.5 s per 400 replicates bound the draw-and-summarise cost"
+first_pass_seconds = 79.2
+recheck_seconds = 86.4
+
+[calibration_capacity."composed_nonlinear_aligned_mcmc"]
+a = 1.0
+b = 0.6
+samples = 12
+cells = 2
+grid_points = 3
+work_unit = "one MCMC posterior fit per replicate"
+basis = "nested_markov_bayesian_calibration median 235.6 s per 400 replicates (b = 0.59), the only timed whole-method Bayesian MCMC row"
+first_pass_seconds = 1446.0
+recheck_seconds = 1728.0
+
+[calibration_capacity."composed_mixture_exceedance"]
+a = 0.4
+b = 0.004
+samples = 48
+cells = 6
+grid_points = 3
+work_unit = "component fits from independent samples and a mixture law"
+basis = "same closed-form composition cost as composed_linear_interval"
+first_pass_seconds = 36.0
+recheck_seconds = 34.6
+
+[calibration_capacity."composed_transported_composition"]
+a = 0.5
+b = 0.01
+samples = 23
+cells = 8
+grid_points = 3
+work_unit = "source fit, target fit and a weighted transport functional"
+basis = "two fits per replicate; bounded by mz_transport_calibration median 5.5 s per 400 replicates"
+first_pass_seconds = 108.0
+recheck_seconds = 115.2
+
+[calibration_capacity."decision_utility_interval"]
+a = 0.5
+b = 0.05
+samples = 0
+cells = 6
+grid_points = 3
+work_unit = "candidate-set draws at 100 to 10000 per candidate and one Wald derivation"
+basis = "analytic: up to 512 x 10000 standard-normal draws per replicate at tens of nanoseconds each; no timed row; sets b to 0.05 s as a weighted mean over the grid"
+first_pass_seconds = 369.0
+recheck_seconds = 432.0
+
+[calibration_capacity."decision_ranking_probability_wilson"]
+a = 0.5
+b = 0.1
+samples = 0
+cells = 6
+grid_points = 3
+work_unit = "selection draws for up to 512 candidates and a paired ranking report"
+basis = "analytic, as decision_utility_interval with the pairwise ranking pass; no timed row"
+first_pass_seconds = 729.0
+recheck_seconds = 864.0
+
+[calibration_capacity."decision_optimality_confidence_set"]
+a = 0.5
+b = 0.15
+samples = 0
+cells = 6
+grid_points = 3
+work_unit = "selection draws and paired comparisons with the best"
+basis = "analytic, as decision_ranking_probability_wilson plus K paired difference errors; no timed row"
+first_pass_seconds = 1089.0
+recheck_seconds = 1296.0
+
+[calibration_capacity."decision_selection_corrected_and_held_out"]
+a = 0.5
+b = 0.15
+samples = 0
+cells = 8
+grid_points = 3
+work_unit = "selection and validation streams and a held-out derivation"
+basis = "analytic: two streams per replicate (simulate_replicate); no timed row"
+first_pass_seconds = 1452.0
+recheck_seconds = 1728.0
+
+[calibration_capacity."decision_winners_curse_expectation"]
+a = 0.5
+b = 0.05
+samples = 0
+cells = 24
+grid_points = 1
+work_unit = "simulate_replicate at 5000 replicates"
+basis = "emitter written; run once (an expectation check has no grid), 5000 replicates not 400; b as decision_utility_interval; replicates = 5000 so 0.5 + 0.05 x 5000"
+first_pass_seconds = 6012.0
+recheck_seconds = 0.0
+
+[calibration_capacity."discretized_composition_bound"]
+a = 2.0
+b = 0.0
+samples = 0
+cells = 40
+grid_points = 1
+work_unit = "one deterministic discretization and bound over the parameter grid"
+basis = "no timed row: closed-form quantile grid at up to 64 levels and 8 variables; 2 s per cell upper bound"
+first_pass_seconds = 80.0
+recheck_seconds = 0.0
+
+[calibration_capacity."transported_point_accuracy"]
+a = 0.5
+b = 0.02
+samples = 23
+cells = 6
+grid_points = 3
+work_unit = "source fit, support check, transport and point error"
+basis = "bounded by mz_transport_calibration median 5.5 s per 400 replicates"
+first_pass_seconds = 153.0
+recheck_seconds = 172.8
+
+[calibration_capacity."transported_mechanism_and_synthesis_pool"]
+a = 0.5
+b = 0.02
+samples = 71
+cells = 18
+grid_points = 3
+work_unit = "fit source mechanisms, carry, compose, pool"
+basis = "bounded by learned_joint_calibration and mz_transport_calibration medians (1.2 to 5.5 s per 400 replicates)"
+first_pass_seconds = 459.0
+recheck_seconds = 518.4
+
+[calibration_capacity."transported_policy_and_trial_exact"]
+a = 1.0
+b = 0.0
+samples = 18
+cells = 10
+grid_points = 1
+work_unit = "exact finite-law arithmetic and a simulated trial agreement check"
+basis = "deterministic; quadratic_dose_calibration floor 0.4 to 1.0 s per cell"
+first_pass_seconds = 10.0
+recheck_seconds = 0.0
+
+[calibration_capacity."inverse_observational_consistency"]
+a = 0.5
+b = 0.002
+samples = 18
+cells = 12
+grid_points = 3
+work_unit = "sample up to 20000 rows and one Bayes inversion"
+basis = "bounded by quadratic_dose_calibration (0.5 s per 400 replicates); rows reach 20000 so b = 0.002"
+first_pass_seconds = 46.8
+recheck_seconds = 34.6
+
+[calibration_capacity."transport_assumption_range_bound"]
+a = 1.0
+b = 0.0
+samples = 18
+cells = 4
+grid_points = 1
+work_unit = "closed-form band at a declared shift bound"
+basis = "deterministic; closed-form floor of quadratic_dose_calibration"
+first_pass_seconds = 4.0
+recheck_seconds = 0.0
+
+[calibration_capacity."whole_path_cross_world_spread"]
+a = 0.5
+b = 0.03
+samples = 23
+cells = 9
+grid_points = 3
+work_unit = "enumerate units' exogenous posteriors and simulate response types"
+basis = "bounded by mz_transport_calibration median 5.5 s per 400 replicates; enumeration per unit is exact"
+first_pass_seconds = 337.5
+recheck_seconds = 388.8
+
+[calibration_capacity."sample_split_joint_coverage"]
+a = 1.0
+b = 0.3
+samples = 5
+cells = 8
+grid_points = 3
+work_unit = "discover on one split, estimate on the other, interval, across the split fractions"
+basis = "recovery_whole_method_calibration medians 128 s per 400 replicates (b = 0.3): a whole-method resampled search is the closest timed row"
+first_pass_seconds = 2904.0
+recheck_seconds = 3456.0
+
+[calibration_capacity."per_population_discovery_error_rates"]
+a = 1.0
+b = 0.3
+samples = 5
+cells = 4
+grid_points = 3
+work_unit = "discover per population under the declared contract"
+basis = "as sample_split_joint_coverage"
+first_pass_seconds = 1452.0
+recheck_seconds = 1728.0
+
+[calibration_capacity."cpdag_envelope_recovery"]
+a = 1.0
+b = 0.3
+samples = 5
+cells = 6
+grid_points = 3
+work_unit = "PC recovery and enumeration of the equivalence class"
+basis = "as sample_split_joint_coverage"
+first_pass_seconds = 2178.0
+recheck_seconds = 2592.0
+
+# One reserved fix-and-remeasure cycle: a quarter of the first pass and the expected
+# rechecks above, for the cells whose emitter or code must change after the first
+# measurement and are then re-run once at the default replicate count.
+[calibration_capacity."reserved.fix_and_remeasure"]
+a = 0.0
+b = 0.0
+samples = 0
+cells = 0
+grid_points = 0
+work_unit = "one re-run of the cells that fail their first measurement"
+basis = "0.25 x (first_pass_seconds + recheck_seconds) summed over the rows above"
+first_pass_seconds = 8805.4
+recheck_seconds = 0.0
+
+# Totals, machine-seconds on one task at a time: first pass 19621, rechecks 15601,
+# reserve 8805, all 44027 (12.2 hours). Three rows carry 57 percent of the first pass:
+# the winner's-curse expectation (6012 s), the sample-split joint coverage (2904 s) and the
+# class-envelope recovery (2178 s). The recheck figure is the dominant uncertainty: it
+# assumes 30 percent of cells drift more than two points from nominal at 400 replicates.

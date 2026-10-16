@@ -11,7 +11,7 @@ covariance, and `ExecutionContext` (thread budget, RNG, memory, kernel
 policy). Nuisance fits are hard-coded GLM/OLS/GAM. Cross-fitted AIPW copies
 training rows. There is no pluggable prediction contract.
 
-The 2.0 user problem is large tabular adjustment sets with nonlinear
+The existing user problem is large tabular adjustment sets with nonlinear
 covariate relationships — EconML-like flexibility — without making
 Antecedent a Rust scikit-learn or a GPU tensor framework.
 
@@ -42,10 +42,10 @@ antecedent-stats     →  faer helpers (OLS, ridge, logistic, …)
    `Auto`, `NeuralNet`). Resolution to a provider is internal. Provenance records
    `implementation` and crate version. `NeuralNet` is optional (`ml-neural` →
    `antecedent-learn-burn`) and is not part of `ml-full`.
-3. **Forust** is the first nonlinear provider (milestone F): borrowed
+3. **Forust** is the first nonlinear provider: borrowed
    column-major matrix plus row index vector; squared-loss and log-loss;
    hidden behind `GradientBoostedTrees`.
-4. **SmartCore** is provider #2 (milestone H): forests / ExtraTrees only.
+4. **SmartCore** is provider #2: forests / ExtraTrees only.
    Not its linear algebra. Not its XGBoost (MSE-only objective).
 
 **Not foundational:** Linfa (MSRV 1.87, ndarray), Burn / Candle / CUDA /
@@ -82,8 +82,8 @@ tree learners are adapters.
   removed); the tree adapters sit behind `ml-gbdt` / `ml-forest` (together
   `ml-full`) and the CPU neural adapter behind `ml-neural`.
 - `antecedent-estimate` depends on `antecedent-learn` only when DML/DR
-  bind (milestone G). A–C do not rewire AIPW.
+  bind. The earlier substrate steps do not rewire AIPW.
 - Public APIs never expose foreign matrix types.
-- Transport T6/X4 consume this substrate; they do not invent a second
+- Learned transport routes consume this substrate; they do not invent a second
   provider stack.
-- Comparison docs and CHANGELOG product claims wait until G.
+- Comparison docs and CHANGELOG product claims wait until DML/DR bind the substrate.

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 
 import pytest
 
-_EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "python" / "dowhy_handoff.py"
+from _repo_text import REPO_ROOT
+
+_EXAMPLE = REPO_ROOT / "examples" / "python" / "dowhy_handoff.py"
 
 
 def _load_example():

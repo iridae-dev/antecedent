@@ -1,4 +1,4 @@
-//! Coverage of the learned continuous-outcome trial transport interval (2.2A cell X4)
+//! Coverage of the learned continuous-outcome trial transport interval
 //! against known truth.
 //!
 //! The estimator measured is the whole composed one the public route withholds:

@@ -1,7 +1,11 @@
-// Observation / Sequence tuple-level circular-block bootstrap.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+// Observation / Sequence tuple-level circular-block bootstrap.
 
-use super::*;
+use super::{
+    Arc, CausalError, ExecutionContext, IdentificationStatus, IdentifiedEstimand,
+    ObservationMechanismEstimator, ObservationSpec, ResponseQuery, TableView, TemporalDag,
+    TemporalIndexer, TemporalResponseEstimator, TimeSeriesData, VariableId,
+};
 use antecedent_core::StreamDomain;
 
 /// Joint replicate surfaces of every target of one tuple-level bootstrap.
@@ -172,86 +176,7 @@ pub fn tuple_block_observation_replicates(
     let mut prepared = Vec::with_capacity(targets.len());
     let mut first_anchor = 0usize;
     for target in targets {
-        // A complete-data target (Sequence only) refits on the source tuples with no
-        // observation nuisance; an observation-bearing one on the adjusted series.
-        let complete = target.query.observation == ObservationSpec::Complete;
-        let adjusted_owned;
-        let fit_data = if complete {
-            source
-        } else {
-            adjusted_owned = observation
-                .adjust_temporal_series(
-                    source,
-                    target.query,
-                    target.adjustment,
-                    &target.outcome_regressors,
-                )
-                .map_err(CausalError::from)?
-                .0;
-            &adjusted_owned
-        };
-        // Rows back from the outcome time that one observation row reads: the declared
-        // conditioning set at the policy offset and every outcome-model regressor.
-        let observation_lag = if complete {
-            0
-        } else {
-            observation
-                .observation_row_lag(target.query, &target.outcome_regressors)
-                .map_err(CausalError::from)?
-        };
-        let fitted = match &target.surface {
-            TupleSurface::Curve { .. } if complete => {
-                return Err(CausalError::Unsupported {
-                    message: "complete-data curves use the surface estimator's joint bootstrap",
-                });
-            }
-            TupleSurface::Curve { identifications } => {
-                let mut working = target.query.clone();
-                working.observation = ObservationSpec::Complete;
-                working.observation_assumptions = Arc::from([]);
-                PreparedTupleTarget::Curve(
-                    TemporalResponseEstimator::new()
-                        .prepare_surface(fit_data, identifications, &working, ctx)
-                        .map_err(CausalError::from)?,
-                )
-            }
-            TupleSurface::Sequence { graph, overlays, outcome, horizons } => {
-                let levels = horizons
-                    .iter()
-                    .map(|&(estimand, indexer, outcome_offset, status)| {
-                        antecedent_estimate::prepare_sequence_level(
-                            fit_data,
-                            graph,
-                            indexer,
-                            estimand,
-                            *outcome,
-                            outcome_offset,
-                            overlays,
-                            status,
-                            ctx,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(CausalError::from)?;
-                // The observation correction replaces only the outcome-time column. A
-                // lagged outcome regressor would be a pseudo-outcome (errors in
-                // variables); the full-sample correction refuses that design too.
-                if !complete
-                    && levels
-                        .iter()
-                        .any(|level| level.lags_of(*outcome).iter().any(|&lag| lag != 0))
-                {
-                    return Err(CausalError::Unsupported {
-                        message: antecedent_estimate::LAGGED_OUTCOME_REGRESSOR_REFUSAL,
-                    });
-                }
-                PreparedTupleTarget::Sequence {
-                    levels,
-                    outcome: *outcome,
-                    observation_adjusted: !complete,
-                }
-            }
-        };
+        let (fitted, observation_lag) = prepare_tuple_target(&observation, source, target, ctx)?;
         first_anchor = first_anchor.max(fitted.first_anchor(observation_lag));
         prepared.push(fitted);
     }
@@ -270,9 +195,20 @@ pub fn tuple_block_observation_replicates(
     let mut attempted = 0u32;
     let mut positions = Vec::with_capacity(m);
     let mut anchors = Vec::with_capacity(m);
-    let mut ols_ws = antecedent_stats::LeastSquaresWorkspace::default();
-    let mut x_boot = Vec::new();
-    let mut seq_rows = Vec::with_capacity(m);
+    let mut scratch = TupleReplicateScratch {
+        ols_ws: antecedent_stats::LeastSquaresWorkspace::default(),
+        x_boot: Vec::new(),
+        seq_rows: Vec::with_capacity(m),
+    };
+    let fit = TupleReplicateFit {
+        source,
+        observation: &observation,
+        targets,
+        prepared: &prepared,
+        points: &points,
+        dispersion: &dispersion,
+        inflation,
+    };
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() || m < 3 {
             break;
@@ -282,10 +218,144 @@ pub fn tuple_block_observation_replicates(
         antecedent_estimate::circular_block_positions_into(m, block, &mut rng, &mut positions);
         anchors.clear();
         anchors.extend(positions.iter().map(|&position| first_anchor + position));
-        let values = targets
+        let values = fit.replicate(&anchors, &mut scratch);
+        out.push(values);
+    }
+    Ok(TupleReplicates {
+        values: out,
+        attempted,
+        points,
+        block: block_length,
+        inflation,
+        dispersion,
+    })
+}
+
+/// Fits one target on the full series, returning it with the observation-row lag its anchors need.
+fn prepare_tuple_target(
+    observation: &ObservationMechanismEstimator,
+    source: &TimeSeriesData,
+    target: &TupleObservationTarget<'_>,
+    ctx: &ExecutionContext,
+) -> Result<(PreparedTupleTarget, usize), CausalError> {
+    // A complete-data target (Sequence only) refits on the source tuples with no
+    // observation nuisance; an observation-bearing one on the adjusted series.
+    let complete = target.query.observation == ObservationSpec::Complete;
+    let adjusted_owned;
+    let fit_data = if complete {
+        source
+    } else {
+        adjusted_owned = observation
+            .adjust_temporal_series(
+                source,
+                target.query,
+                target.adjustment,
+                &target.outcome_regressors,
+            )
+            .map_err(CausalError::from)?
+            .0;
+        &adjusted_owned
+    };
+    // Rows back from the outcome time that one observation row reads: the declared
+    // conditioning set at the policy offset and every outcome-model regressor.
+    let observation_lag = if complete {
+        0
+    } else {
+        observation
+            .observation_row_lag(target.query, &target.outcome_regressors)
+            .map_err(CausalError::from)?
+    };
+    let fitted = match &target.surface {
+        TupleSurface::Curve { .. } if complete => {
+            return Err(CausalError::Unsupported {
+                message: "complete-data curves use the surface estimator's joint bootstrap",
+            });
+        }
+        TupleSurface::Curve { identifications } => {
+            let mut working = target.query.clone();
+            working.observation = ObservationSpec::Complete;
+            working.observation_assumptions = Arc::from([]);
+            PreparedTupleTarget::Curve(
+                TemporalResponseEstimator::new()
+                    .prepare_surface(fit_data, identifications, &working, ctx)
+                    .map_err(CausalError::from)?,
+            )
+        }
+        TupleSurface::Sequence { graph, overlays, outcome, horizons } => {
+            let levels = horizons
+                .iter()
+                .map(|&(estimand, indexer, outcome_offset, status)| {
+                    antecedent_estimate::prepare_sequence_level(
+                        &antecedent_estimate::SequentialProblem {
+                            data: fit_data,
+                            graph,
+                            indexer,
+                            estimand,
+                        },
+                        &antecedent_estimate::SequenceTarget {
+                            outcome: *outcome,
+                            outcome_offset,
+                            overlays,
+                        },
+                        status,
+                        ctx,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(CausalError::from)?;
+            // The observation correction replaces only the outcome-time column. A
+            // lagged outcome regressor would be a pseudo-outcome (errors in
+            // variables); the full-sample correction refuses that design too.
+            if !complete
+                && levels.iter().any(|level| level.lags_of(*outcome).iter().any(|&lag| lag != 0))
+            {
+                return Err(CausalError::Unsupported {
+                    message: antecedent_estimate::LAGGED_OUTCOME_REGRESSOR_REFUSAL,
+                });
+            }
+            PreparedTupleTarget::Sequence {
+                levels,
+                outcome: *outcome,
+                observation_adjusted: !complete,
+            }
+        }
+    };
+    Ok((fitted, observation_lag))
+}
+
+/// Reusable least-squares and row buffers threaded through every replicate.
+struct TupleReplicateScratch {
+    ols_ws: antecedent_stats::LeastSquaresWorkspace,
+    x_boot: Vec<f64>,
+    seq_rows: Vec<usize>,
+}
+
+/// The fitted targets and series a replicate resamples, with the dispersion each draw carries.
+struct TupleReplicateFit<'a> {
+    source: &'a TimeSeriesData,
+    observation: &'a ObservationMechanismEstimator,
+    targets: &'a [TupleObservationTarget<'a>],
+    prepared: &'a [PreparedTupleTarget],
+    points: &'a [Vec<f64>],
+    dispersion: &'a [antecedent_estimate::CellDispersion],
+    inflation: f64,
+}
+
+impl TupleReplicateFit<'_> {
+    /// Refits every target on one resampled anchor set; `None` marks a target whose refit failed or was non-finite.
+    fn replicate(
+        &self,
+        anchors: &[usize],
+        scratch: &mut TupleReplicateScratch,
+    ) -> Vec<Option<Vec<f64>>> {
+        let TupleReplicateScratch { ols_ws, x_boot, seq_rows } = scratch;
+        let source = self.source;
+        let observation = self.observation;
+        let inflation = self.inflation;
+        self.targets
             .iter()
-            .zip(&prepared)
-            .zip(points.iter().zip(&dispersion))
+            .zip(self.prepared)
+            .zip(self.points.iter().zip(self.dispersion))
             .map(|((target, fitted), (point, cell_dispersion))| {
                 let values = match fitted {
                     PreparedTupleTarget::Curve(surface) => {
@@ -295,11 +365,11 @@ pub fn tuple_block_observation_replicates(
                                 target.query,
                                 target.adjustment,
                                 &target.outcome_regressors,
-                                &anchors,
+                                anchors,
                             )
                             .ok()?;
                         surface
-                            .replicate_into(&anchors, &outcomes, &mut ols_ws, &mut x_boot)
+                            .replicate_into(anchors, &outcomes, &mut *ols_ws, &mut *x_boot)
                             .ok()??
                     }
                     PreparedTupleTarget::Sequence { levels, outcome, observation_adjusted } => {
@@ -312,7 +382,7 @@ pub fn tuple_block_observation_replicates(
                                     target.query,
                                     target.adjustment,
                                     &target.outcome_regressors,
-                                    &anchors,
+                                    anchors,
                                 )
                                 .ok()?
                         } else {
@@ -333,11 +403,11 @@ pub fn tuple_block_observation_replicates(
                             .map(|level| {
                                 level
                                     .replicate_into(
-                                        &anchors,
+                                        anchors,
                                         replacements,
-                                        &mut seq_rows,
-                                        &mut x_boot,
-                                        &mut ols_ws,
+                                        &mut *seq_rows,
+                                        &mut *x_boot,
+                                        &mut *ols_ws,
                                     )
                                     .ok()?
                             })
@@ -353,15 +423,6 @@ pub fn tuple_block_observation_replicates(
                 let [values] = draw;
                 Some(values)
             })
-            .collect();
-        out.push(values);
+            .collect()
     }
-    Ok(TupleReplicates {
-        values: out,
-        attempted,
-        points,
-        block: block_length,
-        inflation,
-        dispersion,
-    })
 }

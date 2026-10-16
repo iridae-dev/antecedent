@@ -10,6 +10,43 @@ Format 0.4 was the durable-artifact wire freeze for package 1.0.0. A wire
 change advances the format and provides migration from prior stable versions;
 the package-version bump itself does not change artifact bytes.
 
+## Python persistence in 2.4
+
+Scientific `export(...)` returns container bytes. Write them with `Path.write_bytes`
+and read them with `Path.read_bytes`; persistence does not take file paths implicitly.
+`artifact(...)` returns an immutable `ant.artifacts.ExportedArtifact[T]`: the same
+bytes in `.data`, a `.kind`, a typed `.expectation` when available, and family-specific
+`.metadata`. Ledger carried/not-carried receipts remain in this metadata. Operations
+that select a query or record retain their explicit selection arguments.
+
+```python
+import antecedent as ant
+
+envelope = result.artifact()
+path.write_bytes(envelope.data)
+# Store this expectation in an independent trusted record, separate from the bytes.
+expected = envelope.expectation
+metadata = ant.artifacts.inspect(path.read_bytes())
+loaded = ant.load(path.read_bytes(), expected=expected)
+```
+
+`ant.load` dispatches registered scientific families to their existing native consumers
+and returns the family-specific consumed result. Required expectations remain required:
+container metadata never supplies an independent identity binding. For bundle consumption,
+`ant.artifacts.LoadContext(supplied_sources=..., actual_claims=...)` passes existing source
+declarations and actual native claims to the consumer. Loading never invokes a callback or
+reconstructs a live study.
+
+Acceptance reports identity binding, native replayability and explicit resumability
+separately. `ant.artifacts.inspect(...)` is metadata inspection, not acceptance of a
+scientific claim. Unknown recognized families can be inspected and forwarded with
+`export()` while scientific consumption remains unavailable; malformed containers are
+errors. Consumed read models are recursively immutable, and `to_dict()` produces an
+independent JSON-safe editable copy.
+
+See [the notebook-to-system journey](guides/notebook-to-system.md) and
+[the 2.4 migration guide](migrations/2.4-python-ux.md).
+
 <a id="package-15-payloads"></a>
 
 ## Score tables and distribution payloads
@@ -52,15 +89,28 @@ magic (CAUSAL\0\0) | container_version (u32 LE = 1)
 Manifest fields: `format_version`, `minimum_reader_version`, `artifact_kind`,
 `library_version`, `artifact_id`, `sections[]`, `provenance`.
 
+### External-execution artifacts
+
+The three artifacts that record a foreign execution use the shared container
+and load through `antecedent.artifacts.loads`, which returns the *declared*
+header (a producer's `trust` is a claim there, never evidence):
+
+| Kind | Sections | `payload_kind` |
+|---|---|---|
+| `provider_result_v1` | `provider_result.header` (CBOR), `provider_result.artifact` (the provider's opaque bytes) | `provider_result` |
+| `external_callback_v1` | `external_callback.meta` (CBOR: request and provider digests, policy, claim identity), `external_callback.claim` (the original claim artifact) | `external_callback` |
+| `external_column_claim_v1` | `external_column_claim.meta` (CBOR: claim identity, row count, element type, support counts) | loaded with `ExternalSpec.load` under a retained identity |
+
+The earlier `ANTEPROV2` and `ANTCALLBACK1` frames are read, validated and
+resealed into these kinds, but never written. A provider result is opened as
+verified only against a registry's evidence digests (`open_verified_provider_envelope`).
+
 ### Section compression
 
 Sections may use Zstandard (`compression = "zstd"`). The length prefix and
 BLAKE3 checksum cover **on-wire** (possibly compressed) bytes.
 `uncompressed_size` is the logical payload length. Auto compression applies when
 the logical size is ≥ 4 KiB and compression improves size (≈95% ratio).
-
-Arrow IPC sections (`application/vnd.apache.arrow.file`) use
-`CompressPolicy::Never` so they remain mmap-eligible.
 
 ### Selective read / mmap / shared writes
 
@@ -219,7 +269,7 @@ query_bytes = source.study.export_artifact(payload="query")
 ```
 
 The lower-level `PreparedAnalysis.export_artifact()` exports the last fitted scalar Bayesian
-posterior, response result, or static 1.3 result (mediation contrast or unit
+posterior, response result, or static result (mediation contrast or unit
 ITE) without refitting. Use
 `export_artifact(payload="query")` for the frozen original query, including its
 query kind and original schema variable IDs rather than an identification-time
@@ -234,7 +284,7 @@ uncertainty and support. These exports use the stable format 0.5.
 
 ## Migration
 
-`antecedent_io::migrate_artifact` / `read_and_migrate` / `migrate_from_seek` accept
+`antecedent_io::migrate_artifact` / `read_and_migrate` accept
 source formats `0.1` through `0.5`. Formats `0.1`–`0.4` migrate to 0.5;
 format `0.1` skinny `SchemaWireV01 { variable_names }` is rewritten to full
 `SchemaWire` with Continuous defaults. Format `0.2` sections pass through unchanged.
@@ -281,19 +331,19 @@ the Rust builder cannot express the combination at all — an accepted graph is
 just a static graph by build time. See `examples/python/discover_then_estimate.py`
 and `parity/discovery.toml` capability `discovery.ux.artifact_first`.
 
-## 2.3 source-bound workflow artifacts
+## Source-bound workflow artifacts
 
 Decision contracts, joint laws, external claims, study rankings and composition
 bundles have method-specific semantic consumers. Exported bytes retain their
 scientific coordinates, provenance and limits; consumers check retained expected
 identities rather than granting authority from a digest alone. See
-[composition and bundles](2_3-composition.md).
+[composition and bundles](composition.md).
 
 The distinct `inference.MeasuredInference` envelope binds each named scalar to
 its original method and current attesting coverage record. Its independent
 consumer replays the original source calculation under caller-retained identity
 and bounds. An original source artifact can retain unmeasured diagnostics or
 parameter summaries inside a measured envelope: only the named endpoints in
-the [measured scope](2_3-population-time-uncertainty.md) receive that standing.
+the [measured scope](population-time-uncertainty.md) receive that standing.
 A general `antecedent.load` call is not a substitute for this method-specific
 consumer.

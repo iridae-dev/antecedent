@@ -1,7 +1,7 @@
 //! Distribution-meaning boundary: only a declared interventional outcome law
 //! answers an interventional outcome threshold.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
@@ -69,7 +69,7 @@ fn assert_refused(error: IoError, expected_code: &str, expected_detail: &str) {
 }
 
 #[test]
-fn f16_interventional_predictive_law_answers_its_own_outcome_threshold() {
+fn interventional_predictive_law_answers_its_own_outcome_threshold() {
     let law = artifact(DistributionMeaningWire::InterventionalPredictive);
     // Outcome Y takes 0 and 2 with probability one half each.
     assert!((law.interventional_probability_above(1, 1.0).unwrap() - 0.5).abs() < 1e-12);
@@ -80,7 +80,7 @@ fn f16_interventional_predictive_law_answers_its_own_outcome_threshold() {
 }
 
 #[test]
-fn f16_effect_posterior_and_observational_law_refuse_an_interventional_threshold() {
+fn effect_posterior_and_observational_law_refuse_an_interventional_threshold() {
     for meaning in [
         DistributionMeaningWire::CausalFunctionalPosterior,
         DistributionMeaningWire::ParameterPosterior,
@@ -107,7 +107,7 @@ fn f16_effect_posterior_and_observational_law_refuse_an_interventional_threshold
 }
 
 #[test]
-fn f16_resealed_meaning_change_is_refused_by_a_fresh_consumer() {
+fn resealed_meaning_change_is_refused_by_a_fresh_consumer() {
     // The consumer's retained contract names an interventional predictive law.
     let expected = identity(DistributionMeaningWire::InterventionalPredictive);
     let control = artifact(DistributionMeaningWire::InterventionalPredictive)

@@ -1,4 +1,4 @@
-//! B4 categorical treatments: group-mean closed forms for the dummy-coded regression, contrast
+//! Categorical treatments: group-mean closed forms for the dummy-coded regression, contrast
 //! variances from the full covariance, Holm multiplicity written out, sparse/absent level
 //! refusals, unordered level-permutation invariance, and the declared monotonicity test with
 //! hand-derived statistics. Calibration (Type I error, power) is deliberately NOT measured here.
@@ -22,15 +22,15 @@ use antecedent_estimate::effect_constancy::CalibrationStatus;
 use antecedent_estimate::vector_treatment::VectorCovariance;
 use antecedent_kernels::erfc;
 
+#[path = "common/checks.rs"]
+mod checks;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    checks::close_abs_1e9(actual, expected, what);
 }
 
 fn refusal(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 fn normal_p(z: f64) -> f64 {
@@ -74,7 +74,7 @@ fn spec(levels: &[&str], scale: LevelScale, reference: &str) -> CategoricalTreat
 }
 
 #[test]
-fn b4_categorical_dummy_regression_covariance_matches_group_mean_algebra() {
+fn categorical_dummy_regression_covariance_matches_group_mean_algebra() {
     let fit = fit_categorical_treatment(
         &abc_input(),
         &spec(&["a", "b", "c"], LevelScale::Unordered, "a"),
@@ -102,7 +102,7 @@ fn b4_categorical_dummy_regression_covariance_matches_group_mean_algebra() {
 }
 
 #[test]
-fn b4_categorical_omnibus_wald_matches_closed_form() {
+fn categorical_omnibus_wald_matches_closed_form() {
     let fit = fit_categorical_treatment(
         &abc_input(),
         &spec(&["a", "b", "c"], LevelScale::Unordered, "a"),
@@ -117,7 +117,7 @@ fn b4_categorical_omnibus_wald_matches_closed_form() {
 }
 
 #[test]
-fn b4_categorical_pairwise_contrast_uses_the_dummy_covariance() {
+fn categorical_pairwise_contrast_uses_the_dummy_covariance() {
     let mut s = spec(&["a", "b", "c"], LevelScale::Unordered, "a");
     s.pairwise = vec![("b".into(), "c".into())];
     let fit = fit_categorical_treatment(&abc_input(), &s).unwrap();
@@ -132,7 +132,7 @@ fn b4_categorical_pairwise_contrast_uses_the_dummy_covariance() {
 }
 
 #[test]
-fn b4_categorical_non_alphabetical_reference_changes_the_covariance_as_derived() {
+fn categorical_non_alphabetical_reference_changes_the_covariance_as_derived() {
     let fit = fit_categorical_treatment(
         &abc_input(),
         &spec(&["a", "b", "c"], LevelScale::Unordered, "b"),
@@ -149,7 +149,7 @@ fn b4_categorical_non_alphabetical_reference_changes_the_covariance_as_derived()
 }
 
 #[test]
-fn b4_categorical_holm_across_the_declared_family_is_written_out() {
+fn categorical_holm_across_the_declared_family_is_written_out() {
     let mut s = spec(&["a", "b", "c"], LevelScale::Unordered, "a");
     s.pairwise = vec![("b".into(), "c".into())];
     let fit = fit_categorical_treatment(&abc_input(), &s).unwrap();
@@ -172,7 +172,7 @@ fn b4_categorical_holm_across_the_declared_family_is_written_out() {
 }
 
 #[test]
-fn b4_categorical_unordered_level_permutation_gives_identical_contrasts() {
+fn categorical_unordered_level_permutation_gives_identical_contrasts() {
     let mut base = spec(&["a", "b", "c"], LevelScale::Unordered, "a");
     base.pairwise = vec![("b".into(), "c".into()), ("c".into(), "a".into())];
     let mut permuted = base.clone();
@@ -186,7 +186,7 @@ fn b4_categorical_unordered_level_permutation_gives_identical_contrasts() {
 }
 
 #[test]
-fn b4_categorical_ordered_levels_keep_the_declared_order() {
+fn categorical_ordered_levels_keep_the_declared_order() {
     // Declared order lo < mid < hi is not alphabetical; the scale must survive.
     let fit = fit_categorical_treatment(
         &grouped([0.0, 2.0, 4.0]),
@@ -202,7 +202,7 @@ fn b4_categorical_ordered_levels_keep_the_declared_order() {
 }
 
 #[test]
-fn b4_categorical_two_level_factor_is_supported() {
+fn categorical_two_level_factor_is_supported() {
     let rows = [("x", 1.0), ("y", 4.0), ("x", 3.0), ("y", 6.0), ("x", 2.0), ("y", 5.0)];
     let input = CategoricalTreatmentInput {
         outcome: rows.iter().map(|r| r.1).collect(),
@@ -250,7 +250,7 @@ fn monotonicity(
 }
 
 #[test]
-fn b4_categorical_monotonicity_constant_effect_is_never_rejected() {
+fn categorical_monotonicity_constant_effect_is_never_rejected() {
     let step_se = (2.0_f64 / 3.0).sqrt();
     for direction in [MonotonicityDirection::NonDecreasing, MonotonicityDirection::NonIncreasing] {
         let result = monotonicity([5.0, 5.0, 5.0], direction);
@@ -270,7 +270,7 @@ fn b4_categorical_monotonicity_constant_effect_is_never_rejected() {
 }
 
 #[test]
-fn b4_categorical_monotonicity_increasing_effect() {
+fn categorical_monotonicity_increasing_effect() {
     // d = (2, 2), se = sqrt(2/3), z = sqrt(6).
     let z = 6.0_f64.sqrt();
     let up = monotonicity([0.0, 2.0, 4.0], MonotonicityDirection::NonDecreasing);
@@ -290,7 +290,7 @@ fn b4_categorical_monotonicity_increasing_effect() {
 }
 
 #[test]
-fn b4_categorical_monotonicity_decreasing_effect() {
+fn categorical_monotonicity_decreasing_effect() {
     let z = 6.0_f64.sqrt();
     let up = monotonicity([4.0, 2.0, 0.0], MonotonicityDirection::NonDecreasing);
     close(up.steps[0].difference, -2.0, "d1");
@@ -302,7 +302,7 @@ fn b4_categorical_monotonicity_decreasing_effect() {
 }
 
 #[test]
-fn b4_categorical_monotonicity_non_monotone_effect_rejects_both_directions() {
+fn categorical_monotonicity_non_monotone_effect_rejects_both_directions() {
     // d = (3, -3), se = sqrt(2/3), |z| = 3 / sqrt(2/3) = sqrt(13.5).
     let z = 13.5_f64.sqrt();
     let expected_p = erfc(6.75_f64.sqrt()); // 2 Phi(-sqrt 13.5) = erfc(sqrt(13.5 / 2))
@@ -318,7 +318,7 @@ fn b4_categorical_monotonicity_non_monotone_effect_rejects_both_directions() {
 }
 
 #[test]
-fn b4_categorical_monotonicity_single_step_is_the_exact_one_sided_test() {
+fn categorical_monotonicity_single_step_is_the_exact_one_sided_test() {
     // Two levels: m = 1, so p = Phi(T) with no Bonferroni inflation.
     let rows = [("x", 1.0), ("y", 4.0), ("x", 3.0), ("y", 6.0), ("x", 2.0), ("y", 5.0)];
     let input = CategoricalTreatmentInput {
@@ -337,7 +337,7 @@ fn b4_categorical_monotonicity_single_step_is_the_exact_one_sided_test() {
 }
 
 #[test]
-fn b4_categorical_refuses_monotonicity_on_unordered_levels() {
+fn categorical_refuses_monotonicity_on_unordered_levels() {
     let mut s = spec(&["a", "b", "c"], LevelScale::Unordered, "a");
     s.monotonicity = Some(MonotonicityDirection::NonDecreasing);
     let (code, message) = refusal(fit_categorical_treatment(&abc_input(), &s).unwrap_err());
@@ -346,7 +346,7 @@ fn b4_categorical_refuses_monotonicity_on_unordered_levels() {
 }
 
 #[test]
-fn b4_categorical_absent_level_is_refused_by_name() {
+fn categorical_absent_level_is_refused_by_name() {
     let s = spec(&["a", "b", "c", "d"], LevelScale::Unordered, "a");
     let (code, message) = refusal(fit_categorical_treatment(&abc_input(), &s).unwrap_err());
     assert_eq!(code, "arm_not_populated");
@@ -355,7 +355,7 @@ fn b4_categorical_absent_level_is_refused_by_name() {
 }
 
 #[test]
-fn b4_categorical_sparse_level_is_refused_by_name_never_dropped() {
+fn categorical_sparse_level_is_refused_by_name_never_dropped() {
     let mut s = spec(&["a", "b", "c"], LevelScale::Unordered, "a");
     s.min_level_rows = 3; // level `a` has only two rows
     let (code, message) = refusal(fit_categorical_treatment(&abc_input(), &s).unwrap_err());
@@ -369,7 +369,7 @@ fn b4_categorical_sparse_level_is_refused_by_name_never_dropped() {
 }
 
 #[test]
-fn b4_categorical_refuses_malformed_declarations() {
+fn categorical_refuses_malformed_declarations() {
     let run = |s: &CategoricalTreatmentSpec, input: &CategoricalTreatmentInput| {
         refusal(fit_categorical_treatment(input, s).unwrap_err())
     };

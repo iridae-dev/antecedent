@@ -27,6 +27,7 @@ use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
+use crate::gcomp::linear_predictors;
 use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;
 
@@ -34,12 +35,13 @@ use crate::util::require_explicit_override;
 /// than one modifier. Its estimand, delta-method SE and calibration record are
 /// for one modifier; a joint-modifier frequentist interval would be an
 /// unmeasured coordinate, so the refusal points at the routes that take a
-/// modifier set instead.
+/// modifier set instead. The adjustment handoff is named as a capability;
+/// Python appends the call.
 const MULTI_MODIFIER_REMEDY: &str = "the frequentist interaction regression fits one modifier; \
 for several modifiers use the Bayesian conditional estimator \
 (Rust: `.estimator(EstimatorId::BayesianConditional).inference(InferenceMode::Bayesian(..))`), \
-or hand the identified adjustment set to an external CATE learner with \
-`antecedent.handoff.econml(result, modifiers=[...])`, or fit one `ConditionalEffect` per modifier";
+or hand the identified adjustment set to an external CATE learner \
+(capability: adjustment handoff), or fit one `ConditionalEffect` per modifier";
 
 /// Per-arm plugin scores for a conditional linear fit.
 ///
@@ -216,7 +218,10 @@ impl ConditionalLinearAdjustment {
     /// # Errors
     ///
     /// Empty modifiers or OLS failures.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "validate the query, build the interaction design, fit, then derive the point, delta-method SE and influence from the same coefficients and inverse"
+    )]
     pub fn estimate_ate(
         &self,
         data: &TabularData,
@@ -294,9 +299,16 @@ impl ConditionalLinearAdjustment {
             .backend
             .least_squares(&design, n, ncols, &y, &mut ws)
             .map_err(crate::util::stats_err)?;
+        // QR residuals are `y − Xβ` in the same order `ols_sigma2` sums, so RSS / (n−p)
+        // matches that helper without a second pass over the design.
+        let sigma2 = fit.rss / (n.saturating_sub(ncols)).max(1) as f64;
         let coef = fit.coefficients;
+        let residuals = fit.residuals;
 
-        let inv = crate::util::xtx_inverse(&design, n, ncols)
+        // One Gram of this design. Cholesky's inverse is the variance factor when the
+        // factor exists; Gauss–Jordan remains the inverse when that factor is refused.
+        // The two floors differ, so a conditional SE can move.
+        let inv = gram_inverse(&design, n, ncols)
             .ok_or_else(|| EstimationError::stats_msg("singular design in conditional ATE"))?;
 
         let w_bar: f64 = w.iter().sum::<f64>() / n as f64;
@@ -308,7 +320,6 @@ impl ConditionalLinearAdjustment {
         // averages the CATE over the modifier distribution, so its IF carries
         // δ·β_{T×W}·(w_i − w̄) (asymptotically uncorrelated with the OLS
         // score term). Treating w̄ as fixed under-covers whenever β_{T×W} ≠ 0.
-        let sigma2 = crate::util::ols_sigma2(&design, n, ncols, &y, &coef);
         let mut g = vec![0.0; ncols];
         g[1] = delta;
         g[3] = delta * w_bar;
@@ -320,41 +331,22 @@ impl ConditionalLinearAdjustment {
         let se_analytic =
             (se_coef * se_coef + modifier_term * modifier_term * w_var_of_mean).sqrt();
 
-        let mut residuals = vec![0.0; n];
-        for i in 0..n {
-            let mut pred = 0.0;
-            for j in 0..ncols {
-                pred += coef[j] * design[j * n + i];
-            }
-            residuals[i] = y[i] - pred;
-        }
-        let mut influence = vec![0.0; n];
-        for i in 0..n {
-            let mut g_inv_x = 0.0;
-            for a in 0..ncols {
-                if g[a] == 0.0 {
-                    continue;
-                }
-                let mut inv_x = 0.0;
-                for b in 0..ncols {
-                    inv_x += inv[a * ncols + b] * design[b * n + i];
-                }
-                g_inv_x += g[a] * inv_x;
-            }
-            influence[i] = n_f * g_inv_x * residuals[i] + modifier_term * (w[i] - w_bar);
-        }
-
-        let _ = Arc::clone(&estimand.method);
+        let contrast_leverage = inverse_weighted_leverage(&inv, &design, n, ncols, &g);
+        let influence: Vec<f64> = contrast_leverage
+            .iter()
+            .zip(&residuals)
+            .zip(&w)
+            .map(|((g_inv_x, residual), wi)| {
+                n_f * g_inv_x * residual + modifier_term * (wi - w_bar)
+            })
+            .collect();
 
         let mut mu0 = 0.0;
         let mut mu1 = 0.0;
-        for i in 0..n {
-            let mut zterm = 0.0;
-            for k in 0..n_z {
-                zterm += coef[4 + k] * design[(4 + k) * n + i];
-            }
-            mu0 += coef[0] + coef[1] * control + coef[2] * w[i] + coef[3] * control * w[i] + zterm;
-            mu1 += coef[0] + coef[1] * active + coef[2] * w[i] + coef[3] * active * w[i] + zterm;
+        let zterms = linear_predictors(&design[4 * n..], n, n_z, &coef[4..]);
+        for (wi, zterm) in w.iter().zip(&zterms) {
+            mu0 += coef[0] + coef[1] * control + coef[2] * wi + coef[3] * control * wi + zterm;
+            mu1 += coef[0] + coef[1] * active + coef[2] * wi + coef[3] * active * wi + zterm;
         }
         mu0 /= n_f;
         mu1 /= n_f;
@@ -364,12 +356,19 @@ impl ConditionalLinearAdjustment {
             let base = (4 + k) * n;
             *zmean = design[base..base + n].iter().sum::<f64>() / n_f;
         }
-        let if0 = plugin_arm_influence(
-            control, mu0, &coef, &inv, &design, &residuals, &w, &z_bar, n, ncols, n_z,
-        );
-        let if1 = plugin_arm_influence(
-            active, mu1, &coef, &inv, &design, &residuals, &w, &z_bar, n, ncols, n_z,
-        );
+        let fit = InteractionFit {
+            coef: &coef,
+            inv: &inv,
+            design: &design,
+            residuals: &residuals,
+            w: &w,
+            z_bar: &z_bar,
+            n,
+            ncols,
+            n_z,
+        };
+        let if0 = plugin_arm_influence(&fit, control, mu0);
+        let if1 = plugin_arm_influence(&fit, active, mu1);
         let mut row_index = Vec::with_capacity(n);
         for (i, &keep) in row_mask.iter().enumerate() {
             if keep {
@@ -399,20 +398,26 @@ impl ConditionalLinearAdjustment {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn plugin_arm_influence(
-    level: f64,
-    mean: f64,
-    coef: &[f64],
-    inv: &[f64],
-    design: &[f64],
-    residuals: &[f64],
-    w: &[f64],
-    z_bar: &[f64],
+/// The fitted `Y ~ 1 + T + W + T×W + Z` interaction model an arm's plug-in influence is
+/// formed from.
+struct InteractionFit<'a> {
+    coef: &'a [f64],
+    /// `(XᵀX)⁻¹`, row-major `ncols × ncols`.
+    inv: &'a [f64],
+    /// Column-major design.
+    design: &'a [f64],
+    residuals: &'a [f64],
+    /// Effect-modifier values.
+    w: &'a [f64],
+    /// Column means of the `Z` covariates.
+    z_bar: &'a [f64],
     n: usize,
     ncols: usize,
     n_z: usize,
-) -> Vec<f64> {
+}
+
+fn plugin_arm_influence(fit: &InteractionFit<'_>, level: f64, mean: f64) -> Vec<f64> {
+    let InteractionFit { coef, inv, design, residuals, w, z_bar, n, ncols, n_z } = *fit;
     let n_f = n as f64;
     let mut xbar = vec![0.0; ncols];
     xbar[0] = 1.0;
@@ -423,23 +428,65 @@ fn plugin_arm_influence(
     for (k, &zmean) in z_bar.iter().enumerate() {
         xbar[4 + k] = zmean;
     }
-    let mut out = vec![0.0; n];
-    for i in 0..n {
-        let mut mu_i = coef[0] + coef[1] * level + coef[2] * w[i] + coef[3] * level * w[i];
-        for k in 0..n_z {
-            mu_i += coef[4 + k] * design[(4 + k) * n + i];
+    // Column-outer: every row adds its terms in the order a row-by-row walk would, from the
+    // same starting value, so each score is bit-identical to that walk.
+    let mut mu: Vec<f64> = w
+        .iter()
+        .map(|wi| coef[0] + coef[1] * level + coef[2] * wi + coef[3] * level * wi)
+        .collect();
+    for k in 0..n_z {
+        let column = &design[(4 + k) * n..(5 + k) * n];
+        for (slot, &x) in mu.iter_mut().zip(column) {
+            *slot += coef[4 + k] * x;
         }
-        let mut xbar_inv_x = 0.0;
-        for a in 0..ncols {
-            let mut inv_x = 0.0;
-            for b in 0..ncols {
-                inv_x += inv[a * ncols + b] * design[b * n + i];
-            }
-            xbar_inv_x += xbar[a] * inv_x;
-        }
-        out[i] = (mu_i - mean) + n_f * xbar_inv_x * residuals[i];
     }
-    out
+    let mut xbar_inv_x = vec![0.0; n];
+    for (a, &weight) in xbar.iter().enumerate() {
+        let inv_x = linear_predictors(design, n, ncols, &inv[a * ncols..(a + 1) * ncols]);
+        for (slot, value) in xbar_inv_x.iter_mut().zip(inv_x) {
+            *slot += weight * value;
+        }
+    }
+    mu.iter()
+        .zip(&xbar_inv_x)
+        .zip(residuals)
+        .map(|((mu_i, leverage), residual)| (mu_i - mean) + n_f * leverage * residual)
+        .collect()
+}
+
+/// `(XᵀX)⁻¹` from one Gram of `design`. The Cholesky factor supplies the inverse
+/// when it exists; the same Gram uses Gauss–Jordan when that factor is refused.
+fn gram_inverse(design: &[f64], nrows: usize, ncols: usize) -> Option<Vec<f64>> {
+    let mut xtx = vec![0.0; ncols.saturating_mul(ncols)];
+    antecedent_stats::form_xtx(design, nrows, ncols, &mut xtx);
+    if let Some(chol) = antecedent_stats::cholesky_spd(&xtx, ncols) {
+        Some(antecedent_kernels::chol_inverse(&chol, ncols))
+    } else {
+        antecedent_stats::invert_square(&xtx, ncols)
+    }
+}
+
+/// `Σ_a g_a · (inv · x_i)_a` of every row `x_i` of the column-major `n × ncols` design: the
+/// row's leverage along the contrast `g` under the inverse Gram `inv` (row-major).
+/// Components with `g_a == 0` contribute nothing and are skipped.
+fn inverse_weighted_leverage(
+    inv: &[f64],
+    design: &[f64],
+    n: usize,
+    ncols: usize,
+    g: &[f64],
+) -> Vec<f64> {
+    let mut leverage = vec![0.0; n];
+    for (a, &weight) in g.iter().enumerate().take(ncols) {
+        if weight == 0.0 {
+            continue;
+        }
+        let inv_x = linear_predictors(design, n, ncols, &inv[a * ncols..(a + 1) * ncols]);
+        for (slot, value) in leverage.iter_mut().zip(inv_x) {
+            *slot += weight * value;
+        }
+    }
+    leverage
 }
 
 fn binary_zero_one(query: &AverageEffectQuery) -> Result<bool, EstimationError> {
@@ -627,7 +674,7 @@ mod tests {
         assert!((est.ate - 3.0).abs() < 0.3);
         // Noiseless design → analytic SE ≈ 0 but must not claim exact certainty via a hard 0
         // when noise is present; with this noiseless fit SE is 0 or NaN-free.
-        assert!(est.se_analytic.is_finite());
+        assert!(est.se_analytic().is_finite());
     }
 
     #[test]
@@ -693,7 +740,11 @@ mod tests {
         let est = ConditionalLinearAdjustment::new()
             .estimate(&data, &estimand, &cq, &ExecutionContext::for_tests(2))
             .unwrap();
-        assert!(est.se_analytic.is_finite() && est.se_analytic > 0.0, "se={}", est.se_analytic);
+        assert!(
+            est.se_analytic().is_finite() && est.se_analytic() > 0.0,
+            "se={}",
+            est.se_analytic()
+        );
     }
 
     #[test]
@@ -783,13 +834,13 @@ mod tests {
         let w_bar = fixture["reference"]["modifier_mean"].as_f64().unwrap();
         let w_var_of_mean = (0..n).map(|i| ((i % 7) as f64 - 3.0 - w_bar).powi(2)).sum::<f64>()
             / (n as f64 * (n as f64 - 1.0));
-        let coefficient_part = (actual.se_analytic.powi(2) - b_tw * b_tw * w_var_of_mean).sqrt();
+        let coefficient_part = (actual.se_analytic().powi(2) - b_tw * b_tw * w_var_of_mean).sqrt();
         assert!(
             (coefficient_part - fixture["reference"]["analytic_se"].as_f64().unwrap()).abs()
                 <= tolerance,
             "coefficient-part SE {coefficient_part} vs statsmodels oracle"
         );
-        assert!(actual.se_analytic > coefficient_part, "the modifier-mean term must be added");
+        assert!(actual.se_analytic() > coefficient_part, "the modifier-mean term must be added");
     }
 
     /// Both one-modifier refusals keep their message and name the
@@ -831,9 +882,9 @@ mod tests {
             "conditional arm scores require AllObserved and exactly one modifier"
         );
         assert_eq!(error.remedy(), Some(MULTI_MODIFIER_REMEDY));
-        for remedy in ["EstimatorId::BayesianConditional", "antecedent.handoff.econml"] {
-            assert!(MULTI_MODIFIER_REMEDY.contains(remedy));
-        }
+        assert!(MULTI_MODIFIER_REMEDY.contains("EstimatorId::BayesianConditional"));
+        assert!(MULTI_MODIFIER_REMEDY.contains("capability: adjustment handoff"));
+        assert!(!MULTI_MODIFIER_REMEDY.contains("antecedent.handoff.econml"));
     }
 
     #[test]
@@ -900,14 +951,203 @@ mod tests {
             .estimate_with_arm_scores(&data, &estimand, &cq)
             .unwrap();
         assert_eq!(scores.influence[0].len(), n);
-        assert!(estimate.overlap_report.is_some(), "overlap report missing");
-        assert_eq!(estimate.overlap, crate::propensity::default_propensity_overlap());
+        assert!(estimate.diagnostics.overlap_report.is_some(), "overlap report missing");
+        assert_eq!(estimate.provenance.overlap, crate::propensity::default_propensity_overlap());
         let substituted = crossfit_substitution_record();
-        assert!(estimate.assumptions.entries.iter().any(|r| *r == substituted));
+        assert!(estimate.provenance.assumptions.entries.iter().any(|r| *r == substituted));
         assert!(scores.influence[0].iter().all(|v| v.is_finite()));
         assert!(scores.influence[1].iter().all(|v| v.is_finite()));
         let contrast: Vec<f64> =
             scores.influence[0].iter().zip(&scores.influence[1]).map(|(a, b)| b - a).collect();
         assert!(contrast.iter().any(|v| v.abs() > 1e-8));
+    }
+
+    /// The row-by-row loops the column-outer kernels replaced.
+    fn reference_plugin_arm_influence(fit: &InteractionFit<'_>, level: f64, mean: f64) -> Vec<f64> {
+        let InteractionFit { coef, inv, design, residuals, w, z_bar, n, ncols, n_z } = *fit;
+        let n_f = n as f64;
+        let mut xbar = vec![0.0; ncols];
+        xbar[0] = 1.0;
+        xbar[1] = level;
+        let w_bar: f64 = w.iter().sum::<f64>() / n_f;
+        xbar[2] = w_bar;
+        xbar[3] = level * w_bar;
+        for (k, &zmean) in z_bar.iter().enumerate() {
+            xbar[4 + k] = zmean;
+        }
+        let mut out = vec![0.0; n];
+        for i in 0..n {
+            let mut mu_i = coef[0] + coef[1] * level + coef[2] * w[i] + coef[3] * level * w[i];
+            for k in 0..n_z {
+                mu_i += coef[4 + k] * design[(4 + k) * n + i];
+            }
+            let mut xbar_inv_x = 0.0;
+            for a in 0..ncols {
+                let mut inv_x = 0.0;
+                for b in 0..ncols {
+                    inv_x += inv[a * ncols + b] * design[b * n + i];
+                }
+                xbar_inv_x += xbar[a] * inv_x;
+            }
+            out[i] = (mu_i - mean) + n_f * xbar_inv_x * residuals[i];
+        }
+        out
+    }
+
+    #[test]
+    fn column_outer_scores_are_bit_identical_to_the_row_first_loops() {
+        let (n, n_z) = (1_111usize, 3usize);
+        let ncols = 4 + n_z;
+        let mut state = 0x0DDB_1A5E_5BAD_5EED_u64;
+        let mut draw = || {
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            (state >> 33) as f64 / 2f64.powi(31) - 0.5
+        };
+        let w: Vec<f64> = (0..n).map(|_| draw()).collect();
+        let t: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
+        let mut design = vec![0.0; n * ncols];
+        for i in 0..n {
+            design[i] = 1.0;
+            design[n + i] = t[i];
+            design[2 * n + i] = w[i];
+            design[3 * n + i] = t[i] * w[i];
+        }
+        for k in 0..n_z {
+            for i in 0..n {
+                design[(4 + k) * n + i] = draw();
+            }
+        }
+        let y: Vec<f64> = (0..n).map(|i| 1.0 + 0.5 * t[i] + draw()).collect();
+        let coef: Vec<f64> = (0..ncols).map(|j| 0.4 - 0.13 * j as f64).collect();
+        let inv: Vec<f64> = (0..ncols * ncols)
+            .map(|k| if k / ncols == k % ncols { 0.01 } else { 0.001 * draw() })
+            .collect();
+        let g = {
+            let mut g = vec![0.0; ncols];
+            g[1] = 0.7;
+            g[3] = -0.2;
+            g
+        };
+
+        let mut residuals = vec![0.0; n];
+        for i in 0..n {
+            let mut pred = 0.0;
+            for j in 0..ncols {
+                pred += coef[j] * design[j * n + i];
+            }
+            residuals[i] = y[i] - pred;
+        }
+        let new_residuals: Vec<f64> = linear_predictors(&design, n, ncols, &coef)
+            .iter()
+            .zip(&y)
+            .map(|(pred, y)| y - pred)
+            .collect();
+        assert!(residuals.iter().zip(&new_residuals).all(|(a, b)| a.to_bits() == b.to_bits()));
+
+        let leverage = inverse_weighted_leverage(&inv, &design, n, ncols, &g);
+        for i in 0..n {
+            let mut g_inv_x = 0.0;
+            for a in 0..ncols {
+                if g[a] == 0.0 {
+                    continue;
+                }
+                let mut inv_x = 0.0;
+                for b in 0..ncols {
+                    inv_x += inv[a * ncols + b] * design[b * n + i];
+                }
+                g_inv_x += g[a] * inv_x;
+            }
+            assert_eq!(leverage[i].to_bits(), g_inv_x.to_bits());
+        }
+
+        let z_bar: Vec<f64> = (0..n_z)
+            .map(|k| design[(4 + k) * n..(5 + k) * n].iter().sum::<f64>() / n as f64)
+            .collect();
+        let fit = InteractionFit {
+            coef: &coef,
+            inv: &inv,
+            design: &design,
+            residuals: &residuals,
+            w: &w,
+            z_bar: &z_bar,
+            n,
+            ncols,
+            n_z,
+        };
+        for (level, mean) in [(0.0, 0.3), (1.0, -0.2)] {
+            let new = plugin_arm_influence(&fit, level, mean);
+            let reference = reference_plugin_arm_influence(&fit, level, mean);
+            assert!(new.iter().zip(&reference).all(|(a, b)| a.to_bits() == b.to_bits()));
+        }
+    }
+
+    #[test]
+    #[ignore = "timing harness: cargo test --release -p antecedent-estimate --lib timing_ -- --ignored --nocapture"]
+    fn timing_conditional_ate_wide_adjustment() {
+        let (n, n_z) = (200_000usize, 8usize);
+        let mut b = CausalSchemaBuilder::new();
+        for index in 0..3 + n_z {
+            b.add_variable(
+                format!("v{index}").as_str(),
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut state = 0x2545_F491_4F6C_DD1D_u64;
+        let mut draw = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 33) as f64 / 2f64.powi(31) - 0.5
+        };
+        let mut columns: Vec<Vec<f64>> = Vec::new();
+        columns.push((0..n).map(|i| f64::from(u8::from(i % 2 == 0))).collect());
+        columns.push((0..n).map(|_| draw()).collect());
+        columns.push((0..n).map(|_| draw()).collect());
+        for _ in 0..n_z {
+            columns.push((0..n).map(|_| draw()).collect());
+        }
+        let cols = columns
+            .into_iter()
+            .enumerate()
+            .map(|(index, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(u32::try_from(index).unwrap()),
+                        Arc::from(values),
+                        ValidityBitmap::all_valid(n),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TabularData::new(storage);
+        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+            .with_effect_modifiers([VariableId::from_raw(2)]);
+        let cq = ConditionalEffectQuery::try_new(q).unwrap();
+        let adjustment: Vec<VariableId> =
+            (3..3 + n_z).map(|index| VariableId::from_raw(u32::try_from(index).unwrap())).collect();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(adjustment),
+            antecedent_expr::ExprId::from_raw(0),
+        );
+        let est = ConditionalLinearAdjustment::new();
+        let ctx = ExecutionContext::for_tests(2);
+        let start = std::time::Instant::now();
+        let reps = 5;
+        for _ in 0..reps {
+            std::hint::black_box(est.estimate(&data, &estimand, &cq, &ctx).unwrap());
+        }
+        println!(
+            "conditional estimate n={n} n_z={n_z}: {:.3} ms/call",
+            start.elapsed().as_secs_f64() * 1e3 / f64::from(reps)
+        );
     }
 }

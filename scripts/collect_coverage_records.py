@@ -10,7 +10,9 @@ It reads `target/calibration-records/*.log` (written by
 with the SHA of the commit the logs were measured at, rewrites the
 `calibration` / `calibration_reason` pair for each already-bound licensed support
 cell using only its existing record IDs, refreshes estimator rows, and regenerates
-`crates/antecedent-io/src/coverage_records_data.rs`.
+`crates/antecedent-io-core/data/coverage_records.json`
+(loaded by `crates/antecedent-io-core/src/coverage_records_data.rs`;
+`parity/coverage_records.toml` remains the registry).
 
 Every record is measured at each point of its sample-size grid
 (`ANTECEDENT_CALIBRATION_GRID_POINT`, `SampleGrid` in
@@ -44,7 +46,7 @@ that still owe a re-measurement. Without it the registry is exactly the logs.
 `--retag` rewrites only the `facets` of the existing records (after a change
 to `scripts/calibration_surface.list`); nothing is measured or re-stamped.
 
-For a small independently measured workstream while older records still owe
+For a small independently measured set of cells while older records still owe
 re-measurement, `--append-attested --only-cell QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION=ID,ID`
 adds only new IDs from valid, stamped logs, rejects collisions, preserves every
 older record with its original SHA (including stale records), and syncs only
@@ -81,9 +83,9 @@ import sys
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-import calibration_facets as facets  # noqa: E402
+import calibration_facets as facets
+from _repo import REPO_ROOT as ROOT
+from _repo import read_text, write_text
 
 LOG_DIR = ROOT / "target" / "calibration-records"
 OUT = ROOT / "parity" / "coverage_records.toml"
@@ -208,7 +210,7 @@ def rechecked_tests(recheck_log: Path) -> set[str] | None:
     """The test functions a recheck log re-ran, when the gate re-ran only some
     of a group's tests (`calibration-rechecked-test` lines, written by
     scripts/gate_calibration.sh); `None` when it re-ran the whole group."""
-    found = RECHECKED_TEST.findall(recheck_log.read_text(errors="ignore"))
+    found = RECHECKED_TEST.findall(read_text(recheck_log, errors="ignore"))
     return {name.rpartition("::")[2] for name in found} or None
 
 
@@ -234,7 +236,7 @@ def record_lines(
                 superseded = rechecked_tests(partner)
                 if superseded is None:
                     continue  # the whole group was re-run
-        for line in log.read_text(errors="ignore").splitlines():
+        for line in read_text(log, errors="ignore").splitlines():
             if not line.startswith("calibration-record "):
                 continue
             payload = json.loads(line.split(" ", 1)[1])
@@ -388,7 +390,7 @@ def log_problems(log: Path) -> tuple[list[str], set[str]]:
     The record-less groups (CI Type I, uniformity, discovery FPR, SBC) leave no
     artifact but their log, so a group that failed or matched no test would
     otherwise vanish from the registry without a trace."""
-    text = log.read_text(errors="ignore")
+    text = read_text(log, errors="ignore")
     results = CARGO_RESULT.findall(text)
     problems = []
     if any(status == "FAILED" or int(failed) for status, _, failed in results):
@@ -428,7 +430,7 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
     """A row per record-less group log: which group, how many tests passed, at which commit."""
     rows: dict[str, dict] = {}
     for log in logs:
-        text = log.read_text(errors="ignore")
+        text = read_text(log, errors="ignore")
         if log.name.endswith(".recheck.log") or any(
             line.startswith("calibration-record ") for line in text.splitlines()
         ):
@@ -454,7 +456,7 @@ def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None
             f"calibration_sha = {toml_value('calibration_sha', row['calibration_sha'])}",
             "",
         ]
-    GATES.write_text("\n".join(lines))
+    write_text(GATES, "\n".join(lines))
 
 
 def load_records(
@@ -560,7 +562,7 @@ def write_registry(records: dict[str, dict], out: Path = OUT, *, retag: bool = T
                     if rec.get(opt) is not None
                 ]
         lines.append("")
-    out.write_text("\n".join(lines))
+    write_text(out, "\n".join(lines))
 
 
 REPORTED_LEVEL = 0.95
@@ -706,8 +708,8 @@ def sync_licensed_cells(
 ) -> int:
     # Collection refreshes measurements, not public-route ownership. New bindings
     # require explicit --only-cell authorization and estimator compatibility.
-    cells = tomllib.loads(LICENSED.read_text()).get("cell", [])
-    text = LICENSED.read_text()
+    cells = tomllib.loads(read_text(LICENSED)).get("cell", [])
+    text = read_text(LICENSED)
     blocks = text.split("[[cell]]")
     out = [blocks[0]]
     changed = 0
@@ -763,12 +765,12 @@ def sync_licensed_cells(
         out.append(new_block)
     if only_cells is not None and seen != only_cells.keys():
         raise SystemExit(f"unknown --only-cell coordinates: {sorted(only_cells.keys() - seen)}")
-    LICENSED.write_text("[[cell]]".join(out))
+    write_text(LICENSED, "[[cell]]".join(out))
     return changed
 
 
 def sync_estimator_rows(records: dict[str, dict]) -> int:
-    text = ESTIMATE.read_text()
+    text = read_text(ESTIMATE)
     rows = tomllib.loads(text).get("capabilities", [])
     blocks = text.split("[[capabilities]]")
     out = [blocks[0]]
@@ -782,7 +784,7 @@ def sync_estimator_rows(records: dict[str, dict]) -> int:
         new_block = replace_pair(block, ids, "estimator_grid_not_measured")
         changed += int(new_block != block)
         out.append(new_block)
-    ESTIMATE.write_text("[[capabilities]]".join(out))
+    write_text(ESTIMATE, "[[capabilities]]".join(out))
     return changed
 
 
@@ -919,7 +921,7 @@ def main() -> int:
         subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
         return 0
     previous = (
-        {g["group"]: g for g in tomllib.loads(GATES.read_text()).get("gate", [])}
+        {g["group"]: g for g in tomllib.loads(read_text(GATES)).get("gate", [])}
         if args.keep_attested and GATES.is_file()
         else None
     )

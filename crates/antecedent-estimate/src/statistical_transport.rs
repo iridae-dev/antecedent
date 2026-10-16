@@ -352,7 +352,7 @@ fn withheld_bayesian_grid(
 }
 
 /// Joint bootstrap columns aligned to original replicate IDs.
-pub type TransportMeanReplicates = Arc<[(VariableId, Arc<[f64]>)]>;
+pub(crate) type TransportMeanReplicates = Arc<[(VariableId, Arc<[f64]>)]>;
 
 /// Recorded interval row. Failed replicates stay visible.
 #[derive(Clone, Debug, PartialEq)]
@@ -423,7 +423,7 @@ pub fn evaluate_statistical_transport(
 /// Every point retains the same successful replicate IDs; intervals are pointwise.
 /// # Errors
 /// Invalid requests, support failure, cancellation or exceeded resources.
-pub fn evaluate_statistical_transport_grid(
+pub(crate) fn evaluate_statistical_transport_grid(
     functional: &BoundTransportFunctional,
     input: &StatisticalTransportInput,
     requests: &[Assignment],
@@ -431,7 +431,7 @@ pub fn evaluate_statistical_transport_grid(
     options: &EmpiricalTableOptions,
     ctx: &ExecutionContext,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
-    evaluate_grid(functional, input, requests, limits, options, ctx, None, None)
+    evaluate_grid(functional, input, requests, limits, options, ctx, PointLaws::Fit)
 }
 
 /// Evaluate retained point laws without fitting their original samples again.
@@ -441,7 +441,6 @@ pub fn evaluate_statistical_transport_grid(
 /// Bootstrap datasets are still refitted jointly for every outer replicate.
 /// # Errors
 /// Invalid requests, support failure, cancellation, or exceeded resources.
-#[allow(clippy::too_many_arguments)]
 pub fn evaluate_statistical_transport_grid_with_point_laws(
     functional: &BoundTransportFunctional,
     input: &StatisticalTransportInput,
@@ -451,7 +450,15 @@ pub fn evaluate_statistical_transport_grid_with_point_laws(
     ctx: &ExecutionContext,
     point_laws: &antecedent_expr::ExactTransportData,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
-    evaluate_grid(functional, input, requests, limits, options, ctx, Some(point_laws), None)
+    evaluate_grid(
+        functional,
+        input,
+        requests,
+        limits,
+        options,
+        ctx,
+        PointLaws::Retained(point_laws),
+    )
 }
 
 /// [`evaluate_statistical_transport_grid_with_point_laws`] for a caller that has already
@@ -462,7 +469,6 @@ pub fn evaluate_statistical_transport_grid_with_point_laws(
 /// `distributions[i]` must be the exact evaluation of `requests[i]` on `point_laws`.
 /// # Errors
 /// A length mismatch, invalid requests, cancellation, or exceeded resources.
-#[allow(clippy::too_many_arguments)]
 pub fn evaluate_statistical_transport_grid_with_evaluated_point_laws(
     functional: &BoundTransportFunctional,
     input: &StatisticalTransportInput,
@@ -470,10 +476,9 @@ pub fn evaluate_statistical_transport_grid_with_evaluated_point_laws(
     limits: ExactEvaluationLimits,
     options: &EmpiricalTableOptions,
     ctx: &ExecutionContext,
-    point_laws: &antecedent_expr::ExactTransportData,
-    distributions: Vec<ExactDistribution>,
+    evaluated: EvaluatedPointLaws<'_>,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
-    if distributions.len() != requests.len() {
+    if evaluated.distributions.len() != requests.len() {
         return Err(EstimationError::data_msg(
             "evaluated point laws do not align with the treatment grid",
         ));
@@ -485,12 +490,30 @@ pub fn evaluate_statistical_transport_grid_with_evaluated_point_laws(
         limits,
         options,
         ctx,
-        Some(point_laws),
-        Some(distributions),
+        PointLaws::Evaluated(evaluated),
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Retained point laws together with their already-evaluated request distributions.
+#[derive(Debug)]
+pub struct EvaluatedPointLaws<'a> {
+    /// The retained point laws the distributions were evaluated on.
+    pub point_laws: &'a antecedent_expr::ExactTransportData,
+    /// `distributions[i]` is the exact evaluation of `requests[i]` on `point_laws`.
+    pub distributions: Vec<ExactDistribution>,
+}
+
+/// Where a grid evaluation gets its point laws, and whether their request distributions
+/// are already known.
+enum PointLaws<'a> {
+    /// Fit the laws from the input samples and evaluate every request.
+    Fit,
+    /// Use retained laws; evaluate every request on them.
+    Retained(&'a antecedent_expr::ExactTransportData),
+    /// Use retained laws and their evaluated distributions.
+    Evaluated(EvaluatedPointLaws<'a>),
+}
+
 fn evaluate_grid(
     functional: &BoundTransportFunctional,
     input: &StatisticalTransportInput,
@@ -498,9 +521,15 @@ fn evaluate_grid(
     limits: ExactEvaluationLimits,
     options: &EmpiricalTableOptions,
     ctx: &ExecutionContext,
-    point_laws: Option<&antecedent_expr::ExactTransportData>,
-    evaluated: Option<Vec<ExactDistribution>>,
+    source: PointLaws<'_>,
 ) -> Result<Vec<StatisticalTransportEstimate>, EstimationError> {
+    let (point_laws, evaluated) = match source {
+        PointLaws::Fit => (None, None),
+        PointLaws::Retained(laws) => (Some(laws), None),
+        PointLaws::Evaluated(EvaluatedPointLaws { point_laws, distributions }) => {
+            (Some(point_laws), Some(distributions))
+        }
+    };
     if requests.is_empty() {
         return Err(EstimationError::data_msg("empty treatment grid"));
     }
@@ -1426,13 +1455,12 @@ pub fn mz_transport_bootstrap_law_draws(
     Ok(Ok(out))
 }
 
-#[cfg(feature = "calibration-internal")]
 /// The law sets of the iid row bootstrap of a single-source z functional's cited
 /// count tables, one per replicate (`None` for a replicate whose draw failed).
 ///
 /// Same stream, alias policy and dependence rule as [`nominal_z_transport_interval`];
-/// the 2.2B X3 joint-sensitivity endpoint bootstrap evaluates its exact range on
-/// each draw. Compiled only under `calibration-internal` (dev-dependencies alone).
+/// the joint-sensitivity endpoint bootstrap evaluates its exact range on
+/// each draw.
 ///
 /// # Errors
 /// Fewer than two replicates, a provider/catalog disagreement, or cancellation.
@@ -1482,7 +1510,7 @@ pub fn z_transport_bootstrap_law_draws(
 /// This is the internal estimator the calibration harness measures; the public
 /// prepared route does not publish it until its coverage records exist.
 ///
-/// Like the X4 learned-continuous interval, this is compiled only with the
+/// Like the learned-continuous interval, this is compiled only with the
 /// `calibration-internal` feature, which only dev-dependencies (this crate's integration
 /// tests, `antecedent-io`'s interval tests and the facade's calibration harness) enable;
 /// no released build links it. The public prepared route withholds the interval, and
@@ -1519,8 +1547,7 @@ pub fn mz_transport_bootstrap_interval(
     let mut indexes = Vec::new();
     let drawn = z_draws(
         functional,
-        &tables,
-        data.max_support_rows(),
+        TableDrawer::new(&tables, data.max_support_rows()),
         requests,
         limits,
         &spec,
@@ -1649,8 +1676,7 @@ fn z_interval_over_draws(
         .map_err(EstimationError::data_msg)?;
     let drawn = z_draws(
         functional,
-        &tables,
-        data.max_support_rows(),
+        TableDrawer::new(&tables, data.max_support_rows()),
         std::slice::from_ref(request),
         limits,
         spec,
@@ -1742,11 +1768,9 @@ impl<'t, 'a> TableDrawer<'t, 'a> {
 /// Draw the cited tables `spec.replicates` times and evaluate every request on
 /// each draw. A replicate counts only when every request evaluates, so the
 /// columns stay aligned by replicate id and contrasts are within-replicate.
-#[allow(clippy::too_many_arguments)] // The draw loop's inputs, explicitly.
 fn z_draws(
     functional: &dyn crate::transport::BoundZFormula,
-    tables: &CitedTables<'_>,
-    max_support_rows: usize,
+    mut drawer: TableDrawer<'_, '_>,
     requests: &[Assignment],
     limits: ExactEvaluationLimits,
     spec: &ZDrawSpec,
@@ -1756,7 +1780,6 @@ fn z_draws(
     let outcomes = functional.outcomes().clone();
     let mut columns = requests.iter().map(|_| ReplicateColumns::new(&outcomes)).collect::<Vec<_>>();
     let mut failed = 0u32;
-    let mut drawer = TableDrawer::new(tables, max_support_rows);
     for replicate in 0..spec.replicates {
         crate::transport::refuse_cancelled(ctx, spec.stage)?;
         let Some(drawn) = drawer.draw(spec, replicate, ctx, &mut draw)? else {

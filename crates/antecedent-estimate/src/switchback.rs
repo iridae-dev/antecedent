@@ -4,9 +4,9 @@
 use std::collections::BTreeMap;
 
 /// Minimum independent assignment sequences for the pointwise interval.
-pub const MIN_SEQUENCES_FOR_INTERVAL: usize = 30;
+pub(crate) const MIN_SEQUENCES_FOR_INTERVAL: usize = 30;
 /// Minimum known marginal assignment probability for either arm.
-pub const MIN_ARM_PROBABILITY_FOR_INTERVAL: f64 = 0.2;
+pub(crate) const MIN_ARM_PROBABILITY_FOR_INTERVAL: f64 = 0.2;
 
 /// Unit-period Horvitz–Thompson ITT with sequence-level uncertainty.
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -3,16 +3,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// The `SplitMix64` increment (the golden-ratio gamma).
-pub(crate) const GOLDEN_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
-
-/// The `SplitMix64` output finalizer: a bijective avalanche mix of one word.
-#[must_use]
-pub(crate) const fn mix64(mut z: u64) -> u64 {
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
-}
+// The mixer, its increment and the stepper are owned by `antecedent_core`; this module
+// re-exports them under the crate-local path and keeps the seed scrambler and fixtures.
+pub(crate) use antecedent_core::{GOLDEN_GAMMA, mix64, splitmix64};
 
 /// Scramble a caller seed so nearby seeds start unrelated streams: the first
 /// `SplitMix64` output of a generator whose state is `seed`.
@@ -21,10 +14,53 @@ pub(crate) const fn seed_mix(seed: u64) -> u64 {
     mix64(seed.wrapping_add(GOLDEN_GAMMA))
 }
 
-/// Advance a `SplitMix64` state and return its next output.
-pub(crate) fn splitmix64(state: &mut u64) -> u64 {
-    *state = state.wrapping_add(GOLDEN_GAMMA);
-    mix64(*state)
+/// Second Weyl multiplier of the per-index stream key: replicate and row indices of test
+/// fixtures are combined as `(replicate + 1)·GOLDEN_GAMMA ^ (index + 1)·INDEX_GAMMA`.
+pub(crate) const INDEX_GAMMA: u64 = 0xD1B5_4A32_D192_ED03;
+
+/// Multiplier of the third stream coordinate of the test-fixture key.
+#[cfg(test)]
+pub(crate) const STREAM_GAMMA: u64 = 0xA076_1D64_78BD_642F;
+
+/// A uniform draw in `[0, 1)` keyed by `(replicate, index)`, so every fixture row of every
+/// replicate is a pure function of its coordinates (test fixtures).
+#[cfg(test)]
+#[must_use]
+pub(crate) fn keyed_unit(replicate: u64, index: u64) -> f64 {
+    keyed_unit_stream(replicate, index, 0)
+}
+
+/// [`keyed_unit`] with a third stream coordinate (zero reproduces [`keyed_unit`]).
+#[cfg(test)]
+#[must_use]
+pub(crate) fn keyed_unit_stream(replicate: u64, index: u64, stream_coordinate: u64) -> f64 {
+    unit_f64(mix64(
+        replicate.wrapping_add(1).wrapping_mul(GOLDEN_GAMMA)
+            ^ index.wrapping_add(1).wrapping_mul(INDEX_GAMMA)
+            ^ stream_coordinate.wrapping_mul(STREAM_GAMMA),
+    ))
+}
+
+/// A sequential `SplitMix64` stream of test fixtures.
+#[cfg(test)]
+pub(crate) struct FixtureRng(u64);
+
+#[cfg(test)]
+impl FixtureRng {
+    /// A stream whose first output is `splitmix64` of `seed`.
+    pub(crate) const fn new(seed: u64) -> Self {
+        Self(seed)
+    }
+
+    /// The next 64 random bits.
+    pub(crate) fn next_u64(&mut self) -> u64 {
+        splitmix64(&mut self.0)
+    }
+
+    /// The next uniform draw in `[0, 1)`.
+    pub(crate) fn uniform(&mut self) -> f64 {
+        unit_f64(self.next_u64())
+    }
 }
 
 /// The top 53 bits of `bits` as a uniform draw in `[0, 1)` (test fixtures).

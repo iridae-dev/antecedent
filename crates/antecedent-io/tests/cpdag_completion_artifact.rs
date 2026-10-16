@@ -1,10 +1,9 @@
-//! 2.3A A1 (X2): independent replay of the DAG completions of a CPDAG.
+//! Independent replay of the DAG completions of a CPDAG.
 //!
 //! The fixture is the one the estimate-layer oracle uses: the chain `a - b - c` with
 //! three completions, one enumerated joint law of the SCM `a -> b -> c`, and the
 //! query `P(c | do(b = 1))`. A fresh consumer must reproduce the report from the
 //! artifact alone and refuse every re-sealed premise or evidence change.
-#![allow(clippy::float_cmp, reason = "exact replay comparisons")]
 
 use std::sync::Arc;
 
@@ -197,7 +196,7 @@ fn reseal(mut wire: CpdagCompletionArtifactWire) -> Vec<u8> {
 }
 
 #[test]
-fn x2_cpdag_artifact_replay_equals_original() {
+fn cpdag_artifact_replay_equals_original() {
     let ctx = ctx();
     let (bytes, original) = produce(&premises(shared(), SEARCH, &ctx), &ctx);
     assert_eq!(original.completions.len(), 3);
@@ -223,7 +222,7 @@ fn x2_cpdag_artifact_replay_equals_original() {
 }
 
 #[test]
-fn x2_cpdag_artifact_resealed_changes_are_refused() {
+fn cpdag_artifact_resealed_changes_are_refused() {
     let ctx = ctx();
     let (bytes, _) = produce(&premises(shared(), SEARCH, &ctx), &ctx);
 
@@ -275,7 +274,7 @@ fn x2_cpdag_artifact_resealed_changes_are_refused() {
 }
 
 #[test]
-fn x2_cpdag_artifact_per_completion_evidence_replays_and_binds_identities() {
+fn cpdag_artifact_per_completion_evidence_replays_and_binds_identities() {
     let ctx = ctx();
     let ids = produce(&premises(shared(), SEARCH, &ctx), &ctx).1;
     let bind = |index: usize, name: &str, measured: &[u32]| CompletionEvidenceBinding {
@@ -314,7 +313,7 @@ fn x2_cpdag_artifact_per_completion_evidence_replays_and_binds_identities() {
 }
 
 #[test]
-fn x2_cpdag_artifact_budget_stop_exports_and_replays_the_prefix() {
+fn cpdag_artifact_budget_stop_exports_and_replays_the_prefix() {
     let ctx = ctx();
     // Enumeration stops after one of three completions: two are never enumerated.
     let limits = SearchLimits { operations: 3, depth: 256 };
@@ -353,7 +352,7 @@ fn x2_cpdag_artifact_budget_stop_exports_and_replays_the_prefix() {
 }
 
 #[test]
-fn x2_cpdag_artifact_cancelled_report_never_exports() {
+fn cpdag_artifact_cancelled_report_never_exports() {
     let live = ctx();
     let cancelled = ExecutionContext::for_tests(1);
     cancelled.cancellation.cancel();
@@ -372,7 +371,7 @@ fn x2_cpdag_artifact_cancelled_report_never_exports() {
 }
 
 #[test]
-fn x2_cpdag_artifact_unknown_version_and_foreign_features_refuse() {
+fn cpdag_artifact_unknown_version_and_foreign_features_refuse() {
     let ctx = ctx();
     let (bytes, _) = produce(&premises(shared(), SEARCH, &ctx), &ctx);
     let future = edit(&bytes, |w| w.version = 2).export().unwrap();

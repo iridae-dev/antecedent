@@ -1,10 +1,10 @@
-//! 2.3 B3: marginal sensitivity model (MSM) bounds, tipping point and the F17 artifact.
+//! Marginal sensitivity model (MSM) bounds, tipping point and the sensitivity artifact.
 //!
 //! The facade routes and owns no scientific rule of its own:
 //!
 //! * [`msm_sensitivity`] runs the exact-input sharp bounds and tipping point of
 //!   `antecedent-validate` ([`msm_ate_sensitivity`]);
-//! * [`msm_sensitivity_artifact`] adapts the result into the composition-ready F17
+//! * [`msm_sensitivity_artifact`] adapts the result into the composition-ready
 //!   [`SensitivityArtifact`] that `sensitivity_decision` evaluates;
 //! * [`msm_sensitivity_artifact_bytes`] exports that artifact through the bounded
 //!   sectioned container.
@@ -16,7 +16,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 use antecedent_io::IoError;
 pub use antecedent_io::msm_sensitivity_adapter::{
     MSM_COORDINATE_ID, MSM_COORDINATE_SCALE, MSM_SOURCE_KIND, MsmOutcomeLaw, MsmPoint,
@@ -46,7 +46,7 @@ pub fn msm_sensitivity(
     msm_ate_sensitivity(strata, spec)
 }
 
-/// The F17 sensitivity artifact of a result.
+/// The sensitivity artifact of a result.
 ///
 /// `effect` is the scientific coordinate of the ATE, `point_quantities` are optional
 /// assumption-dependent point quantities (one value per grid point) and `actions` the compared

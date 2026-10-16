@@ -1,0 +1,7 @@
+# Sources retained for engineering/evidence references, excluded from public output.
+excluded = [
+  "README.md",
+  "refactor-verification.md",
+  "guides/sparse-ingest-evaluation.md",
+  "nested-markov-bayesian-calibration.md",
+]

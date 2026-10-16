@@ -1,4 +1,4 @@
-"""Compact runtime export of a fitted linear-in-coefficients effect model (B4).
+"""Compact runtime export of a fitted linear-in-coefficients effect model .
 
 The export stores a coefficient vector, its full covariance, a finite basis (intercept, linear,
 polynomial and one-hot terms of named quantities), the declared support of every input and a
@@ -40,15 +40,23 @@ import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from functools import partial
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ._b4_refusal import StructuredRefusal
+from ._columns import coerce_fields
+from ._freeze import thaw
 from ._native import build_compact_export as _build
 from ._native import consume_compact_export as _consume
 from ._native import evaluate_compact_export as _evaluate
+from ._refusal import StructuredRefusal
+from ._scientific import ScientificResult
+from ._validate import non_finite_refusal, real
 from .errors import CausalTypeError, CausalValueError
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "Categorical",
@@ -85,21 +93,13 @@ def _name(value: object, what: str) -> str:
     return value
 
 
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float | np.floating | np.integer):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise CompactExportRefusal(
-            {
-                "code": "invalid_argument",
-                "stage": "build",
-                "detail": "compact_export.non_finite_value",
-                "offending": what,
-                "message": f"{what} is not finite",
-            }
-        )
-    return number
+_real = partial(
+    real,
+    finite=True,
+    non_finite=non_finite_refusal(
+        CompactExportRefusal, stage="build", detail="compact_export.non_finite_value"
+    ),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,8 +147,8 @@ class Numeric:
     role: str = "covariate"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "lo", _real(self.lo, "lo"))
-        object.__setattr__(self, "hi", _real(self.hi, "hi"))
+        coerce_fields(self, lo=_real(self.lo, "lo"))
+        coerce_fields(self, hi=_real(self.hi, "hi"))
         self._quantity()
 
     def _quantity(self) -> Quantity:
@@ -173,7 +173,7 @@ class Categorical:
     def __post_init__(self) -> None:
         if isinstance(self.levels, str):
             raise CausalTypeError("levels must be an iterable of level names")
-        object.__setattr__(self, "levels", tuple(_name(x, "level") for x in self.levels))
+        coerce_fields(self, levels=tuple(_name(x, "level") for x in self.levels))
         self._quantity()
 
     def _quantity(self) -> Quantity:
@@ -320,7 +320,7 @@ def _query(query: Mapping[str, Any]) -> dict[str, Any]:
 
 
 @dataclass(frozen=True, slots=True, eq=False)
-class CompactExport:
+class CompactExport(ScientificResult):
     """A validated, sealed compact export.
 
     ``identity`` is the BLAKE3 identity a consumer retains out-of-band; ``body`` is the stored,
@@ -329,7 +329,7 @@ class CompactExport:
 
     identity: str
     body: Mapping[str, Any]
-    artifact: bytes = field(repr=False)
+    _artifact_bytes: bytes = field(repr=False)
 
     @classmethod
     def build(
@@ -387,7 +387,9 @@ class CompactExport:
         if summary is None or artifact is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native export returned neither a result nor a refusal")
         parsed = json.loads(summary)
-        return cls(identity=parsed["identity"], body=parsed["body"], artifact=bytes(artifact))
+        return cls(
+            identity=parsed["identity"], body=parsed["body"], _artifact_bytes=bytes(artifact)
+        )
 
     @classmethod
     def consume(cls, artifact: bytes, *, expected_identity: str) -> CompactExport:
@@ -408,11 +410,17 @@ class CompactExport:
         if summary is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native verifier returned neither a result nor a refusal")
         parsed = json.loads(summary)
-        return cls(identity=parsed["identity"], body=parsed["body"], artifact=data)
+        return cls(identity=parsed["identity"], body=parsed["body"], _artifact_bytes=data)
+
+    def artifact(self) -> ExportedArtifact[CompactExport]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``compact_runtime_export_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
     def evaluate(self, query: Mapping[str, Any]) -> PointEstimate:
         """Point prediction and model-based standard error at ``query``.
@@ -437,7 +445,7 @@ class CompactExport:
         query earned (returned, not raised); a verification failure raises.
         """
         wired = [_query(q) for q in queries]
-        results, refusal = _evaluate(self.artifact, self.identity, json.dumps(wired))
+        results, refusal = _evaluate(self._artifact_bytes, self.identity, json.dumps(wired))
         if refusal is not None:
             raise CompactExportRefusal(json.loads(refusal))
         if results is None:  # pragma: no cover - the native contract
@@ -452,4 +460,4 @@ class CompactExport:
 
     def to_dict(self) -> dict[str, Any]:
         """A plain, JSON-serializable summary (no artifact bytes)."""
-        return {"identity": self.identity, "body": dict(self.body)}
+        return {"identity": self.identity, "body": thaw(self.body)}

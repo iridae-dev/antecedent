@@ -247,10 +247,10 @@ def test_refusal_details_match_the_strings_the_rust_tests_assert():
     assert joint.value.remedy is not None
 
 
-# ---- F21: the two-coordinate aligned law, built on each surface and read on the other ----
+# ---- the two-coordinate aligned law, built on each surface and read on the other ----
 
 
-def test_f21_rust_built_joint_law_reports_the_enumerated_truth():
+def test_rust_built_joint_law_reports_the_enumerated_truth():
     """Means (1/2, 1), covariance 1/2 and E[XY] = 1, under an identity built from constants."""
     expected = gen.joint_law_identity()
     loaded = JointDistributionArtifact.load(_read("rust_joint_law.bin"), expected_identity=expected)
@@ -265,7 +265,7 @@ def test_f21_rust_built_joint_law_reports_the_enumerated_truth():
     assert np.array_equal(np.asarray(loaded), np.asarray(gen.joint_law()))
 
 
-def test_f21_changed_semantic_id_wrong_meaning_and_marginals_refuse_on_this_surface_too():
+def test_changed_semantic_id_wrong_meaning_and_marginals_refuse_on_this_surface_too():
     data = _read("rust_joint_law.bin")
     for changed in (
         gen.joint_law_identity(second="z"),
@@ -283,7 +283,7 @@ def test_f21_changed_semantic_id_wrong_meaning_and_marginals_refuse_on_this_surf
         marginals.covariance(0, 1)
 
 
-def test_f21_both_directions_use_one_wire_format():
+def test_both_directions_use_one_wire_format():
     python_bytes = _read("py_joint_law.bin")
     rust_bytes = _read("rust_joint_law.bin")
     expected = gen.joint_law_identity()

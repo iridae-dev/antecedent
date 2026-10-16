@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/estimate/temporal_class_envelope`
 
-1.4 class-preserving Pulse / single-step Sustained. The source graph keeps
+Class-preserving Pulse / single-step Sustained. The source graph keeps
 its incomplete class, including a fully oriented supplied graph. Completions
 are TemporalDag (CPDAG) or directed/bidirected MAG (PAG) members; each is
 identified and mass-weighted.

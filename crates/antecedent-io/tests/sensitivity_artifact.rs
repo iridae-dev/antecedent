@@ -1,13 +1,13 @@
-//! F17 `SensitivityArtifact`: the portable wire, its recomputing consumer, resealed
-//! mutation refusals, version refusal, bounds and the adaptation of a 2.2 result.
+//! `SensitivityArtifact`: the portable wire, its recomputing consumer, resealed
+//! mutation refusals, version refusal, bounds and the adaptation of a joint mechanism sensitivity result.
 //!
 //! Expected values are derived by hand from the declared surfaces. The frozen surface has
 //! `gamma` in `{0, 1, 2}` with action A at utility `2 - gamma` (2, 1, 0) and action B at
 //! utility 1: A leads at 0, they tie at 1 and B leads at 2, so the tipping coordinate is
 //! the exact tie at `gamma = 1`.
-#![allow(clippy::float_cmp, reason = "exact hand-derived grid values")]
 
-use antecedent_core::{QuantityRole, RegimeId, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_core::RegimeId;
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::sensitivity_artifact::{
@@ -80,7 +80,7 @@ fn frozen_parts() -> SensitivityParts {
         uncertainty: withheld(),
         provenance: SensitivityProvenance {
             source_kind: "supplied_surface".into(),
-            query_binding: "f17-io-test".into(),
+            query_binding: "io-test".into(),
             provider_snapshot: "snapshot-1".into(),
             source_regime: "regime:1".into(),
             method: "hand-derived surface".into(),
@@ -124,7 +124,7 @@ fn assert_wrong_contract(result: Result<SensitivityArtifact, IoError>, needle: &
 }
 
 #[test]
-fn f17_artifact_round_trips_and_its_consumer_replays_the_decision() {
+fn artifact_round_trips_and_its_consumer_replays_the_decision() {
     let artifact = SensitivityArtifact::new(frozen_parts()).unwrap();
     assert_eq!(artifact.outcome(), Some(&frozen_switch()));
     assert_eq!(artifact.decision_outcome(None).unwrap(), frozen_switch());
@@ -144,7 +144,7 @@ fn f17_artifact_round_trips_and_its_consumer_replays_the_decision() {
 }
 
 #[test]
-fn f17_resealed_surface_mutation_is_refused() {
+fn resealed_surface_mutation_is_refused() {
     let artifact = SensitivityArtifact::new(frozen_parts()).unwrap();
     let bytes = artifact.to_bytes("sensitivity-1").unwrap();
     let (meta, mut numbers) = decode_parts(&bytes).unwrap();
@@ -168,7 +168,7 @@ fn f17_resealed_surface_mutation_is_refused() {
 }
 
 #[test]
-fn f17_resealed_premise_and_result_mutations_are_refused() {
+fn resealed_premise_and_result_mutations_are_refused() {
     let artifact = SensitivityArtifact::new(frozen_parts()).unwrap();
     let bytes = artifact.to_bytes("sensitivity-1").unwrap();
     let (meta, numbers) = decode_parts(&bytes).unwrap();
@@ -211,7 +211,7 @@ fn f17_resealed_premise_and_result_mutations_are_refused() {
 }
 
 #[test]
-fn f17_unknown_versions_and_malformed_payloads_are_refused() {
+fn unknown_versions_and_malformed_payloads_are_refused() {
     let artifact = SensitivityArtifact::new(frozen_parts()).unwrap();
     let bytes = artifact.to_bytes("sensitivity-1").unwrap();
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
@@ -243,7 +243,7 @@ fn f17_unknown_versions_and_malformed_payloads_are_refused() {
 }
 
 #[test]
-fn f17_identity_does_not_depend_on_declaration_order() {
+fn identity_does_not_depend_on_declaration_order() {
     let base = SensitivityArtifact::new(frozen_parts()).unwrap();
     let mut shuffled = frozen_parts();
     shuffled.grid = vec![2.0, 0.0, 1.0];
@@ -261,7 +261,7 @@ fn f17_identity_does_not_depend_on_declaration_order() {
 }
 
 #[test]
-fn f17_range_and_sampling_interval_stay_separate_fields() {
+fn range_and_sampling_interval_stay_separate_fields() {
     // Two artifacts with the same assumption range and different sampling intervals share
     // their premises and the surface values; only the numerical data digest differs.
     let build = |interval_lower: f64| {
@@ -311,7 +311,7 @@ fn f17_range_and_sampling_interval_stay_separate_fields() {
 }
 
 #[test]
-fn f17_bad_coordinates_and_surfaces_are_refused() {
+fn bad_coordinates_and_surfaces_are_refused() {
     let refused = |mutate: &dyn Fn(&mut SensitivityParts)| {
         let mut p = frozen_parts();
         mutate(&mut p);
@@ -407,7 +407,7 @@ fn adopt_against(status_quo: f64) -> Vec<ActionUtility> {
 }
 
 #[test]
-fn f17_a_2_2_result_is_adapted_exactly_and_travels_through_the_wire() {
+fn a_joint_result_is_adapted_exactly_and_travels_through_the_wire() {
     // Baseline 0.5, extrema -0.1 and 1.1 at the contamination bound 0.4; the range is linear
     // in the fraction, so it is 0.5 - 0.6 t and 0.5 + 0.6 t with t = fraction / 0.4.
     let result = joint_result(
@@ -461,7 +461,7 @@ fn f17_a_2_2_result_is_adapted_exactly_and_travels_through_the_wire() {
 }
 
 #[test]
-fn f17_a_2_2_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused() {
+fn a_joint_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused() {
     let effect = scientific("effect");
     let two = joint_result(
         vec![
@@ -509,4 +509,20 @@ fn f17_a_2_2_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused()
         ),
         "assumption-range",
     );
+}
+
+#[test]
+fn the_producer_kind_is_recorded_text_and_keeps_its_own_identity() {
+    // The producer kind is recorded text, not a dispatch key: an artifact sealed under any
+    // spelling keeps its own identity and verifies unchanged.
+    for legacy in ["joint_mechanism_sensitivity_2_2", "msm_sensitivity_2_3"] {
+        let mut parts = frozen_parts();
+        parts.provenance.source_kind = legacy.into();
+        let artifact = SensitivityArtifact::new(parts).unwrap();
+        let bytes = artifact.to_bytes("legacy").unwrap();
+        let restored = SensitivityArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
+        assert_eq!(restored.provenance().source_kind, legacy);
+        assert_eq!(restored, artifact);
+        assert_eq!(restored.outcome(), Some(&frozen_switch()));
+    }
 }

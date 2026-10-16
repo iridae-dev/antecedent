@@ -1,4 +1,4 @@
-"""2.3 C2: selective recalculation with a visible receipt, through the Python facade.
+"""Selective recalculation with a visible receipt, through the Python facade.
 
 The route is the cross-fitted AIPW average effect through the prepared-study architecture.
 Each mutation asserts the whole per-stage status table, the counts of work that actually ran
@@ -125,7 +125,7 @@ def assert_reused_identities_equal(a: RecalcResult, b: RecalcResult) -> None:
         assert a.receipt.entry(stage).identity == b.receipt.entry(stage).identity
 
 
-def test_c2_first_run_fits_and_a_rerun_in_a_fresh_session_fits_again() -> None:
+def test_first_run_fits_and_a_rerun_in_a_fresh_session_fits_again() -> None:
     req = request()
     session = RecalcSession()
     first = session.execute(req, seed=SEED)
@@ -144,7 +144,7 @@ def test_c2_first_run_fits_and_a_rerun_in_a_fresh_session_fits_again() -> None:
     assert first.receipt.loaded is False and session.is_live
 
 
-def test_c2_utility_only_change_recomputes_the_decision_with_zero_fit_work() -> None:
+def test_utility_only_change_recomputes_the_decision_with_zero_fit_work() -> None:
     base = request()
     session = RecalcSession()
     first = session.execute(base, seed=SEED)
@@ -170,7 +170,7 @@ def test_c2_utility_only_change_recomputes_the_decision_with_zero_fit_work() -> 
     assert second.decision.treat == independent.decision.treat
 
 
-def test_c2_compatible_target_weight_change_reuses_frozen_scores_with_equal_value() -> None:
+def test_compatible_target_weight_change_reuses_frozen_scores_with_equal_value() -> None:
     base = request()
     session = RecalcSession()
     first = session.execute(base, seed=SEED)
@@ -198,7 +198,7 @@ def test_c2_compatible_target_weight_change_reuses_frozen_scores_with_equal_valu
     assert second.decision.net_benefit == pytest.approx(independent.decision.net_benefit, abs=1e-12)
 
 
-def test_c2_changed_folds_and_new_outcomes_refit_without_reidentifying() -> None:
+def test_changed_folds_and_new_outcomes_refit_without_reidentifying() -> None:
     base = request()
     session = RecalcSession()
     first = session.execute(base, seed=SEED)
@@ -240,7 +240,7 @@ def test_c2_changed_folds_and_new_outcomes_refit_without_reidentifying() -> None
     assert outcomes.law.ate == pytest.approx(rerun(fresh, seed).law.ate, abs=1e-12)
 
 
-def test_c2_graph_or_query_change_reidentifies() -> None:
+def test_graph_or_query_change_reidentifies() -> None:
     base = request()
     session = RecalcSession()
     first = session.execute(base, seed=SEED)
@@ -279,7 +279,7 @@ def test_c2_graph_or_query_change_reidentifies() -> None:
     assert abs(requeried.law.ate - first.law.ate) > 0.5, "another outcome, another law"
 
 
-def test_c2_an_undeclared_retarget_refits_instead_of_reusing_scores() -> None:
+def test_an_undeclared_retarget_refits_instead_of_reusing_scores() -> None:
     base = request()
     session = RecalcSession(retarget="not_declared")
     session.execute(base, seed=SEED)
@@ -302,7 +302,7 @@ def test_c2_an_undeclared_retarget_refits_instead_of_reusing_scores() -> None:
     assert second.law.ate == pytest.approx(rerun(changed).law.ate, abs=1e-12)
 
 
-def test_c2_external_study_change_leaves_unrelated_branches_reused() -> None:
+def test_external_study_change_leaves_unrelated_branches_reused() -> None:
     """Planning over declared external studies: only the changed branch's chain recomputes."""
 
     def workflow(study_one: str) -> dict[Stage, str]:
@@ -366,7 +366,7 @@ def test_c2_external_study_change_leaves_unrelated_branches_reused() -> None:
         Stage.external_study(8)
 
 
-def test_c2_refusals_run_no_work_and_leave_the_session_untouched() -> None:
+def test_refusals_run_no_work_and_leave_the_session_untouched() -> None:
     base = request()
     session = RecalcSession()
 
@@ -421,7 +421,7 @@ def test_c2_refusals_run_no_work_and_leave_the_session_untouched() -> None:
         session.plan(replace(base, treatment="no_such_column"))
 
 
-def test_c2_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() -> None:
+def test_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() -> None:
     base = request()
     original = RecalcSession()
     first = original.execute(base, seed=SEED)
@@ -488,7 +488,7 @@ def test_c2_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() -> Non
     assert with_provider.status(Stage.provider_request(0)).text == "recomputed(fresh_process)"
 
 
-def test_c2_the_receipt_is_portable_canonical_and_refuses_edits() -> None:
+def test_the_receipt_is_portable_canonical_and_refuses_edits() -> None:
     base = request()
     session = RecalcSession()
     first = session.execute(base, seed=SEED)
@@ -534,7 +534,7 @@ def test_c2_the_receipt_is_portable_canonical_and_refuses_edits() -> None:
     assert fresh.identity == out.receipt.identity
 
 
-def test_c2_the_plan_explains_each_status_with_its_determining_dependency() -> None:
+def test_the_plan_explains_each_status_with_its_determining_dependency() -> None:
     base = request()
     session = RecalcSession()
     session.execute(base, seed=SEED)

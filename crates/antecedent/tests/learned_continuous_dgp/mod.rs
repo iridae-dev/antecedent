@@ -1,4 +1,4 @@
-//! Known-truth data-generating processes for the learned continuous transport cell (X4).
+//! Known-truth data-generating processes for the learned continuous transport cell.
 //!
 //! One baseline covariate `z` (graph coordinate 0), a randomized binary treatment `a`
 //! (coordinate 1, probability one half) and a continuous outcome `y` (coordinate 2).
@@ -32,7 +32,10 @@
 //! exactly `n_trial` trial rows and `n_target` target rows.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "each integration test binary includes this module and uses a subset of it"
+)]
 
 use antecedent_core::{
     ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,

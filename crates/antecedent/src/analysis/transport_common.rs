@@ -4,12 +4,52 @@
 use antecedent_core::{
     EvidenceCatalog, ExecutionContext, IdentityDomain, NodeRef, RegimeId, VariableId,
 };
-use antecedent_expr::{Assignment, ExactEvaluationLimits};
+use antecedent_estimate::ReplicatePolicy;
+use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
-use antecedent_identify::{ClassicalTransportDerivation, ClassicalTransportQuery, SidLimits};
-use antecedent_io::{IoError, transport_proof::TransportProofWire};
+use antecedent_identify::{
+    BoundTransportFunctional, ClassicalTransportDerivation, ClassicalTransportQuery, SidLimits,
+};
+use antecedent_io::{
+    IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
+    transport_proof::TransportProofWire,
+};
 use serde::Serialize;
 use std::sync::Arc;
+
+use super::exact::ExactFactorRequirement;
+
+/// The facade's licensing floor for a nominal-0.95 percentile or posterior interval edge.
+pub(super) const PERCENTILE_FLOOR: ReplicatePolicy =
+    ReplicatePolicy::percentile_floor(crate::result::PERCENTILE_95_MIN_REPLICATES);
+
+/// Withhold a Bayesian transport posterior's intervals when its draws fall under
+/// [`PERCENTILE_FLOOR`], keeping the point law and recording why.
+pub(super) fn apply_posterior_draw_floor(
+    estimate: &mut antecedent_estimate::BayesianStatisticalTransportEstimate,
+) {
+    if estimate.interval_reason.as_deref()
+        != Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
+    {
+        return;
+    }
+    if let Err(reason) =
+        PERCENTILE_FLOOR.decide(estimate.draws_requested, estimate.draws_ok, estimate.draws_failed)
+    {
+        estimate.atom_intervals = Arc::from([]);
+        estimate.mean_intervals = Arc::from([]);
+        estimate.interval_reason = Some(Arc::from(reason));
+    }
+}
+
+/// The evidence catalog a scenario or sequence decision binds and the one shared search
+/// budget it charges.
+pub struct EvidenceSearch {
+    /// Evidence catalog the decision binds.
+    pub catalog: EvidenceCatalog,
+    /// Shared search budget of the decision, its verification replays and its compilation.
+    pub budget: antecedent_core::SearchLimits,
+}
 
 /// Wrap any conversion failure as the one transport IO error.
 pub(super) fn err(error: impl std::fmt::Display) -> IoError {
@@ -46,9 +86,76 @@ pub(super) fn evaluate_plans<P, D>(
     plans.iter().map(evaluate).collect()
 }
 
+/// Law wires in the canonical order: by CBOR of `(population, regime, interventions)`.
+pub(super) fn ordered_laws(
+    laws: impl Iterator<Item = ExactLawWire>,
+) -> Result<Vec<ExactLawWire>, IoError> {
+    let mut laws = laws
+        .map(|law| {
+            Ok((
+                antecedent_io::to_cbor(&(law.population.clone(), law.regime, &law.interventions))?,
+                law,
+            ))
+        })
+        .collect::<Result<Vec<_>, IoError>>()?;
+    laws.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(laws.into_iter().map(|(_, law)| law).collect())
+}
+
+/// Every provider law of `data` as a wire, in canonical order.
+pub(super) fn law_wires(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
+    ordered_laws(data.laws().iter().map(ExactLawWire::from_law))
+}
+
+/// A request assignment as wire values sorted by variable.
+pub(super) fn assignments(request: &Assignment) -> Vec<(u32, ValueWire)> {
+    let mut values: Vec<_> =
+        request.entries().iter().map(|(v, x)| (v.raw(), ValueWire::from_value(x))).collect();
+    values.sort_by_key(|(v, _)| *v);
+    values
+}
+
+/// The distinct distribution leaves of a bound functional, in expression order.
+pub(super) fn requirements(functional: &BoundTransportFunctional) -> Vec<ExactFactorRequirement> {
+    let mut out = functional
+        .leaf_factors()
+        .into_iter()
+        .map(|(expression, leaf)| ExactFactorRequirement {
+            expression,
+            binding: leaf.binding,
+            variables: leaf.variables.to_vec(),
+            conditioned_on: leaf.conditioned_on.to_vec(),
+            interventions: leaf.intervention.iter().map(|a| a.variable).collect(),
+        })
+        .collect::<Vec<_>>();
+    out.sort_by_key(|factor| factor.expression.raw());
+    out
+}
+
+/// Sort axis values numerically (total order), then by CBOR bytes. A label has no numeric
+/// value and follows every number; equal numbers of different wire kinds and distinct
+/// labels are ordered by their encoding rather than by input order.
+pub(super) fn sort_axis_values(values: &mut Vec<ValueWire>) -> Result<(), IoError> {
+    let mut keyed = std::mem::take(values)
+        .into_iter()
+        .map(|value| Ok((value.to_value().as_f64(), antecedent_io::to_cbor(&value)?, value)))
+        .collect::<Result<Vec<_>, IoError>>()?;
+    keyed.sort_by(|a, b| {
+        match (a.0, b.0) {
+            (Some(x), Some(y)) => x.total_cmp(&y),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+        .then_with(|| a.1.cmp(&b.1))
+    });
+    *values = keyed.into_iter().map(|(_, _, value)| value).collect();
+    Ok(())
+}
+
 /// Hex digest of a wire value under `domain`.
 pub(super) fn digest(domain: IdentityDomain, value: &impl Serialize) -> Result<String, IoError> {
-    Ok(antecedent_io::identity::digest_wire(domain, value)?.to_hex())
+    antecedent_io::digest_hex(domain, value)
 }
 
 /// The graph fields every transport artifact carries.

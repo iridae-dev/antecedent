@@ -29,13 +29,13 @@
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, IdentificationStatus, Lag, TemporalNodeKey, VariableId};
-use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, TimeSeriesData};
-use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
-use antecedent_graph::{DenseNodeId, TemporalDag};
+use antecedent_data::{LaggedColumn, LaggedSampleWorkspace};
+use antecedent_expr::EstimandMethod;
+use antecedent_graph::DenseNodeId;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::EstimationError;
-use crate::temporal_sequential::SequentialMechanismOverlay;
+use crate::temporal_sequential::{SequenceTarget, SequentialMechanismOverlay, SequentialProblem};
 
 /// Replacement values for one `(variable, lag)` column of a [`PreparedSequenceLevel`]
 /// replicate, aligned with the replicate's anchors.
@@ -92,18 +92,18 @@ pub struct PreparedSequenceLevel {
 ///
 /// Empty, non-finite or duplicate overlays, an unidentified or non-unfolded estimand,
 /// fewer than three aligned rows, or a singular full-sample fit.
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "resolve the unfolded graph, order the needed nodes and plan the lagged columns for one level; the steps share the node order"
+)]
 pub fn prepare_sequence_level(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    outcome: VariableId,
-    outcome_offset: i32,
-    overlays: &[SequentialMechanismOverlay],
+    problem: &SequentialProblem<'_>,
+    target: &SequenceTarget<'_>,
     status: IdentificationStatus,
     ctx: &ExecutionContext,
 ) -> Result<PreparedSequenceLevel, EstimationError> {
+    let SequentialProblem { data, graph, indexer, estimand } = *problem;
+    let SequenceTarget { outcome, outcome_offset, overlays } = *target;
     if overlays.is_empty() {
         return Err(EstimationError::unsupported("sequential overlay requires at least one step"));
     }
@@ -439,6 +439,7 @@ mod tests {
         AssumptionSet, ExecutionContext, IdentificationStatus, Lag, TargetPopulation, VariableId,
     };
     use antecedent_data::{TemporalIndexer, TimeSeriesData};
+    use antecedent_expr::IdentifiedEstimand;
     use antecedent_graph::{TemporalDag, ensure_lagged};
 
     use super::*;
@@ -519,28 +520,38 @@ mod tests {
         let ctx = ExecutionContext::for_tests(5);
         let status = IdentificationStatus::NonparametricallyIdentified;
         let (effect, _) = estimate_sequence_mechanisms(
-            &data,
-            &graph,
-            &indexer,
-            &estimand,
-            VariableId::from_raw(1),
-            0,
-            &overlays,
-            status,
-            AssumptionSet::new(),
-            0,
-            None,
+            &crate::temporal_sequential::SequentialProblem {
+                data: &data,
+                graph: &graph,
+                indexer: &indexer,
+                estimand: &estimand,
+            },
+            &crate::temporal_sequential::SequenceTarget {
+                outcome: VariableId::from_raw(1),
+                outcome_offset: 0,
+                overlays: &overlays,
+            },
+            crate::temporal_sequential::SequentialInference {
+                status,
+                assumptions: AssumptionSet::new(),
+                bootstrap_replicates: 0,
+                bayesian: None,
+            },
             &ctx,
         )
         .unwrap();
         let prepared = prepare_sequence_level(
-            &data,
-            &graph,
-            &indexer,
-            &estimand,
-            VariableId::from_raw(1),
-            0,
-            &overlays,
+            &crate::temporal_sequential::SequentialProblem {
+                data: &data,
+                graph: &graph,
+                indexer: &indexer,
+                estimand: &estimand,
+            },
+            &crate::temporal_sequential::SequenceTarget {
+                outcome: VariableId::from_raw(1),
+                outcome_offset: 0,
+                overlays: &overlays,
+            },
             status,
             &ctx,
         )
@@ -565,13 +576,17 @@ mod tests {
         let (estimand, indexer) = identify(&graph, &overlays);
         let ctx = ExecutionContext::for_tests(5);
         let prepared = prepare_sequence_level(
-            &data,
-            &graph,
-            &indexer,
-            &estimand,
-            VariableId::from_raw(1),
-            0,
-            &overlays,
+            &crate::temporal_sequential::SequentialProblem {
+                data: &data,
+                graph: &graph,
+                indexer: &indexer,
+                estimand: &estimand,
+            },
+            &crate::temporal_sequential::SequenceTarget {
+                outcome: VariableId::from_raw(1),
+                outcome_offset: 0,
+                overlays: &overlays,
+            },
             IdentificationStatus::NonparametricallyIdentified,
             &ctx,
         )

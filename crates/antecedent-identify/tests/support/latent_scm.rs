@@ -1,5 +1,5 @@
 //! Exact enumerated latent-variable structural causal models for the
-//! counterfactual-identification tests (2.2B X8).
+//! counterfactual-identification tests.
 //!
 //! Every observed variable `V` takes levels `0..card(V)` and is a deterministic
 //! function of its observed parents, the binary latent of every bidirected edge
@@ -12,13 +12,8 @@
 
 #![allow(
     clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::cast_precision_loss,
-    clippy::float_cmp,
-    clippy::type_complexity,
-    clippy::too_many_lines,
     clippy::needless_range_loop,
-    clippy::result_large_err,
     dead_code,
     reason = "test fixtures: small exact indices, levels and enumerated probabilities; exact bit comparisons are the assertion"
 )]

@@ -3,7 +3,8 @@
 //! and external-callback receipts that never read as native verification.
 //! Expected values are the hand-set payoffs of each structure.
 
-use antecedent_core::{CompositionStage, QuantityRole, ScientificQuantity, SupportStatus};
+use antecedent_contract::{CompositionStage, ScientificQuantity};
+use antecedent_core::SupportStatus;
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, MAX_DECISION_ARTIFACT_BYTES, contract_to_json,
 };
@@ -20,18 +21,18 @@ use antecedent_design::decision_robustness::{
     AtomSupport, ClaimProfile, RobustDecisionResult, RobustVerdict, evaluate_robust,
 };
 use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
-use antecedent_io::container::{
+use antecedent_io_core::container::{
     ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
 };
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::DistributionMeaningWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::reader::ArtifactReader;
+use antecedent_io_core::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
 type ContractEdit = Box<dyn Fn(&mut AdmissibleDecisionContract)>;
 type ReceiptEdit = Box<dyn Fn(&mut ExternalCallbackReceipt)>;
@@ -41,19 +42,10 @@ type ReceiptEdit = Box<dyn Fn(&mut ExternalCallbackReceipt)>;
 // law of the payoffs of A and B on two equally likely rows.
 // ---------------------------------------------------------------------------
 
+mod common;
+
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 fn law(a: f64, b: f64) -> Box<DistributionArtifact> {
@@ -214,8 +206,8 @@ fn reseal(bytes: &[u8], kind: &str, edit: impl FnOnce(&mut serde_json::Value)) -
     let body = to_cbor(&value).unwrap();
     let encoded = EncodedArtifact {
         manifest: ArtifactManifest {
-            format_version: antecedent_io::migrate::STABLE_FORMAT,
-            minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
+            format_version: antecedent_io_core::migrate::STABLE_FORMAT,
+            minimum_reader_version: antecedent_io_core::migrate::STABLE_FORMAT,
             artifact_kind: ArtifactKind::Other(kind.into()),
             library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
                 .unwrap(),
@@ -231,11 +223,11 @@ fn reseal(bytes: &[u8], kind: &str, edit: impl FnOnce(&mut serde_json::Value)) -
 }
 
 // ---------------------------------------------------------------------------
-// F4: the admissible contract artifact
+// The admissible contract artifact
 // ---------------------------------------------------------------------------
 
 #[test]
-fn f4_admissible_contract_round_trips_with_canonical_identity() {
+fn admissible_contract_round_trips_with_canonical_identity() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rich_rules());
     let artifact = AdmissibleContractArtifact::new(c.clone()).unwrap();
     assert_eq!(artifact.identity(), c.identity().unwrap());
@@ -255,7 +247,7 @@ fn f4_admissible_contract_round_trips_with_canonical_identity() {
 }
 
 #[test]
-fn f4_admissible_identity_ignores_declaration_order_but_not_semantics() {
+fn admissible_identity_ignores_declaration_order_but_not_semantics() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rich_rules());
     let id = c.identity().unwrap();
 
@@ -286,7 +278,7 @@ fn f4_admissible_identity_ignores_declaration_order_but_not_semantics() {
 }
 
 #[test]
-fn f4_resealed_rule_edit_is_refused_under_the_retained_identity() {
+fn resealed_rule_edit_is_refused_under_the_retained_identity() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rich_rules());
     let original = AdmissibleContractArtifact::new(c.clone()).unwrap();
     let retained = original.identity().to_owned();
@@ -316,20 +308,21 @@ fn f4_resealed_rule_edit_is_refused_under_the_retained_identity() {
 }
 
 #[test]
-fn f4_contract_without_rules_keeps_a0_bytes_and_kinds_do_not_cross() {
+fn contract_without_rules_keeps_original_bytes_and_kinds_do_not_cross() {
     let plain = base(StructuralPolicy::ReportOnly);
-    let a0 = DecisionContractArtifact::new(plain.clone()).unwrap();
-    let a0_bytes = a0.to_bytes("contract").unwrap();
-    // The A0 path is untouched: same kind, deterministic bytes, no rules field.
+    let plain_artifact = DecisionContractArtifact::new(plain.clone()).unwrap();
+    let original_bytes = plain_artifact.to_bytes("contract").unwrap();
+    // The path without rules is untouched: same kind, deterministic bytes, no rules field.
     assert_eq!(
-        a0_bytes,
+        original_bytes,
         DecisionContractArtifact::new(plain.clone()).unwrap().to_bytes("contract").unwrap()
     );
-    let reader = ArtifactReader::open_seek(std::io::Cursor::new(&a0_bytes[..])).unwrap();
+    let reader = ArtifactReader::open_seek(std::io::Cursor::new(&original_bytes[..])).unwrap();
     assert_eq!(reader.manifest().artifact_kind, ArtifactKind::Other("decision_contract_v1".into()));
     let json = contract_to_json(&plain).unwrap();
     assert!(!json.contains("rules") && !json.contains("admissib"));
-    let loaded = DecisionContractArtifact::from_bytes(&a0_bytes, a0.identity()).unwrap();
+    let loaded =
+        DecisionContractArtifact::from_bytes(&original_bytes, plain_artifact.identity()).unwrap();
     assert_eq!(loaded.contract(), &plain);
 
     // Rules write a different artifact kind, so neither loader reads the other's
@@ -341,11 +334,13 @@ fn f4_contract_without_rules_keeps_a0_bytes_and_kinds_do_not_cross() {
         DecisionContractArtifact::from_bytes(&rules_bytes, &c.contract.identity().unwrap())
             .is_err()
     );
-    assert!(AdmissibleContractArtifact::from_bytes(&a0_bytes, &c.identity().unwrap()).is_err());
+    assert!(
+        AdmissibleContractArtifact::from_bytes(&original_bytes, &c.identity().unwrap()).is_err()
+    );
 }
 
 #[test]
-fn f4_invalid_rules_refuse_with_structured_detail() {
+fn invalid_rules_refuse_with_structured_detail() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rich_rules());
     let json = admissible_contract_to_json(&c).unwrap();
     let ghost = "\"action_id\":\"A\",\"input\":0";
@@ -382,7 +377,7 @@ fn f4_invalid_rules_refuse_with_structured_detail() {
 }
 
 #[test]
-fn f4_decode_is_bounded_before_any_allocation() {
+fn decode_is_bounded_before_any_allocation() {
     let huge = vec![0_u8; MAX_DECISION_ARTIFACT_BYTES + 1];
     assert!(matches!(
         AdmissibleContractArtifact::from_bytes(&huge, "x").unwrap_err(),
@@ -401,11 +396,11 @@ fn f4_decode_is_bounded_before_any_allocation() {
 }
 
 // ---------------------------------------------------------------------------
-// F6: the robust result artifact
+// The robust result artifact
 // ---------------------------------------------------------------------------
 
 #[test]
-fn f6_robust_result_round_trips_and_replays_by_recomputation() {
+fn robust_result_round_trips_and_replays_by_recomputation() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = two_atoms();
     let claims = supported_profile();
@@ -451,7 +446,7 @@ fn f6_robust_result_round_trips_and_replays_by_recomputation() {
 }
 
 #[test]
-fn f6_every_robust_verdict_state_round_trips() {
+fn every_robust_verdict_state_round_trips() {
     type Case = (StructuralPolicy, AdmissibilityRules, Vec<StructuralAtom>, ClaimProfile);
     let invariant = StructuralPolicy::RequireInvariantBestAction;
     let supported_both = supported_profile();
@@ -544,7 +539,7 @@ fn f6_every_robust_verdict_state_round_trips() {
 }
 
 #[test]
-fn f6_robust_bytes_are_invariant_to_action_order() {
+fn robust_bytes_are_invariant_to_action_order() {
     let rules = require_supported();
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rules);
     let mut reordered = c.clone();
@@ -571,7 +566,7 @@ fn f6_robust_bytes_are_invariant_to_action_order() {
 }
 
 #[test]
-fn f6_resealed_robust_mutations_are_refused() {
+fn resealed_robust_mutations_are_refused() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = two_atoms();
     let claims = supported_profile();
@@ -640,7 +635,7 @@ fn f6_resealed_robust_mutations_are_refused() {
 }
 
 #[test]
-fn f6_load_and_replay_refuse_other_contracts_structures_and_profiles() {
+fn load_and_replay_refuse_other_contracts_structures_and_profiles() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = two_atoms();
     let claims = supported_profile();
@@ -680,11 +675,11 @@ fn f6_load_and_replay_refuse_other_contracts_structures_and_profiles() {
 }
 
 // ---------------------------------------------------------------------------
-// F6: external-callback receipts
+// External-callback receipts
 // ---------------------------------------------------------------------------
 
 #[test]
-fn f6_external_callback_receipt_is_retained_and_never_native() {
+fn external_callback_receipt_is_retained_and_never_native() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = two_atoms();
     let claims = supported_profile();
@@ -736,7 +731,7 @@ fn f6_external_callback_receipt_is_retained_and_never_native() {
 }
 
 #[test]
-fn f6_changing_any_receipt_field_changes_the_derivation() {
+fn changing_any_receipt_field_changes_the_derivation() {
     let digest = |receipt: ExternalCallbackReceipt| {
         sealed(vec![receipt])
             .provenance_chain()
@@ -773,7 +768,7 @@ fn f6_changing_any_receipt_field_changes_the_derivation() {
 }
 
 #[test]
-fn f6_invalid_external_receipts_refuse() {
+fn invalid_external_receipts_refuse() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let claims = supported_profile();
     let atoms = [

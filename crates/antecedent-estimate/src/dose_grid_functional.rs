@@ -1,9 +1,9 @@
-//! 2.3 B1 (X4): one complete response-grid row, a named functional of a
+//! One complete response-grid row, a named functional of a
 //! randomized-dose response curve with per-dose support.
 //!
 //! # The row
 //!
-//! One statement per axis the B1 contract requires.
+//! One statement per axis the contract requires.
 //!
 //! * **Estimand.** For a continuous dose `D` and outcome `Y`, the dose response
 //!   `m(d) = E[Y(d)]`. Exactly one *named functional* is requested per call:
@@ -27,7 +27,7 @@
 //!   bandwidth is declared by the caller and must lie in a caller-declared range; it
 //!   is never data-selected here, so no selection variability is hidden.
 //! * **Dependence.** Independent rows. Clustered, serial or linked rows are outside
-//!   this row; the 2.2 clustered DML AIPW cell does not license them.
+//!   this row; the clustered DML AIPW cell does not license them.
 //! * **Support.** Per requested dose: `OutsideEmpiricalSupport` when the dose lies
 //!   outside the observed dose range, `WeakOverlap` when the Kish effective sample
 //!   size of the Gaussian local weights is below the declared minimum, else
@@ -40,8 +40,8 @@
 //! * **Inference claim.** A pointwise normal interval (heteroskedasticity-robust
 //!   sandwich standard error from the linearized influences) at one dose or for one
 //!   contrast, with calibration [`IntervalCalibration::Unmeasured`]: no coverage
-//!   claim is made and the public route stays closed until calibration is measured
-//!   at the release cut. Level, derivative and contrast claims are separate typed
+//!   claim is made and the public route stays closed while calibration is
+//!   unmeasured. Level, derivative and contrast claims are separate typed
 //!   fields, enabled separately through [`ClaimSet`]. A simultaneous band is a
 //!   different claim: requesting it is refused (`dose_grid.simultaneous_band_closed`)
 //!   and [`DoseGridRow::simultaneous_band`] is always `None`.
@@ -61,7 +61,7 @@ use antecedent_stats::{
 use crate::error::{EstimationError, RefusalFields};
 
 /// Normal 97.5% quantile for the nominal 95% pointwise interval.
-const Z_95: f64 = 1.959_963_984_540_054;
+const Z_95: f64 = antecedent_stats::NORMAL_Q975;
 /// Fewest effective rows a local quadratic can be asked to stand on.
 const MINIMUM_ESS_FLOOR: f64 = 3.0;
 
@@ -101,7 +101,7 @@ pub struct ClaimSet {
     pub simultaneous_band: bool,
 }
 
-/// Calibration status of an interval. Only `Unmeasured` exists in 2.3 B1.
+/// Calibration status of an interval. Only `Unmeasured` exists.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntervalCalibration {
     /// Coverage has not been measured; no coverage claim is made.
@@ -276,6 +276,7 @@ impl DoseGridRow {
         }
         let functional =
             format!("{coordinate}.bandwidth:{:016x}.exact_quadratic", self.bandwidth.to_bits());
+        let rows = u64::try_from(self.n_rows).ok()?;
         Some(antecedent_core::CalibrationBasis::new(
             [
                 "DoseResponse",
@@ -293,7 +294,7 @@ impl DoseGridRow {
             .map(Arc::from),
             interval.nominal_level,
             Arc::from("point"),
-            u64::try_from(self.n_rows).expect("bounded row count"),
+            rows,
             None,
             None,
             0.,
@@ -391,16 +392,16 @@ fn validate_inputs(request: &DoseGridRequest<'_>, points: &[f64]) -> Result<(), 
     Ok(())
 }
 
-fn kish_ess(dose: &[f64], at: f64, bandwidth: f64) -> f64 {
-    let mut sum = 0.0;
-    let mut sum_sq = 0.0;
-    for &d in dose {
-        let z = (d - at) / bandwidth;
-        let w = (-0.5 * z * z).exp();
-        sum += w;
-        sum_sq += w * w;
-    }
-    if sum_sq > f64::EPSILON { sum * sum / sum_sq } else { 0.0 }
+/// Kish effective sample size of the Gaussian kernel weights of `dose` around `at`.
+fn kernel_ess(dose: &[f64], at: f64, bandwidth: f64) -> f64 {
+    let weights: Vec<f64> = dose
+        .iter()
+        .map(|&d| {
+            let z = (d - at) / bandwidth;
+            (-0.5 * z * z).exp()
+        })
+        .collect();
+    antecedent_kernels::kish_ess(&weights)
 }
 
 fn observed_range(dose: &[f64]) -> (f64, f64) {
@@ -414,7 +415,7 @@ fn label_points(
     minimum_ess: f64,
 ) -> (Vec<SupportStatus>, Vec<f64>) {
     let (minimum, maximum) = observed_range(dose);
-    let ess: Vec<f64> = points.iter().map(|&at| kish_ess(dose, at, bandwidth)).collect();
+    let ess: Vec<f64> = points.iter().map(|&at| kernel_ess(dose, at, bandwidth)).collect();
     let labels = points
         .iter()
         .zip(&ess)

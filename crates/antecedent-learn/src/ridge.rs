@@ -3,19 +3,17 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::ExecutionContext;
-use antecedent_stats::{FaerBackend, LeastSquaresFit, LeastSquaresWorkspace, fit_ridge};
+use antecedent_stats::{FaerBackend, LeastSquaresWorkspace, fit_ridge};
 
-use crate::dense::{gather_physical, materialize_dense_colmajor, predict_linear};
+use crate::dense::{gather_physical, materialize_dense_colmajor};
 use crate::design::{DesignView, TargetView};
 use crate::error::LearnError;
-use crate::learner::{
-    FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
-};
+use crate::learner::{FittedPredictor, LearnerCapabilities, LearnerFactory, PredictionTask};
 use crate::spec::RidgeSpec;
 
 /// Ridge regression via [`fit_ridge`].
 #[derive(Clone, Copy, Debug)]
-pub struct RidgeLearner {
+pub(crate) struct RidgeLearner {
     spec: RidgeSpec,
 }
 
@@ -31,6 +29,7 @@ impl RidgeLearner {
     /// # Errors
     ///
     /// [`LearnError::TaskMismatch`] when `task` is [`PredictionTask::BinaryProbability`].
+    #[cfg(test)]
     pub fn for_task(task: PredictionTask, spec: RidgeSpec) -> Result<Self, LearnError> {
         match task {
             PredictionTask::Regression => Ok(Self { spec }),
@@ -75,41 +74,12 @@ impl LearnerFactory for RidgeLearner {
         let mut ws = LeastSquaresWorkspace::default();
         let fit =
             fit_ridge(&design, nrows, ncols, &gathered_y, self.spec.lambda, &FaerBackend, &mut ws)?;
-        Ok(Box::new(RidgePredictor { fit }))
-    }
-}
-
-struct RidgePredictor {
-    fit: LeastSquaresFit,
-}
-
-impl FittedPredictor for RidgePredictor {
-    fn predict(
-        &self,
-        x: DesignView<'_>,
-        out: &mut [f64],
-        _ctx: &ExecutionContext,
-    ) -> Result<(), LearnError> {
-        predict_linear(&self.fit.coefficients, x, out)
-    }
-
-    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
-        Ok(crate::PortablePredictor {
-            version: 1,
-            columns: self.fit.coefficients.len(),
-            provenance: self.provenance(),
-            model: crate::PredictionMap::Linear {
-                coefficients: self.fit.coefficients.clone(),
-                logistic: false,
-            },
-        })
-    }
-
-    fn provenance(&self) -> LearnerProvenance {
-        LearnerProvenance {
-            spec: "ridge".into(),
-            implementation: "faer".into(),
-            version: "0.24".into(),
-        }
+        Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
+            fit.coefficients,
+            false,
+            "ridge",
+            "faer",
+            crate::learner::FAER_VERSION,
+        )))
     }
 }

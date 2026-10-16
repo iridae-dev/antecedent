@@ -60,12 +60,14 @@ __all__ = [
     "DerivedTreatment",
     "DerivedTreatmentPlan",
     "JointCell",
+    "JointCellCost",
     "JointCellsResult",
     "NormalizationCheck",
     "OrderingSensitivity",
     "OrderingSpread",
     "SourceColumn",
     "check_derived_treatment",
+    "estimate_joint_cell_cost",
     "factorized_joint_cells",
 ]
 
@@ -430,3 +432,81 @@ def factorized_joint_cells(
         cancel=cancel,
     )
     return _result(json.loads(raw))
+
+
+@dataclass(frozen=True, slots=True)
+class JointCellCost:
+    """Planning-time fit counts of a factorized joint-cell fit; never a runtime guarantee."""
+
+    components: int
+    cells: int
+    orderings: int
+    folds: int
+    conditional_strata: int
+    conditional_fits: int
+    propensity_fits: int
+    outcome_fits: int
+    nuisance_fits: int
+    fit_route: str
+    rows: int | None
+    seconds: float | None
+    seconds_basis: str
+    note: str
+    planning_hint: bool = True
+
+
+def estimate_joint_cell_cost(
+    components: int,
+    *,
+    ordering: Sequence[int] | None = None,
+    all_orderings: bool = True,
+    nuisance: str = "ridge_logistic",
+    penalties: Sequence[float] | None = None,
+    inner_folds: int = 5,
+    folds: int = 5,
+    rows: int | None = None,
+) -> JointCellCost:
+    """Count the fits of a factorized joint-cell estimate before running it.
+
+    ``components`` is the number of binary treatment components; ``ordering`` is a permutation
+    of ``range(components)`` (default: the declared order) and ``all_orderings`` adds every
+    other permutation, exactly as :func:`factorized_joint_cells` does. ``nuisance``,
+    ``penalties``, ``inner_folds`` and ``folds`` are the fit's own settings. The counts are
+    upper bounds and a planning hint: ``seconds`` is absent because no benchmark covers the
+    route. An invalid configuration or ordering is refused as the fit would refuse it.
+    """
+    if not isinstance(nuisance, str):
+        raise CausalValueError("nuisance must be a provider name string")
+    if penalties is not None and nuisance != "ridge_logistic":
+        raise CausalValueError(
+            "penalties tune the ridge_logistic nuisance only; a declared learner takes none"
+        )
+    raw = json.loads(
+        _native.joint_cell_cost_json(
+            components,
+            ordering=None if ordering is None else [int(i) for i in ordering],
+            all_orderings=all_orderings,
+            nuisance=nuisance,
+            penalties=None if penalties is None else [float(p) for p in penalties],
+            inner_folds=inner_folds,
+            folds=folds,
+            rows=rows,
+        )
+    )
+    return JointCellCost(
+        components=int(raw["components"]),
+        cells=int(raw["cells"]),
+        orderings=int(raw["orderings"]),
+        folds=int(raw["folds"]),
+        conditional_strata=int(raw["conditional_strata"]),
+        conditional_fits=int(raw["conditional_fits"]),
+        propensity_fits=int(raw["propensity_fits"]),
+        outcome_fits=int(raw["outcome_fits"]),
+        nuisance_fits=int(raw["nuisance_fits"]),
+        fit_route=str(raw["fit_route"]),
+        rows=raw["rows"],
+        seconds=raw["seconds"],
+        seconds_basis=str(raw["seconds_basis"]),
+        note=str(raw["note"]),
+        planning_hint=bool(raw["planning_hint"]),
+    )

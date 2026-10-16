@@ -6,7 +6,7 @@
 //! family-wise coverage over the replications is at least the nominal level minus a stated
 //! Monte-Carlo tolerance of three binomial standard errors. It also asserts the max-t band is
 //! strictly wider than every marginal Wald band. Calibrated coverage of the band is measured
-//! separately by `batch_retarget_calibration.rs` (wired, run at the release cut).
+//! separately by `batch_retarget_calibration.rs` (coverage unmeasured).
 //!
 //! SCM: `Z ~ N(0, 1)`, `P(T = 1 | Z) = logistic(-0.2 + 0.8 Z)`,
 //! `Y = Z + 2 T + 0.5 T Z + 0.5 e`, so the conditional effect is `2 + 0.5 Z`. Under the

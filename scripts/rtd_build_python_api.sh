@@ -15,4 +15,5 @@ python -c 'import antecedent; print(antecedent.__file__, getattr(antecedent, "__
 python "${ROOT}/scripts/build_python_api_docs.py" "${OUT}"
 ls -la "${OUT}" | head -n 30
 test -f "${OUT}/antecedent.html"
+python "${ROOT}/scripts/check_docs_site.py" "${READTHEDOCS_OUTPUT}/html"
 echo "pdoc ok → ${OUT}/antecedent.html"

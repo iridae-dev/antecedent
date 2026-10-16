@@ -5,7 +5,10 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence as SequenceValues
 from dataclasses import KW_ONLY, dataclass
+from functools import partial
 
+from ._columns import coerce_fields
+from ._validate import real
 from .errors import CausalUnsupportedError, CausalValueError
 
 
@@ -14,9 +17,12 @@ def _variable(value: str) -> None:
         raise CausalValueError("variable must be a non-empty string")
 
 
-def _finite(name: str, value: float) -> None:
-    if not math.isfinite(value):
-        raise CausalValueError(f"{name} must be finite")
+_finite = partial(
+    real,
+    finite=True,
+    type_message="{what} must be a real number",
+    non_finite=lambda what: CausalValueError(f"{what} must be finite"),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +34,7 @@ class Set:
 
     def __post_init__(self) -> None:
         _variable(self.variable)
-        _finite("value", self.value)
+        _finite(self.value, "value")
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +46,7 @@ class Shift:
 
     def __post_init__(self) -> None:
         _variable(self.variable)
-        _finite("delta", self.delta)
+        _finite(self.delta, "delta")
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +72,7 @@ class Gaussian:
 
     def __post_init__(self) -> None:
         _variable(self.variable)
-        _finite("mean", self.mean)
+        _finite(self.mean, "mean")
         if not math.isfinite(self.variance) or self.variance <= 0.0:
             raise CausalValueError("variance must be finite and positive")
 
@@ -85,7 +91,7 @@ class Categorical:
             raise CausalValueError("probabilities must be non-empty, finite, and non-negative")
         if sum(probs) <= 0.0:
             raise CausalValueError("probabilities must have positive total mass")
-        object.__setattr__(self, "probabilities", probs)
+        coerce_fields(self, probabilities=probs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +127,7 @@ class Soft:
                 raise CausalValueError("truncated_shift requires delta, lower, upper")
             if params[1] > params[2]:
                 raise CausalValueError("truncated_shift lower bound exceeds upper bound")
-        object.__setattr__(self, "parameters", params)
+        coerce_fields(self, parameters=params)
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,7 +140,7 @@ class Sequence:
         steps = tuple(self.steps)
         if not steps:
             raise CausalValueError("steps must not be empty")
-        object.__setattr__(self, "steps", steps)
+        coerce_fields(self, steps=steps)
 
 
 Intervention = Set | Shift | Bernoulli | Gaussian | Categorical | Soft | Sequence

@@ -1,0 +1,1045 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_graph::GraphError
+impl !core::marker::Freeze for antecedent_graph::Pag [auto]
+impl !core::marker::Freeze for antecedent_graph::PagCompletion [auto]
+impl !core::marker::Freeze for antecedent_graph::PagReview [auto]
+impl !core::marker::Freeze for antecedent_graph::UnfoldedTemporalPag [auto]
+impl antecedent_graph::algo::MaskWord for u16
+impl antecedent_graph::algo::MaskWord for u32
+impl antecedent_graph::algo::MaskWord for u64
+impl antecedent_graph::algo::MaskWord for u8
+impl core::clone::Clone for antecedent_graph::Admg
+impl core::clone::Clone for antecedent_graph::BitSet
+impl core::clone::Clone for antecedent_graph::CompletionSampler
+impl core::clone::Clone for antecedent_graph::CompletionValidationReport
+impl core::clone::Clone for antecedent_graph::CopyLabels
+impl core::clone::Clone for antecedent_graph::Cpdag
+impl core::clone::Clone for antecedent_graph::CpdagCompletion
+impl core::clone::Clone for antecedent_graph::CpdagCompletionSampler
+impl core::clone::Clone for antecedent_graph::CpdagReview
+impl core::clone::Clone for antecedent_graph::DSeparationWorkspace
+impl core::clone::Clone for antecedent_graph::Dag
+impl core::clone::Clone for antecedent_graph::DagReview
+impl core::clone::Clone for antecedent_graph::DefiniteStatusPath
+impl core::clone::Clone for antecedent_graph::DefiniteStatusPathSearch
+impl core::clone::Clone for antecedent_graph::DenseNodeId
+impl core::clone::Clone for antecedent_graph::Endpoint
+impl core::clone::Clone for antecedent_graph::GraphError
+impl core::clone::Clone for antecedent_graph::GraphOverlay
+impl core::clone::Clone for antecedent_graph::GraphWorkspace
+impl core::clone::Clone for antecedent_graph::LazyUnfoldedTemporalGraph
+impl core::clone::Clone for antecedent_graph::MarkedEdge
+impl core::clone::Clone for antecedent_graph::MiddleMark
+impl core::clone::Clone for antecedent_graph::Pag
+impl core::clone::Clone for antecedent_graph::PagCompletion
+impl core::clone::Clone for antecedent_graph::PagReview
+impl core::clone::Clone for antecedent_graph::PagSeparation
+impl core::clone::Clone for antecedent_graph::PathStep
+impl core::clone::Clone for antecedent_graph::SelectionDiagram
+impl core::clone::Clone for antecedent_graph::SeparationCertificate
+impl core::clone::Clone for antecedent_graph::SeparationResult
+impl core::clone::Clone for antecedent_graph::TemporalAdmg
+impl core::clone::Clone for antecedent_graph::TemporalCpdag
+impl core::clone::Clone for antecedent_graph::TemporalCpdagCompletion
+impl core::clone::Clone for antecedent_graph::TemporalCpdagCompletionSampler
+impl core::clone::Clone for antecedent_graph::TemporalCpdagReview
+impl core::clone::Clone for antecedent_graph::TemporalDag
+impl core::clone::Clone for antecedent_graph::TemporalGraphReview
+impl core::clone::Clone for antecedent_graph::TemporalPag
+impl core::clone::Clone for antecedent_graph::TemporalPagCompletion
+impl core::clone::Clone for antecedent_graph::TemporalPagCompletionSampler
+impl core::clone::Clone for antecedent_graph::TemporalPagReview
+impl core::clone::Clone for antecedent_graph::TieredBackground
+impl core::clone::Clone for antecedent_graph::UnfoldedTemporalGraph
+impl core::clone::Clone for antecedent_graph::UnfoldedTemporalPag
+impl core::clone::Clone for antecedent_graph::WithinTier
+impl core::cmp::Eq for antecedent_graph::Admg
+impl core::cmp::Eq for antecedent_graph::BitSet
+impl core::cmp::Eq for antecedent_graph::CompletionValidationReport
+impl core::cmp::Eq for antecedent_graph::CopyLabels
+impl core::cmp::Eq for antecedent_graph::Cpdag
+impl core::cmp::Eq for antecedent_graph::Dag
+impl core::cmp::Eq for antecedent_graph::DefiniteStatusPath
+impl core::cmp::Eq for antecedent_graph::DefiniteStatusPathSearch
+impl core::cmp::Eq for antecedent_graph::DenseNodeId
+impl core::cmp::Eq for antecedent_graph::Endpoint
+impl core::cmp::Eq for antecedent_graph::GraphError
+impl core::cmp::Eq for antecedent_graph::MarkedEdge
+impl core::cmp::Eq for antecedent_graph::MiddleMark
+impl core::cmp::Eq for antecedent_graph::Pag
+impl core::cmp::Eq for antecedent_graph::PagSeparation
+impl core::cmp::Eq for antecedent_graph::PathStep
+impl core::cmp::Eq for antecedent_graph::SeparationCertificate
+impl core::cmp::Eq for antecedent_graph::SeparationResult
+impl core::cmp::Eq for antecedent_graph::TemporalCpdag
+impl core::cmp::Eq for antecedent_graph::TemporalDag
+impl core::cmp::Eq for antecedent_graph::TemporalPag
+impl core::cmp::Eq for antecedent_graph::TieredBackground
+impl core::cmp::Eq for antecedent_graph::WithinTier
+impl core::cmp::Ord for antecedent_graph::DenseNodeId
+impl core::cmp::PartialEq for antecedent_graph::Admg
+impl core::cmp::PartialEq for antecedent_graph::BitSet
+impl core::cmp::PartialEq for antecedent_graph::CompletionValidationReport
+impl core::cmp::PartialEq for antecedent_graph::CopyLabels
+impl core::cmp::PartialEq for antecedent_graph::Cpdag
+impl core::cmp::PartialEq for antecedent_graph::Dag
+impl core::cmp::PartialEq for antecedent_graph::DefiniteStatusPath
+impl core::cmp::PartialEq for antecedent_graph::DefiniteStatusPathSearch
+impl core::cmp::PartialEq for antecedent_graph::DenseNodeId
+impl core::cmp::PartialEq for antecedent_graph::Endpoint
+impl core::cmp::PartialEq for antecedent_graph::GraphError
+impl core::cmp::PartialEq for antecedent_graph::MarkedEdge
+impl core::cmp::PartialEq for antecedent_graph::MiddleMark
+impl core::cmp::PartialEq for antecedent_graph::Pag
+impl core::cmp::PartialEq for antecedent_graph::PagSeparation
+impl core::cmp::PartialEq for antecedent_graph::PathStep
+impl core::cmp::PartialEq for antecedent_graph::SeparationCertificate
+impl core::cmp::PartialEq for antecedent_graph::SeparationResult
+impl core::cmp::PartialEq for antecedent_graph::TemporalCpdag
+impl core::cmp::PartialEq for antecedent_graph::TemporalDag
+impl core::cmp::PartialEq for antecedent_graph::TemporalPag
+impl core::cmp::PartialEq for antecedent_graph::TieredBackground
+impl core::cmp::PartialEq for antecedent_graph::WithinTier
+impl core::cmp::PartialOrd for antecedent_graph::DenseNodeId
+impl core::default::Default for antecedent_graph::BitSet
+impl core::default::Default for antecedent_graph::CompletionValidationReport
+impl core::default::Default for antecedent_graph::DSeparationWorkspace
+impl core::default::Default for antecedent_graph::GraphWorkspace
+impl core::default::Default for antecedent_graph::MiddleMark
+impl core::error::Error for antecedent_graph::GraphError
+impl core::fmt::Debug for antecedent_graph::Admg
+impl core::fmt::Debug for antecedent_graph::BitSet
+impl core::fmt::Debug for antecedent_graph::CompletionSampler
+impl core::fmt::Debug for antecedent_graph::CompletionValidationReport
+impl core::fmt::Debug for antecedent_graph::CopyLabels
+impl core::fmt::Debug for antecedent_graph::Cpdag
+impl core::fmt::Debug for antecedent_graph::CpdagCompletion
+impl core::fmt::Debug for antecedent_graph::CpdagCompletionSampler
+impl core::fmt::Debug for antecedent_graph::CpdagReview
+impl core::fmt::Debug for antecedent_graph::DSeparationWorkspace
+impl core::fmt::Debug for antecedent_graph::Dag
+impl core::fmt::Debug for antecedent_graph::DagReview
+impl core::fmt::Debug for antecedent_graph::DefiniteStatusPath
+impl core::fmt::Debug for antecedent_graph::DefiniteStatusPathSearch
+impl core::fmt::Debug for antecedent_graph::DenseNodeId
+impl core::fmt::Debug for antecedent_graph::Endpoint
+impl core::fmt::Debug for antecedent_graph::GraphError
+impl core::fmt::Debug for antecedent_graph::GraphOverlay
+impl core::fmt::Debug for antecedent_graph::GraphWorkspace
+impl core::fmt::Debug for antecedent_graph::LazyUnfoldedTemporalGraph
+impl core::fmt::Debug for antecedent_graph::MarkedEdge
+impl core::fmt::Debug for antecedent_graph::MiddleMark
+impl core::fmt::Debug for antecedent_graph::Pag
+impl core::fmt::Debug for antecedent_graph::PagCompletion
+impl core::fmt::Debug for antecedent_graph::PagReview
+impl core::fmt::Debug for antecedent_graph::PagSeparation
+impl core::fmt::Debug for antecedent_graph::PathStep
+impl core::fmt::Debug for antecedent_graph::SelectionDiagram
+impl core::fmt::Debug for antecedent_graph::SeparationCertificate
+impl core::fmt::Debug for antecedent_graph::SeparationResult
+impl core::fmt::Debug for antecedent_graph::TemporalAdmg
+impl core::fmt::Debug for antecedent_graph::TemporalCpdag
+impl core::fmt::Debug for antecedent_graph::TemporalCpdagCompletion
+impl core::fmt::Debug for antecedent_graph::TemporalCpdagCompletionSampler
+impl core::fmt::Debug for antecedent_graph::TemporalCpdagReview
+impl core::fmt::Debug for antecedent_graph::TemporalDag
+impl core::fmt::Debug for antecedent_graph::TemporalGraphReview
+impl core::fmt::Debug for antecedent_graph::TemporalPag
+impl core::fmt::Debug for antecedent_graph::TemporalPagCompletion
+impl core::fmt::Debug for antecedent_graph::TemporalPagCompletionSampler
+impl core::fmt::Debug for antecedent_graph::TemporalPagReview
+impl core::fmt::Debug for antecedent_graph::TieredBackground
+impl core::fmt::Debug for antecedent_graph::UnfoldedTemporalGraph
+impl core::fmt::Debug for antecedent_graph::UnfoldedTemporalPag
+impl core::fmt::Debug for antecedent_graph::WithinTier
+impl core::fmt::Display for antecedent_graph::GraphError
+impl core::hash::Hash for antecedent_graph::BitSet
+impl core::hash::Hash for antecedent_graph::DenseNodeId
+impl core::hash::Hash for antecedent_graph::Endpoint
+impl core::hash::Hash for antecedent_graph::MarkedEdge
+impl core::hash::Hash for antecedent_graph::MiddleMark
+impl core::hash::Hash for antecedent_graph::PathStep
+impl core::hash::Hash for antecedent_graph::WithinTier
+impl core::iter::traits::iterator::Iterator for antecedent_graph::CompletionSampler
+impl core::iter::traits::iterator::Iterator for antecedent_graph::CpdagCompletionSampler
+impl core::iter::traits::iterator::Iterator for antecedent_graph::TemporalCpdagCompletionSampler
+impl core::iter::traits::iterator::Iterator for antecedent_graph::TemporalPagCompletionSampler
+impl core::marker::Copy for antecedent_graph::CompletionValidationReport
+impl core::marker::Copy for antecedent_graph::CopyLabels
+impl core::marker::Copy for antecedent_graph::DenseNodeId
+impl core::marker::Copy for antecedent_graph::Endpoint
+impl core::marker::Copy for antecedent_graph::MarkedEdge
+impl core::marker::Copy for antecedent_graph::MiddleMark
+impl core::marker::Copy for antecedent_graph::PagSeparation
+impl core::marker::Copy for antecedent_graph::PathStep
+impl core::marker::Copy for antecedent_graph::WithinTier
+impl core::marker::Freeze for antecedent_graph::Admg [auto]
+impl core::marker::Freeze for antecedent_graph::BitSet [auto]
+impl core::marker::Freeze for antecedent_graph::CompletionSampler [auto]
+impl core::marker::Freeze for antecedent_graph::CompletionValidationReport [auto]
+impl core::marker::Freeze for antecedent_graph::CopyLabels [auto]
+impl core::marker::Freeze for antecedent_graph::Cpdag [auto]
+impl core::marker::Freeze for antecedent_graph::CpdagCompletion [auto]
+impl core::marker::Freeze for antecedent_graph::CpdagCompletionSampler [auto]
+impl core::marker::Freeze for antecedent_graph::CpdagReview [auto]
+impl core::marker::Freeze for antecedent_graph::DSeparationWorkspace [auto]
+impl core::marker::Freeze for antecedent_graph::Dag [auto]
+impl core::marker::Freeze for antecedent_graph::DagReview [auto]
+impl core::marker::Freeze for antecedent_graph::DefiniteStatusPath [auto]
+impl core::marker::Freeze for antecedent_graph::DefiniteStatusPathSearch [auto]
+impl core::marker::Freeze for antecedent_graph::DenseNodeId [auto]
+impl core::marker::Freeze for antecedent_graph::Endpoint [auto]
+impl core::marker::Freeze for antecedent_graph::GraphError [auto]
+impl core::marker::Freeze for antecedent_graph::GraphOverlay [auto]
+impl core::marker::Freeze for antecedent_graph::GraphWorkspace [auto]
+impl core::marker::Freeze for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
+impl core::marker::Freeze for antecedent_graph::MarkedEdge [auto]
+impl core::marker::Freeze for antecedent_graph::MiddleMark [auto]
+impl core::marker::Freeze for antecedent_graph::PagSeparation [auto]
+impl core::marker::Freeze for antecedent_graph::PathStep [auto]
+impl core::marker::Freeze for antecedent_graph::SelectionDiagram [auto]
+impl core::marker::Freeze for antecedent_graph::SeparationCertificate [auto]
+impl core::marker::Freeze for antecedent_graph::SeparationResult [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalAdmg [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalCpdag [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalCpdagCompletion [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalCpdagCompletionSampler [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalCpdagReview [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalDag [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalGraphReview [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalPag [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalPagCompletion [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalPagCompletionSampler [auto]
+impl core::marker::Freeze for antecedent_graph::TemporalPagReview [auto]
+impl core::marker::Freeze for antecedent_graph::TieredBackground [auto]
+impl core::marker::Freeze for antecedent_graph::UnfoldedTemporalGraph [auto]
+impl core::marker::Freeze for antecedent_graph::WithinTier [auto]
+impl core::marker::Send for antecedent_graph::Admg [auto]
+impl core::marker::Send for antecedent_graph::BitSet [auto]
+impl core::marker::Send for antecedent_graph::CompletionSampler [auto]
+impl core::marker::Send for antecedent_graph::CompletionValidationReport [auto]
+impl core::marker::Send for antecedent_graph::CopyLabels [auto]
+impl core::marker::Send for antecedent_graph::Cpdag [auto]
+impl core::marker::Send for antecedent_graph::CpdagCompletion [auto]
+impl core::marker::Send for antecedent_graph::CpdagCompletionSampler [auto]
+impl core::marker::Send for antecedent_graph::CpdagReview [auto]
+impl core::marker::Send for antecedent_graph::DSeparationWorkspace [auto]
+impl core::marker::Send for antecedent_graph::Dag [auto]
+impl core::marker::Send for antecedent_graph::DagReview [auto]
+impl core::marker::Send for antecedent_graph::DefiniteStatusPath [auto]
+impl core::marker::Send for antecedent_graph::DefiniteStatusPathSearch [auto]
+impl core::marker::Send for antecedent_graph::DenseNodeId [auto]
+impl core::marker::Send for antecedent_graph::Endpoint [auto]
+impl core::marker::Send for antecedent_graph::GraphError [auto]
+impl core::marker::Send for antecedent_graph::GraphOverlay [auto]
+impl core::marker::Send for antecedent_graph::GraphWorkspace [auto]
+impl core::marker::Send for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
+impl core::marker::Send for antecedent_graph::MarkedEdge [auto]
+impl core::marker::Send for antecedent_graph::MiddleMark [auto]
+impl core::marker::Send for antecedent_graph::Pag [auto]
+impl core::marker::Send for antecedent_graph::PagCompletion [auto]
+impl core::marker::Send for antecedent_graph::PagReview [auto]
+impl core::marker::Send for antecedent_graph::PagSeparation [auto]
+impl core::marker::Send for antecedent_graph::PathStep [auto]
+impl core::marker::Send for antecedent_graph::SelectionDiagram [auto]
+impl core::marker::Send for antecedent_graph::SeparationCertificate [auto]
+impl core::marker::Send for antecedent_graph::SeparationResult [auto]
+impl core::marker::Send for antecedent_graph::TemporalAdmg [auto]
+impl core::marker::Send for antecedent_graph::TemporalCpdag [auto]
+impl core::marker::Send for antecedent_graph::TemporalCpdagCompletion [auto]
+impl core::marker::Send for antecedent_graph::TemporalCpdagCompletionSampler [auto]
+impl core::marker::Send for antecedent_graph::TemporalCpdagReview [auto]
+impl core::marker::Send for antecedent_graph::TemporalDag [auto]
+impl core::marker::Send for antecedent_graph::TemporalGraphReview [auto]
+impl core::marker::Send for antecedent_graph::TemporalPag [auto]
+impl core::marker::Send for antecedent_graph::TemporalPagCompletion [auto]
+impl core::marker::Send for antecedent_graph::TemporalPagCompletionSampler [auto]
+impl core::marker::Send for antecedent_graph::TemporalPagReview [auto]
+impl core::marker::Send for antecedent_graph::TieredBackground [auto]
+impl core::marker::Send for antecedent_graph::UnfoldedTemporalGraph [auto]
+impl core::marker::Send for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::marker::Send for antecedent_graph::WithinTier [auto]
+impl core::marker::StructuralPartialEq for antecedent_graph::CompletionValidationReport
+impl core::marker::StructuralPartialEq for antecedent_graph::CopyLabels
+impl core::marker::StructuralPartialEq for antecedent_graph::Cpdag
+impl core::marker::StructuralPartialEq for antecedent_graph::DefiniteStatusPath
+impl core::marker::StructuralPartialEq for antecedent_graph::DefiniteStatusPathSearch
+impl core::marker::StructuralPartialEq for antecedent_graph::DenseNodeId
+impl core::marker::StructuralPartialEq for antecedent_graph::Endpoint
+impl core::marker::StructuralPartialEq for antecedent_graph::GraphError
+impl core::marker::StructuralPartialEq for antecedent_graph::MarkedEdge
+impl core::marker::StructuralPartialEq for antecedent_graph::MiddleMark
+impl core::marker::StructuralPartialEq for antecedent_graph::Pag
+impl core::marker::StructuralPartialEq for antecedent_graph::PagSeparation
+impl core::marker::StructuralPartialEq for antecedent_graph::PathStep
+impl core::marker::StructuralPartialEq for antecedent_graph::SeparationCertificate
+impl core::marker::StructuralPartialEq for antecedent_graph::SeparationResult
+impl core::marker::StructuralPartialEq for antecedent_graph::TemporalCpdag
+impl core::marker::StructuralPartialEq for antecedent_graph::TemporalPag
+impl core::marker::StructuralPartialEq for antecedent_graph::TieredBackground
+impl core::marker::StructuralPartialEq for antecedent_graph::WithinTier
+impl core::marker::Sync for antecedent_graph::Admg [auto]
+impl core::marker::Sync for antecedent_graph::BitSet [auto]
+impl core::marker::Sync for antecedent_graph::CompletionSampler [auto]
+impl core::marker::Sync for antecedent_graph::CompletionValidationReport [auto]
+impl core::marker::Sync for antecedent_graph::CopyLabels [auto]
+impl core::marker::Sync for antecedent_graph::Cpdag [auto]
+impl core::marker::Sync for antecedent_graph::CpdagCompletion [auto]
+impl core::marker::Sync for antecedent_graph::CpdagCompletionSampler [auto]
+impl core::marker::Sync for antecedent_graph::CpdagReview [auto]
+impl core::marker::Sync for antecedent_graph::DSeparationWorkspace [auto]
+impl core::marker::Sync for antecedent_graph::Dag [auto]
+impl core::marker::Sync for antecedent_graph::DagReview [auto]
+impl core::marker::Sync for antecedent_graph::DefiniteStatusPath [auto]
+impl core::marker::Sync for antecedent_graph::DefiniteStatusPathSearch [auto]
+impl core::marker::Sync for antecedent_graph::DenseNodeId [auto]
+impl core::marker::Sync for antecedent_graph::Endpoint [auto]
+impl core::marker::Sync for antecedent_graph::GraphError [auto]
+impl core::marker::Sync for antecedent_graph::GraphOverlay [auto]
+impl core::marker::Sync for antecedent_graph::GraphWorkspace [auto]
+impl core::marker::Sync for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
+impl core::marker::Sync for antecedent_graph::MarkedEdge [auto]
+impl core::marker::Sync for antecedent_graph::MiddleMark [auto]
+impl core::marker::Sync for antecedent_graph::Pag [auto]
+impl core::marker::Sync for antecedent_graph::PagCompletion [auto]
+impl core::marker::Sync for antecedent_graph::PagReview [auto]
+impl core::marker::Sync for antecedent_graph::PagSeparation [auto]
+impl core::marker::Sync for antecedent_graph::PathStep [auto]
+impl core::marker::Sync for antecedent_graph::SelectionDiagram [auto]
+impl core::marker::Sync for antecedent_graph::SeparationCertificate [auto]
+impl core::marker::Sync for antecedent_graph::SeparationResult [auto]
+impl core::marker::Sync for antecedent_graph::TemporalAdmg [auto]
+impl core::marker::Sync for antecedent_graph::TemporalCpdag [auto]
+impl core::marker::Sync for antecedent_graph::TemporalCpdagCompletion [auto]
+impl core::marker::Sync for antecedent_graph::TemporalCpdagCompletionSampler [auto]
+impl core::marker::Sync for antecedent_graph::TemporalCpdagReview [auto]
+impl core::marker::Sync for antecedent_graph::TemporalDag [auto]
+impl core::marker::Sync for antecedent_graph::TemporalGraphReview [auto]
+impl core::marker::Sync for antecedent_graph::TemporalPag [auto]
+impl core::marker::Sync for antecedent_graph::TemporalPagCompletion [auto]
+impl core::marker::Sync for antecedent_graph::TemporalPagCompletionSampler [auto]
+impl core::marker::Sync for antecedent_graph::TemporalPagReview [auto]
+impl core::marker::Sync for antecedent_graph::TieredBackground [auto]
+impl core::marker::Sync for antecedent_graph::UnfoldedTemporalGraph [auto]
+impl core::marker::Sync for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::marker::Sync for antecedent_graph::WithinTier [auto]
+impl core::marker::Unpin for antecedent_graph::Admg [auto]
+impl core::marker::Unpin for antecedent_graph::BitSet [auto]
+impl core::marker::Unpin for antecedent_graph::CompletionSampler [auto]
+impl core::marker::Unpin for antecedent_graph::CompletionValidationReport [auto]
+impl core::marker::Unpin for antecedent_graph::CopyLabels [auto]
+impl core::marker::Unpin for antecedent_graph::Cpdag [auto]
+impl core::marker::Unpin for antecedent_graph::CpdagCompletion [auto]
+impl core::marker::Unpin for antecedent_graph::CpdagCompletionSampler [auto]
+impl core::marker::Unpin for antecedent_graph::CpdagReview [auto]
+impl core::marker::Unpin for antecedent_graph::DSeparationWorkspace [auto]
+impl core::marker::Unpin for antecedent_graph::Dag [auto]
+impl core::marker::Unpin for antecedent_graph::DagReview [auto]
+impl core::marker::Unpin for antecedent_graph::DefiniteStatusPath [auto]
+impl core::marker::Unpin for antecedent_graph::DefiniteStatusPathSearch [auto]
+impl core::marker::Unpin for antecedent_graph::DenseNodeId [auto]
+impl core::marker::Unpin for antecedent_graph::Endpoint [auto]
+impl core::marker::Unpin for antecedent_graph::GraphError [auto]
+impl core::marker::Unpin for antecedent_graph::GraphOverlay [auto]
+impl core::marker::Unpin for antecedent_graph::GraphWorkspace [auto]
+impl core::marker::Unpin for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
+impl core::marker::Unpin for antecedent_graph::MarkedEdge [auto]
+impl core::marker::Unpin for antecedent_graph::MiddleMark [auto]
+impl core::marker::Unpin for antecedent_graph::Pag [auto]
+impl core::marker::Unpin for antecedent_graph::PagCompletion [auto]
+impl core::marker::Unpin for antecedent_graph::PagReview [auto]
+impl core::marker::Unpin for antecedent_graph::PagSeparation [auto]
+impl core::marker::Unpin for antecedent_graph::PathStep [auto]
+impl core::marker::Unpin for antecedent_graph::SelectionDiagram [auto]
+impl core::marker::Unpin for antecedent_graph::SeparationCertificate [auto]
+impl core::marker::Unpin for antecedent_graph::SeparationResult [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalAdmg [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalCpdag [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalCpdagCompletion [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalCpdagCompletionSampler [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalCpdagReview [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalDag [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalGraphReview [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalPag [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalPagCompletion [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalPagCompletionSampler [auto]
+impl core::marker::Unpin for antecedent_graph::TemporalPagReview [auto]
+impl core::marker::Unpin for antecedent_graph::TieredBackground [auto]
+impl core::marker::Unpin for antecedent_graph::UnfoldedTemporalGraph [auto]
+impl core::marker::Unpin for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::marker::Unpin for antecedent_graph::WithinTier [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Admg [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::BitSet [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CompletionSampler [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CompletionValidationReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CopyLabels [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Cpdag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagCompletion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagCompletionSampler [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CpdagReview [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DSeparationWorkspace [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Dag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DagReview [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DefiniteStatusPath [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DefiniteStatusPathSearch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DenseNodeId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Endpoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::GraphError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::GraphOverlay [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::GraphWorkspace [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::MarkedEdge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::MiddleMark [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Pag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagCompletion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagReview [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PagSeparation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::PathStep [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SelectionDiagram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SeparationCertificate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::SeparationResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalAdmg [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalCpdag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalCpdagCompletion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalCpdagCompletionSampler [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalCpdagReview [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalDag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalGraphReview [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalPag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalPagCompletion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalPagCompletionSampler [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TemporalPagReview [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::TieredBackground [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::UnfoldedTemporalGraph [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::WithinTier [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Admg [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::BitSet [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CompletionSampler [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CompletionValidationReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CopyLabels [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Cpdag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagCompletion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagCompletionSampler [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CpdagReview [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DSeparationWorkspace [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Dag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DagReview [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DefiniteStatusPath [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DefiniteStatusPathSearch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::DenseNodeId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Endpoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::GraphError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::GraphOverlay [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::GraphWorkspace [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::LazyUnfoldedTemporalGraph [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::MarkedEdge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::MiddleMark [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Pag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagCompletion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagReview [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PagSeparation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::PathStep [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SelectionDiagram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SeparationCertificate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::SeparationResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalAdmg [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalCpdag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalCpdagCompletion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalCpdagCompletionSampler [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalCpdagReview [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalDag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalGraphReview [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalPag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalPagCompletion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalPagCompletionSampler [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TemporalPagReview [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::TieredBackground [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::UnfoldedTemporalGraph [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::UnfoldedTemporalPag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::WithinTier [auto]
+impl<'a> core::clone::Clone for antecedent_graph::DagView<'a>
+impl<'a> core::fmt::Debug for antecedent_graph::DagView<'a>
+impl<'a> core::marker::Copy for antecedent_graph::DagView<'a>
+impl<'a> core::marker::Freeze for antecedent_graph::DagView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_graph::DagView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_graph::DagView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_graph::DagView<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::DagView<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_graph::DagView<'a> [auto]
+pub enum antecedent_graph::CopyLabels
+pub enum antecedent_graph::Endpoint
+pub enum antecedent_graph::MiddleMark
+pub enum antecedent_graph::PagSeparation
+pub enum antecedent_graph::SeparationResult
+pub enum antecedent_graph::WithinTier
+pub field antecedent_graph::CompletionValidationReport::ambiguous_global_class: bool
+pub field antecedent_graph::CompletionValidationReport::assignments_examined: u64
+pub field antecedent_graph::CompletionValidationReport::equivalence_audit_skipped: bool
+pub field antecedent_graph::CompletionValidationReport::rejected_constraints: u64
+pub field antecedent_graph::CompletionValidationReport::rejected_local_incompatible: u64
+pub field antecedent_graph::CompletionValidationReport::rejected_non_ancestral: u64
+pub field antecedent_graph::CompletionValidationReport::rejected_nonmaximal: u64
+pub field antecedent_graph::CompletionValidationReport::represented_completions: usize
+pub field antecedent_graph::CpdagCompletion::graph: antecedent_graph::Dag
+pub field antecedent_graph::CpdagCompletion::index: usize
+pub field antecedent_graph::CpdagReview::algorithm: alloc::sync::Arc<str>
+pub field antecedent_graph::CpdagReview::graph: antecedent_graph::Cpdag
+pub field antecedent_graph::CpdagReview::pending_edges: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)]>
+pub field antecedent_graph::CpdagReview::pending_undirected: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)]>
+pub field antecedent_graph::DSeparationWorkspace::ancestral: antecedent_graph::BitSet
+pub field antecedent_graph::DSeparationWorkspace::conditioning: antecedent_graph::BitSet
+pub field antecedent_graph::DSeparationWorkspace::frontier: alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub field antecedent_graph::DSeparationWorkspace::graph_ws: antecedent_graph::GraphWorkspace
+pub field antecedent_graph::DSeparationWorkspace::pred: alloc::vec::Vec<core::option::Option<antecedent_graph::DenseNodeId>>
+pub field antecedent_graph::DSeparationWorkspace::undirected: alloc::vec::Vec<alloc::vec::Vec<antecedent_graph::DenseNodeId>>
+pub field antecedent_graph::DSeparationWorkspace::visited: antecedent_graph::BitSet
+pub field antecedent_graph::DagReview::algorithm: alloc::sync::Arc<str>
+pub field antecedent_graph::DagReview::graph: antecedent_graph::Dag
+pub field antecedent_graph::DagReview::pending_edges: alloc::sync::Arc<[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)]>
+pub field antecedent_graph::DefiniteStatusPath::nodes: alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub field antecedent_graph::DefiniteStatusPathSearch::paths: alloc::vec::Vec<antecedent_graph::DefiniteStatusPath>
+pub field antecedent_graph::DefiniteStatusPathSearch::truncated: bool
+pub field antecedent_graph::GraphWorkspace::frontier: alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub field antecedent_graph::GraphWorkspace::predecessor: alloc::vec::Vec<core::option::Option<antecedent_graph::DenseNodeId>>
+pub field antecedent_graph::GraphWorkspace::scratch_nodes: alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub field antecedent_graph::GraphWorkspace::visited: antecedent_graph::BitSet
+pub field antecedent_graph::LazyUnfoldedTemporalGraph::indexer: antecedent_core::temporal::TemporalIndexer
+pub field antecedent_graph::LazyUnfoldedTemporalGraph::template: antecedent_graph::TemporalDag
+pub field antecedent_graph::MarkedEdge::a: antecedent_graph::DenseNodeId
+pub field antecedent_graph::MarkedEdge::at_a: antecedent_graph::Endpoint
+pub field antecedent_graph::MarkedEdge::at_b: antecedent_graph::Endpoint
+pub field antecedent_graph::MarkedEdge::b: antecedent_graph::DenseNodeId
+pub field antecedent_graph::MarkedEdge::middle: antecedent_graph::MiddleMark
+pub field antecedent_graph::PagCompletion::graph: antecedent_graph::Pag
+pub field antecedent_graph::PagCompletion::index: usize
+pub field antecedent_graph::PagReview::algorithm: alloc::sync::Arc<str>
+pub field antecedent_graph::PagReview::graph: antecedent_graph::Pag
+pub field antecedent_graph::PagReview::pending_circles: alloc::sync::Arc<[(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId)]>
+pub field antecedent_graph::PathStep::node: antecedent_graph::DenseNodeId
+pub field antecedent_graph::SeparationCertificate::conditioning: alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub field antecedent_graph::TemporalCpdagCompletion::graph: antecedent_graph::TemporalDag
+pub field antecedent_graph::TemporalCpdagCompletion::index: usize
+pub field antecedent_graph::TemporalCpdagReview::algorithm: alloc::sync::Arc<str>
+pub field antecedent_graph::TemporalCpdagReview::graph: antecedent_graph::TemporalCpdag
+pub field antecedent_graph::TemporalCpdagReview::pending_edges: alloc::sync::Arc<[(antecedent_core::temporal::TemporalNodeKey, antecedent_core::temporal::TemporalNodeKey)]>
+pub field antecedent_graph::TemporalCpdagReview::pending_undirected: alloc::sync::Arc<[(antecedent_core::temporal::TemporalNodeKey, antecedent_core::temporal::TemporalNodeKey)]>
+pub field antecedent_graph::TemporalGraphReview::algorithm: alloc::sync::Arc<str>
+pub field antecedent_graph::TemporalGraphReview::graph: antecedent_graph::TemporalDag
+pub field antecedent_graph::TemporalGraphReview::pending_edges: alloc::sync::Arc<[(antecedent_core::temporal::TemporalNodeKey, antecedent_core::temporal::TemporalNodeKey)]>
+pub field antecedent_graph::TemporalPagCompletion::graph: antecedent_graph::TemporalPag
+pub field antecedent_graph::TemporalPagCompletion::index: usize
+pub field antecedent_graph::TemporalPagReview::algorithm: alloc::sync::Arc<str>
+pub field antecedent_graph::TemporalPagReview::graph: antecedent_graph::TemporalPag
+pub field antecedent_graph::TemporalPagReview::pending_circles: alloc::sync::Arc<[(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId)]>
+pub field antecedent_graph::TieredBackground::tiers: alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>]>
+pub field antecedent_graph::TieredBackground::within_tier: antecedent_graph::WithinTier
+pub field antecedent_graph::UnfoldedTemporalGraph::dag: antecedent_graph::Dag
+pub field antecedent_graph::UnfoldedTemporalGraph::indexer: antecedent_core::temporal::TemporalIndexer
+pub field antecedent_graph::UnfoldedTemporalPag::indexer: antecedent_core::temporal::TemporalIndexer
+pub field antecedent_graph::UnfoldedTemporalPag::pag: antecedent_graph::Pag
+pub fn <antecedent_graph::Admg>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn ancestors_of(&self, nodes: &[antecedent_graph::DenseNodeId], out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace)
+pub fn <antecedent_graph::Admg>::fn ancestors_within(&self, seeds: &antecedent_graph::BitSet, active: &antecedent_graph::BitSet, bar_x: core::option::Option<&antecedent_graph::BitSet>, ws: &mut antecedent_graph::GraphWorkspace) -> antecedent_graph::BitSet
+pub fn <antecedent_graph::Admg>::fn bidirected_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
+pub fn <antecedent_graph::Admg>::fn bidirected_neighbors(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::Admg>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::Admg>::fn copy_filtered(&self, labels: antecedent_graph::CopyLabels, keep_directed: impl core::ops::function::FnMut(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId) -> bool, keep_bidirected: impl core::ops::function::FnMut(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId) -> bool) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn dense_of_static(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::Admg>::fn descendants_of(&self, nodes: &[antecedent_graph::DenseNodeId], out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace)
+pub fn <antecedent_graph::Admg>::fn descendants_within(&self, seeds: &antecedent_graph::BitSet, active: &antecedent_graph::BitSet, cut: core::option::Option<&antecedent_graph::BitSet>, ws: &mut antecedent_graph::GraphWorkspace) -> antecedent_graph::BitSet
+pub fn <antecedent_graph::Admg>::fn directed_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
+pub fn <antecedent_graph::Admg>::fn directed_part(&self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn district_closure_within(&self, seeds: &antecedent_graph::BitSet, active: &antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace) -> antecedent_graph::BitSet
+pub fn <antecedent_graph::Admg>::fn district_components_within(&self, nodes: &antecedent_graph::BitSet) -> alloc::vec::Vec<antecedent_graph::BitSet>
+pub fn <antecedent_graph::Admg>::fn district_count(&self) -> usize
+pub fn <antecedent_graph::Admg>::fn districts(&self) -> alloc::vec::Vec<u32>
+pub fn <antecedent_graph::Admg>::fn empty() -> Self
+pub fn <antecedent_graph::Admg>::fn from_dag(dag: &antecedent_graph::Dag) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn has_bidirected(&self) -> bool
+pub fn <antecedent_graph::Admg>::fn insert_bidirected(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn insert_marked(&mut self, edge: antecedent_graph::MarkedEdge) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::Admg>::fn is_m_separated(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<bool, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn is_m_separated_sets(&self, sources: &[antecedent_graph::DenseNodeId], targets: &[antecedent_graph::DenseNodeId], z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<bool, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn m_separation(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<antecedent_graph::SeparationResult, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::Admg>::fn node_ids(&self) -> impl core::iter::traits::double_ended::DoubleEndedIterator<Item = antecedent_graph::DenseNodeId> + core::iter::traits::exact_size::ExactSizeIterator
+pub fn <antecedent_graph::Admg>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::Admg>::fn parents(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::Admg>::fn reaches(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::Admg>::fn reaches_with(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId, ws: &mut antecedent_graph::GraphWorkspace) -> bool
+pub fn <antecedent_graph::Admg>::fn static_directed_edges_sorted(&self) -> core::option::Option<alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)>>
+pub fn <antecedent_graph::Admg>::fn static_variable(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::ids::VariableId>
+pub fn <antecedent_graph::Admg>::fn strict_ancestor_sets(&self) -> alloc::vec::Vec<antecedent_graph::BitSet>
+pub fn <antecedent_graph::Admg>::fn topological_order(&self) -> core::option::Option<alloc::vec::Vec<antecedent_graph::DenseNodeId>>
+pub fn <antecedent_graph::Admg>::fn validate(&self) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn weak_components(&self) -> alloc::vec::Vec<alloc::vec::Vec<antecedent_graph::DenseNodeId>>
+pub fn <antecedent_graph::Admg>::fn with_variables(n: u32) -> Self
+pub fn <antecedent_graph::BitSet>::const fn bit_len(&self) -> usize
+pub fn <antecedent_graph::BitSet>::fn any(&self) -> bool
+pub fn <antecedent_graph::BitSet>::fn clear(&mut self)
+pub fn <antecedent_graph::BitSet>::fn contains(&self, id: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::BitSet>::fn count_ones(&self) -> usize
+pub fn <antecedent_graph::BitSet>::fn difference_with(&mut self, other: &Self)
+pub fn <antecedent_graph::BitSet>::fn equal_set(&self, other: &Self) -> bool
+pub fn <antecedent_graph::BitSet>::fn full(len: usize) -> Self
+pub fn <antecedent_graph::BitSet>::fn insert(&mut self, id: antecedent_graph::DenseNodeId)
+pub fn <antecedent_graph::BitSet>::fn intersect_with(&mut self, other: &Self)
+pub fn <antecedent_graph::BitSet>::fn intersects(&self, other: &Self) -> bool
+pub fn <antecedent_graph::BitSet>::fn is_subset_of(&self, other: &Self) -> bool
+pub fn <antecedent_graph::BitSet>::fn iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::DenseNodeId> + '_
+pub fn <antecedent_graph::BitSet>::fn remove(&mut self, id: antecedent_graph::DenseNodeId)
+pub fn <antecedent_graph::BitSet>::fn resize(&mut self, len: usize)
+pub fn <antecedent_graph::BitSet>::fn to_dense_ids(&self) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::BitSet>::fn try_insert(&mut self, id: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::BitSet>::fn union_with(&mut self, other: &Self)
+pub fn <antecedent_graph::BitSet>::fn with_len(len: usize) -> Self
+pub fn <antecedent_graph::BitSet>::fn words(&self) -> &[u64]
+pub fn <antecedent_graph::CompletionSampler>::const fn class_audit_incomplete(&self) -> bool
+pub fn <antecedent_graph::CompletionSampler>::const fn validation_report(&self) -> antecedent_graph::CompletionValidationReport
+pub fn <antecedent_graph::CompletionSampler>::fn hit_cap(&self) -> bool
+pub fn <antecedent_graph::CompletionSampler>::fn max_completions(&self) -> usize
+pub fn <antecedent_graph::CompletionSampler>::fn n_circle_sites(&self) -> usize
+pub fn <antecedent_graph::CompletionSampler>::fn new(pag: antecedent_graph::Pag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn adjacent(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::Cpdag>::fn children(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::Cpdag>::fn children_iter(&self, id: antecedent_graph::DenseNodeId) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::DenseNodeId> + '_
+pub fn <antecedent_graph::Cpdag>::fn conflict_edge_count(&self) -> usize
+pub fn <antecedent_graph::Cpdag>::fn directed_edge_count(&self) -> usize
+pub fn <antecedent_graph::Cpdag>::fn edge_between(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_graph::MarkedEdge>
+pub fn <antecedent_graph::Cpdag>::fn edges(&self) -> alloc::vec::Vec<antecedent_graph::MarkedEdge>
+pub fn <antecedent_graph::Cpdag>::fn empty() -> Self
+pub fn <antecedent_graph::Cpdag>::fn from_dag(dag: &antecedent_graph::Dag) -> Self
+pub fn <antecedent_graph::Cpdag>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn has_edge(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::Cpdag>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn insert_marked(&mut self, edge: antecedent_graph::MarkedEdge) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn insert_undirected(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::Cpdag>::fn mark_conflict(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::Cpdag>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::Cpdag>::fn orient_undirected(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn parents(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::Cpdag>::fn reaches_directed_with(&self, ws: &mut antecedent_graph::GraphWorkspace, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::Cpdag>::fn remove_edge(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn to_directed_skeleton(&self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn try_into_dag(&self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Cpdag>::fn undirected_edge_count(&self) -> usize
+pub fn <antecedent_graph::Cpdag>::fn undirected_neighbors(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::Cpdag>::fn variable_id(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::ids::VariableId>
+pub fn <antecedent_graph::Cpdag>::fn with_variables(n: u32) -> Self
+pub fn <antecedent_graph::CpdagCompletionSampler>::fn hit_cap(&self) -> bool
+pub fn <antecedent_graph::CpdagCompletionSampler>::fn max_completions(&self) -> usize
+pub fn <antecedent_graph::CpdagCompletionSampler>::fn n_undirected(&self) -> usize
+pub fn <antecedent_graph::CpdagCompletionSampler>::fn new(cpdag: antecedent_graph::Cpdag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CpdagReview>::fn accept_edge(self, from: antecedent_core::ids::VariableId, to: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_graph::CpdagReview>::fn from_cpdag(graph: antecedent_graph::Cpdag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_graph::CpdagReview>::fn is_complete(&self) -> bool
+pub fn <antecedent_graph::CpdagReview>::fn orient_edge(self, from: antecedent_core::ids::VariableId, to: antecedent_core::ids::VariableId) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::CpdagReview>::fn try_into_dag(self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::DSeparationWorkspace>::fn prepare(&mut self, n: usize)
+pub fn <antecedent_graph::Dag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn ancestors_of(&self, nodes: &[antecedent_graph::DenseNodeId], out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace)
+pub fn <antecedent_graph::Dag>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::Dag>::fn copy_filtered(&self, keep: impl core::ops::function::FnMut(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId) -> bool) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn d_separation(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<antecedent_graph::SeparationResult, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn descendants_of(&self, nodes: &[antecedent_graph::DenseNodeId], out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace)
+pub fn <antecedent_graph::Dag>::fn directed_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
+pub fn <antecedent_graph::Dag>::fn directed_paths(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId, max_paths: usize, max_len: usize) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<antecedent_graph::DenseNodeId>>, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn directed_paths_with_budget(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId, max_paths: usize, max_len: usize) -> core::result::Result<(alloc::vec::Vec<alloc::vec::Vec<antecedent_graph::DenseNodeId>>, bool), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn edges(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + '_
+pub fn <antecedent_graph::Dag>::fn empty() -> Self
+pub fn <antecedent_graph::Dag>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn from_unfolding(indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn is_d_separated(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<bool, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::Dag>::fn mutilate(&self, intervened: &[antecedent_graph::DenseNodeId]) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::Dag>::fn node_ids(&self) -> impl core::iter::traits::double_ended::DoubleEndedIterator<Item = antecedent_graph::DenseNodeId> + core::iter::traits::exact_size::ExactSizeIterator
+pub fn <antecedent_graph::Dag>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::Dag>::fn parents(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::Dag>::fn reaches(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::Dag>::fn reaches_with(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId, ws: &mut antecedent_graph::GraphWorkspace) -> bool
+pub fn <antecedent_graph::Dag>::fn topological_order(&self) -> core::option::Option<alloc::vec::Vec<antecedent_graph::DenseNodeId>>
+pub fn <antecedent_graph::Dag>::fn validate(&self) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn view<'a>(self: &'a Self, overlay: &'a antecedent_graph::GraphOverlay) -> antecedent_graph::DagView<'a>
+pub fn <antecedent_graph::Dag>::fn with_variables(n: u32) -> Self
+pub fn <antecedent_graph::DagReview>::fn accept_all(self) -> Self
+pub fn <antecedent_graph::DagReview>::fn accept_edge(self, from: antecedent_core::ids::VariableId, to: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_graph::DagReview>::fn from_dag(graph: antecedent_graph::Dag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_graph::DagReview>::fn is_complete(&self) -> bool
+pub fn <antecedent_graph::DagReview>::fn try_into_dag(self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::DagView<'a>>::fn ancestors_of(&self, nodes: &[antecedent_graph::DenseNodeId], out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace)
+pub fn <antecedent_graph::DagView<'a>>::fn children_into(&self, id: antecedent_graph::DenseNodeId, out: &mut alloc::vec::Vec<antecedent_graph::DenseNodeId>)
+pub fn <antecedent_graph::DagView<'a>>::fn d_separation(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<antecedent_graph::SeparationResult, antecedent_graph::GraphError>
+pub fn <antecedent_graph::DagView<'a>>::fn dag(&self) -> &'a antecedent_graph::Dag
+pub fn <antecedent_graph::DagView<'a>>::fn descendants_of(&self, nodes: &[antecedent_graph::DenseNodeId], out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace)
+pub fn <antecedent_graph::DagView<'a>>::fn is_d_separated(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<bool, antecedent_graph::GraphError>
+pub fn <antecedent_graph::DagView<'a>>::fn materialize(&self) -> core::result::Result<antecedent_graph::Dag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::DagView<'a>>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::DagView<'a>>::fn overlay(&self) -> &'a antecedent_graph::GraphOverlay
+pub fn <antecedent_graph::DagView<'a>>::fn parents_into(&self, id: antecedent_graph::DenseNodeId, out: &mut alloc::vec::Vec<antecedent_graph::DenseNodeId>)
+pub fn <antecedent_graph::DenseNodeId>::const fn as_usize(self) -> usize
+pub fn <antecedent_graph::DenseNodeId>::const fn from_raw(raw: u32) -> Self
+pub fn <antecedent_graph::DenseNodeId>::const fn raw(self) -> u32
+pub fn <antecedent_graph::DenseNodeId>::fn all(n: usize) -> impl core::iter::traits::double_ended::DoubleEndedIterator<Item = Self> + core::iter::traits::exact_size::ExactSizeIterator + core::clone::Clone
+pub fn <antecedent_graph::DenseNodeId>::fn from_index(i: usize) -> Self
+pub fn <antecedent_graph::DenseNodeId>::fn try_from_usize(i: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::GraphOverlay>::fn do_intervention(n: usize, intervened: &[antecedent_graph::DenseNodeId]) -> Self
+pub fn <antecedent_graph::GraphOverlay>::fn edge_visible(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::GraphOverlay>::fn observational(n: usize) -> Self
+pub fn <antecedent_graph::GraphOverlay>::fn remove_outgoing(n: usize, nodes: &[antecedent_graph::DenseNodeId]) -> Self
+pub fn <antecedent_graph::GraphWorkspace>::fn prepare(&mut self, n: usize)
+pub fn <antecedent_graph::GraphWorkspace>::fn prepare_with_predecessors(&mut self, n: usize)
+pub fn <antecedent_graph::LazyUnfoldedTemporalGraph>::fn materialize(&self) -> core::result::Result<antecedent_graph::UnfoldedTemporalGraph, antecedent_graph::GraphError>
+pub fn <antecedent_graph::MarkedEdge>::const fn directed(from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> Self
+pub fn <antecedent_graph::MarkedEdge>::const fn is_admg_legal(self) -> bool
+pub fn <antecedent_graph::MarkedEdge>::const fn is_bidirected(self) -> bool
+pub fn <antecedent_graph::MarkedEdge>::const fn is_conflict(self) -> bool
+pub fn <antecedent_graph::MarkedEdge>::const fn is_cpdag_legal(self) -> bool
+pub fn <antecedent_graph::MarkedEdge>::const fn is_dag_directed(self) -> bool
+pub fn <antecedent_graph::MarkedEdge>::const fn is_undirected(self) -> bool
+pub fn <antecedent_graph::MarkedEdge>::fn bidirected(a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> Self
+pub fn <antecedent_graph::MarkedEdge>::fn causal_arrow_direction(self) -> core::option::Option<(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId)>
+pub fn <antecedent_graph::MarkedEdge>::fn conflict(a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> Self
+pub fn <antecedent_graph::MarkedEdge>::fn parent_child(self) -> core::option::Option<(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId)>
+pub fn <antecedent_graph::MarkedEdge>::fn undirected(a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> Self
+pub fn <antecedent_graph::MiddleMark>::const fn apply(self, update: Self) -> Self
+pub fn <antecedent_graph::MiddleMark>::const fn is_definite(self) -> bool
+pub fn <antecedent_graph::Pag>::const fn is_pag_legal(edge: antecedent_graph::MarkedEdge) -> bool
+pub fn <antecedent_graph::Pag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn definite_status_paths(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, max_paths: usize, max_len: usize) -> core::result::Result<antecedent_graph::DefiniteStatusPathSearch, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn directed_children(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::Pag>::fn edge_between(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_graph::MarkedEdge>
+pub fn <antecedent_graph::Pag>::fn empty() -> Self
+pub fn <antecedent_graph::Pag>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn from_unfolding(indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn has_edge(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::Pag>::fn insert_bidirected(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn insert_circle_arrow(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn insert_circle_circle(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn insert_marked(&mut self, edge: antecedent_graph::MarkedEdge) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::Pag>::fn is_m_separated(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], max_paths: usize, max_len: usize) -> core::result::Result<bool, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn m_separation(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], max_paths: usize, max_len: usize) -> core::result::Result<antecedent_graph::SeparationResult, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn m_separation_status(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], max_paths: usize, max_len: usize) -> core::result::Result<antecedent_graph::PagSeparation, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn mark_conflict(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn neighbors(&self, id: antecedent_graph::DenseNodeId) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_graph::DenseNodeId, antecedent_graph::Endpoint, antecedent_graph::Endpoint)> + '_
+pub fn <antecedent_graph::Pag>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::Pag>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::Pag>::fn path_active_given(&self, path: &[antecedent_graph::DenseNodeId], z: &[antecedent_graph::DenseNodeId]) -> core::result::Result<bool, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn reaches_directed(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::Pag>::fn reaches_directed_with(&self, ws: &mut antecedent_graph::GraphWorkspace, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::Pag>::fn remove_edge(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn set_marks(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId, at_a: antecedent_graph::Endpoint, at_b: antecedent_graph::Endpoint) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn with_variables(n: u32) -> Self
+pub fn <antecedent_graph::PagReview>::fn from_pag(graph: antecedent_graph::Pag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_graph::PagReview>::fn is_complete(&self) -> bool
+pub fn <antecedent_graph::SelectionDiagram>::const fn causal_graph(&self) -> &antecedent_graph::Admg
+pub fn <antecedent_graph::SelectionDiagram>::fn mechanism_may_differ(&self, variable: antecedent_core::ids::VariableId) -> bool
+pub fn <antecedent_graph::SelectionDiagram>::fn selection_targets(&self) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent_graph::SelectionDiagram>::fn try_new(causal_graph: antecedent_graph::Admg, selection_targets: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalAdmg>::fn add_lagged(&mut self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalAdmg>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalAdmg>::fn bidirected_neighbors(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::TemporalAdmg>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::TemporalAdmg>::fn edges(&self) -> alloc::vec::Vec<antecedent_graph::MarkedEdge>
+pub fn <antecedent_graph::TemporalAdmg>::fn empty() -> Self
+pub fn <antecedent_graph::TemporalAdmg>::fn from_static_contemporaneous(admg: &antecedent_graph::Admg) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalAdmg>::fn has_bidirected(&self) -> bool
+pub fn <antecedent_graph::TemporalAdmg>::fn insert_bidirected(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalAdmg>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalAdmg>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::TemporalAdmg>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::TemporalAdmg>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::TemporalAdmg>::fn parents(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::TemporalAdmg>::fn project_preserving_functional(&self) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalAdmg>::fn temporal_key(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::temporal::TemporalNodeKey>
+pub fn <antecedent_graph::TemporalCpdag>::fn add_context(&mut self, variable: antecedent_core::ids::VariableId, environment: core::option::Option<antecedent_core::ids::EnvironmentId>) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn add_lagged(&mut self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn children(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::TemporalCpdag>::fn children_iter(&self, id: antecedent_graph::DenseNodeId) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::DenseNodeId> + '_
+pub fn <antecedent_graph::TemporalCpdag>::fn conflict_edge_count(&self) -> usize
+pub fn <antecedent_graph::TemporalCpdag>::fn directed_edge_count(&self) -> usize
+pub fn <antecedent_graph::TemporalCpdag>::fn edge_between(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_graph::MarkedEdge>
+pub fn <antecedent_graph::TemporalCpdag>::fn edges(&self) -> alloc::vec::Vec<antecedent_graph::MarkedEdge>
+pub fn <antecedent_graph::TemporalCpdag>::fn empty() -> Self
+pub fn <antecedent_graph::TemporalCpdag>::fn from_temporal_dag(dag: &antecedent_graph::TemporalDag) -> Self
+pub fn <antecedent_graph::TemporalCpdag>::fn has_edge(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::TemporalCpdag>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn insert_marked(&mut self, edge: antecedent_graph::MarkedEdge) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn insert_undirected(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::TemporalCpdag>::fn mark_conflict(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::TemporalCpdag>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::TemporalCpdag>::fn orient_undirected(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn parents(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::TemporalCpdag>::fn reaches_directed_with(&self, ws: &mut antecedent_graph::GraphWorkspace, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::TemporalCpdag>::fn temporal_key(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::temporal::TemporalNodeKey>
+pub fn <antecedent_graph::TemporalCpdag>::fn to_directed_skeleton(&self) -> core::result::Result<antecedent_graph::TemporalDag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn try_into_temporal_dag(&self) -> core::result::Result<antecedent_graph::TemporalDag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdag>::fn undirected_edge_count(&self) -> usize
+pub fn <antecedent_graph::TemporalCpdag>::fn undirected_neighbors(&self, id: antecedent_graph::DenseNodeId) -> alloc::vec::Vec<antecedent_graph::DenseNodeId>
+pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn hit_cap(&self) -> bool
+pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn max_completions(&self) -> usize
+pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn n_undirected(&self) -> usize
+pub fn <antecedent_graph::TemporalCpdagCompletionSampler>::fn new(cpdag: antecedent_graph::TemporalCpdag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdagReview>::fn accept_edge(self, from: antecedent_core::temporal::TemporalNodeKey, to: antecedent_core::temporal::TemporalNodeKey) -> Self
+pub fn <antecedent_graph::TemporalCpdagReview>::fn from_cpdag(graph: antecedent_graph::TemporalCpdag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_graph::TemporalCpdagReview>::fn is_complete(&self) -> bool
+pub fn <antecedent_graph::TemporalCpdagReview>::fn orient_edge(self, from: antecedent_core::temporal::TemporalNodeKey, to: antecedent_core::temporal::TemporalNodeKey) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalCpdagReview>::fn try_into_temporal_dag(self) -> core::result::Result<antecedent_graph::TemporalDag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalDag>::fn add_lagged(&mut self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalDag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalDag>::fn children(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::TemporalDag>::fn directed_edge_pairs_sorted(&self) -> alloc::vec::Vec<(u32, u32)>
+pub fn <antecedent_graph::TemporalDag>::fn edges(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + '_
+pub fn <antecedent_graph::TemporalDag>::fn empty() -> Self
+pub fn <antecedent_graph::TemporalDag>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalDag>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::TemporalDag>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::TemporalDag>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::TemporalDag>::fn parents(&self, id: antecedent_graph::DenseNodeId) -> &[antecedent_graph::DenseNodeId]
+pub fn <antecedent_graph::TemporalDag>::fn reaches(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::TemporalDag>::fn reaches_with(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId, ws: &mut antecedent_graph::GraphWorkspace) -> bool
+pub fn <antecedent_graph::TemporalDag>::fn temporal_key(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::temporal::TemporalNodeKey>
+pub fn <antecedent_graph::TemporalDag>::fn unfold(&self, indexer: antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::UnfoldedTemporalGraph, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalDag>::fn unfold_lazy(&self, indexer: antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::LazyUnfoldedTemporalGraph, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalGraphReview>::fn accept_edge(self, from: antecedent_core::temporal::TemporalNodeKey, to: antecedent_core::temporal::TemporalNodeKey) -> Self
+pub fn <antecedent_graph::TemporalGraphReview>::fn from_graph(graph: antecedent_graph::TemporalDag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_graph::TemporalGraphReview>::fn is_complete(&self) -> bool
+pub fn <antecedent_graph::TemporalPag>::fn add_lagged(&mut self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn apply_middle(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId, update: antecedent_graph::MiddleMark) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn as_static_pag_for_alg(&self) -> core::result::Result<antecedent_graph::Pag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn clear_middle_marks(&mut self)
+pub fn <antecedent_graph::TemporalPag>::fn definite_status_paths(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, max_paths: usize, max_len: usize) -> core::result::Result<antecedent_graph::DefiniteStatusPathSearch, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn edge_between(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_graph::MarkedEdge>
+pub fn <antecedent_graph::TemporalPag>::fn edges(&self) -> alloc::vec::Vec<antecedent_graph::MarkedEdge>
+pub fn <antecedent_graph::TemporalPag>::fn empty() -> Self
+pub fn <antecedent_graph::TemporalPag>::fn has_edge(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::TemporalPag>::fn insert_circle_arrow(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn insert_circle_arrow_with_middle(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId, middle: antecedent_graph::MiddleMark) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn insert_circle_circle_with_middle(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId, middle: antecedent_graph::MiddleMark) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn insert_marked(&mut self, edge: antecedent_graph::MarkedEdge) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn is_empty(&self) -> bool
+pub fn <antecedent_graph::TemporalPag>::fn mark_conflict(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn middle_between(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_graph::MiddleMark>
+pub fn <antecedent_graph::TemporalPag>::fn neighbors(&self, id: antecedent_graph::DenseNodeId) -> impl core::iter::traits::iterator::Iterator<Item = (antecedent_graph::DenseNodeId, antecedent_graph::Endpoint, antecedent_graph::Endpoint)> + '_
+pub fn <antecedent_graph::TemporalPag>::fn node_count(&self) -> usize
+pub fn <antecedent_graph::TemporalPag>::fn nodes(&self) -> &[antecedent_core::node::NodeRef]
+pub fn <antecedent_graph::TemporalPag>::fn reaches_directed(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::TemporalPag>::fn reaches_directed_with(&self, ws: &mut antecedent_graph::GraphWorkspace, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
+pub fn <antecedent_graph::TemporalPag>::fn remove_edge(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn set_marks(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId, at_a: antecedent_graph::Endpoint, at_b: antecedent_graph::Endpoint) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn set_middle(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId, middle: antecedent_graph::MiddleMark) -> core::result::Result<(), antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn try_into_temporal_dag(&self) -> core::result::Result<antecedent_graph::TemporalDag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn unfold(&self, indexer: antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::UnfoldedTemporalPag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn max_completions(&self) -> usize
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn validation_report(&self) -> antecedent_graph::CompletionValidationReport
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn for_window(pag: antecedent_graph::TemporalPag, max_completions: usize, indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn hit_cap(&self) -> bool
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn new(pag: antecedent_graph::TemporalPag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagReview>::fn from_pag(graph: antecedent_graph::TemporalPag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_graph::TemporalPagReview>::fn is_complete(&self) -> bool
+pub fn <antecedent_graph::TieredBackground>::fn from_named(schema: &antecedent_core::schema::CausalSchema, tiers: &[alloc::vec::Vec<&str>], within_tier: antecedent_graph::WithinTier) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TieredBackground>::fn new(tiers: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>>, within_tier: antecedent_graph::WithinTier) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TieredBackground>::fn tier_closure(&self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> core::result::Result<alloc::sync::Arc<[antecedent_core::ids::VariableId]>, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TieredBackground>::fn tier_closure_set(&self, treatments: &[antecedent_core::ids::VariableId], outcome: antecedent_core::ids::VariableId) -> core::result::Result<alloc::sync::Arc<[antecedent_core::ids::VariableId]>, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TieredBackground>::fn tier_of(&self, id: antecedent_core::ids::VariableId) -> core::option::Option<usize>
+pub fn <antecedent_graph::TieredBackground>::fn to_admg(&self, schema: &antecedent_core::schema::CausalSchema) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TieredBackground>::fn to_pag(&self, schema: &antecedent_core::schema::CausalSchema) -> core::result::Result<antecedent_graph::Pag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TieredBackground>::fn unknown_canonical_sets(&self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> core::result::Result<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>; 2], antecedent_graph::GraphError>
+pub fn antecedent_graph::algo::closure_into<'g>(n: usize, next: impl core::ops::function::Fn(antecedent_graph::DenseNodeId) -> &'g [antecedent_graph::DenseNodeId], seeds: impl core::iter::traits::collect::IntoIterator<Item = antecedent_graph::DenseNodeId>, out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace, keep: impl core::ops::function::FnMut(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId) -> bool)
+pub fn antecedent_graph::algo::components_by<I: core::iter::traits::collect::IntoIterator<Item = usize>>(n: usize, neighbors: impl core::ops::function::FnMut(usize) -> I) -> alloc::vec::Vec<alloc::vec::Vec<usize>>
+pub fn antecedent_graph::algo::implicit_closure<N: core::cmp::Ord + core::clone::Clone, I: core::iter::traits::collect::IntoIterator<Item = N>>(seeds: impl core::iter::traits::collect::IntoIterator<Item = N>, expand: impl core::ops::function::FnMut(&N) -> I) -> alloc::collections::btree::set::BTreeSet<N>
+pub fn antecedent_graph::algo::is_dag(parents: &[alloc::vec::Vec<antecedent_graph::DenseNodeId>], children: &[alloc::vec::Vec<antecedent_graph::DenseNodeId>]) -> bool
+pub fn antecedent_graph::algo::mask_closure<M: antecedent_graph::algo::MaskWord>(seeds: M, next: &[M], frozen: M) -> M
+pub fn antecedent_graph::completion::audit_finite_mag_equivalence(graphs: &[antecedent_graph::Pag]) -> core::option::Option<bool>
+pub fn antecedent_graph::completion::is_mag_completion(g: &antecedent_graph::Pag) -> bool
+pub fn antecedent_graph::cpdag_completion::is_mec_member(cpdag: &antecedent_graph::Cpdag, dag: &antecedent_graph::Dag) -> bool
+pub fn antecedent_graph::ensure_lagged(graph: &mut antecedent_graph::TemporalDag, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
+pub fn antecedent_graph::latent_project(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId]) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
+pub fn antecedent_graph::projection::projection_preserves_msep_sample(dag: &antecedent_graph::Dag, observed: &[antecedent_graph::DenseNodeId], queries: &[(antecedent_graph::DenseNodeId, antecedent_graph::DenseNodeId, alloc::vec::Vec<antecedent_graph::DenseNodeId>)]) -> core::result::Result<bool, antecedent_graph::GraphError>
+pub mod antecedent_graph::admg
+pub mod antecedent_graph::algo
+pub mod antecedent_graph::ancestry
+pub mod antecedent_graph::completion
+pub mod antecedent_graph::cpdag
+pub mod antecedent_graph::cpdag_completion
+pub mod antecedent_graph::dag
+pub mod antecedent_graph::dsep
+pub mod antecedent_graph::error
+pub mod antecedent_graph::marked_storage
+pub mod antecedent_graph::msep
+pub mod antecedent_graph::named
+pub mod antecedent_graph::overlay
+pub mod antecedent_graph::pag
+pub mod antecedent_graph::projection
+pub mod antecedent_graph::selection
+pub mod antecedent_graph::temporal
+pub mod antecedent_graph::temporal_admg
+pub mod antecedent_graph::temporal_cpdag_completion
+pub mod antecedent_graph::temporal_pag
+pub mod antecedent_graph::temporal_pag_completion
+pub mod antecedent_graph::tiered
+pub mod antecedent_graph::types
+pub mod antecedent_graph::unfold
+pub mod antecedent_graph::unfold_pag
+pub mod antecedent_graph::workspace
+pub struct antecedent_graph::Admg
+pub struct antecedent_graph::Admg has private fields
+pub struct antecedent_graph::BitSet
+pub struct antecedent_graph::BitSet has private fields
+pub struct antecedent_graph::CompletionSampler
+pub struct antecedent_graph::CompletionSampler has private fields
+pub struct antecedent_graph::CompletionValidationReport
+pub struct antecedent_graph::Cpdag
+pub struct antecedent_graph::Cpdag has private fields
+pub struct antecedent_graph::CpdagCompletion
+pub struct antecedent_graph::CpdagCompletionSampler
+pub struct antecedent_graph::CpdagCompletionSampler has private fields
+pub struct antecedent_graph::CpdagReview
+pub struct antecedent_graph::DSeparationWorkspace
+pub struct antecedent_graph::DSeparationWorkspace has private fields
+pub struct antecedent_graph::Dag
+pub struct antecedent_graph::Dag has private fields
+pub struct antecedent_graph::DagReview
+pub struct antecedent_graph::DagView has private fields
+pub struct antecedent_graph::DagView<'a>
+pub struct antecedent_graph::DefiniteStatusPath
+pub struct antecedent_graph::DefiniteStatusPathSearch
+pub struct antecedent_graph::DenseNodeId
+pub struct antecedent_graph::DenseNodeId has private fields
+pub struct antecedent_graph::GraphOverlay
+pub struct antecedent_graph::GraphOverlay has private fields
+pub struct antecedent_graph::GraphWorkspace
+pub struct antecedent_graph::LazyUnfoldedTemporalGraph
+pub struct antecedent_graph::MarkedEdge
+pub struct antecedent_graph::Pag
+pub struct antecedent_graph::Pag has private fields
+pub struct antecedent_graph::PagCompletion
+pub struct antecedent_graph::PagReview
+pub struct antecedent_graph::PathStep
+pub struct antecedent_graph::SelectionDiagram
+pub struct antecedent_graph::SelectionDiagram has private fields
+pub struct antecedent_graph::SeparationCertificate
+pub struct antecedent_graph::TemporalAdmg
+pub struct antecedent_graph::TemporalAdmg has private fields
+pub struct antecedent_graph::TemporalCpdag
+pub struct antecedent_graph::TemporalCpdag has private fields
+pub struct antecedent_graph::TemporalCpdagCompletion
+pub struct antecedent_graph::TemporalCpdagCompletionSampler
+pub struct antecedent_graph::TemporalCpdagCompletionSampler has private fields
+pub struct antecedent_graph::TemporalCpdagReview
+pub struct antecedent_graph::TemporalDag
+pub struct antecedent_graph::TemporalDag has private fields
+pub struct antecedent_graph::TemporalGraphReview
+pub struct antecedent_graph::TemporalPag
+pub struct antecedent_graph::TemporalPag has private fields
+pub struct antecedent_graph::TemporalPagCompletion
+pub struct antecedent_graph::TemporalPagCompletionSampler
+pub struct antecedent_graph::TemporalPagCompletionSampler has private fields
+pub struct antecedent_graph::TemporalPagReview
+pub struct antecedent_graph::TieredBackground
+pub struct antecedent_graph::UnfoldedTemporalGraph
+pub struct antecedent_graph::UnfoldedTemporalPag
+pub trait antecedent_graph::algo::MaskWord: core::marker::Copy + core::cmp::Eq + core::ops::bit::BitOr<Output = Self> + core::ops::bit::BitAnd<Output = Self> + core::ops::bit::Not<Output = Self>
+pub trait const antecedent_graph::algo::MaskWord::ZERO: Self
+pub trait fn fn antecedent_graph::algo::MaskWord::lowest_bit(self) -> core::option::Option<usize>
+pub trait fn fn antecedent_graph::algo::MaskWord::single(index: usize) -> Self
+pub use antecedent_graph::NodeRef = antecedent_core::NodeRef
+pub use antecedent_graph::admg::Admg = antecedent_graph::Admg
+pub use antecedent_graph::admg::CopyLabels = antecedent_graph::CopyLabels
+pub use antecedent_graph::completion::CompletionSampler = antecedent_graph::CompletionSampler
+pub use antecedent_graph::completion::CompletionValidationReport = antecedent_graph::CompletionValidationReport
+pub use antecedent_graph::completion::PagCompletion = antecedent_graph::PagCompletion
+pub use antecedent_graph::cpdag::Cpdag = antecedent_graph::Cpdag
+pub use antecedent_graph::cpdag::CpdagReview = antecedent_graph::CpdagReview
+pub use antecedent_graph::cpdag::TemporalCpdag = antecedent_graph::TemporalCpdag
+pub use antecedent_graph::cpdag_completion::CpdagCompletion = antecedent_graph::CpdagCompletion
+pub use antecedent_graph::cpdag_completion::CpdagCompletionSampler = antecedent_graph::CpdagCompletionSampler
+pub use antecedent_graph::dag::Dag = antecedent_graph::Dag
+pub use antecedent_graph::dag::DagReview = antecedent_graph::DagReview
+pub use antecedent_graph::dsep::DSeparationWorkspace = antecedent_graph::DSeparationWorkspace
+pub use antecedent_graph::dsep::PathStep = antecedent_graph::PathStep
+pub use antecedent_graph::dsep::SeparationCertificate = antecedent_graph::SeparationCertificate
+pub use antecedent_graph::dsep::SeparationResult = antecedent_graph::SeparationResult
+pub use antecedent_graph::error::GraphError = antecedent_graph::GraphError
+pub use antecedent_graph::is_mag_completion = antecedent_graph::completion::is_mag_completion
+pub use antecedent_graph::is_mec_member = antecedent_graph::cpdag_completion::is_mec_member
+pub use antecedent_graph::msep::PagSeparation = antecedent_graph::PagSeparation
+pub use antecedent_graph::overlay::DagView = antecedent_graph::DagView
+pub use antecedent_graph::overlay::GraphOverlay = antecedent_graph::GraphOverlay
+pub use antecedent_graph::pag::DefiniteStatusPath = antecedent_graph::DefiniteStatusPath
+pub use antecedent_graph::pag::DefiniteStatusPathSearch = antecedent_graph::DefiniteStatusPathSearch
+pub use antecedent_graph::pag::Pag = antecedent_graph::Pag
+pub use antecedent_graph::pag::PagReview = antecedent_graph::PagReview
+pub use antecedent_graph::projection::latent_project = antecedent_graph::latent_project
+pub use antecedent_graph::projection_preserves_msep_sample = antecedent_graph::projection::projection_preserves_msep_sample
+pub use antecedent_graph::selection::SelectionDiagram = antecedent_graph::SelectionDiagram
+pub use antecedent_graph::temporal::TemporalDag = antecedent_graph::TemporalDag
+pub use antecedent_graph::temporal_admg::TemporalAdmg = antecedent_graph::TemporalAdmg
+pub use antecedent_graph::temporal_cpdag_completion::TemporalCpdagCompletion = antecedent_graph::TemporalCpdagCompletion
+pub use antecedent_graph::temporal_cpdag_completion::TemporalCpdagCompletionSampler = antecedent_graph::TemporalCpdagCompletionSampler
+pub use antecedent_graph::temporal_pag::TemporalPag = antecedent_graph::TemporalPag
+pub use antecedent_graph::temporal_pag::TemporalPagReview = antecedent_graph::TemporalPagReview
+pub use antecedent_graph::temporal_pag_completion::TemporalPagCompletion = antecedent_graph::TemporalPagCompletion
+pub use antecedent_graph::temporal_pag_completion::TemporalPagCompletionSampler = antecedent_graph::TemporalPagCompletionSampler
+pub use antecedent_graph::tiered::TieredBackground = antecedent_graph::TieredBackground
+pub use antecedent_graph::tiered::WithinTier = antecedent_graph::WithinTier
+pub use antecedent_graph::types::DenseNodeId = antecedent_graph::DenseNodeId
+pub use antecedent_graph::types::Endpoint = antecedent_graph::Endpoint
+pub use antecedent_graph::types::MarkedEdge = antecedent_graph::MarkedEdge
+pub use antecedent_graph::types::MiddleMark = antecedent_graph::MiddleMark
+pub use antecedent_graph::types::NodeRef = antecedent_core::NodeRef
+pub use antecedent_graph::unfold::LazyUnfoldedTemporalGraph = antecedent_graph::LazyUnfoldedTemporalGraph
+pub use antecedent_graph::unfold::TemporalCpdagReview = antecedent_graph::TemporalCpdagReview
+pub use antecedent_graph::unfold::TemporalGraphReview = antecedent_graph::TemporalGraphReview
+pub use antecedent_graph::unfold::UnfoldedTemporalGraph = antecedent_graph::UnfoldedTemporalGraph
+pub use antecedent_graph::unfold::ensure_lagged = antecedent_graph::ensure_lagged
+pub use antecedent_graph::unfold_pag::UnfoldedTemporalPag = antecedent_graph::UnfoldedTemporalPag
+pub use antecedent_graph::workspace::BitSet = antecedent_graph::BitSet
+pub use antecedent_graph::workspace::GraphWorkspace = antecedent_graph::GraphWorkspace
+pub variant antecedent_graph::CopyLabels::Preserve
+pub variant antecedent_graph::CopyLabels::StaticIndex { extra: u32 }
+pub variant antecedent_graph::Endpoint::Arrow
+pub variant antecedent_graph::Endpoint::Circle
+pub variant antecedent_graph::Endpoint::Conflict
+pub variant antecedent_graph::Endpoint::Tail
+pub variant antecedent_graph::GraphError::ContemporaneousSelfEdge { variable: antecedent_core::ids::VariableId }
+pub variant antecedent_graph::GraphError::Cycle { from: u32, to: u32 }
+pub variant antecedent_graph::GraphError::DuplicateEdge { from: u32, to: u32 }
+pub variant antecedent_graph::GraphError::FutureToPast { from: u32, to: u32, from_lag: antecedent_core::ids::Lag, to_lag: antecedent_core::ids::Lag }
+pub variant antecedent_graph::GraphError::InvalidEndpoints { message: &'static str }
+pub variant antecedent_graph::GraphError::InvalidLag { lag: antecedent_core::ids::Lag }
+pub variant antecedent_graph::GraphError::InvalidSelectionDiagram { message: alloc::string::String }
+pub variant antecedent_graph::GraphError::SearchBudgetExhausted { max_paths: usize, max_len: usize }
+pub variant antecedent_graph::GraphError::SeparationUndetermined
+pub variant antecedent_graph::GraphError::TooManyNodes
+pub variant antecedent_graph::GraphError::UnknownNode { id: u32 }
+pub variant antecedent_graph::GraphError::UnknownVariableName { name: alloc::string::String }
+pub variant antecedent_graph::MiddleMark::Both
+pub variant antecedent_graph::MiddleMark::Empty
+pub variant antecedent_graph::MiddleMark::Left
+pub variant antecedent_graph::MiddleMark::Right
+pub variant antecedent_graph::MiddleMark::Unknown
+pub variant antecedent_graph::PagSeparation::Connected
+pub variant antecedent_graph::PagSeparation::Separated
+pub variant antecedent_graph::PagSeparation::Undetermined
+pub variant antecedent_graph::SeparationResult::Connected { active_path: alloc::vec::Vec<antecedent_graph::PathStep> }
+pub variant antecedent_graph::SeparationResult::Separated { conditioning: alloc::vec::Vec<antecedent_graph::DenseNodeId>, certificate: antecedent_graph::SeparationCertificate }
+pub variant antecedent_graph::WithinTier::CoDetermined
+pub variant antecedent_graph::WithinTier::Unknown

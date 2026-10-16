@@ -213,7 +213,7 @@ def shared_table() -> list[dict]:
         counts[key] = counts.get(key, 0) + 1
     common = math.gcd(*counts.values())
     return [
-        {**{k: float(v) for k, v in zip(SHARED_COLUMNS, key)}, "count": n // common}
+        {**{k: float(v) for k, v in zip(SHARED_COLUMNS, key, strict=True)}, "count": n // common}
         for key, n in sorted(counts.items())
     ]
 
@@ -342,15 +342,30 @@ def build() -> dict:
     }
 
 
+def values_close(left: object, right: object) -> bool:
+    """Float documents compare with ``np.isclose``, not ``!=``."""
+    if isinstance(left, bool) or isinstance(right, bool):
+        return left == right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return bool(np.isclose(left, right, equal_nan=True))
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(values_close(left[k], right[k]) for k in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(
+            values_close(a, b) for a, b in zip(left, right, strict=True)
+        )
+    return left == right
+
+
 def main() -> None:
     expected = build()
     path = HERE / "expected.json"
     text = json.dumps(expected, indent=2) + "\n"
     if "--write" in sys.argv:
-        path.write_text(text, encoding="utf-8")
+        path.write_text(text, encoding="utf-8", newline="\n")
     if "--check" in sys.argv:
         frozen = json.loads(path.read_text(encoding="utf-8"))
-        if frozen != expected:
+        if not values_close(frozen, expected):
             raise SystemExit("expected.json is stale; rerun with --write")
     print(json.dumps(expected["truth"], indent=2))
     print(json.dumps(expected["shared_descendant"]["truth"], indent=2))

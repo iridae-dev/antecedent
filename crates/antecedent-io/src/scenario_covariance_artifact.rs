@@ -1,4 +1,4 @@
-//! Independent artifacts for the shared-data covariance of scenario estimates (2.3A X2).
+//! Independent artifacts for the shared-data covariance of scenario estimates.
 //!
 //! Format version 1. The artifact stores the covariance result (scenario ids in
 //! matrix order, the `K x K` covariance, the means, the method label, the
@@ -118,7 +118,7 @@ fn unknown_dependence(message: &str) -> IoError {
     }
 }
 
-#[allow(clippy::cast_precision_loss)] // Row counts are far below 2^53.
+#[allow(clippy::cast_precision_loss, reason = "Row counts are far below 2^53")]
 const fn to_f64(n: usize) -> f64 {
     n as f64
 }
@@ -289,7 +289,6 @@ struct ContrastRow {
     event: bool,
 }
 
-#[allow(clippy::too_many_arguments)] // The six declared fields of the functional.
 fn adjusted_estimator(
     table: &RowTableWire,
     treatment: &str,
@@ -621,25 +620,18 @@ pub struct ScenarioCovarianceArtifactWire {
     pub data_digest: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 fn premises_identity(wire: &ScenarioCovarianceArtifactWire) -> Result<String, IoError> {
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("scenario_shared_covariance_v1", &wire.scenarios, &wire.method),
-    )?
-    .to_hex())
+    )
 }
 
 fn data_identity(wire: &ScenarioCovarianceArtifactWire) -> Result<String, IoError> {
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("scenario_shared_covariance_data_v1", &wire.table),
-    )?
-    .to_hex())
+    )
 }
 
 impl ScenarioCovarianceArtifactWire {
@@ -706,11 +698,13 @@ impl ScenarioCovarianceArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != SCENARIO_COVARIANCE_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == SCENARIO_COVARIANCE_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         if wire.required_features != [SCENARIO_COVARIANCE_ARTIFACT_FEATURE] {
             return Err(
                 ScenarioCovarianceArtifactError::UnsupportedSemantics("required features").into()
@@ -767,12 +761,18 @@ impl ScenarioCovarianceArtifactWire {
     ) -> Result<(Self, ScenarioCovariance), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if premises_identity(&wire)? != wire.premises_digest {
-            return Err(ScenarioCovarianceArtifactError::PremisesMismatch.into());
-        }
-        if data_identity(&wire)? != wire.data_digest {
-            return Err(ScenarioCovarianceArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            premises_identity(&wire),
+            std::convert::identity,
+            || ScenarioCovarianceArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            data_identity(&wire),
+            std::convert::identity,
+            || ScenarioCovarianceArtifactError::DataIdentityMismatch.into(),
+        )?;
         let covariance = wire.spec().compute(ctx)?;
         let replayed = CovarianceResultWire::from_covariance(&covariance);
         if crate::to_cbor(&replayed)? != crate::to_cbor(&wire.result)? {

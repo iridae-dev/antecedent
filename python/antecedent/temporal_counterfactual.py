@@ -1,4 +1,4 @@
-"""Fixed-population temporal counterfactual and the closed transported route (2.3 X8).
+"""Fixed-population temporal counterfactual and the closed transported route.
 
 The graph is one fixed, fully observed, Markovian two-slice DAG over the nodes
 ``covariate_0 -> action_0 -> covariate_1 -> action_1 -> outcome`` (a covariate and an action
@@ -14,11 +14,11 @@ per world would answer a different (interventional) question and is never drawn.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
+from ._columns import coerce_fields
 from ._native import (
     consume_temporal_counterfactual_artifact as _consume_temporal,
 )
@@ -28,8 +28,14 @@ from ._native import (
 from ._native import (
     transported_path_specific_refusal as _transported_refusal,
 )
+from ._refusal import raise_refusal
+from ._scientific import ScientificResult
+from ._validate import non_finite_refusal, real
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
-from .temporal import TemporalRefusal, _raise_refusal
+from .temporal import TemporalRefusal
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "AbductionReceipt",
@@ -70,25 +76,15 @@ def _times(value: object, what: str) -> tuple[int, int]:
 
 
 def _number(value: object, what: str, *, detail: str, offending: str | None = None) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        try:
-            number = float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError) as error:
-            raise CausalTypeError(f"{what} must be a real number") from error
-    else:
-        number = float(value)
-    if not math.isfinite(number):
-        # JSON cannot carry a non-finite number: report it with the Rust refusal's code/detail.
-        raise TemporalRefusal(
-            {
-                "code": "invalid_argument",
-                "stage": "evaluate",
-                "detail": detail,
-                "offending": offending or what,
-                "message": f"{what} is not finite",
-            }
-        )
-    return number
+    # JSON cannot carry a non-finite number: report it with the Rust refusal's code/detail.
+    return real(
+        value,
+        what,
+        finite=True,
+        non_finite=non_finite_refusal(
+            TemporalRefusal, stage="evaluate", detail=detail, offending=offending
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,17 +108,18 @@ class UnitHistory:
         _name(self.unit, "unit")
         if self.history is not None:
             _name(self.history, "history")
-        object.__setattr__(self, "times", _times(self.times, "times"))
+        coerce_fields(self, times=_times(self.times, "times"))
         for node in TEMPORAL_NODES:
-            object.__setattr__(
+            coerce_fields(
                 self,
-                node,
-                _number(
-                    getattr(self, node),
-                    node,
-                    detail="temporal_counterfactual.non_finite_history",
-                    offending=self.unit,
-                ),
+                **{
+                    node: _number(
+                        getattr(self, node),
+                        node,
+                        detail="temporal_counterfactual.non_finite_history",
+                        offending=self.unit,
+                    )
+                },
             )
 
     def _wire(self) -> dict[str, Any]:
@@ -153,10 +150,9 @@ class ActionHistory:
         _name(self.name, "name")
         if not isinstance(self.actions, Sequence) or len(self.actions) != 2:
             raise CausalTypeError("actions must be a pair (action_0, action_1)")
-        object.__setattr__(
+        coerce_fields(
             self,
-            "actions",
-            tuple(
+            actions=tuple(
                 _number(
                     a,
                     "action",
@@ -166,9 +162,9 @@ class ActionHistory:
                 for a in self.actions
             ),
         )
-        object.__setattr__(self, "times", _times(self.times, "times"))
+        coerce_fields(self, times=_times(self.times, "times"))
         if self.units is not None:
-            object.__setattr__(self, "units", tuple(_name(u, "unit") for u in self.units))
+            coerce_fields(self, units=tuple(_name(u, "unit") for u in self.units))
 
     def _wire(self, units: Sequence[str]) -> dict[str, Any]:
         return {
@@ -196,15 +192,15 @@ class NodeMechanism:
 
     def __post_init__(self) -> None:
         _name(self.node, "node")
-        object.__setattr__(
+        coerce_fields(
             self,
-            "intercept",
-            _number(self.intercept, "intercept", detail="temporal_counterfactual.fit_mismatch"),
+            intercept=_number(
+                self.intercept, "intercept", detail="temporal_counterfactual.fit_mismatch"
+            ),
         )
-        object.__setattr__(
+        coerce_fields(
             self,
-            "coefficients",
-            {
+            coefficients={
                 _name(parent, "parent"): _number(
                     coef,
                     "coefficient",
@@ -215,10 +211,9 @@ class NodeMechanism:
             },
         )
         if self.noise_halfwidth is not None:
-            object.__setattr__(
+            coerce_fields(
                 self,
-                "noise_halfwidth",
-                _number(
+                noise_halfwidth=_number(
                     self.noise_halfwidth,
                     "noise_halfwidth",
                     detail="temporal_counterfactual.fit_mismatch",
@@ -249,7 +244,7 @@ class TemporalMechanisms:
 
     def __post_init__(self) -> None:
         _name(self.fit_id, "fit_id")
-        object.__setattr__(self, "mechanisms", tuple(self.mechanisms))
+        coerce_fields(self, mechanisms=tuple(self.mechanisms))
         if not all(isinstance(m, NodeMechanism) for m in self.mechanisms):
             raise CausalTypeError("mechanisms must be NodeMechanism objects")
 
@@ -282,7 +277,7 @@ class AbductionReceipt:
 
     The digests bind the snapshot, graph, mechanism fit, factual histories and each world's
     action history; ``unit_draws`` holds one ``(unit, history, digest)`` of the abduced
-    exogenous draw per unit. They are integrity digests (not cryptographic).
+    exogenous draw per unit. Each is a 64-hex BLAKE3 digest under its own domain tag.
     """
 
     snapshot: str
@@ -323,7 +318,7 @@ class TemporalCounterfactualIdentity:
 
 
 @dataclass(frozen=True, slots=True)
-class TemporalCounterfactualEffect:
+class TemporalCounterfactualEffect(ScientificResult):
     """Per-unit counterfactual outcomes, their mean contrast, the receipt and the artifact.
 
     ``contrast`` is the sample mean of ``plus - minus`` over units; each unit's contrast
@@ -342,11 +337,17 @@ class TemporalCounterfactualEffect:
     snapshot: str
     receipt: AbductionReceipt
     identity: TemporalCounterfactualIdentity
-    artifact: bytes
+    _artifact_bytes: bytes
+
+    def artifact(self) -> ExportedArtifact[TemporalCounterfactualEffect]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``temporal_counterfactual_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
 
 def _temporal_effect(report_json: str, artifact: bytes) -> TemporalCounterfactualEffect:
@@ -387,7 +388,7 @@ def _temporal_effect(report_json: str, artifact: bytes) -> TemporalCounterfactua
             digest=receipt["digest"],
         ),
         identity=TemporalCounterfactualIdentity(**report["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 
@@ -446,7 +447,7 @@ def temporal_fixed_population(
     report, artifact, refusal = _evaluate_temporal(
         json.dumps(request, allow_nan=False), "temporal_counterfactual"
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TemporalRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native temporal counterfactual returned neither a result nor a refusal"
@@ -484,7 +485,7 @@ def consume_temporal_counterfactual_artifact(
         )
     data = bytes(artifact)
     report, refusal = _consume_temporal(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TemporalRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _temporal_effect(report, data)
@@ -540,20 +541,27 @@ def transported_path_specific(
     ``supplied_factors`` (factor -> evidence id) it is ``reason_code="transport_missing_evidence"``
     with ``transported_counterfactual.factor_missing``. ``missing_gates`` and
     ``missing_factors`` are retained either way.
+
+    The refusal's ``remedy`` names the successor route for the scope in which an answer
+    exists: a finite discrete, static, acyclic semi-Markovian counterfactual transport
+    question is answered by ``antecedent.transport.advanced.identify_counterfactual``. This
+    function never delegates to it and never answers; the temporal, continuous and
+    non-finite scope stays refused here.
     """
     declared = prerequisites if prerequisites is not None else TransportedPrerequisites()
     if not isinstance(declared, TransportedPrerequisites):
         raise CausalTypeError("prerequisites must be a TransportedPrerequisites")
     required = [_factor(f) for f in required_factors]
     supplied = [(*_factor(k), str(v)) for k, v in (supplied_factors or {}).items()]
-    _raise_refusal(
+    raise_refusal(
         _transported_refusal(
             declared.transport_license,
             declared.fixed_population_license,
             declared.cross_population_assumptions,
             required,
             supplied,
-        )
+        ),
+        TemporalRefusal,
     )
     raise CausalUnsupportedError(  # pragma: no cover - the native route always refuses
         "transported_counterfactual.route_frozen: the transported route is closed",

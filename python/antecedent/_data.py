@@ -12,6 +12,7 @@ from .errors import CausalTypeError, CausalValueError
 
 # Integers beyond this are not exactly representable as float64.
 _EXACT_INT_LIMIT = 2**53
+_PANDAS_MISSING = frozenset({"NAType", "NaTType", "_NaT"})
 
 
 def _refuse_column(message: str) -> CausalTypeError:
@@ -23,8 +24,7 @@ def _is_missing_scalar(value: Any) -> bool:
     """True for ``None`` and pandas-style NA sentinels (not NumPy NaN floats)."""
     if value is None:
         return True
-    name = type(value).__name__
-    return name in {"NAType", "NaTType", "_NaT"}
+    return type(value).__name__ in _PANDAS_MISSING
 
 
 def ingest_columns(
@@ -58,9 +58,10 @@ def as_columns(
     if arrow is not None:
         names, cols = arrow
         return names, [_materialize_f64(col) for col in cols]
-    raise TypeError(
+    raise CausalTypeError(
         "data must be a mapping of name→array, a pandas DataFrame, or an Arrow-exporting "
-        f"table (PyArrow, Polars); got {type(data)!r}"
+        f"table (PyArrow, Polars); got {type(data)!r}",
+        reason_code="invalid_argument",
     )
 
 
@@ -167,28 +168,7 @@ def to_f64(arr: Any, *, name: str | None = None) -> NDArray[np.float64]:
         raise CausalValueError(f"expected 1-d column{label}, got shape {raw.shape}")
     kind = raw.dtype.kind
     if kind == "O":
-        values: list[float] = []
-        for value in raw:
-            if _is_missing_scalar(value):
-                values.append(float("nan"))
-            elif isinstance(value, (bool, np.bool_)):
-                values.append(float(value))
-            elif isinstance(value, (int, np.integer)):
-                if abs(int(value)) > _EXACT_INT_LIMIT:
-                    raise _refuse_column(
-                        f"integer {int(value)} exceeds 2**53 and would lose precision as float64"
-                        + (f" (column{label})" if name is not None else "")
-                    )
-                values.append(float(value))
-            elif isinstance(value, (float, np.floating)):
-                values.append(float(value))
-            else:
-                raise _refuse_column(
-                    f"column{label} holds {type(value).__name__} values; only numeric values are "
-                    "accepted (encode categories / one-hot, or exclude the column; "
-                    "typed numeric Arrow columns can use try_as_arrow_c_columns for zero-copy)"
-                )
-        return np.asarray(values, dtype=np.float64)
+        return _object_column_f64(raw, name=name, label=label)
     if kind not in "fiub":
         raise _refuse_column(
             f"column{label} dtype {raw.dtype} is not numeric; only float, integer and boolean "
@@ -205,6 +185,123 @@ def to_f64(arr: Any, *, name: str | None = None) -> NDArray[np.float64]:
     return np.asarray(raw, dtype=np.float64)
 
 
+class _ObjectColumnFallback(Exception):
+    """The vectorized object cast cannot classify this column."""
+
+
+def _none_mask(raw: NDArray[Any]) -> NDArray[np.bool_]:
+    """True where an object column holds ``None``.
+
+    Walking the flat buffer uses ``is None``, so pandas ``NA`` stays out of
+    this mask and falls through to the typed element loop.
+    """
+    flat = raw.reshape(-1)
+    mask = np.fromiter((item is None for item in flat), dtype=np.bool_, count=flat.size)
+    return mask.reshape(raw.shape)
+
+
+def _object_column_f64(raw: NDArray[Any], *, name: str | None, label: str) -> NDArray[np.float64]:
+    """Object column to float64.
+
+    ``None`` and ordinary numbers cast in NumPy. ``astype(float64)`` would also
+    parse digit strings and round integers past 2**53, so those, and pandas
+    ``NA`` / ``NaT``, fall through to the typed element loop that names the value.
+    """
+    if raw.size == 0:
+        return np.empty(0, dtype=np.float64)
+    missing = _none_mask(raw)
+    try:
+        return _cast_object_numbers(raw, missing, name=name, label=label, na_checked=False)
+    except _ObjectColumnFallback:
+        return _object_column_f64_each(raw, name=name, label=label)
+
+
+def _cast_object_numbers(
+    values: NDArray[Any],
+    missing: NDArray[np.bool_],
+    *,
+    name: str | None,
+    label: str,
+    na_checked: bool,
+) -> NDArray[np.float64]:
+    work = np.array(values, dtype=object, copy=True)
+    if missing.any():
+        work[missing] = 0.0
+    try:
+        too_wide = np.logical_or(
+            np.greater(work, _EXACT_INT_LIMIT), np.less(work, -_EXACT_INT_LIMIT)
+        )
+    except TypeError:
+        return _retry_object_na(values, missing, name=name, label=label, na_checked=na_checked)
+    if np.any(too_wide):
+        for value in work[np.flatnonzero(too_wide)]:
+            if isinstance(value, (bool, np.bool_, float, np.floating)):
+                continue
+            if isinstance(value, (int, np.integer)):
+                where = f" (column{label})" if name is not None else ""
+                raise _refuse_column(
+                    f"integer {int(value)} exceeds 2**53 and would lose precision as float64{where}"
+                )
+            return _retry_object_na(values, missing, name=name, label=label, na_checked=na_checked)
+    try:
+        out = work.astype(np.float64)
+    except (TypeError, ValueError):
+        return _retry_object_na(values, missing, name=name, label=label, na_checked=na_checked)
+    if missing.any():
+        out = np.array(out, dtype=np.float64, copy=True)
+        out[missing] = np.nan
+    return out
+
+
+def _retry_object_na(
+    values: NDArray[Any],
+    missing: NDArray[np.bool_],
+    *,
+    name: str | None,
+    label: str,
+    na_checked: bool,
+) -> NDArray[np.float64]:
+    if na_checked:
+        raise _ObjectColumnFallback
+    extra = np.fromiter(
+        (type(value).__name__ in _PANDAS_MISSING for value in values),
+        dtype=bool,
+        count=values.size,
+    )
+    if not extra.any():
+        raise _ObjectColumnFallback
+    return _cast_object_numbers(
+        values, np.logical_or(missing, extra), name=name, label=label, na_checked=True
+    )
+
+
+def _object_column_f64_each(
+    raw: NDArray[Any], *, name: str | None, label: str
+) -> NDArray[np.float64]:
+    values: list[float] = []
+    for value in raw:
+        if _is_missing_scalar(value):
+            values.append(float("nan"))
+        elif isinstance(value, (bool, np.bool_)):
+            values.append(float(value))
+        elif isinstance(value, (int, np.integer)):
+            if abs(int(value)) > _EXACT_INT_LIMIT:
+                raise _refuse_column(
+                    f"integer {int(value)} exceeds 2**53 and would lose precision as float64"
+                    + (f" (column{label})" if name is not None else "")
+                )
+            values.append(float(value))
+        elif isinstance(value, (float, np.floating)):
+            values.append(float(value))
+        else:
+            raise _refuse_column(
+                f"column{label} holds {type(value).__name__} values; only numeric values are "
+                "accepted (encode categories / one-hot, or exclude the column; "
+                "typed numeric Arrow columns can use try_as_arrow_c_columns for zero-copy)"
+            )
+    return np.asarray(values, dtype=np.float64)
+
+
 def _check_column_lengths(names: list[str], cols: list[NDArray[np.float64]]) -> None:
     if len(cols) < 2:
         return
@@ -213,7 +310,10 @@ def _check_column_lengths(names: list[str], cols: list[NDArray[np.float64]]) -> 
     if all(n == n0 for n in lengths):
         return
     detail = ", ".join(f"{name}={n}" for name, n in zip(names, lengths, strict=True))
-    raise ValueError(f"column length mismatch ({detail}); align rows or subset to a common index")
+    raise CausalValueError(
+        f"column length mismatch ({detail}); align rows or subset to a common index",
+        reason_code="invalid_argument",
+    )
 
 
 def _materialize_f64(column: Any) -> NDArray[np.float64]:
@@ -234,14 +334,18 @@ def as_multi_env_columns(
     data: Sequence[Mapping[str, Any] | Any],
 ) -> tuple[list[str], list[list[NDArray[np.float64]]]]:
     if not data:
-        raise ValueError("expected a non-empty sequence of environment frames")
+        raise CausalValueError(
+            "expected a non-empty sequence of environment frames",
+            reason_code="invalid_argument",
+        )
     names, first = ingest_columns(data[0])
     env_columns = [[_materialize_f64(col) for col in first]]
     for i, env in enumerate(data[1:], start=1):
         n, cols = ingest_columns(env)
         if n != names:
-            raise ValueError(
-                f"environment {i} column names {n!r} do not match environment 0 {names!r}"
+            raise CausalValueError(
+                f"environment {i} column names {n!r} do not match environment 0 {names!r}",
+                reason_code="invalid_argument",
             )
         env_columns.append([_materialize_f64(col) for col in cols])
     return names, env_columns
@@ -257,7 +361,10 @@ def coerce_data_args(
     if data is not None:
         return as_columns(data)
     if names is None or columns is None:
-        raise TypeError("provide data=… or both names= and columns=")
+        raise CausalTypeError(
+            "provide data=… or both names= and columns=",
+            reason_code="invalid_argument",
+        )
     out_names = list(names)
     cols = [to_f64(c, name=str(n)) for n, c in zip(out_names, columns, strict=True)]
     _check_column_lengths(out_names, cols)

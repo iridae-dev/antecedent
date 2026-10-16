@@ -2,7 +2,7 @@
 
 Covers two branch-review defects fixed together:
 
-* The native `analyze_response` (python/src/response_api.rs) now consults the
+* The native response preparation (python/src/response_api.rs) now consults the
   generated support matrix itself (`antecedent::support::refuse_if_not_applicable`)
   instead of being enforced only by hand-typed Python literals that could drift
   from `parity/support_closed.toml`. Admg InterventionResponse cheap/full is
@@ -15,14 +15,12 @@ Covers two branch-review defects fixed together:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import antecedent
 import numpy as np
 
-from _repo_text import load_toml
+from _repo_text import REPO_ROOT, load_toml
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = REPO_ROOT
 _SUPPORT_CLOSED_TOML = _REPO_ROOT / "parity" / "support_closed.toml"
 
 
@@ -73,8 +71,9 @@ def test_path_distribution_literals_match_support_closed_toml():
     against the TOML reason so either side changing alone fails loudly.
     """
     import inspect
+    import re
 
-    import antecedent.estimation as estimation
+    import antecedent._prepare_route as prepare_route
 
     rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
     matches = [
@@ -85,9 +84,9 @@ def test_path_distribution_literals_match_support_closed_toml():
     ]
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]
-    source = inspect.getsource(estimation)
+    source = inspect.getsource(prepare_route)
     # The literal is wrapped across adjacent string fragments; normalize.
-    collapsed = source.replace('"\n            "', "")
+    collapsed = re.sub(r'"\s*\n\s*"', "", source)
     count = collapsed.count(reason.rstrip("."))
     assert count >= 1, (
         f"expected the TOML reason at the prepare routing gate; found {count}: {reason!r}"

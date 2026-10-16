@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -17,6 +9,7 @@ use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_discovery::{DiscoveryWorkspace, LaggedLink, Pcmci, ci_from_name};
 
+use crate::common::map_drawn_replicates;
 use crate::error::ValidationError;
 use crate::stability::{gap_masking_constraints, gapped_block_bootstrap};
 
@@ -89,7 +82,7 @@ impl BlockBootstrapStability {
         &self,
         data: &TimeSeriesData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DiscoveryStabilityReport, ValidationError> {
         if self.replicates == 0 || self.block_size == 0 {
@@ -103,7 +96,7 @@ impl BlockBootstrapStability {
             });
         }
         let mut counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();
-        let mut rng = ctx.rng.stream(0x57AB_u64);
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_PCMCI);
         let mut index_scratch = Vec::new();
         // PCMCI materializes lags up to twice its maximum lag; that is the separator width that
         // keeps every lag window inside one block (see `gapped_block_bootstrap`).
@@ -113,15 +106,22 @@ impl BlockBootstrapStability {
                 Some(constraints) => self.pcmci.clone().with_constraints(constraints),
                 None => self.pcmci.clone(),
             };
-        for _ in 0..self.replicates {
-            let boot =
-                gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
-            let result = pcmci
-                .run(&boot.series, variables, workspace, ctx)
-                .map_err(ValidationError::from)?;
-            for s in result.evidence.links.iter() {
-                *counts.entry(s.link).or_insert(0) += 1;
-            }
+        // Replicates share one bootstrap stream, drawn in order here; the discovery runs go to
+        // the pool.
+        let found = map_drawn_replicates(
+            ctx,
+            self.replicates,
+            |_| gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch),
+            DiscoveryWorkspace::default,
+            |workspace, ctx, _r, boot| {
+                let result = pcmci
+                    .run(&boot.series, variables, workspace, ctx)
+                    .map_err(ValidationError::from)?;
+                Ok(result.evidence.links.iter().map(|s| s.link).collect::<Vec<_>>())
+            },
+        )?;
+        for link in found.into_iter().flatten() {
+            *counts.entry(link).or_insert(0) += 1;
         }
         Ok(report_from_counts(counts, self.replicates, self.block_size))
     }
@@ -299,13 +299,11 @@ pub(crate) fn report_from_counts(
     for (link, c) in counts {
         frequencies.push(LinkStability { link, frequency: f64::from(c) / f64::from(replicates) });
     }
-    frequencies
-        .sort_by(|a, b| b.frequency.partial_cmp(&a.frequency).unwrap_or(std::cmp::Ordering::Equal));
+    frequencies.sort_by(|a, b| b.frequency.total_cmp(&a.frequency));
     DiscoveryStabilityReport { frequencies: Arc::from(frequencies), replicates, block_size }
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests {
     use antecedent_core::{
         CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
@@ -345,12 +343,7 @@ mod tests {
         )
         .unwrap();
         let schema = b.build().unwrap();
-        let mut x = vec![0.0; n];
-        let mut y = vec![0.0; n];
-        for t in 1..n {
-            x[t] = ((t as f64) * 0.02).sin();
-            y[t] = 0.9 * x[t - 1];
-        }
+        let (x, y) = crate::test_support::driven_xy(n);
         let cols = vec![
             OwnedColumn::Float64(
                 Float64Column::new(

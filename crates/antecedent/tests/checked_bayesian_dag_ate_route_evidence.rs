@@ -6,12 +6,14 @@
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, StructureSource, Study,
 };
-use antecedent_core::{AverageEffectQuery, ExecutionContext, SlotAvailability, VariableId};
+use antecedent_contract::SlotAvailability;
+use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::BayesLikelihood;
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use common::fixtures::confounded_scm;
@@ -84,14 +86,17 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                     one_shot.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
                     "one-shot DAG Bayesian path must execute the retained proof"
                 );
-                assert_eq!(one_shot.estimate.ate.to_bits(), result.estimate.ate.to_bits());
+                assert_eq!(
+                    one_shot.estimate.as_effect().unwrap().ate.to_bits(),
+                    result.estimate.as_effect().unwrap().ate.to_bits()
+                );
             }
             // The independent fixture is y = 2*t + z + noise under a complete
             // back-door graph. The posterior must estimate the known effect.
             assert!(
-                (result.estimate.ate - 2.0).abs() < 0.2,
+                (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
                 "{coordinate}: {}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 96);
             assert_eq!(
@@ -109,7 +114,10 @@ fn bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh() {
                 );
             }
             let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-            assert_eq!(refreshed.estimate.ate.to_bits(), result.estimate.ate.to_bits());
+            assert_eq!(
+                refreshed.estimate.as_effect().unwrap().ate.to_bits(),
+                result.estimate.as_effect().unwrap().ate.to_bits()
+            );
             assert_eq!(prepared.checked_bayesian_gcomp_operation().unwrap().query(), &query);
 
             let artifact = prepared
@@ -171,8 +179,11 @@ fn bayesian_dag_ate_keeps_non_gaussian_likelihood_on_outcome_scale() {
         let plan = prepared.checked_bayesian_gcomp_operation().unwrap();
         assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
         let result = prepared.estimate(&data, &ctx).unwrap();
-        assert!(result.estimate.ate.is_finite());
-        assert!(result.estimate.ate > 0.1 && result.estimate.ate < 0.5);
+        assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+        assert!(
+            result.estimate.as_effect().unwrap().ate > 0.1
+                && result.estimate.as_effect().unwrap().ate < 0.5
+        );
         assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 64);
         assert_eq!(result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(), "laplace");
     }
@@ -208,7 +219,11 @@ fn bayesian_dag_ate_poisson_mean_contrast_uses_the_count_scale() {
     let plan = prepared.checked_bayesian_gcomp_operation().unwrap();
     assert_eq!(plan.inference(), &InferenceMode::Bayesian(config));
     let result = prepared.estimate(&data, &ExecutionContext::for_tests(309)).unwrap();
-    assert!((result.estimate.ate - 1.0).abs() < 0.1, "{}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 1.0).abs() < 0.1,
+        "{}",
+        result.estimate.as_effect().unwrap().ate
+    );
     assert_eq!(result.posterior.as_ref().unwrap().diagnostics.backend_id.as_ref(), "laplace");
 }
 

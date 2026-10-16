@@ -9,26 +9,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
-use antecedent_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
+use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::graph_mcmc::{FinishMaskPosterior, GraphMcmcSchedule, run_parallel_mask_chains};
+use crate::graph_mcmc::{
+    FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel, MaskChain, MaskChainPlan,
+    run_mask_chain, run_parallel_mask_chains,
+};
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, n_directed_edges, set_edge,
 };
-use crate::graph_score::{initial_scored_mask, score_dag_mask, tabular_score_data};
+use crate::graph_score::{initial_scored_mask, score_dag_mask_with_parents, tabular_score_data};
 
 /// Order MCMC over topological orders and compatible forward edges.
 #[derive(Clone, Debug)]
@@ -90,26 +84,28 @@ impl OrderMcmc {
     /// # Errors
     ///
     /// Data/score failures or diagnostics gate refusal.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
         variables: &[VariableId],
         prior: &GraphPrior,
         score_family: GraphScoreFamily,
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        let _ = workspace;
         prior.constraints.validate()?;
         let n = variables.len();
         if n == 0 {
             return Err(DiscoveryError::unsupported("order MCMC requires at least one variable"));
         }
-        if n_directed_edges(n) > 63 {
-            return Err(DiscoveryError::unsupported(
-                "order MCMC adjacency exceeds 63 directed edges",
-            ));
-        }
+        crate::graph_posterior::ensure_directed_mask_fits(
+            n,
+            "order MCMC adjacency exceeds 63 directed edges",
+        )?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
             return Err(DiscoveryError::unsupported(
                 "order MCMC currently supports GaussianBic only",
@@ -139,90 +135,35 @@ impl OrderMcmc {
 
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = n_directed_edges(n);
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
 
         let (traces, sample_masks, rejected) =
-            run_parallel_mask_chains(n_chains, n_draws, n_params, threads, |start, end| {
-                let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
-                let mut local_samples = vec![Vec::new(); end - start];
-                let mut local_rej = 0u64;
-                for li in 0..(end - start) {
-                    let chain = start + li;
-                    let mut rng = ctx.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
-                    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-                        data_version: 1,
-                        family: score_family,
-                        var_fingerprint: n as u64,
-                        penalty_fingerprint: score_data.n_rows as u64,
-                    });
-                    let mut order = initial_order.clone();
-                    let mut mask = initial_mask;
-                    let mut cur = initial_score;
-                    // Overdisperse the starts: chain 0 begins at the required-edge graph, the
-                    // others after a random walk over the feasible set. Identical starts make
-                    // R-hat blind to a chain that has not left its initial mode.
-                    if chain > 0 {
-                        for _ in 0..(4 * n_params).min(400) {
-                            let (new_order, new_mask, _) = propose_order(&order, mask, n, &mut rng);
-                            if let Some(ps) = score_dag_mask(
-                                new_mask,
-                                n,
-                                &score_data,
-                                &mut cache,
-                                prior,
-                                variables,
-                            )
-                            .filter(|s| s.is_finite())
-                            {
-                                order = new_order;
-                                mask = new_mask;
-                                cur = ps - log_topological_order_count(new_mask, n);
-                            }
-                        }
-                    }
-                    let total_steps = n_warmup + n_draws * thin;
-                    let mut kept = 0usize;
-                    for step in 0..total_steps {
-                        if ctx.cancellation.is_cancelled() {
-                            break;
-                        }
-                        let (new_order, new_mask, rej) = propose_order(&order, mask, n, &mut rng);
-                        local_rej += rej;
-                        let prop_score =
-                            score_dag_mask(new_mask, n, &score_data, &mut cache, prior, variables)
-                                .map(|score| score - log_topological_order_count(new_mask, n));
-                        let accept = match prop_score {
-                            Some(ps) if ps.is_finite() => {
-                                let log_r = ps - cur;
-                                log_r >= 0.0 || rng.next_f64() < log_r.exp()
-                            }
-                            _ => false,
-                        };
-                        if accept {
-                            if let Some(ps) = prop_score {
-                                order = new_order;
-                                mask = new_mask;
-                                cur = ps;
-                            }
-                        }
-                        if step >= n_warmup && (step - n_warmup) % thin == 0 && kept < n_draws {
-                            let mut p = 0usize;
-                            for i in 0..n {
-                                for j in 0..n {
-                                    if i == j {
-                                        continue;
-                                    }
-                                    local_traces[(li * n_draws + kept) * n_params + p] =
-                                        if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
-                                    p += 1;
-                                }
-                            }
-                            local_samples[li].push(mask);
-                            kept += 1;
-                        }
-                    }
-                }
-                (start, local_traces, local_samples, local_rej)
+            run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
+                let mut rng = inner.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
+                let mut walker = OrderWalker {
+                    n,
+                    score_data: &score_data,
+                    cache: LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+                        score_family,
+                        n,
+                        score_data.n_rows,
+                    )),
+                    prior,
+                    variables,
+                    order: initial_order.clone(),
+                    mask: initial_mask,
+                    cur: initial_score,
+                    pending_order: initial_order.clone(),
+                    pending_mask: initial_mask,
+                    pos_scratch: Vec::with_capacity(n),
+                    parent_scratch: Vec::with_capacity(n),
+                };
+                let run = run_mask_chain(
+                    &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin, n_params },
+                    inner,
+                    &mut rng,
+                    &mut walker,
+                )?;
+                Ok((run.traces, run.samples, run.rejected))
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -260,50 +201,133 @@ impl GraphPosteriorEngine for OrderMcmc {
     }
 }
 
+struct OrderWalker<'a> {
+    n: usize,
+    score_data: &'a GraphScoreData,
+    cache: LocalScoreCache,
+    prior: &'a GraphPrior,
+    variables: &'a [VariableId],
+    order: Vec<usize>,
+    mask: u64,
+    cur: f64,
+    pending_order: Vec<usize>,
+    pending_mask: u64,
+    pos_scratch: Vec<usize>,
+    parent_scratch: Vec<u32>,
+}
+
+impl MaskChain for OrderWalker<'_> {
+    type Sample = u64;
+
+    fn current_score(&self) -> f64 {
+        self.cur
+    }
+
+    fn accept_policy(&self) -> MaskAccept {
+        // A non-finite score is an invalid proposal. A Metropolis rejection of a finite
+        // score is not counted.
+        MaskAccept::FiniteOnlyCounted
+    }
+
+    fn cancel_policy(&self) -> MaskCancel {
+        MaskCancel::Break
+    }
+
+    fn propose(&mut self, rng: &mut CausalRng) -> u64 {
+        self.pending_mask = propose_order(
+            &self.order,
+            self.mask,
+            self.n,
+            rng,
+            &mut self.pending_order,
+            &mut self.pos_scratch,
+        );
+        0
+    }
+
+    fn proposed_score(&mut self) -> Option<f64> {
+        score_dag_mask_with_parents(
+            self.pending_mask,
+            self.n,
+            self.score_data,
+            &mut self.cache,
+            self.prior,
+            self.variables,
+            &mut self.parent_scratch,
+        )
+        .map(|score| score - log_topological_order_count(self.pending_mask, self.n))
+    }
+
+    fn commit(&mut self, score: f64) {
+        self.order.clone_from(&self.pending_order);
+        self.mask = self.pending_mask;
+        self.cur = score;
+    }
+
+    fn record(&self, row: &mut [f64]) {
+        let mut p = 0usize;
+        for i in 0..self.n {
+            for j in 0..self.n {
+                if i == j {
+                    continue;
+                }
+                row[p] = if has_edge(self.mask, self.n, i, j) { 1.0 } else { 0.0 };
+                p += 1;
+            }
+        }
+    }
+
+    fn sample(&self) -> u64 {
+        self.mask
+    }
+}
+
 fn propose_order(
     order: &[usize],
     mask: u64,
     n: usize,
     rng: &mut CausalRng,
-) -> (Vec<usize>, u64, u64) {
-    let mut new_order = order.to_vec();
+    new_order: &mut Vec<usize>,
+    pos: &mut Vec<usize>,
+) -> u64 {
+    new_order.clear();
+    new_order.extend_from_slice(order);
     let mut new_mask = mask;
-    let rejected = 0u64;
     let u = rng.next_f64();
     if u < 0.35 && n >= 2 {
         let k = crate::indexing::bounded_index(rng.next_u64(), n - 1);
         new_order.swap(k, k + 1);
-        new_mask = reorient_skeleton(mask, &new_order, n);
+        new_mask = reorient_skeleton(mask, new_order, n, pos);
     } else if u < 0.55 && n >= 3 {
         let a = crate::indexing::bounded_index(rng.next_u64(), n);
         let b = crate::indexing::bounded_index(rng.next_u64(), n);
         if a != b {
             new_order.swap(a, b);
-            new_mask = reorient_skeleton(mask, &new_order, n);
+            new_mask = reorient_skeleton(mask, new_order, n, pos);
         }
     } else {
         let a = crate::indexing::bounded_index(rng.next_u64(), n);
         let b = crate::indexing::bounded_index(rng.next_u64(), n);
         if a != b {
-            let pos = position_map(&new_order);
+            fill_position_map(new_order, pos);
             let (from, to) = if pos[a] < pos[b] { (a, b) } else { (b, a) };
             let on = has_edge(new_mask, n, from, to);
             new_mask = set_edge(new_mask, n, from, to, !on);
         }
     }
-    (new_order, new_mask, rejected)
+    new_mask
 }
 
-fn position_map(order: &[usize]) -> Vec<usize> {
-    let mut pos = vec![0; order.len()];
+fn fill_position_map(order: &[usize], pos: &mut Vec<usize>) {
+    pos.clear();
+    pos.resize(order.len(), 0);
     for (p, &node) in order.iter().enumerate() {
         pos[node] = p;
     }
-    pos
 }
 
-fn reorient_skeleton(mask: u64, order: &[usize], n: usize) -> u64 {
-    let pos = position_map(order);
+fn reorient_skeleton(mask: u64, order: &[usize], n: usize, pos: &mut Vec<usize>) -> u64 {
+    fill_position_map(order, pos);
     let mut out = 0u64;
     for a in 0..n {
         for b in a + 1..n {
@@ -345,14 +369,8 @@ fn log_topological_order_count(mask: u64, n: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
 
-    use antecedent_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_data::TabularData;
 
     use crate::graph_posterior::GraphPrior;
 
@@ -370,20 +388,6 @@ mod tests {
     }
 
     fn chain_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {
-        let mut b = CausalSchemaBuilder::new();
-        for name in ["a", "b", "c"] {
-            b.add_variable(
-                name,
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
         let mut rng = antecedent_core::CausalRng::from_seed(3);
         let mut a = vec![0.0; n_rows];
         let mut bb = vec![0.0; n_rows];
@@ -393,22 +397,9 @@ mod tests {
             bb[i] = 1.6 * a[i] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
             c[i] = 1.3 * bb[i] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
         }
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(vars[0], Arc::from(a), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[1], Arc::from(bb), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[2], Arc::from(c), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        (TabularData::new(storage), vars)
+        let data = crate::test_tables::continuous_table(&["a", "b", "c"], vec![a, bb, c]);
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        (data, vars)
     }
 
     #[test]
@@ -443,5 +434,31 @@ mod tests {
             .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap_err();
         assert!(err.to_string().contains("diagnostics gate"), "err={err}");
+    }
+
+    #[test]
+    fn order_mcmc_counts_forbidden_proposals() {
+        let (data, vars) = chain_data(40);
+        let mut prior = GraphPrior::uniform();
+        prior.constraints.forbidden = std::sync::Arc::from([
+            crate::graph_posterior::static_link(&vars, 0, 1),
+            crate::graph_posterior::static_link(&vars, 1, 0),
+            crate::graph_posterior::static_link(&vars, 0, 2),
+            crate::graph_posterior::static_link(&vars, 2, 0),
+            crate::graph_posterior::static_link(&vars, 1, 2),
+            crate::graph_posterior::static_link(&vars, 2, 1),
+        ]);
+        let eng = OrderMcmc::new().with_schedule(2, 0, 30, 1).with_diagnostics_gate(false);
+        let post = eng
+            .run(
+                &data,
+                &vars,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &mut DiscoveryWorkspace::default(),
+                &ExecutionContext::for_tests(3),
+            )
+            .unwrap();
+        assert!(post.rejected_invalid > 0, "forbidden edges were reported as accepted proposals");
     }
 }

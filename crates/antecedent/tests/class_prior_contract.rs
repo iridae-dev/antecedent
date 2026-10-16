@@ -5,7 +5,7 @@
 use antecedent::{BayesianConfig, ClassPrior, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{ExecutionContext, Lag, TemporalEffectQuery, VariableId};
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::GraphPosterior;
+use antecedent_discovery::{GraphPosterior, SamplingSummary};
 use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -52,9 +52,11 @@ fn class_prior_conflicts_with_graph_posterior() {
         [0_u64],
         [0.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 0.0],
-        1.0,
-        InferenceDiagnostics::analytic("class_prior_contract"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("class_prior_contract"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap();
     let err = Study::series(series())
@@ -81,9 +83,11 @@ fn temporal_cpdag_graph_posterior_stays_refused() {
         [0_u64],
         [0.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 0.0],
-        1.0,
-        InferenceDiagnostics::analytic("class_prior_contract"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("class_prior_contract"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap();
     // graph + graph_posterior is already a conflict; the matrix cell is also refused.
@@ -124,9 +128,11 @@ fn temporal_cpdag_graph_posterior_with_lag_masks_licenses_pulse() {
         [contemp],
         [0.0; 9],
         [0.0; 9],
-        1.0,
-        InferenceDiagnostics::analytic("class_prior_contract"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("class_prior_contract"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Cpdag)

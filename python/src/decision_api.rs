@@ -1,9 +1,10 @@
-//! Bounded Python bridge for 2.3 decision contracts.
+//! Bounded Python bridge for decision contracts.
 //!
 //! Python builds the contract declaration; the identity, validation, evaluation,
 //! artifacts and refusals are Rust's. A refusal comes back as structured JSON
 //! for the Python layer to raise as its own exception type.
 
+use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent_design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, ClaimProbability, IdentifiedSetDecision, IdentifiedUtility,
     IdentifiedVerdict, SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims,
@@ -30,37 +31,15 @@ use antecedent_design::decision_structural::{
 };
 use antecedent_io::error::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use antecedent_core::{ExternalRefusal, ScientificQuantity};
+use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 
-use crate::CausalSerializationError;
 use crate::distribution_api::PyJointDistributionArtifact;
 
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
-}
-
-fn refusal_json(value: &ExternalRefusal) -> String {
-    serde_json::json!({
-        "code": value.code,
-        "stage": value.stage,
-        "detail": value.detail,
-        "offending": value.offending,
-        "expected": value.expected,
-        "supplied": value.supplied,
-        "remedy": value.remedy,
-    })
-    .to_string()
-}
-
 fn check_size(json: &str) -> PyResult<()> {
-    if json.len() > MAX_DECISION_ARTIFACT_BYTES {
-        return Err(PyValueError::new_err("decision declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(json, MAX_DECISION_ARTIFACT_BYTES, "decision")
 }
 
 fn io_refusal(error: &IoError, stage: &'static str) -> String {
@@ -74,7 +53,7 @@ fn io_refusal(error: &IoError, stage: &'static str) -> String {
             Some(other.to_string()),
         ),
     };
-    refusal_json(&ExternalRefusal {
+    external_refusal_json(&ExternalRefusal {
         code,
         stage,
         detail,
@@ -87,7 +66,7 @@ fn io_refusal(error: &IoError, stage: &'static str) -> String {
 }
 
 fn eval_refusal(error: &DecisionEvalError) -> String {
-    refusal_json(&error.to_refusal())
+    external_refusal_json(&error.to_refusal())
 }
 
 /// Validate a contract declaration; returns its normalized JSON (with the
@@ -97,7 +76,7 @@ fn decision_contract_normalize(contract_json: &str) -> PyResult<(Option<String>,
     check_size(contract_json)?;
     match contract_from_json_refusal(contract_json) {
         Ok(contract) => Ok((Some(contract_to_json(&contract).map_err(serialization)?), None)),
-        Err(refusal) => Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => Ok((None, Some(external_refusal_json(&refusal)))),
     }
 }
 
@@ -110,7 +89,7 @@ fn evaluate_decision(
     check_size(contract_json)?;
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     match evaluate_contract(&contract, source.inner()) {
         Ok(result) => {
@@ -136,14 +115,14 @@ fn evaluate_decision_means(
     check_size(coordinates_json)?;
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     let wires: Vec<ScientificQuantityWire> = serde_json::from_str(coordinates_json)
-        .map_err(|e| PyValueError::new_err(format!("invalid coordinates: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid coordinates: {e}")))?;
     let coordinates = wires
         .into_iter()
         .map(|wire| {
-            ScientificQuantity::try_from(wire).map_err(|e| PyValueError::new_err(String::from(e)))
+            ScientificQuantity::try_from(wire).map_err(|e| crate::value_err(String::from(e)))
         })
         .collect::<PyResult<Vec<_>>>()?;
     let source = MeanSource {
@@ -213,7 +192,7 @@ fn replay_decision_result(
     check_size(contract_json)?;
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     let identity = contract.identity().map_err(|e| serialization(format!("{e:?}")))?;
     let outcome =
@@ -257,12 +236,12 @@ fn decision_source_digest(source: &PyJointDistributionArtifact) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Admissible contracts, robustness, adapters and identified sets (2.3 B0).
+// Admissible contracts, robustness, adapters and identified sets.
 // ---------------------------------------------------------------------------
 
 /// Refusal JSON for a malformed bridge argument that never reached Rust validation.
 fn invalid_json(detail: &str, offending: Option<String>) -> String {
-    refusal_json(&ExternalRefusal {
+    external_refusal_json(&ExternalRefusal {
         code: antecedent_core::reason_code!("invalid_argument"),
         stage: "adapt",
         detail: detail.to_owned(),
@@ -294,7 +273,7 @@ fn admissible_contract_normalize(
         Ok(contract) => {
             Ok((Some(admissible_contract_to_json(&contract).map_err(serialization)?), None))
         }
-        Err(refusal) => Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => Ok((None, Some(external_refusal_json(&refusal)))),
     }
 }
 
@@ -431,7 +410,7 @@ fn prepare(
     sources: &[Option<PyRef<'_, PyJointDistributionArtifact>>],
 ) -> Result<Prepared, String> {
     let contract = admissible_contract_from_json_refusal(declaration_json)
-        .map_err(|refusal| refusal_json(&refusal))?;
+        .map_err(|refusal| external_refusal_json(&refusal))?;
     let wires: Vec<ClaimWire> = serde_json::from_str(claims_json)
         .map_err(|e| invalid_json("decision_adapters.invalid_claims", Some(e.to_string())))?;
     if wires.len() != sources.len() {
@@ -457,7 +436,7 @@ fn prepare(
             return Err(invalid_json("decision_adapters.unknown_claim_kind", Some(other.into())));
         }
     }
-    .map_err(|e| refusal_json(&e.to_refusal()))?;
+    .map_err(|e| external_refusal_json(&e.to_refusal()))?;
     Ok(Prepared { contract, adapted })
 }
 
@@ -520,6 +499,7 @@ fn structural_verdict_json(verdict: &StructuralVerdict) -> serde_json::Value {
         StructuralVerdict::WorstCaseChoice(id) => {
             json!({"kind": "worst_case_choice", "action": id})
         }
+        StructuralVerdict::Tied(actions) => json!({"kind": "tied", "actions": actions}),
         StructuralVerdict::BayesChoice { action, evaluated_mass } => {
             json!({"kind": "bayes_choice", "action": action, "evaluated_mass": evaluated_mass})
         }
@@ -607,7 +587,7 @@ fn seal(
 
 fn evaluate_prepared(prepared: &Prepared) -> Result<AdaptedDecision, String> {
     evaluate_adapted(&prepared.contract, &prepared.adapted)
-        .map_err(|e| refusal_json(&e.to_refusal()))
+        .map_err(|e| external_refusal_json(&e.to_refusal()))
 }
 
 fn robust_value(artifact: &RobustResultArtifact) -> Result<serde_json::Value, String> {
@@ -690,7 +670,8 @@ fn replay_robust_decision(
     check_size(claims_json)?;
     let run = || -> Result<String, String> {
         let prepared = prepare(declaration_json, kind, claims_json, &sources)?;
-        let identity = prepared.contract.identity().map_err(|e| refusal_json(&e.to_refusal()))?;
+        let identity =
+            prepared.contract.identity().map_err(|e| external_refusal_json(&e.to_refusal()))?;
         let artifact = RobustResultArtifact::from_bytes(
             data,
             &identity,
@@ -800,7 +781,7 @@ fn evaluate_identified_set_decision(
     check_size(utilities_json)?;
     let run = || -> Result<String, String> {
         let contract = admissible_contract_from_json_refusal(declaration_json)
-            .map_err(|refusal| refusal_json(&refusal))?;
+            .map_err(|refusal| external_refusal_json(&refusal))?;
         let wires: Vec<UtilityWire> = serde_json::from_str(utilities_json).map_err(|e| {
             invalid_json("decision_adapters.invalid_utilities", Some(e.to_string()))
         })?;
@@ -816,7 +797,7 @@ fn evaluate_identified_set_decision(
             })
             .collect::<Result<Vec<_>, String>>()?;
         let decision = evaluate_identified_sets(&contract, &utilities)
-            .map_err(|e| refusal_json(&e.to_refusal()))?;
+            .map_err(|e| external_refusal_json(&e.to_refusal()))?;
         Ok(identified_json(&decision).to_string())
     };
     Ok(match run() {
@@ -839,7 +820,7 @@ fn identified_utility_interval(
     check_size(declaration_json)?;
     let contract = match admissible_contract_from_json_refusal(declaration_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     let inputs: Vec<antecedent_core::IdentifiedSet<f64>> = intervals
         .into_iter()
@@ -847,7 +828,7 @@ fn identified_utility_interval(
         .collect();
     Ok(match utility_interval(&contract.contract, action_id, &inputs) {
         Ok(set) => (Some((set.lower, set.upper)), None),
-        Err(error) => (None, Some(refusal_json(&error.to_refusal()))),
+        Err(error) => (None, Some(external_refusal_json(&error.to_refusal()))),
     })
 }
 

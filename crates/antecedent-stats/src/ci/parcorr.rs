@@ -2,15 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_lossless, clippy::trivially_copy_pass_by_ref, clippy::unused_self)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::{
     KernelImpl, ParCorrMode, ParCorrQuery, partial_correlation_batch, select_impl,
@@ -21,16 +12,20 @@ use super::block_shuffle::{query_stream_salt, residual_null_pvalue};
 use super::residualize::ZDesign;
 use super::types::{
     CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
-    ConfidenceMethod, PreparedCiTest, SignificanceMethod, permutation_min_p,
+    ConfidenceMethod, PreparedCiTest, SignificanceMethod,
 };
 use crate::error::StatsError;
 
 /// Map [`KernelPolicy`] to the `ParCorr` batch mode (no arch-SIMD path).
 #[must_use]
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 pub(crate) fn parcorr_mode(policy: &KernelPolicy) -> ParCorrMode {
     match select_impl(policy) {
         KernelImpl::Scalar => ParCorrMode::Native,
-        KernelImpl::PortableOptimized | KernelImpl::ArchSimd => ParCorrMode::Portable,
+        KernelImpl::PortableOptimized => ParCorrMode::Portable,
     }
 }
 
@@ -40,6 +35,14 @@ pub(crate) fn parcorr_mode(policy: &KernelPolicy) -> ParCorrMode {
 ///, not from state on this type.
 #[derive(Clone, Debug, Default)]
 pub struct PartialCorrelation;
+
+/// A partial-correlation statistic with its sample size and the query it answers.
+#[derive(Debug, Clone, Copy)]
+struct PartialCorrelationStat {
+    r: f64,
+    n: usize,
+    query: CiQuery,
+}
 
 impl PartialCorrelation {
     /// Construct.
@@ -83,14 +86,21 @@ impl PartialCorrelation {
             &mut workspace.stats[..1],
             &mut workspace.parcorr,
             mode,
-        );
-        let r = workspace.stats[0]
-            .ok_or(StatsError::Shape { message: "partial correlation failed" })?;
+        )
+        .map_err(|_| StatsError::Shape { message: "partial correlation output length" })?;
+        let Some(r) = workspace.stats[0] else {
+            // A constant or collinear conditioning set has no partial correlation.
+            // That is not evidence of independence, so the p-value stays 1.
+            return Ok(CiResult {
+                statistic: 0.0,
+                p_value: 1.0,
+                df: (n as f64) - 2.0 - (z_flat.len() as f64),
+                ci: None,
+            });
+        };
         let ci_query = CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() };
-        self.interpret(
-            r,
-            n,
-            ci_query,
+        Self::interpret(
+            PartialCorrelationStat { r, n, query: ci_query },
             significance,
             ConfidenceMethod::default(),
             columns,
@@ -100,18 +110,15 @@ impl PartialCorrelation {
     }
 
     /// Map a partial-correlation statistic to a [`CiResult`] under `significance`.
-    #[allow(clippy::too_many_arguments)]
     fn interpret(
-        &self,
-        r: f64,
-        n: usize,
-        query: CiQuery,
+        stat: PartialCorrelationStat,
         significance: SignificanceMethod,
         confidence: ConfidenceMethod,
         columns: &[&[f64]],
         z_flat: &[usize],
         ctx: &ExecutionContext,
     ) -> Result<CiResult, StatsError> {
+        let PartialCorrelationStat { r, n, query } = stat;
         let df = (n as f64) - 2.0 - (query.z_len as f64);
         match significance {
             SignificanceMethod::Analytic => {
@@ -182,16 +189,22 @@ impl ConditionalIndependenceTest for PartialCorrelation {
             &mut workspace.stats[..nq],
             &mut workspace.parcorr,
             mode,
-        );
+        )
+        .map_err(|_| StatsError::Shape { message: "partial correlation output length" })?;
 
         let mut results = Vec::with_capacity(nq);
         for (i, q) in request.queries.iter().enumerate() {
-            let r = workspace.stats[i]
-                .ok_or(StatsError::Shape { message: "partial correlation failed" })?;
-            results.push(self.interpret(
-                r,
-                n,
-                *q,
+            let Some(r) = workspace.stats[i] else {
+                results.push(CiResult {
+                    statistic: 0.0,
+                    p_value: 1.0,
+                    df: (n as f64) - 2.0 - (q.z_len as f64),
+                    ci: None,
+                });
+                continue;
+            };
+            results.push(Self::interpret(
+                PartialCorrelationStat { r, n, query: *q },
                 request.significance,
                 request.confidence,
                 request.columns,
@@ -202,18 +215,8 @@ impl ConditionalIndependenceTest for PartialCorrelation {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
-    }
-}
-
-/// Smallest attainable p-value of the block-permutation null (`0` under the analytic path).
-pub(crate) fn block_shuffle_min_p(significance: SignificanceMethod) -> f64 {
-    match significance {
-        SignificanceMethod::Analytic => 0.0,
-        SignificanceMethod::BlockShuffle { replicates, .. } => {
-            permutation_min_p(replicates as usize)
-        }
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 
@@ -245,6 +248,31 @@ mod tests {
             .unwrap();
         assert!((base.statistic - shifted.statistic).abs() <= 1e-12);
         assert!((base.p_value - shifted.p_value).abs() <= 1e-12);
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
+    fn collinear_conditioning_does_not_claim_independence() {
+        let n = 40usize;
+        let z: Vec<_> = (0..n).map(|i| (i as f64) * 0.2).collect();
+        let x: Vec<_> = (0..n).map(|i| (i as f64 * 0.17).sin()).collect();
+        let y: Vec<_> = x.iter().map(|v| v * 3.0).collect();
+        let test = PartialCorrelation::new();
+        let ctx = ExecutionContext::for_tests(3);
+        let mut workspace = CiWorkspace::default();
+        let result = test
+            .test_one(
+                &[&x, &y, &z, &z],
+                &[2, 3],
+                SignificanceMethod::Analytic,
+                &mut workspace,
+                &ctx,
+            )
+            .unwrap();
+        assert_eq!(result.p_value, 1.0);
     }
 
     fn simple_residuals(t: &[f64], z: &[f64]) -> Vec<f64> {
@@ -333,7 +361,6 @@ mod tests {
         assert_eq!(alone.results[0].p_value.to_bits(), second.results[1].p_value.to_bits());
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

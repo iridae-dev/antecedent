@@ -1,0 +1,20 @@
+feature_id = "cohort_decision.interval"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# papers = [] is an explicit judgment: the construction is original engineering over standard identities.
+papers = []
+implementation_deviations = [
+  "The interval is the textbook Student-t interval of a linear combination of OLS coefficients, phibar' b_hat +/- t_(n-p) sqrt(phibar' V phibar), with the HC3 heteroskedasticity-consistent sandwich covariance (MacKinnon and White 1985). It is reported only as a measured scalar bound to a currently attesting coverage record of the whole route; outside the measured native-fit construction it refuses cell_not_licensed.",
+  "Native-fit authority is replayed, not declared: the measured envelope retains the fit rows, and the consumer refits and requires the export (marker, n, p, coefficients, covariance) to reproduce bit for bit.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-estimate/tests/cohort_linear_effect.rs",
+  "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs",
+  "crates/antecedent-io-core/src/cohort_decision/tests.rs",
+  "crates/antecedent/tests/cohort_decision.rs",
+]

@@ -1,5 +1,5 @@
 //! One-off evaluation of dense versus CSC-style design-matrix materialization for a wide
-//! binary-column adjustment set (the ~3,000-column case of TODO.md E7).
+//! binary-column adjustment set (the ~3,000-column case).
 //!
 //! Run with
 //! `cargo run --release -p antecedent-data --example sparse_ingest_eval [-- ROWS COLS DENSITY]`
@@ -100,17 +100,6 @@ fn report(label: &str, cost: &Cost) {
         mib(cost.peak_bytes),
         mib(cost.total_bytes)
     );
-}
-
-/// Deterministic uniform stream (64-bit LCG), enough for a synthetic 0/1 pattern.
-struct Lcg(u64);
-
-impl Lcg {
-    fn uniform(&mut self) -> f64 {
-        self.0 =
-            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
-        (self.0 >> 11) as f64 / (1u64 << 53) as f64
-    }
 }
 
 /// What the propensity preparer holds after building the design: the packed column-major
@@ -238,13 +227,14 @@ fn main() {
     println!("rows={rows} binary_columns={cols} target_density={density}\n");
 
     let before = LIVE.load(Ordering::Relaxed);
-    let mut rng = Lcg(0x5DEE_CE66_D1CE_4E5B);
+    let mut rng = antecedent_core::CausalRng::from_seed(0x5DEE_CE66_D1CE_4E5B);
     let columns: Vec<Vec<f64>> = (0..cols)
-        .map(|_| (0..rows).map(|_| f64::from(u8::from(rng.uniform() < density))).collect())
+        .map(|_| (0..rows).map(|_| f64::from(u8::from(rng.next_f64() < density))).collect())
         .collect();
-    let treatment: Vec<f64> = (0..rows).map(|_| f64::from(u8::from(rng.uniform() < 0.5))).collect();
+    let treatment: Vec<f64> =
+        (0..rows).map(|_| f64::from(u8::from(rng.next_f64() < 0.5))).collect();
     let outcome: Vec<f64> =
-        (0..rows).map(|i| treatment[i] + columns[0][i] + rng.uniform()).collect();
+        (0..rows).map(|i| treatment[i] + columns[0][i] + rng.next_f64()).collect();
     let mut named: Vec<(String, &[f64])> =
         columns.iter().enumerate().map(|(j, c)| (format!("x{j}"), c.as_slice())).collect();
     named.push(("t".into(), treatment.as_slice()));

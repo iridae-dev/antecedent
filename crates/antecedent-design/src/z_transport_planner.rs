@@ -17,7 +17,7 @@ use antecedent_identify::{
     decide_z_transport_with_catalog, identify_classical_transport, identify_z_transport_reporting,
     validate_z_experiment_family,
 };
-pub use antecedent_io::z_transport_artifact::ZTransportQueryWire;
+pub use antecedent_io_core::transport_query_wire::ZTransportQueryWire;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -70,11 +70,11 @@ pub struct ZTransportFailureSnapshotWire {
     /// Query coordinates and concrete source assignment.
     pub query: ZTransportQueryWire,
     /// Shared source/target ADMG.
-    pub graph: antecedent_io::wire::AdmgWire,
+    pub graph: antecedent_io_core::wire::AdmgWire,
     /// Population-specific mechanisms.
     pub selection_targets: Vec<u32>,
     /// Exact catalog in canonical order, including currently available bindings.
-    pub catalog: antecedent_io::transport_catalog_wire::EvidenceCatalogWire,
+    pub catalog: antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire,
     /// Failure classification and missing factor obligations.
     pub status: ZTransportFailureStatus,
     /// Human-readable and machine-stable obligation records.
@@ -191,9 +191,9 @@ impl ZTransportFailureSnapshot {
         let mut wire = ZTransportFailureSnapshotWire {
             version: if self.z_obstruction.is_some() { 2 } else { 1 },
             query: ZTransportQueryWire::from_query(&self.query),
-            graph: antecedent_io::admg_to_wire(self.diagram.causal_graph())?,
+            graph: antecedent_io_core::admg_to_wire(self.diagram.causal_graph())?,
             selection_targets: ids(self.diagram.selection_targets()),
-            catalog: antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(
+            catalog: antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire::from_catalog(
                 &catalog,
             ),
             status: self.status.clone(),
@@ -231,7 +231,7 @@ impl ZTransportFailureSnapshot {
                 "a version 1 failure snapshot carries no line-11 obstruction".into(),
             ));
         }
-        let graph = antecedent_io::admg_from_wire(&wire.graph)?;
+        let graph = antecedent_io_core::admg_from_wire(&wire.graph)?;
         let diagram = SelectionDiagram::try_new(
             graph,
             wire.selection_targets
@@ -331,11 +331,11 @@ pub struct ZTransportProposalWire {
     /// Feasibility conditions.
     pub feasibility_constraints: Vec<String>,
     /// Proposed evidence regimes; never available by themselves.
-    pub delta: antecedent_io::transport_catalog_wire::EvidenceCatalogDeltaWire,
+    pub delta: antecedent_io_core::transport_catalog_wire::EvidenceCatalogDeltaWire,
     /// Checked proof premises.
     pub proof: antecedent_identify::ZTransportDerivationRecord,
     /// Expression arena independently replayed with the proof.
-    pub arena: antecedent_io::ExprArenaWire,
+    pub arena: antecedent_io_core::ExprArenaWire,
 }
 
 /// Result for evidence arriving from the proposed study.
@@ -433,7 +433,7 @@ pub enum ZTransportPlanningError {
     InvalidSpec(&'static str),
     /// Failed wire conversion.
     #[error(transparent)]
-    Io(#[from] antecedent_io::IoError),
+    Io(#[from] antecedent_io_core::IoError),
     /// Failed structural identification or provider binding.
     #[error(transparent)]
     Identification(#[from] antecedent_identify::IdentificationError),
@@ -667,7 +667,8 @@ fn target_joint_observational_law(
 /// # Errors
 /// An empty identity, an invalid cost, an empty delta, or a proposed regime the
 /// declared action cannot produce.
-pub fn validate_z_transport_candidate(
+#[cfg(test)]
+pub(crate) fn validate_z_transport_candidate(
     snapshot: &ZTransportFailureSnapshot,
     candidate: &TransportEvidenceCandidate,
 ) -> Result<(), ZTransportPlanningError> {
@@ -739,7 +740,7 @@ fn valid_intervention_values(
 /// # Errors
 /// A snapshot that is not a missing-evidence failure, an invalid candidate, or
 /// a formula the hypothetical catalog does not bind.
-pub fn propose_z_transport_evidence(
+pub(crate) fn propose_z_transport_evidence(
     snapshot: &Arc<ZTransportFailureSnapshot>,
     candidate: &TransportEvidenceCandidate,
 ) -> Result<ZTransportProposal, ZTransportPlanningError> {
@@ -852,11 +853,11 @@ impl ZTransportProposal {
                 .iter()
                 .map(ToString::to_string)
                 .collect(),
-            delta: antecedent_io::transport_catalog_wire::EvidenceCatalogDeltaWire::from_delta(
+            delta: antecedent_io_core::transport_catalog_wire::EvidenceCatalogDeltaWire::from_delta(
                 &self.candidate.delta,
             ),
             proof: self.derivation.to_record(),
-            arena: antecedent_io::expr_arena_to_wire(self.derivation.arena())?,
+            arena: antecedent_io_core::expr_arena_to_wire(self.derivation.arena())?,
         })
     }
 
@@ -979,7 +980,7 @@ impl ZTransportProposalWire {
             cost: self.cost,
         };
         let preview = validated_preview(&snapshot, &candidate)?;
-        let arena = antecedent_io::expr_arena_from_wire(&self.arena)?;
+        let arena = antecedent_io_core::expr_arena_from_wire(&self.arena)?;
         let derivation = Arc::new(antecedent_identify::ZTransportDerivation::from_record_checked(
             &snapshot.diagram,
             &snapshot.query,
@@ -1028,19 +1029,19 @@ fn ids(values: &[antecedent_core::VariableId]) -> Vec<u32> {
 fn catalog_digest(catalog: &EvidenceCatalog) -> Result<String, ZTransportPlanningError> {
     let canonical =
         catalog.canonicalized().map_err(|e| ZTransportPlanningError::Invalid(e.to_string()))?;
-    let wire = antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&canonical);
-    Ok(antecedent_io::identity::digest_wire(IdentityDomain::Identification, &wire)?.to_hex())
+    let wire =
+        antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&canonical);
+    Ok(antecedent_io_core::digest_hex(IdentityDomain::Identification, &wire)?)
 }
 /// Digest of the graph with sorted edge lists and sorted selection targets, so
 /// an equal diagram built in another insertion order has the same identity.
 fn graph_digest(diagram: &SelectionDiagram) -> Result<String, ZTransportPlanningError> {
-    let mut wire = antecedent_io::admg_to_wire(diagram.causal_graph())?;
+    let mut wire = antecedent_io_core::admg_to_wire(diagram.causal_graph())?;
     wire.directed.sort_unstable();
     wire.bidirected.sort_unstable();
     let mut selections = ids(diagram.selection_targets());
     selections.sort_unstable();
-    Ok(antecedent_io::identity::digest_wire(IdentityDomain::Identification, &(wire, selections))?
-        .to_hex())
+    Ok(antecedent_io_core::digest_hex(IdentityDomain::Identification, &(wire, selections))?)
 }
 
 fn failure_snapshot_digest(
@@ -1051,7 +1052,7 @@ fn failure_snapshot_digest(
     graph.bidirected.sort_unstable();
     let mut selections = wire.selection_targets.clone();
     selections.sort_unstable();
-    Ok(antecedent_io::identity::digest_wire(
+    Ok(antecedent_io_core::digest_hex(
         IdentityDomain::Claim,
         &(
             wire.version,
@@ -1064,8 +1065,7 @@ fn failure_snapshot_digest(
             &wire.catalog_digest,
             &wire.graph_digest,
         ),
-    )?
-    .to_hex())
+    )?)
 }
 
 #[cfg(test)]

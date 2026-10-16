@@ -38,6 +38,24 @@ fn query() -> LongitudinalRegimeQuery {
     }
 }
 
+/// The graphless row floors the per-period action probability. A forged
+/// `minimum_action_probability` below the licensed row's floor, still above the
+/// query's own declared floor, must void a verified license.
+fn assert_low_action_probability_refuses(
+    body: &antecedent_io::AnalysisResultWire,
+    variable_names: &[String],
+    forged_minimum: f64,
+    name: &str,
+) {
+    let mut forged = body.clone();
+    forged.longitudinal_regime.as_mut().unwrap().minimum_action_probability = forged_minimum;
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(&forged, variable_names.to_vec(), name)
+            .is_err(),
+        "{name}: license survived a minimum action probability below its row floor"
+    );
+}
+
 #[test]
 fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_identity() {
     let y = [1.0, 4.0, 3.0, 6.0, 1.0, 4.0, 3.0, 6.0];
@@ -62,7 +80,7 @@ fn additive_msm_is_retained_with_pointwise_clustered_uncertainty_and_artifact_id
     let ctx = ExecutionContext::for_tests(91);
     let prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
-    let fit = first.longitudinal_regime.as_ref().unwrap();
+    let fit = first.longitudinal_regime().unwrap();
     assert_eq!(&*fit.method, "marginal_structural_model");
     assert!((fit.value - 1.0).abs() < 1e-10);
     let effects = fit.period_effects.as_ref().unwrap();
@@ -125,7 +143,7 @@ fn retained_additive_msm_intervals_include_intercept_and_period_effects() {
         Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.longitudinal_regime.as_ref().unwrap();
+    let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_standard_error.unwrap() > 0.0);
     let intercept = fit.value_interval_95.unwrap();
     assert!(intercept[0] < fit.value && fit.value < intercept[1]);
@@ -155,10 +173,10 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
         .unwrap();
     let ctx = ExecutionContext::for_tests(97);
     let direct = study.run(&ctx).unwrap();
-    assert_eq!(direct.longitudinal_regime.as_ref().unwrap().value, 4.0);
+    assert_eq!(direct.longitudinal_regime().unwrap().value, 4.0);
     let mut prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
-    let regime = first.longitudinal_regime.as_ref().unwrap();
+    let regime = first.longitudinal_regime().unwrap();
     assert_eq!(regime.value, 4.0);
     assert_eq!(regime.effective_sample_size, 1.0);
     assert_eq!(regime.matched_observed_fraction, 0.25);
@@ -185,7 +203,7 @@ fn known_truth_value_is_retained_and_point_only_artifact_round_trips() {
         .is_err()
     );
     let refreshed = prepared.refresh(data, &ctx).unwrap();
-    assert_eq!(first.longitudinal_regime, refreshed.longitudinal_regime);
+    assert_eq!(first.longitudinal_regime(), refreshed.longitudinal_regime());
 }
 
 #[test]
@@ -220,7 +238,7 @@ fn retained_subject_ipw_interval_round_trips_with_dynamic_rule_identity() {
         .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let regime = result.longitudinal_regime.as_ref().unwrap();
+    let regime = result.longitudinal_regime().unwrap();
     assert!((regime.value - 4.0).abs() < 1e-12);
     assert!(regime.value_standard_error.unwrap() > 0.0);
     let interval = regime.value_interval_95.unwrap();
@@ -257,7 +275,7 @@ fn materialized_dynamic_rule_identity_survives_native_query_and_result_artifacts
         .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.longitudinal_regime.as_ref().unwrap();
+    let fit = result.longitudinal_regime().unwrap();
     assert_eq!(fit.value, 4.0);
     assert_eq!(fit.rule_id.as_deref(), Some("adaptive-threshold"));
     assert_eq!(&*fit.uncertainty, "point_only_no_interval");
@@ -316,7 +334,7 @@ fn known_truth_g_formula_is_retained_and_artifact_identifies_method() {
         Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let value = result.longitudinal_regime.as_ref().unwrap();
+    let value = result.longitudinal_regime().unwrap();
     assert_eq!(value.value, 3.5);
     assert_eq!(&*value.method, "g_formula");
     assert_eq!(value.effective_sample_size, 4.0);
@@ -376,7 +394,7 @@ fn fixed_known_q_g_formula_interval_round_trips_and_refuses_forged_provenance() 
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let value = result.longitudinal_regime.as_ref().unwrap();
+    let value = result.longitudinal_regime().unwrap();
     assert_eq!(value.value, 3.0);
     assert!(value.value_standard_error.unwrap() > 0.0);
     let interval = value.value_interval_95.unwrap();
@@ -431,7 +449,7 @@ fn sequential_dr_known_truth_dropout_and_artifact_round_trip() {
         .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let value = result.longitudinal_regime.as_ref().unwrap();
+    let value = result.longitudinal_regime().unwrap();
     assert_eq!(&*value.method, "sequential_dr");
     assert!((value.value - 46.5 / 4.0).abs() < 1e-12);
     assert_eq!(value.maximum_weight, 6.25);
@@ -488,7 +506,7 @@ fn sequential_dr_refuses_interval_below_fitted_q_subject_floor_and_binds_subject
         Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.longitudinal_regime.as_ref().unwrap();
+    let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_standard_error.is_none());
     assert!(fit.value_interval_95.is_none());
     assert_eq!(fit.uncertainty.as_ref(), "point_only_no_interval");
@@ -552,7 +570,7 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
         Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.longitudinal_regime.as_ref().unwrap();
+    let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
@@ -562,6 +580,7 @@ fn two_period_sequential_dr_graphless_license_round_trips_and_refuses_forgery() 
         body.longitudinal_regime.as_ref().unwrap().graphless_support_status.as_deref(),
         Some("licensed")
     );
+    assert_low_action_probability_refuses(&body, &header.variable_names, 0.3, "low-prob-two-dr");
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
     assert!(
         antecedent_io::encode_analysis_result_artifact(
@@ -606,7 +625,7 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.longitudinal_regime.as_ref().unwrap();
+    let fit = result.longitudinal_regime().unwrap();
     assert_eq!(&*fit.method, "g_formula");
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_fixed_known_q_95");
@@ -629,6 +648,7 @@ fn fixed_known_q_g_formula_graphless_license_round_trips_and_refuses_forgery() {
         )
         .is_err()
     );
+    assert_low_action_probability_refuses(&body, &header.variable_names, 0.1, "low-prob-g-formula");
     body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
     assert!(
         antecedent_io::encode_analysis_result_artifact(
@@ -677,7 +697,7 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.longitudinal_regime.as_ref().unwrap();
+    let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.period_intervals_95.as_ref().unwrap().len(), 2);
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_clustered_cr1_95");
@@ -700,6 +720,7 @@ fn additive_msm_graphless_license_round_trips_and_refuses_forgery() {
         )
         .is_err()
     );
+    assert_low_action_probability_refuses(&body, &header.variable_names, 0.3, "low-prob-msm");
     body.longitudinal_regime.as_mut().unwrap().period_intervals_95[0] = [0.0, 0.0];
     assert!(
         antecedent_io::encode_analysis_result_artifact(
@@ -744,7 +765,7 @@ fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_hori
         .unwrap();
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.longitudinal_regime.as_ref().unwrap();
+    let fit = result.longitudinal_regime().unwrap();
     assert!(fit.value_interval_95.is_some());
     assert_eq!(fit.graphless_support_status, Some(antecedent::support::CellStatus::Licensed));
     assert_eq!(fit.uncertainty.as_ref(), "pointwise_subject_score_conditional_excluded_fold_q_95");
@@ -778,7 +799,7 @@ fn three_period_sequential_dr_interval_round_trips_and_refuses_uncalibrated_hori
     let study =
         Study::tabular(data.clone()).query(CausalQuery::LongitudinalRegime(q)).build().unwrap();
     let fit = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
-    let value = fit.longitudinal_regime.as_ref().unwrap();
+    let value = fit.longitudinal_regime().unwrap();
     assert!(value.value_interval_95.is_none());
     assert_eq!(value.uncertainty.as_ref(), "point_only_no_interval");
 }

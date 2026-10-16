@@ -4,7 +4,7 @@
 //! Every candidate's signal comes from its [`SignalProvider`]. A provider that supplies
 //! an observation law (native or external likelihood) is scored through the existing
 //! [`DesignObjective::ReduceDecisionRegret`] path of [`DesignRanker`] (one
-//! preposterior analysis per candidate; no parallel scorer), with EVPI and the current
+//! preposterior analysis per candidate, scheduled with `map_indexed`), with EVPI and the current
 //! Bayes action read from [`PreposteriorAnalysis`]. A provider that supplies externally
 //! computed per-branch decision values is evaluated as
 //! `EVSI = Σ_y P(y)·max_{a∈F} V_y(a) − max_{a∈F} E[U(a,θ)]`, after the supplied values
@@ -20,26 +20,25 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use antecedent_core::{CancellationToken, ExecutionContext, ExternalRefusal};
-use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
+use antecedent_contract::ExternalRefusal;
+use antecedent_contract::evidence_ledger::{
+    EvidenceLedger, ObservationId, Overlap, SourceDeclaration, SourceId, SourceKind,
+};
+use antecedent_core::{CancellationToken, ExecutionContext, is_blank};
 
 use crate::candidate::CandidateDesign;
-use crate::decision::{DecisionProblem, DecisionProblemId, DecisionTable, evaluate_decision};
+use crate::decision::{DecisionProblem, DecisionTable, evaluate_decision};
 use crate::error::DesignError;
-use crate::objective::DesignObjective;
-use crate::preposterior::{DecisionPrior, DecisionSignal, PreposteriorAnalysis};
-use crate::ranker::{DecisionRegistry, DesignEvaluationContext, DesignRankConfig, DesignRanker};
-use crate::result::ScoreEvaluation;
+use crate::preposterior::{DecisionPrior, DecisionSignal, EvsiMonteCarlo, PreposteriorAnalysis};
+use crate::rank_rows::{AdjacentRank, evsi_bound_violation, rank_rows};
+use crate::ranker::{DesignRankConfig, DesignRanker};
 use crate::signal::{
-    ExternalDecisionValues, PreparedLaw, SignalError, SignalProvider, SignalReceipt,
-    SignalTrustLabel, SignalUpdateMode, make_refusal, state_key,
+    ExternalDecisionValues, PreparedLaw, RefusalBuilder, SignalError, SignalProvider,
+    SignalReceipt, SignalTrustLabel, SignalUpdateMode, remember_prepared, state_key,
 };
-
-/// Critical value for the unpaired rank-uncertainty comparison of two independently
-/// evaluated candidates.
-const RANK_Z: f64 = 1.96;
 
 /// Positive linear map from the caller's cost unit to the decision's utility unit:
 /// `StudyCostUtility = utility_per_cost · cost`.
@@ -160,7 +159,7 @@ pub struct SourceOverlapDiagnostics {
 
 /// Report for one candidate.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CandidateEvsi {
+pub struct EvsiCandidateRow {
     /// Semantic identity.
     pub semantic_id: String,
     /// Expected value of sample information.
@@ -238,7 +237,7 @@ pub struct EvsiReport {
     /// What the candidates are sorted by.
     pub basis: RankingBasis,
     /// Candidates, best first.
-    pub candidates: Vec<CandidateEvsi>,
+    pub candidates: Vec<EvsiCandidateRow>,
     /// Adjacent pairs tied within the tie tolerance.
     pub ties: Vec<(String, String)>,
     /// Search receipt.
@@ -259,6 +258,15 @@ pub enum EvsiError {
     DuplicateCandidate(String),
     /// A study reuses observations the prior already summarizes.
     SourceOverlap(Vec<String>),
+    /// Whether a study reuses observations the prior summarizes cannot be computed:
+    /// an undeclared observation set, an unbound candidate or an unknown source.
+    /// Unknown dependence is never treated as independence.
+    SourceOverlapUnknown {
+        /// Candidate.
+        candidate: String,
+        /// Why the overlap is not computable.
+        reason: String,
+    },
     /// A candidate's declared sample size differs from its signal request's.
     SampleSizeMismatch(String),
     /// A provider's receipt answers a different request.
@@ -287,7 +295,10 @@ pub enum EvsiError {
 
 impl From<DesignError> for EvsiError {
     fn from(error: DesignError) -> Self {
-        Self::Design(error)
+        match error {
+            DesignError::Cancelled => Self::Cancelled,
+            other => Self::Design(other),
+        }
     }
 }
 
@@ -304,77 +315,82 @@ impl EvsiError {
     pub fn to_refusal(&self) -> ExternalRefusal {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
         let units = antecedent_core::reason_code!("design_cost_units_mismatch");
-        let at = |code, detail: &str| make_refusal(code, "evaluate", detail);
-        let with = |code, detail: &str, offending: String| ExternalRefusal {
-            offending: Some(offending),
-            ..make_refusal(code, "evaluate", detail)
-        };
+        let at = |code, detail: &str| RefusalBuilder::new(code, "evaluate", detail);
         match self {
             Self::Signal(error) => error.to_refusal(),
-            Self::Design(error) => ExternalRefusal {
-                expected: Some(error.to_string()),
-                ..at(signal, "evsi.design_error")
-            },
-            Self::InvalidRequest(what) => with(
+            Self::Design(error) => {
+                at(signal, "evsi.design_error").expected(error.to_string()).build()
+            }
+            Self::InvalidRequest(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
                 "evsi.invalid_request",
-                (*what).to_owned(),
-            ),
-            Self::DuplicateCandidate(id) => with(signal, "evsi.duplicate_candidate", id.clone()),
-            Self::SourceOverlap(ids) => ExternalRefusal {
-                remedy: Some("use only data not already summarized by the prior"),
-                ..with(signal, "evsi.source_overlap", ids.join(","))
-            },
-            Self::SampleSizeMismatch(id) => with(signal, "evsi.sample_size_mismatch", id.clone()),
-            Self::ReceiptMismatch(id) => with(signal, "evsi.receipt_mismatch", id.clone()),
-            Self::PriorStatesMismatch(id) => with(signal, "evsi.prior_states_mismatch", id.clone()),
-            Self::ActionSetChanged => ExternalRefusal {
-                remedy: Some("an action-set change is a separate decision problem"),
-                ..at(
-                    antecedent_core::reason_code!("decision_contract_unsatisfied"),
-                    "evsi.action_set_changed",
-                )
-            },
-            Self::DecisionValuesNeedDraws => at(signal, "evsi.decision_values_need_draws"),
-            Self::DecisionValuesIncoherent(id) => {
-                with(signal, "evsi.decision_values_incoherent", id.clone())
+            )
+            .offending(*what)
+            .build(),
+            Self::DuplicateCandidate(id) => {
+                at(signal, "evsi.duplicate_candidate").offending(id.clone()).build()
             }
-            Self::CostMapRequired => ExternalRefusal {
-                remedy: Some(
-                    "supply a cost-to-utility mapping or report value and cost separately",
-                ),
-                ..at(units, "evsi.cost_map_required")
-            },
-            Self::CostUnitsMismatch(what) => ExternalRefusal {
-                remedy: Some(
+            Self::SourceOverlap(ids) => at(signal, "evsi.source_overlap")
+                .offending(ids.join(","))
+                .remedy("use only data not already summarized by the prior")
+                .build(),
+            Self::SourceOverlapUnknown { candidate, reason } => at(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                "evsi.source_overlap_unknown",
+            )
+            .offending(candidate.clone())
+            .expected(reason.clone())
+            .remedy("declare the observations behind the prior and the study in the evidence ledger")
+            .build(),
+            Self::SampleSizeMismatch(id) => {
+                at(signal, "evsi.sample_size_mismatch").offending(id.clone()).build()
+            }
+            Self::ReceiptMismatch(id) => {
+                at(signal, "evsi.receipt_mismatch").offending(id.clone()).build()
+            }
+            Self::PriorStatesMismatch(id) => {
+                at(signal, "evsi.prior_states_mismatch").offending(id.clone()).build()
+            }
+            Self::ActionSetChanged => at(
+                antecedent_core::reason_code!("decision_contract_unsatisfied"),
+                "evsi.action_set_changed",
+            )
+            .remedy("an action-set change is a separate decision problem")
+            .build(),
+            Self::DecisionValuesNeedDraws => at(signal, "evsi.decision_values_need_draws").build(),
+            Self::DecisionValuesIncoherent(id) => {
+                at(signal, "evsi.decision_values_incoherent").offending(id.clone()).build()
+            }
+            Self::CostMapRequired => at(units, "evsi.cost_map_required")
+                .remedy("supply a cost-to-utility mapping or report value and cost separately")
+                .build(),
+            Self::CostUnitsMismatch(what) => at(units, "evsi.cost_units_mismatch")
+                .offending(what.clone())
+                .remedy(
                     "declare each study cost in the cost map's cost unit and map it into the decision's utility unit",
-                ),
-                ..with(units, "evsi.cost_units_mismatch", what.clone())
-            },
-            Self::InvalidCost(what) => with(
+                )
+                .build(),
+            Self::InvalidCost(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
                 "evsi.invalid_cost",
-                what.clone(),
-            ),
+            )
+            .offending(what.clone())
+            .build(),
             Self::BoundViolation(which) => {
-                with(signal, "evsi.bound_violation", (*which).to_owned())
+                at(signal, "evsi.bound_violation").offending(*which).build()
             }
             Self::Cancelled => {
-                at(antecedent_core::reason_code!("cancelled_no_claim"), "evsi.cancelled")
+                at(antecedent_core::reason_code!("cancelled_no_claim"), "evsi.cancelled").build()
             }
-            Self::Unscored(id) => with(signal, "evsi.unscored_candidate", id.clone()),
+            Self::Unscored(id) => at(signal, "evsi.unscored_candidate").offending(id.clone()).build(),
         }
     }
 }
 
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
-}
-
 fn validate_costs(request: &EvsiRequest) -> Result<(), EvsiError> {
     if let Some(map) = &request.cost_map {
-        if blank(&map.cost_unit)
-            || blank(&map.utility_unit)
+        if is_blank(&map.cost_unit)
+            || is_blank(&map.utility_unit)
             || !(map.utility_per_cost.is_finite() && map.utility_per_cost > 0.0)
         {
             return Err(EvsiError::InvalidCost("cost_map".into()));
@@ -390,7 +406,7 @@ fn validate_costs(request: &EvsiRequest) -> Result<(), EvsiError> {
     }
     for candidate in &request.candidates {
         let cost = &candidate.cost;
-        if !(cost.amount.is_finite() && cost.amount >= 0.0) || blank(&cost.unit) {
+        if !(cost.amount.is_finite() && cost.amount >= 0.0) || is_blank(&cost.unit) {
             return Err(EvsiError::InvalidCost(candidate.semantic_id.clone()));
         }
         if let Some(map) = &request.cost_map {
@@ -409,11 +425,11 @@ fn validate_request<A>(
     problem: &DecisionProblem<A, f64>,
     request: &EvsiRequest,
 ) -> Result<(), EvsiError> {
-    if blank(&request.decision_contract_identity) || blank(&request.utility_unit) {
+    if is_blank(&request.decision_contract_identity) || is_blank(&request.utility_unit) {
         return Err(EvsiError::InvalidRequest("decision identity and utility unit"));
     }
     if request.action_ids.len() != problem.actions.len()
-        || request.action_ids.iter().any(|id| blank(id))
+        || request.action_ids.iter().any(|id| is_blank(id))
     {
         return Err(EvsiError::InvalidRequest("action_ids must align with the problem actions"));
     }
@@ -437,28 +453,180 @@ fn validate_request<A>(
     if let Some(pair) = seen.windows(2).find(|w| w[0] == w[1]) {
         return Err(EvsiError::DuplicateCandidate(pair[0].clone()));
     }
-    if request.candidates.iter().any(|c| blank(&c.semantic_id)) {
+    if request.candidates.iter().any(|c| is_blank(&c.semantic_id)) {
         return Err(EvsiError::InvalidRequest("blank candidate id"));
     }
     validate_costs(request)
 }
 
-const fn declared_sample_size(design: &CandidateDesign) -> Option<u64> {
-    match design {
-        CandidateDesign::IncreaseSamplingRate(plan) => Some(plan.additional_samples),
-        CandidateDesign::ObserveEnvironment(plan) => Some(plan.additional_rows),
-        CandidateDesign::Measure(_) | CandidateDesign::Intervene(_) => None,
+/// Domain under which declared observation identities become ledger observations.
+const OBSERVATION_DOMAIN: &str = "antecedent.design.declared_observation";
+
+/// One side of an overlap check: the observation identities the producer declared.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum DeclaredObservations<'a> {
+    /// Identities the source rests on (an empty set declares no data origin).
+    Declared(&'a [String]),
+}
+
+/// Result of resolving the overlap of two declared observation sets through the
+/// evidence ledger.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ObservationOverlap {
+    /// Known and disjoint.
+    Independent {
+        /// Distinct identities compared.
+        checked: usize,
+    },
+    /// Known and sharing identities.
+    Shared {
+        /// Distinct identities compared.
+        checked: usize,
+        /// Shared identities, sorted.
+        ids: Vec<String>,
+    },
+    /// Not computable. Never independence.
+    Unknown {
+        /// Why.
+        reason: String,
+    },
+}
+
+pub(crate) fn observation_id(id: &str) -> ObservationId {
+    ObservationId::from_key(OBSERVATION_DOMAIN, id.as_bytes())
+}
+
+/// Resolve the overlap of a prior's observations and a study's reused observations
+/// through one [`EvidenceLedger`] query. Duplicate identities within a side collapse
+/// (a set); any ledger refusal is `Unknown`.
+pub(crate) fn declared_overlap(
+    prior: DeclaredObservations<'_>,
+    reused: DeclaredObservations<'_>,
+) -> ObservationOverlap {
+    let mut ledger = EvidenceLedger::new();
+    let mut names: BTreeMap<ObservationId, String> = BTreeMap::new();
+    let mut register = |label: &str,
+                        kind: SourceKind,
+                        side: DeclaredObservations<'_>|
+     -> Result<SourceId, String> {
+        let mut declaration = SourceDeclaration::new(label, kind);
+        let DeclaredObservations::Declared(ids) = side;
+        let unique: BTreeSet<&str> = ids.iter().map(String::as_str).collect();
+        for id in &unique {
+            names.insert(observation_id(id), (*id).to_owned());
+        }
+        declaration = declaration.with_observations(unique.iter().map(|id| observation_id(id)));
+        ledger.add_source(declaration).map_err(|error| error.message)
+    };
+    let ids = match (
+        register("prior", SourceKind::Prior, prior),
+        register("study", SourceKind::ObservationSet, reused),
+    ) {
+        (Ok(p), Ok(s)) => (p, s),
+        (Err(reason), _) | (_, Err(reason)) => return ObservationOverlap::Unknown { reason },
+    };
+    match ledger.overlap(ids.0, ids.1) {
+        Ok(Overlap::Independent) => ObservationOverlap::Independent { checked: names.len() },
+        Ok(Overlap::SharedObservations { .. }) => {
+            let shared = ledger.shared_observations(ids.0, ids.1).unwrap_or_default();
+            ObservationOverlap::Shared {
+                checked: names.len(),
+                ids: shared
+                    .iter()
+                    .map(|id| names.get(id).map_or_else(|| id.to_hex(), Clone::clone))
+                    .collect(),
+            }
+        }
+        Ok(Overlap::Unknown { reason }) => {
+            ObservationOverlap::Unknown { reason: reason.to_owned() }
+        }
+        Ok(_) => ObservationOverlap::Unknown { reason: "overlap_state_not_recognised".to_owned() },
+        Err(error) => ObservationOverlap::Unknown { reason: error.message },
     }
 }
 
-fn overlap_of(request: &EvsiRequest, candidate: &EvsiCandidate) -> SourceOverlapDiagnostics {
-    let prior: std::collections::BTreeSet<&str> =
-        request.prior_observation_ids.iter().map(String::as_str).collect();
-    let reused: std::collections::BTreeSet<&str> =
-        candidate.reused_observation_ids.iter().map(String::as_str).collect();
-    SourceOverlapDiagnostics {
-        observations_checked: prior.union(&reused).count(),
-        overlapping: prior.intersection(&reused).map(|s| (*s).to_owned()).collect(),
+/// Evidence-ledger bindings for an EVSI evaluation: the ledger that holds the prior's
+/// and each study's observations (lineage resolved), the prior's source, and the
+/// source of each candidate by semantic id.
+///
+/// With bindings, overlap is the ledger's: a study derived from, a subset of, or a
+/// duplicate of data the prior rests on is `Shared`, and an undeclared source or
+/// unbound candidate is `Unknown`; both refuse. The request's observation-id lists
+/// are not consulted and must be empty.
+#[derive(Clone, Copy)]
+pub struct EvsiEvidence<'a> {
+    ledger: &'a EvidenceLedger,
+    prior: SourceId,
+    candidates: &'a BTreeMap<String, SourceId>,
+}
+
+impl<'a> EvsiEvidence<'a> {
+    /// Bind a ledger, the prior's source and each candidate's source.
+    #[must_use]
+    pub const fn new(
+        ledger: &'a EvidenceLedger,
+        prior: SourceId,
+        candidates: &'a BTreeMap<String, SourceId>,
+    ) -> Self {
+        Self { ledger, prior, candidates }
+    }
+
+    fn overlap(&self, candidate: &str) -> ObservationOverlap {
+        let Some(&study) = self.candidates.get(candidate) else {
+            return ObservationOverlap::Unknown { reason: "candidate_source_unbound".to_owned() };
+        };
+        let size = |id: SourceId| -> Option<usize> {
+            self.ledger.source(id).and_then(|s| s.effective.known()).map(<[_]>::len)
+        };
+        match self.ledger.overlap(self.prior, study) {
+            Ok(Overlap::Independent) => ObservationOverlap::Independent {
+                checked: size(self.prior).unwrap_or(0) + size(study).unwrap_or(0),
+            },
+            Ok(Overlap::SharedObservations { .. }) => ObservationOverlap::Shared {
+                checked: size(self.prior).unwrap_or(0) + size(study).unwrap_or(0),
+                ids: self
+                    .ledger
+                    .shared_observations(self.prior, study)
+                    .unwrap_or_default()
+                    .iter()
+                    .map(ObservationId::to_hex)
+                    .collect(),
+            },
+            Ok(Overlap::Unknown { reason }) => {
+                ObservationOverlap::Unknown { reason: reason.to_owned() }
+            }
+            Ok(_) => {
+                ObservationOverlap::Unknown { reason: "overlap_state_not_recognised".to_owned() }
+            }
+            Err(error) => ObservationOverlap::Unknown { reason: error.message },
+        }
+    }
+}
+
+/// Overlap of the prior's observations and one candidate's, from the ledger when
+/// bound and from the request's declared identities otherwise (one ledger query
+/// either way).
+fn candidate_overlap(
+    request: &EvsiRequest,
+    candidate: &EvsiCandidate,
+    evidence: Option<&EvsiEvidence<'_>>,
+) -> Result<SourceOverlapDiagnostics, EvsiError> {
+    let found = match evidence {
+        Some(bound) => bound.overlap(&candidate.semantic_id),
+        None => declared_overlap(
+            DeclaredObservations::Declared(&request.prior_observation_ids),
+            DeclaredObservations::Declared(&candidate.reused_observation_ids),
+        ),
+    };
+    match found {
+        ObservationOverlap::Independent { checked } => {
+            Ok(SourceOverlapDiagnostics { observations_checked: checked, overlapping: Vec::new() })
+        }
+        ObservationOverlap::Shared { ids, .. } => Err(EvsiError::SourceOverlap(ids)),
+        ObservationOverlap::Unknown { reason } => Err(EvsiError::SourceOverlapUnknown {
+            candidate: candidate.semantic_id.clone(),
+            reason,
+        }),
     }
 }
 
@@ -470,73 +638,73 @@ struct Evaluated {
     prior_expected_utility: f64,
     bayes_action: usize,
     receipt: SignalReceipt,
+    overlap: SourceOverlapDiagnostics,
+    /// Digest of the Monte Carlo replicate-stream coordinates, when sampled.
+    stream_digest: Option<String>,
 }
 
-fn likelihood_value<A: Clone>(
+/// A candidate's value and the numbers it is compared against.
+struct Valued {
+    evsi: f64,
+    integration: IntegrationReport,
+    evpi: f64,
+    prior_expected_utility: f64,
+    bayes_action: usize,
+    stream_digest: Option<String>,
+}
+
+fn likelihood_value<A>(
     problem: &DecisionProblem<A, f64>,
     prior: &DecisionPrior<f64>,
     signal: &Arc<dyn DecisionSignal<f64>>,
     candidate: &EvsiCandidate,
     request: &EvsiRequest,
     ctx: &ExecutionContext,
-) -> Result<(f64, IntegrationReport, f64, f64, usize), EvsiError> {
-    let registry = DecisionRegistry {
-        problems: vec![Some(DecisionProblem {
-            actions: problem.actions.clone(),
-            utility: Arc::clone(&problem.utility),
-            constraints: problem.constraints.clone(),
-            chance_threshold: problem.chance_threshold,
-        })],
-        prior: prior.clone(),
-        signal: Arc::clone(signal),
-    };
-    let graphs =
-        WeightedGraphSamples::new(vec![1.0], vec![GraphIdentFlag::Identified], vec![0_u64])
-            .map_err(|e| DesignError::Prob(format!("{e:?}")))?;
-    let eval = DesignEvaluationContext {
-        graphs: &graphs,
-        effect_width: None,
-        model_loglik: None,
-        decisions: Some(&registry),
-        query_id_unlock: None,
-        env_id_unlock: None,
-        identified_under_intervention: None,
-        graph_features: None,
-    };
-    let ranking = DesignRanker::new().with_config(request.rank_config.clone()).rank(
-        &DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) },
-        std::slice::from_ref(&candidate.design),
-        &eval,
-        ctx,
-    )?;
-    let top =
-        ranking.ranked.first().ok_or_else(|| EvsiError::Unscored(candidate.semantic_id.clone()))?;
+) -> Result<Valued, EvsiError> {
+    let ranker = DesignRanker::new().with_config(request.rank_config.clone());
+    ranker.validate_config()?;
     let analysis = PreposteriorAnalysis::new(problem, prior, signal.as_ref())?;
-    let integration = match top.evaluation {
-        ScoreEvaluation::Exact => IntegrationReport {
+    let n = signal
+        .sample_size(&candidate.design)
+        .ok_or_else(|| EvsiError::Unscored(candidate.semantic_id.clone()))?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(EvsiError::Cancelled);
+    }
+    // One candidate has no pair to resolve, so the adaptive loop always stops on its own
+    // minimum-batch test: `min_batches` batches of `batch_size` replicates. Replicates are
+    // keyed by (seed, purpose, replicate ordinal), shared across candidates, never by how many draws came before.
+    let (evsi, integration, stream_digest) = if let Some(exact) = analysis.exact_evsi(n)? {
+        let exact_report = IntegrationReport {
             method: IntegrationMethod::Exact,
             replicates: 0,
             stderr: 0.0,
             ess: None,
             converged: true,
-            early_stopped: ranking.early_stopped,
-        },
-        ScoreEvaluation::MonteCarlo => IntegrationReport {
+            early_stopped: true,
+        };
+        (exact, exact_report, None)
+    } else {
+        let batches = request.rank_config.min_batches.max(1);
+        let EvsiMonteCarlo { mean, stderr, replicates, stream_digest } =
+            analysis.monte_carlo_evsi(n, batches, request.rank_config.batch_size, ctx)?;
+        let report = IntegrationReport {
             method: IntegrationMethod::MonteCarlo,
-            replicates: top.monte_carlo.samples,
-            stderr: top.monte_carlo.stderr,
-            ess: Some(top.monte_carlo.samples as f64),
-            converged: top.monte_carlo.stderr <= request.mc_error_tolerance,
-            early_stopped: ranking.early_stopped,
-        },
+            replicates,
+            stderr,
+            ess: Some(replicates as f64),
+            converged: stderr <= request.mc_error_tolerance,
+            early_stopped: true,
+        };
+        (mean, report, Some(stream_digest))
     };
-    Ok((
-        top.score,
+    Ok(Valued {
+        evsi,
         integration,
-        analysis.expected_value_of_perfect_information(),
-        analysis.prior_expected_utility(),
-        analysis.bayes_action(),
-    ))
+        evpi: analysis.expected_value_of_perfect_information(),
+        prior_expected_utility: analysis.prior_expected_utility(),
+        bayes_action: analysis.bayes_action(),
+        stream_digest,
+    })
 }
 
 fn values_value<A>(
@@ -545,7 +713,7 @@ fn values_value<A>(
     values: &ExternalDecisionValues,
     request: &EvsiRequest,
     id: &str,
-) -> Result<(f64, IntegrationReport, f64, f64, usize), EvsiError> {
+) -> Result<Valued, EvsiError> {
     let DecisionPrior::Draws(states) = prior else {
         return Err(EvsiError::DecisionValuesNeedDraws);
     };
@@ -601,7 +769,14 @@ fn values_value<A>(
         early_stopped: false,
     };
     let evpi = evaluate_decision(problem, states)?.posterior_regret;
-    Ok((after - prior_best, integration, evpi, prior_best, bayes_action))
+    Ok(Valued {
+        evsi: after - prior_best,
+        integration,
+        evpi,
+        prior_expected_utility: prior_best,
+        bayes_action,
+        stream_digest: None,
+    })
 }
 
 fn evaluate_candidate<A: Clone>(
@@ -609,18 +784,11 @@ fn evaluate_candidate<A: Clone>(
     prior: &DecisionPrior<f64>,
     request: &EvsiRequest,
     candidate: &EvsiCandidate,
+    evidence: Option<&EvsiEvidence<'_>>,
     ctx: &ExecutionContext,
 ) -> Result<Evaluated, EvsiError> {
     let id = &candidate.semantic_id;
-    if declared_sample_size(&candidate.design)
-        .is_some_and(|n| n != candidate.signal_request.sample_size)
-    {
-        return Err(EvsiError::SampleSizeMismatch(id.clone()));
-    }
-    let overlap = overlap_of(request, candidate);
-    if !overlap.overlapping.is_empty() {
-        return Err(EvsiError::SourceOverlap(overlap.overlapping));
-    }
+    let overlap = candidate_overlap(request, candidate, evidence)?;
     let prepared = candidate.provider.prepare(&candidate.signal_request)?;
     if prepared.receipt.request_fingerprint != candidate.signal_request.fingerprint() {
         return Err(EvsiError::ReceiptMismatch(id.clone()));
@@ -637,19 +805,26 @@ fn evaluate_candidate<A: Clone>(
             return Err(EvsiError::PriorStatesMismatch(id.clone()));
         }
     }
-    let (evsi, integration, evpi, prior_expected_utility, bayes_action) = match &prepared.law {
+    let valued = match &prepared.law {
         PreparedLaw::Likelihood(signal) => {
+            // The prepared signal's own sample-size rule is authoritative. A copy of
+            // the default design-field rule refused an overriding signal (one that
+            // answers the request's `n`) whenever the design's row count differed.
+            if signal.sample_size(&candidate.design) != Some(candidate.signal_request.sample_size) {
+                return Err(EvsiError::SampleSizeMismatch(id.clone()));
+            }
             likelihood_value(problem, prior, signal, candidate, request, ctx)?
         }
         PreparedLaw::DecisionValues(values) => values_value(problem, prior, values, request, id)?,
     };
-    let tolerance = 1e-9 + 4.0 * integration.stderr;
-    if evsi < -tolerance {
-        return Err(EvsiError::BoundViolation("negative_evsi"));
+    let Valued { evsi, integration, evpi, prior_expected_utility, bayes_action, stream_digest } =
+        valued;
+    if let Some(which) = evsi_bound_violation(evsi, evpi, integration.stderr) {
+        return Err(EvsiError::BoundViolation(which));
     }
-    if evsi > evpi + tolerance {
-        return Err(EvsiError::BoundViolation("exceeds_evpi"));
-    }
+    // Seal reuses this law when the receipt is still the one on the row. The
+    // artifact is built from the law, so a miss falls back to preparing again.
+    remember_prepared(&prepared);
     Ok(Evaluated {
         evsi,
         integration,
@@ -657,6 +832,8 @@ fn evaluate_candidate<A: Clone>(
         prior_expected_utility,
         bayes_action,
         receipt: prepared.receipt,
+        overlap,
+        stream_digest,
     })
 }
 
@@ -680,6 +857,9 @@ fn assumptions(
     if evaluated.receipt.update_mode.externally_computed() {
         out.push("update_computed_externally_not_verified_by_antecedent".to_owned());
     }
+    if let Some(digest) = &evaluated.stream_digest {
+        out.push(format!("monte_carlo_streams:{digest}"));
+    }
     out
 }
 
@@ -694,10 +874,47 @@ fn assumptions(
 /// Invalid requests, signal refusals, source overlap, sample-size or action-set
 /// mismatches, incoherent external values, cost-unit mismatches, bound violations,
 /// cancellation, and decision-analysis failures.
-pub fn evaluate_evsi<A: Clone>(
+pub fn evaluate_evsi<A: Clone + Sync>(
     problem: &DecisionProblem<A, f64>,
     prior: &DecisionPrior<f64>,
     request: &EvsiRequest,
+    cancellation: &CancellationToken,
+) -> Result<EvsiReport, EvsiError> {
+    evaluate(problem, prior, request, None, cancellation)
+}
+
+/// [`evaluate_evsi`] with the prior's and each study's observations resolved through
+/// an [`EvidenceLedger`] (lineage included), so derived, subset or duplicate data is
+/// refused as shared and an undeclared source or unbound candidate is refused as
+/// unknown rather than treated as independent.
+///
+/// # Errors
+///
+/// As [`evaluate_evsi`], plus [`EvsiError::SourceOverlapUnknown`], and an invalid
+/// request when the request's own observation-id lists are non-empty (the ledger is
+/// the only overlap model on this path).
+pub fn evaluate_evsi_with_evidence<A: Clone + Sync>(
+    problem: &DecisionProblem<A, f64>,
+    prior: &DecisionPrior<f64>,
+    request: &EvsiRequest,
+    evidence: &EvsiEvidence<'_>,
+    cancellation: &CancellationToken,
+) -> Result<EvsiReport, EvsiError> {
+    if !request.prior_observation_ids.is_empty()
+        || request.candidates.iter().any(|c| !c.reused_observation_ids.is_empty())
+    {
+        return Err(EvsiError::InvalidRequest(
+            "observation id lists must be empty when overlap is read from the ledger",
+        ));
+    }
+    evaluate(problem, prior, request, Some(evidence), cancellation)
+}
+
+fn evaluate<A: Clone + Sync>(
+    problem: &DecisionProblem<A, f64>,
+    prior: &DecisionPrior<f64>,
+    request: &EvsiRequest,
+    evidence: Option<&EvsiEvidence<'_>>,
     cancellation: &CancellationToken,
 ) -> Result<EvsiReport, EvsiError> {
     validate_request(problem, request)?;
@@ -707,15 +924,18 @@ pub fn evaluate_evsi<A: Clone>(
     let unevaluated_ids: Vec<String> =
         ordered.iter().skip(request.max_candidates).map(|c| c.semantic_id.clone()).collect();
     ordered.truncate(request.max_candidates);
-    let mut ctx = ExecutionContext::production(request.rng_seed, 1);
+    let mut ctx =
+        ExecutionContext::production(request.rng_seed, antecedent_core::default_user_threads());
     ctx.cancellation = cancellation.clone();
-    let mut evaluated = Vec::with_capacity(ordered.len());
-    for candidate in &ordered {
-        if cancellation.is_cancelled() {
+    // Replicate streams are keyed by (seed, purpose, replicate) and shared by every
+    // candidate (common random numbers), so neither the index order of `map_indexed` nor
+    // the catalog moves them.
+    let evaluated = ctx.map_indexed(ordered.len(), |index, ctx| {
+        if ctx.cancellation.is_cancelled() {
             return Err(EvsiError::Cancelled);
         }
-        evaluated.push(evaluate_candidate(problem, prior, request, candidate, &ctx)?);
-    }
+        evaluate_candidate(problem, prior, request, ordered[index], evidence, ctx)
+    })?;
     let search = SearchReceipt {
         supplied,
         evaluated: ordered.len(),
@@ -733,12 +953,12 @@ fn assemble(
     search: SearchReceipt,
 ) -> EvsiReport {
     let map = request.cost_map.as_ref();
-    let mut rows: Vec<CandidateEvsi> = ordered
+    let mut rows: Vec<EvsiCandidateRow> = ordered
         .iter()
         .zip(evaluated)
         .map(|(candidate, e)| {
             let cost_utility = map.map(|m| m.utility_per_cost * candidate.cost.amount);
-            CandidateEvsi {
+            EvsiCandidateRow {
                 semantic_id: candidate.semantic_id.clone(),
                 evsi: e.evsi,
                 integration: e.integration,
@@ -752,29 +972,28 @@ fn assemble(
                 provider_trust: e.receipt.trust,
                 update_mode: e.receipt.update_mode,
                 signal_receipt: e.receipt.clone(),
-                source_overlap: overlap_of(request, candidate),
+                source_overlap: e.overlap.clone(),
                 assumptions: assumptions(request, prior, e),
             }
         })
         .collect();
-    let key = |row: &CandidateEvsi| row.net_value.unwrap_or(row.evsi);
+    let key = |row: &EvsiCandidateRow| row.net_value.unwrap_or(row.evsi);
     rows.sort_by(|a, b| key(b).total_cmp(&key(a)).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
-    let mut ties = Vec::new();
-    let mut close = vec![false; rows.len()];
-    for i in 0..rows.len().saturating_sub(1) {
-        let gap = (key(&rows[i]) - key(&rows[i + 1])).abs();
-        let se = rows[i].integration.stderr.hypot(rows[i + 1].integration.stderr);
-        if gap <= request.tie_tolerance {
-            ties.push((rows[i].semantic_id.clone(), rows[i + 1].semantic_id.clone()));
-        }
-        if gap <= request.tie_tolerance.max(RANK_Z * se) {
-            close[i] = true;
-            close[i + 1] = true;
-        }
-    }
+    let ranked = rank_rows(
+        &rows
+            .iter()
+            .map(|row| AdjacentRank {
+                key: key(row),
+                stderr: row.integration.stderr,
+                id: row.semantic_id.as_str(),
+            })
+            .collect::<Vec<_>>(),
+        request.tie_tolerance,
+    );
+    let ties = ranked.ties;
     for (i, row) in rows.iter_mut().enumerate() {
         row.rank = i;
-        row.rank_uncertain = close[i];
+        row.rank_uncertain = ranked.uncertain[i];
     }
     let first = evaluated.first();
     EvsiReport {

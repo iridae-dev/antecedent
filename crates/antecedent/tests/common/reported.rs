@@ -4,8 +4,8 @@
 //! The facade publishes every interval at 0.95 unless the caller asks for
 //! another level ([`REPORTED_LEVEL`]; `IntervalBinding::level`,
 //! `ContinuousResponseOptions::confidence_level`, the posterior `q025`/`q975`
-//! summaries). The `v19` gate measures at 0.90 ([`GATE_LEVEL`]). The `v110`
-//! coverage tests score both levels from the same replicates:
+//! summaries). The mixture-interval gate measures at 0.90 ([`GATE_LEVEL`]). The
+//! `calibration_*` coverage tests score both levels from the same replicates:
 //!
 //! * a normal interval `est ± z·se` is re-formed at 0.90 from the reported SE
 //!   (the 0.95 bounds are checked to be `est ± z_0.975·se` first, so the
@@ -19,7 +19,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "each integration test binary includes this module and uses a subset of it"
+)]
 
 use antecedent::StudyResult;
 use antecedent_core::ResponseUncertainty;
@@ -81,11 +84,22 @@ pub fn normal_at(est: f64, se: f64, level: f64) -> Option<(f64, f64)> {
 /// the rule `execute_helpers` uses to choose the interval method.
 #[must_use]
 pub fn scalar_reported_se(result: &StudyResult) -> (f64, &'static str) {
-    match result.estimate.se_bootstrap.filter(|s| s.is_finite() && *s > 0.0) {
-        Some(se) if result.estimate.bootstrap_replicates_ok.unwrap_or(0) > 0 => {
+    match result.estimate.as_effect().unwrap().se_bootstrap().filter(|s| s.is_finite() && *s > 0.0)
+    {
+        Some(se)
+            if result
+                .estimate
+                .as_effect()
+                .unwrap()
+                .uncertainty
+                .bootstrap
+                .replicates_ok
+                .unwrap_or(0)
+                > 0 =>
+        {
             (se, "bootstrap_se")
         }
-        _ => (result.estimate.se_analytic, "analytic_se"),
+        _ => (result.estimate.as_effect().unwrap().se_analytic(), "analytic_se"),
     }
 }
 
@@ -97,8 +111,8 @@ pub type IntervalPair = [Option<(f64, f64)>; 2];
 pub fn scalar_normal_pair(result: &StudyResult) -> [Option<(f64, f64)>; 2] {
     let (se, _) = scalar_reported_se(result);
     [
-        normal_at(result.estimate.ate, se, REPORTED_LEVEL),
-        normal_at(result.estimate.ate, se, GATE_LEVEL),
+        normal_at(result.estimate.as_effect().unwrap().ate, se, REPORTED_LEVEL),
+        normal_at(result.estimate.as_effect().unwrap().ate, se, GATE_LEVEL),
     ]
 }
 
@@ -159,7 +173,7 @@ pub fn posterior_pair(result: &StudyResult, col: usize) -> [Option<(f64, f64)>; 
 /// Scalar response interval `(lower, upper)` with its level and SE.
 #[must_use]
 pub fn response_scalar(result: &StudyResult) -> Option<(f64, f64, f64, f64)> {
-    match result.response.as_ref()?.uncertainty {
+    match result.response()?.uncertainty {
         ResponseUncertainty::Scalar { standard_error, level, lower, upper, .. } => {
             Some((lower, upper, level, standard_error))
         }
@@ -170,7 +184,7 @@ pub fn response_scalar(result: &StudyResult) -> Option<(f64, f64, f64, f64)> {
 /// Pointwise band `(lower, upper, level)` of a response surface.
 #[must_use]
 pub fn response_band(result: &StudyResult) -> Option<(Vec<f64>, Vec<f64>, f64)> {
-    match &result.response.as_ref()?.uncertainty {
+    match &result.response()?.uncertainty {
         ResponseUncertainty::PointwiseBand { level, lower, upper, .. } => {
             Some((lower.to_vec(), upper.to_vec(), *level))
         }
@@ -218,7 +232,7 @@ fn response_quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
 /// the retained vector must be the one the endpoints were taken from.
 #[must_use]
 pub fn response_posterior_pairs(result: &StudyResult) -> Option<Vec<IntervalPair>> {
-    let uncertainty = &result.response.as_ref()?.uncertainty;
+    let uncertainty = &result.response()?.uncertainty;
     let (level, published): (f64, Vec<(f64, f64)>) = match uncertainty {
         ResponseUncertainty::Scalar { level, lower, upper, .. } => (*level, vec![(*lower, *upper)]),
         ResponseUncertainty::PointwiseBand { level, lower, upper, .. } => {

@@ -101,8 +101,7 @@ impl LearnedTrialWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn identity(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(antecedent_core::IdentityDomain::LearnedTrial, self)?
-            .to_hex())
+        crate::digest_hex(antecedent_core::IdentityDomain::LearnedTrial, self)
     }
     /// Encode a validated claim in the common artifact container.
     /// # Errors
@@ -126,7 +125,7 @@ impl LearnedTrialWire {
         )?;
         if artifact.sections.len() != 1
             || artifact.manifest.artifact_kind
-                != crate::wire::ArtifactKind::Other("learned_trial".into())
+                != crate::wire::ArtifactKind::Other(crate::artifact_kinds::LEARNED_TRIAL.into())
         {
             return Err(err("expected learned trial artifact"));
         }
@@ -280,7 +279,8 @@ mod tests {
                 "mu1",
                 "provenance",
                 "diagnostics",
-                "overlap"
+                "overlap",
+                "scores"
             ]
         );
         assert_eq!(

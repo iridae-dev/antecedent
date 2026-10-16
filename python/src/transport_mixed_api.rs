@@ -1,4 +1,4 @@
-//! Python bindings for bounded mixed-source proof search (X9).
+//! Python bindings for bounded mixed-source proof search.
 use crate::transport_common::{
     RegimeCheck, assignment_from_pairs, error, execution_context, frame_named_artifact, parse_laws,
     resolve, serialization_error, unframe_named_artifact,

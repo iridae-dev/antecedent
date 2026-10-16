@@ -1,7 +1,14 @@
 //! Retained graphless synthetic-control execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalExprArena, CausalQuery, DerivationTrace, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphClass,
+    IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteFinish, IdentifierId, InferenceMode, PhysicalExecutionPlan,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, finish_identified_execute_with_context,
+};
 use antecedent_core::SyntheticPanelMethod;
 use antecedent_estimate::synthetic_control::exact_augmented_synthetic_unit_randomization_test;
 use antecedent_estimate::synthetic_control::exact_synthetic_did_unit_randomization_test;
@@ -10,27 +17,17 @@ use antecedent_estimate::synthetic_control::fit_augmented_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_synthetic_control;
 use antecedent_estimate::synthetic_control::fit_synthetic_did;
 use antecedent_estimate::synthetic_control::{
-    SyntheticConstantEffectMethod, exact_synthetic_constant_effect_test,
+    AugmentedSyntheticControlFit, SyntheticConstantEffectMethod, SyntheticControlFit,
+    SyntheticUnitRandomizationTest, exact_synthetic_constant_effect_test,
 };
 
-#[derive(Clone)]
-pub(crate) struct CheckedSyntheticControlOperation {
-    query: antecedent_core::SyntheticControlQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-}
+pub(crate) type CheckedSyntheticControlOperation =
+    RandomizedTrialOperation<antecedent_core::SyntheticControlQuery, ()>;
 
-impl std::fmt::Debug for CheckedSyntheticControlOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedSyntheticControlOperation")
-            .field("query", &self.query)
-            .field("rows", &self.rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::SyntheticControlQuery {
+    const OPERATION: &'static str = "CheckedSyntheticControlOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "synthetic-control refresh requires the prepared schema and row order";
 }
 
 /// Plan id, identifier and estimator a compiled synthetic panel plan records.
@@ -53,14 +50,14 @@ impl CheckedSyntheticControlOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::SyntheticControl(query) = &study.query else {
             return Err(CausalError::Compile {
                 message: "synthetic-control operation requires SyntheticControlQuery".into(),
             });
         };
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -75,29 +72,18 @@ impl CheckedSyntheticControlOperation {
                 message: "synthetic control requires a graphless balanced panel, one treated unit, and point-only frequentist execution",
             });
         }
-        data.schema()
-            .get(query.outcome)
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         let (plan_id, identifier, estimator) = synthetic_panel_plan_ids(query.method);
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id
-            || physical.logical.record.identifier.as_deref() != Some(identifier)
-            || physical.logical.record.estimator.as_deref() != Some(estimator)
+            || !physical.binding().names_wire(identifier, estimator)
         {
             return Err(CausalError::Compile {
                 message: "synthetic panel design differs from its compiled plan".into(),
             });
         }
         let (identification, estimand) = synthetic_control_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -105,16 +91,7 @@ impl CheckedSyntheticControlOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "synthetic-control refresh requires the prepared schema and row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         let y = match data.column(self.query.outcome).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
             _ => {
@@ -155,46 +132,7 @@ impl CheckedSyntheticControlOperation {
             .map_err(|message| CausalError::Compile { message })?
         };
         let effect = augmentation.as_ref().map_or(fit.effect, |augmented| augmented.effect);
-        let randomization = if self.query.uniform_unit_randomization {
-            Some(
-                if let Some(null_effect) = self.query.sharp_null_effect {
-                    exact_synthetic_constant_effect_test(
-                        y,
-                        &units,
-                        &self.query.periods,
-                        &self.query.treated_unit,
-                        self.query.intervention_period,
-                        null_effect,
-                        self.query.augmentation_ridge.map_or(
-                            SyntheticConstantEffectMethod::Control,
-                            |ridge_penalty| SyntheticConstantEffectMethod::AugmentedControl {
-                                ridge_penalty,
-                            },
-                        ),
-                    )
-                } else if let Some(ridge) = self.query.augmentation_ridge {
-                    exact_augmented_synthetic_unit_randomization_test(
-                        y,
-                        &units,
-                        &self.query.periods,
-                        &self.query.treated_unit,
-                        self.query.intervention_period,
-                        ridge,
-                    )
-                } else {
-                    exact_synthetic_unit_randomization_test(
-                        y,
-                        &units,
-                        &self.query.periods,
-                        &self.query.treated_unit,
-                        self.query.intervention_period,
-                    )
-                }
-                .map_err(|message| CausalError::Compile { message })?,
-            )
-        } else {
-            None
-        };
+        let randomization = self.control_randomization_test(y, &units)?;
         let squared_mass: f64 = fit.donor_weights.iter().map(|(_, weight)| weight * weight).sum();
         let effective_donors = if squared_mass > 0.0 { 1.0 / squared_mass } else { 0.0 };
         let estimate = EffectEstimate::new(
@@ -206,17 +144,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_control.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -232,18 +160,77 @@ impl CheckedSyntheticControlOperation {
                         randomization.as_ref().map(|test| test.p_value),
                         self.query.sharp_null_effect.unwrap_or(0.0)
                     ),
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                )]),
         );
-        result.synthetic_control = Some(crate::SyntheticControlEstimate {
+        result.payload = crate::result::ResultPayload::SyntheticControl(self.control_payload(
+            fit,
+            augmentation.as_ref(),
+            randomization,
+            effect,
+            effective_donors,
+        ));
+        result.treatment = None;
+        Ok(result)
+    }
+
+    /// Exact unit-randomization test of the declared sharp null, when uniform assignment was declared.
+    fn control_randomization_test(
+        &self,
+        y: &[f64],
+        units: &[String],
+    ) -> Result<Option<SyntheticUnitRandomizationTest>, CausalError> {
+        Ok(if self.query.uniform_unit_randomization {
+            Some(
+                if let Some(null_effect) = self.query.sharp_null_effect {
+                    exact_synthetic_constant_effect_test(
+                        y,
+                        units,
+                        &self.query.periods,
+                        &self.query.treated_unit,
+                        self.query.intervention_period,
+                        null_effect,
+                        self.query.augmentation_ridge.map_or(
+                            SyntheticConstantEffectMethod::Control,
+                            |ridge_penalty| SyntheticConstantEffectMethod::AugmentedControl {
+                                ridge_penalty,
+                            },
+                        ),
+                    )
+                } else if let Some(ridge) = self.query.augmentation_ridge {
+                    exact_augmented_synthetic_unit_randomization_test(
+                        y,
+                        units,
+                        &self.query.periods,
+                        &self.query.treated_unit,
+                        self.query.intervention_period,
+                        ridge,
+                    )
+                } else {
+                    exact_synthetic_unit_randomization_test(
+                        y,
+                        units,
+                        &self.query.periods,
+                        &self.query.treated_unit,
+                        self.query.intervention_period,
+                    )
+                }
+                .map_err(|message| CausalError::Compile { message })?,
+            )
+        } else {
+            None
+        })
+    }
+
+    /// Assembles the retained synthetic-control estimate from the fit, augmentation, and randomization test.
+    fn control_payload(
+        &self,
+        fit: SyntheticControlFit,
+        augmentation: Option<&AugmentedSyntheticControlFit>,
+        randomization: Option<SyntheticUnitRandomizationTest>,
+        effect: f64,
+        effective_donors: f64,
+    ) -> crate::SyntheticControlEstimate {
+        crate::SyntheticControlEstimate {
             effect,
             pre_treatment_rmse: fit.pre_treatment_rmse,
             donor_weights: fit
@@ -281,12 +268,10 @@ impl CheckedSyntheticControlOperation {
                         .into()
                 },
             ),
-            unadjusted_effect: augmentation.as_ref().map(|_| fit.effect),
-            outcome_model_correction: augmentation.as_ref().map(|fit| fit.outcome_model_correction),
-            augmentation_ridge: augmentation.as_ref().map(|fit| fit.ridge_penalty),
-        });
-        result.treatment = None;
-        Ok(result)
+            unadjusted_effect: augmentation.map(|_| fit.effect),
+            outcome_model_correction: augmentation.map(|fit| fit.outcome_model_correction),
+            augmentation_ridge: augmentation.map(|fit| fit.ridge_penalty),
+        }
     }
 
     fn execute_did(
@@ -339,17 +324,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_did.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -362,18 +337,9 @@ impl CheckedSyntheticControlOperation {
                         randomization.as_ref().map(|test| test.p_value),
                         self.query.sharp_null_effect.unwrap_or(0.0)
                     ),
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                )]),
         );
-        result.synthetic_did = Some(crate::SyntheticDidEstimate {
+        result.payload = crate::result::ResultPayload::SyntheticDid(crate::SyntheticDidEstimate {
             effect: fit.effect,
             pre_treatment_rmse: fit.pre_treatment_rmse,
             donor_weights: fit
@@ -414,16 +380,17 @@ impl Study {
     pub(super) fn execute_synthetic_control(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedSyntheticControlOperation::checked(self, data, physical)?.execute(data, ctx)
     }
 }
 
-pub(crate) fn synthetic_control_identification(
+/// Declared panel-design assumptions, before the method-specific counterfactual assumption is appended.
+fn declared_panel_assumptions(
     query: &antecedent_core::SyntheticControlQuery,
-) -> (IdentificationResult, IdentifiedEstimand) {
+) -> antecedent_core::AssumptionSet {
     let mut assumptions = antecedent_core::AssumptionSet::default();
     for (id, description) in [
         ("no_anticipation", "intervention does not affect pre-treatment outcomes"),
@@ -483,6 +450,13 @@ pub(crate) fn synthetic_control_identification(
             status: antecedent_core::AssumptionStatus::Declared,
         });
     }
+    assumptions
+}
+
+pub(crate) fn synthetic_control_identification(
+    query: &antecedent_core::SyntheticControlQuery,
+) -> (IdentificationResult, IdentifiedEstimand) {
+    let mut assumptions = declared_panel_assumptions(query);
     let (method_assumption, method_description, rule, derivation_description) = match query.method {
         SyntheticPanelMethod::Control if query.augmentation_ridge.is_some() => (
             "donor_outcome_model_correction_is_valid",

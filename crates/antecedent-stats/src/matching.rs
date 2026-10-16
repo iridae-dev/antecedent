@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use crate::error::StatsError;
 
 /// Soft upper bound for the exact (brute-force) matching path.
@@ -77,6 +69,21 @@ impl MatchingIndex {
             donor_rows: donor_rows.to_vec(),
             distance,
         })
+    }
+
+    /// Whether this index retains these exact feature bits.
+    ///
+    /// Callers may use this to verify a compact hash key before reusing the index. The
+    /// retained donor features make the check allocation-free and prevent a hash collision
+    /// from replaying nearest-neighbor results from different donor features.
+    #[must_use]
+    pub fn matches_features(&self, features_rowmajor: &[f64]) -> bool {
+        self.features.len() == features_rowmajor.len()
+            && self
+                .features
+                .iter()
+                .zip(features_rowmajor)
+                .all(|(stored, candidate)| stored.to_bits() == candidate.to_bits())
     }
 
     /// Number of donors.
@@ -215,6 +222,7 @@ impl MatchingIndex {
     /// # Errors
     ///
     /// Shape mismatch, `k == 0`, too few donors, or a non-finite query.
+    #[cfg(test)]
     pub fn kth_distances(
         &self,
         queries_rowmajor: &[f64],
@@ -451,7 +459,6 @@ mod tests {
         assert_eq!(far.nearest(&[-1e200], None).unwrap(), None);
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,
@@ -479,7 +486,6 @@ mod tests {
         assert!((out[0] - 3e-21).abs() < 1e-33, "{}", out[0]);
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

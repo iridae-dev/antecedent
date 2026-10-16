@@ -5,10 +5,11 @@
 
 use crate::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use crate::decision_contract::DecisionContract;
-use antecedent_core::{ScientificQuantity, reason_code};
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::response_wire::{ResponseIdentificationWire, ResponseValueWire};
-use antecedent_io::{AnalysisResultConsumption, consume_analysis_result};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::{blake3_hex, reason_code, to_hex};
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::response_wire::{ResponseIdentificationWire, ResponseValueWire};
+use antecedent_io_core::{AnalysisResultConsumption, consume_analysis_result};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -41,7 +42,7 @@ struct EvidenceWire {
     contract: Option<String>,
     actions: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    external_identity: Option<antecedent_io::external_claim_artifact::ExternalClaimIdentity>,
+    external_identity: Option<antecedent_io_core::external_claim_artifact::ExternalClaimIdentity>,
 }
 
 /// Original recognized analysis result and an optional semantic functional mapping.
@@ -49,8 +50,8 @@ struct EvidenceWire {
 pub struct SourceEvidence {
     source: Arc<[u8]>,
     original: Option<Arc<AnalysisResultConsumption>>,
-    external: Option<Arc<antecedent_io::external_claim_artifact::ExternalClaimArtifact>>,
-    manifest: Arc<antecedent_io::ArtifactManifest>,
+    external: Option<Arc<antecedent_io_core::external_claim_artifact::ExternalClaimArtifact>>,
+    manifest: Arc<antecedent_io_core::ArtifactManifest>,
     coordinates: Arc<[ScientificQuantity]>,
     contract: Option<DecisionContract>,
     actions: Vec<String>,
@@ -63,7 +64,7 @@ impl SourceEvidence {
         if bytes.len() > MAX_SOURCE_EVIDENCE_BYTES {
             return Err(invalid("source_evidence.limits_exceeded"));
         }
-        let manifest = antecedent_io::EncodedArtifact::read_selective(
+        let manifest = antecedent_io_core::EncodedArtifact::read_selective(
             std::io::Cursor::new(bytes),
             &std::collections::HashSet::new(),
         )
@@ -118,19 +119,16 @@ impl SourceEvidence {
             actions: Vec::new(),
         })
     }
-    fn native_original(&self) -> &AnalysisResultConsumption {
-        self.original.as_deref().expect("native original operation requires native evidence")
-    }
     /// Original bound external artifact; independently validates full provider/request/quantity/value identity.
     /// Its declared support and ancestry are retained; absent numeric diagnostics remain explicitly unavailable.
     pub fn from_external(bytes: &[u8]) -> Result<Self, SourceEvidenceError> {
-        use antecedent_io::external_claim_artifact::{
+        use antecedent_io_core::external_claim_artifact::{
             ExternalClaimArtifact, ExternalClaimMetadata, MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
         };
         if bytes.len() > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES {
             return Err(invalid("source_evidence.limits_exceeded"));
         }
-        let mut reader = antecedent_io::ArtifactReader::open_seek(std::io::Cursor::new(bytes))
+        let mut reader = antecedent_io_core::ArtifactReader::open_seek(std::io::Cursor::new(bytes))
             .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?;
         let manifest = reader.manifest().clone();
         if manifest
@@ -141,7 +139,7 @@ impl SourceEvidence {
         {
             return Err(invalid("source_evidence.limits_exceeded"));
         }
-        let metadata: ExternalClaimMetadata = antecedent_io::from_cbor(
+        let metadata: ExternalClaimMetadata = antecedent_io_core::from_cbor(
             reader
                 .load_section("external_claim.meta")
                 .map_err(|_| invalid("source_evidence.invalid_source_artifact"))?
@@ -183,11 +181,12 @@ impl SourceEvidence {
             };
         }
         let encode = |source: &Self| {
-            antecedent_io::to_cbor(&(
+            let original = source.original_consumption()?;
+            antecedent_io_core::to_cbor(&(
                 source.manifest.as_ref(),
-                &source.native_original().header,
-                &source.native_original().body,
-                &source.native_original().contract,
+                &original.header,
+                &original.body,
+                &original.contract,
             ))
             .map_err(|_| invalid("source_evidence.invalid_source_artifact"))
         };
@@ -271,18 +270,20 @@ impl SourceEvidence {
             }
             return Ok(());
         }
-        let response = self.native_original().body.response.as_ref().expect("validated response");
+        let original = self.original_consumption()?;
+        let response = original
+            .body
+            .response
+            .as_ref()
+            .ok_or_else(|| invalid("source_evidence.response_unavailable"))?;
         let ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
             mean, ..
         }) = &response.estimate
         else {
             return Err(invalid("source_evidence.point_binding_mismatch"));
         };
-        let snapshot = self
-            .native_original()
-            .contract
-            .as_ref()
-            .map(|contract| hex(&contract.identities.data_snapshot));
+        let snapshot =
+            original.contract.as_ref().map(|contract| to_hex(&contract.identities.data_snapshot));
         if snapshot.as_deref() != Some(source.snapshot_id.as_str())
             || source.coordinates.len() != source.means.len()
         {
@@ -315,7 +316,7 @@ impl SourceEvidence {
                 self.original
                     .as_ref()
                     .and_then(|original| original.contract.as_ref())
-                    .map(|contract| hex(&contract.identities.data_snapshot))
+                    .map(|contract| to_hex(&contract.identities.data_snapshot))
             });
         if expected.as_deref() != Some(snapshot)
             || quantities.iter().any(|quantity| {
@@ -345,7 +346,12 @@ impl SourceEvidence {
         if self.external.is_some() {
             return Ok(json!([]));
         }
-        let response = self.native_original().body.response.as_ref().expect("validated response");
+        let original = self.original_consumption()?;
+        let response = original
+            .body
+            .response
+            .as_ref()
+            .ok_or_else(|| invalid("source_evidence.response_unavailable"))?;
         Ok(Value::Array(response.support.diagnostics.iter().map(|diagnostic| {
             let scope = diagnostic.scope.as_deref().unwrap_or("global");
             json!({"id":diagnostic.id,"detail":diagnostic.detail,"scope":scope,
@@ -358,8 +364,8 @@ impl SourceEvidence {
     /// Recognition and derivation identity do not resolve the original numerical dependencies.
     pub fn provenance_chain(
         &self,
-    ) -> Result<antecedent_core::ProvenanceChain, SourceEvidenceError> {
-        use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain};
+    ) -> Result<antecedent_contract::ProvenanceChain, SourceEvidenceError> {
+        use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
         if let Some(external) = &self.external {
             let chain = external
                 .metadata()
@@ -372,7 +378,7 @@ impl SourceEvidence {
                 .ok_or_else(|| invalid("source_evidence.invalid_source_artifact"))?
                 .id
                 .clone();
-            let source = format!("source_artifact:{}", blake3::hash(&self.source).to_hex());
+            let source = format!("source_artifact:{}", blake3_hex(&self.source));
             links.push(CompositionLink {
                 id: source.clone(),
                 stage: CompositionStage::Evidence,
@@ -400,11 +406,15 @@ impl SourceEvidence {
             return ProvenanceChain::new(links)
                 .map_err(|_| invalid("source_evidence.invalid_source_artifact"));
         }
-        let original = self.native_original().contract.as_ref().expect("validated contract");
-        let causal = format!("causal_contract:{}", hex(&original.seal));
-        let data = format!("snapshot:{}", hex(&original.identities.data_snapshot));
-        let program = format!("native_program:{}", hex(&original.identities.program));
-        let source = format!("source_artifact:{}", hex(&self.native_original().artifact_digest));
+        let consumption = self.original_consumption()?;
+        let original = consumption
+            .contract
+            .as_ref()
+            .ok_or_else(|| invalid("source_evidence.invalid_source_artifact"))?;
+        let causal = format!("causal_contract:{}", to_hex(&original.seal));
+        let data = format!("snapshot:{}", to_hex(&original.identities.data_snapshot));
+        let program = format!("native_program:{}", to_hex(&original.identities.program));
+        let source = format!("source_artifact:{}", to_hex(&consumption.artifact_digest));
         let link = |id: String, stage, parents: Vec<String>| CompositionLink {
             id,
             stage,
@@ -425,11 +435,10 @@ impl SourceEvidence {
             links.push(link(decision.clone(), CompositionStage::DecisionContract, vec![]));
             let transform = format!(
                 "source_projection:{}",
-                hex(blake3::hash(
-                    &antecedent_io::to_cbor(&(&decision, &self.actions))
+                blake3_hex(
+                    &antecedent_io_core::to_cbor(&(&decision, &self.actions))
                         .map_err(|_| invalid("source_evidence.invalid_contract"))?
                 )
-                .as_bytes())
             );
             links.push(link(
                 transform.clone(),
@@ -446,20 +455,26 @@ impl SourceEvidence {
     /// Original typed ancestry including verified Merkle parent links.
     pub fn lineage(&self) -> Result<Value, SourceEvidenceError> {
         let chain = self.provenance_chain()?;
-        Ok(Value::Array(
-            chain
-                .links()
+        let mut links = Vec::with_capacity(chain.links().len());
+        for link in chain.links() {
+            let parent_digests = link
+                .parents
                 .iter()
-                .map(|link| {
-                    json!({
-                        "id":link.id,"stage":link.stage.as_str(),"parents":link.parents,
-                        "digest":chain.digest_of(&link.id).expect("validated chain link"),
-                        "parent_digests":link.parents.iter().map(|parent| chain.digest_of(parent)
-                            .expect("validated chain parent")).collect::<Vec<_>>()
-                    })
+                .map(|parent| {
+                    chain
+                        .digest_of(parent)
+                        .map_err(|_| invalid("source_evidence.invalid_source_artifact"))
                 })
-                .collect(),
-        ))
+                .collect::<Result<Vec<_>, _>>()?;
+            links.push(json!({
+                "id": link.id,
+                "stage": link.stage.as_str(),
+                "parents": link.parents,
+                "digest": chain.digest_of(&link.id).map_err(|_| invalid("source_evidence.invalid_source_artifact"))?,
+                "parent_digests": parent_digests
+            }));
+        }
+        Ok(Value::Array(links))
     }
     /// Queryable original identities, diagnostics, warnings and semantic action contributors.
     #[must_use]
@@ -470,12 +485,8 @@ impl SourceEvidence {
             .map(|contract| {
                 self.actions
                     .iter()
-                    .map(|id| {
-                        let action = contract
-                            .actions
-                            .iter()
-                            .find(|action| &action.id == id)
-                            .expect("validated action");
+                    .filter_map(|id| {
+                        let action = contract.actions.iter().find(|action| &action.id == id)?;
                         let coordinates = action
                             .utility
                             .inputs_used()
@@ -488,15 +499,15 @@ impl SourceEvidence {
                                     .map(ScientificQuantityWire::from)
                             })
                             .collect::<Vec<_>>();
-                        json!({"action_id":id,"source_coordinates":coordinates})
+                        Some(json!({"action_id":id,"source_coordinates":coordinates}))
                     })
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
         if let Some(external) = &self.external {
-            return json!({"source_artifact_digest":blake3::hash(&self.source).to_hex().to_string(),
+            return json!({"source_artifact_digest":blake3_hex(&self.source),
                 "source_kind":"external_bound_claim", "provenance_id":external.metadata().identity.provider_fingerprint, "source_execution":null, "original_acceptance":{"recognized":true,"claim_present":true,"verified_references":false,"unresolved_dependencies":[],"restriction":"external attestation; original provider verification covers only its exact declared request"},
-                "source_identities":external.metadata().identity, "lineage":self.lineage().expect("validated original source chain"),
+                "source_identities":external.metadata().identity, "lineage":self.lineage().unwrap_or(Value::Null),
                 "coordinates":self.coordinates.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>(),
                 "diagnostics":[],"diagnostic_availability":"not_retained_by_original_external_claim_format", "warnings":[],
                 "point_status":external.metadata().identity.point_status,"trust":external.metadata().identity.trust,
@@ -504,12 +515,17 @@ impl SourceEvidence {
                 "contract_identity":self.contract.as_ref().and_then(|contract|contract.identity().ok()),"action_contributors":contributors,
                 "scope":"original_external_source; no transformed numeric diagnostic or trust/calibration upgrade"});
         }
-        let response = self.native_original().body.response.as_ref().expect("validated response");
-        json!({"source_artifact_digest":hex(&self.native_original().artifact_digest),
-            "original_acceptance": {"recognized":self.native_original().acceptance.recognized,"verified_references":self.native_original().acceptance.verified_references,"claim_present":self.native_original().acceptance.claim_present,"unresolved_dependencies":self.native_original().acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"restriction":self.native_original().acceptance.restriction.as_deref()},
-            "source_identities":self.native_original().contract.as_ref().map(|contract| &contract.identities),
-            "lineage":self.lineage().expect("validated original source chain"),
-            "source_execution":self.native_original().contract.as_ref().and_then(|contract| contract.execution.as_ref()),
+        let Some(original) = self.original.as_deref() else {
+            return json!({"detail":"source_evidence.resolution_scope_unsupported"});
+        };
+        let Some(response) = original.body.response.as_ref() else {
+            return json!({"detail":"source_evidence.response_unavailable"});
+        };
+        json!({"source_artifact_digest":to_hex(&original.artifact_digest),
+            "original_acceptance": {"recognized":original.acceptance.recognized,"verified_references":original.acceptance.verified_references,"claim_present":original.acceptance.claim_present,"unresolved_dependencies":original.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"restriction":original.acceptance.restriction.as_deref()},
+            "source_identities":original.contract.as_ref().map(|contract| &contract.identities),
+            "lineage":self.lineage().unwrap_or(Value::Null),
+            "source_execution":original.contract.as_ref().and_then(|contract| contract.execution.as_ref()),
             "provenance_id":response.provenance_id,
             "coordinates":self.coordinates.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>(),
             "diagnostics":response.support.diagnostics,"warnings":response.support.warnings,
@@ -558,9 +574,10 @@ impl SourceEvidence {
         }
         let result = if let Some(expected) = wire.external_identity {
             let result = Self::from_external(&wire.source)?;
-            if result.external.as_ref().expect("validated external source").metadata().identity
-                != expected
-            {
+            let Some(external) = result.external.as_ref() else {
+                return Err(invalid("source_evidence.invalid_source_artifact"));
+            };
+            if external.metadata().identity != expected {
                 return Err(invalid("source_evidence.source_binding_mismatch"));
             }
             result
@@ -573,11 +590,4 @@ impl SourceEvidence {
             None => Err(invalid("source_evidence.action_mismatch")),
         }
     }
-}
-fn hex(bytes: &[u8]) -> String {
-    use std::fmt::Write;
-    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut result, byte| {
-        let _ = write!(result, "{byte:02x}");
-        result
-    })
 }

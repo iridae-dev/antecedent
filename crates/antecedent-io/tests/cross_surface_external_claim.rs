@@ -10,32 +10,32 @@
 //! Truth is the enumerated closed form `E[Y | do(a)] = 1 + 2a` over `a` in
 //! `0, 1, 2`, i.e. `[1, 3, 5]`, with every identity built from constants.
 
-use antecedent_core::{
+use antecedent_contract::{
     CheckedCausalContract, CompositionStage, DistributionMeaning, ExternalCapability,
     ExternalResponse, ExternalResult, ExternalResultHeader, ExternalScientificObject,
-    ExternalTrustState, ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract,
-    ProviderObjectIdentity, QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
+    ExternalTrustState, ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity,
+    QuantityRole, ScientificQuantity, bind_external_result,
 };
+use antecedent_core::{IdentificationStatus, SupportStatus};
 use antecedent_io::external_claim_artifact::{
-    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, lineage_wire,
+    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, lineage_wire, values_digest,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
+use antecedent_test_support::{conformance_dir, read_fixture_bytes};
 
 fn fixture_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cross_surface")
+    conformance_dir("cross_surface")
 }
 
 fn read_fixture(name: &str) -> Vec<u8> {
-    let path = fixture_dir().join(name);
-    std::fs::read(&path).unwrap_or_else(|error| {
-        panic!(
-            "missing cross-surface fixture {} ({error}); run \
-             `python python/tests/generate_cross_surface_fixtures.py` from the repo root \
-             (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io \
-             --test cross_surface_external_claim -- --ignored regenerate_rust_fixtures)",
-            path.display()
-        )
-    })
+    read_fixture_bytes(
+        &fixture_dir(),
+        name,
+        "run \
+            `python python/tests/generate_cross_surface_fixtures.py` from the repo root \
+            (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io \
+            --test cross_surface_external_claim -- --ignored regenerate_rust_fixtures)",
+    )
 }
 
 /// Outcome `y` in mmHg; the Python surface derives `variable_id == variable_name == "y"`.
@@ -66,13 +66,7 @@ fn expected_identity() -> ExternalClaimIdentity {
         version_id: "v3".into(),
         snapshot_id: "snap-9".into(),
         request_id: "req-1".into(),
-        values_blake3: {
-            let mut hasher = blake3::Hasher::new();
-            for value in [1.0_f64, 3.0, 5.0] {
-                hasher.update(&value.to_le_bytes());
-            }
-            hasher.finalize().to_hex().to_string()
-        },
+        values_blake3: values_digest(&[1.0, 3.0, 5.0]),
         trust: ExternalClaimTrust::ExternallyAttested,
         point_status: vec![
             "supported".into(),

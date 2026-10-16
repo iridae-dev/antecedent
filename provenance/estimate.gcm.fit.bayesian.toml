@@ -44,7 +44,7 @@ test_sources = [
  "crates/antecedent/tests/staged_attribution_transport_interference.rs (bayesian_attribution_shared_row_weight_known_truth)",
  "crates/antecedent/src/analysis/execute/checked_attribution.rs (in-module tests: anomaly_posterior_executes_from_retained_operation_after_builder_drop)",
  "crates/antecedent/tests/checked_attribution_route_evidence.rs (all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused)",
- "crates/antecedent/tests/v18_bayesian_remainder.rs (counterfactual_posterior_has_bayesian_bootstrap_variance, accepted_counterfactual_matches_explicit_bayesian)",
+ "crates/antecedent/tests/bayesian_functional_routes.rs (counterfactual_posterior_has_bayesian_bootstrap_variance, accepted_counterfactual_matches_explicit_bayesian)",
  "conformance/estimate/staged_attribution (known-truth anomaly fixture: linear chain with one injected outlier row)",
  "conformance/estimate/staged_static_kinds (Bayesian counterfactual mean ITE pin)",
 ]

@@ -1,4 +1,4 @@
-//! Sampled observation recovery (2.3A X10): the exact 2.2 binary m-graph recovery
+//! Sampled observation recovery: the exact binary m-graph recovery
 //! formula applied to finite counted observation-pattern rows, with a whole-method
 //! outer bootstrap.
 //!
@@ -33,7 +33,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::sync::Arc;
 
-use antecedent_core::{EvidenceCatalog, ExecutionContext, Value, VariableId};
+use antecedent_core::{CanonicalWriter, EvidenceCatalog, ExecutionContext, Value, VariableId};
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits,
     LawTolerance,
@@ -59,7 +59,7 @@ pub const SAMPLED_RECOVERY_MAX_ROWS: usize = 1_000_000;
 /// Most binary substantive variables (`X ∪ O`) one request may recover.
 pub const SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize = 6;
 /// Nominal level of the whole-row `BCa` interval.
-pub const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
+pub(crate) const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
 /// Original source artifact status, distinct from measured-envelope authorization.
 pub const SAMPLED_RECOVERY_CALIBRATION: &str = "unmeasured";
 
@@ -422,71 +422,76 @@ impl SampledRecoveryReceipt {
     /// `receipt_digest`).
     #[must_use]
     pub fn recompute_digest(&self) -> String {
-        let mut digest = Digest::new();
-        digest.str("sampled_recovery.receipt.bca.v1");
-        digest.str(&self.snapshot_id);
-        digest.usize(self.rows);
-        digest.str(&self.derivation_identity);
-        digest.str(&self.input_digest);
-        digest.usize(self.config.replicates);
-        digest.u64(self.config.seed);
-        digest.f64(self.config.max_failed_fraction);
-        digest.f64(self.config.normalization_tolerance);
-        digest.f64(self.config.small_cell_count);
-        digest.f64(self.config.treated_level);
-        digest.f64(self.config.control_level);
-        digest.f64(self.point_effect);
-        digest.f64(self.interval.level);
-        digest.f64(self.interval.lower);
-        digest.f64(self.interval.upper);
-        digest.str(self.interval.calibration);
-        digest.usize(self.replicates.len());
+        let mut digest = CanonicalWriter::new("sampled_recovery.receipt.bca.v1");
+        digest.text(&self.snapshot_id);
+        digest.word(to_u64(self.rows));
+        digest.text(&self.derivation_identity);
+        digest.text(&self.input_digest);
+        digest.word(to_u64(self.config.replicates));
+        digest.word(self.config.seed);
+        digest.real(self.config.max_failed_fraction);
+        digest.real(self.config.normalization_tolerance);
+        digest.real(self.config.small_cell_count);
+        digest.real(self.config.treated_level);
+        digest.real(self.config.control_level);
+        digest.real(self.point_effect);
+        digest.real(self.interval.level);
+        digest.real(self.interval.lower);
+        digest.real(self.interval.upper);
+        digest.text(self.interval.calibration);
+        digest.word(to_u64(self.replicates.len()));
         for record in &self.replicates {
-            digest.u64(u64::from(record.id));
-            digest.str(&record.selection_digest);
+            digest.word(u64::from(record.id));
+            digest.text(&record.selection_digest);
             match record.effect {
                 Some(effect) => {
                     digest.bytes(&[1]);
-                    digest.f64(effect);
+                    digest.real(effect);
                 }
-                None => digest.bytes(&[0]),
+                None => {
+                    digest.bytes(&[0]);
+                }
             }
             if self.config.interval_method == SampledIntervalMethod::Bca {
                 match &record.failure {
                     Some(reason) => {
                         digest.bytes(&[1]);
-                        digest.str(reason);
+                        digest.text(reason);
                     }
-                    None => digest.bytes(&[0]),
+                    None => {
+                        digest.bytes(&[0]);
+                    }
                 }
             }
-            digest.usize(record.zero_patterns.len());
+            digest.word(to_u64(record.zero_patterns.len()));
             for pattern in &record.zero_patterns {
-                digest.pattern(*pattern);
+                write_pattern(&mut digest, *pattern);
             }
         }
         if self.config.interval_method == SampledIntervalMethod::Bca {
-            digest.str(self.config.interval_method.name());
-            digest.str("midrank_exact_ties:type7:delete_one_row");
+            digest.text(self.config.interval_method.name());
+            digest.text("midrank_exact_ties:type7:delete_one_row");
             match &self.bca {
                 Some(bca) => {
                     digest.bytes(&[1]);
-                    digest.f64(bca.bias_correction);
-                    digest.f64(bca.acceleration);
+                    digest.real(bca.bias_correction);
+                    digest.real(bca.acceleration);
                     for p in bca.adjusted_probabilities {
-                        digest.f64(p);
+                        digest.real(p);
                     }
-                    digest.usize(bca.jackknife.len());
+                    digest.word(to_u64(bca.jackknife.len()));
                     for row in &bca.jackknife {
-                        digest.pattern(row.pattern);
-                        digest.u64(row.multiplicity);
-                        digest.f64(row.effect);
+                        write_pattern(&mut digest, row.pattern);
+                        digest.word(row.multiplicity);
+                        digest.real(row.effect);
                     }
                 }
-                None => digest.bytes(&[0]),
+                None => {
+                    digest.bytes(&[0]);
+                }
             }
         }
-        digest.finish()
+        hex_digest(&digest)
     }
 
     /// Whether the stored digest is the recomputed one.
@@ -522,6 +527,16 @@ pub struct SampledRecoveryResult {
     pub receipt: SampledRecoveryReceipt,
 }
 
+/// A count that fits keeps its value. A count that does not fit saturates.
+fn bounded_u64(value: usize) -> u64 {
+    u64::try_from(value).unwrap_or(u64::MAX)
+}
+
+/// A count that fits keeps its value. A count that does not fit saturates.
+fn bounded_u32(value: usize) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+
 impl SampledRecoveryResult {
     /// Bind the internal whole-row candidate to its actual whole-method receipt.
     /// A checked recovery derivation and the complete executed row/replicate scope
@@ -551,11 +566,8 @@ impl SampledRecoveryResult {
             .map(Arc::from),
             self.interval.level,
             Arc::from("point"),
-            u64::try_from(self.receipt.rows).expect("validated bounded row count"),
-            Some(
-                u32::try_from(self.replicate_effects.len())
-                    .expect("validated bounded replicate count"),
-            ),
+            bounded_u64(self.receipt.rows),
+            Some(bounded_u32(self.replicate_effects.len())),
             None,
             0.,
         )
@@ -597,42 +609,14 @@ pub fn derive_sampled_recovery(
     }
 }
 
-/// A fingerprint accumulator (two FNV-style lanes); not cryptographic.
-struct Digest {
-    a: u64,
-    b: u64,
+/// One observation pattern as its three bit masks, length-prefixed.
+fn write_pattern(digest: &mut CanonicalWriter, pattern: ObservationPattern) {
+    digest.bytes(&[pattern.responses, pattern.proxies, pattern.fully]);
 }
 
-impl Digest {
-    const fn new() -> Self {
-        Self { a: 0xcbf2_9ce4_8422_2325, b: 0x8422_2325_cbf2_9ce5 }
-    }
-    fn bytes(&mut self, bytes: &[u8]) {
-        for byte in bytes {
-            self.a = (self.a ^ u64::from(*byte)).wrapping_mul(0x0000_0100_0000_01b3);
-            self.b = (self.b ^ u64::from(*byte)).wrapping_mul(0x9E37_79B9_7F4A_7C15);
-            self.b ^= self.b >> 29;
-        }
-    }
-    fn u64(&mut self, value: u64) {
-        self.bytes(&value.to_le_bytes());
-    }
-    fn usize(&mut self, value: usize) {
-        self.u64(to_u64(value));
-    }
-    fn f64(&mut self, value: f64) {
-        self.u64(value.to_bits());
-    }
-    fn str(&mut self, value: &str) {
-        self.usize(value.len());
-        self.bytes(value.as_bytes());
-    }
-    fn pattern(&mut self, pattern: ObservationPattern) {
-        self.bytes(&[pattern.responses, pattern.proxies, pattern.fully]);
-    }
-    fn finish(&self) -> String {
-        format!("{:016x}{:016x}", self.a, mix64(self.b ^ self.a.rotate_left(17)))
-    }
+/// Lowercase hex of a finished canonical digest.
+fn hex_digest(digest: &CanonicalWriter) -> String {
+    digest.finish_hex()
 }
 
 fn to_u64(value: usize) -> u64 {
@@ -877,15 +861,14 @@ fn check_input(
 }
 
 fn input_digest(input: &SampledObservationInput) -> String {
-    let mut digest = Digest::new();
-    digest.str("sampled_recovery.input.v1");
-    digest.str(&input.snapshot_id);
-    digest.usize(input.rows.len());
+    let mut digest = CanonicalWriter::new("sampled_recovery.input.v1");
+    digest.text(&input.snapshot_id);
+    digest.word(to_u64(input.rows.len()));
     for row in &input.rows {
-        digest.u64(row.id);
-        digest.pattern(row.pattern);
+        digest.word(row.id);
+        write_pattern(&mut digest, row.pattern);
     }
-    digest.finish()
+    hex_digest(&digest)
 }
 
 /// Probability that the outcome is 1, normalized by the evaluated total.
@@ -1015,17 +998,16 @@ impl Run<'_> {
         let n = to_u64(rows.len());
         let mut state = seed_mix(self.config.seed ^ mix64(to_u64(id).wrapping_add(1)));
         let mut counts = vec![0u64; self.layout.cells];
-        let mut digest = Digest::new();
-        digest.str("sampled_recovery.selection.v1");
-        digest.u64(n);
-        digest.usize(id);
+        let mut digest = CanonicalWriter::new("sampled_recovery.selection.v1");
+        digest.word(n);
+        digest.word(to_u64(id));
         for _ in 0..rows.len() {
             let scaled = (u128::from(splitmix64(&mut state)) * u128::from(n)) >> 64;
             let draw = usize::try_from(scaled).unwrap_or(0);
             counts[self.cells_of_row[draw]] += 1;
-            digest.u64(rows[draw].id);
+            digest.word(rows[draw].id);
         }
-        (counts, digest.finish())
+        (counts, hex_digest(&digest))
     }
 
     fn replicate(&self, id: usize) -> Result<Replicated, SampledRecoveryError> {
@@ -1116,18 +1098,10 @@ impl Run<'_> {
     }
 }
 
-/// Linear-interpolation percentile (type 7) of a sorted, nonempty sample.
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "the position is in [0, len - 1]"
-)]
-fn percentile(sorted: &[f64], p: f64) -> f64 {
-    let position = p * (sorted.len() - 1) as f64;
-    let lower = position.floor() as usize;
-    let upper = (lower + 1).min(sorted.len() - 1);
-    let fraction = position - lower as f64;
-    sorted[lower] + (sorted[upper] - sorted[lower]) * fraction
+/// Hyndman–Fan type-7 quantile of a sorted sample: the rule the receipt names
+/// (`midrank_exact_ties:type7:delete_one_row`) for the bootstrap endpoints.
+fn type7_quantile(sorted: &[f64], p: f64) -> f64 {
+    antecedent_stats::quantile_sorted(sorted, p, antecedent_stats::QuantileRule::Interpolated)
 }
 
 /// Sample covariance (divisor `n - 1`) of equal-length rows, row-major.
@@ -1271,13 +1245,10 @@ pub fn estimate_sampled_recovery(
     let bca = Some(corrected);
     let interval = SampledEffectInterval {
         level: SAMPLED_RECOVERY_INTERVAL_LEVEL,
-        lower: percentile(&sorted, probabilities[0]),
-        upper: percentile(&sorted, probabilities[1]),
+        lower: type7_quantile(&sorted, probabilities[0]),
+        upper: type7_quantile(&sorted, probabilities[1]),
         calibration: SAMPLED_RECOVERY_CALIBRATION,
     };
-    let used = boot.effects.len() as f64;
-    let mean = boot.effects.iter().sum::<f64>() / used;
-    let variance = boot.effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (used - 1.0);
     let mut receipt = SampledRecoveryReceipt {
         snapshot_id: input.snapshot_id.clone(),
         rows: input.rows.len(),
@@ -1291,6 +1262,7 @@ pub fn estimate_sampled_recovery(
         receipt_digest: String::new(),
     };
     receipt.receipt_digest = receipt.recompute_digest();
+    let effect_standard_error = antecedent_stats::sample_std(&boot.effects);
     Ok(SampledRecoveryResult {
         recovered_cells: recovered_law.law().probabilities().len(),
         recovered_cell_covariance: covariance(&boot.cells),
@@ -1300,7 +1272,7 @@ pub fn estimate_sampled_recovery(
         interval,
         replicate_effects: boot.effects,
         failed_replicates: failed,
-        effect_standard_error: variance.sqrt(),
+        effect_standard_error,
         receipt,
     })
 }
@@ -1377,5 +1349,87 @@ mod bca_tests {
         // A resolvable bias rank alone does not ensure adjusted tails resolve.
         let tail: Vec<f64> = (0..2000).map(f64::from).collect();
         assert!(bca_receipt(1.5, &tail, jack(&[-1.0, 0.0, 1.0])).is_err());
+    }
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use super::*;
+
+    #[test]
+    fn input_digest_is_the_canonical_stream_of_snapshot_ids_and_patterns() {
+        // Golden vector: BLAKE3 over the tag, the snapshot id, the row count, then each row's
+        // id word and its three pattern masks as length-prefixed bytes.
+        let pattern = ObservationPattern { responses: 1, proxies: 1, fully: 2 };
+        let input = SampledObservationInput {
+            snapshot_id: "snap".to_string(),
+            rows: vec![ObservationRow { id: 7, pattern }, ObservationRow { id: 9, pattern }],
+        };
+        let mut writer = CanonicalWriter::new("sampled_recovery.input.v1");
+        writer.text("snap").word(2);
+        for id in [7u64, 9] {
+            writer.word(id).bytes(&[1, 1, 2]);
+        }
+        let expected = writer.finish_hex();
+        assert_eq!(input_digest(&input), expected);
+        let mut other = input.clone();
+        other.rows[1].id = 10;
+        assert_ne!(input_digest(&other), expected);
+        assert_eq!(expected, "4228b6b0d6d24cee0ec11fa8fa1cef9ef555fa0c88c3d07a1fec07a8d9986153");
+    }
+
+    #[test]
+    fn receipt_digest_matches_the_independent_derivation() {
+        // Golden vector derived in Python from the documented framing (tags, length-prefixed
+        // text and byte masks, little-endian words and real bit patterns) and a from-scratch
+        // BLAKE3.
+        let receipt = SampledRecoveryReceipt {
+            snapshot_id: "snap".to_string(),
+            rows: 4,
+            derivation_identity: "deriv".to_string(),
+            input_digest: "in".to_string(),
+            config: SampledRecoveryConfig {
+                normalization_tolerance: 0.25,
+                ..SampledRecoveryConfig::bca(99)
+            },
+            point_effect: 0.4,
+            interval: SampledEffectInterval {
+                level: 0.95,
+                lower: 0.1,
+                upper: 0.7,
+                calibration: SAMPLED_RECOVERY_CALIBRATION,
+            },
+            replicates: vec![
+                SampledReplicateRecord {
+                    id: 0,
+                    selection_digest: "sel0".to_string(),
+                    effect: Some(0.4),
+                    failure: None,
+                    zero_patterns: Vec::new(),
+                },
+                SampledReplicateRecord {
+                    id: 1,
+                    selection_digest: "sel1".to_string(),
+                    effect: None,
+                    failure: Some("zero cell".to_string()),
+                    zero_patterns: vec![ObservationPattern { responses: 1, proxies: 0, fully: 1 }],
+                },
+            ],
+            bca: Some(SampledBcaReceipt {
+                bias_correction: 0.1,
+                acceleration: -0.2,
+                adjusted_probabilities: [0.025, 0.975],
+                jackknife: vec![SampledJackknifeRecord {
+                    pattern: ObservationPattern { responses: 3, proxies: 1, fully: 2 },
+                    multiplicity: 4,
+                    effect: 0.35,
+                }],
+            }),
+            receipt_digest: String::new(),
+        };
+        assert_eq!(
+            receipt.recompute_digest(),
+            "9703333fd08577d574671f74075f8bb2653412e2200112811a27e040d61e880b"
+        );
     }
 }

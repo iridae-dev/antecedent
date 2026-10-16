@@ -52,10 +52,10 @@ from antecedent.errors import CausalError
 from antecedent.inference import Frequentist
 from antecedent.intervention import Set
 
-from _repo_text import read_text
+from _repo_text import REPO_ROOT, read_text
 from _sealed_loads import assert_answer_kept
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = REPO_ROOT
 PRODUCTS = tomllib.loads(read_text(ROOT / "parity" / "python_products.toml"))
 GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
 LAGGED = [("t", 1, "y", 0)]
@@ -354,7 +354,7 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     assert study is not None
     encoded = result.export()
     loaded = ant.load(encoded)
-    assert loaded.artifact.payload_kind == "analysis_result"
+    assert loaded.decoded_artifact.payload_kind == "analysis_result"
     assert_answer_kept(loaded)
 
     again = study.estimate()
@@ -367,13 +367,39 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     if options == "callbacks":
         assert seen, "on_progress never fired"
     if options == "validators":
-        attested = ant.load(result.export()).artifact.contract["claim"]["attested"]
+        attested = ant.load(result.export()).decoded_artifact.contract["claim"]["attested"]
         assert [item["name"] for item in attested] == ["matrix.finite_effect"]
 
 
 def test_every_route_retains():
     for row in PRODUCTS.get("route", []):
         assert row.get("retains") is True, row
+
+
+#: Graph classes the Rust licensing table covers that `analyze` cannot be handed: a
+#: `TemporalAdmg` is a native-only graph object (the contemporaneous-projection twin of the
+#: static latent-graph analyses), not an edge list, so no Python route exists to carry a row.
+RUST_ONLY_GRAPH_CLASSES = frozenset({"TemporalAdmg"})
+
+
+#: Static query kinds whose temporal cores the Rust table licenses through the temporal
+#: effect wrapper, which Python has no surface for: its static derivative, counterfactual,
+#: distribution and path-specific classes take no lag or horizon, and handing them panel or
+#: event data is refused (pinned by the refusal rows). The Python-reachable temporal
+#: conditional queries are `TemporalConditionalPulse` / `TemporalConditionalSustained`.
+RUST_ONLY_TEMPORAL_KINDS = frozenset(
+    {
+        "average_derivative",
+        "counterfactual",
+        "directional_derivative",
+        "distribution",
+        "elasticity",
+        "path_specific",
+        "point_derivative",
+        "response_jacobian",
+        "semi_elasticity",
+    }
+)
 
 
 def test_every_licensed_combination_has_a_route_row():
@@ -385,6 +411,10 @@ def test_every_licensed_combination_has_a_route_row():
             continue
         structure = cell["structure"]
         graph = cell["graph_class"]
+        if graph in RUST_ONLY_GRAPH_CLASSES:
+            continue
+        if kind in RUST_ONLY_TEMPORAL_KINDS and graph.startswith("Temporal"):
+            continue
         data = "series" if graph.startswith("Temporal") else "tabular"
         expected.add((kind, data, structure))
         if graph.startswith("Temporal"):

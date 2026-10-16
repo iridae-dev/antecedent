@@ -9,8 +9,8 @@ Three propositions must remain separate.
 | **Scientific validity** | The assumptions are appropriate for the real situation. | Something software can establish from a successful call alone. |
 
 The [support matrix](support-matrix.md) is the public license for ordinary
-analysis combinations. Specialized 2.3 [measured scalar adapters](2_3-population-time-uncertainty.md)
-and [decision workflows](2_3-lifecycle.md) have separate checked contracts,
+analysis combinations. Specialized [measured scalar adapters](population-time-uncertainty.md)
+and [decision workflows](lifecycle.md) have separate checked contracts,
 without expanding that grid. [Capabilities](capabilities.md) explains what exists. A successful run
 still requires a defensible causal model, relevant data, and interpretation of
 the result's support, uncertainty, and assumptions.
@@ -21,8 +21,7 @@ execution lies inside that record's measured scope. The release attestation
 gate checks that every published record still matches this build, including
 any scoped replay waiver for a change that cannot move its measured number.
 
-Licensed does not mean measured. Of the 472 licensed cells, 428 cite coverage
-records, 40 have no coverage measurement for their estimator
-(`estimator_grid_not_measured`), and 4 report no interval; the
-[support matrix](support-matrix.md) states these counts and each cell's
-`calibration_reason`.
+Licensed does not mean measured. The [support matrix](support-matrix.md)
+states, for each licensed cell, whether a coverage record is cited, whether
+the estimator has no coverage measurement (`estimator_grid_not_measured`),
+or whether the cell reports no interval.

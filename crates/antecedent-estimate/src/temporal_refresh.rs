@@ -1,5 +1,5 @@
 //! Semantic refresh of a prepared horizon-two temporal result onto a new observation period
-//! (X5 `new_period_refresh`).
+//! (`new_period_refresh`).
 //!
 //! # Contract
 //!
@@ -31,11 +31,10 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::{ExecutionContext, reason_code};
-use antecedent_expr::ExactTransportData;
+use antecedent_core::{CanonicalWriter, reason_code};
 
 use crate::error::EstimationError;
-use crate::temporal_transport::PreparedTemporalSequence;
+use crate::util::refuse;
 
 /// Inference claim of the route.
 pub const TEMPORAL_REFRESH_INFERENCE_CLAIM: &str = "point_only";
@@ -77,63 +76,51 @@ pub struct TemporalWindowIdentity {
     pub proof_id: String,
 }
 
-/// Two-lane FNV-1a over length-prefixed fields.
-struct Digester(u64, u64);
+/// Domain tag of [`TemporalWindowIdentity::digest`].
+const WINDOW_IDENTITY_TAG: &str = "antecedent.estimate.temporal_refresh.window_identity";
+/// Domain tag of [`RefreshReceipt::compute_digest`].
+const RECEIPT_TAG: &str = "antecedent.estimate.temporal_refresh.receipt";
 
-impl Digester {
-    const PRIME: u64 = 0x0100_0000_01b3;
-
-    const fn new() -> Self {
-        Self(0xcbf2_9ce4_8422_2325, 0x8422_2325_cbf2_9ce4)
+/// A tagged item list: tag, item count, then each item, all length-prefixed text.
+fn write_list<'a>(
+    writer: &mut CanonicalWriter,
+    tag: &str,
+    items: impl ExactSizeIterator<Item = &'a str>,
+) {
+    writer.text(tag).word(items.len() as u64);
+    for item in items {
+        writer.text(item);
     }
+}
 
-    fn byte(&mut self, b: u8) {
-        self.0 = (self.0 ^ u64::from(b)).wrapping_mul(Self::PRIME);
-        self.1 = (self.1 ^ u64::from(b ^ 0x5c)).wrapping_mul(Self::PRIME).rotate_left(5);
-    }
-
-    fn text(&mut self, value: &str) {
-        for b in (value.len() as u64).to_le_bytes() {
-            self.byte(b);
-        }
-        for b in value.bytes() {
-            self.byte(b);
-        }
-    }
-
-    fn list<'a>(&mut self, tag: &str, items: impl ExactSizeIterator<Item = &'a str>) {
-        self.text(tag);
-        self.text(&items.len().to_string());
-        for item in items {
-            self.text(item);
-        }
-    }
-
-    fn finish(&self) -> String {
-        format!("{:016x}{:016x}", self.0, self.1)
-    }
+/// Lowercase hex of a finished canonical digest.
+fn hex_digest(writer: &CanonicalWriter) -> String {
+    writer.finish_hex()
 }
 
 impl TemporalWindowIdentity {
     /// Content fingerprint over every identity input.
     #[must_use]
     pub fn digest(&self) -> String {
-        let mut d = Digester::new();
-        d.text("temporal_window_identity_v1");
+        let mut d = CanonicalWriter::new(WINDOW_IDENTITY_TAG);
         d.text(&self.graph_id);
-        d.text(&self.horizon.to_string());
+        d.word(self.horizon as u64);
         let lag: Vec<String> =
             self.lag_alignment.iter().map(|(name, slice)| format!("{name}@{slice}")).collect();
-        d.list("lag_alignment", lag.iter().map(String::as_str));
-        d.list("intervention_history", self.intervention_history.iter().map(String::as_str));
-        d.list("selection_targets", self.selection_targets.iter().map(String::as_str));
-        d.list("regimes", self.regimes.iter().map(String::as_str));
+        write_list(&mut d, "lag_alignment", lag.iter().map(String::as_str));
+        write_list(
+            &mut d,
+            "intervention_history",
+            self.intervention_history.iter().map(String::as_str),
+        );
+        write_list(&mut d, "selection_targets", self.selection_targets.iter().map(String::as_str));
+        write_list(&mut d, "regimes", self.regimes.iter().map(String::as_str));
         d.text(&self.period.start.to_string());
         d.text(&self.period.end.to_string());
-        d.list("unit_ids", self.unit_ids.iter().map(String::as_str));
+        write_list(&mut d, "unit_ids", self.unit_ids.iter().map(String::as_str));
         d.text(&self.snapshot_id);
         d.text(&self.proof_id);
-        d.finish()
+        hex_digest(&d)
     }
 
     fn validate(&self) -> Result<(), EstimationError> {
@@ -291,8 +278,7 @@ impl RefreshReceipt {
     /// The seal this receipt's fields imply.
     #[must_use]
     pub fn compute_digest(&self) -> String {
-        let mut d = Digester::new();
-        d.text("temporal_refresh_receipt_v1");
+        let mut d = CanonicalWriter::new(RECEIPT_TAG);
         d.text(&self.old_identity_digest);
         d.text(&self.new_identity_digest);
         for period in [self.old_period, self.new_period] {
@@ -304,7 +290,7 @@ impl RefreshReceipt {
         d.text(&self.proof_id);
         d.text(if self.interval_invalidated { "interval_invalidated" } else { "no_interval" });
         d.text(self.inference_claim);
-        d.finish()
+        hex_digest(&d)
     }
 
     fn bind(old: &TemporalWindowIdentity, new: &TemporalWindowIdentity, interval: bool) -> Self {
@@ -351,10 +337,6 @@ pub struct HeldTemporalResult<T> {
     pub value: T,
     /// Whether an interval or fit exists for this window.
     pub interval_present: bool,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 /// Refresh a held result onto a replacement identity by re-evaluating it there.
@@ -438,35 +420,4 @@ pub fn accept_refresh<T>(
         ));
     }
     Ok(refreshed)
-}
-
-/// Refresh a [`PreparedTemporalSequence`] onto new exact laws of a new period.
-///
-/// `old` must describe the held prepared result (its horizon and intervention history length
-/// are checked against the frozen decision); the identity decision runs before the prepared
-/// result's own same-window refresh re-evaluates against `data`.
-///
-/// # Errors
-/// As [`refresh_held`], `temporal_refresh.premises_changed` when `old` does not describe
-/// `prepared`, and the refusals of [`PreparedTemporalSequence::refresh`].
-pub fn refresh_prepared_sequence(
-    prepared: &PreparedTemporalSequence,
-    old: &TemporalWindowIdentity,
-    new: &TemporalWindowIdentity,
-    data: ExactTransportData,
-    interval_existed: bool,
-    ctx: &ExecutionContext,
-) -> Result<(PreparedTemporalSequence, RefreshReceipt), EstimationError> {
-    let decision = prepared.decision();
-    if old.horizon != decision.spec.horizon()
-        || old.intervention_history.len() != decision.sequence.len()
-    {
-        return Err(RefreshInvalidation::PremisesChanged.into_error());
-    }
-    new.validate()?;
-    if let RefreshDecision::Invalidated(reason) = decide_refresh(old, new) {
-        return Err(reason.into_error());
-    }
-    let refreshed = prepared.refresh(data, ctx)?;
-    Ok((refreshed, RefreshReceipt::bind(old, new, interval_existed)))
 }

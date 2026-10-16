@@ -19,13 +19,13 @@ const SHALLOW_GBT: GbtSpec = GbtSpec { trees: 80, depth: 3, learning_rate: 0.1 }
 /// # Errors
 ///
 /// Empty design, or every candidate fails to fit.
-pub fn resolve_auto(
+#[cfg(test)]
+pub(crate) fn resolve_auto(
     task: PredictionTask,
     x: DesignView<'_>,
     y: TargetView<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(Box<dyn LearnerFactory>, NuisanceDiagnostics), LearnError> {
-    let sparse = x.is_sparse();
     let (values, n, p) = crate::dense::materialize_dense_colmajor(x)?;
     let target = if y.len() == x.physical_nrows() {
         crate::dense::gather_physical(y.values(), x, n)?
@@ -44,7 +44,7 @@ pub fn resolve_auto(
     };
     let strips_intercept = tree_view.is_some();
     let (factory, diagnostics, winner) =
-        select_auto(task, view, tree_view, TargetView::new(&target), ctx, sparse)?;
+        select_auto(task, view, tree_view, TargetView::new(&target), ctx)?;
     let factory: Box<dyn LearnerFactory> = if strips_intercept && drops_constant_intercept(winner) {
         Box::new(DropInterceptFactory { inner: factory })
     } else {
@@ -69,7 +69,6 @@ fn select_auto(
     x_tree: Option<DesignView<'_>>,
     y: TargetView<'_>,
     ctx: &ExecutionContext,
-    sparse: bool,
 ) -> Result<(Box<dyn LearnerFactory>, NuisanceDiagnostics, LearnerSpec), LearnError> {
     let n = x.nrows();
     let p = x.ncols();
@@ -87,7 +86,7 @@ fn select_auto(
     } else {
         LearnerSpec::GradientBoostedTrees(GbtSpec::default())
     };
-    let candidates = auto_candidates(n, p, sparse, task, parametric, gbdt);
+    let candidates = auto_candidates(n, p, task, parametric, gbdt);
     let folds = n.clamp(2, 5);
     if candidates.len() == 1 {
         let factory = resolve_for(candidates[0], task)?;
@@ -160,14 +159,13 @@ fn admissible_loss(loss: Option<f64>) -> Option<f64> {
 fn auto_candidates(
     n: usize,
     p: usize,
-    sparse: bool,
     task: PredictionTask,
     parametric: LearnerSpec,
     gbdt: LearnerSpec,
 ) -> Vec<LearnerSpec> {
-    let gbdt_on = cfg!(feature = "ml-gbdt") && !sparse;
+    let gbdt_on = cfg!(feature = "ml-gbdt");
     let mut candidates = Vec::new();
-    if sparse || p > n {
+    if p > n {
         if matches!(task, PredictionTask::Regression) {
             candidates.push(LearnerSpec::ElasticNet(ElasticNetSpec::default()));
         }
@@ -185,7 +183,7 @@ fn auto_candidates(
 
 /// Capabilities advertised for Auto when no candidate resolved.
 #[must_use]
-pub fn required_for_auto(task: PredictionTask) -> crate::learner::LearnerCapabilities {
+pub(crate) fn required_for_auto(task: PredictionTask) -> crate::learner::LearnerCapabilities {
     let mut cap = crate::learner::LearnerCapabilities::none();
     match task {
         PredictionTask::Regression => cap.regression = true,
@@ -249,10 +247,12 @@ impl FittedPredictor for DropInterceptPredictor {
 ///
 /// `resolve_auto` exposes the selected factory publicly, so this wrapper must make its
 /// fitting behavior agree with the intercept-free OOF comparison used to select it.
+#[cfg(test)]
 struct DropInterceptFactory {
     inner: Box<dyn LearnerFactory>,
 }
 
+#[cfg(test)]
 impl LearnerFactory for DropInterceptFactory {
     fn task(&self) -> PredictionTask {
         self.inner.task()
@@ -314,7 +314,6 @@ impl LearnerFactory for AutoLearner {
         if y.len() != x.physical_nrows() {
             return Err(LearnError::Shape { message: "target length != physical rows" });
         }
-        let sparse = x.is_sparse();
         let (values, n, p) = crate::dense::materialize_dense_colmajor(x)?;
         let target = crate::dense::gather_physical(y.values(), x, n)?;
         let view = DesignView::from_column_major(values.as_ref(), n, p)?;
@@ -325,7 +324,7 @@ impl LearnerFactory for AutoLearner {
         } else {
             None
         };
-        let (factory, _, winner) = select_auto(self.0, view, tree_view, target, ctx, sparse)?;
+        let (factory, _, winner) = select_auto(self.0, view, tree_view, target, ctx)?;
         if drops_constant_intercept(winner) && drop_intercept {
             let fit_view = DesignView::from_column_major(&values.as_ref()[n..], n, p - 1)?;
             let fitted = factory.fit(fit_view, target, None, ctx)?;
@@ -337,7 +336,6 @@ impl LearnerFactory for AutoLearner {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod audit_tests {
     use super::*;
     #[test]
@@ -376,22 +374,20 @@ mod audit_tests {
     fn large_n_still_compares_a_parametric_challenger() {
         let parametric = LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 });
         let gbdt = LearnerSpec::GradientBoostedTrees(GbtSpec::default());
-        let candidates =
-            auto_candidates(5_000, 3, false, PredictionTask::Regression, parametric, gbdt);
+        let candidates = auto_candidates(5_000, 3, PredictionTask::Regression, parametric, gbdt);
         assert!(candidates.iter().any(|spec| matches!(spec, LearnerSpec::Ridge(_))));
         #[cfg(feature = "ml-gbdt")]
         assert!(candidates.iter().any(|spec| matches!(spec, LearnerSpec::GradientBoostedTrees(_))));
     }
 
     #[test]
-    fn wide_or_sparse_designs_include_elastic_net() {
+    fn wide_designs_include_elastic_net() {
         let parametric = LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 });
         let gbdt = LearnerSpec::GradientBoostedTrees(SHALLOW_GBT);
-        let wide = auto_candidates(20, 40, false, PredictionTask::Regression, parametric, gbdt);
+        let wide = auto_candidates(20, 40, PredictionTask::Regression, parametric, gbdt);
         assert!(wide.iter().any(|spec| matches!(spec, LearnerSpec::ElasticNet(_))));
-        let sparse = auto_candidates(30, 3, true, PredictionTask::Regression, parametric, gbdt);
-        assert!(sparse.iter().any(|spec| matches!(spec, LearnerSpec::ElasticNet(_))));
-        assert!(!sparse.iter().any(|spec| matches!(spec, LearnerSpec::GradientBoostedTrees(_))));
+        let tall = auto_candidates(30, 3, PredictionTask::Regression, parametric, gbdt);
+        assert!(!tall.iter().any(|spec| matches!(spec, LearnerSpec::ElasticNet(_))));
     }
 
     #[cfg(feature = "ml-gbdt")]

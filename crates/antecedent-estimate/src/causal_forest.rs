@@ -7,7 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_possible_wrap, clippy::too_many_arguments)]
 #![cfg_attr(
     test,
     allow(
@@ -177,14 +176,12 @@ impl CausalForest {
                 "CausalForest requires binary treatment in {0, 1}",
             ));
         }
-        let min_leaf = self.min_leaf;
-        let max_depth = self.max_depth;
+        let data = ForestData { x: &x, n, p, y, t };
+        let shape = TreeShape { min_leaf: self.min_leaf, max_depth: self.max_depth };
         let honesty = self.honesty;
         let trees = ctx.map_indexed(self.n_trees, |b, inner| {
             let mut rng = inner.rng.stream_for(StreamDomain::Estimate, 0xC0F0_0000_u64 ^ b as u64);
-            Ok::<_, EstimationError>(grow_tree(
-                &x, n, p, y, t, min_leaf, max_depth, honesty, &mut rng,
-            ))
+            Ok::<_, EstimationError>(grow_tree(&data, shape, honesty, &mut rng))
         })?;
         let ForestCate { cate, hits, leaf_dispersion, se_complete } =
             aggregate_forest_cate(&trees, &x, n, p);
@@ -193,7 +190,7 @@ impl CausalForest {
         let mut effect = DmlAte::new().with_folds(5.min(n)).fit(problem, ctx, assumptions)?;
         let model = portable_forest(&trees, problem, p);
         model.validate()?;
-        effect.fitted_effect = Some(Arc::new(model));
+        effect.heterogeneity.fitted_effect = Some(Arc::new(model));
         if hits.iter().any(|&count| count == 0.0) {
             return Err(EstimationError::data_msg(
                 "CausalForest has no honest two-arm estimate for a row; increase tree count or sample size",
@@ -219,9 +216,17 @@ fn portable_forest(
             nodes
         })
         .collect();
+    let features: Vec<u32> = problem.adjustment_set.iter().map(|v| v.raw()).collect();
+    let covariate_columns: Vec<&[f64]> = problem.covariates.iter().map(|c| &c[..]).collect();
+    let support = if covariate_columns.len() == features.len() {
+        antecedent_learn::EffectSupport::from_rows(&covariate_columns, None)
+    } else {
+        None
+    };
     crate::FittedEffect {
         version: 1,
-        features: problem.adjustment_set.iter().map(|v| v.raw()).collect(),
+        features,
+        support,
         intercept: false,
         predictor: antecedent_learn::PortablePredictor {
             version: 1,
@@ -340,17 +345,27 @@ impl Node {
     }
 }
 
-fn grow_tree(
-    x: &[f64],
+/// The rows a forest is grown on: column-major covariates (`n × p`) with the outcome and
+/// the binary treatment.
+#[derive(Clone, Copy)]
+struct ForestData<'a> {
+    x: &'a [f64],
     n: usize,
     p: usize,
-    y: &[f64],
-    t: &[f64],
+    y: &'a [f64],
+    t: &'a [f64],
+}
+
+/// Stopping rules shared by every tree of the forest.
+#[derive(Clone, Copy)]
+struct TreeShape {
     min_leaf: usize,
     max_depth: usize,
-    honesty: bool,
-    rng: &mut CausalRng,
-) -> Node {
+}
+
+fn grow_tree(data: &ForestData<'_>, shape: TreeShape, honesty: bool, rng: &mut CausalRng) -> Node {
+    let ForestData { n, y, t, .. } = *data;
+    let TreeShape { min_leaf, .. } = shape;
     let sample = subsample(n, SUBSAMPLE_FRACTION, min_leaf, rng);
     if sample.len() < min_leaf.saturating_mul(2) {
         return Node::Leaf { cate: leaf_tau(y, t, &sample), se: leaf_se(y, t, &sample) };
@@ -361,8 +376,8 @@ fn grow_tree(
     } else {
         (sample.clone(), sample)
     };
-    let mut root = grow_from(&split_idx, 0, x, n, p, y, t, min_leaf, max_depth, rng);
-    fill_cate(&mut root, &est_idx, x, n, p, y, t, None);
+    let mut root = grow_from(&split_idx, 0, data, shape, rng);
+    fill_cate(&mut root, &est_idx, data, None);
     root
 }
 
@@ -387,41 +402,34 @@ fn subsample(n: usize, frac: f64, min_leaf: usize, rng: &mut CausalRng) -> Vec<u
 fn grow_from(
     rows: &[u32],
     depth: usize,
-    x: &[f64],
-    n: usize,
-    p: usize,
-    y: &[f64],
-    t: &[f64],
-    min_leaf: usize,
-    max_depth: usize,
+    data: &ForestData<'_>,
+    shape: TreeShape,
     rng: &mut CausalRng,
 ) -> Node {
+    let ForestData { p, y, t, .. } = *data;
+    let TreeShape { min_leaf, max_depth } = shape;
     if depth >= max_depth || rows.len() < min_leaf.saturating_mul(2) || p == 0 {
         return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
     }
-    let Some((feature, threshold, left_rows, right_rows)) =
-        best_split(rows, x, n, p, y, t, min_leaf, rng)
+    let Some((feature, threshold, left_rows, right_rows)) = best_split(rows, data, min_leaf, rng)
     else {
         return Node::Leaf { cate: leaf_tau(y, t, rows), se: leaf_se(y, t, rows) };
     };
     Node::Split {
         feature,
         threshold,
-        left: Box::new(grow_from(&left_rows, depth + 1, x, n, p, y, t, min_leaf, max_depth, rng)),
-        right: Box::new(grow_from(&right_rows, depth + 1, x, n, p, y, t, min_leaf, max_depth, rng)),
+        left: Box::new(grow_from(&left_rows, depth + 1, data, shape, rng)),
+        right: Box::new(grow_from(&right_rows, depth + 1, data, shape, rng)),
     }
 }
 
 fn best_split(
     rows: &[u32],
-    x: &[f64],
-    n: usize,
-    p: usize,
-    y: &[f64],
-    t: &[f64],
+    data: &ForestData<'_>,
     min_leaf: usize,
     rng: &mut CausalRng,
 ) -> Option<(usize, f64, Vec<u32>, Vec<u32>)> {
+    let ForestData { x, n, p, y, t } = *data;
     let feats = choose_features(p, rng);
     let mut best_score = f64::NEG_INFINITY;
     let mut best: Option<(usize, f64)> = None;
@@ -519,13 +527,10 @@ fn partition(rows: &[u32], x: &[f64], n: usize, feat: usize, thr: f64) -> (Vec<u
 fn fill_cate(
     node: &mut Node,
     rows: &[u32],
-    x: &[f64],
-    n: usize,
-    p: usize,
-    y: &[f64],
-    t: &[f64],
+    data: &ForestData<'_>,
     parent: Option<(f64, Option<f64>)>,
 ) {
+    let ForestData { x, n, p, y, t } = *data;
     let honest = leaf_stat(y, t, rows).or(parent);
     match node {
         Node::Leaf { cate, se } => {
@@ -538,8 +543,8 @@ fn fill_cate(
                 return;
             }
             let (l, r) = partition(rows, x, n, *feature, *threshold);
-            fill_cate(left, &l, x, n, p, y, t, honest);
-            fill_cate(right, &r, x, n, p, y, t, honest);
+            fill_cate(left, &l, data, honest);
+            fill_cate(right, &r, data, honest);
         }
     }
 }
@@ -615,9 +620,10 @@ mod tests {
     #[test]
     fn honest_leaf_never_reuses_split_outcomes() {
         let mut node = Node::Leaf { cate: Some(999.0), se: None };
-        fill_cate(&mut node, &[0], &[], 1, 0, &[10.0], &[1.0], None);
+        let data = ForestData { x: &[], n: 1, p: 0, y: &[10.0], t: &[1.0] };
+        fill_cate(&mut node, &[0], &data, None);
         assert!(node.predict_leaf(&[], 1, 0, 0).is_none());
-        fill_cate(&mut node, &[0], &[], 1, 0, &[10.0], &[1.0], Some((2.0, Some(0.5))));
+        fill_cate(&mut node, &[0], &data, Some((2.0, Some(0.5))));
         assert_eq!(node.predict_leaf(&[], 1, 0, 0), Some((2.0, Some(0.5))));
     }
 
@@ -650,7 +656,7 @@ mod tests {
         let mut y = vec![0.0; n];
         for i in 0..n {
             let zi = standard_normal(&mut rng);
-            let p = 1.0 / (1.0 + (-(-0.3 + 0.6 * zi)).exp());
+            let p = antecedent_kernels::sigmoid(-0.3 + 0.6 * zi);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             z[i] = zi;
             t[i] = ti;
@@ -731,15 +737,15 @@ mod tests {
         let est = CausalForest::new().with_n_trees(80).with_max_depth(4).with_min_leaf(8);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ExecutionContext::for_tests(2), AssumptionSet::new()).unwrap();
-        let cate = effect.cate.as_ref().expect("cate");
+        let cate = effect.heterogeneity.cate.as_ref().expect("cate");
         assert_eq!(cate.len(), z.len());
-        let model = effect.fitted_effect.as_ref().expect("portable forest");
+        let model = effect.heterogeneity.fitted_effect.as_ref().expect("portable forest");
         let predicted = model
             .predict(&prep.adjustment_set, &[&z], z.len(), &ExecutionContext::for_tests(2))
             .unwrap();
         assert_eq!(predicted.as_slice(), cate.as_ref());
-        assert!(effect.se_analytic > 0.0);
-        assert!(effect.influence.as_ref().unwrap().iter().sum::<f64>().abs() < 1e-8);
+        assert!(effect.se_analytic() > 0.0);
+        assert!(effect.scores.influence.as_ref().unwrap().iter().sum::<f64>().abs() < 1e-8);
         let mut pairs: Vec<(f64, f64)> =
             z.iter().zip(cate.iter()).map(|(&zi, &c)| (zi, c)).collect();
         pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
@@ -747,8 +753,9 @@ mod tests {
         let lo = pairs[..q].iter().map(|p| p.1).sum::<f64>() / q as f64;
         let hi = pairs[3 * q..].iter().map(|p| p.1).sum::<f64>() / (pairs.len() - 3 * q) as f64;
         assert!(hi > lo + 0.15, "cate should rise with z: lo={lo} hi={hi}");
-        assert!(effect.cate_se.is_none(), "a forest publishes no pointwise SE");
-        let se = effect.cate_leaf_dispersion.as_ref().expect("honest leaf dispersion");
+        assert!(effect.heterogeneity.cate_se.is_none(), "a forest publishes no pointwise SE");
+        let se =
+            effect.heterogeneity.cate_leaf_dispersion.as_ref().expect("honest leaf dispersion");
         assert_eq!(se.len(), cate.len());
         assert!(se.iter().all(|&s| s.is_finite() && s >= 0.0));
         assert!(se.iter().any(|&s| s > 0.0));

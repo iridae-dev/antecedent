@@ -2,12 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -26,9 +24,16 @@ use antecedent_stats::{Welford, invert_square, normal_ppf};
 use crate::candidate::{CandidateDesign, DesignCost};
 use crate::decision::DecisionProblem;
 use crate::error::DesignError;
-use crate::objective::DesignObjective;
+use crate::objective::{DesignObjective, ObjectiveChannel, ObjectiveScorer};
 use crate::preposterior::{DecisionPrior, DecisionSignal, PreposteriorAnalysis};
-use crate::result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
+use crate::result::{ConstraintViolation, RankedCandidate, ScoreEvaluation, ScoredDesignRanking};
+
+/// Stream index of a ranking's shared CRN draws within [`StreamDomain::Design`].
+const RANK_STREAM: u64 = 0xD351_0611;
+
+/// Largest `batch_size * max_batches` a ranking will schedule. A larger product
+/// refuses instead of allocating an unbounded draw store.
+const MAX_RANK_DRAWS: u64 = 1_000_000;
 
 /// Hard resource limits applied before scoring (violations are recorded, not silent).
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -165,6 +170,7 @@ pub struct DecisionRegistry<A, O> {
 }
 
 /// Inputs shared across candidates for one ranking call.
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 pub struct DesignEvaluationContext<'a, A = (), O = ()> {
     /// Graph posterior ensemble (normalized preferred).
     pub graphs: &'a WeightedGraphSamples,
@@ -185,6 +191,24 @@ pub struct DesignEvaluationContext<'a, A = (), O = ()> {
     /// Optional per-graph discrete features for EIG observation models. When `None`, graph keys
     /// are used as categorical labels (soft observation of which posterior atom is true).
     pub graph_features: Option<&'a [u32]>,
+}
+
+/// The candidates one scoring loop evaluates and, for decision objectives, their scorer.
+struct ActiveScoring<'a, O> {
+    /// Indexes of the candidates that passed the constraints.
+    active: &'a [usize],
+    decision: Option<&'a DecisionScoring<'a, O>>,
+    /// Every active candidate is scored exactly, so its draws are all identical.
+    all_exact: bool,
+}
+
+/// Per-draw scores of every active candidate (draw `i` is the same CRN replicate for all)
+/// with the realized sample count, budget and early-stop flag.
+struct ScoringRun {
+    draws: Vec<Vec<f64>>,
+    n_samples: u64,
+    budget: MonteCarloBudget,
+    early_stopped: bool,
 }
 
 /// Rank candidate designs under an objective with batched MC and CRN.
@@ -233,10 +257,10 @@ impl DesignRanker {
         candidates: &[CandidateDesign],
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
-    ) -> Result<DesignRanking, DesignError>
+    ) -> Result<ScoredDesignRanking, DesignError>
     where
-        A: Clone,
-        O: Clone,
+        A: Clone + Sync,
+        O: Clone + Sync,
     {
         self.validate_rank_inputs(candidates, ctx_eval)?;
         validate_objective_context(objective, ctx_eval)?;
@@ -256,25 +280,27 @@ impl DesignRanker {
             .collect();
 
         let z = self.config.critical_value();
-        let (draws, n_samples, budget, early_stopped) = self.run_mc_scoring_loop(
+        let run = self.run_mc_scoring_loop(
             objective,
             candidates,
             ctx_eval,
             ctx,
-            &active,
-            decision.as_ref(),
+            &ActiveScoring {
+                active: &active,
+                decision: decision.as_ref(),
+                // Exact objectives return the same value on every draw, so one is enough.
+                all_exact: !evaluations.is_empty()
+                    && evaluations.iter().all(|e| *e == ScoreEvaluation::Exact),
+            },
             z,
         )?;
 
         Ok(Self::assemble_ranking(
             &active,
-            &draws,
+            run,
             &evaluations,
-            n_samples,
             candidates,
             violations,
-            budget,
-            early_stopped,
             objective.implemented_functional(),
             z,
         ))
@@ -292,8 +318,19 @@ impl DesignRanker {
         if ctx_eval.graphs.n_samples == 0 {
             return Err(DesignError::EmptyPosterior);
         }
+        self.validate_config()
+    }
+
+    /// Reject a batch schedule that cannot draw anything.
+    pub(crate) fn validate_config(&self) -> Result<(), DesignError> {
         if self.config.max_batches == 0 || self.config.batch_size == 0 {
             return Err(DesignError::Config("max_batches and batch_size must be > 0".into()));
+        }
+        let draws = u64::from(self.config.max_batches) * u64::from(self.config.batch_size);
+        if draws > MAX_RANK_DRAWS {
+            return Err(DesignError::Config(format!(
+                "batch_size * max_batches = {draws} exceeds {MAX_RANK_DRAWS}"
+            )));
         }
         Ok(())
     }
@@ -323,92 +360,208 @@ impl DesignRanker {
     /// Adaptive batched Monte Carlo scoring loop with shared CRN draws across active
     /// candidates. Returns every candidate's per-draw scores (draw `i` is the same graph /
     /// decision replicate for all candidates, so pairwise differences are paired) alongside
-    /// the realized sample count / budget / early-stop flag.
-    #[allow(clippy::too_many_arguments)]
+    /// the realized sample count / budget / early-stop flag. When every active candidate is
+    /// scored exactly (`all_exact`) a single draw is taken and reported as one sample.
     fn run_mc_scoring_loop<A, O>(
         &self,
         objective: &DesignObjective,
         candidates: &[CandidateDesign],
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
-        active: &[usize],
-        decision: Option<&DecisionScoring<'_, O>>,
+        scoring: &ActiveScoring<'_, O>,
         z: f64,
-    ) -> Result<(Vec<Vec<f64>>, u64, MonteCarloBudget, bool), DesignError>
+    ) -> Result<ScoringRun, DesignError>
     where
-        A: Clone,
-        O: Clone,
+        A: Clone + Sync,
+        O: Clone + Sync,
     {
+        let (active, decision, all_exact) = (scoring.active, scoring.decision, scoring.all_exact);
         let mut draws: Vec<Vec<f64>> = vec![Vec::new(); active.len()];
         let mut n_samples: u64 = 0;
         let mut budget = MonteCarloBudget::default();
         let mut early_stopped = false;
-        let mut rng = ctx.rng.stream_for(StreamDomain::Design, 0xD351_0611);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Design, RANK_STREAM);
         // Per-ranking constants of the scoring channels, built once rather than per draw.
         let channels = ScoringChannels::new(objective, ctx_eval);
 
         let min_batches = self.config.min_batches.max(1);
         let max_batches = self.config.max_batches.max(min_batches);
+        let mut stats = RankDrawStats::new(active.len());
+        // The entropy channel's expectation depends only on the candidate, so it is
+        // computed once per candidate and reported as exact.
+        let entropy_gain: Option<Vec<f64>> =
+            matches!(objective.channel(), ObjectiveChannel::GraphEntropy).then(|| {
+                active
+                    .iter()
+                    .map(|&cand_i| {
+                        channels.entropy.as_ref().map_or(0.0, |channel| {
+                            channel.exact_gain(observation_reliability(&candidates[cand_i]))
+                        })
+                    })
+                    .collect()
+            });
 
         for batch_i in 0..max_batches {
-            for _ in 0..self.config.batch_size {
-                // Shared CRN draw index into graph posterior.
+            if ctx.cancellation.is_cancelled() {
+                return Err(DesignError::Cancelled);
+            }
+            let batch_size = if all_exact { 1 } else { self.config.batch_size };
+            for _ in 0..batch_size {
+                // Shared CRN draw index into the graph posterior.
                 let g_idx = sample_categorical(&mut rng, &ctx_eval.graphs.weights)
                     .ok_or(DesignError::EmptyPosterior)?;
-                // Decision replicates share one seed across candidates, so every
-                // candidate sees the same sampled state and noise (CRN).
-                let crn_seed = decision.map(|_| rng.next_u64());
-                for (slot, &cand_i) in active.iter().enumerate() {
-                    let score = match (decision, crn_seed) {
-                        (Some(d), Some(seed)) => d.score(cand_i, seed)?,
-                        _ => score_candidate(
+                let replicate: Vec<f64> = if let Some(gains) = &entropy_gain {
+                    gains.clone()
+                } else if let Some(d) = decision {
+                    // Decision replicates share one seed, so every candidate sees the
+                    // same sampled state and noise. `map_indexed` only changes which
+                    // thread scores a candidate; the seed does not.
+                    let crn_seed = rng.next_u64();
+                    ctx.map_indexed(active.len(), |slot, _ctx| {
+                        let mut log_lik = Vec::new();
+                        let mut weights = Vec::new();
+                        d.score(active[slot], crn_seed, &mut log_lik, &mut weights)
+                    })?
+                } else {
+                    // Non-decision scores that consume randomness (model distinction)
+                    // each open a fresh generator from this seed. Sharing the outer
+                    // generator coupled candidates by how many draws the previous
+                    // candidate happened to take.
+                    let draw_seed = rng.next_u64();
+                    ctx.map_indexed(active.len(), |slot, _ctx| {
+                        let mut local = CausalRng::from_seed(draw_seed);
+                        score_candidate(
                             objective,
-                            &candidates[cand_i],
+                            &candidates[active[slot]],
                             ctx_eval,
                             &channels,
                             g_idx,
-                            &mut rng,
-                        )?,
-                    };
-                    draws[slot].push(score);
+                            &mut local,
+                        )
+                    })?
+                };
+                for (slot, score) in replicate.iter().enumerate() {
+                    draws[slot].push(*score);
                     budget.evaluations += 1;
                 }
+                stats.push(&replicate);
                 n_samples += 1;
                 budget.samples = n_samples;
             }
 
+            if all_exact {
+                // One exact draw has no variance. Repeating it is the paired standard
+                // error of zero the stopping test would see at any count >= 2.
+                if let Some(last) = draws.first().map(|d| {
+                    let n = d.len();
+                    (0..active.len()).map(|slot| draws[slot][n - 1]).collect::<Vec<_>>()
+                }) {
+                    stats.push(&last);
+                }
+                early_stopped = stats.uncertainty_ok(z, self.config.rank_uncertainty_threshold);
+                break;
+            }
             if batch_i + 1 >= min_batches
-                && rank_uncertainty_ok(&draws, z, self.config.rank_uncertainty_threshold)
+                && stats.uncertainty_ok(z, self.config.rank_uncertainty_threshold)
             {
                 early_stopped = true;
                 break;
             }
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(DesignError::Cancelled);
+        }
+
+        Ok(ScoringRun { draws, n_samples, budget, early_stopped })
+    }
+
+    /// The score [`Self::rank`] assigns one candidate under a decision objective, computed
+    /// from an analysis the caller already prepared.
+    ///
+    /// Draws the same CRN stream and takes the same adaptive batches as a one-candidate
+    /// `rank` over a single-graph posterior, so the numbers are identical; it only skips
+    /// the graph-posterior scaffolding and the second preparation of the analysis.
+    ///
+    /// Returns `None` when the signal declares no sample size for the candidate. The caller
+    /// has run [`Self::validate_config`].
+    ///
+    /// # Errors
+    ///
+    /// A failing signal likelihood.
+    #[cfg(test)]
+    pub(crate) fn score_decision_candidate<O>(
+        &self,
+        analysis: &PreposteriorAnalysis<'_, O>,
+        candidate: &CandidateDesign,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<DecisionCandidateScore>, DesignError> {
+        let Some(n) = analysis.signal().sample_size(candidate) else {
+            return Ok(None);
+        };
+        if ctx.cancellation.is_cancelled() {
+            return Err(DesignError::Cancelled);
+        }
+        if let Some(exact) = analysis.exact_evsi(n)? {
+            return Ok(Some(DecisionCandidateScore {
+                score: exact,
+                evaluation: ScoreEvaluation::Exact,
+                stderr: 0.0,
+                samples: 1,
+            }));
+        }
+        let mut rng = ctx.rng.stream_for(StreamDomain::Design, RANK_STREAM);
+        let min_batches = self.config.min_batches.max(1);
+        let max_batches = self.config.max_batches.max(min_batches);
+        let mut acc = Welford::new();
+        let mut log_lik = Vec::new();
+        let mut weights = Vec::new();
+        for batch_i in 0..max_batches {
             if ctx.cancellation.is_cancelled() {
+                return Err(DesignError::Cancelled);
+            }
+            for _ in 0..self.config.batch_size {
+                // One posterior graph: the categorical draw still advances the stream.
+                sample_categorical(&mut rng, &[1.0]).ok_or(DesignError::EmptyPosterior)?;
+                let crn_seed = rng.next_u64();
+                acc.push(analysis.draw_evsi_replicate(
+                    n,
+                    &mut CausalRng::from_seed(crn_seed),
+                    &mut log_lik,
+                    &mut weights,
+                )?);
+            }
+            if ctx.cancellation.is_cancelled() {
+                return Err(DesignError::Cancelled);
+            }
+            // A single candidate has no pair to resolve: the stopping test passes as soon
+            // as the minimum batches are in.
+            if batch_i + 1 >= min_batches {
                 break;
             }
         }
-
-        Ok((draws, n_samples, budget, early_stopped))
+        Ok(Some(DecisionCandidateScore {
+            score: acc.mean(),
+            evaluation: ScoreEvaluation::MonteCarlo,
+            stderr: acc.stderr_of_mean(),
+            samples: acc.count(),
+        }))
     }
 
-    /// Turn per-candidate draws into a sorted, CI-annotated [`DesignRanking`].
+    /// Turn per-candidate draws into a sorted, CI-annotated [`ScoredDesignRanking`].
     ///
     /// `rank_uncertain` compares each candidate with the next-ranked one through the
     /// *paired* difference of their draws (shared-CRN replicates) at the sequentially
     /// adjusted critical value `z`; a gap of exactly zero is a tie and is always uncertain.
-    #[allow(clippy::too_many_arguments)]
     fn assemble_ranking(
         active: &[usize],
-        draws: &[Vec<f64>],
+        run: ScoringRun,
         evaluations: &[ScoreEvaluation],
-        n_samples: u64,
         candidates: &[CandidateDesign],
         violations: Vec<ConstraintViolation>,
-        budget: MonteCarloBudget,
-        early_stopped: bool,
         implemented_functional: &'static str,
         z: f64,
-    ) -> DesignRanking {
+    ) -> ScoredDesignRanking {
+        let ScoringRun { draws, n_samples, budget, early_stopped } = run;
         // (candidate index, mean, error, evaluation, slot)
         let mut scored: Vec<(usize, f64, MonteCarloError, ScoreEvaluation, usize)> = active
             .iter()
@@ -426,9 +579,7 @@ impl DesignRanker {
             })
             .collect();
 
-        scored.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0))
-        });
+        scored.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
 
         let mut ranked = Vec::with_capacity(scored.len());
         for (rank, (cand_i, score, mc, evaluation, slot)) in scored.iter().enumerate() {
@@ -453,7 +604,7 @@ impl DesignRanker {
             });
         }
 
-        DesignRanking {
+        ScoredDesignRanking {
             ranked: Arc::from(ranked),
             violations: Arc::from(violations),
             budget,
@@ -505,33 +656,81 @@ fn paired_difference(a: &[f64], b: &[f64]) -> (f64, f64) {
 /// more than `z·se`; a tie whose half-width is still above the threshold is unresolved.
 /// `z` must be the look-adjusted critical value (see `DesignRankConfig::critical_value`),
 /// never the fixed-sample 1.96, because this test is repeated after every batch.
+#[cfg(test)]
 fn rank_uncertainty_ok(draws: &[Vec<f64>], z: f64, threshold: f64) -> bool {
     let n = draws.first().map_or(0, Vec::len);
     if draws.len() < 2 || n == 0 {
         return true;
     }
-    let means: Vec<f64> = draws
-        .iter()
-        .map(|d| {
-            let mut acc = Welford::new();
-            d.iter().for_each(|&x| acc.push(x));
-            acc.mean()
-        })
-        .collect();
-    let mut order: Vec<usize> = (0..means.len()).collect();
-    order.sort_by(|a, b| means[*b].partial_cmp(&means[*a]).unwrap_or(std::cmp::Ordering::Equal));
-    // Check top adjacent pairs.
-    let top = order.len().min(3);
-    for i in 0..top.saturating_sub(1) {
-        let (gap, se) = paired_difference(&draws[order[i]], &draws[order[i + 1]]);
-        let half_width = z * se;
-        if half_width > threshold && gap.abs() <= half_width {
-            return false;
-        }
+    let mut stats = RankDrawStats::new(draws.len());
+    for t in 0..n {
+        let replicate: Vec<f64> = draws.iter().map(|d| d[t]).collect();
+        stats.push(&replicate);
     }
-    true
+    stats.uncertainty_ok(z, threshold)
 }
 
+/// Running means and paired differences for the sequential stopping test.
+///
+/// Each replicate is pushed once. Rebuilding a Welford over the whole history after
+/// every batch made the test quadratic in the number of batches; these accumulators
+/// are the same one-pass updates, so the stop decision matches.
+struct RankDrawStats {
+    means: Vec<Welford>,
+    /// `pairs[i][j - i - 1]` is the Welford of `score_i - score_j` for `j > i`.
+    pairs: Vec<Vec<Welford>>,
+}
+
+impl RankDrawStats {
+    fn new(k: usize) -> Self {
+        Self {
+            means: vec![Welford::new(); k],
+            pairs: (0..k).map(|i| vec![Welford::new(); k - i - 1]).collect(),
+        }
+    }
+
+    fn push(&mut self, scores: &[f64]) {
+        for (i, &score) in scores.iter().enumerate() {
+            self.means[i].push(score);
+        }
+        for i in 0..scores.len() {
+            for j in (i + 1)..scores.len() {
+                self.pairs[i][j - i - 1].push(scores[i] - scores[j]);
+            }
+        }
+    }
+
+    fn uncertainty_ok(&self, z: f64, threshold: f64) -> bool {
+        let k = self.means.len();
+        if k < 2 || self.means.first().map_or(0, Welford::count) == 0 {
+            return true;
+        }
+        let mut order: Vec<usize> = (0..k).collect();
+        order
+            .sort_by(|a, b| self.means[*b].mean().total_cmp(&self.means[*a].mean()).then(a.cmp(b)));
+        let top = order.len().min(3);
+        for i in 0..top.saturating_sub(1) {
+            let (gap, se) = self.paired(order[i], order[i + 1]);
+            let half_width = z * se;
+            if half_width > threshold && gap.abs() <= half_width {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Mean and standard error of `score_a - score_b`.
+    fn paired(&self, a: usize, b: usize) -> (f64, f64) {
+        let (lo, hi, sign) = if a < b { (a, b, 1.0) } else { (b, a, -1.0) };
+        let acc = &self.pairs[lo][hi - lo - 1];
+        (sign * acc.mean(), acc.stderr_of_mean())
+    }
+}
+
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn shannon_entropy(weights: &[f64]) -> f64 {
     let total: f64 = weights.iter().sum();
     if !(total > 0.0) {
@@ -557,12 +756,12 @@ struct ScoringChannels {
 
 impl ScoringChannels {
     fn new<A, O>(objective: &DesignObjective, ctx: &DesignEvaluationContext<'_, A, O>) -> Self {
-        match objective {
-            DesignObjective::ReduceGraphEntropy => Self {
+        match objective.channel() {
+            ObjectiveChannel::GraphEntropy => Self {
                 entropy: EntropyChannel::new(ctx.graphs, ctx.graph_features),
                 model_pairs: Vec::new(),
             },
-            DesignObjective::DistinguishModels { models } => Self {
+            ObjectiveChannel::ModelDistinction { models } => Self {
                 entropy: None,
                 model_pairs: ctx
                     .model_loglik
@@ -580,8 +779,8 @@ fn validate_objective_context<A, O>(
     ctx: &DesignEvaluationContext<'_, A, O>,
 ) -> Result<(), DesignError> {
     let n = ctx.graphs.n_samples;
-    match objective {
-        DesignObjective::ReduceGraphEntropy => {
+    match objective.channel() {
+        ObjectiveChannel::GraphEntropy => {
             if let Some(features) = ctx.graph_features {
                 if features.len() != n {
                     return Err(DesignError::Shape(format!(
@@ -591,7 +790,7 @@ fn validate_objective_context<A, O>(
                 }
             }
         }
-        DesignObjective::IncreaseIdentificationProbability { .. } => {
+        ObjectiveChannel::Identification { .. } => {
             if let Some(flags) = ctx.identified_under_intervention {
                 if flags.len() != n {
                     return Err(DesignError::Shape(format!(
@@ -601,7 +800,7 @@ fn validate_objective_context<A, O>(
                 }
             }
         }
-        DesignObjective::ReduceEffectPosteriorWidth { .. } => {
+        ObjectiveChannel::EffectWidth { .. } => {
             let Some(ew) = ctx.effect_width else {
                 return Err(DesignError::Config(
                     "ReduceEffectPosteriorWidth requires effect_width context".into(),
@@ -609,7 +808,7 @@ fn validate_objective_context<A, O>(
             };
             baseline_treatment_se(ew)?;
         }
-        DesignObjective::DistinguishModels { .. } => {
+        ObjectiveChannel::ModelDistinction { .. } => {
             let Some(ll) = ctx.model_loglik else {
                 return Err(DesignError::Config(
                     "DistinguishModels requires model_loglik context".into(),
@@ -624,7 +823,7 @@ fn validate_objective_context<A, O>(
                 )));
             }
         }
-        DesignObjective::ReduceDecisionRegret { .. } => {}
+        ObjectiveChannel::Decision { .. } => {}
     }
     Ok(())
 }
@@ -641,14 +840,12 @@ where
     A: Clone,
     O: Clone,
 {
-    match objective {
-        DesignObjective::ReduceGraphEntropy => {
+    match objective.channel() {
+        ObjectiveChannel::GraphEntropy => {
             Ok(channels.entropy.as_ref().map_or(0.0, |c| c.draw(candidate, graph_idx, rng)))
         }
-        DesignObjective::IncreaseIdentificationProbability { query } => {
-            Ok(id_prob_gain(candidate, ctx, *query))
-        }
-        DesignObjective::ReduceEffectPosteriorWidth { query: _ } => {
+        ObjectiveChannel::Identification { query } => Ok(id_prob_gain(candidate, ctx, query)),
+        ObjectiveChannel::EffectWidth { .. } => {
             let Some(ew) = ctx.effect_width else {
                 return Err(DesignError::Config(
                     "ReduceEffectPosteriorWidth requires effect_width context".into(),
@@ -656,7 +853,7 @@ where
             };
             effect_width_reduction(candidate, ew)
         }
-        DesignObjective::DistinguishModels { models } => {
+        ObjectiveChannel::ModelDistinction { models } => {
             let Some(ll) = ctx.model_loglik else {
                 return Err(DesignError::Config(
                     "DistinguishModels requires model_loglik context".into(),
@@ -664,7 +861,7 @@ where
             };
             Ok(model_distinguish_score(candidate, ll, models.len(), &channels.model_pairs, rng))
         }
-        DesignObjective::ReduceDecisionRegret { .. } => Err(DesignError::Config(
+        ObjectiveChannel::Decision { .. } => Err(DesignError::Config(
             "ReduceDecisionRegret is scored through its prepared preposterior analysis".into(),
         )),
     }
@@ -761,16 +958,26 @@ impl EntropyChannel {
 
     /// Entropy of the graph posterior after observing category `y`.
     fn posterior_entropy(&self, reliability: f64, y: usize) -> f64 {
-        let mut post = self.weights.clone();
-        for (w, &cat) in post.iter_mut().zip(&self.cat_of) {
-            *w *= self.likelihood(reliability, y, cat);
+        let mut total = 0.0;
+        for (&w, &cat) in self.weights.iter().zip(&self.cat_of) {
+            total += w * self.likelihood(reliability, y, cat);
         }
-        shannon_entropy(&post)
+        if total.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+            return 0.0;
+        }
+        let mut h = 0.0;
+        for (&w, &cat) in self.weights.iter().zip(&self.cat_of) {
+            let p = w * self.likelihood(reliability, y, cat) / total;
+            if p > 0.0 {
+                h -= p * p.ln();
+            }
+        }
+        h
     }
 
     /// Exact expected information gain `Σ_g p(g) Σ_y p(y|g) [H(G) − H(G|y)]` by
-    /// enumerating the observation, for checking the Monte Carlo draw.
-    #[cfg(test)]
+    /// enumerating the observation. The expectation depends only on reliability, so
+    /// a ranking reports it directly instead of Monte Carlo draws.
     fn exact_gain(&self, reliability: f64) -> f64 {
         let total: f64 = self.weights.iter().sum();
         (0..self.k)
@@ -829,11 +1036,6 @@ fn observation_reliability(candidate: &CandidateDesign) -> f64 {
             (1.0 - (1.0 + n / 50.0).recip()).clamp(0.0, 0.95)
         }
     }
-}
-
-fn evidence_strength(candidate: &CandidateDesign) -> f64 {
-    // Used only by the DistinguishModels heuristic (not EIG / ID / SE / decisions).
-    observation_reliability(candidate)
 }
 
 /// Identification-mass gain of a candidate. `identified_under_intervention`, when present,
@@ -1104,7 +1306,7 @@ fn model_distinguish_score(
         reason = "the draw is reduced modulo `n_draws`, a usize, so the result is a valid index; only uniform high bits are dropped on 32-bit targets"
     )]
     let draw = (rng.next_u64() as usize) % ll.n_draws;
-    let strength = evidence_strength(candidate);
+    let strength = observation_reliability(candidate);
     // Expected absolute log-score gap over the requested model pairs, scaled by evidence strength.
     let mut gap = 0.0;
     for &(ri, rj) in pairs {
@@ -1117,14 +1319,8 @@ fn model_distinguish_score(
 
 /// How non-decision objectives are evaluated: deterministic functionals are exact;
 /// scores that consume per-draw randomness are Monte Carlo estimates.
-const fn static_evaluation(objective: &DesignObjective) -> ScoreEvaluation {
-    match objective {
-        DesignObjective::IncreaseIdentificationProbability { .. }
-        | DesignObjective::ReduceEffectPosteriorWidth { .. } => ScoreEvaluation::Exact,
-        DesignObjective::ReduceGraphEntropy
-        | DesignObjective::DistinguishModels { .. }
-        | DesignObjective::ReduceDecisionRegret { .. } => ScoreEvaluation::MonteCarlo,
-    }
+fn static_evaluation(objective: &DesignObjective) -> ScoreEvaluation {
+    objective.static_evaluation()
 }
 
 /// Prepare the preposterior analysis for [`DesignObjective::ReduceDecisionRegret`]
@@ -1133,7 +1329,7 @@ fn prepare_decision<'a, A, O>(
     objective: &DesignObjective,
     ctx: &DesignEvaluationContext<'a, A, O>,
 ) -> Result<Option<PreposteriorAnalysis<'a, O>>, DesignError> {
-    let DesignObjective::ReduceDecisionRegret { decision } = objective else {
+    let ObjectiveChannel::Decision { decision } = objective.channel() else {
         return Ok(None);
     };
     let Some(registry) = ctx.decisions else {
@@ -1159,6 +1355,17 @@ fn unmapped_decision_candidate<O>(
             signal.name()
         )),
     })
+}
+
+/// One candidate's decision-objective score (see
+/// [`DesignRanker::score_decision_candidate`]).
+#[cfg(test)]
+pub(crate) struct DecisionCandidateScore {
+    pub score: f64,
+    pub evaluation: ScoreEvaluation,
+    pub stderr: f64,
+    /// Monte Carlo replicates drawn (one for an exact score).
+    pub samples: u64,
 }
 
 /// Per-candidate preposterior scoring: the design's sample size and, where
@@ -1191,10 +1398,21 @@ impl<'a, O> DecisionScoring<'a, O> {
         }
     }
 
-    fn score(&self, cand_i: usize, crn_seed: u64) -> Result<f64, DesignError> {
+    fn score(
+        &self,
+        cand_i: usize,
+        crn_seed: u64,
+        log_lik: &mut Vec<f64>,
+        weights: &mut Vec<f64>,
+    ) -> Result<f64, DesignError> {
         match self.plans.get(cand_i).copied().flatten() {
             Some((_, Some(exact))) => Ok(exact),
-            Some((n, None)) => self.analysis.sample_evsi(n, &mut CausalRng::from_seed(crn_seed)),
+            Some((n, None)) => self.analysis.draw_evsi_replicate(
+                n,
+                &mut CausalRng::from_seed(crn_seed),
+                log_lik,
+                weights,
+            ),
             None => Err(DesignError::Config(format!(
                 "candidate {cand_i} has no decision sample size and cannot be scored"
             ))),
@@ -1721,7 +1939,7 @@ mod tests {
         );
     }
 
-    // -- rank_uncertainty_ok (E2) -------------------------------------------------
+    // -- rank_uncertainty_ok -------------------------------------------------
 
     /// Draws `mean + amplitude·(±1)` alternating, `n` of them.
     fn alternating(mean: f64, amplitude: f64, n: usize) -> Vec<f64> {
@@ -1796,7 +2014,7 @@ mod tests {
             rank_uncertainty_threshold: 0.0,
         };
         assert_eq!(cfg.n_looks(), 1);
-        assert!((cfg.critical_value() - 1.959_963_984_540_054).abs() < 1e-9);
+        assert!((cfg.critical_value() - antecedent_kernels::NORMAL_Q975).abs() < 1e-14);
     }
 
     /// The reported flag uses the same adjusted boundary and the paired standard error.
@@ -2041,7 +2259,7 @@ mod tests {
 
     struct Never;
     impl DecisionConstraint<f64, f64> for Never {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "never"
         }
         fn satisfaction_batch(&self, actions: &[f64], _outcomes: &[f64], out: &mut [f64]) {
@@ -2221,5 +2439,245 @@ mod tests {
         assert!(matches!(rank(0), Err(DesignError::Config(_))));
         assert!(matches!(rank(7), Err(DesignError::Config(_))));
         assert!(matches!(rank(1), Err(DesignError::NoAdmissibleAction(_))));
+    }
+
+    /// Every candidate exact: the draws would be identical, so one is taken and reported.
+    #[test]
+    fn exact_objectives_take_a_single_draw() {
+        let graphs = toy_graphs();
+        let registry = coin_registry(Arc::new(crate::preposterior::BinomialSignal));
+        let ranking = fixed_ranker()
+            .rank(
+                &DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) },
+                &[sampling(1, 0), sampling(10, 1), sampling(100, 2)],
+                &decision_eval(&graphs, &registry),
+                &ExecutionContext::for_tests(5),
+            )
+            .expect("rank");
+        assert_eq!(ranking.budget.samples, 1);
+        assert_eq!(ranking.budget.evaluations, 3);
+        assert!(ranking.early_stopped);
+        for ranked in ranking.ranked.iter() {
+            assert_eq!(ranked.monte_carlo.samples, 1);
+            assert_eq!(ranked.monte_carlo.stderr, 0.0);
+        }
+        // A Monte Carlo candidate in the mix keeps the full batch schedule.
+        let mixed =
+            coin_registry(Arc::new(crate::preposterior::GaussianMeanSignal::new(0.25).unwrap()));
+        let ranking = fixed_ranker()
+            .rank(
+                &DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) },
+                &[sampling(4, 0), sampling(0, 1)],
+                &decision_eval(&graphs, &mixed),
+                &ExecutionContext::for_tests(5),
+            )
+            .expect("rank");
+        assert_eq!(ranking.budget.samples, 16);
+        assert_eq!(ranking.budget.evaluations, 32);
+    }
+
+    /// The direct single-candidate score is exactly what a one-candidate `rank` over a
+    /// one-graph posterior returns, for exact and Monte Carlo signals alike.
+    #[test]
+    fn direct_decision_score_matches_a_one_candidate_rank() {
+        let single =
+            WeightedGraphSamples::new(vec![1.0], vec![GraphIdentFlag::Identified], vec![0_u64])
+                .unwrap();
+        let signals: [Arc<dyn crate::preposterior::DecisionSignal<f64>>; 2] = [
+            Arc::new(crate::preposterior::BinomialSignal),
+            Arc::new(crate::preposterior::GaussianMeanSignal::new(0.25).unwrap()),
+        ];
+        for signal in signals {
+            let registry = coin_registry(signal);
+            let candidate = sampling(6, 0);
+            let ctx = ExecutionContext::for_tests(17);
+            let ranking = fixed_ranker()
+                .rank(
+                    &DesignObjective::ReduceDecisionRegret {
+                        decision: DecisionProblemId::from_raw(0),
+                    },
+                    std::slice::from_ref(&candidate),
+                    &decision_eval(&single, &registry),
+                    &ctx,
+                )
+                .expect("rank");
+            let top = &ranking.ranked[0];
+            let problem = registry.problems[0].as_ref().unwrap();
+            let analysis =
+                PreposteriorAnalysis::new(problem, &registry.prior, registry.signal.as_ref())
+                    .unwrap();
+            let direct = fixed_ranker()
+                .score_decision_candidate(&analysis, &candidate, &ctx)
+                .unwrap()
+                .expect("licensed");
+            assert_eq!(direct.score.to_bits(), top.score.to_bits());
+            assert_eq!(direct.stderr.to_bits(), top.monte_carlo.stderr.to_bits());
+            assert_eq!(direct.evaluation, top.evaluation);
+            assert_eq!(direct.samples, top.monte_carlo.samples);
+        }
+    }
+
+    /// Graph-entropy scores are the closed-form channel expectation, not a draw.
+    #[test]
+    fn graph_entropy_ranking_is_the_exact_channel_gain() {
+        let graphs = toy_graphs();
+        let channel = EntropyChannel::new(&graphs, None).expect("channel");
+        let measure = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(1), VariableId::from_raw(2)]),
+            cost: DesignCost::zero(),
+            tag: 1,
+        });
+        let expected = channel.exact_gain(observation_reliability(&measure));
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let ranking = DesignRanker::new()
+            .rank(
+                &DesignObjective::ReduceGraphEntropy,
+                &[measure],
+                &eval,
+                &ExecutionContext::for_tests(9),
+            )
+            .expect("rank");
+        assert_eq!(ranking.ranked[0].evaluation, ScoreEvaluation::Exact);
+        assert_eq!(ranking.budget.samples, 1);
+        assert_eq!(ranking.ranked[0].score.to_bits(), expected.to_bits());
+        assert_eq!(ranking.ranked[0].monte_carlo.stderr, 0.0);
+    }
+
+    /// Two distinguish-model candidates must see the same log-likelihood draw on
+    /// every replicate. Their scores then stay in the ratio of their reliabilities
+    /// even when successive draws have different gaps.
+    #[test]
+    fn non_decision_candidates_share_one_draw_stream() {
+        let graphs = toy_graphs();
+        let m0 = ModelId::from_raw(0);
+        let m1 = ModelId::from_raw(1);
+        let ll = ModelLoglikDraws {
+            models: Arc::from([m0, m1]),
+            // Two draws: gaps 10 and 0. A shared stream keeps the averaged gap identical.
+            loglik: Arc::from([0.0_f64, 0.0, 10.0, 0.0]),
+            n_draws: 2,
+        };
+        let one = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        let two = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+            cost: DesignCost::zero(),
+            tag: 1,
+        });
+        let s1 = observation_reliability(&one);
+        let s2 = observation_reliability(&two);
+        let candidates = [one, two];
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: Some(&ll),
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let ranker = DesignRanker::new().with_config(DesignRankConfig {
+            min_batches: 4,
+            max_batches: 4,
+            batch_size: 8,
+            rank_uncertainty_threshold: 0.0,
+        });
+        let ctx = ExecutionContext::for_tests(3);
+        let ranking = ranker
+            .rank(
+                &DesignObjective::DistinguishModels { models: Arc::from([m0, m1]) },
+                &candidates,
+                &eval,
+                &ctx,
+            )
+            .expect("rank");
+        let mut parallel_ctx = ExecutionContext::for_tests(3);
+        parallel_ctx.parallelism = antecedent_core::Parallelism::bounded(
+            antecedent_core::NonZeroThreadCount::new(4).unwrap(),
+        );
+        let parallel = ranker
+            .rank(
+                &DesignObjective::DistinguishModels { models: Arc::from([m0, m1]) },
+                &candidates,
+                &eval,
+                &parallel_ctx,
+            )
+            .expect("parallel rank");
+        let summary = |result: &ScoredDesignRanking| {
+            result
+                .ranked
+                .iter()
+                .map(|row| {
+                    (
+                        row.candidate_index,
+                        row.score.to_bits(),
+                        row.monte_carlo.stderr.to_bits(),
+                        row.monte_carlo.samples,
+                        row.rank,
+                        row.rank_uncertain,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(summary(&ranking), summary(&parallel));
+        assert_eq!(ranking.budget, parallel.budget);
+        assert_eq!(ranking.early_stopped, parallel.early_stopped);
+        let score = |i: usize| {
+            ranking.ranked.iter().find(|r| r.candidate_index == i).expect("ranked").score
+        };
+        assert!((score(0) / s1 - score(1) / s2).abs() < 1e-9, "{ranking:?}");
+    }
+
+    #[test]
+    fn cancellation_refuses_instead_of_returning_a_short_ranking() {
+        let graphs = toy_graphs();
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let err = DesignRanker::new()
+            .rank(
+                &DesignObjective::IncreaseIdentificationProbability { query: QueryId::from_raw(0) },
+                &[sampling(4, 0)],
+                &eval,
+                &ctx,
+            )
+            .expect_err("cancelled");
+        assert_eq!(err, DesignError::Cancelled);
+    }
+
+    #[test]
+    fn rank_schedule_refuses_an_unbounded_draw_product() {
+        let err = DesignRanker::new()
+            .with_config(DesignRankConfig {
+                min_batches: 1,
+                max_batches: 100_000,
+                batch_size: 100,
+                rank_uncertainty_threshold: 0.05,
+            })
+            .validate_config()
+            .expect_err("cap");
+        assert!(matches!(err, DesignError::Config(_)), "{err:?}");
     }
 }

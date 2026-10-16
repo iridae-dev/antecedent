@@ -1,5 +1,4 @@
 //! Selection differences and invariances behind each scenario answer
-//! (2.3.0 A1 remainder).
 //!
 //! [`ScenarioSetReport`](crate::transport_scenarios::ScenarioSetReport) says
 //! what each scenario answered and the range those answers span. This module says

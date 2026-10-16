@@ -117,7 +117,13 @@ How to read it alongside the Arrow CDI row above:
 
 This script does not replace Criterion baselines or latency-tier tests.
 
-## 1.3 staged execution
+Arrow borrowing follows the [C Data Interface immutability convention](https://arrow.apache.org/docs/format/CDataInterface.html#mutability).
+Keep exported buffers unchanged while a study or data handle retains them, including
+any writable NumPy alias backing an Arrow array. Cached content identities and fitted
+preparations rely on that premise; the interface does not detect external writes.
+Use new buffers and `refresh(new_data)` for changed observations.
+
+## Staged execution
 
 Cached derivative estimation and refitted GCM unit counterfactual execution are
 measured in `antecedent/benches/staged_handle.rs`.

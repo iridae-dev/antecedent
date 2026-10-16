@@ -11,12 +11,17 @@
 pub mod basis;
 pub mod batch;
 pub mod compile;
+pub mod compose;
+pub mod discretized_scm;
+pub mod discretized_scm_artifact;
 pub mod do_sampler;
 pub mod error;
 pub mod evaluate;
 pub mod lgssm;
 pub mod mechanism;
+pub mod mechanism_transport;
 pub mod model_collection;
+pub mod observation_query;
 pub mod overlay;
 pub mod registry;
 pub mod sample;
@@ -34,12 +39,11 @@ pub use do_sampler::{
     DoSampleResult, KdeDoSampler, McmcDoSampler, WeightingDoSampler, interventional_mean,
 };
 pub use error::ModelError;
-pub use evaluate::{MechanismPredictiveCheck, ModelEvaluationReport, ModelEvaluator};
-pub use lgssm::{kalman_filter, rts_smooth, sample_lgssm_noise};
+pub use evaluate::{ModelEvaluationReport, ModelEvaluator};
+pub use lgssm::{kalman_filter, rts_smooth};
 pub use mechanism::{
     NoiseInferenceMode, evaluate_batch_topo, evaluate_column, infer_noise_column,
-    infer_noise_column_rng, log_prob_column, reference_noise, sample_column, sample_noise_batch,
-    sample_noise_column,
+    infer_noise_column_rng, log_prob_column, reference_noise, sample_noise_column,
 };
 pub use model_collection::ModelCollection;
 pub use overlay::{InterventionOverlay, ModelView};
@@ -48,9 +52,9 @@ pub use registry::{
     SelectionPolicy,
 };
 pub use sample::{
-    refuse_cross_family_soft, sample_conditional_interventional, sample_interventional,
-    sample_observational, sample_observational_into, sample_posterior_predictive,
-    sample_stochastic, sample_structural_with_overlay, sample_with_overlay,
+    ConditionEvidence, PredictiveDraws, refuse_cross_family_soft,
+    sample_conditional_interventional, sample_interventional, sample_observational,
+    sample_observational_into, sample_posterior_predictive, sample_stochastic, sample_with_overlay,
     sample_with_overlay_into, soft_to_slot,
 };
 

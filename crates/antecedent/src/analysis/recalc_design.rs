@@ -2,15 +2,17 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::PreparedStudy;
+use super::recalc_common::{
+    Fields, dag_from_edges, float_bytes, identity, literal, table_from_columns,
+};
 use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder, UtilitySpec,
     decide,
 };
-use crate::graph::{Dag, DenseNodeId};
 use crate::{CausalError, IdentifierId, RefuteSuite, Study, StudyResult};
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
-    Stage, StageIdentities, StageIdentity, StageStatus,
+    Stage, StageIdentities, StageStatus,
 };
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
@@ -60,8 +62,21 @@ pub struct DesignRequest {
     /// Utility rule. A change to this alone reuses the checked result.
     pub utility: UtilitySpec,
 }
-fn literal(label: &str, value: &str) -> StageIdentity {
-    StageIdentity::of(label, &[value.as_bytes()])
+impl DesignModel {
+    /// Typed identity encoding of the declaration, every numeric input by bit pattern.
+    fn fields(&self) -> Fields {
+        match *self {
+            Self::Iv2Sls { instrument } => Fields::new().text("iv2sls").word(u64::from(instrument)),
+            Self::Rd { running_variable, cutoff, bandwidth } => Fields::new()
+                .text("rd")
+                .word(u64::from(running_variable))
+                .real(cutoff)
+                .real(bandwidth),
+            Self::Frontdoor { mediator } => {
+                Fields::new().text("frontdoor").word(u64::from(mediator))
+            }
+        }
+    }
 }
 impl DesignRequest {
     /// The declared inputs of the shared causal and numerical stage graph.
@@ -73,14 +88,15 @@ impl DesignRequest {
         edges.dedup();
         ids.set(
             Stage::Graph,
-            literal("design.graph", &format!("{}:{edges:?}", self.columns.len())),
+            Fields::new().len(self.columns.len()).pairs(&edges).identity("design.graph"),
         );
         ids.set(
             Stage::Query,
-            literal(
-                "design.query",
-                &format!("{}:{}:{:?}", self.treatment, self.outcome, self.model),
-            ),
+            Fields::new()
+                .word(u64::from(self.treatment))
+                .word(u64::from(self.outcome))
+                .bytes(&self.model.fields().into_bytes())
+                .identity("design.query"),
         );
         ids.set(Stage::Regime, literal("design.regime", "static.0_1"));
         ids.set(Stage::Evidence, literal("design.evidence", "checked.observational.design"));
@@ -89,15 +105,9 @@ impl DesignRequest {
         let mut data = Vec::new();
         for (name, values) in &self.columns {
             data.push(name.as_bytes().to_vec());
-            data.push(values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect());
+            data.push(float_bytes(values));
         }
-        ids.set(
-            Stage::DataSnapshot,
-            StageIdentity::of(
-                "design.snapshot",
-                &data.iter().map(Vec::as_slice).collect::<Vec<_>>(),
-            ),
-        );
+        ids.set(Stage::DataSnapshot, identity("design.snapshot", &data));
         ids.set(
             Stage::RowDesign,
             literal(
@@ -105,23 +115,24 @@ impl DesignRequest {
                 &format!("complete_case.{}", self.columns.first().map_or(0, |(_, v)| v.len())),
             ),
         );
-        ids.set(Stage::TreatmentGrid, literal("design.grid", &format!("{:?}", self.model)));
+        ids.set(
+            Stage::TreatmentGrid,
+            Fields::new().bytes(&self.model.fields().into_bytes()).identity("design.grid"),
+        );
         ids.set(
             Stage::LearnerFoldsRng,
-            literal(
-                "design.estimator",
-                &format!("point.analytic:{:?}:{}", self.model, ctx.rng.master_seed()),
-            ),
+            Fields::new()
+                .text("point.analytic")
+                .bytes(&self.model.fields().into_bytes())
+                .word(ctx.rng.master_seed())
+                .identity("design.estimator"),
         );
         ids.set(
             Stage::Utility,
-            StageIdentity::of(
-                "design.utility",
-                &[
-                    &self.utility.benefit_per_unit.to_bits().to_le_bytes(),
-                    &self.utility.cost.to_bits().to_le_bytes(),
-                ],
-            ),
+            Fields::new()
+                .real(self.utility.benefit_per_unit)
+                .real(self.utility.cost)
+                .identity("design.utility"),
         );
         ids.set(Stage::Identification, literal("design.identification", "checked.design.program"));
         ids.set(
@@ -164,24 +175,11 @@ impl DesignRequest {
         Ok(())
     }
     fn data(&self) -> Result<TabularData, RecalcRunError> {
-        TabularData::from_f64_columns(
-            self.columns.iter().map(|(n, v)| (n.as_str(), v.as_slice())).collect::<Vec<_>>(),
-        )
-        .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
+        table_from_columns(&self.columns)
+            .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
     }
     fn study(&self, data: TabularData) -> Result<Study, RecalcRunError> {
-        let mut graph = Dag::with_variables(
-            u32::try_from(self.columns.len())
-                .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?,
-        );
-        let mut edges = self.edges.clone();
-        edges.sort_unstable();
-        edges.dedup();
-        for (a, b) in edges {
-            graph
-                .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
-                .map_err(|_| RecalcRunError::Request("recalc.invalid_graph"))?;
-        }
+        let graph = dag_from_edges(self.columns.len(), &self.edges, "recalc.invalid_graph")?;
         let builder = Study::tabular(data)
             .graph(graph)
             .query(AverageEffectQuery::with_levels(
@@ -378,7 +376,7 @@ fn summarize_checked_result(
             if !effect.ate.is_finite() {
                 return Err(RecalcRunError::Request("recalc.design_point_unavailable"));
             }
-            let law = LawValue { ate: effect.ate, std_error: effect.se_analytic };
+            let law = LawValue { ate: effect.ate, std_error: effect.se_analytic() };
             recorder.record(Counter::LawSummary, 1);
             Ok(law)
         },
@@ -485,7 +483,7 @@ pub fn execute_design_with_receipt(
                 let diagnostics = result
                     .estimate
                     .as_effect()
-                    .and_then(|e| e.first_stage_diagnostics.as_ref())
+                    .and_then(|e| e.diagnostics.first_stage.as_ref())
                     .ok_or(RecalcRunError::Request("recalc.iv_diagnostics_unavailable"))?;
                 if !diagnostics
                     .anderson_rubin

@@ -1,4 +1,4 @@
-//! 2.2B B1 (X2): conditional transport against enumerated latent-SCM truth.
+//! Conditional transport against enumerated latent-SCM truth.
 //!
 //! The oracle never touches the symbolic layer: each bidirected edge is a binary
 //! latent, the target population shifts the mechanism of every selected node,
@@ -19,8 +19,11 @@ mod admg_conditional_scm;
 
 use admg_conditional_scm::{Scm, query, request, v};
 use antecedent_core::{ExecutionContext, Value};
+use antecedent_estimate::posterior_mean::{
+    DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
+};
 use antecedent_estimate::{EstimationError, prepare_exact_admg_conditional_transport};
-use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
+use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, BoundConditionalTransportFunctional,
     ConditionalTransportDecision, ConditionalTransportQuery, WitnessSearch,
@@ -576,4 +579,86 @@ fn query_coordinate_order_does_not_change_the_point() {
         }
     }
     assert_eq!(compared, 8 * 4);
+}
+
+fn posterior_laws(data: &ExactTransportData, scale: f64) -> ExactTransportData {
+    let laws: Vec<ExactDiscreteLaw> = data
+        .laws()
+        .iter()
+        .map(|law| {
+            let filled = dirichlet_supported_mean(
+                law.probabilities(),
+                PosteriorRequest::IndependentNormal { scale },
+                DirichletNamespace::AdmgConditional,
+            )
+            .unwrap();
+            ExactDiscreteLaw::try_new(
+                law.population(),
+                law.regime(),
+                law.interventions().to_vec(),
+                law.axes().to_vec(),
+                filled,
+                law.snapshot_identity(),
+                law.tolerance(),
+            )
+            .unwrap()
+        })
+        .collect();
+    ExactTransportData::try_new(laws, data.max_support_rows()).unwrap()
+}
+
+#[test]
+fn admg_conditional_posterior_mean_stays_at_the_enumerated_truth() {
+    let scm = Scm {
+        n: 3,
+        directed: vec![(0, 1), (1, 2)],
+        bidirected: vec![],
+        selected: vec![0],
+        params: 0,
+        target_zero: vec![],
+    };
+    assert!(matches!(check(&scm, &[2], &[1], &[0]), Outcome::Identified));
+    let (catalog, data) = scm.catalog_and_laws();
+    let ctx = ExecutionContext::for_tests(3);
+    let functional = match decide_admg_conditional_transport(
+        &scm.diagram(),
+        &query(&[2], &[1], &[0]),
+        &catalog,
+        ADMG_CONDITIONAL_DEFAULT_LIMITS,
+        &ctx,
+    )
+    .unwrap()
+    {
+        ConditionalTransportDecision::Identified(bound) => bound,
+        other => panic!("expected an identification, got {other:?}"),
+    };
+    let updated = posterior_laws(&data, 1e-8);
+    let point = evaluate(&functional, &updated, &[1], &[0], 0).unwrap();
+    let truth = scm.truth(&[2], &[1], &[0], 0).unwrap();
+    for (actual, expected) in point.probabilities.iter().zip(&truth) {
+        assert!((actual - expected).abs() < 1e-5, "{actual} vs {expected}");
+    }
+}
+
+#[test]
+fn admg_conditional_posterior_refuses_an_unmeasured_band() {
+    let error = dirichlet_supported_mean(
+        &[0.5, 0.5],
+        PosteriorRequest::UnmeasuredBand,
+        DirichletNamespace::AdmgConditional,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("admg_conditional_posterior.unmeasured_band"), "{message}");
+}
+
+#[test]
+fn admg_conditional_posterior_consumer_replays_the_dirichlet_weights() {
+    let produced = dirichlet_supported_mean(
+        &[1.0, 3.0],
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        DirichletNamespace::AdmgConditional,
+    )
+    .unwrap();
+    assert!((produced[0] - 2.0 / 6.0).abs() < 1e-12 && (produced[1] - 4.0 / 6.0).abs() < 1e-12);
 }

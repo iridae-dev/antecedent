@@ -112,7 +112,7 @@ fn frontdoor_actual_components_and_coordinate_reuse() {
     assert_eq!(out.receipt.totals().integrations, work.integrations);
     assert!(work.factor_builds > 0 && work.program_compilations > 0 && work.integrations > 0);
     assert_eq!(
-        session.result().unwrap().response.as_ref().unwrap().support.point_status.as_deref(),
+        session.result().unwrap().response().unwrap().support.point_status.as_deref(),
         Some(
             &[antecedent_core::SupportStatus::Supported, antecedent_core::SupportStatus::Supported]
                 [..]
@@ -465,7 +465,7 @@ fn generic_refresh_exports_actual_refreshed_factor_snapshot() {
     let result = prepared.refresh(data(&request.columns), &ctx).unwrap();
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean, .. },
-    ) = &result.response.as_ref().unwrap().estimate
+    ) = &result.response().unwrap().estimate
     else {
         panic!("point response required")
     };

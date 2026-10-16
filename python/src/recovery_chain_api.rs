@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the 2.3 B2 ordered-response recovery row.
+//! Bounded Python bridge for the ordered-response recovery row.
 //!
 //! Python names the m-graph (nodes, directed edges, bidirected edges, which a refusal
 //! reports) and the roles of the two partially observed variables. The decision, the
@@ -18,8 +18,9 @@ use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use crate::bridge::RefusalJson;
 use crate::transport_common::execution_context;
-use crate::{CausalSerializationError, detach_catch, value_err};
+use crate::{detach_catch, value_err};
 
 type DecidePayload = (Option<String>, Option<Py<PyBytes>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
@@ -38,15 +39,7 @@ fn route_refusal_json(error: &ChainRecoveryError) -> String {
     if let Some(receipt) = &error.receipt {
         message = format!("{message}; {}", receipt.summary());
     }
-    serde_json::json!({
-        "code": error.reason_code(),
-        "stage": "recovery_chain",
-        "detail": error.detail.detail(),
-        "offending": serde_json::Value::Null,
-        "remedy": serde_json::Value::Null,
-        "message": message,
-    })
-    .to_string()
+    RefusalJson::new(error.reason_code(), "recovery_chain", error.detail.detail(), &message).json()
 }
 
 /// `None` for corruption (a serialization error), otherwise the refusal JSON.
@@ -56,17 +49,8 @@ fn artifact_refusal_json(error: &RecoveryChainArtifactError) -> Option<String> {
         RecoveryChainArtifactError::Route(inner) => Some(route_refusal_json(inner)),
         other => {
             let (code, detail) = other.refusal();
-            Some(
-                serde_json::json!({
-                    "code": code,
-                    "stage": "consume",
-                    "detail": detail,
-                    "offending": serde_json::Value::Null,
-                    "remedy": serde_json::Value::Null,
-                    "message": other.to_string(),
-                })
-                .to_string(),
-            )
+            let refusal = (code, detail, other.to_string());
+            Some(crate::bridge::artifact_refusal_json("consume", refusal, None))
         }
     }
 }
@@ -264,7 +248,10 @@ fn recover_recovery_chain(
                 // A recovered decision with no law: report the plan only.
                 Err(_) => {
                     let ChainRecoveryDecision::Recovered(plan) = decided.decision() else {
-                        unreachable!("only a recovered decision lacks an artifact");
+                        return Err(ChainRecoveryError::new(
+                            ChainRecoveryDetail::InvalidDerivation,
+                            "only a recovered decision lacks an artifact",
+                        ));
                     };
                     let plan = ChainPlanWire::of_plan(plan);
                     let query = ChainQueryWire::from_query(&query);
@@ -309,7 +296,7 @@ fn consume_recovery_chain_artifact(
             Ok(consumed) => Ok((Some(report_of_wire(&consumed.wire)), None)),
             Err(error) => match artifact_refusal_json(&error) {
                 Some(json) => Ok((None, Some(json))),
-                None => Err(CausalSerializationError::new_err(error.to_string())),
+                None => Err(crate::serialization_err(error.to_string())),
             },
         }
     })

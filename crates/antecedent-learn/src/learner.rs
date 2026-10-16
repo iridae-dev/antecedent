@@ -18,7 +18,10 @@ pub enum PredictionTask {
 
 /// Capabilities the planner checks before fit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct LearnerCapabilities {
     /// Real-valued regression.
     pub regression: bool,
@@ -28,8 +31,6 @@ pub struct LearnerCapabilities {
     pub sample_weights: bool,
     /// Native missing-value handling.
     pub missing_values: bool,
-    /// Sparse design input.
-    pub sparse_input: bool,
     /// Native categorical columns (no one-hot).
     pub categorical_native: bool,
     /// Deterministic given `ExecutionContext` seed.
@@ -47,7 +48,6 @@ impl LearnerCapabilities {
             binary_probability: false,
             sample_weights: false,
             missing_values: false,
-            sparse_input: false,
             categorical_native: false,
             deterministic_seed: false,
             parallelism_control: false,
@@ -114,4 +114,21 @@ pub trait FittedPredictor: Send + Sync {
 
     /// Implementation provenance.
     fn provenance(&self) -> LearnerProvenance;
+}
+
+/// faer provenance already reported by the linear, ridge, and logistic learners.
+///
+/// Provenance only. Coefficients do not depend on this string.
+pub(crate) const FAER_VERSION: &str = "0.24";
+
+/// Coordinate descent owned by this crate. Not a faer release.
+pub(crate) const COORDINATE_DESCENT_VERSION: &str = "1";
+
+/// Shared clip for binary probabilities so a logit never sees 0 or 1.
+pub(crate) const PROB_CLIP: f64 = 1e-9;
+
+/// Clamp `p` into `[PROB_CLIP, 1 - PROB_CLIP]`.
+#[must_use]
+pub(crate) fn clip_probability(p: f64) -> f64 {
+    p.clamp(PROB_CLIP, 1.0 - PROB_CLIP)
 }

@@ -1,5 +1,5 @@
 //! Internal replay artifact for the dependence-preserving temporal interval
-//! (2.3A, X5 `dependent_temporal_interval`).
+//! (`dependent_temporal_interval`).
 //!
 //! Format version 1. **Internal**: the public interval route is closed while the
 //! interval's calibration is unmeasured, so no public producer writes this artifact;
@@ -34,7 +34,8 @@ pub const TEMPORAL_INTERVAL_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TEMPORAL_INTERVAL_ARTIFACT_FEATURE: &str = "temporal_dependent_interval_v1";
 /// The artifact kind; a different kind is a different artifact.
-pub const TEMPORAL_INTERVAL_ARTIFACT_KIND: &str = "temporal_dependent_interval_internal";
+pub const TEMPORAL_INTERVAL_ARTIFACT_KIND: &str =
+    crate::artifact_kinds::TEMPORAL_DEPENDENT_INTERVAL;
 
 const PREFIX: &str = "temporal_interval_artifact";
 
@@ -415,11 +416,6 @@ pub struct TemporalIntervalArtifactWire {
     pub seal: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl TemporalIntervalArtifactWire {
     /// Build the artifact of an interval computed on `panel`, and replay it once.
     ///
@@ -464,11 +460,10 @@ impl TemporalIntervalArtifactWire {
     pub fn compute_seal(&self) -> Result<String, IoError> {
         let mut body = self.clone();
         body.seal = String::new();
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &("temporal_interval_seal_v1", body),
-        )?
-        .to_hex())
+        )
     }
 
     /// Encode as CBOR.
@@ -484,11 +479,13 @@ impl TemporalIntervalArtifactWire {
     /// # Errors
     /// An unsupported version, a decoding failure, or a foreign feature or kind.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != TEMPORAL_INTERVAL_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == TEMPORAL_INTERVAL_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         if wire.required_features != [TEMPORAL_INTERVAL_ARTIFACT_FEATURE]
             || wire.kind != TEMPORAL_INTERVAL_ARTIFACT_KIND
         {

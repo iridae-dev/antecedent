@@ -1,7 +1,7 @@
-//! F17: consuming an assumption-sensitivity surface in a durable decision.
+//! Consuming an assumption-sensitivity surface in a durable decision.
 //!
 //! A [`SensitivityArtifact`] (defined with its portable wire in
-//! `antecedent_io::sensitivity_artifact`, where the 2.2 result is adapted) carries a
+//! `antecedent_io_core::sensitivity_artifact`, where the joint mechanism sensitivity result is adapted) carries a
 //! surface of one or more quantities over a declared assumption coordinate, with an
 //! assumption range at every grid point. This module maps that surface into a
 //! [`DecisionContract`] evaluation by treating every pair of a grid point and a
@@ -27,21 +27,23 @@
 //! Evaluation happens only at the declared grid points. Between grid points nothing is
 //! evaluated; the interpolated crossing of a switch is labelled as an interpolation.
 
-use antecedent_core::ScientificQuantity;
-use antecedent_io::distribution_artifact::{
+use antecedent_contract::ScientificQuantity;
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::DistributionMeaningWire;
-pub use antecedent_io::sensitivity_artifact::{
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+pub use antecedent_io_core::sensitivity_artifact::{
     ASSUMPTION_RANGE_STATEMENT, ActionUtility, AssumptionCoordinate, AssumptionRangeStatement,
     DecisionSwitch, IdentifiedBound, LICENSED_SAMPLING_COMPOSITIONS, NoRobustReason, PointSupport,
     SamplingInterval, SamplingStatus, SensitivityArtifact, SensitivityIdentity, SensitivityOutcome,
     SensitivityParts, SensitivityProvenance, SourceTipping, SurfaceQuantity,
     UncertaintyRelationship, UtilityTerm,
 };
-use antecedent_io::sensitivity_artifact::{PointInput, PointLeaders, classify_decision_points};
+use antecedent_io_core::sensitivity_artifact::{
+    PointInput, PointLeaders, classify_decision_points,
+};
 
 use crate::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,

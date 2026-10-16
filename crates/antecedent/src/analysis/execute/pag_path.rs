@@ -1,291 +1,82 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Admg, Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, CausalResponse,
+    ClassAtomOutcome, ClassEnvelopeRun, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    EffectEstimate, EnvelopeRefutation, EnvelopeRefuteAtom, EstimationWorkspace, EstimatorId,
+    ExecuteRun, ExecutionContext, IdentificationEnvelope, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, Intervention, OverlapPolicy, Pag,
+    PhysicalExecutionPlan, PriorSet, RefutationRun, RefuteSuite, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StaticEstimateInput,
+    StaticEstimateWorkspaces, Strategy, StudyResult, TabularData, VariableId,
+    credible_scalar_uncertainty, effect_from_posterior, elapsed_ns,
+    envelope_se_omission_diagnostic, envelope_to_identification_result, estimate_static_effect,
+    identification_from_cache_or, identification_status_ok_for_case, identify_admg,
+    identify_admg_query, identify_cached_diagnostic, identify_cpdag, identify_pag,
+    mix_static_envelope_se, mix_weighted_analytic_se, mixed_static_influence,
+    nonidentified_with_prior, overlap_diagnostic, provenance_ids, report_identify_compute,
+    select_estimand, static_aligned_influence, support_from_functional_eval,
+};
+use crate::planner::RouteDefaults;
 
-impl super::Study {
-    /// ADMG ATE via general ID + functional plug-in (bidirected case).
-    pub(super) fn execute_admg(
-        &self,
-        data: &TabularData,
-        admg: &Admg,
-        query: &AverageEffectQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER);
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
-        if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
-            return Err(CausalError::Compile {
-                message: format!("ADMG ATE requires estimator functional.effect; got {estimator}"),
-            });
-        }
+/// Route and borrowed inputs shared by every level of an ADMG response.
+struct AdmgLevelRun<'a> {
+    data: &'a TabularData,
+    admg: &'a Admg,
+    curve: bool,
+    bayesian: bool,
+    identifier_id: IdentifierId,
+    estimator_id: EstimatorId,
+    treatment: VariableId,
+    outcome: VariableId,
+    ctx: &'a ExecutionContext,
+}
 
-        let (identification, estimand, identify_cached) =
-            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                let identification = identify_admg(identifier_id, admg, query)?;
-                let estimand = select_estimand(&identification, estimator_id)?;
-                Ok((identification, estimand))
-            })?;
-        let (estimate, posterior) = self.estimate_functional_effect(
-            data,
-            &estimand,
-            &identification,
-            &[query.treatment, query.outcome],
-            ctx,
-        )?;
+/// Per-level results of an ADMG response, accumulated in level order.
+struct AdmgLevelFits {
+    means: Vec<f64>,
+    grid: Vec<f64>,
+    identification: Option<IdentificationResult>,
+    estimand: Option<IdentifiedEstimand>,
+    identify_cached: bool,
+    extras_posterior: Option<antecedent_estimate::CausalPosterior>,
+    n_draws: Option<u32>,
+    curve_bounds: Vec<(f64, f64)>,
+    freq_curve_bounds: Vec<(f64, f64)>,
+    freq_scalar: Option<ResponseUncertainty>,
+    support: Option<antecedent_core::SupportReport>,
+    extra_diagnostics: Vec<Diagnostic>,
+}
 
-        let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, extra_diagnostics) = run_refuters(
-            data,
-            &estimand,
-            query,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            estimator,
-            &self.custom_validators,
-            None,
-        )?;
+/// The published response of an ADMG level set with the values its result assembly reads.
+struct AdmgLevelsResponse {
+    response: CausalResponse,
+    identification: IdentificationResult,
+    estimand: IdentifiedEstimand,
+    identify_cached: bool,
+    extra_diagnostics: Vec<Diagnostic>,
+    n_draws: Option<u32>,
+    posterior: Option<antecedent_estimate::CausalPosterior>,
+}
 
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
+impl AdmgLevelFits {
+    /// Publishes the collected levels as one response, scalar or curve.
+    fn into_response(self, query: &ResponseQuery, curve: bool) -> AdmgLevelsResponse {
+        let AdmgLevelFits {
+            means,
+            grid,
             identification,
             estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
             identify_cached,
+            extras_posterior,
+            n_draws,
+            curve_bounds,
+            freq_curve_bounds,
+            freq_scalar,
+            support,
             extra_diagnostics,
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                n_draws: posterior
-                    .as_ref()
-                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
-                posterior,
-                ..Default::default()
-            },
-        }))
-    }
-
-    /// ADMG response via general ID + functional plug-in (bidirected case).
-    ///
-    /// Bidirected edges stay bidirected. Each grid / Set level is the identified
-    /// `P(Y | do(X=x))` mean, not an adjustment g-formula.
-    pub(super) fn execute_admg_response(
-        &self,
-        data: &TabularData,
-        admg: &Admg,
-        query: &ResponseQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let started = Instant::now();
-        let is_intervention =
-            matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        if self.refute != RefuteSuite::None && !is_intervention {
-            return Err(CausalError::Unsupported {
-                message: "Admg ResponseCurve has no native non-ATE refuter suite; \
-                          ATE refuters do not apply to a function-valued surface",
-            });
-        }
-        match &query.functional {
-            ResponseFunctional::InterventionResponse { .. } => self.finish_admg_response_levels(
-                data,
-                admg,
-                query,
-                &[admg_response_single_level(query)?],
-                physical,
-                ctx,
-                started,
-                false,
-            ),
-            ResponseFunctional::MeanCurve { outcome, treatment } => {
-                let levels = treatment
-                    .grid
-                    .values()
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                let level_queries = levels
-                    .iter()
-                    .map(|level| {
-                        admg_response_at_level(query, treatment.variable, *outcome, *level)
-                    })
-                    .collect::<Vec<_>>();
-                self.finish_admg_response_levels(
-                    data,
-                    admg,
-                    query,
-                    &level_queries,
-                    physical,
-                    ctx,
-                    started,
-                    true,
-                )
-            }
-            _ => Err(CausalError::Unsupported {
-                message: "Admg response is licensed for InterventionResponse and ResponseCurve",
-            }),
-        }
-    }
-
-    fn finish_admg_response_levels(
-        &self,
-        data: &TabularData,
-        admg: &Admg,
-        query: &ResponseQuery,
-        level_queries: &[ResponseQuery],
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-        started: Instant,
-        curve: bool,
-    ) -> Result<StudyResult, CausalError> {
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER);
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR);
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
-        if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
-            return Err(CausalError::Compile {
-                message: format!(
-                    "ADMG response requires estimator functional.effect; got {estimator}"
-                ),
-            });
-        }
-        let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let bayesian = matches!(self.inference, InferenceMode::Bayesian(_));
-        let mut means = Vec::with_capacity(level_queries.len());
-        let mut grid = Vec::with_capacity(level_queries.len());
-        let mut identification = None;
-        let mut estimand = None;
-        let mut identify_cached = false;
-        let mut extras_posterior = None;
-        let mut n_draws = None;
-        let mut curve_bounds: Vec<(f64, f64)> = Vec::new();
-        let mut freq_curve_bounds: Vec<(f64, f64)> = Vec::new();
-        let mut freq_scalar: Option<ResponseUncertainty> = None;
-        let mut support = None;
-        let mut extra_diagnostics = Vec::new();
-        for (i, level_query) in level_queries.iter().enumerate() {
-            let (level_id, level_est, cached) = if i == 0 {
-                identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                    let identification = identify_admg_query(
-                        identifier_id,
-                        admg,
-                        &CausalQuery::Response(level_query.clone()),
-                    )?;
-                    let estimand = select_estimand(&identification, estimator_id)?;
-                    Ok((identification, estimand))
-                })?
-            } else {
-                let identification = identify_admg_query(
-                    identifier_id,
-                    admg,
-                    &CausalQuery::Response(level_query.clone()),
-                )?;
-                let estimand = select_estimand(&identification, estimator_id)?;
-                (identification, estimand, false)
-            };
-            if i == 0 {
-                identify_cached = cached;
-            }
-            let (mean, posterior, level_support) = if bayesian {
-                let (estimate, posterior) = self.estimate_functional_effect(
-                    data,
-                    &level_est,
-                    &level_id,
-                    &[treatment, outcome],
-                    ctx,
-                )?;
-                (
-                    estimate.ate,
-                    posterior,
-                    support_from_functional_eval(None).map_err(|e| {
-                        CausalError::from(antecedent_estimate::EstimationError::data_msg(
-                            e.to_string(),
-                        ))
-                    })?,
-                )
-            } else {
-                let (response, _) = super::response_path::estimate_general_id_response(
-                    data,
-                    level_query,
-                    &level_id,
-                    &level_est,
-                    self.bootstrap_replicates,
-                    ctx,
-                )?;
-                extra_diagnostics.extend(response.support.warnings.iter().cloned());
-                if let ResponseUncertainty::Scalar { lower, upper, .. } = &response.uncertainty {
-                    if curve {
-                        freq_curve_bounds.push((*lower, *upper));
-                    } else if freq_scalar.is_none() {
-                        freq_scalar = Some(response.uncertainty.clone());
-                    }
-                }
-                let (scalar, _) = super::response_path::response_scalar_summary(&response);
-                (scalar, None, response.support)
-            };
-            if let ResponseFunctional::InterventionResponse { interventions, .. } =
-                &level_query.functional
-            {
-                if let Some(Intervention::Set { value, .. }) = interventions.first() {
-                    if let Some(level) = value.as_f64() {
-                        grid.push(level);
-                    }
-                }
-            }
-            means.push(mean);
-            if extras_posterior.is_none() {
-                extras_posterior.clone_from(&posterior);
-                n_draws =
-                    posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
-            }
-            if curve {
-                if let Some(ResponseUncertainty::Scalar { lower, upper, .. }) =
-                    posterior.as_ref().and_then(credible_scalar_uncertainty)
-                {
-                    curve_bounds.push((lower, upper));
-                }
-            }
-            if support.is_none() {
-                support = Some(level_support);
-            }
-            if identification.is_none() {
-                identification = Some(level_id);
-                estimand = Some(level_est);
-            }
-        }
+        } = self;
         let identification = identification.expect("ADMG response identified at least one level");
         let estimand = estimand.expect("ADMG response selected at least one estimand");
         let mut response_support = support.unwrap_or_else(|| {
@@ -363,6 +154,273 @@ impl super::Study {
             horizon_identification: None,
             interaction_structurally_zero: false,
         };
+        AdmgLevelsResponse {
+            response,
+            identification,
+            estimand,
+            identify_cached,
+            extra_diagnostics,
+            n_draws,
+            posterior: extras_posterior,
+        }
+    }
+}
+
+/// Names a CPDAG/PAG class path in its refusals and disclosures.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ClassTag {
+    Cpdag,
+    Pag,
+}
+
+impl ClassTag {
+    /// Lowercase tag used in diagnostic ids and prose.
+    pub(super) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cpdag => "cpdag",
+            Self::Pag => "pag",
+        }
+    }
+
+    /// Uppercase name used at the head of a refusal.
+    const fn upper(self) -> &'static str {
+        match self {
+            Self::Cpdag => "CPDAG",
+            Self::Pag => "PAG",
+        }
+    }
+}
+
+impl std::fmt::Display for ClassTag {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Per-completion results of a class ATE, accumulated in envelope order.
+struct ClassAteAtoms {
+    weighted_ate: f64,
+    se_items: Vec<(f64, f64)>,
+    atom_ifs: Vec<Vec<f64>>,
+    atom_weights: Vec<f64>,
+    total_w: f64,
+    primary_estimand: Option<IdentifiedEstimand>,
+    assumptions: antecedent_core::AssumptionSet,
+    refute_atoms: Vec<EnvelopeRefuteAtom>,
+    outcomes: Vec<ClassAtomOutcome>,
+}
+
+impl ClassAteAtoms {
+    /// Mass-weighted point estimate, primary estimand and contributing-completion count.
+    fn pooled_estimate(
+        &self,
+        upper: &str,
+    ) -> Result<(EffectEstimate, IdentifiedEstimand, usize), CausalError> {
+        if !matches!(self.total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+            return Err(CausalError::Compile {
+                message: format!("{upper} envelope had no estimable identified cases"),
+            });
+        }
+        let estimand = self.primary_estimand.clone().ok_or_else(|| CausalError::Compile {
+            message: format!("{upper} envelope missing estimand"),
+        })?;
+        let n_contributing = self.se_items.len();
+        let se = if self.atom_ifs.len() == n_contributing {
+            mix_static_envelope_se(&self.atom_ifs, &self.atom_weights)
+        } else {
+            mix_weighted_analytic_se(self.se_items.iter().copied())
+        };
+        let mut estimate = EffectEstimate::new(
+            self.weighted_ate / self.total_w,
+            se,
+            self.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        if self.atom_ifs.len() == n_contributing {
+            if let Some(inf) = mixed_static_influence(&self.atom_ifs, &self.atom_weights) {
+                estimate.scores.influence = Some(inf);
+            }
+        }
+        Ok((estimate, estimand, n_contributing))
+    }
+}
+
+/// The response query and the per-level queries an ADMG response finish evaluates.
+#[derive(Clone, Copy)]
+struct AdmgResponseLevels<'a> {
+    query: &'a ResponseQuery,
+    level_queries: &'a [ResponseQuery],
+    /// A curve over a grid rather than one intervention level.
+    curve: bool,
+}
+
+impl super::Study {
+    /// ADMG ATE via general ID + functional plug-in (bidirected case).
+    pub(super) fn execute_admg(
+        &self,
+        data: &TabularData,
+        admg: &Admg,
+        query: &AverageEffectQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::ADMG)?;
+        if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "ADMG ATE requires estimator functional.effect; got {estimator_id}"
+                ),
+            });
+        }
+
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                let identification = identify_admg(identifier_id, admg, query)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok((identification, estimand))
+            })?;
+        let (estimate, posterior) = self.estimate_functional_effect(
+            data,
+            &estimand,
+            &identification,
+            &[query.treatment, query.outcome],
+            ctx,
+        )?;
+
+        let mut refute_ws = EstimationWorkspace::default();
+        let (refutations, extra_diagnostics) = RefutationRun {
+            data,
+            estimand: &estimand,
+            query,
+            estimate: &estimate,
+            suite: self.refute,
+            estimator: estimator_id.as_str(),
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .reports(&mut refute_ws, None, ctx)?;
+
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, estimator_id),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(extra_diagnostics)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// ADMG response via general ID + functional plug-in (bidirected case).
+    ///
+    /// Bidirected edges stay bidirected. Each grid / Set level is the identified
+    /// `P(Y | do(X=x))` mean, not an adjustment g-formula.
+    pub(super) fn execute_admg_response(
+        &self,
+        data: &TabularData,
+        admg: &Admg,
+        query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        let is_intervention =
+            matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
+        if self.refute != RefuteSuite::None && !is_intervention {
+            return Err(CausalError::Unsupported {
+                message: "Admg ResponseCurve has no native non-ATE refuter suite; \
+                          ATE refuters do not apply to a function-valued surface",
+            });
+        }
+        match &query.functional {
+            ResponseFunctional::InterventionResponse { .. } => self.finish_admg_response_levels(
+                data,
+                admg,
+                AdmgResponseLevels {
+                    query,
+                    level_queries: &[admg_response_single_level(query)?],
+                    curve: false,
+                },
+                physical,
+                ctx,
+                started,
+            ),
+            ResponseFunctional::MeanCurve { outcome, treatment } => {
+                let levels = treatment.grid.values()?;
+                let level_queries = levels
+                    .iter()
+                    .map(|level| {
+                        admg_response_at_level(query, treatment.variable, *outcome, *level)
+                    })
+                    .collect::<Vec<_>>();
+                self.finish_admg_response_levels(
+                    data,
+                    admg,
+                    AdmgResponseLevels { query, level_queries: &level_queries, curve: true },
+                    physical,
+                    ctx,
+                    started,
+                )
+            }
+            _ => Err(CausalError::Unsupported {
+                message: "Admg response is licensed for InterventionResponse and ResponseCurve",
+            }),
+        }
+    }
+
+    fn finish_admg_response_levels(
+        &self,
+        data: &TabularData,
+        admg: &Admg,
+        levels: AdmgResponseLevels<'_>,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+        started: Instant,
+    ) -> Result<StudyResult, CausalError> {
+        let AdmgResponseLevels { query, level_queries, curve } = levels;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::ADMG)?;
+        if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "ADMG response requires estimator functional.effect; got {estimator_id}"
+                ),
+            });
+        }
+        let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
+        let run = AdmgLevelRun {
+            data,
+            admg,
+            curve,
+            bayesian: self.inference.is_bayesian(),
+            identifier_id,
+            estimator_id,
+            treatment,
+            outcome,
+            ctx,
+        };
+        let AdmgLevelsResponse {
+            response,
+            identification,
+            estimand,
+            identify_cached,
+            extra_diagnostics,
+            n_draws,
+            posterior: extras_posterior,
+        } = self.fit_admg_response_levels(&run, level_queries)?.into_response(query, curve);
         let (scalar, standard_error) = super::response_path::response_scalar_summary(&response);
         let estimate = EffectEstimate::new(
             scalar,
@@ -382,11 +440,177 @@ impl super::Study {
             diagnostics.push(identify_cached_diagnostic());
         }
         diagnostics.extend(extra_diagnostics);
-        let (refutations, refute_diags) = if !curve
+        let (refutations, refute_diags) =
+            self.refute_admg_response_level(&run, &estimand, &estimate, scalar, &mut diagnostics)?;
+        diagnostics.extend(refute_diags);
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, estimator_id),
+                treatment,
+                outcome,
+            )
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                estimate_provenance: Some(provenance_ids(
+                    "estimate.response.general_id",
+                    "estimate.response.general_id",
+                )),
+                diagnostics: Some(diagnostics),
+                response: Some(response),
+                bootstrap_replicates_requested: Some(None),
+                n_draws,
+                posterior: extras_posterior,
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Identifies and estimates every intervention level of an ADMG response.
+    fn fit_admg_response_levels(
+        &self,
+        run: &AdmgLevelRun<'_>,
+        level_queries: &[ResponseQuery],
+    ) -> Result<AdmgLevelFits, CausalError> {
+        let mut fits = AdmgLevelFits {
+            means: Vec::with_capacity(level_queries.len()),
+            grid: Vec::with_capacity(level_queries.len()),
+            identification: None,
+            estimand: None,
+            identify_cached: false,
+            extras_posterior: None,
+            n_draws: None,
+            curve_bounds: Vec::new(),
+            freq_curve_bounds: Vec::new(),
+            freq_scalar: None,
+            support: None,
+            extra_diagnostics: Vec::new(),
+        };
+        for (i, level_query) in level_queries.iter().enumerate() {
+            let (level_id, level_est, cached) = if i == 0 {
+                identification_from_cache_or(run.ctx, self.identification_cache.as_deref(), || {
+                    let identification = identify_admg_query(
+                        run.identifier_id,
+                        run.admg,
+                        &CausalQuery::Response(level_query.clone()),
+                    )?;
+                    let estimand = select_estimand(&identification, run.estimator_id)?;
+                    Ok((identification, estimand))
+                })?
+            } else {
+                let identification = identify_admg_query(
+                    run.identifier_id,
+                    run.admg,
+                    &CausalQuery::Response(level_query.clone()),
+                )?;
+                let estimand = select_estimand(&identification, run.estimator_id)?;
+                (identification, estimand, false)
+            };
+            if i == 0 {
+                fits.identify_cached = cached;
+            }
+            let (mean, posterior, level_support) =
+                self.fit_admg_response_level(run, level_query, &level_id, &level_est, &mut fits)?;
+            if let ResponseFunctional::InterventionResponse { interventions, .. } =
+                &level_query.functional
+            {
+                if let Some(Intervention::Set { value, .. }) = interventions.first() {
+                    if let Some(level) = value.as_f64() {
+                        fits.grid.push(level);
+                    }
+                }
+            }
+            fits.means.push(mean);
+            if fits.extras_posterior.is_none() {
+                fits.extras_posterior.clone_from(&posterior);
+                fits.n_draws =
+                    posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
+            }
+            if run.curve {
+                if let Some(ResponseUncertainty::Scalar { lower, upper, .. }) =
+                    posterior.as_ref().and_then(credible_scalar_uncertainty)
+                {
+                    fits.curve_bounds.push((lower, upper));
+                }
+            }
+            if fits.support.is_none() {
+                fits.support = Some(level_support);
+            }
+            if fits.identification.is_none() {
+                fits.identification = Some(level_id);
+                fits.estimand = Some(level_est);
+            }
+        }
+        Ok(fits)
+    }
+
+    /// Estimates one ADMG response level, Bayesian or as a frequentist plug-in.
+    fn fit_admg_response_level(
+        &self,
+        run: &AdmgLevelRun<'_>,
+        level_query: &ResponseQuery,
+        level_id: &IdentificationResult,
+        level_est: &IdentifiedEstimand,
+        fits: &mut AdmgLevelFits,
+    ) -> Result<
+        (f64, Option<antecedent_estimate::CausalPosterior>, antecedent_core::SupportReport),
+        CausalError,
+    > {
+        if run.bayesian {
+            let (estimate, posterior) = self.estimate_functional_effect(
+                run.data,
+                level_est,
+                level_id,
+                &[run.treatment, run.outcome],
+                run.ctx,
+            )?;
+            Ok((
+                estimate.ate,
+                posterior,
+                support_from_functional_eval(None).map_err(|e| {
+                    CausalError::from(antecedent_estimate::EstimationError::data_msg(e.to_string()))
+                })?,
+            ))
+        } else {
+            let (response, _) = super::response_path::estimate_general_id_response(
+                run.data,
+                level_query,
+                level_id,
+                level_est,
+                self.bootstrap_replicates,
+                run.ctx,
+            )?;
+            fits.extra_diagnostics.extend(response.support.warnings.iter().cloned());
+            if let ResponseUncertainty::Scalar { lower, upper, .. } = &response.uncertainty {
+                if run.curve {
+                    fits.freq_curve_bounds.push((*lower, *upper));
+                } else if fits.freq_scalar.is_none() {
+                    fits.freq_scalar = Some(response.uncertainty.clone());
+                }
+            }
+            let (scalar, _) = super::response_path::response_scalar_summary(&response);
+            Ok((scalar, None, response.support))
+        }
+    }
+
+    /// Plugin-level refutation of a scalar ADMG response level, when one is licensed.
+    fn refute_admg_response_level(
+        &self,
+        run: &AdmgLevelRun<'_>,
+        estimand: &IdentifiedEstimand,
+        estimate: &EffectEstimate,
+        scalar: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        if !run.curve
             && scalar.is_finite()
             && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
         {
-            let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
+            let ate_query = AverageEffectQuery::binary_ate(run.treatment, run.outcome);
             let mut refute_ws = EstimationWorkspace::default();
             if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
                 diagnostics.push(Diagnostic::new(
@@ -398,52 +622,20 @@ impl super::Study {
                      identified intervention mean",
                 ));
             }
-            run_plugin_level_refuters(
-                data,
-                &estimand,
-                &ate_query,
-                &estimate,
-                &mut refute_ws,
-                ctx,
-                self.refute,
-                estimator,
-                &self.custom_validators,
-            )?
+            RefutationRun {
+                data: run.data,
+                estimand,
+                query: &ate_query,
+                estimate,
+                suite: self.refute,
+                estimator: run.estimator_id.as_str(),
+                custom: &self.custom_validators,
+                temporal: None,
+            }
+            .plugin_level(&mut refute_ws, run.ctx)
         } else {
-            (Vec::new(), Vec::new())
-        };
-        diagnostics.extend(refute_diags);
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached: false,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.response.general_id",
-                    "estimate.response.general_id",
-                )),
-                diagnostics: Some(diagnostics),
-                response: Some(response),
-                bootstrap_replicates_requested: Some(None),
-                n_draws,
-                posterior: extras_posterior,
-                ..Default::default()
-            },
-        }))
+            Ok((Vec::new(), Vec::new()))
+        }
     }
 
     /// PAG ATE via generalized-adjustment envelope + mass-weighted estimates.
@@ -456,214 +648,33 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_ESTIMATOR_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PAG)?;
         let (envelope, identification, identify_cached) =
-            if let Some(cache) = self.pag_identification_cache.as_deref() {
-                (cache.envelope.clone(), cache.identification.clone(), true)
+            if let Some(cache) = self.pag_identification_cache.as_ref() {
+                (Arc::clone(&cache.envelope), cache.identification.clone(), true)
             } else {
                 report_identify_compute(ctx);
                 let envelope = identify_pag(identifier_id, pag, query)?;
                 let identification = envelope_to_identification_result(&envelope, query);
-                (envelope, identification, false)
+                (Arc::new(envelope), identification, false)
             };
         let certificate = crate::Identification::Envelope {
-            envelope: envelope.clone(),
+            envelope: (*envelope).clone(),
             strategy: identifier_id,
             structure_version: self.graph.version(),
         };
-        if matches!(envelope.status, IdentificationStatus::NotIdentified)
-            || envelope.identified_weight.0 <= 0.0
-        {
-            if matches!(self.inference, InferenceMode::Bayesian(_))
-                || matches!(estimator_id, EstimatorId::BayesianGcomp)
-            {
-                return self
-                    .execute_pag_nonidentified_prior(
-                        query,
-                        physical,
-                        ctx,
-                        &envelope,
-                        identification,
-                        identify_cached,
-                        started,
-                        pag_envelope_diagnostic(&envelope),
-                        "pag",
-                    )
-                    .map(|result| self.attach_certificate(result, certificate));
-            }
-            return Err(CausalError::not_identified(
-                envelope.status,
-                envelope.truncated_completions > 0,
-                "PAG effect not identified (no identified mass in envelope)",
-            ));
-        }
-
-        let mut diagnostics = vec![pag_envelope_diagnostic(&envelope)];
-
-        if matches!(estimator_id, EstimatorId::BayesianGcomp) {
-            return self
-                .execute_pag_bayesian(
-                    data,
-                    query,
-                    physical,
-                    ctx,
-                    &envelope,
-                    identification,
-                    identify_cached,
-                    started,
-                    pag_envelope_diagnostic(&envelope),
-                    "pag",
-                )
-                .map(|result| self.attach_certificate(result, certificate));
-        }
-
-        let mut weighted_ate = 0.0;
-        let mut se_items = Vec::new();
-        let mut atom_ifs = Vec::new();
-        let mut atom_weights = Vec::new();
-        let mut total_w = 0.0;
-        let mut primary_estimand: Option<IdentifiedEstimand> = None;
-        let mut assumptions = antecedent_core::AssumptionSet::default();
-        let mut refute_atoms = Vec::new();
-        let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
-        for (i, case) in envelope.cases.iter().enumerate() {
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                continue;
-            }
-            let estimand = select_estimand(&case.result, estimator_id)?;
-            let mut case_ws = StaticEstimateWorkspaces::default();
-            // Honour a caller-configured estimator across every equivalence-class case,
-            // falling back to id-only selection when none was supplied.
-            let case_spec = self
-                .estimator_spec
-                .clone()
-                .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
-            let estimate = estimate_static_effect(
-                &case_spec,
-                data,
-                &estimand,
-                query,
-                case.result.required_assumptions.clone(),
-                self.bootstrap_replicates,
-                self.overlap_policy,
-                self.population_registry.as_ref(),
-                ctx,
-                &mut case_ws,
-            )?;
-            let w = case.weight.0;
-            outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
-            weighted_ate += w * estimate.ate;
-            se_items.push((w, estimate.se_analytic));
-            if let Some(inf) = estimate
-                .influence
-                .as_deref()
-                .and_then(|inf| static_aligned_influence(data, query, &estimand, inf))
-            {
-                atom_ifs.push(inf);
-                atom_weights.push(w);
-            }
-            total_w += w;
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
-            }
-            refute_atoms.push(EnvelopeRefuteAtom {
-                key: i as u64,
-                weight: w,
-                estimand,
-                indexer: None,
-                original: estimate,
-            });
-        }
-        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-            return Err(CausalError::Compile {
-                message: "PAG envelope had no estimable identified cases".into(),
-            });
-        }
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "PAG envelope missing estimand".into(),
-        })?;
-        let n_contributing = se_items.len();
-        let se = if atom_ifs.len() == n_contributing {
-            mix_static_envelope_se(&atom_ifs, &atom_weights)
-        } else {
-            mix_weighted_analytic_se(se_items)
-        };
-        let mut estimate = EffectEstimate::new(
-            weighted_ate / total_w,
-            se,
-            assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
-        );
-        if atom_ifs.len() == n_contributing {
-            if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.influence = Some(inf);
-            }
-        }
-
-        let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
+        self.finish_class_ate(
             data,
             query,
-            &refute_atoms,
-            &mut refute_ws,
-            ctx,
-            self.refute,
-            estimator,
-            &self.custom_validators,
-            None,
-            self.split.as_ref(),
-            None,
-        )?;
-        diagnostics.extend(na_diagnostics);
-
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
-        // A partially identified envelope carries its identified set and the
-        // per-completion values it spans; a point-identified one stays a point.
-        let structural_response = static_class_structural_mixture(&envelope, &outcomes);
-        if let Some(mixture) = structural_response.as_ref() {
-            diagnostics.extend(static_class_identified_set_diagnostic(mixture, "pag"));
-        }
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                diagnostics: Some(diagnostics),
-                structural_response,
-                ..Default::default()
+            ClassEnvelopeRun {
+                run: ExecuteRun { physical, ctx, started, identify_cached },
+                envelope: &envelope,
+                envelope_diagnostic: pag_envelope_diagnostic(&envelope),
             },
-        }))
+            identification,
+            Strategy::new(identifier_id, estimator_id),
+            ClassTag::Pag,
+        )
         .map(|result| self.attach_certificate(result, certificate))
     }
 
@@ -677,89 +688,149 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let estimator = physical
-            .logical
-            .record
-            .estimator
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_ESTIMATOR_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let estimator_id: EstimatorId = estimator.parse()?;
+        let (identifier_id, estimator_id) = physical.binding().resolve(RouteDefaults::PAG)?;
         let (envelope, identification, identify_cached) =
-            if let Some(cache) = self.cpdag_identification_cache.as_deref() {
-                (cache.envelope.clone(), cache.identification.clone(), true)
+            if let Some(cache) = self.cpdag_identification_cache.as_ref() {
+                (Arc::clone(&cache.envelope), cache.identification.clone(), true)
             } else {
                 report_identify_compute(ctx);
                 let envelope = identify_cpdag(identifier_id, cpdag, query)?;
                 let identification = envelope_to_identification_result(&envelope, query);
-                (envelope, identification, false)
+                (Arc::new(envelope), identification, false)
             };
         let certificate = crate::Identification::CpdagEnvelope {
-            envelope: envelope.clone(),
+            envelope: (*envelope).clone(),
             strategy: identifier_id,
             structure_version: self.graph.version(),
         };
+        self.finish_class_ate(
+            data,
+            query,
+            ClassEnvelopeRun {
+                run: ExecuteRun { physical, ctx, started, identify_cached },
+                envelope: &envelope,
+                envelope_diagnostic: cpdag_envelope_diagnostic(&envelope),
+            },
+            identification,
+            Strategy::new(identifier_id, estimator_id),
+            ClassTag::Cpdag,
+        )
+        .map(|result| self.attach_certificate(result, certificate))
+    }
+
+    /// Shared CPDAG/PAG ATE finish: refuses or hands off an unidentified or Bayesian envelope,
+    /// otherwise pools the identified completions.
+    fn finish_class_ate<G>(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        run: ClassEnvelopeRun<'_, G>,
+        identification: IdentificationResult,
+        strategy: Strategy,
+        label: ClassTag,
+    ) -> Result<StudyResult, CausalError> {
+        let (tag, upper) = (label.as_str(), label.upper());
+        let estimator_id = strategy.estimator;
+        let envelope = run.envelope;
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            if matches!(self.inference, InferenceMode::Bayesian(_))
-                || matches!(estimator_id, EstimatorId::BayesianGcomp)
-            {
-                return self
-                    .execute_pag_nonidentified_prior(
-                        query,
-                        physical,
-                        ctx,
-                        &envelope,
-                        identification,
-                        identify_cached,
-                        started,
-                        cpdag_envelope_diagnostic(&envelope),
-                        "cpdag",
-                    )
-                    .map(|result| self.attach_certificate(result, certificate));
+            if self.inference.is_bayesian() || matches!(estimator_id, EstimatorId::BayesianGcomp) {
+                return self.execute_pag_nonidentified_prior(query, run, identification, tag);
             }
             return Err(CausalError::not_identified(
                 envelope.status,
                 envelope.truncated_completions > 0,
-                "CPDAG effect not identified (no identified mass in envelope)",
+                &format!("{upper} effect not identified (no identified mass in envelope)"),
             ));
         }
-
-        let mut diagnostics = vec![cpdag_envelope_diagnostic(&envelope)];
-
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
-            return self
-                .execute_pag_bayesian(
-                    data,
-                    query,
-                    physical,
-                    ctx,
-                    &envelope,
-                    identification,
-                    identify_cached,
-                    started,
-                    cpdag_envelope_diagnostic(&envelope),
-                    "cpdag",
-                )
-                .map(|result| self.attach_certificate(result, certificate));
+            return self.execute_pag_bayesian(data, query, run, identification, label);
         }
+        self.finish_class_ate_frequentist(data, query, run, identification, strategy, label)
+    }
 
-        let mut weighted_ate = 0.0;
-        let mut se_items = Vec::new();
-        let mut atom_ifs = Vec::new();
-        let mut atom_weights = Vec::new();
-        let mut total_w = 0.0;
-        let mut primary_estimand: Option<IdentifiedEstimand> = None;
-        let mut assumptions = antecedent_core::AssumptionSet::default();
-        let mut refute_atoms = Vec::new();
-        let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
+    /// Mass-weighted frequentist ATE over the identified completions of a class envelope.
+    fn finish_class_ate_frequentist<G>(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        run: ClassEnvelopeRun<'_, G>,
+        identification: IdentificationResult,
+        strategy: Strategy,
+        label: ClassTag,
+    ) -> Result<StudyResult, CausalError> {
+        let (tag, upper) = (label.as_str(), label.upper());
+        let Strategy { identifier: identifier_id, estimator: estimator_id } = strategy;
+        let ClassEnvelopeRun {
+            run: ExecuteRun { physical, ctx, started, identify_cached },
+            envelope,
+            envelope_diagnostic,
+        } = run;
+        let mut diagnostics = vec![envelope_diagnostic];
+        let atoms = self.evaluate_class_ate_atoms(data, query, envelope, estimator_id, ctx)?;
+        let (estimate, estimand, n_contributing) = atoms.pooled_estimate(upper)?;
+        let mut refute_ws = EstimationWorkspace::default();
+        let (refutations, na_diagnostics) = EnvelopeRefutation {
+            data,
+            query,
+            suite: self.refute,
+            estimator: estimator_id.as_str(),
+            custom: &self.custom_validators,
+            temporal: None,
+        }
+        .run(&atoms.refute_atoms, &mut refute_ws, ctx)?;
+        diagnostics.extend(na_diagnostics);
+
+        diagnostics.push(overlap_diagnostic(estimate.provenance.overlap));
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic()));
+        // A partially identified envelope carries its identified set and the
+        // per-completion values it spans; a point-identified one stays a point.
+        let structural_response = static_class_structural_mixture(envelope, &atoms.outcomes);
+        if let Some(mixture) = structural_response.as_ref() {
+            diagnostics.extend(static_class_identified_set_diagnostic(mixture, tag));
+        }
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, estimator_id),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
+                diagnostics: Some(diagnostics),
+                structural_response,
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Estimates every identified completion of a class envelope with the configured estimator.
+    fn evaluate_class_ate_atoms<G>(
+        &self,
+        data: &TabularData,
+        query: &AverageEffectQuery,
+        envelope: &IdentificationEnvelope<G>,
+        estimator_id: EstimatorId,
+        ctx: &ExecutionContext,
+    ) -> Result<ClassAteAtoms, CausalError> {
+        let mut atoms = ClassAteAtoms {
+            weighted_ate: 0.0,
+            se_items: Vec::new(),
+            atom_ifs: Vec::new(),
+            atom_weights: Vec::new(),
+            total_w: 0.0,
+            primary_estimand: None,
+            assumptions: antecedent_core::AssumptionSet::default(),
+            refute_atoms: Vec::new(),
+            outcomes: vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()],
+        };
         for (i, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
                 || case.result.estimands.is_empty()
@@ -768,40 +839,46 @@ impl super::Study {
             }
             let estimand = select_estimand(&case.result, estimator_id)?;
             let mut case_ws = StaticEstimateWorkspaces::default();
+            // Honour a caller-configured estimator across every equivalence-class case,
+            // falling back to id-only selection when none was supplied.
             let case_spec = self
                 .estimator_spec
-                .clone()
+                .as_deref()
+                .cloned()
                 .unwrap_or(crate::estimator_spec::EstimatorSpec::Default(estimator_id));
             let estimate = estimate_static_effect(
                 &case_spec,
-                data,
-                &estimand,
-                query,
+                StaticEstimateInput {
+                    data,
+                    estimand: &estimand,
+                    query,
+                    bootstrap_replicates: self.bootstrap_replicates,
+                    overlap_policy: self.overlap_policy,
+                    population_registry: self.population_registry.as_ref(),
+                },
                 case.result.required_assumptions.clone(),
-                self.bootstrap_replicates,
-                self.overlap_policy,
-                self.population_registry.as_ref(),
                 ctx,
                 &mut case_ws,
             )?;
             let w = case.weight.0;
-            outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
-            weighted_ate += w * estimate.ate;
-            se_items.push((w, estimate.se_analytic));
+            atoms.outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
+            atoms.weighted_ate += w * estimate.ate;
+            atoms.se_items.push((w, estimate.se_analytic()));
             if let Some(inf) = estimate
+                .scores
                 .influence
                 .as_deref()
                 .and_then(|inf| static_aligned_influence(data, query, &estimand, inf))
             {
-                atom_ifs.push(inf);
-                atom_weights.push(w);
+                atoms.atom_ifs.push(inf);
+                atoms.atom_weights.push(w);
             }
-            total_w += w;
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
+            atoms.total_w += w;
+            if atoms.primary_estimand.is_none() {
+                atoms.primary_estimand = Some(estimand.clone());
+                atoms.assumptions = estimate.provenance.assumptions.clone();
             }
-            refute_atoms.push(EnvelopeRefuteAtom {
+            atoms.refute_atoms.push(EnvelopeRefuteAtom {
                 key: i as u64,
                 weight: w,
                 estimand,
@@ -809,96 +886,22 @@ impl super::Study {
                 original: estimate,
             });
         }
-        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-            return Err(CausalError::Compile {
-                message: "CPDAG envelope had no estimable identified cases".into(),
-            });
-        }
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "CPDAG envelope missing estimand".into(),
-        })?;
-        let n_contributing = se_items.len();
-        let se = if atom_ifs.len() == n_contributing {
-            mix_static_envelope_se(&atom_ifs, &atom_weights)
-        } else {
-            mix_weighted_analytic_se(se_items)
-        };
-        let mut estimate = EffectEstimate::new(
-            weighted_ate / total_w,
-            se,
-            assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
-        );
-        if atom_ifs.len() == n_contributing {
-            if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
-                estimate.influence = Some(inf);
-            }
-        }
-
-        let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
-            data,
-            query,
-            &refute_atoms,
-            &mut refute_ws,
-            ctx,
-            self.refute,
-            estimator,
-            &self.custom_validators,
-            None,
-            self.split.as_ref(),
-            None,
-        )?;
-        diagnostics.extend(na_diagnostics);
-
-        diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
-        // A partially identified envelope carries its identified set and the
-        // per-completion values it spans; a point-identified one stays a point.
-        let structural_response = static_class_structural_mixture(&envelope, &outcomes);
-        if let Some(mixture) = structural_response.as_ref() {
-            diagnostics.extend(static_class_identified_set_diagnostic(mixture, "cpdag"));
-        }
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                diagnostics: Some(diagnostics),
-                structural_response,
-                ..Default::default()
-            },
-        }))
-        .map(|result| self.attach_certificate(result, certificate))
+        Ok(atoms)
     }
 
     /// Non-identified PAG with Bayesian inference: prior-predictive draws, no invented ID.
     pub(super) fn execute_pag_nonidentified_prior<G>(
         &self,
         query: &AverageEffectQuery,
-        physical: &PhysicalExecutionPlan,
-        ctx: &ExecutionContext,
-        envelope: &IdentificationEnvelope<G>,
+        run: ClassEnvelopeRun<'_, G>,
         identification: IdentificationResult,
-        identify_cached: bool,
-        started: Instant,
-        envelope_diagnostic: Diagnostic,
         class_tag: &str,
     ) -> Result<StudyResult, CausalError> {
+        let ClassEnvelopeRun {
+            run: ExecuteRun { physical, ctx, started, identify_cached },
+            envelope,
+            envelope_diagnostic,
+        } = run;
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => BayesianConfig::laplace(),
@@ -946,25 +949,19 @@ impl super::Study {
                 posterior.unidentified_mass,
             )),
         );
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::GeneralizedAdjustment,
-            estimator_id: EstimatorId::BayesianGcomp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(IdentifierId::GeneralizedAdjustment, EstimatorId::BayesianGcomp),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 estimate_provenance: Some(provenance_ids(
                     "estimate.bayesian_gcomp",
                     "estimate.nonidentified_with_prior",
@@ -972,8 +969,8 @@ impl super::Study {
                 posterior: Some(posterior),
                 diagnostics: Some(diagnostics),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 
@@ -990,7 +987,7 @@ impl super::Study {
 /// restate it as bounds.
 ///
 /// Static class envelopes publish the frozen-weight mixture's sampling
-/// interval (the construction `v19_static_envelope_calibration` scores); no
+/// interval (the construction `static_envelope_calibration` scores); no
 /// interval for the identified set is constructed on this path.
 pub(super) fn static_class_structural_mixture<G>(
     envelope: &IdentificationEnvelope<G>,

@@ -18,10 +18,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_core::{
-    AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
-    ShapleyConfig, VariableId,
-};
+#[cfg(test)]
+use antecedent_core::AllocationMethod;
+#[cfg(test)]
+use antecedent_core::AttributionComponents;
+#[cfg(test)]
+use antecedent_core::ShapleyConfig;
+#[cfg(test)]
+use antecedent_core::VariableId;
+use antecedent_core::{ChangeAttributionQuery, ComponentId, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
@@ -30,8 +35,8 @@ use antecedent_model::{
 };
 
 use crate::change_common::{
-    ChangeOptions, STRUCTURE_STREAM, observed_change, run_change_allocation, sample_outcome_law,
-    stream_tag, total_change,
+    ChangeAllocation, ChangeOptions, STRUCTURE_STREAM, observed_change, run_change_allocation,
+    sample_outcome_law, stream_tag, total_change,
 };
 use crate::coalition::full_coalition_mask;
 use crate::distribution_change::DifferenceMeasure;
@@ -41,6 +46,12 @@ use crate::prep::{
 };
 use crate::result::ChangeAttributionResult;
 use crate::shapley::CoalitionPayoff;
+
+/// Compiled and hybrid models retained per structure-change payoff.
+///
+/// Exact Shapley revisits masks; past this many distinct masks the payoff
+/// recompiles instead of growing without a bound. Recompilation is the same graph.
+const STRUCTURE_CACHE_CAP: usize = 64;
 
 /// Options for structure-change attribution.
 #[derive(Clone, Debug)]
@@ -111,14 +122,17 @@ pub fn structure_change(
     // Player → dense-node mapping hoisted out of the per-coalition path (this is
     // invariant across coalitions; it was previously recomputed per mask).
     let variables = &baseline_model.output_layout.variables;
-    let player_nodes: Vec<DenseNodeId> = players
-        .iter()
-        .map(|c| {
-            let idx = variables.iter().position(|v| *v == c.variable()).expect("player in layout");
-            #[allow(clippy::cast_possible_truncation, reason = "idx is a position within the model output layout, whose node ids are u32 by construction")]
-            DenseNodeId::from_raw(idx as u32)
-        })
-        .collect();
+    let mut player_nodes = Vec::with_capacity(players.len());
+    for c in &players {
+        let Some(idx) = variables.iter().position(|v| *v == c.variable()) else {
+            return Err(AttributionError::missing_var("structure player", c.variable()));
+        };
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "idx is a position within the model output layout, whose node ids are u32 by construction"
+        )]
+        player_nodes.push(DenseNodeId::from_raw(idx as u32));
+    }
     let mut player_of_node: Vec<Option<usize>> = vec![None; baseline_model.n_nodes()];
     for (pi, node) in player_nodes.iter().enumerate() {
         player_of_node[node.as_usize()] = Some(pi);
@@ -157,46 +171,16 @@ pub fn structure_change(
     let v_full = payoff.value(full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
-    let mut result = run_change_allocation(
-        query.outcome,
-        &players,
-        &query.allocation,
-        &mut payoff,
-        total,
-        Arc::from(unidentified),
-        ctx,
-        Some(baseline_model),
-    )?;
+    let request = ChangeAllocation {
+        outcome: query.outcome,
+        players: &players,
+        allocation: &query.allocation,
+        model_for_paths: Some(baseline_model),
+    };
+    let mut result =
+        run_change_allocation(&request, &mut payoff, total, Arc::from(unidentified), ctx)?;
     result.observed_change = Some(observed);
     Ok(result)
-}
-
-/// Convenience: Shapley Monte Carlo structure-change with defaults.
-///
-/// # Errors
-///
-/// See [`structure_change`].
-pub fn structure_change_shapley(
-    baseline_model: &CompiledCausalModel,
-    comparison_model: &CompiledCausalModel,
-    data: &TabularData,
-    outcome: VariableId,
-    baseline: antecedent_core::PopulationSelector,
-    comparison: antecedent_core::PopulationSelector,
-    shapley: ShapleyConfig,
-    ctx: &ExecutionContext,
-) -> Result<ChangeAttributionResult, AttributionError> {
-    let query = ChangeAttributionQuery::new(outcome, baseline, comparison)
-        .with_components(AttributionComponents::Structure)
-        .with_allocation(AllocationMethod::Shapley { approximation: shapley });
-    structure_change(
-        baseline_model,
-        comparison_model,
-        data,
-        &query,
-        &StructureChangeOptions::default(),
-        ctx,
-    )
 }
 
 fn validate_shared_layout(
@@ -272,6 +256,10 @@ fn structure_players(
 }
 
 /// Build a hybrid DAG: comparison parents for set player bits, else baseline.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn hybrid_structure_dag(
     baseline: &Dag,
     comparison: &Dag,
@@ -334,6 +322,7 @@ pub(crate) fn hybrid_structure_dag(
 /// hybrid that gives it the same parent-set source. Composing per-mask stores from
 /// these two fits is therefore numerically identical to the previous per-coalition
 /// double refit (pinned by `memoized_fits_match_per_coalition_refit`).
+#[derive(Clone)]
 struct StructureFits {
     baseline: CompiledMechanismStore,
     comparison: CompiledMechanismStore,
@@ -361,6 +350,9 @@ struct StructureSwapPayoff<'a> {
     /// Memoized mechanism fits (two `assign_and_fit` calls total; see [`StructureFits`]).
     fits: Option<StructureFits>,
     /// Memoized compiled hybrid graphs keyed by coalition mask.
+    ///
+    /// Capped so a wide exact allocation cannot retain every hybrid. A miss
+    /// recompiles the same graph.
     compiled_cache: HashMap<u64, CompiledCausalModel>,
     /// Memoized full hybrid models (graph + composed mechanisms) keyed by coalition mask,
     /// so a repeated mask samples straight from the cached model without cloning it.
@@ -389,6 +381,29 @@ impl CoalitionPayoff for StructureSwapPayoff<'_> {
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         crate::change_common::CachedOutcomeLawPayoff::cached_payoff_value(self, mask)
     }
+
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        Some(Box::new(StructureSwapPayoff {
+            baseline_graph: Arc::clone(&self.baseline_graph),
+            comparison_graph: Arc::clone(&self.comparison_graph),
+            baseline_data: self.baseline_data.clone(),
+            comparison_data: self.comparison_data.clone(),
+            players: self.players.clone(),
+            player_nodes: self.player_nodes.clone(),
+            player_of_node: self.player_of_node.clone(),
+            outcome: self.outcome,
+            measure: self.measure,
+            n_samples: self.n_samples,
+            seed: self.seed,
+            ctx: self.ctx,
+            ws: MechanismWorkspace::default(),
+            values_buf: Vec::new(),
+            baseline_law: self.baseline_law,
+            fits: self.fits.clone(),
+            compiled_cache: self.compiled_cache.clone(),
+            hybrid_cache: self.hybrid_cache.clone(),
+        }))
+    }
 }
 
 impl StructureSwapPayoff<'_> {
@@ -407,7 +422,9 @@ impl StructureSwapPayoff<'_> {
             mask,
         )?;
         let compiled = CompiledCausalModel::compile(hybrid)?;
-        self.compiled_cache.insert(mask, compiled.clone());
+        if self.compiled_cache.len() < STRUCTURE_CACHE_CAP {
+            self.compiled_cache.insert(mask, compiled.clone());
+        }
         Ok(compiled)
     }
 
@@ -449,7 +466,11 @@ impl StructureSwapPayoff<'_> {
     fn build_hybrid(&mut self, mask: u64) -> Result<CompiledCausalModel, AttributionError> {
         self.ensure_fits()?;
         let compiled = self.compiled_for(mask)?;
-        let fits = self.fits.as_ref().expect("fits ensured above");
+        let Some(fits) = self.fits.as_ref() else {
+            return Err(AttributionError::invalid_input(
+                "structure-change hybrid was built before its mechanism fits",
+            ));
+        };
         let slots: Vec<MechanismSlot> = (0..compiled.n_nodes())
             .map(|i| {
                 let use_comparison =
@@ -466,6 +487,17 @@ impl StructureSwapPayoff<'_> {
             cached
         } else {
             let built = self.build_hybrid(mask)?;
+            if self.hybrid_cache.len() >= STRUCTURE_CACHE_CAP {
+                return sample_outcome_law(
+                    &built,
+                    self.outcome,
+                    self.n_samples,
+                    stream_tag(STRUCTURE_STREAM, self.seed),
+                    self.ctx,
+                    &mut self.ws,
+                    &mut self.values_buf,
+                );
+            }
             self.hybrid_cache.entry(mask).or_insert(built)
         };
         sample_outcome_law(
@@ -664,6 +696,10 @@ mod tests {
     /// equality against an inline reimplementation of the old path is the pinned
     /// evidence instead.
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn memoized_fits_match_per_coalition_refit() {
         // Two players: baseline x→m, x→y vs comparison z→m, m→y.
         let n = 80usize;

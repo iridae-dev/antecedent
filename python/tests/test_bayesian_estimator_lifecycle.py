@@ -1,4 +1,4 @@
-"""Python selection and result lifecycle for the 2.1 Bayesian estimators."""
+"""Python selection and result lifecycle for the Bayesian estimators."""
 
 from __future__ import annotations
 

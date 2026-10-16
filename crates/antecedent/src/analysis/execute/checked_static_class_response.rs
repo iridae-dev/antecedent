@@ -10,7 +10,13 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::response_path::class_aware_response_supported;
-use super::*;
+use super::{
+    Arc, CausalError, CausalQuery, DEFAULT_PAG_IDENTIFIER_ID, DataInput, EstimatorId,
+    ExecutionContext, GraphClass, IdentifierId, InferenceMode, PhysicalExecutionPlan, RefuteSuite,
+    ResponseQuery, Study, StudyResult, TabularData,
+};
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 use crate::analysis::route_guards::mean_all_observed;
 use crate::analysis::{StaticClassGraph, StaticClassIdentification};
 
@@ -20,11 +26,23 @@ pub(crate) struct CheckedStaticClassResponse {
     graph: StaticClassGraph,
     query: ResponseQuery,
     identification: StaticClassIdentification,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     identifier: IdentifierId,
     estimator: EstimatorId,
     inference: InferenceMode,
     validation: RefuteSuite,
+}
+
+/// The frozen premises of [`CheckedStaticClassResponse::prepare`], carried together.
+pub(crate) struct CheckedStaticClassResponsePremises {
+    pub(crate) graph: StaticClassGraph,
+    pub(crate) query: ResponseQuery,
+    pub(crate) identification: StaticClassIdentification,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+    pub(crate) identifier: IdentifierId,
+    pub(crate) estimator: EstimatorId,
+    pub(crate) inference: InferenceMode,
+    pub(crate) validation: RefuteSuite,
 }
 
 impl CheckedStaticClassResponse {
@@ -37,11 +55,8 @@ impl CheckedStaticClassResponse {
         let CausalQuery::Response(query) = &study.query else {
             return false;
         };
-        study.graph_posterior.is_none()
-            && study.tiered.is_none()
+        study.plain_fixed_route()
             && matches!(study.graph.class(), GraphClass::Cpdag | GraphClass::Pag)
-            && study.fixed_structure()
-            && study.custom_validators.is_empty()
             && study.refute == RefuteSuite::None
             && class_aware_response_supported(query)
             && mean_all_observed(&query.outcome_functional, &query.target_population)
@@ -58,18 +73,20 @@ impl CheckedStaticClassResponse {
     /// a validation suite other than `none`, a procedure that does not match the
     /// inference mode, or an envelope identified for another target.
     pub(crate) fn prepare(
-        graph: StaticClassGraph,
-        query: ResponseQuery,
-        identification: StaticClassIdentification,
-        physical: PhysicalExecutionPlan,
-        identifier: IdentifierId,
-        estimator: EstimatorId,
-        inference: InferenceMode,
-        validation: RefuteSuite,
+        premises: CheckedStaticClassResponsePremises,
     ) -> Result<Self, CausalError> {
+        let CheckedStaticClassResponsePremises {
+            graph,
+            query,
+            identification,
+            physical,
+            identifier,
+            estimator,
+            inference,
+            validation,
+        } = premises;
         if !class_aware_response_supported(&query)
-            || query.target_population != antecedent_core::TargetPopulation::AllObserved
-            || !matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+            || !mean_all_observed(&query.outcome_functional, &query.target_population)
         {
             return Err(CausalError::Unsupported {
                 message: "checked class response requires a complete-observation all-observed mean MeanCurve or InterventionResponse",
@@ -83,8 +100,7 @@ impl CheckedStaticClassResponse {
         let expected_estimator = EstimatorId::static_response_for(&query.functional, &inference);
         if estimator != expected_estimator
             || identifier != DEFAULT_PAG_IDENTIFIER_ID
-            || physical.logical.record.identifier.as_deref() != Some(identifier.as_str())
-            || physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !physical.binding().names(identifier, estimator)
         {
             return Err(CausalError::Unsupported {
                 message: "checked class response procedure does not match the sealed plan or inference mode",
@@ -183,7 +199,7 @@ impl super::Study {
         bound.custom_validators = Vec::new();
         match operation.identification() {
             StaticClassIdentification::Cpdag(cache) => {
-                bound.cpdag_identification_cache = Some(Arc::new(cache.clone()));
+                bound.cpdag_identification_cache = Some(Arc::clone(cache));
                 bound.pag_identification_cache = None;
                 if bound.graph.as_cpdag().is_none() {
                     return Err(CausalError::Compile {
@@ -192,7 +208,7 @@ impl super::Study {
                 }
             }
             StaticClassIdentification::Pag(cache) => {
-                bound.pag_identification_cache = Some(Arc::new(cache.clone()));
+                bound.pag_identification_cache = Some(Arc::clone(cache));
                 bound.cpdag_identification_cache = None;
                 if operation.physical().static_pag().is_none() {
                     return Err(CausalError::Compile {
@@ -202,5 +218,48 @@ impl super::Study {
             }
         }
         bound.execute_class_response(data, operation.query(), operation.physical(), ctx)
+    }
+}
+
+/// Frozen explicit/accepted CPDAG or PAG response route.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedStaticClassResponseInfo {
+    /// Response target retained at preparation.
+    pub query: antecedent_core::ResponseQuery,
+    /// Graph class the completion envelope was enumerated for.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Identifier fixed at preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference procedure label (`frequentist` or `bayesian:<backend>`).
+    pub inference: std::sync::Arc<str>,
+    /// Validation suite fixed at preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Completions retained in the frozen envelope.
+    pub completion_count: usize,
+    /// Identified completion mass retained in the frozen envelope.
+    pub identified_mass: f64,
+    /// Unidentified completion mass retained in the frozen envelope.
+    pub unidentified_mass: f64,
+}
+
+impl Inspect for CheckedStaticClassResponse {
+    type Info = CheckedStaticClassResponseInfo;
+
+    fn info(&self) -> CheckedStaticClassResponseInfo {
+        let (identifier, estimator) = self.procedure();
+        let (completion_count, identified_mass, unidentified_mass) = self.envelope_summary();
+        CheckedStaticClassResponseInfo {
+            query: self.query().clone(),
+            graph_class: self.graph_class(),
+            identifier,
+            estimator,
+            inference: inference_label(self.inference()),
+            validation: self.validation(),
+            completion_count,
+            identified_mass,
+            unidentified_mass,
+        }
     }
 }

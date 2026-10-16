@@ -169,10 +169,6 @@ impl GaussianMixtureDensity {
     ///
     /// Empty or non-finite means, a non-positive or non-finite `standard_deviation`,
     /// weights of the wrong length, or weights that are negative, non-finite, or sum to zero.
-    #[allow(
-        clippy::cast_possible_truncation,
-        reason = "the bin index only identifies which sorted-mean bin a value falls in; a quotient beyond i64 saturates into the outermost bin"
-    )]
     pub fn new(
         means: &[f64],
         weights: Option<&[f64]>,
@@ -294,7 +290,8 @@ impl GaussianMixtureDensity {
 /// # Errors
 ///
 /// Shape mismatch, non-finite input, invalid bandwidth, or a singular local design.
-pub fn gaussian_local_quadratic(
+#[cfg(test)]
+pub(crate) fn gaussian_local_quadratic(
     x: &[f64],
     y: &[f64],
     at: f64,
@@ -462,6 +459,8 @@ fn fit_local_quadratic(
             }
         }
     }
+    // Fused with the accumulation loop above (which also guards both sums), so
+    // this is the one Kish ratio not routed through `kernels::kish_ess`.
     let local_ess = weight_sum * weight_sum / weight_sq_sum;
     let sigma2 = weighted_rss / (weight_sum - 3.0);
     // sigma^2 (X'WX)^-1 (X'W^2X) (X'WX)^-1 — the kernel weights are not

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use antecedent_core::{ModelId, QueryId};
 
 use crate::decision::DecisionProblemId;
+use crate::result::ScoreEvaluation;
 
 /// Objective maximized by candidate ranking.
 ///
@@ -53,6 +54,74 @@ pub enum DesignObjective {
     },
 }
 
+/// Which scoring channel an objective uses. Callers dispatch on this instead of
+/// matching [`DesignObjective`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ObjectiveChannel<'a> {
+    /// Heuristic graph-channel entropy.
+    GraphEntropy,
+    /// Static unlock-list identified-mass gain for `query`.
+    Identification {
+        /// Query handle.
+        query: QueryId,
+    },
+    /// OLS Gram standard-error reduction for `query`.
+    EffectWidth {
+        /// Query handle.
+        query: QueryId,
+    },
+    /// Reliability-scaled log-likelihood gap over `models`.
+    ModelDistinction {
+        /// Models to separate.
+        models: &'a [ModelId],
+    },
+    /// Preposterior expected value of sample information for `decision`.
+    Decision {
+        /// Decision problem handle.
+        decision: DecisionProblemId,
+    },
+}
+
+/// The scoring questions a design objective answers without exposing its match arms.
+pub trait ObjectiveScorer {
+    /// Channel the ranker, the facade and the Python binding dispatch on.
+    fn channel(&self) -> ObjectiveChannel<'_>;
+
+    /// Whether a non-decision score is an exact functional or a Monte Carlo estimate.
+    fn static_evaluation(&self) -> ScoreEvaluation;
+}
+
+impl ObjectiveScorer for DesignObjective {
+    fn channel(&self) -> ObjectiveChannel<'_> {
+        match self {
+            Self::ReduceGraphEntropy => ObjectiveChannel::GraphEntropy,
+            Self::IncreaseIdentificationProbability { query } => {
+                ObjectiveChannel::Identification { query: *query }
+            }
+            Self::ReduceEffectPosteriorWidth { query } => {
+                ObjectiveChannel::EffectWidth { query: *query }
+            }
+            Self::DistinguishModels { models } => {
+                ObjectiveChannel::ModelDistinction { models: models.as_ref() }
+            }
+            Self::ReduceDecisionRegret { decision } => {
+                ObjectiveChannel::Decision { decision: *decision }
+            }
+        }
+    }
+
+    fn static_evaluation(&self) -> ScoreEvaluation {
+        match self.channel() {
+            ObjectiveChannel::GraphEntropy
+            | ObjectiveChannel::Identification { .. }
+            | ObjectiveChannel::EffectWidth { .. } => ScoreEvaluation::Exact,
+            ObjectiveChannel::ModelDistinction { .. } | ObjectiveChannel::Decision { .. } => {
+                ScoreEvaluation::MonteCarlo
+            }
+        }
+    }
+}
+
 impl DesignObjective {
     /// Mathematics actually scored for this objective (not the historical public name).
     #[must_use]
@@ -65,6 +134,41 @@ impl DesignObjective {
                 "preposterior_expected_value_of_sample_information"
             }
             Self::DistinguishModels { .. } => "heuristic_reliability_scaled_loglik_gap",
+        }
+    }
+
+    /// Build an objective from the Python / facade label.
+    ///
+    /// `eig` is the historical alias for heuristic graph-channel entropy.
+    ///
+    /// # Errors
+    /// An unknown label, or a label that is missing the id it requires.
+    pub fn from_label(
+        kind: &str,
+        query: Option<QueryId>,
+        models: Option<&[ModelId]>,
+        decision: Option<DecisionProblemId>,
+    ) -> Result<Self, String> {
+        match kind {
+            "reduce_graph_entropy" | "eig" => Ok(Self::ReduceGraphEntropy),
+            "increase_identification_probability" | "id_probability" => query
+                .map(|query| Self::IncreaseIdentificationProbability { query })
+                .ok_or_else(|| "increase_identification_probability requires query_id".to_owned()),
+            "reduce_effect_posterior_width" | "effect_width" => query
+                .map(|query| Self::ReduceEffectPosteriorWidth { query })
+                .ok_or_else(|| "reduce_effect_posterior_width requires query_id".to_owned()),
+            "reduce_decision_regret" | "decision_regret" => decision
+                .map(|decision| Self::ReduceDecisionRegret { decision })
+                .ok_or_else(|| "reduce_decision_regret requires decision_id".to_owned()),
+            "distinguish_models" => {
+                let models =
+                    models.ok_or_else(|| "distinguish_models requires model_ids".to_owned())?;
+                if models.len() < 2 {
+                    return Err("distinguish_models needs ≥2 model_ids".to_owned());
+                }
+                Ok(Self::DistinguishModels { models: Arc::from(models) })
+            }
+            other => Err(format!("unknown objective `{other}`")),
         }
     }
 

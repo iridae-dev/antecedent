@@ -16,7 +16,7 @@
 # Records it covers are reported as `attested_by_replay (waiver <id>)`, never
 # as plain attested. A waiver that fails validation fails `check`.
 #
-# One path, on every PR, every push to main and every release cut:
+# One path, on every PR, every push to main and every release candidate:
 #   * the list must cover every crate, manifest and suite, facet boundaries must
 #     hold, and every waiver must be valid;
 #   * every record must be attested (its facets unchanged since its

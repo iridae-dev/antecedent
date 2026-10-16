@@ -8,15 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::needless_range_loop,
-    clippy::many_single_char_names,
-    clippy::similar_names,
-    clippy::trivially_copy_pass_by_ref,
-    clippy::neg_cmp_op_on_partial_ord
-)]
-
 use antecedent_core::KernelPolicy;
 use antecedent_kernels::{sanitize_weight, weighted_mean};
 
@@ -126,6 +117,10 @@ impl ZDesign {
     /// # Errors
     ///
     /// [`StatsError::Shape`] on a non-finite or short target.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     pub(crate) fn residuals(&self, target: &[f64]) -> Result<Vec<f64>, StatsError> {
         let n = self.n;
         if target.len() < n || target[..n].iter().any(|v| !v.is_finite()) {
@@ -174,15 +169,28 @@ pub(crate) fn ensure_valid_weights(weights: &[f64]) -> Result<(), StatsError> {
 }
 
 /// Weighted Pearson correlation with weighted centering (`weights` are sanitised).
+///
+/// # Errors
+///
+/// [`StatsError::Shape`] when `x`, `y`, and `weights` do not share a length.
+/// `Ok(None)` is a defined correlation that has no variance.
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "kept by reference to match the shared kernel-policy plumbing"
+)]
 pub(crate) fn weighted_pearson(
     policy: &KernelPolicy,
     x: &[f64],
     y: &[f64],
     weights: &[f64],
-) -> Option<f64> {
+) -> Result<Option<f64>, StatsError> {
     let n = x.len();
-    let mx = weighted_mean(policy, x, weights)?;
-    let my = weighted_mean(policy, y, weights)?;
+    let mismatch = StatsError::Shape { message: "weighted correlation length mismatch" };
+    let mx = weighted_mean(policy, x, weights).map_err(|_| mismatch.clone())?;
+    let my = weighted_mean(policy, y, weights).map_err(|_| mismatch)?;
+    let (Some(mx), Some(my)) = (mx, my) else {
+        return Ok(None);
+    };
     let mut cxx = 0.0;
     let mut cyy = 0.0;
     let mut cxy = 0.0;
@@ -195,13 +203,13 @@ pub(crate) fn weighted_pearson(
         cxy += w * dx * dy;
     }
     if !(cxx > 0.0 && cyy > 0.0) {
-        return None;
+        return Ok(None);
     }
     let denom = (cxx * cyy).sqrt();
     if !denom.is_finite() || denom == 0.0 {
-        return None;
+        return Ok(None);
     }
-    Some((cxy / denom).clamp(-1.0, 1.0))
+    Ok(Some((cxy / denom).clamp(-1.0, 1.0)))
 }
 
 /// Sum of squares of `v` about its plain mean (the information in an unconditioned column).
@@ -215,6 +223,10 @@ pub(crate) fn centered_sum_squares(v: &[f64]) -> f64 {
 
 /// Whether a residual carries no information about its column: the column is constant, or
 /// the conditioning set explains it to working precision.
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 pub(crate) fn residual_is_uninformative(raw: &[f64], resid: &[f64]) -> bool {
     let raw_ss = centered_sum_squares(raw);
     let res_ss: f64 = resid.iter().map(|v| v * v).sum();
@@ -229,17 +241,7 @@ pub(crate) const EXPLAINED_BY_Z_REL_SS: f64 = 1e-20;
 mod tests {
     use super::*;
 
-    fn lcg(n: usize, seed: u64) -> Vec<f64> {
-        let mut s = seed;
-        (0..n)
-            .map(|_| {
-                s = s
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                ((s >> 33) as f64) / ((1u64 << 31) as f64) - 0.5
-            })
-            .collect()
-    }
+    use crate::test_util::centered_uniform as lcg;
 
     /// Ordinary least squares on `[1, z]` for one conditioner, from closed-form simple
     /// regression: `beta = cov(z,t) / var(z)`.

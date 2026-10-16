@@ -1,7 +1,12 @@
-//! Checked TemporalCpdag class-envelope and graph-posterior temporal mediation.
+//! Checked `TemporalCpdag` class-envelope and graph-posterior temporal mediation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AcceptedGraph, Arc, CausalError, CausalQuery, DataInput, EstimatorId, ExecutionContext,
+    GraphClass, GraphPosterior, IdentifierId, InferenceMode, PhysicalExecutionPlan, RefuteSuite,
+    Study, StudyResult, TableView, TimeSeriesData,
+};
+use crate::analysis::prepared::Inspect;
 use crate::analysis::prepared::{
     CachedDbnPosteriorIdentification, CachedTemporalClassIdentification,
     CachedTemporalClassPosteriorIdentification,
@@ -16,21 +21,21 @@ use antecedent_discovery::GraphPosteriorAtomKind;
 /// and the plan against these before any estimation runs.
 #[derive(Clone)]
 pub(crate) enum CheckedTemporalMediationProof {
-    /// Fixed TemporalCpdag: one completion envelope per requested horizon.
+    /// Fixed `TemporalCpdag`: one completion envelope per requested horizon.
     ClassEnvelope {
         graph: AcceptedGraph,
-        cache: CachedTemporalClassIdentification,
+        cache: Arc<CachedTemporalClassIdentification>,
         max_completions: Option<usize>,
         class_prior: Option<crate::ClassPrior>,
     },
-    /// TemporalCpdag posterior atoms, each carrying its completion envelope.
+    /// `TemporalCpdag` posterior atoms, each carrying its completion envelope.
     ClassPosterior {
         posterior: GraphPosterior,
-        cache: CachedTemporalClassPosteriorIdentification,
+        cache: Arc<CachedTemporalClassPosteriorIdentification>,
         max_completions: Option<usize>,
     },
-    /// TemporalDag (DBN) posterior atoms with per-horizon mediation sets.
-    DbnPosterior { posterior: GraphPosterior, cache: CachedDbnPosteriorIdentification },
+    /// `TemporalDag` (DBN) posterior atoms with per-horizon mediation sets.
+    DbnPosterior { posterior: GraphPosterior, cache: Arc<CachedDbnPosteriorIdentification> },
 }
 
 impl CheckedTemporalMediationProof {
@@ -44,7 +49,7 @@ impl CheckedTemporalMediationProof {
 }
 
 /// Frozen mediation target, structural proof, inference procedure, and
-/// validation contract for a TemporalCpdag envelope or a temporal graph
+/// validation contract for a `TemporalCpdag` envelope or a temporal graph
 /// posterior. Execution composes the retained proof over the existing class
 /// and posterior mediation executors without consulting the builder.
 #[derive(Clone)]
@@ -54,7 +59,7 @@ pub(crate) struct CheckedTemporalClassMediationOperation {
     inference: InferenceMode,
     bootstrap_replicates: u32,
     validation: RefuteSuite,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     schema: antecedent_core::CausalSchema,
     structure_source: crate::support::StructureSource,
     graph_class: GraphClass,
@@ -77,8 +82,8 @@ impl std::fmt::Debug for CheckedTemporalClassMediationOperation {
 
 impl CheckedTemporalClassMediationOperation {
     /// Whether `study` is a coordinate this operation seals: a series mediation
-    /// target on a fixed TemporalCpdag, a TemporalCpdag posterior, or a
-    /// TemporalDag posterior, with the default point-estimate settings.
+    /// target on a fixed `TemporalCpdag`, a `TemporalCpdag` posterior, or a
+    /// `TemporalDag` posterior, with the default point-estimate settings.
     ///
     /// The one-shot facade and the prepared builder share this predicate so a
     /// study that prepares into this operation is exactly the study the facade
@@ -92,7 +97,7 @@ impl CheckedTemporalClassMediationOperation {
             || study.tiered.is_some()
             || study.split.is_some()
             || !study.custom_validators.is_empty()
-            || !matches!(study.refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !study.refute.is_point()
         {
             return false;
         }
@@ -134,7 +139,7 @@ impl CheckedTemporalClassMediationOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TimeSeriesData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -143,14 +148,14 @@ impl CheckedTemporalClassMediationOperation {
                         .into(),
             });
         };
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if !Self::admits(study) || physical.logical.query != study.query {
             return Err(CausalError::Compile {
                 message: "temporal class mediation structure, target, validation, or plan changed after preparation".into(),
             });
         }
         let expected_estimator = EstimatorId::temporal_mediation_for(&study.inference);
-        if physical.logical.record.estimator.as_deref() != Some(expected_estimator.as_str()) {
+        if !physical.binding().estimator.is(expected_estimator) {
             return Err(CausalError::Compile {
                 message:
                     "temporal class mediation estimator differs from its checked physical plan"
@@ -158,91 +163,11 @@ impl CheckedTemporalClassMediationOperation {
             });
         }
         let proof = match study.graph_posterior.as_ref() {
-            None => {
-                Self::check_plan_record(
-                    physical,
-                    "temporal_mediation_class",
-                    "generalized.adjustment",
-                )?;
-                let cache =
-                    study.temporal_class_identification_cache.as_deref().ok_or_else(|| {
-                        CausalError::Compile {
-                            message: "temporal class mediation proof was not prepared".into(),
-                        }
-                    })?;
-                for &horizon in query.horizons.iter() {
-                    let cached = cache
-                        .by_horizon
-                        .iter()
-                        .find(|(member, _)| *member == horizon)
-                        .map(|(_, cached)| cached)
-                        .ok_or_else(|| CausalError::Compile {
-                            message: format!(
-                                "temporal class mediation proof missing horizon {horizon}"
-                            ),
-                        })?;
-                    if cached.envelope.cases.is_empty() {
-                        return Err(CausalError::Compile {
-                            message: format!(
-                                "temporal class mediation proof has no completions at horizon {horizon}"
-                            ),
-                        });
-                    }
-                }
-                CheckedTemporalMediationProof::ClassEnvelope {
-                    graph: study.graph.clone(),
-                    cache: cache.clone(),
-                    max_completions: study.max_completions,
-                    class_prior: study.class_prior.clone(),
-                }
-            }
+            None => Self::class_envelope_proof(study, physical, query)?,
             Some(posterior) if posterior.atom_kind == GraphPosteriorAtomKind::Cpdag => {
-                Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
-                let cache = study
-                    .temporal_class_posterior_identification_cache
-                    .as_deref()
-                    .ok_or_else(|| CausalError::Compile {
-                        message: "temporal class posterior mediation proof was not prepared".into(),
-                    })?;
-                if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
-                    || cache.graphs.n_samples != posterior.n_graphs
-                {
-                    return Err(CausalError::Compile {
-                        message: "temporal class posterior mediation proof does not bind the frozen posterior".into(),
-                    });
-                }
-                CheckedTemporalMediationProof::ClassPosterior {
-                    posterior: posterior.clone(),
-                    cache: cache.clone(),
-                    max_completions: study.max_completions,
-                }
+                Self::class_posterior_proof(study, physical, posterior)?
             }
-            Some(posterior) => {
-                Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
-                let cache =
-                    study.dbn_posterior_identification_cache.as_deref().ok_or_else(|| {
-                        CausalError::Compile {
-                            message: "DBN posterior mediation proof was not prepared".into(),
-                        }
-                    })?;
-                if cache.atoms.is_empty() {
-                    return Err(CausalError::Compile {
-                        message: "DBN posterior mediation proof retained no atoms".into(),
-                    });
-                }
-                if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
-                    || cache.graphs.n_samples != posterior.n_graphs
-                {
-                    return Err(CausalError::Compile {
-                        message: "DBN posterior mediation proof does not bind the frozen posterior"
-                            .into(),
-                    });
-                }
-                CheckedTemporalMediationProof::DbnPosterior {
-                    posterior: posterior.clone(),
-                    cache: cache.clone(),
-                }
-            }
+            Some(posterior) => Self::dbn_posterior_proof(study, physical, posterior)?,
         };
         Ok(Self {
             proof,
@@ -258,13 +183,115 @@ impl CheckedTemporalClassMediationOperation {
         })
     }
 
+    /// The proof of an explicit `TemporalCpdag` mediation: the prepared class
+    /// envelope must cover every requested horizon with completions.
+    fn class_envelope_proof(
+        study: &Study,
+        physical: &PhysicalExecutionPlan,
+        query: &antecedent_core::MediationQuery,
+    ) -> Result<CheckedTemporalMediationProof, CausalError> {
+        Self::check_plan_record(physical, "temporal_mediation_class", "generalized.adjustment")?;
+        let cache = study.temporal_class_identification_cache.as_ref().ok_or_else(|| {
+            CausalError::Compile {
+                message: "temporal class mediation proof was not prepared".into(),
+            }
+        })?;
+        for &horizon in query.horizons.iter() {
+            let cached = cache
+                .by_horizon
+                .iter()
+                .find(|(member, _)| *member == horizon)
+                .map(|(_, cached)| cached)
+                .ok_or_else(|| CausalError::Compile {
+                    message: format!("temporal class mediation proof missing horizon {horizon}"),
+                })?;
+            if cached.envelope.cases.is_empty() {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "temporal class mediation proof has no completions at horizon {horizon}"
+                    ),
+                });
+            }
+        }
+
+        Ok(CheckedTemporalMediationProof::ClassEnvelope {
+            graph: (*study.graph).clone(),
+            cache: Arc::clone(cache),
+            max_completions: study.max_completions,
+            class_prior: study.class_prior.clone(),
+        })
+    }
+
+    /// The proof of a `TemporalCpdag` graph posterior mediation: the prepared
+    /// class posterior cache must bind the frozen posterior weights.
+    fn class_posterior_proof(
+        study: &Study,
+        physical: &PhysicalExecutionPlan,
+        posterior: &antecedent_discovery::GraphPosterior,
+    ) -> Result<CheckedTemporalMediationProof, CausalError> {
+        Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
+        let cache =
+            study.temporal_class_posterior_identification_cache.as_ref().ok_or_else(|| {
+                CausalError::Compile {
+                    message: "temporal class posterior mediation proof was not prepared".into(),
+                }
+            })?;
+        if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
+            || cache.graphs.n_samples != posterior.n_graphs
+        {
+            return Err(CausalError::Compile {
+                message:
+                    "temporal class posterior mediation proof does not bind the frozen posterior"
+                        .into(),
+            });
+        }
+
+        Ok(CheckedTemporalMediationProof::ClassPosterior {
+            posterior: posterior.clone(),
+            cache: Arc::clone(cache),
+            max_completions: study.max_completions,
+        })
+    }
+
+    /// The proof of a `TemporalDag` graph posterior mediation: the prepared DBN
+    /// posterior cache must hold atoms and bind the frozen posterior weights.
+    fn dbn_posterior_proof(
+        study: &Study,
+        physical: &PhysicalExecutionPlan,
+        posterior: &antecedent_discovery::GraphPosterior,
+    ) -> Result<CheckedTemporalMediationProof, CausalError> {
+        Self::check_plan_record(physical, "temporal_mediation", "temporal.mediation")?;
+        let cache = study.dbn_posterior_identification_cache.as_ref().ok_or_else(|| {
+            CausalError::Compile {
+                message: "DBN posterior mediation proof was not prepared".into(),
+            }
+        })?;
+        if cache.atoms.is_empty() {
+            return Err(CausalError::Compile {
+                message: "DBN posterior mediation proof retained no atoms".into(),
+            });
+        }
+        if cache.graphs.weights.as_ref() != posterior.weights.as_ref()
+            || cache.graphs.n_samples != posterior.n_graphs
+        {
+            return Err(CausalError::Compile {
+                message: "DBN posterior mediation proof does not bind the frozen posterior".into(),
+            });
+        }
+
+        Ok(CheckedTemporalMediationProof::DbnPosterior {
+            posterior: posterior.clone(),
+            cache: Arc::clone(cache),
+        })
+    }
+
     fn check_plan_record(
         physical: &PhysicalExecutionPlan,
         plan_id: &str,
         identifier: &str,
     ) -> Result<(), CausalError> {
         if physical.logical.record.plan_id.as_ref() != plan_id
-            || physical.logical.record.identifier.as_deref() != Some(identifier)
+            || !physical.binding().identifier.is_wire(identifier)
         {
             return Err(CausalError::Compile {
                 message: "temporal class mediation plan record differs from its retained proof"
@@ -336,17 +363,17 @@ impl CheckedTemporalClassMediationOperation {
     pub(crate) fn proof_signature(&self) -> Arc<str> {
         match &self.proof {
             CheckedTemporalMediationProof::ClassEnvelope { graph, .. } => {
-                Arc::from(format!("{graph:?}"))
+                Arc::from(accepted_graph_signature(graph))
             }
             CheckedTemporalMediationProof::ClassPosterior { posterior, .. }
             | CheckedTemporalMediationProof::DbnPosterior { posterior, .. } => Arc::from(format!(
-                "{}:{:?}:{:?}:{:?}:{:?}:{:?}",
+                "{}:{}:{}:{}:{}:{}",
                 self.proof.name(),
-                posterior.weights.iter().map(|w| w.to_bits()).collect::<Vec<_>>(),
-                posterior.adjacency,
-                posterior.graph_keys,
-                posterior.lag_masks,
-                posterior.max_lag,
+                join_bits(&posterior.weights),
+                join_u64(&posterior.adjacency),
+                join_u64(&posterior.graph_keys),
+                posterior.lag_masks.as_deref().map_or_else(|| "none".to_string(), join_u64),
+                posterior.max_lag.map_or_else(|| "none".to_string(), |lag| lag.to_string()),
             )),
         }
     }
@@ -433,18 +460,18 @@ impl CheckedTemporalClassMediationOperation {
                 max_completions,
                 class_prior,
             } => {
-                click.graph = graph.clone();
+                click.graph = Arc::new(graph.clone());
                 click.graph_posterior = None;
                 click.identifier = Some(IdentifierId::GeneralizedAdjustment);
                 click.max_completions = *max_completions;
                 click.class_prior.clone_from(class_prior);
-                click.temporal_class_identification_cache = Some(Arc::new(cache.clone()));
+                click.temporal_class_identification_cache = Some(Arc::clone(cache));
                 click.execute_temporal_cpdag_mediation(series, &self.query, &self.physical, ctx)
             }
             CheckedTemporalMediationProof::ClassPosterior { posterior, cache, max_completions } => {
                 click.graph_posterior = Some(posterior.clone());
                 click.max_completions = *max_completions;
-                click.temporal_class_posterior_identification_cache = Some(Arc::new(cache.clone()));
+                click.temporal_class_posterior_identification_cache = Some(Arc::clone(cache));
                 click.execute_temporal_class_graph_posterior_mediation(
                     series,
                     posterior,
@@ -455,7 +482,7 @@ impl CheckedTemporalClassMediationOperation {
             }
             CheckedTemporalMediationProof::DbnPosterior { posterior, cache } => {
                 click.graph_posterior = Some(posterior.clone());
-                click.dbn_posterior_identification_cache = Some(Arc::new(cache.clone()));
+                click.dbn_posterior_identification_cache = Some(Arc::clone(cache));
                 click.execute_dbn_posterior_mediation(
                     series,
                     posterior,
@@ -482,4 +509,179 @@ fn same_posterior(retained: &GraphPosterior, current: &GraphPosterior) -> bool {
             .iter()
             .zip(current.weights.iter())
             .all(|(a, b)| a.to_bits() == b.to_bits())
+}
+
+fn join_u64(values: &[u64]) -> String {
+    let mut out = String::new();
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&value.to_string());
+    }
+    out
+}
+
+fn join_bits(values: &[f64]) -> String {
+    let mut out = String::new();
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&value.to_bits().to_string());
+    }
+    out
+}
+
+fn accepted_graph_signature(graph: &crate::AcceptedGraph) -> String {
+    let mut out = format!("class={};version={}", graph.class().as_str(), graph.version());
+    if let Some(names) = graph.variable_names() {
+        out.push_str(";names=");
+        for (index, name) in names.iter().enumerate() {
+            if index > 0 {
+                out.push(',');
+            }
+            out.push_str(name);
+        }
+    }
+    if let Some(dag) = graph.as_temporal_dag() {
+        out.push(';');
+        out.push_str(&crate::analysis::checked_temporal_effect::temporal_dag_signature(dag));
+    } else if let Some(cpdag) = graph.as_temporal_cpdag() {
+        out.push(';');
+        out.push_str(&marked_graph_signature(cpdag.nodes(), &cpdag.edges()));
+    }
+    out
+}
+
+fn marked_graph_signature(
+    nodes: &[antecedent_graph::NodeRef],
+    edges: &[antecedent_graph::MarkedEdge],
+) -> String {
+    let mut listed = edges.to_vec();
+    listed.sort_unstable_by_key(|edge| {
+        (
+            edge.a.raw(),
+            edge.b.raw(),
+            endpoint_tag(edge.at_a),
+            endpoint_tag(edge.at_b),
+            middle_tag(edge.middle),
+        )
+    });
+    let mut out = String::from("nodes=");
+    for (index, node) in nodes.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        match node {
+            antecedent_graph::NodeRef::Lagged { variable, lag } => {
+                out.push('l');
+                out.push_str(&variable.raw().to_string());
+                out.push('@');
+                out.push_str(&lag.raw().to_string());
+            }
+            antecedent_graph::NodeRef::Context { variable, environment } => {
+                out.push('c');
+                out.push_str(
+                    &environment.map_or(u32::MAX, antecedent_core::EnvironmentId::raw).to_string(),
+                );
+                out.push(':');
+                out.push_str(&variable.raw().to_string());
+            }
+            antecedent_graph::NodeRef::Static(variable) => {
+                out.push('s');
+                out.push_str(&variable.raw().to_string());
+            }
+            antecedent_graph::NodeRef::Unfolded { variable, offset } => {
+                out.push('u');
+                out.push_str(&variable.raw().to_string());
+                out.push('@');
+                out.push_str(&offset.to_string());
+            }
+        }
+    }
+    out.push_str(";edges=");
+    for (index, edge) in listed.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(&edge.a.raw().to_string());
+        out.push(endpoint_tag(edge.at_a));
+        out.push(middle_tag(edge.middle));
+        out.push(endpoint_tag(edge.at_b));
+        out.push_str(&edge.b.raw().to_string());
+    }
+    out
+}
+
+fn endpoint_tag(endpoint: antecedent_graph::Endpoint) -> char {
+    match endpoint {
+        antecedent_graph::Endpoint::Tail => 't',
+        antecedent_graph::Endpoint::Arrow => 'a',
+        antecedent_graph::Endpoint::Circle => 'o',
+        antecedent_graph::Endpoint::Conflict => 'x',
+    }
+}
+
+fn middle_tag(middle: antecedent_graph::MiddleMark) -> char {
+    match middle {
+        antecedent_graph::MiddleMark::Unknown => '?',
+        antecedent_graph::MiddleMark::Left => 'L',
+        antecedent_graph::MiddleMark::Right => 'R',
+        antecedent_graph::MiddleMark::Both => '!',
+        antecedent_graph::MiddleMark::Empty => '-',
+    }
+}
+
+/// Read-only target, structural proof, and procedure for a checked
+/// `TemporalCpdag` class-envelope or temporal graph-posterior mediation family.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalClassMediationInfo {
+    /// Exact mediation target and requested horizon family.
+    pub query: antecedent_core::MediationQuery,
+    /// Class of the fixed source graph or of the posterior's atoms.
+    pub graph_class: crate::accepted::GraphClass,
+    /// How the structure was supplied: explicit, accepted, or a graph posterior.
+    pub structure_source: crate::support::StructureSource,
+    /// Identifier recorded by the checked physical plan.
+    pub identifier: std::sync::Arc<str>,
+    /// Estimator family fixed at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite selected at preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Circular-block bootstrap budget fixed at preparation.
+    pub bootstrap_replicates: u32,
+    /// Horizon members retained in order.
+    pub horizons: std::sync::Arc<[u32]>,
+    /// Completion atoms (fixed class) or posterior atoms (graph posterior)
+    /// retained by the proof.
+    pub atom_count: usize,
+    /// Enumeration or posterior mass that identified.
+    pub identified_mass: f64,
+    /// Enumeration or posterior mass that stays unidentified.
+    pub unidentified_mass: f64,
+    /// Signature of the retained source graph or frozen posterior.
+    pub proof_signature: std::sync::Arc<str>,
+}
+
+impl Inspect for CheckedTemporalClassMediationOperation {
+    type Info = CheckedTemporalClassMediationInfo;
+
+    fn info(&self) -> CheckedTemporalClassMediationInfo {
+        let (atom_count, identified_mass, unidentified_mass) = self.proof_mass();
+        CheckedTemporalClassMediationInfo {
+            query: self.query().clone(),
+            graph_class: self.graph_class(),
+            structure_source: self.structure_source(),
+            identifier: self.identifier(),
+            estimator: self.estimator(),
+            validation: self.validation(),
+            bootstrap_replicates: self.bootstrap_replicates(),
+            horizons: Arc::clone(&self.query().horizons),
+            atom_count,
+            identified_mass,
+            unidentified_mass,
+            proof_signature: self.proof_signature(),
+        }
+    }
 }

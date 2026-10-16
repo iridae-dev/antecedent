@@ -62,6 +62,8 @@ _EXPECTED_ALL = {
     "ResponseJacobian",
     "SemiElasticity",
     "SustainedEffect",
+    "TemporalConditionalPulse",
+    "TemporalConditionalSustained",
     "TemporalMediationEffect",
     # Graphs (five graph classes)
     "Dag",
@@ -407,14 +409,21 @@ _EXPECTED_STAGE_ALL = {
         "EffectValidator",
         "ExecutableProvider",
         "MechanismWrapper",
+        "ProviderCapability",
         "ProviderTrust",
         "ProviderExecution",
         "ProviderRegistry",
         "ProviderResult",
         "ProviderQuery",
+        "ProviderRefusal",
+        "ProviderValueRefusal",
         "ProviderVerificationFixture",
+        "ProviderVerificationReceipt",
         "ProviderVerificationReport",
+        "UncertaintySemantics",
+        "UnknownProviderError",
         "UtilityFn",
+        "VerifiedRequest",
         "providers",
     },
     "gcm": {
@@ -540,6 +549,9 @@ _EXPECTED_STAGE_ALL = {
         "validate_synthetic_null_calibration",
     },
     "transport.advanced": {
+        "AugmentedResponseGrid",
+        "SelectionOverlap",
+        "estimate_augmented_response_grid",
         "AdjustedContrast",
         "ClassicalTransportIdentification",
         "CompletionCounts",
@@ -547,6 +559,13 @@ _EXPECTED_STAGE_ALL = {
         "CompletionPoint",
         "CompletionReceipt",
         "ConditionalTransportQuery",
+        "CounterfactualEvent",
+        "CounterfactualTransportDecision",
+        "CounterfactualTransportDerivation",
+        "CounterfactualTransportQuery",
+        "CounterfactualTransportResult",
+        "CounterfactualTransportSource",
+        "CounterfactualWorld",
         "CpdagCompletion",
         "CpdagScenarioRefusal",
         "CpdagScenarioResult",
@@ -594,8 +613,13 @@ _EXPECTED_STAGE_ALL = {
         "RegimeBinding",
         "RegimeSample",
         "RowTable",
+        "SampledCountTable",
+        "SampledCounterfactualTransportEstimate",
         "SampledRecoveryCandidate",
         "SampledRecoveryIdentity",
+        "SampledTableKey",
+        "SampledTransportLimits",
+        "SamplingOverlap",
         "ScenarioCovarianceRefusal",
         "ScenarioCovarianceResult",
         "ScenarioEstimator",
@@ -618,6 +642,8 @@ _EXPECTED_STAGE_ALL = {
         "TemporalPremises",
         "TemporalRefreshResult",
         "TemporalSequenceSpec",
+        "UnrolledSequence",
+        "unroll_two_slice",
         "TemporalUnitPanel",
         "TemporalWindow",
         "TransportCertificate",
@@ -632,6 +658,7 @@ _EXPECTED_STAGE_ALL = {
         "TrialAipwQuery",
         "TrialNuisanceDiagnostics",
         "TrialTransportEstimate",
+        "UnseenCellRule",
         "VariableCoordinate",
         "ZTransportCandidate",
         "ZTransportQuery",
@@ -641,6 +668,7 @@ _EXPECTED_STAGE_ALL = {
         "binary_nested_markov_fisher_interval",
         "consume_admg_conditional_obstruction_artifact",
         "consume_admg_conditional_transport_artifact",
+        "consume_counterfactual_transport_artifact",
         "consume_cpdag_scenarios_artifact",
         "consume_exact",
         "consume_identification",
@@ -651,6 +679,7 @@ _EXPECTED_STAGE_ALL = {
         "consume_multi_source_z_transport_artifact",
         "consume_observation_recovery_artifact",
         "consume_response_grid",
+        "consume_sampled_counterfactual_transport_artifact",
         "consume_scenario_covariance_artifact",
         "consume_smoothed_dose",
         "consume_statistical",
@@ -670,6 +699,7 @@ _EXPECTED_STAGE_ALL = {
         "identify",
         "identify_admg_conditional_transport",
         "identify_classical",
+        "identify_counterfactual",
         "identify_meta",
         "identify_mixed_source_transport",
         "identify_multi_source_z_transport",
@@ -749,7 +779,20 @@ def _deliberate_unlisted_reachable_imports_from_init_py() -> set[str]:
     source = read_text(Path(antecedent.__file__))
     tree = ast.parse(source, filename=antecedent.__file__)
     names: set[str] = set()
-    for node in ast.walk(tree):
+    for node in ast.walk(
+        ast.Module(
+            body=[
+                node
+                for node in tree.body
+                if not (
+                    isinstance(node, ast.If)
+                    and isinstance(node.test, ast.Name)
+                    and node.test.id == "_TYPE_CHECKING"
+                )
+            ],
+            type_ignores=[],
+        )
+    ):
         if not isinstance(node, ast.ImportFrom):
             continue
         if node.module is not None or node.level != 1:
@@ -784,7 +827,7 @@ def test_stage_module_all_is_frozen(module_name):
     ("module_name", "name"),
     [
         ("interference", "InterferencePointwiseInterval"),
-        ("handoff", "EconMLProviderAdapter"),
+        ("handoff", "AdjustmentProviderAdapter"),
     ],
 )
 def test_public_result_types_are_listed_in_their_module_all(module_name, name):
@@ -792,6 +835,23 @@ def test_public_result_types_are_listed_in_their_module_all(module_name, name):
     module = importlib.import_module(f"antecedent.{module_name}")
     assert name in module.__all__
     assert getattr(module, name) is not None
+
+
+def test_handoff_econml_names_are_aliases():
+    """Neutral names are the API; EconML names remain the same objects."""
+    handoff = importlib.import_module("antecedent.handoff")
+    assert handoff.adjustment is handoff.econml
+    assert handoff.AdjustmentHandoff is handoff.EconMLSpec
+    assert handoff.AdjustmentProviderAdapter is handoff.EconMLProviderAdapter
+    for name in (
+        "AdjustmentHandoff",
+        "AdjustmentProviderAdapter",
+        "adjustment",
+        "EconMLSpec",
+        "EconMLProviderAdapter",
+        "econml",
+    ):
+        assert name in handoff.__all__
 
 
 def test_estimators_module_is_reachable_and_not_root_exported():
@@ -852,3 +912,20 @@ def test_attribute_paths_discovered_runs_end_to_end():
     assert edges
     assert result is not None
     assert hasattr(result, "total_change")
+
+
+def test_every_lazy_module_has_a_static_type_declaration():
+    tree = ast.parse(read_text(Path(antecedent.__file__)))
+    declarations = {
+        alias.name
+        for node in tree.body
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Name)
+        and node.test.id == "_TYPE_CHECKING"
+        for statement in node.body
+        if isinstance(statement, ast.ImportFrom)
+        and statement.level == 1
+        and statement.module is None
+        for alias in statement.names
+    }
+    assert set(antecedent._LAZY_MODULES) <= declarations

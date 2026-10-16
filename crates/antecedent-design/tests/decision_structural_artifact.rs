@@ -1,6 +1,6 @@
 //! Portable structural decision results: retention, refusal, replay, fresh reader.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
@@ -8,25 +8,17 @@ use antecedent_design::decision_structural::{
     AtomEvidence, AtomStatus, StructuralAtom, StructuralVerdict, evaluate_structural,
 };
 use antecedent_design::decision_structural_artifact::StructuralResultArtifact;
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::near_lt_1e12 as near;
+
+mod common;
 
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 /// One structure's exact law: action A and B payoffs, two equally likely rows.
@@ -91,7 +83,7 @@ fn contract(policy: StructuralPolicy) -> DecisionContract {
     }
 }
 
-/// The frozen F6 structures: A=(2,-1), B=(0,1), no atom probabilities.
+/// The frozen structural-policy structures: A=(2,-1), B=(0,1), no atom probabilities.
 fn frozen_atoms() -> Vec<StructuralAtom> {
     vec![evaluated("graph-1", None, 2.0, 0.0), evaluated("graph-2", None, -1.0, 1.0)]
 }
@@ -105,10 +97,6 @@ fn weighted_atoms() -> Vec<StructuralAtom> {
     ]
 }
 
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
-}
-
 fn retained(atoms: &[StructuralAtom]) -> Vec<(String, Option<String>)> {
     StructuralResultArtifact::new(
         evaluate_structural(&contract(StructuralPolicy::Maximin), atoms).unwrap(),
@@ -119,7 +107,7 @@ fn retained(atoms: &[StructuralAtom]) -> Vec<(String, Option<String>)> {
 }
 
 #[test]
-fn f6_artifact_retains_atom_ids_unidentified_mass_and_declared_policy() {
+fn artifact_retains_atom_ids_unidentified_mass_and_declared_policy() {
     let c = contract(StructuralPolicy::Maximin);
     let identity = c.identity().unwrap();
     let atoms = frozen_atoms();
@@ -178,7 +166,7 @@ fn f6_artifact_retains_atom_ids_unidentified_mass_and_declared_policy() {
 }
 
 #[test]
-fn f6_artifact_refuses_other_contract_other_atom_ids_changed_digests_and_tampering() {
+fn artifact_refuses_other_contract_other_atom_ids_changed_digests_and_tampering() {
     let c = contract(StructuralPolicy::Maximin);
     let identity = c.identity().unwrap();
     let atoms = frozen_atoms();
@@ -223,7 +211,7 @@ fn f6_artifact_refuses_other_contract_other_atom_ids_changed_digests_and_tamperi
 }
 
 #[test]
-fn f6_replay_recomputes_and_refuses_a_changed_verdict_or_number() {
+fn replay_recomputes_and_refuses_a_changed_verdict_or_number() {
     let c = contract(StructuralPolicy::Maximin);
     let atoms = frozen_atoms();
     let result = evaluate_structural(&c, &atoms).unwrap();
@@ -263,7 +251,7 @@ fn f6_replay_recomputes_and_refuses_a_changed_verdict_or_number() {
 }
 
 #[test]
-fn f6_fresh_process_consumer_rebuilds_atoms_from_constants_and_replays() {
+fn fresh_process_consumer_rebuilds_atoms_from_constants_and_replays() {
     const PATH_ENV: &str = "ANTECEDENT_23_STRUCTURAL_TEST_DIR";
     if let Ok(dir) = std::env::var(PATH_ENV) {
         let dir = std::path::PathBuf::from(dir);
@@ -293,7 +281,7 @@ fn f6_fresh_process_consumer_rebuilds_atoms_from_constants_and_replays() {
     std::fs::write(dir.join("structural.bin"), artifact.to_bytes("s").unwrap()).unwrap();
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("f6_fresh_process_consumer_rebuilds_atoms_from_constants_and_replays")
+        .arg("fresh_process_consumer_rebuilds_atoms_from_constants_and_replays")
         .env(PATH_ENV, &dir)
         .output()
         .unwrap();

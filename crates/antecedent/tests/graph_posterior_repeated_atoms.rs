@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, ResponseFunctional,
@@ -87,9 +87,11 @@ fn posterior(masks: &[u64], weights: &[f64]) -> GraphPosterior {
         masks.to_vec(),
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("repeated_atoms"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("repeated_atoms"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -152,7 +154,11 @@ fn envelope_masses(result: &StudyResult) -> (f64, f64) {
 fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     let data = binary_data(0x2A70);
     let only = |mask: u64| {
-        run(&data, posterior(&[mask], &[1.0]), ate_query(), InferenceMode::Frequentist).estimate.ate
+        run(&data, posterior(&[mask], &[1.0]), ate_query(), InferenceMode::Frequentist)
+            .estimate
+            .as_effect()
+            .unwrap()
+            .ate
     };
     let (ate_a, ate_b) = (only(direct()), only(adjusted()));
     assert!((ate_a - ate_b).abs() > 0.5, "atoms must identify different effects");
@@ -161,8 +167,11 @@ fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     // Direct and adjusted atoms disagree on estimand identity, so the scalar is
     // withheld under GraphDependentAtoms; coalescing repeated listings must not
     // change masses or the identified set.
-    assert!(result.estimate.ate.is_nan(), "scalar ate withheld under GraphDependentAtoms");
-    assert!(result.estimate.se_analytic.is_nan());
+    assert!(
+        result.estimate.as_effect().unwrap().ate.is_nan(),
+        "scalar ate withheld under GraphDependentAtoms"
+    );
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     let structural = result.structural_response.as_ref().unwrap();
     let set = structural.identified_set.as_ref().unwrap();
     assert_eq!(set.lower.len(), 1);
@@ -175,7 +184,7 @@ fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     assert!((identified + unidentified - 1.0).abs() < 1e-12);
 
     let reference = run(&data, coalesced(), ate_query(), InferenceMode::Frequentist);
-    assert!(reference.estimate.ate.is_nan());
+    assert!(reference.estimate.as_effect().unwrap().ate.is_nan());
     let ref_set = reference.structural_response.as_ref().unwrap().identified_set.as_ref().unwrap();
     assert!((set.lower[0] - ref_set.lower[0]).abs() < 1e-12);
     assert!((set.upper[0] - ref_set.upper[0]).abs() < 1e-12);
@@ -251,7 +260,7 @@ fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
         );
         assert!((mixed - ref_mixed).abs() < 1e-12);
         if matches!(inference, InferenceMode::Frequentist) {
-            let se = |r: &StudyResult| match r.response.as_ref().unwrap().uncertainty {
+            let se = |r: &StudyResult| match r.response().unwrap().uncertainty {
                 ResponseUncertainty::Scalar { standard_error, .. } => standard_error,
                 ref other => panic!("joint-IF scalar interval expected, got {other:?}"),
             };

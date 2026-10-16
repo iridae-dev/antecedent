@@ -6,7 +6,7 @@
 
 [[closed]]
 queries = ["Counterfactual"]
-graph_classes = ["Admg", "Cpdag", "Pag"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
 reason = "Counterfactual requires a supplied static Dag."
 
 [[closed]]
@@ -18,19 +18,19 @@ queries = [
   "ResponseJacobian",
   "SemiElasticity",
 ]
-graph_classes = ["Admg", "Cpdag", "Pag"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
 reason = "Derivatives require a supplied static Dag."
 
 
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
-graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
+graph_classes = ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
 reason = "graph-posterior structures are refused: a path, distribution, or mediation mixture is not a single estimand across posterior atoms."
 
 [[closed]]
 queries = ["PathSpecificEffect"]
-graph_classes = ["Admg", "Cpdag", "Pag"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["accepted"]
 reason = "Accepted path queries require a Dag."
 
@@ -42,13 +42,13 @@ reason = "Accepted InterventionalDistribution is licensed on Dag and Admg; Cpdag
 
 [[closed]]
 queries = ["MediationEffect"]
-graph_classes = ["Admg", "Cpdag", "Pag"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
 reason = "MediationEffect requires a supplied static Dag."
 
 [[closed]]
 queries = ["AnomalyAttribution", "ChangeAttribution"]
-graph_classes = ["Admg", "Cpdag", "Pag"]
-reason = "AnomalyAttribution and ChangeAttribution require a supplied static Dag."
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
+reason = "AnomalyAttribution and ChangeAttribution require a supplied static Dag. The attribution engine has no lagged latent slice."
 
 [[closed]]
 queries = ["AnomalyAttribution", "ChangeAttribution"]
@@ -63,32 +63,49 @@ validations = ["cheap", "full"]
 reason = "Attribution has no native refuter suite; ATE refuters do not apply."
 
 [[closed]]
+queries = ["AnomalyAttribution", "ChangeAttribution"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+reason = "AnomalyAttribution and ChangeAttribution on a time graph require an explicit TemporalDag."
+
+[[closed]]
+queries = ["AnomalyAttribution", "ChangeAttribution"]
+graph_classes = ["TemporalDag"]
+structures = ["accepted", "graph_posterior"]
+reason = "Temporal attribution is licensed only for an explicit TemporalDag at validation none."
+
+[[closed]]
+queries = ["AnomalyAttribution", "ChangeAttribution"]
+graph_classes = ["TemporalDag"]
+validations = ["cheap", "full"]
+reason = "Temporal attribution has no native refuter suite; ATE refuters do not apply."
+
+[[closed]]
 queries = ["TransportQuery"]
 graph_classes = ["Dag", "Cpdag", "Pag"]
-reason = "Licensed TransportQuery is Admg-only; selection diagrams are ADMGs. Recursive sID outside the implemented subset is NotCertified."
+reason = "Licensed TransportQuery is an explicit Admg or TemporalAdmg; selection diagrams are ADMGs. Recursive sID outside the implemented subset is NotCertified."
 
 [[closed]]
 queries = ["TransportQuery"]
-graph_classes = ["Admg"]
+graph_classes = ["Admg", "TemporalAdmg"]
 structures = ["accepted"]
-reason = "TransportQuery is licensed only for an explicit Admg at validation none."
+reason = "TransportQuery is licensed only for an explicit Admg or TemporalAdmg at validation none."
 
 [[closed]]
 queries = ["TransportQuery"]
-graph_classes = ["Admg"]
+graph_classes = ["Admg", "TemporalAdmg"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]
 reason = "TransportQuery graph-posterior mixtures are not staged."
 
 [[closed]]
 queries = ["TransportQuery"]
-graph_classes = ["Admg"]
+graph_classes = ["Admg", "TemporalAdmg"]
 validations = ["cheap", "full"]
 reason = "TransportQuery has no native refuter suite; ATE refuters do not apply."
 
 [[closed]]
 queries = ["InterferenceQuery"]
-graph_classes = ["Admg", "Cpdag", "Pag"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
 reason = "Licensed InterferenceQuery is Dag-only; the graph binds schema/outcome, it does not identify the contrast."
 
 [[closed]]
@@ -112,14 +129,14 @@ reason = "InterferenceQuery has no native refuter suite; ATE refuters do not app
 
 [[closed]]
 queries = ["ConditionalEffect"]
-graph_classes = ["Admg"]
-reason = "ConditionalEffect on Admg has no compile arm; Dag, Cpdag, and Pag are licensed."
+graph_classes = ["Admg", "TemporalAdmg"]
+reason = "ConditionalEffect on Admg or TemporalAdmg has no compile arm; Dag, Cpdag, and Pag are licensed."
 
 [[closed]]
 queries = ["PathSpecificEffect"]
-graph_classes = ["Admg", "Pag"]
+graph_classes = ["Admg", "TemporalAdmg", "Pag"]
 structures = ["explicit"]
-reason = "Path-specific queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
+reason = "Path-specific queries execute only on a supplied static Dag; a directly supplied Admg, TemporalAdmg, or Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
 
 [[closed]]
 queries = ["InterventionalDistribution"]
@@ -129,10 +146,10 @@ reason = "Path and distribution queries execute only on a supplied static Dag or
 
 [[closed]]
 queries = ["InterventionalDistribution"]
-graph_classes = ["Admg"]
+graph_classes = ["Admg", "TemporalAdmg"]
 structures = ["explicit"]
 validations = ["cheap", "full"]
-reason = "ADMG InterventionalDistribution is licensed at validation none; cheap/full remain Dag-only."
+reason = "ADMG and TemporalAdmg InterventionalDistribution are licensed at validation none; cheap/full remain Dag-only."
 
 [[closed]]
 queries = ["TemporalMediationEffect"]
@@ -154,7 +171,7 @@ queries = [
   "TransportQuery",
   "InterferenceQuery",
 ]
-graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
+graph_classes = ["Dag", "Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
 inferences = ["Frequentist"]
 reason = "Frequentist graph-posterior mixing on DAG atoms is licensed for AverageEffect, ConditionalEffect, and static ResponseCurve/one-coordinate InterventionResponse. The listed static families remain unsupported."
@@ -184,7 +201,7 @@ reason = "Path-specific queries execute only on a supplied static Dag and distri
 
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
-graph_classes = ["Cpdag", "Admg", "Pag"]
+graph_classes = ["Cpdag", "Admg", "TemporalAdmg", "Pag"]
 validations = ["cheap", "full"]
 reason = "Query-native functional validation requires a Dag."
 
@@ -214,7 +231,7 @@ reason = "Graph-posterior mediation mixtures are not staged; the licensed Mediat
 
 [[closed]]
 queries = ["NestedCounterfactualEffect"]
-graph_classes = ["Admg", "Cpdag", "Pag"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
 reason = "NestedCounterfactualEffect requires the supplied fixed static Dag."
 
 [[closed]]
@@ -227,14 +244,6 @@ reason = "NestedCounterfactualEffect requires an explicitly supplied Dag; accept
 queries = ["NestedCounterfactualEffect"]
 graph_classes = ["Dag"]
 structures = ["explicit"]
-inferences = ["Bayesian"]
-reason = "NestedCounterfactualEffect is licensed only for the compatible Frequentist linear-Gaussian SCM; Bayesian SCM inference is not licensed."
-
-[[closed]]
-queries = ["NestedCounterfactualEffect"]
-graph_classes = ["Dag"]
-structures = ["explicit"]
-inferences = ["Frequentist"]
 validations = ["cheap", "full"]
 reason = "NestedCounterfactualEffect has no compatible cheap/full cross-world refuter suite."
 
@@ -255,14 +264,72 @@ reason = "Counterfactual cheap/full are not licensed; there is no native ITE ref
 
 [[closed]]
 queries = ["ResponseCurve"]
-graph_classes = ["Admg", "Cpdag", "Pag"]
+graph_classes = ["Admg", "TemporalAdmg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
 validations = ["cheap", "full"]
-reason = "Graph-posterior ResponseCurve on Admg/Cpdag/Pag is licensed at validation none. cheap/full name the ATE-shaped scalar refuter suite; the curve remains function-valued or atom-mixed with no licensed scalar-refuter state."
+reason = "Graph-posterior ResponseCurve on Admg/TemporalAdmg/Cpdag/Pag is licensed at validation none. cheap/full name the ATE-shaped scalar refuter suite; the curve remains function-valued or atom-mixed with no licensed scalar-refuter state."
 
-# -- 2.2 promotion records (parity/promotion_2_2.toml): sub-cell contrasts a
+[[closed]]
+queries = ["PulseEffect", "SustainedEffect", "TemporalConditionalPulse", "TemporalConditionalSustained", "TemporalMediationEffect"]
+graph_classes = ["TemporalAdmg"]
+reason = "A temporal contrast on TemporalAdmg is not identified. The licensed TemporalAdmg functional is the contemporaneous ADMG projection. Pulse, sustained, temporal conditional, and temporal mediation stay on TemporalDag, TemporalCpdag, or TemporalPag."
+
+[[closed]]
+queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+reason = "Graph-posterior temporal conditional effects on a TemporalDag are not licensed."
+
+[[closed]]
+queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]
+graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed."
+
+[[closed]]
+queries = ["AverageDerivative", "PointDerivative", "Elasticity", "SemiElasticity", "DirectionalDerivative", "ResponseJacobian"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+reason = "Graph-posterior temporal derivatives on a TemporalDag are not licensed."
+
+[[closed]]
+queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+reason = "Graph-posterior temporal cross-world effects on a TemporalDag are not licensed."
+
+[[closed]]
+queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
+graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+structures = ["explicit", "accepted"]
+validations = ["cheap", "full"]
+reason = "Temporal cross-world effects are point-only; cheap and full are not licensed."
+
+[[closed]]
+queries = ["AverageDerivative", "DirectionalDerivative", "Elasticity", "PointDerivative", "ResponseJacobian", "SemiElasticity"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "Graph-posterior temporal derivatives on TemporalCpdag and TemporalPag are licensed at validation none. Derivative-native cheap/full validation is not implemented; ATE refuters do not apply."
+
+[[closed]]
+queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "Graph-posterior temporal cross-world effects on TemporalCpdag and TemporalPag are point-only; cheap and full are not licensed."
+
+[[closed]]
+queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "Graph-posterior temporal conditional effects on TemporalCpdag and TemporalPag are licensed at validation none. A temporal conditional effect has no scalar ATE refuter; cheap and full are not licensed."
+
+# -- promotion records (parity/promotion.toml): sub-cell contrasts a
 # record keeps closed. The support axes cannot name a contrast, so these rows are
 # [[closed_contrast]], not [[closed]]: the support-matrix gates read only
 # [[closed]], and scripts/check_promotion_records.py requires one row here for
 # every closed support_licensed route of a record, with the record's reason_code.
-# (No record keeps one closed today: 2.2A X8 owns its routes in transport_stages.toml.)
+# (No record keeps one closed today: the path-specific edge cell owns its routes in transport_stages.toml.)

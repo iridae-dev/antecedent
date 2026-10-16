@@ -17,6 +17,7 @@ use antecedent_stats::{
     mean_diff_two_sample, residual_likelihood_ratio,
 };
 
+use crate::change_common::{KERNEL_STREAM, attribution_stream};
 use crate::error::AttributionError;
 use crate::population::subset_table;
 use crate::prep::resolve_population_pair;
@@ -106,7 +107,11 @@ pub fn detect_mechanism_changes(
 /// # Errors
 ///
 /// Query / fit / stats failures.
-pub fn detect_mechanism_changes_with_correction(
+#[allow(
+    clippy::too_many_lines,
+    reason = "fit both sides, test every mechanism, then correct the whole family together; the stages share the per-mechanism results"
+)]
+pub(crate) fn detect_mechanism_changes_with_correction(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
     query: &MechanismChangeQuery,
@@ -168,12 +173,14 @@ pub fn detect_mechanism_changes_with_correction(
         SelectionPolicy::BestScore,
     )?;
     let base_model = graph_model.clone().with_mechanisms(base_mechs);
-    let fold_count = baseline_cross_fit_folds(baseline.row_count());
-    let baseline_folds = kfold_row_indices(baseline.row_count(), fold_count);
+    let n_base = baseline.row_count();
+    let fold_count = baseline_cross_fit_folds(n_base);
+    let baseline_folds = kfold_row_indices(n_base, fold_count);
     let mut fold_models = Vec::with_capacity(baseline_folds.len());
-    for held_out in &baseline_folds {
-        let train_rows: Vec<usize> =
-            (0..baseline.row_count()).filter(|r| !held_out.contains(r)).collect();
+    // Folds are round-robin (`row % k`), so the complement is the same test without
+    // scanning each held-out vector per row.
+    for fold in 0..baseline_folds.len() {
+        let train_rows: Vec<usize> = (0..n_base).filter(|r| r % fold_count != fold).collect();
         let train = subset_table(&baseline, &train_rows)?;
         let (mechs, _) = MechanismRegistry::standard().assign_and_fit(
             graph_model,
@@ -182,17 +189,22 @@ pub fn detect_mechanism_changes_with_correction(
         )?;
         fold_models.push(graph_model.clone().with_mechanisms(mechs));
     }
+    let fold_tables = baseline_folds
+        .iter()
+        .map(|assigned| subset_table(&baseline, assigned))
+        .collect::<Result<Vec<_>, _>>()?;
 
-    let mut raw = Vec::with_capacity(query.targets.len());
-    for &target in query.targets.iter() {
+    let raw = ctx.map_indexed(query.targets.len(), |ti, worker| {
+        let target = query.targets[ti];
         let mut baseline_rng =
-            ctx.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 0));
+            worker.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 0));
         let mut comparison_rng =
-            ctx.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 1));
+            worker.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 1));
         let rb = cross_fitted_residuals(
             &fold_models,
+            &fold_tables,
             &baseline_folds,
-            &baseline,
+            baseline.row_count(),
             target,
             &mut baseline_rng,
         )?;
@@ -211,9 +223,8 @@ pub fn detect_mechanism_changes_with_correction(
                 (s, p, "classifier_two_sample", None)
             }
             MechanismChangeMethod::KernelTwoSample => {
-                let seed = 0x_4E12_A001u64
-                    .wrapping_add(target.as_usize() as u64)
-                    .wrapping_mul(0x9E37_79B9);
+                let seed =
+                    attribution_stream(worker, KERNEL_STREAM, target.as_usize() as u64).next_u64();
                 let r = kernel_two_sample_with_permutations(
                     &rb,
                     &rc,
@@ -227,8 +238,8 @@ pub fn detect_mechanism_changes_with_correction(
                 (s, p, "change_point", likelihood_ratio_permutations(rb.len(), rc.len()))
             }
         };
-        raw.push((target, stat, p_value, method_name, n_permutations));
-    }
+        Ok::<_, AttributionError>((target, stat, p_value, method_name, n_permutations))
+    })?;
 
     // Report the raw p-value and the adjusted one separately rather than overwriting the
     // former. `changed` is decided from whichever is authoritative, but a caller reading
@@ -262,10 +273,10 @@ pub fn detect_mechanism_changes_with_correction(
 /// under [`ExecutionContext::for_tests`] / any fixed `master_seed` but doesn't
 /// alias across targets or across the baseline/comparison populations.
 fn residual_stream_id(target: VariableId, population: u64) -> u64 {
-    0x_5EED_C0DEu64
-        .wrapping_add(target.as_usize() as u64)
-        .wrapping_mul(0x9E37_79B9)
-        .wrapping_add(population)
+    antecedent_core::derive_stream(
+        antecedent_core::derive_stream(0x_5EED_C0DE, target.as_usize() as u64),
+        population,
+    )
 }
 
 fn residuals(
@@ -324,15 +335,15 @@ fn baseline_cross_fit_folds(n: usize) -> usize {
 /// full-baseline fit's own (shrunk-variance) in-sample residual.
 fn cross_fitted_residuals(
     fold_models: &[CompiledCausalModel],
+    fold_tables: &[TabularData],
     folds: &[Vec<usize>],
-    population: &TabularData,
+    n_rows: usize,
     target: VariableId,
     rng: &mut CausalRng,
 ) -> Result<Vec<f64>, AttributionError> {
-    let mut out = vec![0.0; population.row_count()];
-    for (model, assigned) in fold_models.iter().zip(folds.iter()) {
-        let assigned_table = subset_table(population, assigned)?;
-        let fold_residuals = residuals(model, &assigned_table, target, rng)?;
+    let mut out = vec![0.0; n_rows];
+    for ((model, table), assigned) in fold_models.iter().zip(fold_tables.iter()).zip(folds.iter()) {
+        let fold_residuals = residuals(model, table, target, rng)?;
         for (&row, &value) in assigned.iter().zip(fold_residuals.iter()) {
             out[row] = value;
         }
@@ -588,6 +599,41 @@ mod tests {
         assert!(y.p_value >= 0.001 - 1e-15);
     }
 
+    /// The kernel null draws from the context's attribution stream: it follows the master
+    /// seed (reproducibly) and the verdict on a real shift is stable across seeds, with
+    /// every p-value inside the same resolution band.
+    #[test]
+    fn kernel_two_sample_follows_the_context_seed_and_agrees_across_seeds() {
+        let (model, data) = two_period_data();
+        let q = MechanismChangeQuery::new(
+            [VariableId::from_raw(1)],
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+            0.05,
+            10,
+        );
+        let run = |seed: u64| {
+            detect_mechanism_changes(
+                &model,
+                &data,
+                &q,
+                MechanismChangeMethod::KernelTwoSample,
+                &ExecutionContext::for_tests(seed),
+            )
+            .unwrap()
+            .remove(0)
+        };
+        let again = run(1);
+        assert_eq!(again.p_value.to_bits(), run(1).p_value.to_bits());
+        for seed in 1..=6u64 {
+            let d = run(seed);
+            assert!(d.changed, "seed {seed}: {d:?}");
+            assert!(d.p_value >= d.p_value_floor.unwrap() - 1e-15);
+            assert!(d.p_value <= 0.01, "seed {seed}: p={}", d.p_value);
+            assert_eq!(d.statistic.to_bits(), again.statistic.to_bits(), "statistic is seed-free");
+        }
+    }
+
     #[test]
     fn change_point_flags_y_shift() {
         let (model, data) = two_period_data();
@@ -838,6 +884,10 @@ mod tests {
     /// targets flagged) with `correction: None` against the corrected default
     /// `detect_mechanism_changes`.
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn mean_diff_null_split_family_wise_type_i_rate() {
         let m = 10usize;
         let n = 120usize;

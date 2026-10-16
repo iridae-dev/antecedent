@@ -1,7 +1,18 @@
 use antecedent_core::{Lag, VariableId};
-use antecedent_graph::TemporalCpdag;
+use antecedent_graph::{DenseNodeId, TemporalCpdag};
 
 use super::*;
+
+#[test]
+fn context_nodes_share_the_contemporaneous_slice() {
+    let mut g = TemporalCpdag::empty();
+    let lagged = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let now = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let context = g.add_context(VariableId::from_raw(2), None).unwrap();
+    assert!(!is_contemporaneous_node(&g, lagged));
+    assert!(is_contemporaneous_node(&g, now));
+    assert!(is_contemporaneous_node(&g, context));
+}
 
 #[test]
 fn meek_r1_cycle_records_conflict_and_continues() {
@@ -203,6 +214,38 @@ fn contemp_meek_r1_skips_lagged_undirected() {
 }
 
 #[test]
+fn contemp_meek_r1_matches_meek_r1_on_a_contemporaneous_chain() {
+    fn chain() -> (TemporalCpdag, DenseNodeId, DenseNodeId) {
+        let mut g = TemporalCpdag::empty();
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(a, b).unwrap();
+        g.insert_undirected(b, c).unwrap();
+        (g, b, c)
+    }
+    let (mut general, b, c) = chain();
+    let (mut contemp, _, _) = chain();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    queue.push(b);
+    let general_delta =
+        OrientationRule::<TemporalCpdag>::apply(&MeekR1, &mut general, &mut state, &mut queue)
+            .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    queue.push(b);
+    let contemp_delta = ContempMeekR1.apply(&mut contemp, &mut state, &mut queue).unwrap();
+    assert_eq!(
+        general.edge_between(b, c).unwrap().parent_child(),
+        contemp.edge_between(b, c).unwrap().parent_child()
+    );
+    assert_eq!(general_delta.edges_changed, contemp_delta.edges_changed);
+    assert!(general_delta.premises.iter().any(|p| p.starts_with("meek.r1:")));
+    assert!(contemp_delta.premises.iter().any(|p| p.starts_with("meek.r1.contemp:")));
+}
+
+#[test]
 fn contemp_meek_r1_orients_contemporaneous_chain() {
     let mut g = TemporalCpdag::empty();
     let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
@@ -356,4 +399,21 @@ fn quiet_pass_does_not_end_scheduling_before_a_full_scan() {
     .unwrap();
     assert!(applied.get(), "rule A's pending application was never examined");
     assert!(d.fixed_point);
+}
+
+#[test]
+fn context_and_lag_zero_are_contemporaneous() {
+    use antecedent_graph::NodeRef;
+    let mut g = TemporalCpdag::empty();
+    let now = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let past = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let ctx = g
+        .add_node(NodeRef::Context { variable: VariableId::from_raw(1), environment: None })
+        .unwrap();
+    assert!(is_contemporaneous_node(&g, now));
+    assert!(is_contemporaneous_node(&g, ctx));
+    assert!(!is_contemporaneous_node(&g, past));
+    assert!(crate::pcmci_plus::is_contemp_node(&g, now));
+    assert!(crate::pcmci_plus::is_contemp_node(&g, ctx));
+    assert!(!crate::pcmci_plus::is_contemp_node(&g, past));
 }

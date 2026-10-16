@@ -66,9 +66,9 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-estimate/src/transport.rs"
 evidence_assertion = "transported_response_grid_evaluates_every_requested_intervention"
-limitations = "Rust-only algebraic evaluator; not a published joint estimator. Unit tests check the composition on hand-chosen inputs. No frozen fixture, no double-robustness/efficiency/curve-inference claim, and no external oracle."
-python_facade = "none"
-notes = "Public Rust primitive antecedent_estimate::transport_augmented_response_grid: evaluates a caller-supplied augmented transported response on a grid. Component equations are cited in provenance/estimate.transport_response_grid.toml; the composition itself is not a published estimator, so no external parity is claimed."
+limitations = "Rust and Python algebraic evaluator; not a published joint estimator. Unit tests check the composition on hand-chosen inputs. No frozen fixture, no double-robustness/efficiency/curve-inference claim, and no external oracle."
+python_facade = "thin"
+notes = "Public Rust primitive antecedent_estimate::transport_augmented_response_grid and Python transport.advanced.estimate_augmented_response_grid (test_augmented_transport_grid.py): evaluates a caller-supplied augmented transported response on a grid. Component equations are cited in provenance/estimate.transport_response_grid.toml; the composition itself is not a published estimator, so no external parity is claimed."
 
 [[capabilities]]
 id = "estimate.observation_km_ipcw"
@@ -142,7 +142,7 @@ evidence_kind = "internal_known_truth"
 evidence_test = "crates/antecedent/tests/temporal_observation.rs"
 evidence_assertion = "temporal_observation_pairs_match_fixture_and_beat_complete_proxy"
 known_truth_fixture = "conformance/response/temporal_observation"
-limitations = "Same 1.3 pairs as the static observation contract, applied once to the long-format series before per-horizon g-computation. IndependentGiven(Z) / OutcomeIndependentGiven(Z) lag-align named covariates at the policy treatment offset. Complete-on-recorded-proxy must miss the surface. No Bayesian ride, delayed entry, interval/truncation, cheap/full, TemporalCpdag/Pag, or joint observation/curve bands."
+limitations = "Same pairs as the static observation contract, applied once to the long-format series before per-horizon g-computation. IndependentGiven(Z) / OutcomeIndependentGiven(Z) lag-align named covariates at the policy treatment offset. Complete-on-recorded-proxy must miss the surface. No Bayesian ride, delayed entry, interval/truncation, cheap/full, TemporalCpdag/Pag, or joint observation/curve bands."
 python_facade = "full"
 notes = "Pin conformance/response/temporal_observation is consumed by crates/antecedent/tests/temporal_observation.rs and python/tests/test_temporal_observation.py. Unlicensed pairs refuse at compile with TEMPORAL_OBSERVATION_UNLICENSED. Provenance estimate.temporal_response.observation_adjusted."
 
@@ -166,7 +166,7 @@ evidence_assertion = "two_point_curve_contrast_conforms_to_average_effect_under_
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 python_facade = "full"
 limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success. Named test is the shared static response-facade test whose Bayesian block checks the posterior mean against the response_surfaces pin (explicit and accepted structure, curve and intervention)."
-notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
 id = "estimate.response.temporal.bayesian"
@@ -177,7 +177,7 @@ evidence_assertion = "bayesian_temporal_response_and_sustained_window_known_trut
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 python_facade = "full"
 limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
-notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
 id = "estimate.observation_cox_ipcw"

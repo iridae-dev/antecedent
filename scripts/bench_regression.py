@@ -33,7 +33,7 @@ def main(argv: list[str]) -> int:
         return 1
     failures, warnings = [], []
     for path in estimates:
-        mean = json.loads(path.read_text())["mean"]
+        mean = json.loads(path.read_text(encoding="utf-8"))["mean"]
         lower = float(mean["confidence_interval"]["lower_bound"])
         point = float(mean["point_estimate"])
         bench = "/".join(path.parent.parent.relative_to(criterion).parts)

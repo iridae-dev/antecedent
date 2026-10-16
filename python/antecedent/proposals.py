@@ -1,4 +1,4 @@
-"""Per-proposal receipts linking identification repair and design ranking (X6).
+"""Per-proposal receipts linking identification repair and design ranking.
 
 A failed contract owes evidence (:mod:`antecedent.repair`); a candidate study is
 valued for the decision it would inform (:mod:`antecedent.design`). A
@@ -52,12 +52,13 @@ from typing import Any, Literal
 from . import _native, design, repair
 from ._native import proposal_bundle_build as _build
 from ._native import proposal_ranked_candidates as _ranked_candidates
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ._refusal import raise_refusal
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 EvidenceKindName = Literal["available", "manipulable", "proposed"]
 
 
-class ProposalRefusal(CausalUnsupportedError):
+class ProposalRefusal(StructuredRefusal):
     """A refused bundle, verification or arrival.
 
     ``detail`` is the stable ``proposal_receipt.*`` detail (for example
@@ -69,15 +70,8 @@ class ProposalRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         detail = str(refusal["detail"])
         message = str(refusal.get("message", ""))
-        super().__init__(f"{detail}: {message}", reason_code=refusal["code"])
-        self.stage: str = str(refusal.get("stage", "proposal"))
-        self.detail: str = detail
-        self.message: str = message
-
-
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise ProposalRefusal(json.loads(refusal))
+        super().__init__(refusal, text=f"{detail}: {message}")
+        self.stage = str(refusal.get("stage", "proposal"))
 
 
 def _bits(value: int) -> float:
@@ -445,7 +439,7 @@ class ProposalBundle:
         if consume:
             _replay(repair_artifact, ranking_artifact)
         native, refusal = _build(repair_artifact, ranking_artifact)
-        _raise(refusal)
+        raise_refusal(refusal, ProposalRefusal)
         assert native is not None
         value = cls(native, contract)
         value._repair_artifact = repair_artifact
@@ -499,7 +493,7 @@ class ProposalBundle:
         ranking_artifact = _bytes("ranking_artifact", ranking_artifact)
         if consume:
             _replay(repair_artifact, ranking_artifact)
-        _raise(self._native_value.verify(repair_artifact, ranking_artifact))
+        raise_refusal(self._native_value.verify(repair_artifact, ranking_artifact), ProposalRefusal)
 
     def on_arrival(
         self,
@@ -538,7 +532,7 @@ class ProposalBundle:
             json.dumps([candidate._wire()]),
             json.dumps(arrived_evidence._wire()),
         )
-        _raise(refusal)
+        raise_refusal(refusal, ProposalRefusal)
         assert result is not None
         return _verdict(json.loads(result))
 

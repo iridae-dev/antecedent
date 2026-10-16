@@ -17,8 +17,9 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalSchema, NodeRef, TemporalNodeKey, VariableId};
 use antecedent_graph::{
-    Admg, Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, Pag, PagReview, TemporalCpdag,
-    TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview,
+    Admg, Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, Pag, PagReview, TemporalAdmg,
+    TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
+    TemporalPagReview,
 };
 
 use crate::error::{CausalError, PendingEdge, ReviewKind};
@@ -182,6 +183,8 @@ pub enum GraphClass {
     TemporalCpdag,
     /// Temporal partial ancestral graph (circle marks allowed).
     TemporalPag,
+    /// Lagged ADMG: directed edges plus bidirected latent confounding.
+    TemporalAdmg,
     /// Schema-bound randomized trial contract; carries no causal graph.
     RandomizedTrial,
 }
@@ -198,6 +201,7 @@ impl GraphClass {
             Self::TemporalDag => "TemporalDag",
             Self::TemporalCpdag => "TemporalCpdag",
             Self::TemporalPag => "TemporalPag",
+            Self::TemporalAdmg => "TemporalAdmg",
             Self::RandomizedTrial => "RandomizedTrial",
         }
     }
@@ -209,9 +213,70 @@ impl GraphClass {
     }
 }
 
+/// Borrowed, class-tagged view of the graph inside an [`AcceptedGraph`].
+///
+/// The variant is the class: [`Self::class`] is derived from it, so a match arm
+/// receives exactly the graph its class names.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub enum GraphRef<'a> {
+    /// Fully directed acyclic graph.
+    Dag(&'a Dag),
+    /// Acyclic directed mixed graph.
+    Admg(&'a Admg),
+    /// Completed partial DAG.
+    Cpdag(&'a Cpdag),
+    /// Partial ancestral graph.
+    Pag(&'a Pag),
+    /// Fully directed temporal DAG.
+    TemporalDag(&'a TemporalDag),
+    /// Completed temporal CPDAG.
+    TemporalCpdag(&'a TemporalCpdag),
+    /// Temporal partial ancestral graph.
+    TemporalPag(&'a TemporalPag),
+    /// Lagged ADMG.
+    TemporalAdmg(&'a TemporalAdmg),
+    /// Schema-bound randomized trial contract; carries no causal graph.
+    RandomizedTrial,
+}
+
+impl GraphRef<'_> {
+    /// The static ADMG a mixed-graph route reads: an [`Admg`] as held, or a
+    /// temporal ADMG's functional projection. `None` for every other class.
+    ///
+    /// # Errors
+    ///
+    /// [`CausalError::Compile`] when the temporal ADMG has no functional projection.
+    pub fn projected_admg(&self) -> Result<Option<Admg>, CausalError> {
+        match self {
+            Self::Admg(graph) => Ok(Some((*graph).clone())),
+            Self::TemporalAdmg(graph) => {
+                graph.project_preserving_functional().map(Some).map_err(CausalError::rejected)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// The graph class this view carries.
+    #[must_use]
+    pub const fn class(&self) -> GraphClass {
+        match self {
+            Self::Dag(_) => GraphClass::Dag,
+            Self::Admg(_) => GraphClass::Admg,
+            Self::Cpdag(_) => GraphClass::Cpdag,
+            Self::Pag(_) => GraphClass::Pag,
+            Self::TemporalDag(_) => GraphClass::TemporalDag,
+            Self::TemporalCpdag(_) => GraphClass::TemporalCpdag,
+            Self::TemporalPag(_) => GraphClass::TemporalPag,
+            Self::TemporalAdmg(_) => GraphClass::TemporalAdmg,
+            Self::RandomizedTrial => GraphClass::RandomizedTrial,
+        }
+    }
+}
+
 /// Internal storage: one owned graph per supported class.
 ///
-/// Private — callers only ever observe this through [`AcceptedGraph::class`] and the
+/// Private — callers only ever observe this through [`AcceptedGraph::graph_ref`], [`AcceptedGraph::class`] and the
 /// `as_*` accessors, never by matching on the representation directly.
 #[derive(Clone, Debug)]
 enum GraphKind {
@@ -222,6 +287,7 @@ enum GraphKind {
     TemporalDag(TemporalDag),
     TemporalCpdag(TemporalCpdag),
     TemporalPag(TemporalPag),
+    TemporalAdmg(TemporalAdmg),
     RandomizedTrial,
 }
 
@@ -289,6 +355,13 @@ impl AcceptedGraph {
         Self::from_kind(GraphKind::TemporalPag(g), None)
     }
 
+    /// Accept a temporal ADMG. Cannot fail: bidirected edges are latent-confounder
+    /// information, not pending review.
+    #[must_use]
+    pub fn temporal_admg(g: TemporalAdmg) -> Self {
+        Self::from_kind(GraphKind::TemporalAdmg(g), None)
+    }
+
     /// Create a schema-bound randomized-trial source with no graph structure.
     #[must_use]
     pub(crate) fn randomized_trial(schema: &CausalSchema) -> Self {
@@ -313,7 +386,7 @@ impl AcceptedGraph {
         if pending > 0 {
             let edges = pending_cpdag_marks(&g);
             return Err(CausalError::review_required(
-                ReviewKind::StaticCpdag.as_str(),
+                ReviewKind::StaticCpdag,
                 None::<String>,
                 pending,
                 edges,
@@ -337,7 +410,7 @@ impl AcceptedGraph {
         if pending > 0 {
             let edges = pending_temporal_cpdag_marks(&g);
             return Err(CausalError::review_required(
-                ReviewKind::TemporalCpdag.as_str(),
+                ReviewKind::TemporalCpdag,
                 None::<String>,
                 pending,
                 edges,
@@ -364,15 +437,26 @@ impl AcceptedGraph {
     /// Which graph class this value holds.
     #[must_use]
     pub fn class(&self) -> GraphClass {
+        self.graph_ref().class()
+    }
+
+    /// Borrow the held graph as a typed view.
+    ///
+    /// Match on this once instead of testing [`Self::class`] and then unwrapping the
+    /// matching `as_*` accessor: the variant carries the graph, so no arm can name a
+    /// class without receiving that class's graph.
+    #[must_use]
+    pub fn graph_ref(&self) -> GraphRef<'_> {
         match &self.kind {
-            GraphKind::Dag(_) => GraphClass::Dag,
-            GraphKind::Admg(_) => GraphClass::Admg,
-            GraphKind::Cpdag(_) => GraphClass::Cpdag,
-            GraphKind::Pag(_) => GraphClass::Pag,
-            GraphKind::TemporalDag(_) => GraphClass::TemporalDag,
-            GraphKind::TemporalCpdag(_) => GraphClass::TemporalCpdag,
-            GraphKind::TemporalPag(_) => GraphClass::TemporalPag,
-            GraphKind::RandomizedTrial => GraphClass::RandomizedTrial,
+            GraphKind::Dag(g) => GraphRef::Dag(g),
+            GraphKind::Admg(g) => GraphRef::Admg(g),
+            GraphKind::Cpdag(g) => GraphRef::Cpdag(g),
+            GraphKind::Pag(g) => GraphRef::Pag(g),
+            GraphKind::TemporalDag(g) => GraphRef::TemporalDag(g),
+            GraphKind::TemporalCpdag(g) => GraphRef::TemporalCpdag(g),
+            GraphKind::TemporalPag(g) => GraphRef::TemporalPag(g),
+            GraphKind::TemporalAdmg(g) => GraphRef::TemporalAdmg(g),
+            GraphKind::RandomizedTrial => GraphRef::RandomizedTrial,
         }
     }
 
@@ -464,6 +548,15 @@ impl AcceptedGraph {
         }
     }
 
+    /// Borrow the temporal ADMG when [`Self::class`] is [`GraphClass::TemporalAdmg`].
+    #[must_use]
+    pub fn as_temporal_admg(&self) -> Option<&TemporalAdmg> {
+        match &self.kind {
+            GraphKind::TemporalAdmg(g) => Some(g),
+            _ => None,
+        }
+    }
+
     /// Produce a new accepted structure that supersedes this one, bumping the version.
     ///
     /// `next`'s own class, contents, and algorithm id are kept; only the version
@@ -544,6 +637,12 @@ impl From<TemporalPag> for AcceptedGraph {
     }
 }
 
+impl From<TemporalAdmg> for AcceptedGraph {
+    fn from(g: TemporalAdmg) -> Self {
+        Self::temporal_admg(g)
+    }
+}
+
 mod sealed {
     pub trait Sealed {}
     impl Sealed for antecedent_graph::DagReview {}
@@ -594,7 +693,7 @@ fn accept_single_guard(
 ) -> Result<AcceptedGraph, CausalError> {
     if !complete {
         return Err(CausalError::review_required(
-            incomplete.kind.as_str(),
+            incomplete.kind,
             Some(algorithm.to_string()),
             pending_count,
             pending_edges,
@@ -628,7 +727,7 @@ impl IntoAccepted for CpdagReview {
             let pending = self.pending_edges.len();
             let edges = pending_directed(&self.pending_edges);
             return Err(CausalError::review_required(
-                ReviewKind::StaticCpdag.as_str(),
+                ReviewKind::StaticCpdag,
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
@@ -641,7 +740,7 @@ impl IntoAccepted for CpdagReview {
             let pending = self.graph.conflict_edge_count();
             let edges = pending_cpdag_marks(&self.graph);
             return Err(CausalError::review_required(
-                ReviewKind::StaticCpdag.as_str(),
+                ReviewKind::StaticCpdag,
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
@@ -695,7 +794,7 @@ impl IntoAccepted for TemporalCpdagReview {
             let pending = self.pending_edges.len();
             let edges = pending_directed_temporal(&self.pending_edges);
             return Err(CausalError::review_required(
-                ReviewKind::TemporalCpdag.as_str(),
+                ReviewKind::TemporalCpdag,
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
@@ -708,7 +807,7 @@ impl IntoAccepted for TemporalCpdagReview {
             let pending = self.graph.conflict_edge_count();
             let edges = pending_temporal_cpdag_marks(&self.graph);
             return Err(CausalError::review_required(
-                ReviewKind::TemporalCpdag.as_str(),
+                ReviewKind::TemporalCpdag,
                 Some(self.algorithm.to_string()),
                 pending,
                 edges,
@@ -769,7 +868,7 @@ mod tests {
         let err = AcceptedGraph::accept(review).unwrap_err();
         match err {
             CausalError::ReviewRequired { kind, pending_edge_count, pending_edges, .. } => {
-                assert_eq!(kind, ReviewKind::StaticCpdag.as_str());
+                assert_eq!(kind, ReviewKind::StaticCpdag);
                 assert!(pending_edge_count > 0);
                 assert_eq!(pending_edges.len(), pending_edge_count);
                 let edge = &pending_edges[0];

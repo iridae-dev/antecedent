@@ -21,7 +21,7 @@ use antecedent_identify::{
     TemporalClassEnvelope,
 };
 
-use crate::accepted::{AcceptedGraph, GraphClass};
+use crate::accepted::{AcceptedGraph, GraphClass, GraphRef};
 use crate::error::CausalError;
 use crate::strategy_table::{
     self, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_IDENTIFIER_ID,
@@ -215,7 +215,6 @@ pub fn identify_dag(
     )
 }
 
-#[allow(clippy::too_many_lines)]
 fn identify_with_source(
     structure: &AcceptedGraph,
     query: &CausalQuery,
@@ -233,101 +232,155 @@ fn identify_with_source(
     ) {
         crate::support::refuse_if_not_applicable(cell)?;
     }
-    match structure.class() {
-        GraphClass::Dag => {
-            let dag = structure.as_dag().expect("class() == Dag implies as_dag() is Some");
-            let id_query = static_identify_query(query);
-            let result = identify_static_query(strategy, dag, &id_query)?;
-            Ok(Identification::Point {
-                result,
-                temporal_indexer: None,
-                strategy,
-                structure_version,
-            })
+    match structure.graph_ref() {
+        GraphRef::Dag(dag) => identify_source_dag(dag, query, strategy, structure_version),
+        GraphRef::Cpdag(cpdag) => identify_source_cpdag(cpdag, query, strategy, structure_version),
+        GraphRef::Pag(pag) => identify_source_pag(pag, query, strategy, structure_version),
+        GraphRef::Admg(admg) => identify_source_admg(admg, query, strategy, structure_version),
+        GraphRef::TemporalAdmg(temporal) => {
+            identify_source_temporal_admg(temporal, query, strategy, structure_version)
         }
-        GraphClass::Cpdag => {
-            let cpdag = structure.as_cpdag().expect("class() == Cpdag implies as_cpdag() is Some");
-            let envelope = if let CausalQuery::Response(response) = query {
-                strategy_table::identify_cpdag_response(strategy, cpdag, response)?
-            } else {
-                identify_cpdag(strategy, cpdag, &class_ate_witness(query, "CPDAG")?)?
-            };
-            Ok(Identification::CpdagEnvelope { envelope, strategy, structure_version })
+        GraphRef::TemporalDag(dag) => {
+            identify_source_temporal_dag(dag, query, strategy, structure_version)
         }
-        GraphClass::Pag => {
-            let pag = structure.as_pag().expect("class() == Pag implies as_pag() is Some");
-            let envelope = if let CausalQuery::Response(response) = query {
-                strategy_table::identify_pag_response(strategy, pag, response)?
-            } else {
-                identify_pag(strategy, pag, &class_ate_witness(query, "PAG")?)?
-            };
-            Ok(Identification::Envelope { envelope, strategy, structure_version })
+        GraphRef::TemporalCpdag(cpdag) => {
+            identify_source_temporal_cpdag(structure, cpdag, query, strategy, structure_version)
         }
-        GraphClass::Admg => {
-            let admg = structure.as_admg().expect("class() == Admg implies as_admg() is Some");
-            let CausalQuery::AverageEffect(average_effect) = query else {
-                return Err(CausalError::Unsupported {
-                    message: "ADMG identification supports only CausalQuery::AverageEffect",
-                });
-            };
-            let result = identify_admg(strategy, admg, average_effect)?;
-            Ok(Identification::Point {
-                result,
-                temporal_indexer: None,
-                strategy,
-                structure_version,
-            })
+        GraphRef::TemporalPag(pag) => {
+            identify_source_temporal_pag(structure, pag, query, strategy, structure_version)
         }
-        GraphClass::TemporalDag => {
-            let dag = structure
-                .as_temporal_dag()
-                .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-            let CausalQuery::TemporalEffect(q) = query else {
-                return Err(CausalError::Unsupported {
-                    message: "TemporalDag identification supports only CausalQuery::TemporalEffect",
-                });
-            };
-            let identified = TemporalBackdoorIdentifier::new()
-                .with_parent_adjustment_fallback()
-                .identify_temporal(dag, q)
-                .map_err(CausalError::from)?;
-            Ok(Identification::Point {
-                result: identified.result,
-                temporal_indexer: Some(identified.indexer),
-                strategy,
-                structure_version,
-            })
-        }
-        GraphClass::TemporalCpdag => {
-            let cpdag = structure
-                .as_temporal_cpdag()
-                .expect("class() == TemporalCpdag implies as_temporal_cpdag() is Some");
-            let q = temporal_class_identify_query(query, "TemporalCpdag")?;
-            let mut envelope = identify_temporal_cpdag(strategy, cpdag, &q)?;
-            refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
-            audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
-            Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
-        }
-        GraphClass::TemporalPag => {
-            let pag = structure
-                .as_temporal_pag()
-                .expect("class() == TemporalPag implies as_temporal_pag() is Some");
-            if matches!(query, CausalQuery::Mediation(_)) {
-                return Err(CausalError::Unsupported {
-                    message: "Latent-confounded TemporalPag natural mediation is outside the \
-                              existing cross-world identification theory",
-                });
-            }
-            let q = temporal_class_identify_query(query, "TemporalPag")?;
-            let mut envelope = identify_temporal_pag(strategy, pag, &q)?;
-            refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
-            audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
-            Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
-        }
-        GraphClass::RandomizedTrial => Err(CausalError::Unsupported {
+        GraphRef::RandomizedTrial => Err(CausalError::Unsupported {
             message: "randomized trial queries are identified by the dedicated experiment route",
         }),
     }
+}
+
+fn identify_source_dag(
+    dag: &antecedent_graph::Dag,
+    query: &CausalQuery,
+    strategy: IdentifierId,
+    structure_version: u32,
+) -> Result<Identification, CausalError> {
+    let id_query = static_identify_query(query);
+    let result = identify_static_query(strategy, dag, &id_query)?;
+    Ok(Identification::Point { result, temporal_indexer: None, strategy, structure_version })
+}
+
+fn identify_source_cpdag(
+    cpdag: &antecedent_graph::Cpdag,
+    query: &CausalQuery,
+    strategy: IdentifierId,
+    structure_version: u32,
+) -> Result<Identification, CausalError> {
+    let envelope = if let CausalQuery::Response(response) = query {
+        strategy_table::identify_cpdag_response(strategy, cpdag, response)?
+    } else {
+        identify_cpdag(strategy, cpdag, &class_ate_witness(query, "CPDAG")?)?
+    };
+    Ok(Identification::CpdagEnvelope { envelope, strategy, structure_version })
+}
+
+fn identify_source_pag(
+    pag: &antecedent_graph::Pag,
+    query: &CausalQuery,
+    strategy: IdentifierId,
+    structure_version: u32,
+) -> Result<Identification, CausalError> {
+    let envelope = if let CausalQuery::Response(response) = query {
+        strategy_table::identify_pag_response(strategy, pag, response)?
+    } else {
+        identify_pag(strategy, pag, &class_ate_witness(query, "PAG")?)?
+    };
+    Ok(Identification::Envelope { envelope, strategy, structure_version })
+}
+
+fn identify_source_admg(
+    admg: &antecedent_graph::Admg,
+    query: &CausalQuery,
+    strategy: IdentifierId,
+    structure_version: u32,
+) -> Result<Identification, CausalError> {
+    let CausalQuery::AverageEffect(average_effect) = query else {
+        return Err(CausalError::Unsupported {
+            message: "ADMG identification supports only CausalQuery::AverageEffect",
+        });
+    };
+    let result = identify_admg(strategy, admg, average_effect)?;
+    Ok(Identification::Point { result, temporal_indexer: None, strategy, structure_version })
+}
+
+fn identify_source_temporal_admg(
+    temporal: &antecedent_graph::TemporalAdmg,
+    query: &CausalQuery,
+    strategy: IdentifierId,
+    structure_version: u32,
+) -> Result<Identification, CausalError> {
+    let admg = temporal.project_preserving_functional().map_err(CausalError::rejected)?;
+    let CausalQuery::AverageEffect(average_effect) = query else {
+        return Err(CausalError::Unsupported {
+            message: "TemporalAdmg identification supports only CausalQuery::AverageEffect \
+                      through the static ADMG projection",
+        });
+    };
+    let result = identify_admg(strategy, &admg, average_effect)?;
+    Ok(Identification::Point { result, temporal_indexer: None, strategy, structure_version })
+}
+
+fn identify_source_temporal_dag(
+    dag: &antecedent_graph::TemporalDag,
+    query: &CausalQuery,
+    strategy: IdentifierId,
+    structure_version: u32,
+) -> Result<Identification, CausalError> {
+    let CausalQuery::TemporalEffect(q) = query else {
+        return Err(CausalError::Unsupported {
+            message: "TemporalDag identification supports only CausalQuery::TemporalEffect",
+        });
+    };
+    let identified = TemporalBackdoorIdentifier::new()
+        .with_parent_adjustment_fallback()
+        .identify_temporal(dag, q)
+        .map_err(CausalError::from)?;
+    Ok(Identification::Point {
+        result: identified.result,
+        temporal_indexer: Some(identified.indexer),
+        strategy,
+        structure_version,
+    })
+}
+
+fn identify_source_temporal_cpdag(
+    structure: &AcceptedGraph,
+    cpdag: &antecedent_graph::TemporalCpdag,
+    query: &CausalQuery,
+    strategy: IdentifierId,
+    structure_version: u32,
+) -> Result<Identification, CausalError> {
+    let q = temporal_class_identify_query(query, "TemporalCpdag")?;
+    let mut envelope = identify_temporal_cpdag(strategy, cpdag, &q)?;
+    refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
+    audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
+    Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
+}
+
+fn identify_source_temporal_pag(
+    structure: &AcceptedGraph,
+    pag: &antecedent_graph::TemporalPag,
+    query: &CausalQuery,
+    strategy: IdentifierId,
+    structure_version: u32,
+) -> Result<Identification, CausalError> {
+    if matches!(query, CausalQuery::Mediation(_)) {
+        return Err(CausalError::Unsupported {
+            message: "Latent-confounded TemporalPag natural mediation is outside the \
+                      existing cross-world identification theory",
+        });
+    }
+    let q = temporal_class_identify_query(query, "TemporalPag")?;
+    let mut envelope = identify_temporal_pag(strategy, pag, &q)?;
+    refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
+    audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
+    Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
 }
 
 fn static_identify_query(query: &CausalQuery) -> CausalQuery {
@@ -349,9 +402,7 @@ fn temporal_class_identify_query(
                 message: "temporal class response identification requires TemporalResponseSpec",
             })?;
             let (treatment, outcome) =
-                q.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                    message: format!("{class_tag} response has no treatment/outcome pair"),
-                })?;
+                crate::analysis::proof_support::require_primary_pair(&q.functional)?;
             Ok(TemporalEffectQuery {
                 treatment,
                 outcome,
@@ -361,6 +412,7 @@ fn temporal_class_identify_query(
                 horizon_steps: temporal.horizons.first().copied().unwrap_or(1),
                 max_history_lag: temporal.max_history_lag,
                 target_population: q.target_population.clone(),
+                effect_modifiers: std::sync::Arc::from([]),
             })
         }
         CausalQuery::Mediation(q) if class_tag == "TemporalCpdag" => {
@@ -413,7 +465,7 @@ fn default_strategy(class: GraphClass) -> IdentifierId {
     match class {
         GraphClass::Dag => DEFAULT_IDENTIFIER_ID,
 
-        GraphClass::Admg => DEFAULT_ADMG_IDENTIFIER_ID,
+        GraphClass::Admg | GraphClass::TemporalAdmg => DEFAULT_ADMG_IDENTIFIER_ID,
         GraphClass::TemporalDag => IdentifierId::TemporalBackdoorUnfolded,
         GraphClass::Cpdag
         | GraphClass::Pag
@@ -443,14 +495,16 @@ fn audit_temporal_class_horizons(
         }
         let mut qh = witness.clone();
         qh.horizon_steps = horizon;
-        let mut local = if let Some(graph) = structure.as_temporal_cpdag() {
-            identify_temporal_cpdag(strategy, graph, &qh)?
-        } else {
-            identify_temporal_pag(
-                strategy,
-                structure.as_temporal_pag().expect("temporal class"),
-                &qh,
-            )?
+        let mut local = match structure.graph_ref() {
+            GraphRef::TemporalCpdag(graph) => identify_temporal_cpdag(strategy, graph, &qh)?,
+            GraphRef::TemporalPag(graph) => identify_temporal_pag(strategy, graph, &qh)?,
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "temporal class horizon audit requires a TemporalCpdag or \
+                              TemporalPag"
+                        .into(),
+                });
+            }
         };
         refine_temporal_class_identification(&mut local, query, horizon)?;
         primary.envelope.truncated_completions =

@@ -1,0 +1,25 @@
+feature_id = "adaptive_inference.procedure_bayesian_martingale_gap"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Posterior validity of a declared Beta prior under the whole procedure: the posterior mean of
+# an arm is a martingale of the data-collection process when policy and stopping depend only on
+# observed history and loss of outcomes does not depend on their values. The gap
+# E[posterior mean at the terminal state] - prior mean is computed exactly under the prior
+# predictive; a nonzero gap witnesses a failed premise. The likelihood-principle argument for
+# ignoring an ignorable stopping rule is textbook.
+papers = [
+  { title = "Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["ignorable stopping rules and ignorable missing data (likelihood principle); Beta-binomial updating"] },
+]
+implementation_deviations = [
+  "The gap is a diagnostic computed from the exact prior-predictive law, not a test; a zero gap under outcome-independent loss is the expected result, a nonzero gap under value-dependent loss is the witness.",
+  "Outcome-dependent delay is refused (the observed counts alone are not the likelihood).",
+  "Reports DERIVED_UNMEASURED: no coverage of a credible interval for the whole procedure has been measured and none is claimed.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+]

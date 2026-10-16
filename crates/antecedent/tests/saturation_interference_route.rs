@@ -94,13 +94,13 @@ fn saturation_direct_spillover_total_retain_truth_without_interval() {
         );
         let result = prepared.estimate(&data, &ctx).unwrap();
         assert_eq!(result.support_status, None);
-        assert!((result.interference.as_ref().unwrap().contrast.hajek - truth).abs() < 1e-12);
-        assert!(result.interference.as_ref().unwrap().contrast.conservative_variance > 0.0);
-        assert!(result.estimate.se_analytic.is_nan());
-        let inference = result.interference_inference.as_ref().unwrap();
+        assert!((result.interference().unwrap().contrast.hajek - truth).abs() < 1e-12);
+        assert!(result.interference().unwrap().contrast.conservative_variance > 0.0);
+        assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+        let inference = result.interference_inference().unwrap();
         assert!(inference.interval.is_none());
         assert!(inference.interval_unavailable_reason.unwrap().contains("24 independent clusters"));
-        assert!(result.estimate.assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.two_stage_saturation")));
+        assert!(result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.two_stage_saturation")));
         let artifact =
             prepared.encode_contracted_result(&result, "saturation-exact", &ctx).unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();
@@ -197,13 +197,13 @@ fn supported_saturation_interval_survives_retained_artifact_round_trip() {
             .unwrap();
         let prepared = study.prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
-        let inference = result.interference_inference.as_ref().unwrap();
+        let inference = result.interference_inference().unwrap();
         let interval =
             inference.interval.as_ref().expect("adequate independent cluster and exposure support");
         assert_eq!(interval.first_stage_arm_clusters, [24, 24], "{name}");
         assert!(interval.lower < truth && truth < interval.upper, "{name}");
-        assert!(interval.lower < result.interference.as_ref().unwrap().contrast.horvitz_thompson);
-        assert!(result.interference.as_ref().unwrap().contrast.horvitz_thompson < interval.upper);
+        assert!(interval.lower < result.interference().unwrap().contrast.horvitz_thompson);
+        assert!(result.interference().unwrap().contrast.horvitz_thompson < interval.upper);
         let artifact = prepared.encode_contracted_result(&result, name, &ctx).unwrap();
         let consumed = consume_analysis_result(&artifact).unwrap();
         let wire = consumed.body.interference_inference.unwrap();

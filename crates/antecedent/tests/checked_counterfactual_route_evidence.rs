@@ -38,7 +38,7 @@ fn checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portabl
         assert_eq!(plan.query(), &query);
         assert_eq!(plan.graph().node_count(), graph.node_count());
         let result = prepared.estimate(&data, &ctx).unwrap();
-        let mean = result.counterfactual.as_ref().unwrap().mean_ite;
+        let mean = result.counterfactual().unwrap().mean_ite;
         assert!((mean - 2.0).abs() < 0.1, "mean_ite={mean}");
         let refreshed_y: Vec<f64> =
             x.iter().enumerate().map(|(i, x)| 1.0 + 2.5 * x + 0.01 * (i as f64).sin()).collect();
@@ -46,7 +46,7 @@ fn checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portabl
             TabularData::from_f64_columns([("x", x.as_slice()), ("y", refreshed_y.as_slice())])
                 .unwrap();
         let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
-        let refreshed_mean = refreshed.counterfactual.as_ref().unwrap().mean_ite;
+        let refreshed_mean = refreshed.counterfactual().unwrap().mean_ite;
         assert!((refreshed_mean - 2.5).abs() < 0.1, "mean_ite={refreshed_mean}");
         let bytes =
             prepared.encode_contracted_result(&refreshed, "checked-counterfactual", &ctx).unwrap();

@@ -43,21 +43,24 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
-use antecedent_core::{ExecutionContext, ScientificQuantity};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::{
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::{CanonicalWriter, ExecutionContext, blake3_hex};
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionMetadata, DistributionTrust, DrawAlignment,
     MAX_DISTRIBUTION_ARTIFACT_BYTES,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::external_claim_artifact::{
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimMetadata, ExternalClaimTrust,
     MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::sensitivity_artifact::{MAX_SENSITIVITY_ARTIFACT_BYTES, SensitivityArtifact};
-use antecedent_io::wire::ArtifactKind;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::reader::ArtifactReader;
+use antecedent_io_core::sensitivity_artifact::{
+    MAX_SENSITIVITY_ARTIFACT_BYTES, SensitivityArtifact,
+};
+use antecedent_io_core::wire::ArtifactKind;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -178,18 +181,12 @@ fn io_failure(kind: NodeKind, error: &IoError) -> NodeFailure {
     failure(stage, error.to_string())
 }
 
-fn put(hasher: &mut blake3::Hasher, text: &str) {
-    hasher.update(&(text.len() as u64).to_le_bytes());
-    hasher.update(text.as_bytes());
-}
-
 fn digest_parts(parts: &[&str]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    put(&mut hasher, "antecedent.composition_verifiers.v1");
+    let mut hasher = CanonicalWriter::new("antecedent.composition_verifiers.v1");
     for part in parts {
-        put(&mut hasher, part);
+        hasher.text(part);
     }
-    hasher.finalize().to_hex().to_string()
+    hasher.finish_hex()
 }
 
 fn open(bytes: &[u8], limit: usize) -> Result<ArtifactReader<Cursor<&[u8]>>, IoError> {
@@ -229,20 +226,36 @@ fn container_label(bytes: &[u8], limit: usize) -> Result<String, IoError> {
 fn content_identity(tag: &str, bytes: &[u8], limit: usize) -> Result<String, IoError> {
     let mut reader = open(bytes, limit)?;
     let ids: Vec<String> = reader.manifest().sections.iter().map(|s| s.id.clone()).collect();
-    let mut hasher = blake3::Hasher::new();
-    put(&mut hasher, "antecedent.composition_verifiers.content.v1");
-    put(&mut hasher, tag);
+    let mut hasher = CanonicalWriter::new("antecedent.composition_verifiers.content.v1");
+    hasher.text(tag);
     for id in ids {
         let section = reader.load_section(&id)?;
-        put(&mut hasher, &id);
-        hasher.update(blake3::hash(section.as_bytes()).as_bytes());
+        hasher.text(&id).text(&blake3_hex(section.as_bytes()));
     }
-    Ok(hasher.finalize().to_hex().to_string())
+    Ok(hasher.finish_hex())
 }
 
 fn coordinate_id(quantity: &ScientificQuantityWire) -> String {
-    let digest = blake3::hash(format!("{quantity:?}").as_bytes()).to_hex().to_string();
-    digest[..16].to_owned()
+    let mut writer = CanonicalWriter::new("antecedent.composition_verifiers.coordinate.v1");
+    writer.word(u64::from(quantity.version));
+    for field in [
+        &quantity.variable_id,
+        &quantity.variable_name,
+        &quantity.role,
+        &quantity.units,
+        &quantity.population_id,
+        &quantity.regime_id,
+        &quantity.functional_id,
+        &quantity.transform_id,
+    ] {
+        writer.text(field);
+    }
+    writer.word(u64::from(quantity.horizon));
+    writer.word(quantity.conditioning.len() as u64);
+    for condition in &quantity.conditioning {
+        writer.text(&condition.variable_id).text(&condition.value_id);
+    }
+    writer.finish_hex()[..16].to_owned()
 }
 
 fn coordinate_ids<'a>(
@@ -358,7 +371,7 @@ fn inspect_distribution(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     let identity = &metadata.identity;
     let draws = source_digest(&artifact);
     let metadata_bytes = to_cbor(metadata).map_err(|e| io_failure(kind, &e))?;
-    let metadata_digest = blake3::hash(&metadata_bytes).to_hex().to_string();
+    let metadata_digest = blake3_hex(&metadata_bytes);
     let mut facts = BTreeMap::new();
     let law = match identity.alignment {
         DrawAlignment::Joint => LAW_JOINT,
@@ -491,7 +504,7 @@ fn inspect_external_claim(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     publish(&mut facts, FACT_MEAN_SOURCE, mean_source_digest(&mean_source));
     publish_coordinates(&mut facts, &coordinate_ids(&identity.quantities), true);
     let identity_bytes = to_cbor(identity).map_err(|e| io_failure(kind, &e))?;
-    let identity_digest = blake3::hash(&identity_bytes).to_hex().to_string();
+    let identity_digest = blake3_hex(&identity_bytes);
     let mut values = Vec::new();
     for (index, value) in artifact.values().iter().enumerate() {
         push_value(&mut values, format!("value.{index}"), *value);
@@ -560,7 +573,10 @@ fn atom_digests(body: &Value) -> Result<Vec<(String, Option<String>)>, NodeFailu
 }
 
 // One arm per stored result kind: splitting them would only scatter the shared tail.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one decode-and-check per field of the stored result, in wire order"
+)]
 fn inspect_result(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     let kind = NodeKind::DecisionResult;
     let io = |e: &IoError| io_failure(kind, e);
@@ -871,7 +887,7 @@ fn inspect_relationship(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
 // Historical work and frozen scores are separate independently validated objects.
 // Neither reports a joint outcome law or authenticates a native provider.
 fn inspect_recalculation_receipt(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
-    use antecedent_io::recalc_receipt_artifact::RecalcReceiptArtifact;
+    use antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifact;
     let artifact = RecalcReceiptArtifact::from_bytes(bytes, None)
         .map_err(|e| failure(BundleStage::SwappedEvidence, e.to_string()))?;
     let meta = artifact.meta();
@@ -894,7 +910,7 @@ fn inspect_recalculation_receipt(bytes: &[u8]) -> Result<Inspected, NodeFailure>
     })
 }
 fn inspect_frozen_scores(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
-    use antecedent_io::frozen_scores_artifact::FrozenScoreTable;
+    use antecedent_io_core::frozen_scores_artifact::FrozenScoreTable;
     let artifact = FrozenScoreTable::from_bytes(bytes, None)
         .map_err(|e| failure(BundleStage::SwappedEvidence, e.to_string()))?;
     Ok(Inspected {
@@ -1295,10 +1311,10 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
         crate::rollout_artifact::ROLLOUT_KIND => Some(NodeKind::Rollout),
         INVERSE_QUERY_ARTIFACT_FEATURE => Some(NodeKind::InverseQuery),
         REPAIR_ARTIFACT_KIND => Some(NodeKind::RepairReport),
-        antecedent_io::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_FEATURE => {
+        antecedent_io_core::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_FEATURE => {
             Some(NodeKind::RecalculationReceipt)
         }
-        antecedent_io::frozen_scores_artifact::FROZEN_SCORES_ARTIFACT_FEATURE => {
+        antecedent_io_core::frozen_scores_artifact::FROZEN_SCORES_ARTIFACT_FEATURE => {
             Some(NodeKind::FrozenScores)
         }
         _ => None,

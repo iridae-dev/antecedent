@@ -1,4 +1,4 @@
-"""Smoothed dose-response transport grid (2.2B cell X4)."""
+"""Smoothed dose-response transport grid."""
 
 import dataclasses
 
@@ -94,7 +94,7 @@ def test_known_truth_grid_under_each_design(design):
     assert result.sampling == design
     assert result.query["bandwidth"] == H and result.query["kernel"] == "epanechnikov"
     assert len(result.provenance) == 6
-    assert result.folds["scheme"] == "stratified_round_robin_source_and_target"
+    assert result.folds["scheme"] == "stratified_seeded_source_and_target"
     assert result.certificate["formula"] == "standardize"
 
 

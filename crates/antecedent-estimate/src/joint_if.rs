@@ -8,7 +8,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
@@ -50,6 +49,10 @@ impl JointCovariance {
 
 /// Weighted mean of a score column: `θ = Σ w_i φ_i / Σ w_i`.
 ///
+/// Weights are scaled by their maximum before the sum. [`antecedent_kernels::weighted_mean`]
+/// accumulates `Σ w x / Σ w` without that scale, so the two disagree on large weight
+/// magnitudes. This estimator keeps the scaled formula.
+///
 /// # Errors
 ///
 /// Empty input, length mismatch, or non-positive total weight.
@@ -85,23 +88,15 @@ pub fn weighted_mean(scores: &[f64], weights: Option<&[f64]>) -> Result<f64, Est
 
 /// Kish effective sample size of non-negative relative weights.
 /// Zero mass returns zero; negative or non-finite weights return NaN.
+///
+/// The kernel owner [`antecedent_kernels::kish_ess`] with the additional refusal of negative
+/// weights, which it takes as given.
 #[must_use]
-pub fn kish_n_eff(weights: &[f64]) -> f64 {
-    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+pub(crate) fn kish_n_eff(weights: &[f64]) -> f64 {
+    if weights.iter().any(|w| *w < 0.0) {
         return f64::NAN;
     }
-    let scale = weights.iter().copied().fold(0.0_f64, f64::max);
-    if scale == 0.0 {
-        return 0.0;
-    }
-    let mut sum = 0.0;
-    let mut sum_sq = 0.0;
-    for &w in weights {
-        let relative = w / scale;
-        sum += relative;
-        sum_sq += relative * relative;
-    }
-    (sum / sum_sq) * sum
+    antecedent_kernels::kish_ess(weights)
 }
 
 /// Rescale relative weights before sums or products so their arbitrary units
@@ -207,8 +202,8 @@ pub(crate) fn joint_influence_covariance_with_means(
             for j in 0..dim {
                 for i in 0..=j {
                     let mut acc = 0.0;
-                    for r in 0..n {
-                        let normalized = (w[r] / scale) / w_sum;
+                    for (r, &wr) in w.iter().enumerate().take(n) {
+                        let normalized = (wr / scale) / w_sum;
                         acc += (normalized * (scores[i][r] - means[i]))
                             * (normalized * (scores[j][r] - means[j]));
                     }
@@ -360,9 +355,9 @@ pub fn max_t_critical_with_df_polled(
     }
     let mut corr = vec![0.0; k * k];
     let mut se = vec![0.0; k];
-    for i in 0..k {
-        se[i] = cov.se(i);
-        if !(se[i] > 0.0 && se[i].is_finite()) {
+    for (i, slot) in se.iter_mut().enumerate() {
+        *slot = cov.se(i);
+        if !(*slot > 0.0 && slot.is_finite()) {
             return Err(EstimationError::data_msg("max-t requires positive finite SEs"));
         }
     }
@@ -400,7 +395,7 @@ pub fn max_t_critical_with_df_polled(
         }
         maxima.push(max_abs);
     }
-    maxima.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    maxima.sort_by(f64::total_cmp);
     Ok(Some(crate::util::monte_carlo_critical(&maxima, level)))
 }
 
@@ -408,7 +403,7 @@ pub fn max_t_critical_with_df_polled(
 ///
 /// For exceedance `P(Y > c)` on an increasing `c` grid. Disclosed by callers.
 #[must_use]
-pub fn monotone_decreasing(values: &[f64]) -> Vec<f64> {
+pub(crate) fn monotone_decreasing(values: &[f64]) -> Vec<f64> {
     if values.is_empty() {
         return Vec::new();
     }
@@ -469,38 +464,35 @@ fn pava_increasing(y: &mut [f64]) {
     }
 }
 
+/// Lower factor of the (possibly rank-deficient) correlation matrix of the joint scores, by
+/// the kernel's PSD-tolerant Cholesky.
 fn cholesky_corr(corr: &[f64], k: usize) -> Result<Vec<f64>, EstimationError> {
     let mut l = vec![0.0; k * k];
-    for i in 0..k {
-        for j in 0..=i {
-            let mut sum = corr[i * k + j];
-            for p in 0..j {
-                sum -= l[i * k + p] * l[j * k + p];
-            }
-            if i == j {
-                if sum < -1e-10 {
-                    return Err(EstimationError::data_msg(
-                        "covariance must be positive semidefinite",
-                    ));
-                }
-                if sum <= 1e-12 {
-                    l[i * k + j] = 0.0;
-                } else {
-                    l[i * k + j] = sum.sqrt();
-                }
-            } else if l[j * k + j] > 0.0 {
-                l[i * k + j] = sum / l[j * k + j];
-            } else if sum.abs() > 1e-10 {
-                return Err(EstimationError::data_msg("covariance must be positive semidefinite"));
-            }
-        }
-    }
+    antecedent_kernels::cholesky::cholesky_psd_into(
+        corr,
+        k,
+        crate::util::CORRELATION_PSD_TOLERANCE,
+        &mut l,
+    )
+    .map_err(|_| EstimationError::data_msg("covariance must be positive semidefinite"))?;
     Ok(l)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn correlation_factor_zeroes_collinear_scores_and_refuses_an_indefinite_matrix() {
+        // Perfectly correlated pair: the second direction has no variance of its own.
+        let l = cholesky_corr(&[1.0, 1.0, 1.0, 1.0], 2).unwrap();
+        assert_eq!(l, [1.0, 0.0, 1.0, 0.0]);
+        // |r| > 1 is not a correlation matrix.
+        let error = cholesky_corr(&[1.0, 1.2, 1.2, 1.0], 2).unwrap_err();
+        assert!(error.to_string().contains("positive semidefinite"), "{error}");
+        // Within the slack of rank deficiency is still accepted.
+        assert!(cholesky_corr(&[1.0, 1.0, 1.0, 1.0 - 1e-12], 2).is_ok());
+    }
 
     #[test]
     fn review_relative_weights_preserve_mean_covariance_and_effective_size() {
@@ -554,6 +546,18 @@ mod tests {
         for crit in [even, odd] {
             assert!((crit - 1.959_963_984_5).abs() < 0.15, "crit {crit}");
         }
+    }
+
+    #[test]
+    fn max_t_total_order_places_nonfinite_draws_after_finite_ones() {
+        // `max_t_critical_with_df_polled` sorts with `total_cmp`, so a non-finite
+        // draw cannot tie with a finite one the way `partial_cmp`'s Equal fallback did.
+        let mut maxima = [1.0, f64::NAN, 0.0, f64::INFINITY];
+        maxima.sort_by(f64::total_cmp);
+        assert_eq!(maxima[0].to_bits(), 0.0_f64.to_bits());
+        assert_eq!(maxima[1].to_bits(), 1.0_f64.to_bits());
+        assert!(maxima[2].is_infinite());
+        assert!(maxima[3].is_nan());
     }
 
     #[test]

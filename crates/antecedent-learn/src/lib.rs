@@ -13,6 +13,7 @@ pub mod auto;
 pub mod bayesian_basis;
 pub mod bayesian_basis_regression;
 pub mod categorical;
+mod coefficient;
 pub mod crossfit;
 pub mod nested_markov_bayesian;
 pub use categorical::FiniteJoint;
@@ -21,6 +22,10 @@ pub mod design;
 pub mod elastic_net;
 pub mod error;
 pub mod fit_counts;
+mod fitted_effect;
+pub use fitted_effect::{
+    EffectSupport, FeatureRange, FittedEffect, FittedEffectError, SupportReport,
+};
 #[cfg(feature = "ml-forest")]
 pub mod forest;
 #[cfg(feature = "ml-gbdt")]
@@ -36,42 +41,47 @@ pub mod neural;
 pub mod posterior_prediction;
 pub mod ridge;
 pub mod spec;
+mod streams;
 pub mod transform;
+pub mod transported_effect;
 
-pub use auto::resolve_auto;
+#[cfg(test)]
+pub(crate) use auto::resolve_auto;
 pub use bayesian_basis::{
-    BasisTargetPopulation, BayesianBasisEffect, BayesianBasisGComputation, BayesianBasisSpec,
+    BasisData, BasisTargetPopulation, BayesianBasisEffect, BayesianBasisGComputation,
+    BayesianBasisSpec,
 };
 pub use bayesian_basis_regression::{
-    BASIS_MAX_DEGREE, BASIS_PIVOT_TOLERANCE, BasisDesign, BasisRegressionPosterior,
-    InformationRank, KnownVarianceBasisRegression, KnownVarianceBasisSpec, PolynomialBasis,
-    information_rank,
+    BASIS_MAX_DEGREE, BasisDesign, BasisRegressionPosterior, InformationRank,
+    KnownVarianceBasisRegression, KnownVarianceBasisSpec, PolynomialBasis, information_rank,
 };
 pub use crossfit::cross_fit_selected;
 pub use crossfit::{
-    CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit, cross_fit_with_folds,
-    diagnose,
+    CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cross_fit_with_folds, diagnose,
 };
-pub use design::{
-    DenseDesign, DesignStorage, DesignView, Layout, RowSelection, SparseDesignView, TargetView,
-};
-pub use elastic_net::ElasticNetLearner;
+pub use design::{DenseDesign, DesignView, Layout, RowSelection, TargetView};
 pub use error::LearnError;
 pub use lasso_logistic::LassoLogisticLearner;
 pub use learner::{
     FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
 };
-pub use linear::LinearLearner;
-pub use logistic::{LogisticLearner, RidgeLogisticLearner};
+#[cfg(test)]
+pub(crate) use linear::LinearLearner;
+#[cfg(test)]
+pub(crate) use logistic::LogisticLearner;
+pub use logistic::RidgeLogisticLearner;
 pub use posterior_prediction::{
     PosteriorPrediction, PosteriorPredictionDiagnostics, PosteriorPredictionProvenance,
 };
-pub use ridge::RidgeLearner;
+#[cfg(test)]
+pub(crate) use ridge::RidgeLearner;
+#[cfg(test)]
+pub(crate) use spec::FOREST_PROBABILITY_MIN_LEAF;
 pub use spec::{
-    ElasticNetSpec, FOREST_PROBABILITY_MIN_LEAF, ForestSpec, GbtSpec, LearnerSpec, LinearSpec,
-    LogisticSpec, NeuralSpec, RidgeSpec, require_task, resolve, resolve_for,
+    ElasticNetSpec, ForestSpec, GbtSpec, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
+    RidgeSpec, resolve, resolve_for,
 };
-pub use transform::{FittedTransformer, Identity, Log1p, TransformerFactory};
+pub use transform::{FittedTransformer, Identity, TransformerFactory};
 
 #[cfg(test)]
 #[allow(
@@ -79,7 +89,6 @@ pub use transform::{FittedTransformer, Identity, Log1p, TransformerFactory};
     clippy::cast_precision_loss,
     clippy::float_cmp,
     clippy::many_single_char_names,
-    clippy::needless_range_loop,
     reason = "the tests build small synthetic designs, casting small indices and comparing floats copied without rounding"
 )]
 mod tests {
@@ -347,6 +356,7 @@ mod tests {
         let fitted = LinearLearner.fit(view, TargetView::new(&y), None, &ctx).unwrap();
         assert_eq!(fitted.provenance().implementation, "faer");
         assert_eq!(fitted.provenance().spec, "linear");
+        assert_eq!(fitted.provenance().version, learner::FAER_VERSION);
         let mut out = vec![0.0; n];
         fitted.predict(view, &mut out, &ctx).unwrap();
         for i in 0..n {
@@ -388,10 +398,7 @@ mod tests {
         for (k, &i) in odd.iter().enumerate() {
             assert!((out[k] - y[i as usize]).abs() < 1e-8);
         }
-        match train.storage() {
-            DesignStorage::Dense(d) => assert_eq!(d.values().as_ptr(), x.as_ptr()),
-            DesignStorage::SparseCsr(_) => panic!("expected dense"),
-        }
+        assert_eq!(train.dense().values().as_ptr(), x.as_ptr());
     }
 
     #[test]
@@ -429,8 +436,8 @@ mod tests {
         assert!(out[n - 1] - out[0] > 90.0, "span {}", out[n - 1] - out[0]);
 
         let mut t = vec![0.0; n];
-        for i in 0..n {
-            t[i] = if i >= 15 { 1.0 } else { 0.0 };
+        for (i, value) in t.iter_mut().enumerate() {
+            *value = if i >= 15 { 1.0 } else { 0.0 };
         }
         let clf =
             resolve_for(LearnerSpec::GradientBoostedTrees(spec), PredictionTask::BinaryProbability)
@@ -466,8 +473,8 @@ mod tests {
         fitted.predict(view, &mut out, &ctx).unwrap();
         assert!(out.iter().all(|v| v.is_finite()));
         let mut t = vec![0.0; n];
-        for i in 0..n {
-            t[i] = if i >= n / 2 { 1.0 } else { 0.0 };
+        for (i, value) in t.iter_mut().enumerate() {
+            *value = if i >= n / 2 { 1.0 } else { 0.0 };
         }
         let clf =
             resolve_for(LearnerSpec::NeuralNet(spec), PredictionTask::BinaryProbability).unwrap();
@@ -494,8 +501,8 @@ mod tests {
         fitted.predict(view, &mut out, &ctx).unwrap();
         assert!(out.iter().any(|v| v.is_finite()));
         let mut t = vec![0.0; n];
-        for i in 0..n {
-            t[i] = if i >= n / 2 { 1.0 } else { 0.0 };
+        for (i, value) in t.iter_mut().enumerate() {
+            *value = if i >= n / 2 { 1.0 } else { 0.0 };
         }
         let clf = resolve_for(
             LearnerSpec::RandomForest(ForestSpec::default()),

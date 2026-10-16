@@ -1,24 +1,72 @@
 //! Sealed Bayesian DAG conditional-effect g-computation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, BayesianGCompWorkspace, BayesianSuiteContext, CausalError, CausalPosterior, CausalQuery,
+    Dag, Diagnostic, EstimationWorkspace, EstimatorId, ExecutionContext, GraphClass,
+    IdentificationResult, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedResultContext, IdentifierId, InferenceMode, LatencyMode, PhysicalExecutionPlan,
+    PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck, RefutationRun,
+    RefuteSuite, Strategy, StudyResult, TableView, TabularData, ValidationSuite, ValidatorId,
+    VariableId, bayesian_gcomp, effect_from_posterior, evaluate_bayesian_prior_sensitivity,
+    finish_identified_execute_with_context, identify_static, project_for_ate_estimate,
+    projection_diagnostic, resolve_bayesian_prior_with_conflict, select_claim,
+    validator_not_applicable_diagnostics, with_conflict_summary, with_prior_sensitivity,
+};
+use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::{proof_supplies, verify_proof_against_graph};
 
 const PPC_ALPHA: f64 = 0.05;
+
+/// Fitted point stage state the validate stage reuses.
+struct CheckedBayesianConditionalPoint {
+    fitter: antecedent_estimate::BayesianGComputationAte,
+    prepared: antecedent_estimate::PreparedBayesianProblem,
+    workspace: BayesianGCompWorkspace,
+    posterior: CausalPosterior,
+    estimate: antecedent_estimate::EffectEstimate,
+}
+
+/// Borrowed inputs of the validate stage.
+#[derive(Clone, Copy)]
+struct CheckedBayesianConditionalValidation<'a> {
+    data: &'a TabularData,
+    estimand: &'a IdentifiedEstimand,
+    query: &'a antecedent_core::AverageEffectQuery,
+    estimate: &'a antecedent_estimate::EffectEstimate,
+    config: &'a crate::inference::BayesianConfig,
+    fitter: &'a antecedent_estimate::BayesianGComputationAte,
+    prepared: &'a antecedent_estimate::PreparedBayesianProblem,
+    status: antecedent_identify::IdentificationStatus,
+}
 
 /// Bayesian CATE target and its checked DAG proof, prior, and validation plan.
 #[derive(Clone)]
 pub(crate) struct CheckedBayesianConditionalOperation {
     query: antecedent_core::ConditionalEffectQuery,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     inference: InferenceMode,
     refute: RefuteSuite,
     graph: Dag,
     context: IdentifiedResultContext,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     latency: Option<LatencyMode>,
     validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+}
+
+/// The frozen premises of [`CheckedBayesianConditionalOperation::checked`], carried together.
+pub(crate) struct CheckedBayesianConditionalOperationPremises<'a> {
+    pub(crate) graph: &'a Dag,
+    pub(crate) query: antecedent_core::ConditionalEffectQuery,
+    pub(crate) cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
+    pub(crate) inference: InferenceMode,
+    pub(crate) refute: RefuteSuite,
+    pub(crate) context: IdentifiedResultContext,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
+    pub(crate) latency: Option<LatencyMode>,
+    pub(crate) validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    pub(crate) stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
 }
 
 impl std::fmt::Debug for CheckedBayesianConditionalOperation {
@@ -26,8 +74,8 @@ impl std::fmt::Debug for CheckedBayesianConditionalOperation {
         formatter
             .debug_struct("CheckedBayesianConditionalOperation")
             .field("query", &self.query)
-            .field("identification", &self.identification)
-            .field("estimand", &self.estimand)
+            .field("identification", &self.cache.identification)
+            .field("estimand", &self.cache.estimand)
             .field("refute", &self.refute)
             .field("graph", &self.graph)
             .finish_non_exhaustive()
@@ -51,20 +99,22 @@ impl CheckedBayesianConditionalOperation {
         self.validators = validators;
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn checked(
-        graph: &Dag,
-        query: antecedent_core::ConditionalEffectQuery,
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
-        inference: InferenceMode,
-        refute: RefuteSuite,
-        context: IdentifiedResultContext,
-        physical: PhysicalExecutionPlan,
-        latency: Option<LatencyMode>,
-        validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
-        stage_sink: Option<Arc<dyn super::super::stage::StageResultSink>>,
+        premises: CheckedBayesianConditionalOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
+        let CheckedBayesianConditionalOperationPremises {
+            graph,
+            query,
+            cache,
+            inference,
+            refute,
+            context,
+            physical,
+            latency,
+            validators,
+            stage_sink,
+        } = premises;
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
         let InferenceMode::Bayesian(_) = inference else {
             return Err(CausalError::Compile {
                 message: "checked Bayesian CATE requires its prepared Bayesian configuration"
@@ -79,16 +129,15 @@ impl CheckedBayesianConditionalOperation {
         if target != &query
             || physical.logical.query != context.query
             || context.graph_class != GraphClass::Dag
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::BayesianConditional.as_str())
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::BackdoorAdjustment.as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianConditional)
             || !matches!(
                 context.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !matches!(refute, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !refute.is_point()
         {
             return Err(CausalError::Compile {
                 message:
@@ -104,11 +153,7 @@ impl CheckedBayesianConditionalOperation {
             });
         }
         if identification.average_effect() != Some(&query.inner)
-            || !identification.estimands.iter().any(|candidate| {
-                candidate.functional == estimand.functional
-                    && candidate.method == estimand.method
-                    && candidate.adjustment_set == estimand.adjustment_set
-            })
+            || !proof_supplies(identification, estimand)
         {
             return Err(CausalError::Compile {
                 message: "Bayesian CATE estimand is not supplied by its retained proof".into(),
@@ -118,20 +163,16 @@ impl CheckedBayesianConditionalOperation {
             identify_static(IdentifierId::BackdoorAdjustment, graph, &query.inner)?,
             EstimatorId::BayesianConditional,
         )?;
-        if checked_identification.status != identification.status
-            || checked_identification.query != identification.query
-            || checked_estimand.functional != estimand.functional
-            || checked_estimand.method != estimand.method
-            || checked_estimand.adjustment_set != estimand.adjustment_set
-        {
-            return Err(CausalError::Compile {
-                message: "Bayesian CATE proof is not justified by its retained graph".into(),
-            });
-        }
-        Ok(Self {
-            query,
+        verify_proof_against_graph(
+            &checked_identification,
+            &checked_estimand,
             identification,
             estimand,
+            "Bayesian CATE proof is not justified by its retained graph",
+        )?;
+        Ok(Self {
+            query,
+            cache,
             inference,
             refute,
             graph: graph.clone(),
@@ -148,11 +189,11 @@ impl CheckedBayesianConditionalOperation {
     }
 
     pub(crate) fn identification(&self) -> &IdentificationResult {
-        &self.identification
+        &self.cache.identification
     }
 
     pub(crate) fn estimand(&self) -> &IdentifiedEstimand {
-        &self.estimand
+        &self.cache.estimand
     }
 
     pub(crate) fn inference(&self) -> &InferenceMode {
@@ -167,46 +208,33 @@ impl CheckedBayesianConditionalOperation {
         &self.query.inner.effect_modifiers
     }
 
-    pub(crate) fn execute(
+    /// Point and uncertainty stages: prepare the conditional design, resolve the prior, fit,
+    /// and record the outcome-model assumption, with the stage clock and events around them.
+    fn estimate_point(
         &self,
-        data: &TabularData,
+        projected: &TabularData,
+        estimand_est: &IdentifiedEstimand,
+        query_est: &antecedent_core::AverageEffectQuery,
+        status: antecedent_identify::IdentificationStatus,
+        clock: &mut super::super::stage::StageClock,
         ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        let mut clock = super::super::stage::StageClock::new();
-        clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
-        let identification = self.identification.clone();
-        let estimand = self.estimand.clone();
-        clock.finish(super::super::stage::STAGE_IDENTIFY);
-        super::super::stage::emit_stage(
-            self.stage_sink.as_ref(),
-            &super::super::stage::StageEvent::Identify {
-                identification: identification.clone(),
-                estimand: estimand.clone(),
-            },
-        );
+    ) -> Result<CheckedBayesianConditionalPoint, CausalError> {
         let InferenceMode::Bayesian(config) = &self.inference else {
-            unreachable!("checked constructor requires Bayesian inference")
+            return Err(CausalError::Compile {
+                message: "checked Bayesian CATE lost its Bayesian inference configuration".into(),
+            });
         };
-        // Fit on the identified columns only, as the one-shot route does;
-        // the retained estimand keeps the caller's ids for the result.
-        let full_cols = data.schema().len();
-        let (projected, query_est, estimand_est) =
-            project_for_ate_estimate(data, &self.query.inner, &estimand)?;
-        let projected_cols = projected.schema().len();
-        let conditional_est =
-            antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let conditional_est = antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())?;
         let mut fitter = bayesian_gcomp(config, ctx);
         let prepared = fitter
-            .prepare_conditional(&projected, &estimand_est, &conditional_est)
+            .prepare_conditional(projected, estimand_est, &conditional_est)
             .map_err(CausalError::from)?;
         let (prior, conflict) = resolve_bayesian_prior_with_conflict(config, &prepared, Some(ctx))?;
         fitter.prior = prior;
         let mut workspace = BayesianGCompWorkspace::default();
         clock.begin(ctx, super::super::stage::STAGE_ESTIMATE_POINT, 0.25)?;
-        let mut posterior = fitter
-            .fit(&prepared, identification.status, &mut workspace, ctx)
-            .map_err(CausalError::from)?;
+        let mut posterior =
+            fitter.fit(&prepared, status, &mut workspace, ctx).map_err(CausalError::from)?;
         if let Some(summary) = conflict {
             posterior = with_conflict_summary(posterior, summary);
         }
@@ -231,69 +259,82 @@ impl CheckedBayesianConditionalOperation {
             self.stage_sink.as_ref(),
             &super::super::stage::StageEvent::Uncertainty { estimate: estimate.clone() },
         );
+        Ok(CheckedBayesianConditionalPoint { fitter, prepared, workspace, posterior, estimate })
+    }
+
+    /// Validate stage: refutation suite and prior / posterior predictive checks when the
+    /// suite is on, and under the full suite prior sensitivity plus MCMC diagnostics.
+    fn validate(
+        &self,
+        input: &CheckedBayesianConditionalValidation<'_>,
+        mut posterior: CausalPosterior,
+        workspace: &mut BayesianGCompWorkspace,
+        diagnostics: &mut Vec<Diagnostic>,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (CausalPosterior, Vec<antecedent_validate::RefutationReport>, Vec<PredictiveCheckReport>),
+        CausalError,
+    > {
+        let CheckedBayesianConditionalValidation {
+            data,
+            estimand,
+            query,
+            estimate,
+            config,
+            fitter,
+            prepared,
+            status,
+        } = *input;
         let mut refutations = Vec::new();
-        let mut diagnostics = Vec::new();
-        if let Some(projection) = projection_diagnostic(full_cols, projected_cols) {
-            diagnostics.push(projection);
-        }
         let mut predictive_checks = Vec::new();
-        clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
         let mut refute_workspace = EstimationWorkspace::default();
         if self.refute != RefuteSuite::None {
             let mean_query = {
-                let mut query = query_est;
+                let mut query = query.clone();
                 query.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
                 query
             };
-            let (reports, not_applicable) = run_refuters(
-                &projected,
-                &estimand_est,
-                &mean_query,
-                &estimate,
-                &mut refute_workspace,
-                None,
-                ctx,
-                self.refute,
-                EstimatorId::BayesianConditional.as_str(),
-                &self.validators,
-                None,
-            )?;
+            let (reports, not_applicable) = RefutationRun {
+                data,
+                estimand,
+                query: &mean_query,
+                estimate,
+                suite: self.refute,
+                estimator: EstimatorId::BayesianConditional.as_str(),
+                custom: &self.validators,
+                temporal: None,
+            }
+            .reports(&mut refute_workspace, None, ctx)?;
             refutations = reports;
             diagnostics.extend(not_applicable);
             let sims = super::super::latency::predictive_check_sims(self.latency);
             let prior = fitter.prior_in_force(prepared.design.ncols);
-            let prior_rep = PriorPredictiveCheck::for_estimator(&fitter, ctx)
+            let prior_rep = PriorPredictiveCheck::for_estimator(fitter, ctx)
                 .with_n_sims(sims)
-                .check_with_prior(&prepared, &prior, ctx)
+                .check_with_prior(prepared, &prior, ctx)
                 .map_err(CausalError::from)?;
             refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
             predictive_checks.push(prior_rep);
-            let posterior_rep = PosteriorPredictiveCheck::for_estimator(&fitter, ctx)
+            let posterior_rep = PosteriorPredictiveCheck::for_estimator(fitter, ctx)
                 .with_n_sims(sims)
-                .check(&prepared, &posterior)
+                .check(prepared, &posterior)
                 .map_err(CausalError::from)?;
             refutations.push(posterior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
             predictive_checks.push(posterior_rep);
         }
         if self.refute == RefuteSuite::Full {
             let (summary, sensitivity) = evaluate_bayesian_prior_sensitivity(
-                config,
-                &fitter,
-                &prepared,
-                identification.status,
-                &posterior,
-                &mut workspace,
-                ctx,
+                config, fitter, prepared, status, &posterior, workspace, ctx,
             )?;
             refutations.push(sensitivity.to_report(&summary, estimate.ate));
             posterior = with_prior_sensitivity(posterior, summary);
             let suite = ValidationSuite::new().with(ValidatorId::McmcDiagnostics);
             let mut bayes_context = BayesianSuiteContext::new(
-                &fitter,
-                &prepared,
+                fitter,
+                prepared,
                 &posterior,
-                identification.status,
-                &mut workspace,
+                status,
+                workspace,
                 estimate.ate,
             );
             let outcomes =
@@ -301,6 +342,72 @@ impl CheckedBayesianConditionalOperation {
             refutations.extend(ValidationSuite::reports_only(&outcomes));
             diagnostics.extend(validator_not_applicable_diagnostics(&outcomes));
         }
+        Ok((posterior, refutations, predictive_checks))
+    }
+
+    pub(crate) fn execute(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let mut clock = super::super::stage::StageClock::new();
+        clock.begin(ctx, super::super::stage::STAGE_IDENTIFY, 0.05)?;
+        let identification = self.cache.identification.clone();
+        let estimand = self.cache.estimand.clone();
+        clock.finish(super::super::stage::STAGE_IDENTIFY);
+        super::super::stage::emit_stage(
+            self.stage_sink.as_ref(),
+            &super::super::stage::StageEvent::Identify {
+                identification: identification.clone(),
+                estimand: estimand.clone(),
+            },
+        );
+        let InferenceMode::Bayesian(config) = &self.inference else {
+            return Err(CausalError::Compile {
+                message: "checked Bayesian CATE lost its Bayesian inference configuration".into(),
+            });
+        };
+        // Fit on the identified columns only, as the one-shot route does;
+        // the retained estimand keeps the caller's ids for the result.
+        let full_cols = data.schema().len();
+        let (projected, query_est, estimand_est) =
+            project_for_ate_estimate(data, &self.query.inner, &estimand)?;
+        let projected_cols = projected.schema().len();
+        let CheckedBayesianConditionalPoint {
+            fitter,
+            prepared,
+            mut workspace,
+            posterior,
+            estimate,
+        } = self.estimate_point(
+            &projected,
+            &estimand_est,
+            &query_est,
+            identification.status,
+            &mut clock,
+            ctx,
+        )?;
+        let mut diagnostics = Vec::new();
+        if let Some(projection) = projection_diagnostic(full_cols, projected_cols) {
+            diagnostics.push(projection);
+        }
+        clock.begin(ctx, super::super::stage::STAGE_VALIDATE, 0.8)?;
+        let (posterior, refutations, predictive_checks) = self.validate(
+            &CheckedBayesianConditionalValidation {
+                data: &projected,
+                estimand: &estimand_est,
+                query: &query_est,
+                estimate: &estimate,
+                config,
+                fitter: &fitter,
+                prepared: &prepared,
+                status: identification.status,
+            },
+            posterior,
+            &mut workspace,
+            &mut diagnostics,
+            ctx,
+        )?;
         clock.finish(super::super::stage::STAGE_VALIDATE);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),
@@ -313,33 +420,88 @@ impl CheckedBayesianConditionalOperation {
         Ok(finish_identified_execute_with_context(
             &self.context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
+            IdentifiedExecuteFinish::new(
+                &self.physical,
                 identification,
                 estimand,
                 estimate,
-                identifier_id: IdentifierId::BackdoorAdjustment,
-                estimator_id: EstimatorId::BayesianConditional,
-                treatment: self.query.inner.treatment,
-                outcome: self.query.inner.outcome,
-                identify_cached: true,
-                extra_diagnostics: diagnostics,
-                refutations,
-                distribution: None,
-                mediation: None,
-                wall_time_ns: clock.wall_time_ns(),
-                bootstrap_replicates_ok: None,
-                cancelled: ctx.cancellation.is_cancelled(),
-                early_stopped: posterior.early_stopped,
-                extras: IdentifiedExecuteExtras {
-                    stage_timings_ns: clock.timings(),
-                    posterior: Some(posterior),
-                    n_draws: draws,
-                    predictive_checks,
-                    bootstrap_replicates_requested: Some(None),
-                    ..Default::default()
-                },
-            },
+                Strategy::new(IdentifierId::BackdoorAdjustment, EstimatorId::BayesianConditional),
+                self.query.inner.treatment,
+                self.query.inner.outcome,
+            )
+            .identify_cached(true)
+            .extra_diagnostics(diagnostics)
+            .refutations(refutations)
+            .wall_time_ns(clock.wall_time_ns())
+            .cancelled(ctx.cancellation.is_cancelled())
+            .early_stopped(posterior.early_stopped)
+            .extras(IdentifiedExecuteExtras {
+                stage_timings_ns: clock.timings(),
+                posterior: Some(posterior),
+                n_draws: draws,
+                predictive_checks,
+                bootstrap_replicates_requested: Some(None),
+                ..Default::default()
+            }),
         ))
+    }
+}
+
+/// Inspection receipt for a prepared Bayesian DAG conditional-effect route.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianConditionalInfo {
+    query: antecedent_core::ConditionalEffectQuery,
+    inference: crate::inference::InferenceMode,
+    validation: crate::analysis::builder::RefuteSuite,
+    modifier_roles: std::sync::Arc<[antecedent_core::VariableId]>,
+    identification_status: antecedent_identify::IdentificationStatus,
+    estimand: antecedent_expr::IdentifiedEstimand,
+}
+
+impl CheckedBayesianConditionalInfo {
+    /// Conditional causal target retained by preparation.
+    #[must_use]
+    pub fn query(&self) -> &antecedent_core::ConditionalEffectQuery {
+        &self.query
+    }
+    /// Bayesian prior and inference settings retained by preparation.
+    #[must_use]
+    pub fn inference(&self) -> &crate::inference::InferenceMode {
+        &self.inference
+    }
+    /// Validation suite retained by preparation.
+    #[must_use]
+    pub fn validation(&self) -> crate::analysis::builder::RefuteSuite {
+        self.validation
+    }
+    /// Semantic modifier variables retained by preparation.
+    #[must_use]
+    pub fn modifier_roles(&self) -> &[antecedent_core::VariableId] {
+        &self.modifier_roles
+    }
+    /// Identification status retained with the target.
+    #[must_use]
+    pub fn identification_status(&self) -> antecedent_identify::IdentificationStatus {
+        self.identification_status
+    }
+    /// Identified target functional and adjustment roles.
+    #[must_use]
+    pub fn estimand(&self) -> &antecedent_expr::IdentifiedEstimand {
+        &self.estimand
+    }
+}
+
+impl Inspect for CheckedBayesianConditionalOperation {
+    type Info = CheckedBayesianConditionalInfo;
+
+    fn info(&self) -> CheckedBayesianConditionalInfo {
+        CheckedBayesianConditionalInfo {
+            query: self.query().clone(),
+            inference: self.inference().clone(),
+            validation: self.validation(),
+            modifier_roles: Arc::from(self.modifier_roles()),
+            identification_status: self.identification().status,
+            estimand: self.estimand().clone(),
+        }
     }
 }

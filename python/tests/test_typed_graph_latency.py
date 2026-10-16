@@ -1,6 +1,6 @@
 """`latency=` must reach the typed-graph analyze paths (Cpdag / Pag / Admg).
 
-`analyze_ate` has always accepted `latency=`, but the four typed-graph entry
+The static DAG route has always accepted `latency=`, but the typed-graph entry
 points did not, so `analyze(graph=<Cpdag|Pag|Admg>, latency=...)` raised
 ``TypeError: unexpected keyword argument 'latency'``. That made every
 ``AcceptedGraph.analyze()`` on a non-DAG structure fail outright, since

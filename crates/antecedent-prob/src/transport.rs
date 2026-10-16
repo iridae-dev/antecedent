@@ -19,7 +19,7 @@ use crate::external_prior::{
 use crate::prior::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 
 /// Stable assumption id recorded for each applied transport claim.
-pub const TRANSPORT_ASSUMPTION_ID: &str = "external_transport_prior";
+pub(crate) const TRANSPORT_ASSUMPTION_ID: &str = "external_transport_prior";
 
 /// Caller-convention tag key for population identity on prior-source meta.
 pub const POPULATION_TAG_KEY: &str = "population";
@@ -100,6 +100,10 @@ impl TransportAdjustment {
     /// # Errors
     ///
     /// Length mismatch, empty, non-finite, negative weights, or zero mass.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn new(
         unit_effects: impl Into<Arc<[f64]>>,
         target_weights: impl Into<Arc<[f64]>>,
@@ -299,7 +303,7 @@ impl From<TransportError> for ProbError {
 /// concrete tags do. A concrete target with an untagged source (or vice versa)
 /// also requires transport — the library will not silently assume equality.
 #[must_use]
-pub fn populations_require_transport(
+pub(crate) fn populations_require_transport(
     source_population: Option<&str>,
     target_population: Option<&str>,
 ) -> bool {
@@ -395,6 +399,10 @@ fn replace_coef_moments(
 ///
 /// [`TransportError::PolicyRequired`] when populations differ without a policy,
 /// length mismatches, or invalid adjustment weights.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per transport kind over the same posterior draws"
+)]
 pub fn apply_transport(
     sources: &[ExternalPriorSource],
     ctx: &TransportContext<'_>,

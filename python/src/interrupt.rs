@@ -16,13 +16,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
-use antecedent_core::CancellationToken;
+use antecedent_core::{CancellationToken, WeakCancellationToken};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
@@ -35,7 +35,8 @@ const POLL: Duration = Duration::from_millis(50);
 /// the 8 MiB a Python main thread has by default, with headroom for the engines' own frames.
 const WORKER_STACK_BYTES: usize = 64 * 1024 * 1024;
 
-/// Retained callback failures; older entries are stale (their run already returned).
+/// Retained callback failures. A full map refuses a new id instead of dropping
+/// the oldest, which may still be waiting to be attributed.
 const MAX_STASHED: usize = 256;
 
 /// Tokens the interrupt loop cancels for one run.
@@ -54,13 +55,18 @@ impl Scope {
     }
 }
 
-/// Bound on tokens waiting for the next run on a thread (contexts built and never run).
-const MAX_PENDING: usize = 64;
+/// Queue length at which dead entries are first pruned from [`PENDING`].
+const PENDING_PRUNE_FLOOR: usize = 64;
 
 thread_local! {
     static ACTIVE: RefCell<Option<Arc<Scope>>> = const { RefCell::new(None) };
-    /// Tokens of contexts built on a Python thread ahead of the [`run`] that will execute them.
-    static PENDING: RefCell<Vec<CancellationToken>> = const { RefCell::new(Vec::new()) };
+    /// Contexts built on a Python thread ahead of the [`run`] that will execute them.
+    ///
+    /// Weak: a context built and dropped without running leaves nothing to cancel, and a
+    /// live one is never evicted or refused however many wait.
+    static PENDING: RefCell<Vec<WeakCancellationToken>> = const { RefCell::new(Vec::new()) };
+    /// Queue length at which [`PENDING`] is next pruned (doubles with the live set).
+    static PENDING_PRUNE_AT: Cell<usize> = const { Cell::new(PENDING_PRUNE_FLOOR) };
 }
 
 /// The interruptible run's token, if the current thread is a [`run`] worker.
@@ -82,12 +88,28 @@ pub(crate) fn link(token: &CancellationToken) {
     if !joined {
         PENDING.with(|pending| {
             let mut pending = pending.borrow_mut();
-            if pending.len() >= MAX_PENDING {
-                pending.remove(0);
+            if pending.len() >= PENDING_PRUNE_AT.get() {
+                pending.retain(WeakCancellationToken::is_alive);
+                PENDING_PRUNE_AT.set((pending.len() * 2).max(PENDING_PRUNE_FLOOR));
             }
-            pending.push(token.clone());
+            pending.push(token.downgrade());
         });
     }
+}
+
+/// Release the GIL without the interrupt worker.
+///
+/// [`run`] gives every detached call a 64 MiB thread so Ctrl-C can cancel it.
+/// This is the cheap path for a call that does not poll a cancellation token.
+/// Call sites stay on [`run`] until each one is classified: switching one drops
+/// cooperative Ctrl-C for that call.
+#[allow(dead_code)]
+pub(crate) fn detach_fast<F, T>(py: Python<'_>, f: F) -> PyResult<T>
+where
+    F: FnOnce() -> PyResult<T> + Send,
+    T: Send,
+{
+    py.detach(|| catch_ffi(f))
 }
 
 /// Callback failures awaiting attribution, by the id their message carries.
@@ -101,13 +123,21 @@ const TAG_OPEN: &str = "[callback failure #";
 /// Record the Python exception behind a callback failure and return the message the domain error
 /// should carry. The message ends in an id tag that [`attribute`] looks the exception up by, so
 /// two runs whose callbacks fail with byte-identical text can never be attributed to each other.
+/// Whether another callback failure can be retained without dropping one already stored.
+fn stash_accepts(len: usize) -> bool {
+    len < MAX_STASHED
+}
+
 pub(crate) fn callback_failure(what: &str, err: PyErr) -> String {
+    let mut stash = STASH.lock().unwrap_or_else(PoisonError::into_inner);
+    if !stash_accepts(stash.len()) {
+        // The oldest entry may still be waiting for [`attribute`]. Dropping it
+        // would attach this failure's exception to an earlier run. The new
+        // failure stays in the message and is not given an id.
+        return format!("{what}: {err}");
+    }
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
     let message = format!("{what}: {err} {TAG_OPEN}{id}]");
-    let mut stash = STASH.lock().unwrap_or_else(PoisonError::into_inner);
-    while stash.len() >= MAX_STASHED {
-        stash.pop_first();
-    }
     stash.insert(id, err);
     message
 }
@@ -149,11 +179,12 @@ where
     T: Send,
 {
     let scope = Arc::new(Scope::default());
-    scope
-        .linked
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .extend(PENDING.with(|pending| std::mem::take(&mut *pending.borrow_mut())));
+    scope.linked.lock().unwrap_or_else(PoisonError::into_inner).extend(PENDING.with(|pending| {
+        std::mem::take(&mut *pending.borrow_mut())
+            .iter()
+            .filter_map(WeakCancellationToken::upgrade)
+            .collect::<Vec<_>>()
+    }));
     let slot: (Mutex<Option<PyResult<T>>>, Condvar) = (Mutex::new(None), Condvar::new());
     let observation = antecedent_core::execution_attempt::ObservationToken::capture();
     let outcome = std::thread::scope(|s| {
@@ -214,5 +245,45 @@ mod tests {
         assert_eq!(tagged_ids(&wrapped).collect::<Vec<_>>(), vec![8]);
         assert_eq!(tagged_ids("no tag here").count(), 0);
         assert_eq!(tagged_ids(&format!("{TAG_OPEN}not a number]")).count(), 0);
+    }
+
+    #[test]
+    fn a_full_callback_stash_does_not_drop_the_oldest_id() {
+        use super::{MAX_STASHED, stash_accepts};
+        assert!(stash_accepts(0));
+        assert!(stash_accepts(MAX_STASHED - 1));
+        assert!(!stash_accepts(MAX_STASHED));
+    }
+
+    #[test]
+    fn every_live_pending_context_joins_the_next_run() {
+        use super::{PENDING, link};
+        use antecedent_core::CancellationToken;
+        PENDING.with(|pending| pending.borrow_mut().clear());
+        let live: Vec<CancellationToken> = (0..500).map(|_| CancellationToken::new()).collect();
+        for token in &live {
+            link(token);
+        }
+        let queued = PENDING.with(|pending| {
+            pending
+                .borrow()
+                .iter()
+                .filter_map(antecedent_core::WeakCancellationToken::upgrade)
+                .count()
+        });
+        assert_eq!(queued, live.len());
+        PENDING.with(|pending| pending.borrow_mut().clear());
+    }
+
+    #[test]
+    fn tokens_of_dropped_contexts_do_not_accumulate() {
+        use super::{PENDING, link};
+        use antecedent_core::CancellationToken;
+        PENDING.with(|pending| pending.borrow_mut().clear());
+        for _ in 0..10_000 {
+            link(&CancellationToken::new());
+        }
+        assert!(PENDING.with(|pending| pending.borrow().len()) < 200);
+        PENDING.with(|pending| pending.borrow_mut().clear());
     }
 }

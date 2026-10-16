@@ -21,7 +21,7 @@ fn licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
         let prepared =
             Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
-        let fit = result.randomized_effect.as_ref().unwrap();
+        let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported complier interval");
         assert_eq!(fit.assignment_design.as_ref(), "bernoulli");
         assert_eq!(fit.estimand.as_ref(), estimand);
@@ -174,6 +174,6 @@ fn complier_interval_withheld_below_support_threshold() {
     .with_received_treatment(received);
     let ctx = ExecutionContext::for_tests(0x51CE_1234);
     let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
-    assert_eq!(result.randomized_effect.as_ref().unwrap().interval_95, None);
+    assert_eq!(result.randomized_effect().unwrap().interval_95, None);
     assert_eq!(result.support_status, None);
 }

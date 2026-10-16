@@ -44,25 +44,25 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_core::{ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use antecedent_contract::{ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
+use antecedent_core::{CanonicalWriter, is_blank};
+use antecedent_io_core::convert::to_cbor;
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
 use crate::decision::{DecisionProblem, DecisionTable};
 use crate::error::DesignError;
-use crate::evsi::{CostToUtilityMap, EvsiReport, EvsiRequest, IntegrationMethod, SearchReceipt};
+use crate::evsi::{
+    CostToUtilityMap, DeclaredObservations, EvsiCandidate, EvsiCandidateRow, EvsiReport,
+    EvsiRequest, IntegrationMethod, ObservationOverlap, SearchReceipt, declared_overlap,
+};
 use crate::preposterior::{DecisionPrior, DecisionSignal, expected_max_affine};
-use crate::ranking::{DesignRanking, DesignRankingBasis, RankingEntry, RankingError};
+use crate::rank_rows::{AdjacentRank, evsi_bound_ok, rank_rows};
+use crate::ranking::{DesignRankingBasis, EvsiRankRow, RankingError, RankingRecord};
 use crate::signal::{
-    PreparedLaw, SignalError, SignalLimits, SignalReceipt, SignalRequest, SignalTrustLabel,
-    SignalUpdateMode, make_refusal,
+    PreparedLaw, PreparedSignal, RefusalBuilder, SignalError, SignalLimits, SignalReceipt,
+    SignalRequest, SignalTrustLabel, SignalUpdateMode, recall_prepared,
 };
 
 /// Wire schema version.
@@ -79,18 +79,15 @@ pub const MAX_DESIGN_RANKING_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 /// Largest candidate catalog an artifact may retain (the frozen coordinate bound).
 pub const MAX_RANKING_CANDIDATES: usize = 1024;
 /// Largest number of prior draws or actions an artifact may retain.
-pub const MAX_RANKING_STATES: usize = 65_536;
+pub(crate) const MAX_RANKING_STATES: usize = 65_536;
 /// Largest number of table cells (states times actions or observation values).
-pub const MAX_RANKING_CELLS: usize = 4 * 1024 * 1024;
+pub(crate) const MAX_RANKING_CELLS: usize = 4 * 1024 * 1024;
 
 const BODY_SECTION: &str = "design_ranking_body";
 /// Relative tolerance of a replayed number against the stored one.
 const REPLAY_TOLERANCE: f64 = 1e-8;
 /// Tolerance of probability-mass and coherence checks on retained tables.
 const MASS_TOLERANCE: f64 = 1e-6;
-/// Critical value of the rank-uncertainty comparison (matches the evaluator).
-const RANK_Z: f64 = 1.96;
-
 // -- wire -------------------------------------------------------------------------------
 
 /// Cost-to-utility mapping on the wire.
@@ -253,7 +250,7 @@ pub enum LawWire {
 /// One ranked candidate with everything needed to inspect or recompute its value.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct CandidateWire {
+pub struct EvsiCandidateWire {
     /// Stable semantic identity.
     pub semantic_id: String,
     /// Sample size.
@@ -316,6 +313,73 @@ pub struct CandidateWire {
     pub assumptions: Vec<String>,
 }
 
+impl EvsiCandidateWire {
+    /// Scored columns come from [`EvsiRankRow::from`]; the request, law and
+    /// provider fields are the seal inputs that are not on the rank row.
+    fn from_scored(row: &EvsiCandidateRow, declared: &EvsiCandidate, law: LawWire) -> Self {
+        let scored = EvsiRankRow::from(row);
+        let receipt = &row.signal_receipt;
+        Self {
+            semantic_id: scored.semantic_id,
+            sample_size: scored.sample_size,
+            cost_amount: scored.study_cost_amount,
+            cost_unit: scored.study_cost_unit,
+            reused_observation_ids: declared.reused_observation_ids.clone(),
+            request: request_wire(&declared.signal_request),
+            family: receipt.family.clone(),
+            update_mode: scored.update_mode.as_str().to_owned(),
+            trust: scored.provider_trust.as_str().to_owned(),
+            attestor: receipt.attestor.clone(),
+            provider: receipt.provider_identity.as_ref().map(provider_wire),
+            law_digest: receipt.law_digest.clone(),
+            request_fingerprint: scored.request_fingerprint,
+            signal_identity: scored.signal_identity,
+            law,
+            evsi: scored.evsi,
+            evpi: scored.evpi,
+            integration: scored.integration.as_str().to_owned(),
+            replicates: scored.replicates,
+            stderr: scored.mc_stderr,
+            ess: row.integration.ess,
+            converged: row.integration.converged,
+            early_stopped: row.integration.early_stopped,
+            study_cost_utility: row.study_cost_utility,
+            net_value: scored.net_value,
+            rank: scored.rank as u64,
+            rank_uncertain: scored.rank_uncertain,
+            overlap_checked: row.source_overlap.observations_checked as u64,
+            overlapping: row.source_overlap.overlapping.clone(),
+            assumptions: row.assumptions.clone(),
+        }
+    }
+}
+
+impl TryFrom<&EvsiCandidateWire> for EvsiRankRow {
+    type Error = DesignRankingArtifactError;
+
+    fn try_from(wire: &EvsiCandidateWire) -> std::result::Result<Self, Self::Error> {
+        let invalid = DesignRankingArtifactError::InvalidWire;
+        Ok(Self {
+            semantic_id: wire.semantic_id.clone(),
+            rank: usize::try_from(wire.rank).map_err(|_| invalid("rank"))?,
+            evsi: wire.evsi,
+            mc_stderr: wire.stderr,
+            replicates: wire.replicates,
+            integration: parse_method(&wire.integration).ok_or_else(|| invalid("integration"))?,
+            evpi: wire.evpi,
+            sample_size: wire.sample_size,
+            study_cost_amount: wire.cost_amount,
+            study_cost_unit: wire.cost_unit.clone(),
+            net_value: wire.net_value,
+            rank_uncertain: wire.rank_uncertain,
+            signal_identity: wire.signal_identity.clone(),
+            request_fingerprint: wire.request_fingerprint.clone(),
+            update_mode: parse_mode(&wire.update_mode).ok_or_else(|| invalid("update_mode"))?,
+            provider_trust: parse_trust(&wire.trust).ok_or_else(|| invalid("trust"))?,
+        })
+    }
+}
+
 /// Search receipt on the wire.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -367,12 +431,12 @@ pub struct DesignRankingArtifactWire {
     /// Expected value of perfect information.
     pub evpi: f64,
     /// Candidates (any order; the digest uses semantic-id order).
-    pub candidates: Vec<CandidateWire>,
+    pub candidates: Vec<EvsiCandidateWire>,
     /// Adjacent pairs tied within the tie tolerance.
     pub ties: Vec<(String, String)>,
     /// Search receipt.
     pub search: SearchWire,
-    /// Identity of the in-memory [`DesignRanking`] value.
+    /// Identity of the in-memory [`RankingRecord`] value.
     pub ranking_identity: String,
     /// Digest over the canonical body.
     pub digest: String,
@@ -419,6 +483,14 @@ pub enum DesignRankingArtifactError {
         /// Shared observation identities.
         ids: Vec<String>,
     },
+    /// Whether a study reuses the prior's observations is not computable; unknown
+    /// dependence is never independence.
+    SourceOverlapUnknown {
+        /// Candidate.
+        candidate: String,
+        /// Why.
+        reason: String,
+    },
     /// A cost unit is incompatible with the cost mapping or the mapping with the decision.
     CostUnitsMismatch(String),
     /// The stored order, tie or search receipt does not follow from the stored values.
@@ -459,75 +531,72 @@ impl DesignRankingArtifactError {
     #[must_use]
     pub fn refusal(&self) -> Option<ExternalRefusal> {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
-        let at = |code, detail: &str| make_refusal(code, "consume", detail);
-        let with =
-            |code, detail: &str, offending: String, expected: Option<String>| ExternalRefusal {
-                offending: Some(offending),
-                expected,
-                ..make_refusal(code, "consume", detail)
-            };
+        let at = |code, detail: &str| RefusalBuilder::new(code, "consume", detail);
         Some(match self {
             Self::Io(_) => return None,
-            Self::UnsupportedVersion(version) => ExternalRefusal {
-                supplied: Some(version.to_string()),
-                expected: Some(DESIGN_RANKING_ARTIFACT_VERSION.to_string()),
-                ..at(
-                    antecedent_core::reason_code!("route_not_supported"),
-                    "design_ranking.unsupported_version",
-                )
-            },
-            Self::Bounds(what) => with(
+            Self::UnsupportedVersion(version) => at(
+                antecedent_core::reason_code!("route_not_supported"),
+                "design_ranking.unsupported_version",
+            )
+            .supplied(version.to_string())
+            .expected(DESIGN_RANKING_ARTIFACT_VERSION.to_string())
+            .build(),
+            Self::Bounds(what) => at(
                 antecedent_core::reason_code!("route_not_supported"),
                 "design_ranking.bounds_exceeded",
-                (*what).to_owned(),
-                None,
-            ),
-            Self::InvalidWire(what) => with(
+            )
+            .offending(*what)
+            .build(),
+            Self::InvalidWire(what) => at(
                 antecedent_core::reason_code!("invalid_argument"),
                 "design_ranking.invalid_artifact",
-                (*what).to_owned(),
-                None,
-            ),
-            Self::DigestMismatch => at(signal, "design_ranking.digest_mismatch"),
-            Self::ExpectedIdentityMismatch => at(signal, "design_ranking.identity_mismatch"),
+            )
+            .offending(*what)
+            .build(),
+            Self::DigestMismatch => at(signal, "design_ranking.digest_mismatch").build(),
+            Self::ExpectedIdentityMismatch => {
+                at(signal, "design_ranking.identity_mismatch").build()
+            }
             Self::Ranking(error) => error.to_refusal(),
-            Self::SignalInconsistent { candidate, slot } => with(
-                signal,
-                "design_ranking.signal_inconsistent",
-                candidate.clone(),
-                Some((*slot).to_owned()),
-            ),
-            Self::ReplayMismatch { candidate, quantity } => with(
-                signal,
-                "design_ranking.replay_mismatch",
-                candidate.clone(),
-                Some((*quantity).to_owned()),
-            ),
-            Self::SourceOverlap { candidate, ids } => ExternalRefusal {
-                remedy: Some("use only data not already summarized by the prior"),
-                ..with(
-                    signal,
-                    "design_ranking.source_overlap",
-                    candidate.clone(),
-                    Some(ids.join(",")),
-                )
-            },
-            Self::CostUnitsMismatch(what) => with(
+            Self::SignalInconsistent { candidate, slot } => {
+                at(signal, "design_ranking.signal_inconsistent")
+                    .offending(candidate.clone())
+                    .expected(*slot)
+                    .build()
+            }
+            Self::ReplayMismatch { candidate, quantity } => {
+                at(signal, "design_ranking.replay_mismatch")
+                    .offending(candidate.clone())
+                    .expected(*quantity)
+                    .build()
+            }
+            Self::SourceOverlap { candidate, ids } => at(signal, "design_ranking.source_overlap")
+                .offending(candidate.clone())
+                .expected(ids.join(","))
+                .remedy("use only data not already summarized by the prior")
+                .build(),
+            Self::SourceOverlapUnknown { candidate, reason } => at(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                "design_ranking.source_overlap_unknown",
+            )
+            .offending(candidate.clone())
+            .expected(reason.clone())
+            .remedy("declare the observations behind the prior and each study")
+            .build(),
+            Self::CostUnitsMismatch(what) => at(
                 antecedent_core::reason_code!("design_cost_units_mismatch"),
                 "design_ranking.cost_units_mismatch",
-                what.clone(),
-                None,
-            ),
+            )
+            .offending(what.clone())
+            .build(),
             Self::RankMismatch(what) => {
-                with(signal, "design_ranking.rank_mismatch", (*what).to_owned(), None)
+                at(signal, "design_ranking.rank_mismatch").offending(*what).build()
             }
             Self::Signal(error) => error.to_refusal(),
-            Self::Design(error) => with(
-                signal,
-                "design_ranking.design_error",
-                "decision".to_owned(),
-                Some(error.to_string()),
-            ),
+            Self::Design(error) => at(signal, "design_ranking.design_error")
+                .offending("decision")
+                .expected(error.to_string())
+                .build(),
         })
     }
 }
@@ -554,22 +623,6 @@ impl std::error::Error for DesignRankingArtifactError {}
 type Result<T> = std::result::Result<T, DesignRankingArtifactError>;
 
 // -- small helpers ----------------------------------------------------------------------
-
-fn put_str(hasher: &mut blake3::Hasher, value: &str) {
-    hasher.update(&(value.len() as u64).to_le_bytes());
-    hasher.update(value.as_bytes());
-}
-
-fn put_f64s(hasher: &mut blake3::Hasher, values: &[f64]) {
-    hasher.update(&(values.len() as u64).to_le_bytes());
-    for value in values {
-        hasher.update(&value.to_le_bytes());
-    }
-}
-
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
-}
 
 fn close(stored: f64, recomputed: f64) -> bool {
     stored.is_finite() && (stored - recomputed).abs() <= REPLAY_TOLERANCE * (1.0 + recomputed.abs())
@@ -599,15 +652,6 @@ fn parse_method(label: &str) -> Option<IntegrationMethod> {
     [IntegrationMethod::Exact, IntegrationMethod::MonteCarlo, IntegrationMethod::ExternallyComputed]
         .into_iter()
         .find(|method| method.as_str() == label)
-}
-
-fn native_digest(family: &str, parameters: &[f64]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    put_str(&mut hasher, family);
-    if family == "gaussian_mean" {
-        put_f64s(&mut hasher, parameters);
-    }
-    hasher.finalize().to_hex().to_string()
 }
 
 fn rank_basis(label: &str) -> Option<DesignRankingBasis> {
@@ -786,7 +830,7 @@ fn is_native(law: &LawWire) -> bool {
 }
 
 fn recompute(
-    candidate: &CandidateWire,
+    candidate: &EvsiCandidateWire,
     decision: &DecisionWire,
     base: &Baseline,
     method: IntegrationMethod,
@@ -962,7 +1006,9 @@ pub struct ConsumedCandidate {
     pub semantic_id: String,
     /// How the value was checked.
     pub replay: ReplayKind,
-    /// Provider trust label (never upgraded by consuming).
+    /// Provider trust label (never upgraded by consuming; a stored
+    /// `exact_request_verified` is reported `externally_attested` unless the
+    /// consumer supplied the receipt).
     pub trust: SignalTrustLabel,
     /// Update mode.
     pub update_mode: SignalUpdateMode,
@@ -983,7 +1029,7 @@ impl ConsumedCandidate {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConsumedDesignRanking {
     /// The ranking value rebuilt from the artifact.
-    pub ranking: DesignRanking,
+    pub ranking: RankingRecord,
     /// The artifact digest.
     pub identity: String,
     /// Candidates in rank order.
@@ -991,7 +1037,7 @@ pub struct ConsumedDesignRanking {
     /// `unmeasured`.
     pub calibration: &'static str,
     /// Checked derivation chain retained after independent artifact consumption.
-    pub provenance_chain: antecedent_core::ProvenanceChain,
+    pub provenance_chain: antecedent_contract::ProvenanceChain,
 }
 
 /// Identities the consumer retained independently of the bytes. A `None` field is not
@@ -1042,9 +1088,11 @@ impl DesignRankingArtifactWire {
     /// A blank contract, source digest, semantic id or signal identity refuses.
     pub fn provenance_chain(
         &self,
-    ) -> std::result::Result<antecedent_core::ProvenanceChain, antecedent_core::ProvenanceChainError>
-    {
-        use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain};
+    ) -> std::result::Result<
+        antecedent_contract::ProvenanceChain,
+        antecedent_contract::ProvenanceChainError,
+    > {
+        use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
         let link = |id: String, stage: CompositionStage, parents: Vec<String>| CompositionLink {
             id,
             stage,
@@ -1060,7 +1108,7 @@ impl DesignRankingArtifactWire {
             links.push(link(id.clone(), CompositionStage::DistributionArtifact, vec![]));
             result_parents.push(id);
         }
-        let mut candidates: Vec<&CandidateWire> = self.candidates.iter().collect();
+        let mut candidates: Vec<&EvsiCandidateWire> = self.candidates.iter().collect();
         candidates.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
         let mut seen_providers = BTreeSet::new();
         for candidate in candidates {
@@ -1097,10 +1145,7 @@ impl DesignRankingArtifactWire {
     /// A CBOR encoding failure.
     pub fn compute_digest(&self) -> std::result::Result<String, IoError> {
         let bytes = to_cbor(&self.canonical())?;
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "antecedent.design_ranking_artifact.v1");
-        hasher.update(&bytes);
-        Ok(hasher.finalize().to_hex().to_string())
+        Ok(CanonicalWriter::new("antecedent.design_ranking_artifact.v1").bytes(&bytes).finish_hex())
     }
 
     /// Recompute and store the digest (used to seal; a consumer-independent check is
@@ -1114,13 +1159,26 @@ impl DesignRankingArtifactWire {
         Ok(())
     }
 
+    /// Recompute the ranking identity from the stored candidates, then the
+    /// artifact digest. For a producer that edits a candidate's signal or trust
+    /// label; consumption still re-derives every number and the signal identity.
+    ///
+    /// # Errors
+    ///
+    /// A malformed ranking body or a CBOR encoding failure.
+    pub fn reseal_ranking(&mut self) -> Result<()> {
+        self.ranking_identity = rebuild_ranking(self)?.identity();
+        self.reseal()?;
+        Ok(())
+    }
+
     /// Serialize through the checksummed container, candidates in rank order.
     ///
     /// # Errors
     ///
     /// A blank artifact id or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> std::result::Result<Vec<u8>, IoError> {
-        if blank(artifact_id) {
+        if is_blank(artifact_id) {
             return Err(IoError::Convert("missing artifact id".into()));
         }
         let mut ordered = self.clone();
@@ -1128,24 +1186,21 @@ impl DesignRankingArtifactWire {
             .candidates
             .sort_by(|a, b| a.rank.cmp(&b.rank).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
         let body = to_cbor(&ordered)?;
-        let encoded = EncodedArtifact {
-            manifest: ArtifactManifest {
-                format_version: antecedent_io::migrate::STABLE_FORMAT,
-                minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-                artifact_kind: ArtifactKind::Other(DESIGN_RANKING_ARTIFACT_KIND.into()),
-                library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-                artifact_id: artifact_id.into(),
-                sections: vec![section_descriptor(BODY_SECTION, "application/cbor", &body)],
-                provenance: ProvenanceWire { note: "design_ranking".into() },
+        antecedent_io_core::encode_container(
+            &antecedent_io_core::ArtifactContainer {
+                kind: DESIGN_RANKING_ARTIFACT_KIND,
+                note: "design_ranking",
+                max_bytes: MAX_DESIGN_RANKING_ARTIFACT_BYTES,
+                artifact_id,
+                library_version: env!("CARGO_PKG_VERSION"),
             },
-            sections: vec![SectionBytes::new(BODY_SECTION, body)],
-        };
-        let mut bytes = Vec::new();
-        encoded.write_to(&mut bytes)?;
-        if bytes.len() > MAX_DESIGN_RANKING_ARTIFACT_BYTES {
-            return Err(IoError::TooLarge);
-        }
-        Ok(bytes)
+            &[antecedent_io_core::OutSection {
+                id: BODY_SECTION,
+                content_type: antecedent_io_core::CONTENT_CBOR,
+                bytes: &body,
+            }],
+        )
+        .map_err(|error| error.into_io("unsupported design ranking artifact layout"))
     }
 
     /// Decode the container and body, refusing oversize input before any allocation.
@@ -1154,27 +1209,27 @@ impl DesignRankingArtifactWire {
     ///
     /// Corruption, truncation, oversize, an unknown layout, or an unknown major version.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() > MAX_DESIGN_RANKING_ARTIFACT_BYTES {
-            return Err(IoError::TooLarge.into());
-        }
-        let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-        let manifest = reader.manifest();
-        if manifest.artifact_kind != ArtifactKind::Other(DESIGN_RANKING_ARTIFACT_KIND.into())
-            || manifest.sections.len() != 1
-            || manifest.sections[0].id != BODY_SECTION
-        {
+        let parts = antecedent_io_core::decode_container(
+            DESIGN_RANKING_ARTIFACT_KIND,
+            MAX_DESIGN_RANKING_ARTIFACT_BYTES,
+            &[BODY_SECTION],
+            bytes,
+        )
+        .map_err(|error| error.into_io("unsupported design ranking artifact layout"))?;
+        let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(
                 IoError::Convert("unsupported design ranking artifact layout".into()).into()
             );
-        }
-        if manifest.sections[0].uncompressed_size > MAX_DESIGN_RANKING_ARTIFACT_BYTES as u64 {
-            return Err(IoError::TooLarge.into());
-        }
-        let section = reader.load_section(BODY_SECTION)?;
-        let wire: Self = from_cbor(section.as_bytes())?;
-        if wire.version != DESIGN_RANKING_ARTIFACT_VERSION {
-            return Err(DesignRankingArtifactError::UnsupportedVersion(wire.version));
-        }
+        };
+        // The version word is read from the untyped item before the typed
+        // body, so a newer layout is refused as an unsupported version.
+        let wire: Self = antecedent_io_core::decode_with_version(&body, |version: u32| {
+            if version == DESIGN_RANKING_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(DesignRankingArtifactError::UnsupportedVersion(version))
+            }
+        })?;
         Ok(wire)
     }
 }
@@ -1301,82 +1356,89 @@ fn provider_wire(identity: &ProviderObjectIdentity) -> ProviderWire {
     }
 }
 
+fn law_wire(
+    receipt: &SignalReceipt,
+    prepared: &PreparedSignal,
+    sample_size: u64,
+) -> Result<LawWire> {
+    match &prepared.law {
+        PreparedLaw::Likelihood(signal) => likelihood_law(
+            &receipt.family,
+            receipt.update_mode,
+            signal.as_ref(),
+            prepared.bound_states.as_deref(),
+            sample_size,
+        ),
+        PreparedLaw::DecisionValues(values) => Ok(LawWire::DecisionValues {
+            branch_probabilities: values.branch_probabilities.clone(),
+            action_ids: values.action_ids.clone(),
+            values: values.values.clone(),
+        }),
+    }
+}
+
+/// The law from evaluation when its receipt is still on the row; otherwise a
+/// fresh prepare that must answer with that same receipt identity.
+fn prepared_for_seal(declared: &EvsiCandidate, row: &EvsiCandidateRow) -> Result<PreparedSignal> {
+    if let Some(retained) = recall_prepared(&row.signal_receipt.identity())
+        .filter(|retained| retained.receipt == row.signal_receipt)
+    {
+        // Debug and test builds compare the retained law with a fresh prepare.
+        // The wires match, so the artifact bytes do not depend on which one is
+        // used. Release keeps the retained law and does not prepare again.
+        #[cfg(debug_assertions)]
+        {
+            let again = declared.provider.prepare(&declared.signal_request)?;
+            assert_eq!(
+                law_wire(&row.signal_receipt, &retained, row.sample_size)?,
+                law_wire(&row.signal_receipt, &again, row.sample_size)?,
+                "retained signal law changed the ranking artifact"
+            );
+        }
+        return Ok(retained);
+    }
+    let prepared = declared.provider.prepare(&declared.signal_request)?;
+    if prepared.receipt.identity() != row.signal_receipt.identity() {
+        return Err(DesignRankingArtifactError::SignalInconsistent {
+            candidate: row.semantic_id.clone(),
+            slot: "provider_not_reproducible",
+        });
+    }
+    Ok(prepared)
+}
+
 /// Seal an evaluated ranking as a durable artifact body.
 ///
-/// Each candidate's provider is asked to answer its request again (providers are
-/// deterministic functions of the exact request) so that the signal law behind the
-/// value can be retained; the answer's receipt identity must equal the evaluated one.
+/// The law prepared while evaluating the row is reused when its receipt is still
+/// the one on the row. Providers are deterministic functions of the exact request,
+/// so a miss prepares again and still requires that receipt identity. Either way
+/// the law wire is the one [`law_wire`] builds from that receipt.
 ///
 /// # Errors
 ///
 /// A provider that no longer answers its request identically, a law that cannot be
-/// retained, or an empty report.
+/// retained, a duplicated declared semantic id, or an empty report.
 pub fn seal<A: Clone>(inputs: &SealInputs<'_, A>) -> Result<DesignRankingArtifactWire> {
     let report = inputs.report;
-    let ranking = DesignRanking::from_evsi(report, inputs.source_digests)?;
+    let ranking = RankingRecord::from_evsi(report, inputs.source_digests)?;
     let decision = decision_wire(inputs)?;
+    let mut declared_by_id = BTreeMap::new();
+    for candidate in &inputs.request.candidates {
+        // A later declaration with the same id is a different provider. Keeping the
+        // first would seal that provider's law under the shared id.
+        if declared_by_id.insert(candidate.semantic_id.as_str(), candidate).is_some() {
+            return Err(DesignRankingArtifactError::InvalidWire("duplicate candidate"));
+        }
+    }
     let mut candidates = Vec::with_capacity(report.candidates.len());
     for row in &report.candidates {
-        let declared =
-            inputs.request.candidates.iter().find(|c| c.semantic_id == row.semantic_id).ok_or(
-                DesignRankingArtifactError::InvalidWire("report names an unknown candidate"),
-            )?;
-        let prepared = declared.provider.prepare(&declared.signal_request)?;
-        if prepared.receipt.identity() != row.signal_receipt.identity() {
-            return Err(DesignRankingArtifactError::SignalInconsistent {
-                candidate: row.semantic_id.clone(),
-                slot: "provider_not_reproducible",
-            });
-        }
-        let receipt = &row.signal_receipt;
-        let law = match &prepared.law {
-            PreparedLaw::Likelihood(signal) => likelihood_law(
-                &receipt.family,
-                receipt.update_mode,
-                signal.as_ref(),
-                prepared.bound_states.as_deref(),
-                row.sample_size,
-            )?,
-            PreparedLaw::DecisionValues(values) => LawWire::DecisionValues {
-                branch_probabilities: values.branch_probabilities.clone(),
-                action_ids: values.action_ids.clone(),
-                values: values.values.clone(),
-            },
-        };
-        let mut lineage = receipt.evidence_lineage.clone();
-        lineage.sort();
-        candidates.push(CandidateWire {
-            semantic_id: row.semantic_id.clone(),
-            sample_size: row.sample_size,
-            cost_amount: row.study_cost.amount,
-            cost_unit: row.study_cost.unit.clone(),
-            reused_observation_ids: declared.reused_observation_ids.clone(),
-            request: request_wire(&declared.signal_request),
-            family: receipt.family.clone(),
-            update_mode: receipt.update_mode.as_str().to_owned(),
-            trust: receipt.trust.as_str().to_owned(),
-            attestor: receipt.attestor.clone(),
-            provider: receipt.provider_identity.as_ref().map(provider_wire),
-            law_digest: receipt.law_digest.clone(),
-            request_fingerprint: receipt.request_fingerprint.clone(),
-            signal_identity: receipt.identity(),
-            law,
-            evsi: row.evsi,
-            evpi: row.evpi,
-            integration: row.integration.method.as_str().to_owned(),
-            replicates: row.integration.replicates,
-            stderr: row.integration.stderr,
-            ess: row.integration.ess,
-            converged: row.integration.converged,
-            early_stopped: row.integration.early_stopped,
-            study_cost_utility: row.study_cost_utility,
-            net_value: row.net_value,
-            rank: row.rank as u64,
-            rank_uncertain: row.rank_uncertain,
-            overlap_checked: row.source_overlap.observations_checked as u64,
-            overlapping: row.source_overlap.overlapping.clone(),
-            assumptions: row.assumptions.clone(),
-        });
+        let declared = declared_by_id
+            .get(row.semantic_id.as_str())
+            .copied()
+            .ok_or(DesignRankingArtifactError::InvalidWire("report names an unknown candidate"))?;
+        let prepared = prepared_for_seal(declared, row)?;
+        let law = law_wire(&row.signal_receipt, &prepared, row.sample_size)?;
+        candidates.push(EvsiCandidateWire::from_scored(row, declared, law));
     }
     let config = &inputs.request.rank_config;
     let mut wire = DesignRankingArtifactWire {
@@ -1465,12 +1527,12 @@ fn check_bounds(wire: &DesignRankingArtifactWire) -> Result<()> {
 
 fn check_decision(decision: &DecisionWire) -> Result<()> {
     let bad = DesignRankingArtifactError::InvalidWire;
-    if blank(&decision.contract_identity) || blank(&decision.utility_unit) {
+    if is_blank(&decision.contract_identity) || is_blank(&decision.utility_unit) {
         return Err(bad("decision identity and utility unit"));
     }
     let n_actions = decision.action_ids.len();
     let unique: BTreeSet<&String> = decision.action_ids.iter().collect();
-    if unique.len() != n_actions || decision.action_ids.iter().any(|id| blank(id)) {
+    if unique.len() != n_actions || decision.action_ids.iter().any(|id| is_blank(id)) {
         return Err(bad("action ids"));
     }
     if decision.admissible.len() != n_actions || !decision.admissible.iter().any(|ok| *ok) {
@@ -1502,8 +1564,8 @@ fn check_decision(decision: &DecisionWire) -> Result<()> {
 fn check_costs(wire: &DesignRankingArtifactWire) -> Result<()> {
     let utility_unit = &wire.decision.utility_unit;
     if let Some(map) = &wire.cost_map {
-        if blank(&map.cost_unit)
-            || blank(&map.utility_unit)
+        if is_blank(&map.cost_unit)
+            || is_blank(&map.utility_unit)
             || !(map.utility_per_cost.is_finite() && map.utility_per_cost > 0.0)
         {
             return Err(DesignRankingArtifactError::InvalidWire("cost mapping"));
@@ -1517,7 +1579,7 @@ fn check_costs(wire: &DesignRankingArtifactWire) -> Result<()> {
     }
     for candidate in &wire.candidates {
         if !(candidate.cost_amount.is_finite() && candidate.cost_amount >= 0.0)
-            || blank(&candidate.cost_unit)
+            || is_blank(&candidate.cost_unit)
         {
             return Err(DesignRankingArtifactError::InvalidWire("study cost"));
         }
@@ -1533,7 +1595,7 @@ fn check_costs(wire: &DesignRankingArtifactWire) -> Result<()> {
     Ok(())
 }
 
-fn signal_request_of(candidate: &CandidateWire) -> Option<SignalRequest> {
+fn signal_request_of(candidate: &EvsiCandidateWire) -> Option<SignalRequest> {
     let wire = &candidate.request;
     let state = ScientificQuantity::try_from(wire.state_quantity.clone()).ok()?;
     let observation = ScientificQuantity::try_from(wire.observation_quantity.clone()).ok()?;
@@ -1567,7 +1629,14 @@ fn trust_limit(trust: SignalTrustLabel, attestor: Option<&str>) -> String {
     }
 }
 
-fn check_signal(candidate: &CandidateWire) -> Result<(SignalTrustLabel, SignalUpdateMode)> {
+fn trust_limit_unreceipted(attestor: Option<&str>) -> String {
+    format!(
+        "externally_attested by {}: the artifact stores an exact-request verification label but no receipt, and none was supplied by the consumer; supplier assertion only, not verified or natively replayed by Antecedent",
+        attestor.unwrap_or("unnamed attestor")
+    )
+}
+
+fn check_signal(candidate: &EvsiCandidateWire) -> Result<(SignalTrustLabel, SignalUpdateMode)> {
     let id = &candidate.semantic_id;
     let inconsistent = |slot: &'static str| DesignRankingArtifactError::SignalInconsistent {
         candidate: id.clone(),
@@ -1607,7 +1676,7 @@ fn check_signal(candidate: &CandidateWire) -> Result<(SignalTrustLabel, SignalUp
         {
             return Err(inconsistent("trust"));
         }
-        if candidate.law_digest != native_digest(family, &parameters) {
+        if candidate.law_digest != crate::signal::native_law_digest(family, &parameters) {
             return Err(inconsistent("law_digest"));
         }
     } else {
@@ -1618,14 +1687,14 @@ fn check_signal(candidate: &CandidateWire) -> Result<(SignalTrustLabel, SignalUp
             return Err(inconsistent("trust"));
         }
         if trust == SignalTrustLabel::ExternallyAttested
-            && candidate.attestor.as_deref().is_none_or(blank)
+            && candidate.attestor.as_deref().is_none_or(is_blank)
         {
             return Err(inconsistent("attestor"));
         }
         if provider.request_id != candidate.request_fingerprint {
             return Err(inconsistent("provider_request"));
         }
-        if blank(&provider.provider_id) || blank(&provider.object_id) {
+        if is_blank(&provider.provider_id) || is_blank(&provider.object_id) {
             return Err(inconsistent("provider"));
         }
     }
@@ -1661,7 +1730,7 @@ fn check_signal(candidate: &CandidateWire) -> Result<(SignalTrustLabel, SignalUp
 
 fn verify_candidate(
     wire: &DesignRankingArtifactWire,
-    candidate: &CandidateWire,
+    candidate: &EvsiCandidateWire,
     base: &Baseline,
 ) -> Result<ConsumedCandidate> {
     let id = &candidate.semantic_id;
@@ -1669,24 +1738,29 @@ fn verify_candidate(
         candidate: id.clone(),
         quantity,
     };
-    if blank(id) {
+    if is_blank(id) {
         return Err(DesignRankingArtifactError::InvalidWire("blank candidate id"));
     }
     let (trust, mode) = check_signal(candidate)?;
-    // Source overlap: recomputed, never trusted from the stored diagnostic.
-    let prior: BTreeSet<&str> = wire.prior_observation_ids.iter().map(String::as_str).collect();
-    let reused: BTreeSet<&str> =
-        candidate.reused_observation_ids.iter().map(String::as_str).collect();
-    let overlapping: Vec<String> = prior.intersection(&reused).map(|s| (*s).to_owned()).collect();
-    if !overlapping.is_empty() {
-        return Err(DesignRankingArtifactError::SourceOverlap {
-            candidate: id.clone(),
-            ids: overlapping,
-        });
-    }
-    if !candidate.overlapping.is_empty()
-        || candidate.overlap_checked != prior.union(&reused).count() as u64
-    {
+    // Source overlap: re-queried through the evidence ledger, never trusted from the
+    // stored diagnostic. The wire carries declared identities only, so an undeclared
+    // side cannot occur here; any ledger refusal is unknown and refuses.
+    let checked = match declared_overlap(
+        DeclaredObservations::Declared(&wire.prior_observation_ids),
+        DeclaredObservations::Declared(&candidate.reused_observation_ids),
+    ) {
+        ObservationOverlap::Independent { checked } => checked,
+        ObservationOverlap::Shared { ids, .. } => {
+            return Err(DesignRankingArtifactError::SourceOverlap { candidate: id.clone(), ids });
+        }
+        ObservationOverlap::Unknown { reason } => {
+            return Err(DesignRankingArtifactError::SourceOverlapUnknown {
+                candidate: id.clone(),
+                reason,
+            });
+        }
+    };
+    if !candidate.overlapping.is_empty() || candidate.overlap_checked != checked as u64 {
         return Err(mismatch("source_overlap"));
     }
     let method = parse_method(&candidate.integration)
@@ -1705,22 +1779,18 @@ fn verify_candidate(
             return Err(mismatch("integration_error"));
         }
     } else {
-        // Monte Carlo: bound only, error and replicates retained.
-        let tolerance = 1e-9 + 4.0 * candidate.stderr;
+        // Monte Carlo: error and replicates retained. The EVSI bound is the shared
+        // predicate below, the same one the exact branch falls through to.
         if !(candidate.stderr.is_finite() && candidate.stderr >= 0.0 && candidate.replicates > 0)
             || candidate.ess.is_none()
         {
             return Err(mismatch("integration_error"));
         }
-        if candidate.evsi < -tolerance || candidate.evsi > candidate.evpi + tolerance {
-            return Err(mismatch("evsi_bounds"));
-        }
         if candidate.converged != (candidate.stderr <= wire.mc_error_tolerance) {
             return Err(mismatch("converged"));
         }
     }
-    let tolerance = 1e-9 + 4.0 * candidate.stderr;
-    if candidate.evsi < -tolerance || candidate.evsi > candidate.evpi + tolerance {
+    if !evsi_bound_ok(candidate.evsi, candidate.evpi, candidate.stderr) {
         return Err(mismatch("evsi_bounds"));
     }
     match &wire.cost_map {
@@ -1748,38 +1818,37 @@ fn verify_candidate(
     })
 }
 
-fn rank_key(candidate: &CandidateWire) -> f64 {
+fn rank_key(candidate: &EvsiCandidateWire) -> f64 {
     candidate.net_value.unwrap_or(candidate.evsi)
 }
 
 /// Recompute the order, rank-uncertainty flags and ties from the stored values.
 fn verify_order(wire: &DesignRankingArtifactWire) -> Result<()> {
-    let mut rows: Vec<&CandidateWire> = wire.candidates.iter().collect();
+    let mut rows: Vec<&EvsiCandidateWire> = wire.candidates.iter().collect();
     rows.sort_by(|a, b| {
         rank_key(b).total_cmp(&rank_key(a)).then_with(|| a.semantic_id.cmp(&b.semantic_id))
     });
-    let mut ties = Vec::new();
-    let mut near = vec![false; rows.len()];
-    for i in 0..rows.len().saturating_sub(1) {
-        let gap = (rank_key(rows[i]) - rank_key(rows[i + 1])).abs();
-        let se = rows[i].stderr.hypot(rows[i + 1].stderr);
-        if gap <= wire.tie_tolerance {
-            ties.push((rows[i].semantic_id.clone(), rows[i + 1].semantic_id.clone()));
-        }
-        if gap <= wire.tie_tolerance.max(RANK_Z * se) {
-            near[i] = true;
-            near[i + 1] = true;
-        }
-    }
+    let ranked = rank_rows(
+        &rows
+            .iter()
+            .map(|row| AdjacentRank {
+                key: rank_key(row),
+                stderr: row.stderr,
+                id: row.semantic_id.as_str(),
+            })
+            .collect::<Vec<_>>(),
+        wire.tie_tolerance,
+    );
     for (i, row) in rows.iter().enumerate() {
         if row.rank != i as u64 {
             return Err(DesignRankingArtifactError::RankMismatch("rank"));
         }
-        if row.rank_uncertain != near[i] {
+        if row.rank_uncertain != ranked.uncertain[i] {
             return Err(DesignRankingArtifactError::RankMismatch("rank_uncertain"));
         }
     }
     let mut stored_ties = wire.ties.clone();
+    let mut ties = ranked.ties;
     stored_ties.sort();
     ties.sort();
     if stored_ties != ties {
@@ -1805,7 +1874,7 @@ fn verify_search(wire: &DesignRankingArtifactWire) -> Result<()> {
     Ok(())
 }
 
-fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<DesignRanking> {
+fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<RankingRecord> {
     let basis =
         rank_basis(&wire.basis).ok_or(DesignRankingArtifactError::InvalidWire("ranking basis"))?;
     if (basis == DesignRankingBasis::NetValue) != wire.cost_map.is_some() {
@@ -1813,31 +1882,13 @@ fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<DesignRanking> {
     }
     let mut entries = Vec::with_capacity(wire.candidates.len());
     for c in &wire.candidates {
-        let invalid = DesignRankingArtifactError::InvalidWire;
-        entries.push(RankingEntry {
-            semantic_id: c.semantic_id.clone(),
-            rank: usize::try_from(c.rank).map_err(|_| invalid("rank"))?,
-            evsi: c.evsi,
-            mc_stderr: c.stderr,
-            replicates: c.replicates,
-            integration: parse_method(&c.integration).ok_or_else(|| invalid("integration"))?,
-            evpi: c.evpi,
-            sample_size: c.sample_size,
-            study_cost_amount: c.cost_amount,
-            study_cost_unit: c.cost_unit.clone(),
-            net_value: c.net_value,
-            rank_uncertain: c.rank_uncertain,
-            signal_identity: c.signal_identity.clone(),
-            request_fingerprint: c.request_fingerprint.clone(),
-            update_mode: parse_mode(&c.update_mode).ok_or_else(|| invalid("update_mode"))?,
-            provider_trust: parse_trust(&c.trust).ok_or_else(|| invalid("trust"))?,
-        });
+        entries.push(EvsiRankRow::try_from(c)?);
     }
     entries.sort_by(|a, b| a.rank.cmp(&b.rank).then_with(|| a.semantic_id.cmp(&b.semantic_id)));
     let mut digests = wire.source_digests.clone();
     digests.sort();
     digests.dedup();
-    Ok(DesignRanking {
+    Ok(RankingRecord {
         basis,
         decision_contract_identity: Some(wire.decision.contract_identity.clone()),
         utility_unit: Some(wire.decision.utility_unit.clone()),
@@ -1870,6 +1921,28 @@ fn rebuild_ranking(wire: &DesignRankingArtifactWire) -> Result<DesignRanking> {
 pub fn consume_wire(
     wire: &DesignRankingArtifactWire,
     expectation: &ConsumeExpectation,
+) -> Result<ConsumedDesignRanking> {
+    consume_wire_with_receipts(wire, expectation, &BTreeSet::new())
+}
+
+/// [`consume_wire`] with the candidates whose exact-request verification the
+/// consumer itself holds a receipt for.
+///
+/// The artifact does not retain a verification receipt, so a stored
+/// `exact_request_verified` label is a claim: the consumed candidate reports
+/// `externally_attested` unless its semantic id is in `verified_candidates`,
+/// which the consumer fills only from a receipt it checked against the same
+/// provider object and request. The label inside the signal identity is
+/// unchanged, so a resealed upgrade is not mistaken for a verified one and an
+/// honest verified artifact still replays.
+///
+/// # Errors
+///
+/// The first inconsistency found; see [`DesignRankingArtifactError`].
+pub fn consume_wire_with_receipts(
+    wire: &DesignRankingArtifactWire,
+    expectation: &ConsumeExpectation,
+    verified_candidates: &BTreeSet<String>,
 ) -> Result<ConsumedDesignRanking> {
     if wire.version != DESIGN_RANKING_ARTIFACT_VERSION {
         return Err(DesignRankingArtifactError::UnsupportedVersion(wire.version));
@@ -1912,7 +1985,16 @@ pub fn consume_wire(
     }
     let mut consumed = Vec::with_capacity(wire.candidates.len());
     for candidate in &wire.candidates {
-        consumed.push(verify_candidate(wire, candidate, &base)?);
+        let mut one = verify_candidate(wire, candidate, &base)?;
+        if one.trust == SignalTrustLabel::ExactRequestVerified
+            && !verified_candidates.contains(&candidate.semantic_id)
+        {
+            // A stored verification label with no receipt in the consumer's
+            // hands is an attestation, never a verification.
+            one.trust = SignalTrustLabel::ExternallyAttested;
+            one.trust_limit = trust_limit_unreceipted(candidate.attestor.as_deref());
+        }
+        consumed.push(one);
     }
     verify_order(wire)?;
     let ranking = rebuild_ranking(wire)?;

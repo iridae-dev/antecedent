@@ -88,13 +88,20 @@ fn shared_design_field<'a>(result: &'a StudyResult, key: &str) -> &'a str {
 }
 
 fn assert_bit_identical(batch: &StudyResult, solo: &StudyResult, what: &str) {
-    assert_eq!(batch.estimate.ate.to_bits(), solo.estimate.ate.to_bits(), "{what}: ate");
     assert_eq!(
-        batch.estimate.se_analytic.to_bits(),
-        solo.estimate.se_analytic.to_bits(),
+        batch.estimate.as_effect().unwrap().ate.to_bits(),
+        solo.estimate.as_effect().unwrap().ate.to_bits(),
+        "{what}: ate"
+    );
+    assert_eq!(
+        batch.estimate.as_effect().unwrap().se_analytic().to_bits(),
+        solo.estimate.as_effect().unwrap().se_analytic().to_bits(),
         "{what}: se_analytic"
     );
-    let (Some(a), Some(b)) = (&batch.estimate.influence, &solo.estimate.influence) else {
+    let (Some(a), Some(b)) = (
+        &batch.estimate.as_effect().unwrap().scores.influence,
+        &solo.estimate.as_effect().unwrap().scores.influence,
+    ) else {
         panic!("{what}: both runs publish the influence function");
     };
     assert_eq!(a.len(), b.len(), "{what}: influence length");
@@ -154,7 +161,10 @@ fn batch_never_shares_nuisances_across_different_seeds() {
         assert_bit_identical(&first[i], &solo(&data, &graph, query, 43), "seed 43");
         assert_bit_identical(&second[i], &solo(&data, &graph, query, 44), "seed 44");
     }
-    assert_ne!(first[0].estimate.ate.to_bits(), second[0].estimate.ate.to_bits());
+    assert_ne!(
+        first[0].estimate.as_effect().unwrap().ate.to_bits(),
+        second[0].estimate.as_effect().unwrap().ate.to_bits()
+    );
 }
 
 #[test]

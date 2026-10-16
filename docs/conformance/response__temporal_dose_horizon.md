@@ -107,7 +107,7 @@ These values are compared at relative tolerance `tolerance.band_rtol`
 not a coverage claim: a change in the resampler, the block-length rule, the
 dispersion factors or the RNG stream moves them and must be re-recorded
 deliberately. The coverage evidence for the band is the calibration gate
-`crates/antecedent/tests/v19_temporal_response_calibration.rs`. There is no
+`crates/antecedent/tests/temporal_response_calibration.rs`. There is no
 `reference.py` for this fixture: the point surface is derived analytically
 above, and the band is a seeded bootstrap that cannot be re-derived
 independently in numpy without reimplementing the resampler, its RNG stream

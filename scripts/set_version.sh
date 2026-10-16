@@ -10,6 +10,11 @@
 # --check writes nothing: it exits non-zero, naming each file, when the tree is
 # not already at X.Y.Z. Release workflows use it to verify that the tag names
 # the version the committed tree carries instead of rewriting the tree.
+#
+# Generated release snippets (supported-lines table, reviewed-version scope,
+# crate dependency line, examples install pin, notebook pins) are rewritten
+# from parity/release.toml. --check fails when those blocks drift. Prose
+# outside the markers is not read.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -30,131 +35,7 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
   exit 1
 fi
 
-python3 - "$VERSION" "$CHECK" <<'PY'
-import re
-import subprocess
-import sys
-from pathlib import Path
-
-version = sys.argv[1]
-check = sys.argv[2] == "1"
-root = Path(".")
-script = root / "scripts" / "generate_support_matrix_docs.py"
-
-# path -> new text; nothing is written until every entry has been computed.
-edits: dict[Path, str] = {}
-
-cargo = root / "Cargo.toml"
-text = cargo.read_text()
-m = re.search(r"(?ms)^\[workspace\.package\]\n(.*?)(?=\n\[|\Z)", text)
-if not m:
-    sys.exit("Cargo.toml: [workspace.package] not found")
-old_m = re.search(r'(?m)^version\s*=\s*"([^"]+)"', m.group(0))
-if not old_m:
-    sys.exit("Cargo.toml: version missing under [workspace.package]")
-old_version = old_m.group(1)
-block = m.group(0)
-block_new, n = re.subn(
-    r'(?m)^(version\s*=\s*")[^"]*(")',
-    rf"\g<1>{version}\2",
-    block,
-    count=1,
-)
-if n != 1:
-    sys.exit("Cargo.toml: workspace.package version not updated")
-edits[cargo] = text[: m.start()] + block_new + text[m.end() :]
-
-pyproject = root / "python" / "pyproject.toml"
-py_new, n = re.subn(
-    r'(?m)^(version\s*=\s*")[^"]*(")',
-    rf"\g<1>{version}\2",
-    pyproject.read_text(),
-    count=1,
-)
-if n != 1:
-    sys.exit("python/pyproject.toml: version not updated")
-edits[pyproject] = py_new
-
-# Path-dep version pins must match for crates.io packaging.
-path_pat = re.compile(
-    r'(antecedent-[a-z0-9-]+\s*=\s*\{\s*version\s*=\s*")[^"]+(")'
-)
-for path in sorted(root.glob("crates/*/Cargo.toml")) + [root / "python" / "Cargo.toml"]:
-    if not path.is_file():
-        continue
-    t = path.read_text()
-    t2, n = path_pat.subn(rf"\g<1>{version}\2", t)
-    if n:
-        edits[path] = t2
-
-init = root / "python" / "antecedent" / "__init__.py"
-init_text = init.read_text()
-# A semver literal is kept in lockstep. Otherwise __version__ comes from the
-# extension or installed metadata; "unknown" is the sentinel when neither is
-# available, not a version pin.
-literal = re.search(r'__version__\s*=\s*"([^"]+)"', init_text)
-if literal and re.fullmatch(
-    r"[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?", literal.group(1)
-):
-    init_new, n = re.subn(
-        r'(__version__\s*=\s*")[^"]+(")',
-        rf"\g<1>{version}\2",
-        init_text,
-        count=1,
-    )
-    if n != 1:
-        sys.exit("python/antecedent/__init__.py: fallback __version__ not updated")
-    edits[init] = init_new
-elif "from ._native import __version__ as __version__" not in init_text:
-    sys.exit("python/antecedent/__init__.py: fallback __version__ not updated")
-
-uv = root / "python" / "uv.lock"
-if uv.is_file():
-    uv_new, n = re.subn(
-        r'(name = "antecedent"\nversion = ")[^"]+(")',
-        rf"\g<1>{version}\2",
-        uv.read_text(),
-        count=1,
-    )
-    if n == 1:
-        edits[uv] = uv_new
-
-cff = root / "CITATION.cff"
-if cff.is_file():
-    cff_new, n = re.subn(
-        r"(?m)^(version:\s*)\S+",
-        rf"\g<1>{version}",
-        cff.read_text(),
-        count=1,
-    )
-    if n != 1:
-        sys.exit("CITATION.cff: version not updated")
-    edits[cff] = cff_new
-
-changed = [p for p, new in edits.items() if p.read_text() != new]
-
-if check:
-    lock = root / "Cargo.lock"
-    lock_ok = lock.is_file() and re.search(
-        rf'name = "antecedent"\nversion = "{re.escape(version)}"', lock.read_text()
-    )
-    stale = [str(p) for p in changed] + ([] if lock_ok else ["Cargo.lock"])
-    if stale:
-        print(f"tree is not at version {version}; stale files:", file=sys.stderr)
-        for p in stale:
-            print(f"  {p}", file=sys.stderr)
-        sys.exit(1)
-    print(f"tree is at version {version}")
-    sys.exit(0)
-
-for path in changed:
-    path.write_text(edits[path])
-
-if old_version != version:
-    subprocess.check_call([sys.executable, str(script), "--freeze", old_version])
-
-print(f"set version to {version}")
-PY
+python3 "$ROOT/scripts/set_version.py" "$VERSION" "$CHECK"
 
 if [[ "$CHECK" -eq 0 ]]; then
   cargo update --workspace --offline

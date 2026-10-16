@@ -1,0 +1,19 @@
+feature_id = "transport.smoothed_dose_response.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "The published numbers are the posterior means of the per-row score tables the smoothed-dose fit already computed, one table per grid dose. No interval is produced.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/smoothed_dose_lifecycle.rs",
+]

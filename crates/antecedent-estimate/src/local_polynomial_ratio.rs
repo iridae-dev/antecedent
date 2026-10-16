@@ -26,41 +26,6 @@ pub struct LocalPolynomialRatioFit {
     pub first_stage_standard_error: f64,
 }
 
-fn invert_three(matrix: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
-    let mut augmented = [[0.0; 6]; 3];
-    for row in 0..3 {
-        augmented[row][..3].copy_from_slice(&matrix[row]);
-        augmented[row][row + 3] = 1.0;
-    }
-    for column in 0..3 {
-        let pivot = (column..3).max_by(|left, right| {
-            augmented[*left][column].abs().total_cmp(&augmented[*right][column].abs())
-        })?;
-        if augmented[pivot][column].abs() < 1e-12 {
-            return None;
-        }
-        augmented.swap(column, pivot);
-        let scale = augmented[column][column];
-        for value in &mut augmented[column] {
-            *value /= scale;
-        }
-        for row in 0..3 {
-            if row == column {
-                continue;
-            }
-            let scale = augmented[row][column];
-            for index in 0..6 {
-                augmented[row][index] -= scale * augmented[column][index];
-            }
-        }
-    }
-    let mut inverse = [[0.0; 3]; 3];
-    for row in 0..3 {
-        inverse[row].copy_from_slice(&augmented[row][3..]);
-    }
-    Some(inverse)
-}
-
 /// Whether a scaled distance from the cutoff falls in one side's kernel window. Rows at the
 /// cutoff belong to the right (treated) side, matching the `R >= cutoff` assignment rule.
 fn in_side_window(distance: f64, right_side: bool) -> bool {
@@ -95,7 +60,7 @@ fn local_quadratic_side(
             }
         }
     }
-    let inverse = invert_three(gram)?;
+    let inverse = crate::util::invert_fixed(&gram)?;
     let mut beta_y = [0.0; 3];
     let mut beta_t = [0.0; 3];
     for row in 0..3 {
@@ -115,41 +80,6 @@ struct LocalCubicFit {
     var_t: [[f64; 4]; 4],
     cov_yt: [[f64; 4]; 4],
     count: usize,
-}
-
-fn invert_four(matrix: [[f64; 4]; 4]) -> Option<[[f64; 4]; 4]> {
-    let mut augmented = [[0.0; 8]; 4];
-    for row in 0..4 {
-        augmented[row][..4].copy_from_slice(&matrix[row]);
-        augmented[row][row + 4] = 1.0;
-    }
-    for column in 0..4 {
-        let pivot = (column..4).max_by(|left, right| {
-            augmented[*left][column].abs().total_cmp(&augmented[*right][column].abs())
-        })?;
-        if augmented[pivot][column].abs() < 1e-12 {
-            return None;
-        }
-        augmented.swap(column, pivot);
-        let scale = augmented[column][column];
-        for value in &mut augmented[column] {
-            *value /= scale;
-        }
-        for row in 0..4 {
-            if row == column {
-                continue;
-            }
-            let scale = augmented[row][column];
-            for index in 0..8 {
-                augmented[row][index] -= scale * augmented[column][index];
-            }
-        }
-    }
-    let mut inverse = [[0.0; 4]; 4];
-    for row in 0..4 {
-        inverse[row].copy_from_slice(&augmented[row][4..]);
-    }
-    Some(inverse)
 }
 
 fn sandwich_four(inverse: [[f64; 4]; 4], meat: [[f64; 4]; 4]) -> [[f64; 4]; 4] {
@@ -181,43 +111,6 @@ struct LocalQuarticSlopeFit {
     count: usize,
 }
 
-fn invert_five(mut matrix: [[f64; 5]; 5]) -> Option<[[f64; 5]; 5]> {
-    let mut inverse = [[0.0; 5]; 5];
-    #[allow(
-        clippy::needless_range_loop,
-        reason = "index sets the matrix diagonal inverse[index][index]"
-    )]
-    for index in 0..5 {
-        inverse[index][index] = 1.0;
-    }
-    for column in 0..5 {
-        let pivot = (column..5).max_by(|left, right| {
-            matrix[*left][column].abs().total_cmp(&matrix[*right][column].abs())
-        })?;
-        if matrix[pivot][column].abs() < 1e-12 {
-            return None;
-        }
-        matrix.swap(column, pivot);
-        inverse.swap(column, pivot);
-        let scale = matrix[column][column];
-        for index in 0..5 {
-            matrix[column][index] /= scale;
-            inverse[column][index] /= scale;
-        }
-        for row in 0..5 {
-            if row == column {
-                continue;
-            }
-            let scale = matrix[row][column];
-            for index in 0..5 {
-                matrix[row][index] -= scale * matrix[column][index];
-                inverse[row][index] -= scale * inverse[column][index];
-            }
-        }
-    }
-    Some(inverse)
-}
-
 fn local_quartic_slope_side(
     running: &[f64],
     outcome: &[f64],
@@ -246,7 +139,7 @@ fn local_quartic_slope_side(
             }
         }
     }
-    let inverse = invert_five(gram)?;
+    let inverse = crate::util::invert_fixed(&gram)?;
     let mut beta_y = [0.0; 5];
     let mut beta_t = [0.0; 5];
     for row in 0..5 {
@@ -308,7 +201,7 @@ fn local_cubic_side(
             }
         }
     }
-    let inverse = invert_four(gram)?;
+    let inverse = crate::util::invert_fixed(&gram)?;
     let mut beta_y = [0.0; 4];
     let mut beta_t = [0.0; 4];
     for row in 0..4 {
@@ -364,7 +257,7 @@ fn cubic_bias_projection(
             }
         }
     }
-    let inverse = invert_three(gram)?;
+    let inverse = crate::util::invert_fixed(&gram)?;
     let mut projection = [0.0; 3];
     for row in 0..3 {
         #[allow(clippy::needless_range_loop, reason = "index used for multiple aligned matrices")]
@@ -377,7 +270,10 @@ fn cubic_bias_projection(
 
 /// Fit local quadratic jumps with a cubic pilot, or kinks with a quartic pilot.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "fit both sides at order p and q, then bias-correct the reduced form, first stage and their covariance from the same side fits"
+)]
 pub fn fit_local_polynomial_ratio(
     running: &[f64],
     outcome: &[f64],
@@ -481,7 +377,7 @@ pub fn fit_local_polynomial_ratio(
         ));
     }
     let se_first = variance_t.max(0.0).sqrt();
-    if first_stage.abs() <= 1.96 * se_first {
+    if first_stage.abs() <= antecedent_stats::NORMAL_Q975 * se_first {
         return Err(String::from(
             "weak first stage: local treatment change is not separated from zero by its HC0 95% interval",
         ));

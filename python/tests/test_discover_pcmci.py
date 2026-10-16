@@ -6,10 +6,10 @@ Lag-1 dual: recovers the same parent set as Rust conformance
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import antecedent
 import numpy as np
+
+from _repo_text import REPO_ROOT
 
 SCHEMA_FIELDS = {
     "links",
@@ -37,9 +37,7 @@ LINK_FIELDS = {
 }
 
 # Shared Exact edge set with Rust `discovery_pcmci_lag1_exact_parents`.
-_PCMCI_LAG1_FIXTURE = (
-    Path(__file__).resolve().parents[2] / "conformance" / "discovery" / "pcmci_lag1"
-)
+_PCMCI_LAG1_FIXTURE = REPO_ROOT / "conformance" / "discovery" / "pcmci_lag1"
 _TRUE_LAG1_PARENTS = {("x", 1, "y", 0)}
 
 

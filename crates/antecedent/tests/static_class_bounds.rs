@@ -4,7 +4,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 // `t`, `y`, `z`, `x`, `g` are the variable names of the laws below.
-#![allow(clippy::doc_markdown)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -13,10 +12,10 @@
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study, StudyResult};
+use antecedent_contract::ClaimKind;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ClaimKind, ConditionalEffectQuery, ContinuousDomain,
-    ExecutionContext, GridSpec, Intervention, ResponseFunctional, ResponseQuery, ResponseValue,
-    Value, VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, ExecutionContext,
+    GridSpec, Intervention, ResponseFunctional, ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};
@@ -181,7 +180,7 @@ fn partially_identified_cpdag_ate_carries_the_completion_identified_set() {
         .into_iter()
         .map(|dag| {
             let one = prepare(&data, dag, ate_query(), InferenceMode::Frequentist, &ctx);
-            one.estimate(&data, &ctx).unwrap().estimate.ate
+            one.estimate(&data, &ctx).unwrap().estimate.as_effect().unwrap().ate
         })
         .collect();
     let lo = per_completion.iter().copied().fold(f64::INFINITY, f64::min);
@@ -209,7 +208,8 @@ fn partially_identified_cpdag_ate_carries_the_completion_identified_set() {
     assert_eq!(mixture.unevaluable_mass, 0.0);
     assert_eq!(mixture.subsampled_out_mass, 0.0);
     assert!(
-        result.estimate.ate >= set_lo && result.estimate.ate <= set_hi,
+        result.estimate.as_effect().unwrap().ate >= set_lo
+            && result.estimate.as_effect().unwrap().ate <= set_hi,
         "the reported mixture must lie inside its identified set"
     );
     round_trip(&prepared, &result, &ctx, "cpdag-ate-partial");
@@ -232,7 +232,7 @@ fn point_identified_cpdag_ate_still_reports_a_point() {
         "a point-identified class answer is not an identified set"
     );
     assert_eq!(claim_kind(&prepared, &result, &ctx), ClaimKind::Point);
-    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     round_trip(&prepared, &result, &ctx, "cpdag-ate-point");
 }
 
@@ -252,7 +252,7 @@ fn bayesian_partially_identified_cpdag_ate_carries_the_identified_set() {
     round_trip(&prepared, &result, &ctx, "cpdag-ate-partial-bayes");
 }
 
-/// `x` (a modifier of `t`'s effect on `y`) makes this a ConditionalEffect on the
+/// `x` (a modifier of `t`'s effect on `y`) makes this a `ConditionalEffect` on the
 /// same two-completion class.
 fn conditional_data(n: usize, seed: u64) -> TabularData {
     let mut g = gaussian(seed);
@@ -412,7 +412,7 @@ fn class_responses_export_and_reload_on_cpdag_and_pag() {
             let result = prepared
                 .estimate(&data, &ctx)
                 .unwrap_or_else(|err| panic!("{id}: execute failed: {err}"));
-            let response = result.response.as_ref().unwrap_or_else(|| panic!("{id}: no response"));
+            let response = result.response().unwrap_or_else(|| panic!("{id}: no response"));
             assert_eq!(
                 response.identification_status
                     == antecedent_core::IdentificationStatus::PartiallyIdentified,

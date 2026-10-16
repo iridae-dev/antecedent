@@ -5,7 +5,7 @@ Hand oracles:
 * ``E[Y | do(a)] = 2a`` on the grid ``-0.5, 0, 0.5`` (the simulated slope is 2 with small noise),
   so with utility = the mean the action reading ``do(a = 0.5)`` (about +1) beats the one reading
   ``do(a = -0.5)`` (about -1);
-* the frozen F14 guess decision (binary state, prior 1/2): ``wait = 1 - theta``, ``treat =
+* the frozen guess decision (binary state, prior 1/2): ``wait = 1 - theta``, ``treat =
   theta``; signals of accuracy 3/4 and 5/8 have ``EVSI = 1/4`` and ``1/8`` and, with a utility-unit
   cost 1/10, net values ``3/20`` and ``1/40``;
 * the marginal sensitivity strata of the module docstring: identified ATE
@@ -445,7 +445,7 @@ def test_empirical_msm_result_handoff_keeps_sample_bounds_distinct() -> None:
     sensitivity = result.msm_sensitivity(data=data, lambda_max=2.0)
     assert sensitivity.identified == pytest.approx(0.5)
     assert sensitivity.input_basis == "empirical_plugin"
-    assert sensitivity.sample_id.startswith("sha256:")
+    assert sensitivity.sample_id.startswith("blake3:")
     assert sensitivity.uncertainty.sampling_interval == "sampling interval: not reported"
     assert "Empirical plug-in" in sensitivity.explain()
     effect = ScientificQuantity.from_effect(result, outcome_units="probability")
@@ -547,15 +547,17 @@ def test_empirical_msm_rejects_altered_query_even_with_same_numeric_estimate() -
 
 
 def test_empirical_msm_digest_matches_canonical_sample_and_changes_with_data() -> None:
-    import hashlib
-    import json
+    import numpy as np
+    from antecedent._digest import canonical_digest
 
     data = {"a": [0.0, 0.0, 1.0, 1.0], "y": [0.0, 1.0, 1.0, 1.0]}
     original = analyze(data, query=AverageEffect("a", "y"), graph=[("a", "y")])
     first = original.msm_sensitivity(data=data, lambda_max=2.0)
-    rows = list(zip(data["a"], data["y"], strict=True))
-    expected = hashlib.sha256(json.dumps([("a", "y"), rows], sort_keys=True).encode()).hexdigest()
-    assert first.sample_id == f"sha256:{expected}"
+    rows = np.array(list(zip(data["a"], data["y"], strict=True)))
+    expected = canonical_digest(
+        "antecedent.msm.empirical_sample.v2", {"columns": ["a", "y"], "rows": rows}
+    )
+    assert first.sample_id == f"blake3:{expected}"
     second = original.msm_sensitivity(
         data={"a": data["a"], "y": [0.0, 0.0, 1.0, 1.0]}, lambda_max=2.0
     )
@@ -582,7 +584,7 @@ def test_empirical_msm_function_keeps_supplemental_sample_identity() -> None:
     sensitivity = msm_sensitivity.from_analysis(result, data=data, lambda_max=2.0)
     assert sensitivity.identified == pytest.approx(0.5)
     assert sensitivity.input_basis == "empirical_plugin"
-    assert sensitivity.sample_id.startswith("sha256:")
+    assert sensitivity.sample_id.startswith("blake3:")
     assert sensitivity.uncertainty.sampling_interval == "sampling interval: not reported"
     with pytest.raises(CausalValueError):
         msm_sensitivity.from_analysis(

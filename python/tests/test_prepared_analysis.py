@@ -3,31 +3,16 @@
 from __future__ import annotations
 
 import math
-import random
 
 import antecedent
 import numpy as np
 import pytest
 
-
-def _confounded_scm(n: int = 500, seed: int = 19):
-    rng = random.Random(seed)
-    z = np.empty(n, dtype=np.float64)
-    t = np.empty(n, dtype=np.float64)
-    y = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        zi = rng.gauss(0.0, 1.0)
-        p = 1.0 / (1.0 + math.exp(-(-0.4 + 0.9 * zi)))
-        ti = 1.0 if rng.random() < p else 0.0
-        yi = 2.0 * ti + zi + rng.gauss(0.0, 0.4)
-        z[i] = zi
-        t[i] = ti
-        y[i] = yi
-    return {"t": t, "y": y, "z": z}, [("z", "t"), ("z", "y"), ("t", "y")]
+from _scm import confounded_scm
 
 
 def test_prepared_reestimate_matches_fresh_analyze():
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=500, seed=19)
     fresh = antecedent.analyze(
         data,
         graph=edges,
@@ -57,7 +42,7 @@ def test_prepared_reestimate_matches_fresh_analyze():
 
 
 def test_oneshot_analyze_result_retains_study():
-    data, edges = _confounded_scm(n=200, seed=5)
+    data, edges = confounded_scm(n=200, seed=5)
     result = antecedent.analyze(
         data,
         graph=edges,
@@ -70,7 +55,7 @@ def test_oneshot_analyze_result_retains_study():
 
 
 def test_prepared_prior_transfer_validates_artifact_at_estimation():
-    data, edges = _confounded_scm(n=80, seed=7)
+    data, edges = confounded_scm(n=80, seed=7)
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
         graph=edges,
@@ -83,7 +68,7 @@ def test_prepared_prior_transfer_validates_artifact_at_estimation():
 
 
 def test_prepared_second_shot_reuses_identification():
-    data, edges = _confounded_scm(n=800, seed=31)
+    data, edges = confounded_scm(n=800, seed=31)
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
         data,
         graph=edges,
@@ -214,4 +199,6 @@ def test_prepared_multi_horizon_mediation_retains_every_slice_and_artifact_axis(
 
     artifact = antecedent.artifacts.loads(prepared.export_artifact())
     assert artifact.payload_kind == "analysis_result"
-    assert [slice_["horizon"] for slice_ in artifact.payload["mediation_grid"]["slices"]] == [1, 2]
+    assert [
+        slice_["horizon"] for slice_ in artifact.to_dict()["payload"]["mediation_grid"]["slices"]
+    ] == [1, 2]

@@ -221,12 +221,18 @@ impl SharedBatchDesign {
         // A seeded balanced shuffle: fold membership does not follow the file order (a
         // periodic `row % k` assignment aliases with any periodic structure in the data).
         let mut rng = antecedent_core::CausalRng::from_seed(fold_seed ^ 0xF01D_5EED_BA7C_4001);
-        let fold_ids: Arc<[u32]> =
-            antecedent_kernels::shuffled_fold_assignment(&mut rng, n, folds, None)
-                .into_iter()
-                .map(|f| u32::try_from(f).unwrap_or(u32::MAX))
-                .collect::<Vec<_>>()
-                .into();
+        let assignment = antecedent_kernels::shuffled_fold_assignment(&mut rng, n, folds, None)
+            .map_err(|error| CausalError::Compile {
+                message: match error {
+                    antecedent_kernels::ViewError::InvalidShape { message } => message.to_owned(),
+                    other => other.to_string(),
+                },
+            })?;
+        let fold_ids: Arc<[u32]> = assignment
+            .into_iter()
+            .map(|f| u32::try_from(f).unwrap_or(u32::MAX))
+            .collect::<Vec<_>>()
+            .into();
         let covariate = match common_adjustment(adjustment_sets) {
             Some(set) if !set.is_empty() => Some(compile_shared_covariates(data, set)?),
             Some(_) | None => None,
@@ -421,7 +427,7 @@ impl BatchStudy {
 
     /// Start a batch over a declared [`TieredBackground`].
     ///
-    /// CoDetermined materializes as an ADMG; Unknown as a PAG. Identification
+    /// `CoDetermined` materializes as an ADMG; Unknown as a PAG. Identification
     /// uses the same [`crate::StudyBuilder::tiered_background`] path as a single-query study.
     #[must_use]
     pub fn tiered(data: TabularData, background: TieredBackground) -> Self {
@@ -512,9 +518,11 @@ impl BatchStudy {
     #[must_use]
     pub fn estimator_fingerprint(&self) -> String {
         match (&self.estimator_spec, self.estimator) {
-            (Some(spec), _) => {
-                format!("{:?}", super::contract_identity::estimator_spec_identity(spec))
-            }
+            (Some(spec), _) => antecedent_io::digest_hex(
+                antecedent_core::IdentityDomain::InferenceBinding,
+                &super::contract_identity::estimator_spec_identity(spec),
+            )
+            .unwrap_or_else(|error| format!("unencodable:{error}")),
             (None, Some(id)) => id.as_str().to_string(),
             (None, None) => "default".to_string(),
         }
@@ -640,9 +648,9 @@ impl BatchStudy {
     /// Compile discrete joint `InterventionResponse` cells into a reusable prepared batch.
     ///
     /// Defaults to [`EstimatorId::CellAipw`] when the batch has no estimator override.
-    /// Licensed on a DAG and on CoDetermined via joint ADMG adjustment on the
+    /// Licensed on a DAG and on `CoDetermined` via joint ADMG adjustment on the
     /// known closure graph. Unknown has no single ADMG. Bare ADMG
-    /// InterventionResponse already refuses.
+    /// `InterventionResponse` already refuses.
     ///
     /// Family p-values use [`Self::family_contrast`] (default
     /// [`CellFamilyContrast::CellMinusControl`]), never the cell level stored
@@ -978,7 +986,10 @@ impl PreparedBatch {
         let results = self.estimate(data, ctx)?;
         let scores = BatchScores::new(
             ScoreSource::Estimated,
-            results.iter().map(|r| r.estimate.score_table.clone()).collect(),
+            results
+                .iter()
+                .map(|r| r.estimate.as_effect().and_then(|effect| effect.scores.table.clone()))
+                .collect(),
         );
         Ok((results, scores))
     }
@@ -1126,6 +1137,28 @@ fn batch_claim_alignment(
     }
 }
 
+/// Drop every family-level p-value and contrast from `results` and record why on each.
+fn withhold_family_inference(results: &mut [StudyResult], message: &str) {
+    for result in results.iter_mut() {
+        let Some(effect) = result.estimate.as_effect_mut() else {
+            continue;
+        };
+        effect.family.adjusted_p_values = None;
+        effect.family.contrast = None;
+        effect.family.contrast_interval = None;
+        result.diagnostics.push(antecedent_core::Diagnostic::new(
+            "batch.joint_if",
+            antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            message,
+        ));
+    }
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "aligns every result's influence to the shared row universe, forms the level covariance, then branches on the declared family contrast; each early exit must also record candidate selection, so the phases share one `results` borrow"
+)]
 fn attach_batch_family_joint_inference(
     results: &mut [StudyResult],
     data: &TabularData,
@@ -1141,7 +1174,12 @@ fn attach_batch_family_joint_inference(
     let mut row_sets = Vec::new();
     let full_n = data.row_count();
     for (result, query) in results.iter().zip(queries) {
-        match align_influence_to_rows(data, result, query, result.estimate.influence.as_deref()) {
+        match align_influence_to_rows(
+            data,
+            result,
+            query,
+            result.estimate.as_effect().and_then(|effect| effect.scores.influence.as_deref()),
+        ) {
             Ok((col, rows)) => {
                 level_aligned.push(col);
                 row_sets.push(rows);
@@ -1163,13 +1201,13 @@ fn attach_batch_family_joint_inference(
     };
     let crit = resolve_max_t_critical(results, &level_cov, "simultaneous interval");
     for (i, result) in results.iter_mut().enumerate() {
-        result.estimate.joint_covariance = Some(level_cov.clone());
+        let Some(effect) = result.estimate.as_effect_mut() else {
+            continue;
+        };
+        effect.joint.covariance = Some(level_cov.clone());
         if let Some(c) = crit {
-            result.estimate.simultaneous_interval = Some((
-                result.estimate.ate - c * level_cov.se(i),
-                result.estimate.ate + c * level_cov.se(i),
-                0.95,
-            ));
+            effect.family.simultaneous_interval =
+                Some((effect.ate - c * level_cov.se(i), effect.ate + c * level_cov.se(i), 0.95));
         }
     }
 
@@ -1177,17 +1215,10 @@ fn attach_batch_family_joint_inference(
     if cell_family {
         match family_contrast {
             None => {
-                for result in results.iter_mut() {
-                    result.estimate.adjusted_p_values = None;
-                    result.estimate.family_contrast = None;
-                    result.estimate.family_contrast_interval = None;
-                    result.diagnostics.push(antecedent_core::Diagnostic::new(
-                        "batch.joint_if",
-                        antecedent_core::DiagnosticKind::Scientific,
-                        antecedent_core::DiagnosticSeverity::Info,
-                        "shared-row joint IF on cell levels; no family contrast declared, p-values omitted",
-                    ));
-                }
+                withhold_family_inference(
+                    results,
+                    "shared-row joint IF on cell levels; no family contrast declared, p-values omitted",
+                );
                 attach_candidate_selection(results, screen, &[], &[], None);
                 return;
             }
@@ -1197,20 +1228,13 @@ fn attach_batch_family_joint_inference(
                 for ((result, query), rows) in results.iter().zip(queries).zip(&row_sets) {
                     let Some((value, scores)) = cell_family_contrast_claim(result, query, kind)
                     else {
-                        for result in results.iter_mut() {
-                            result.estimate.adjusted_p_values = None;
-                            result.estimate.family_contrast = None;
-                            result.estimate.family_contrast_interval = None;
-                            result.diagnostics.push(antecedent_core::Diagnostic::new(
-                                "batch.joint_if",
-                                antecedent_core::DiagnosticKind::Scientific,
-                                antecedent_core::DiagnosticSeverity::Info,
-                                format!(
-                                    "shared-row joint IF on cell levels; {} contrast could not be formed, p-values omitted",
-                                    kind.as_str()
-                                ),
-                            ));
-                        }
+                        withhold_family_inference(
+                            results,
+                            &format!(
+                                "shared-row joint IF on cell levels; {} contrast could not be formed, p-values omitted",
+                                kind.as_str()
+                            ),
+                        );
                         attach_candidate_selection(results, screen, &[], &[], None);
                         return;
                     };
@@ -1230,17 +1254,10 @@ fn attach_batch_family_joint_inference(
                 let Ok(contrast_cov) =
                     antecedent_estimate::joint_influence_covariance(&contrast_cols, None)
                 else {
-                    for result in results.iter_mut() {
-                        result.estimate.adjusted_p_values = None;
-                        result.estimate.family_contrast = None;
-                        result.estimate.family_contrast_interval = None;
-                        result.diagnostics.push(antecedent_core::Diagnostic::new(
-                            "batch.joint_if",
-                            antecedent_core::DiagnosticKind::Scientific,
-                            antecedent_core::DiagnosticSeverity::Info,
-                            "shared-row joint IF on cell levels; family contrast covariance could not be formed, p-values omitted",
-                        ));
-                    }
+                    withhold_family_inference(
+                        results,
+                        "shared-row joint IF on cell levels; family contrast covariance could not be formed, p-values omitted",
+                    );
                     attach_candidate_selection(results, screen, &[], &[], None);
                     return;
                 };
@@ -1259,7 +1276,10 @@ fn attach_batch_family_joint_inference(
         }
     }
 
-    let values: Vec<f64> = results.iter().map(|r| r.estimate.ate).collect();
+    let values: Vec<f64> = results
+        .iter()
+        .filter_map(|result| result.estimate.as_effect().map(|effect| effect.ate))
+        .collect();
     attach_family_p_values(results, &values, &level_cov, crit, None, screen);
 }
 
@@ -1279,7 +1299,8 @@ fn align_influence_to_rows(
     ids.extend(result.estimand.adjustment_set.iter().copied());
     ids.extend(result.estimand.instruments.iter().copied());
     ids.extend(result.estimand.mediators.iter().copied());
-    if let Some(table) = result.estimate.score_table.as_ref() {
+    if let Some(table) = result.estimate.as_effect().and_then(|effect| effect.scores.table.as_ref())
+    {
         ids.push(table.treatment);
         ids.extend(table.intervened.iter().copied());
     }
@@ -1324,7 +1345,7 @@ fn cell_family_contrast_claim(
     if query.outcome_functional.quantile_level().is_some() {
         return None;
     }
-    let table = result.estimate.score_table.as_ref()?;
+    let table = result.estimate.as_effect()?.scores.table.as_ref()?;
     if table.distinct_threshold_count() > 1 {
         return None;
     }
@@ -1367,11 +1388,14 @@ fn attach_family_p_values(
     let bh = antecedent_stats::benjamini_hochberg(&p_values);
     let by = antecedent_stats::benjamini_yekutieli(&p_values);
     for (i, result) in results.iter_mut().enumerate() {
-        result.estimate.adjusted_p_values = Some((bh[i], by[i]));
+        let Some(effect) = result.estimate.as_effect_mut() else {
+            continue;
+        };
+        effect.family.adjusted_p_values = Some((bh[i], by[i]));
         if contrast.is_some() {
             let se = cov.se(i);
-            result.estimate.family_contrast = Some((values[i], se));
-            result.estimate.family_contrast_interval =
+            effect.family.contrast = Some((values[i], se));
+            effect.family.contrast_interval =
                 crit.map(|c| (values[i] - c * se, values[i] + c * se, 0.95));
         }
         let mut d = antecedent_core::Diagnostic::new(
@@ -1528,6 +1552,10 @@ fn rows_disjoint(a: &[u32], b: &[u32]) -> bool {
     true
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "ranks the family by the screen's procedure (BH, BY, max-t or none) and writes one selection record onto every result; the procedures share the same result walk"
+)]
 fn attach_candidate_selection(
     results: &mut [StudyResult],
     screen: Option<&CandidateScreen>,
@@ -1568,16 +1596,22 @@ fn attach_candidate_selection(
                         results
                             .iter()
                             .enumerate()
-                            .filter(|(_, r)| {
-                                r.estimate.ate.is_finite()
-                                    && r.estimate.se_analytic.is_finite()
-                                    && r.estimate.se_analytic >= 0.0
+                            .filter(|(_, result)| {
+                                result.estimate.as_effect().is_some_and(|effect| {
+                                    effect.ate.is_finite()
+                                        && effect.se_analytic().is_finite()
+                                        && effect.se_analytic() >= 0.0
+                                })
                             })
                             .max_by(|a, b| {
-                                let sa = a.1.estimate.se_analytic.abs().max(1e-12);
-                                let sb = b.1.estimate.se_analytic.abs().max(1e-12);
-                                (a.1.estimate.ate.abs() / sa)
-                                    .partial_cmp(&(b.1.estimate.ate.abs() / sb))
+                                let score = |result: &StudyResult| {
+                                    result.estimate.as_effect().map(|effect| {
+                                        let scale = effect.se_analytic().abs().max(1e-12);
+                                        effect.ate.abs() / scale
+                                    })
+                                };
+                                score(a.1)
+                                    .partial_cmp(&score(b.1))
                                     .unwrap_or(std::cmp::Ordering::Equal)
                             })
                             .map(|(i, _)| i)
@@ -1616,15 +1650,18 @@ fn attach_candidate_selection(
     };
     for result in results.iter_mut() {
         result.candidate_selection = Some(selection.clone());
-        result.estimate.candidate_selection = Some(antecedent_estimate::CandidateSelectionRecord {
-            screen_id: std::sync::Arc::clone(&selection.screen_id),
-            procedure: std::sync::Arc::from(selection.procedure.as_str()),
-            winner_index: selection.winner_index,
-            family_size: selection.family_size,
-            screen_rows: std::sync::Arc::clone(&selection.screen_rows),
-            estimate_rows: std::sync::Arc::clone(&selection.estimate_rows),
-            disjoint: selection.disjoint,
-        });
+        if let Some(effect) = result.estimate.as_effect_mut() {
+            effect.family.candidate_selection =
+                Some(antecedent_estimate::CandidateSelectionRecord {
+                    screen_id: std::sync::Arc::clone(&selection.screen_id),
+                    procedure: std::sync::Arc::from(selection.procedure.as_str()),
+                    winner_index: selection.winner_index,
+                    family_size: selection.family_size,
+                    screen_rows: std::sync::Arc::clone(&selection.screen_rows),
+                    estimate_rows: std::sync::Arc::clone(&selection.estimate_rows),
+                    disjoint: selection.disjoint,
+                });
+        }
         if recorded {
             let mut d = antecedent_core::Diagnostic::new(
                 "batch.candidate_selection",

@@ -9,14 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, Pag, TemporalPag};
 
 use crate::discriminating_paths::{
@@ -37,8 +29,9 @@ fn enqueue_local<G: PagOps>(graph: &G, id: DenseNodeId, queue: &mut OrientationQ
 }
 
 /// Named Zhang FCI orientation rule on a static [`Pag`].
-pub trait FciOrientationRule {
+pub(crate) trait FciOrientationRule {
     /// Rule id.
+    #[cfg(test)]
     fn id(&self) -> &'static str;
 
     /// Apply once; enqueue only locally affected nodes.
@@ -736,6 +729,7 @@ fn paths_node_disjoint_except_a(
 pub struct LpcmciOrientCollider;
 
 impl FciOrientationRule for LpcmciOrientCollider {
+    #[cfg(test)]
     fn id(&self) -> &'static str {
         "fci.orient_collider"
     }
@@ -771,6 +765,7 @@ impl LpcmciOrientationRule for LpcmciOrientCollider {
 pub struct LpcmciR1;
 
 impl FciOrientationRule for LpcmciR1 {
+    #[cfg(test)]
     fn id(&self) -> &'static str {
         "fci.r1"
     }
@@ -803,9 +798,10 @@ impl LpcmciOrientationRule for LpcmciR1 {
 /// FCI R2: if `a → b *→ c` or `a *→ b → c`, and `a *–o c` (circle **at c**), orient
 /// arrow at c on a–c. Never overwrites a Tail at c.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LpcmciR2;
+pub(crate) struct LpcmciR2;
 
 impl FciOrientationRule for LpcmciR2 {
+    #[cfg(test)]
     fn id(&self) -> &'static str {
         "fci.r2"
     }
@@ -838,9 +834,10 @@ impl LpcmciOrientationRule for LpcmciR2 {
 /// FCI R3: collider `a *→ b ←* c` with nonadjacent a,c and circles at θ=`d` on
 /// `d—a` and `d—c`, plus circle at `b` on `d—b` → orient `d *→ b`.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LpcmciR3;
+pub(crate) struct LpcmciR3;
 
 impl FciOrientationRule for LpcmciR3 {
+    #[cfg(test)]
     fn id(&self) -> &'static str {
         "fci.r3"
     }
@@ -875,6 +872,7 @@ impl LpcmciOrientationRule for LpcmciR3 {
 pub struct LpcmciDiscriminatingPathRule;
 
 impl FciOrientationRule for LpcmciDiscriminatingPathRule {
+    #[cfg(test)]
     fn id(&self) -> &'static str {
         "fci.discriminating_path"
     }
@@ -906,9 +904,10 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
 
 /// FCI R8: `a → b → c` and `a o–* c` → orient `a → c` (definite `b → c` only).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LpcmciR8;
+pub(crate) struct LpcmciR8;
 
 impl FciOrientationRule for LpcmciR8 {
+    #[cfg(test)]
     fn id(&self) -> &'static str {
         "fci.r8"
     }
@@ -940,9 +939,10 @@ impl LpcmciOrientationRule for LpcmciR8 {
 
 /// FCI R9′: uncovered PD path from neighbor of `a` to `c` with `a o→ c` → `a → c`.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LpcmciR9;
+pub(crate) struct LpcmciR9;
 
 impl FciOrientationRule for LpcmciR9 {
+    #[cfg(test)]
     fn id(&self) -> &'static str {
         "fci.r9"
     }
@@ -989,9 +989,10 @@ impl LpcmciOrientationRule for LpcmciR9 {
 ///   search runs out without a licensing pair is left open and reported as
 ///   `<algorithm>.pd_path_budget` rather than failing the run.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LpcmciR10;
+pub(crate) struct LpcmciR10;
 
 impl FciOrientationRule for LpcmciR10 {
+    #[cfg(test)]
     fn id(&self) -> &'static str {
         "fci.r10"
     }
@@ -1040,7 +1041,7 @@ fn is_later(graph: &TemporalPag, a: DenseNodeId, b: DenseNodeId) -> bool {
 
 /// Ancestor–parent rule (Lemma 1): clear middle marks on definite directed parents.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LpcmciApr;
+pub(crate) struct LpcmciApr;
 
 impl LpcmciOrientationRule for LpcmciApr {
     fn id(&self) -> &'static str {
@@ -1092,7 +1093,7 @@ impl LpcmciOrientationRule for LpcmciApr {
 
 /// Middle-mark rule (MMR): on `*→` with `?`, set L/R by node order.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LpcmciMmr;
+pub(crate) struct LpcmciMmr;
 
 impl LpcmciOrientationRule for LpcmciMmr {
     fn id(&self) -> &'static str {
@@ -1155,7 +1156,7 @@ impl LpcmciOrientationRule for LpcmciMmr {
 
 /// Default Zhang FCI orientation rule list (collider + R1–R4 + R8–R10).
 #[must_use]
-pub fn default_fci_rules() -> [&'static dyn FciOrientationRule; 8] {
+pub(crate) fn default_fci_rules() -> [&'static dyn FciOrientationRule; 8] {
     [
         &LpcmciOrientCollider,
         &LpcmciR1,
@@ -1176,7 +1177,7 @@ pub fn default_fci_rules() -> [&'static dyn FciOrientationRule; 8] {
 /// contemporaneous edges to ↔ before ER-01 can place tails, which breaks parent
 /// memory and latent-fork skeleton recovery.
 #[must_use]
-pub fn prelim_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 7] {
+pub(crate) fn prelim_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 7] {
     [&LpcmciApr, &LpcmciR8, &LpcmciR2, &LpcmciR1, &LpcmciR9, &LpcmciR10, &LpcmciMmr]
 }
 
@@ -1184,7 +1185,7 @@ pub fn prelim_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 7] {
 ///
 /// Order matches the pin full list: ER-01-style rules before ER-00 colliders.
 #[must_use]
-pub fn default_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 10] {
+pub(crate) fn default_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 10] {
     [
         &LpcmciApr,
         &LpcmciR8,
@@ -1207,7 +1208,7 @@ pub fn default_lpcmci_rules() -> [&'static dyn LpcmciOrientationRule; 10] {
 /// # Errors
 ///
 /// Rule application failures.
-pub fn run_fci_orientation_to_fixed_point(
+pub(crate) fn run_fci_orientation_to_fixed_point(
     graph: &mut Pag,
     rules: &[&dyn FciOrientationRule],
     state: &mut OrientationState,

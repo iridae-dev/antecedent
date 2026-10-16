@@ -5,14 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, VariableId};
@@ -241,7 +233,6 @@ fn next_synthetic_id(variables: &[VariableId], schema_len: usize) -> u32 {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use std::sync::Arc;
 

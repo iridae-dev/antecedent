@@ -1,6 +1,8 @@
 # Identity dictionary. One row per IdentityDomain plus target_weights.
-# Docs rows are checked, never generated. `covers` restates the layer table
-# of adr/0022-causal-compiler-contract.md in one line; keep them in step.
+# docs/api_naming.md renders `naming_row`, `doc_rust`, and `doc_python`
+# between the identity-dictionary markers (scripts/generate_dictionary_tables.py).
+# `covers` restates the layer table of adr/0022-causal-compiler-contract.md
+# in one line; keep them in step.
 
 [[identity]]
 domain = "target"
@@ -10,6 +12,8 @@ python = "inspect().target_id"
 availability = "prepared|loaded"
 naming_row = "Target identity"
 covers = "query, population, interventions, outcome functional, temporal policy, schema-name bindings"
+doc_rust = "target digest on the inspect/contract"
+doc_python = "`inspect().target_id`"
 
 [[identity]]
 domain = "identification"
@@ -19,6 +23,8 @@ python = "inspect().identification_id"
 availability = "prepared|loaded"
 naming_row = "Identification premises identity"
 covers = "population-free question, accepted structure (posterior atoms and weights, class prior, transport selection and full optional evidence catalog including regimes, measurements, assignments, projections, snapshot bindings and target sampling), observation contract, RD premises"
+doc_rust = "identification digest over the population-free question, accepted structure (posterior atoms and weights), class prior, transport selection and the full optional evidence catalog (`source_experiments` only for legacy queries), and observation contract"
+doc_python = "`inspect().identification_id`"
 
 [[identity]]
 domain = "identification_product"
@@ -28,6 +34,8 @@ python = "inspect().identification_product_id"
 availability = "prepared|loaded"
 naming_row = "Identification product identity"
 covers = "status, estimands, expression arena, derivation rule ids, required assumptions, hedge, capped search"
+doc_rust = "identification-product digest"
+doc_python = "`inspect().identification_product_id`"
 
 [[identity]]
 domain = "program"
@@ -37,6 +45,8 @@ python = "inspect().program_id"
 availability = "prepared|loaded"
 naming_row = "Compiled program identity"
 covers = "target, identification, products, licensed inferential commitments, completion budget"
+doc_rust = "program digest on the inspect/contract; covers the target population, so ATE and ATT are different programs"
+doc_python = "`result.program_id` / `inspect().program_id` — compiled program, not the execution claim; loaded (executed) study only for `claim_id`"
 
 [[identity]]
 domain = "inference_binding"
@@ -46,6 +56,8 @@ python = "inspect().inference_binding_id"
 availability = "prepared|loaded"
 naming_row = "Inference binding identity"
 covers = "prior contents and mapping, backend and likelihood, draws and replicates, response and observation options, split, validation, overlap policy"
+doc_rust = "inference-binding digest over prior contents, backend and likelihood, and numeric knobs (a response bandwidth moves this, not the program); independent of structure"
+doc_python = "`inspect().inference_binding_id`"
 
 [[identity]]
 domain = "observation"
@@ -55,6 +67,8 @@ python = "inspect().observation_id"
 availability = "prepared|loaded"
 naming_row = "Observation identity"
 covers = "schema and observation assumptions with their variables"
+doc_rust = "observation digest"
+doc_python = "`inspect().observation_id`"
 
 [[identity]]
 domain = "data_snapshot"
@@ -64,6 +78,8 @@ python = "inspect().data_snapshot_id"
 availability = "prepared|loaded"
 naming_row = "Data snapshot identity"
 covers = "observation, modality, ordered partition content digests, regularity, interference network and assignment"
+doc_rust = "data-snapshot digest"
+doc_python = "`inspect().data_snapshot_id`"
 
 [[identity]]
 domain = "execution"
@@ -73,6 +89,8 @@ python = "inspect().execution_id"
 availability = "loaded"
 naming_row = "Execution identity"
 covers = "library version, seed, threads, backend and kernel policy, determinism, adaptive budgets"
+doc_rust = "execution digest"
+doc_python = "`inspect().execution_id`"
 
 [[identity]]
 domain = "claim"
@@ -82,6 +100,8 @@ python = "inspect().claim_id"
 availability = "loaded"
 naming_row = "Execution claim identity"
 covers = "contract seal (identities, four slots, audit fields), claim fields, executed result body digest"
+doc_rust = "`StudyResult::claim` digest over the contract seal (identities, four slots, audit fields), the claim fields, and the executed result body"
+doc_python = '`result.claim_id` / `inspect().claim_id` / `contract["claim"]["claim_id"]`'
 
 [[identity]]
 domain = "score_reuse"
@@ -91,6 +111,8 @@ python = "inspect().score_reuse_id"
 availability = "prepared|loaded"
 naming_row = "Score reuse identity"
 covers = "identification, data snapshot, row index, folds, adjustment set, nuisance provenance, treatment, replicates, inference binding"
+doc_rust = "score-reuse digest"
+doc_python = "`inspect().score_reuse_id`"
 
 [[identity]]
 domain = "target_weights"
@@ -100,6 +122,8 @@ python = "inspect().target_weights_id"
 availability = "loaded"
 naming_row = "Target-weight identity"
 covers = "weight digest, row count, data snapshot, score reuse, declared parents"
+doc_rust = "target-weights digest"
+doc_python = "`inspect().target_weights_id`"
 
 [[identity]]
 domain = "learned_trial"
@@ -109,6 +133,8 @@ python = "n/a (artifact_id in the learned-trial artifact manifest)"
 availability = "loaded"
 naming_row = "Learned-trial artifact identity"
 covers = "graph, query, raw inputs, frozen options, seed, retained score and bootstrap evidence"
+doc_rust = "`manifest.artifact_id` on `LearnedTrialWire`"
+doc_python = "n/a (artifact_id in the learned-trial artifact manifest)"
 
 [[identity]]
 domain = "transport_certificate"
@@ -118,3 +144,5 @@ python = "n/a (artifact_id in the transport-certificate artifact manifest)"
 availability = "loaded"
 naming_row = "Transport-certificate artifact identity"
 covers = "structural transport certificate outcome (positive proof or refusal)"
+doc_rust = "`manifest.artifact_id` on `TransportCertificateWire`"
+doc_python = "n/a (artifact_id in the transport-certificate artifact manifest)"

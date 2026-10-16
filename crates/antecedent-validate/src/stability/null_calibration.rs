@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -23,6 +15,7 @@ use antecedent_data::{
 use antecedent_discovery::{DiscoveryWorkspace, Pcmci};
 use antecedent_kernels::standard_normal;
 
+use crate::common::map_drawn_replicates;
 use crate::error::ValidationError;
 use crate::stability::{lagged_link_family, null_rate_se};
 
@@ -82,7 +75,7 @@ impl SyntheticNullCalibration {
     )]
     pub fn run(
         &self,
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<NullCalibrationReport, ValidationError> {
         if self.n_sim == 0 || self.n_obs < 8 || self.n_vars < 2 {
@@ -100,14 +93,22 @@ impl SyntheticNullCalibration {
         // Candidate lagged links PCMCI scores under its own lag constraints.
         let lags = &self.pcmci.engine().constraints.temporal;
         let family = lagged_link_family(self.n_vars, lags.min_lag.raw(), lags.max_lag.raw())?;
-        let mut rng = ctx.rng.stream(0x5011_u64);
-        let mut hits_per_run = Vec::with_capacity(self.n_sim as usize);
-        for _ in 0..self.n_sim {
-            let data = independent_noise_series(self.n_obs, self.n_vars, &mut rng)?;
-            let result =
-                self.pcmci.run(&data, &variables, workspace, ctx).map_err(ValidationError::from)?;
-            hits_per_run.push(result.evidence.links.len() as u64);
-        }
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_NULL);
+        // The noise series share one stream, drawn in order here; the discovery runs go to the
+        // pool.
+        let hits_per_run = map_drawn_replicates(
+            ctx,
+            self.n_sim,
+            |_| independent_noise_series(self.n_obs, self.n_vars, &mut rng),
+            DiscoveryWorkspace::default,
+            |workspace, ctx, _r, data| {
+                let result = self
+                    .pcmci
+                    .run(data, &variables, workspace, ctx)
+                    .map_err(ValidationError::from)?;
+                Ok(result.evidence.links.len() as u64)
+            },
+        )?;
         let trials = u64::from(self.n_sim) * family as u64;
         let edge_hits: u64 = hits_per_run.iter().sum();
         let empirical_fpr = edge_hits as f64 / trials as f64;

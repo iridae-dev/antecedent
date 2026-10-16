@@ -6,10 +6,10 @@ Requires pyarrow. Skipped when unavailable.
 from __future__ import annotations
 
 import math
-import random
 
-import numpy as np
 import pytest
+
+from _scm import confounded_scm
 
 pytest.importorskip("pyarrow")
 
@@ -17,24 +17,8 @@ import antecedent
 import pyarrow as pa
 
 
-def _confounded_scm(n: int = 600, seed: int = 7):
-    rng = random.Random(seed)
-    z = np.empty(n, dtype=np.float64)
-    t = np.empty(n, dtype=np.float64)
-    y = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        zi = rng.gauss(0.0, 1.0)
-        p = 1.0 / (1.0 + math.exp(-(-0.4 + 0.9 * zi)))
-        ti = 1.0 if rng.random() < p else 0.0
-        yi = 2.0 * ti + zi + rng.gauss(0.0, 0.4)
-        z[i] = zi
-        t[i] = ti
-        y[i] = yi
-    return {"t": t, "y": y, "z": z}, [("z", "t"), ("z", "y"), ("t", "y")]
-
-
 def test_arrow_interactive_zero_copy_and_estimate():
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=600, seed=7)
     table = pa.table(
         {
             "t": pa.array(data["t"], type=pa.float64()),
@@ -81,7 +65,7 @@ def test_arrow_interactive_on_stage_streams_payloads():
     # Regression: the Arrow C entry point silently lacked `on_stage`, so the
     # interactive click path (Arrow table + progressive stages) raised
     # TypeError while the dict path worked.
-    data, edges = _confounded_scm(n=400, seed=5)
+    data, edges = confounded_scm(n=400, seed=5)
     table = pa.table(
         {
             "t": pa.array(data["t"], type=pa.float64()),
@@ -107,7 +91,7 @@ def test_arrow_interactive_on_stage_streams_payloads():
 
 
 def test_arrow_interactive_cancel_and_progress():
-    data, edges = _confounded_scm(n=400, seed=11)
+    data, edges = confounded_scm(n=400, seed=11)
     table = pa.table(
         {
             "t": pa.array(data["t"], type=pa.float64()),

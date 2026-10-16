@@ -1,4 +1,4 @@
-"""Cancellation of the 2.2 E-cells that expose a ``cancel`` token to Python (cost and
+"""Cancellation of the cells that expose a ``cancel`` token to Python (cost and
 cancellation checks): a cancelled token stops the cell with its typed cancellation refusal and
 no partial result, and the same inputs then complete under a live token.
 

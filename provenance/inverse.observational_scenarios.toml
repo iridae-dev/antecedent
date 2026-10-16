@@ -1,0 +1,20 @@
+feature_id = "inverse.observational_scenarios"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# P(X in scenario | Y event) from a supplied aligned observational joint law by Bayes inversion
+# over finite declared scenario cells, with P(S), P(S and E), P(E|S), P(S|E), lift, and the
+# unexplained event mass. Elementary conditional probability; no primary paper.
+papers = []
+implementation_deviations = [
+  "Associational only: P(X | Y) is not the effect of changing X and the result ranks and recommends no action (ranks_actions is false).",
+  "No interval: a sampled law gives a Monte Carlo ratio with no calibrated error and exact finite arithmetic supplies no coverage; the Kish effective number of event draws is reported.",
+  "An interventional law, independent marginals, or an event with no mass is refused with a typed reason.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/inverse_observational_scenarios.rs",
+]

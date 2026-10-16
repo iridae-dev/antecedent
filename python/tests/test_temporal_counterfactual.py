@@ -1,4 +1,4 @@
-"""X8 fixed-population temporal counterfactual (2.3A) and the closed transported route.
+"""Fixed-population temporal counterfactual and the closed transported route.
 
 The two-slice SCM is known in closed form::
 
@@ -93,7 +93,7 @@ def refusal_of(**overrides) -> TemporalRefusal:
     return raised.value
 
 
-def test_x8_shared_history_matches_hand_abduction_and_replay() -> None:
+def test_shared_history_matches_hand_abduction_and_replay() -> None:
     result = run()
     assert [u.unit for u in result.units] == [f"unit-{i}" for i in range(4)]
     plus_sum = minus_sum = 0.0
@@ -121,7 +121,7 @@ def test_x8_shared_history_matches_hand_abduction_and_replay() -> None:
     assert result.snapshot == "snapshot-1"
 
 
-def test_x8_receipt_records_one_shared_draw_per_unit() -> None:
+def test_receipt_records_one_shared_draw_per_unit() -> None:
     receipt = run().receipt
     assert receipt.shared_by_both_worlds
     assert (receipt.n_units, receipt.n_worlds, receipt.horizon) == (4, 2, 2)
@@ -130,10 +130,10 @@ def test_x8_receipt_records_one_shared_draw_per_unit() -> None:
     assert len({d[2] for d in receipt.unit_draws}) == 4
     assert receipt.snapshot == "snapshot-1"
     assert receipt.plus_digest != receipt.minus_digest
-    assert len(receipt.digest) == 32
+    assert len(receipt.digest) == 64
 
 
-def test_x8_independent_noise_would_answer_a_different_question() -> None:
+def test_independent_noise_would_answer_a_different_question() -> None:
     result = run()
     for i, row in enumerate(result.units):
         fresh_minus = simulate(NOISE[(i + 1) % 4], MINUS)[4]
@@ -145,7 +145,7 @@ def test_x8_independent_noise_would_answer_a_different_question() -> None:
     assert abs(independent_mean - result.contrast) > 1e-3
 
 
-def test_x8_unit_order_does_not_change_the_answer() -> None:
+def test_unit_order_does_not_change_the_answer() -> None:
     base = run()
     again = run(histories=list(reversed(histories())))
     assert again.units == base.units
@@ -153,7 +153,7 @@ def test_x8_unit_order_does_not_change_the_answer() -> None:
     assert again.identity == base.identity
 
 
-def test_x8_unpaired_histories_refuse_with_the_offending_unit_as_witness() -> None:
+def test_unpaired_histories_refuse_with_the_offending_unit_as_witness() -> None:
     error = refusal_of(
         plus=ActionHistory("always_treat", PLUS, units=("unit-0", "unit-1", "unit-2"))
     )
@@ -178,7 +178,7 @@ def test_x8_unpaired_histories_refuse_with_the_offending_unit_as_witness() -> No
     assert refusal_of(histories=duplicated).detail == "temporal_counterfactual.unpaired_histories"
 
 
-def test_x8_misaligned_times_and_missing_histories_refuse() -> None:
+def test_misaligned_times_and_missing_histories_refuse() -> None:
     error = refusal_of(plus=ActionHistory("always_treat", PLUS, times=(0, 2)))
     assert error.reason_code == "route_not_supported"
     assert error.detail == "temporal_counterfactual.time_misaligned"
@@ -192,7 +192,7 @@ def test_x8_misaligned_times_and_missing_histories_refuse() -> None:
     assert empty.detail == "temporal_counterfactual.shared_history_missing"
 
 
-def test_x8_refuting_history_retains_node_residual_and_bound() -> None:
+def test_refuting_history_retains_node_residual_and_bound() -> None:
     # Unit 0's outcome noise is 0.5, outside the declared half-width 0.45.
     error = refusal_of(mechanisms=mechanisms(halfwidth=0.45))
     assert error.reason_code == "route_not_supported"
@@ -206,7 +206,7 @@ def test_x8_refuting_history_retains_node_residual_and_bound() -> None:
     assert run(mechanisms=mechanisms(halfwidth=2.0)).contrast == pytest.approx(4.9, abs=1e-9)
 
 
-def test_x8_structure_outside_the_theorem_refuses() -> None:
+def test_structure_outside_the_theorem_refuses() -> None:
     error = refusal_of(latent_confounding=True)
     assert (error.reason_code, error.detail) == (
         "route_not_supported",
@@ -231,7 +231,7 @@ def test_x8_structure_outside_the_theorem_refuses() -> None:
     assert refusal_of(mechanisms=unknown).detail == "temporal_counterfactual.invalid_graph"
 
 
-def test_x8_non_finite_inputs_refuse_and_bad_types_raise() -> None:
+def test_non_finite_inputs_refuse_and_bad_types_raise() -> None:
     with pytest.raises(TemporalRefusal) as raised:
         UnitHistory("u", float("nan"), 0.0, 0.0, 0.0, 0.0)
     assert raised.value.detail == "temporal_counterfactual.non_finite_history"
@@ -251,9 +251,15 @@ def test_x8_non_finite_inputs_refuse_and_bad_types_raise() -> None:
         )
     with pytest.raises(CausalValueError):
         UnitHistory("u", 0.0, 0.0, 0.0, 0.0, 0.0, times=(-1, 0))
+    with pytest.raises(CausalTypeError):
+        UnitHistory("u", True, 0.0, 0.0, 0.0, 0.0)  # type: ignore[arg-type]
+    with pytest.raises(CausalTypeError):
+        UnitHistory("u", "1.5", 0.0, 0.0, 0.0, 0.0)  # type: ignore[arg-type]
+    with pytest.raises(CausalValueError):
+        UnitHistory("u", 10**400, 0.0, 0.0, 0.0, 0.0)
 
 
-def test_x8_artifact_round_trip_replays_both_worlds() -> None:
+def test_artifact_round_trip_replays_both_worlds() -> None:
     result = run()
     artifact = result.export()
     assert isinstance(artifact, bytes)
@@ -269,7 +275,7 @@ def test_x8_artifact_round_trip_replays_both_worlds() -> None:
     )
 
 
-def test_x8_resealed_mutations_are_refused_against_the_retained_identity() -> None:
+def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
     original = run()
 
     def refused(mutated, field: str) -> None:
@@ -303,7 +309,7 @@ def test_x8_resealed_mutations_are_refused_against_the_retained_identity() -> No
     refused(run(mechanisms=mechanisms(fit_id="fit-refit")), "mechanism_fit")
 
 
-def test_x8_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
+def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
     artifact = run().export()
     corrupt = bytearray(artifact)
     corrupt[len(corrupt) // 2] ^= 0xFF
@@ -335,7 +341,7 @@ GATES = (
 )
 
 
-def test_x8_transported_route_is_closed_with_every_missing_gate() -> None:
+def test_transported_route_is_closed_with_every_missing_gate() -> None:
     error = transported(required_factors=["source:rct", "target:field"])
     assert error.reason_code == "cell_not_licensed"
     assert error.detail == "transported_counterfactual.route_frozen"
@@ -347,7 +353,27 @@ def test_x8_transported_route_is_closed_with_every_missing_gate() -> None:
     assert "transported_counterfactual.route_frozen" in str(error)
 
 
-def test_x8_transported_route_reports_only_the_gates_still_missing() -> None:
+def test_transported_route_refusal_names_the_successor_route_and_its_scope() -> None:
+    for error in (
+        transported(required_factors=["source:rct", "target:field"]),
+        transported(
+            prerequisites=ALL_PASSED,
+            required_factors=["source:rct", "target:field"],
+            supplied_factors={"source:rct": "e1", "target:field": "e2"},
+        ),
+        transported(
+            prerequisites=ALL_PASSED,
+            required_factors=["source:rct"],
+            supplied_factors={},
+        ),
+    ):
+        assert error.remedy is not None
+        assert "antecedent.transport.advanced.identify_counterfactual" in error.remedy
+        assert "finite discrete, static, acyclic semi-Markovian" in error.remedy
+        assert error.missing_gates == () or error.missing_gates == GATES
+
+
+def test_transported_route_reports_only_the_gates_still_missing() -> None:
     error = transported(prerequisites=TransportedPrerequisites(transport_license=True))
     assert error.detail == "transported_counterfactual.route_frozen"
     assert error.offending == "fixed_population_temporal_license_missing"
@@ -361,7 +387,7 @@ def test_x8_transported_route_reports_only_the_gates_still_missing() -> None:
     assert error.missing_gates == GATES[2:]
 
 
-def test_x8_transported_route_with_a_missing_gate_never_reports_factors_as_the_cause() -> None:
+def test_transported_route_with_a_missing_gate_never_reports_factors_as_the_cause() -> None:
     error = transported(
         prerequisites=TransportedPrerequisites(transport_license=True),
         required_factors=["source:rct", "target:field"],
@@ -375,7 +401,7 @@ def test_x8_transported_route_with_a_missing_gate_never_reports_factors_as_the_c
 ALL_PASSED = TransportedPrerequisites(True, True, True)
 
 
-def test_x8_transported_route_names_the_missing_regime_factor() -> None:
+def test_transported_route_names_the_missing_regime_factor() -> None:
     error = transported(
         prerequisites=ALL_PASSED,
         required_factors=[("target", "field"), ("source", "rct")],
@@ -388,7 +414,7 @@ def test_x8_transported_route_names_the_missing_regime_factor() -> None:
     assert error.missing_gates == ()
 
 
-def test_x8_transported_route_stays_closed_even_when_every_gate_and_factor_is_present() -> None:
+def test_transported_route_stays_closed_even_when_every_gate_and_factor_is_present() -> None:
     error = transported(
         prerequisites=ALL_PASSED,
         required_factors=["source:rct", "target:field"],
@@ -401,7 +427,7 @@ def test_x8_transported_route_stays_closed_even_when_every_gate_and_factor_is_pr
     assert error.missing_factors == ()
 
 
-def test_x8_transported_route_rejects_malformed_factors() -> None:
+def test_transported_route_rejects_malformed_factors() -> None:
     with pytest.raises(CausalValueError):
         transported_path_specific(required_factors=["population:rct"])
     with pytest.raises(CausalValueError):

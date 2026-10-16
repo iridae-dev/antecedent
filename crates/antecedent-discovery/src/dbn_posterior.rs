@@ -11,44 +11,32 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::needless_range_loop,
-    clippy::neg_cmp_op_on_partial_ord,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::unused_self
-)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, Lag, NodeRef, StreamDomain, VariableId};
+use antecedent_core::{CausalRng, ExecutionContext, Lag, NodeRef, StreamDomain, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_graph::{
     DenseNodeId, GraphError, MarkedEdge, MiddleMark, TemporalCpdag, TemporalPag,
 };
 use antecedent_prob::kish_ess;
-use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
+use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
+use crate::graph_mcmc::{MaskAccept, MaskCancel, MaskChain, MaskChainPlan, run_mask_chain};
 use crate::graph_posterior::{
-    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, accumulate_marginals,
-    analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_forbidden,
-    lagged_edge_required, log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights,
-    parents_of, set_edge,
+    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, SamplingSummary, accumulate_marginals,
+    analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_required, lagged_link,
+    log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights, parents_of, set_edge,
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
-pub const DBN_EXACT_MAX_VARS: usize = 4;
+pub(crate) const DBN_EXACT_MAX_VARS: usize = 4;
 /// Max lag for exact DBN enumeration (`max_lag ≤ 2`).
-pub const DBN_EXACT_MAX_LAG: u32 = 2;
+pub(crate) const DBN_EXACT_MAX_LAG: u32 = 2;
+/// Exact enumeration keeps every template. 2^10 masks stay under a few thousand
+/// contemporaneous DAGs times the lag masks; 2^16 (p=4, lag=1) is tens of millions.
+pub(crate) const DBN_EXACT_MAX_LAG_BITS: usize = 10;
 
 /// Bounded-lag DBN posterior over a stationary template.
 ///
@@ -66,6 +54,28 @@ pub struct DbnPosterior {
     pub n_warmup: u32,
     /// Draws per chain.
     pub n_draws: u32,
+}
+
+/// What a DBN template is scored against: dimensions, lagged score data, prior and scoring
+/// family.
+#[derive(Clone, Copy)]
+struct DbnTarget<'a> {
+    p: usize,
+    max_lag: u32,
+    data: &'a GraphScoreData,
+    prior: &'a GraphPrior,
+    variables: &'a [VariableId],
+    score_family: GraphScoreFamily,
+}
+
+impl DbnTarget<'_> {
+    fn score_cache(&self) -> LocalScoreCache {
+        LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+            self.score_family,
+            self.data.n_vars,
+            self.data.n_rows,
+        ))
+    }
 }
 
 impl Default for DbnPosterior {
@@ -146,7 +156,6 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        let _ = ctx;
         prior.constraints.validate()?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
             return Err(DiscoveryError::unsupported(
@@ -159,11 +168,10 @@ impl DbnPosterior {
                 "DBN posterior requires at least one variable",
             ));
         }
-        if n_directed_edges(p) > 63 {
-            return Err(DiscoveryError::unsupported(
-                "DBN contemporaneous adjacency exceeds 63 directed edges",
-            ));
-        }
+        crate::graph_posterior::ensure_directed_mask_fits(
+            p,
+            "DBN contemporaneous adjacency exceeds 63 directed edges",
+        )?;
         let max_lag = self.max_lag;
         let n_lag_bits = (max_lag as usize).saturating_mul(p.saturating_mul(p));
         if n_lag_bits > 48 {
@@ -177,37 +185,35 @@ impl DbnPosterior {
             && p <= DBN_EXACT_MAX_VARS
             && max_lag <= DBN_EXACT_MAX_LAG
             && p <= EXACT_ENUM_MAX_NODES
-            && n_lag_bits <= 16;
+            && n_lag_bits <= DBN_EXACT_MAX_LAG_BITS;
 
-        if use_exact {
-            self.run_exact(p, max_lag, &score_data, prior, variables, score_family)
-        } else {
-            self.run_mcmc(p, max_lag, &score_data, prior, variables, score_family, ctx)
-        }
+        let target = DbnTarget { p, max_lag, data: &score_data, prior, variables, score_family };
+        if use_exact { Self::run_exact(&target, ctx) } else { self.run_mcmc(&target, ctx) }
     }
 
     fn run_exact(
-        &self,
-        p: usize,
-        max_lag: u32,
-        score_data: &GraphScoreData,
-        prior: &GraphPrior,
-        variables: &[VariableId],
-        score_family: GraphScoreFamily,
+        target: &DbnTarget<'_>,
+        ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
+        let DbnTarget { p, max_lag, prior, variables, .. } = *target;
         let contemp = enumerate_unique_dags(p);
         let n_lag_bits = (max_lag as usize) * p * p;
         let lag_limit = 1u64 << n_lag_bits;
+        let n_templates = (contemp.len() as u64).saturating_mul(lag_limit);
+        // Three stored words per kept template, plus the score workspace.
+        let est_bytes = n_templates.saturating_mul(32);
+        if let Some(hard) = ctx.memory.hard_limit_bytes {
+            if est_bytes > hard {
+                return Err(DiscoveryError::Resource(format!(
+                    "exact DBN enumeration needs ~{est_bytes} bytes; hard limit {hard}"
+                )));
+            }
+        }
         let mut kept_masks = Vec::new();
         let mut kept_lag = Vec::new();
         let mut kept_log = Vec::new();
         let mut rejected = 0u64;
-        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-            data_version: 1,
-            family: score_family,
-            var_fingerprint: score_data.n_vars as u64,
-            penalty_fingerprint: score_data.n_rows as u64,
-        });
+        let mut cache = target.score_cache();
 
         for &cmask in &contemp {
             if log_prior_mask(cmask, p, prior, variables).is_none() {
@@ -215,9 +221,10 @@ impl DbnPosterior {
                 continue;
             }
             for lmask in 0..lag_limit {
-                match score_dbn_template(
-                    cmask, lmask, p, max_lag, score_data, &mut cache, prior, variables,
-                ) {
+                if lmask % 4096 == 0 && ctx.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
+                match score_dbn_template(cmask, lmask, target, &mut cache) {
                     Some(lw) => {
                         kept_masks.push(cmask);
                         kept_lag.push(lmask);
@@ -235,23 +242,37 @@ impl DbnPosterior {
         let (edge, orient) = accumulate_marginals(p, &weights, &kept_masks);
         let lagged = accumulate_lagged_marginals(p, max_lag, &weights, &kept_lag);
         let diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
-        GraphPosterior::new(p, weights, kept_masks, edge, orient, ess, diagnostics, rejected)?
-            .with_lagged_marginals(max_lag, lagged)?
-            .with_lag_masks(kept_lag)
+        GraphPosterior::new(
+            p,
+            weights,
+            kept_masks,
+            edge,
+            orient,
+            SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
+        )?
+        .with_lagged_marginals(max_lag, lagged)?
+        .with_lag_masks(kept_lag)
     }
 
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    )]
     fn run_mcmc(
         &self,
-        p: usize,
-        max_lag: u32,
-        score_data: &GraphScoreData,
-        prior: &GraphPrior,
-        variables: &[VariableId],
-        score_family: GraphScoreFamily,
+        target: &DbnTarget<'_>,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        use crate::graph_mcmc::{GraphMcmcSchedule, diagnostics_from_traces};
+        use crate::graph_mcmc::{
+            GraphMcmcSchedule, diagnostics_from_traces, run_parallel_mask_chains,
+        };
         use std::collections::HashMap;
+
+        let DbnTarget { p, max_lag, .. } = *target;
 
         let schedule = GraphMcmcSchedule {
             n_chains: self.n_chains,
@@ -262,99 +283,37 @@ impl DbnPosterior {
         let (n_chains, n_warmup, n_draws, _) = schedule.as_usize();
         let n_lag_bits = (max_lag as usize) * p * p;
         let n_params = n_directed_edges(p) + n_lag_bits;
-        let mut traces = vec![0.0f64; n_chains * n_draws * n_params];
-        let mut samples: Vec<Vec<(u64, u64)>> = vec![Vec::new(); n_chains];
-        let mut rejected = 0u64;
 
         // Start inside the constrained support: every required contemporaneous and lagged
         // edge present. From the empty template a run with two or more required edges could
         // never take a single-bit step into support, and with one it would record the
         // invalid empty template as a posterior sample until the right bit was proposed.
-        let (init_cmask, init_lmask, init_score) =
-            initial_dbn_state(p, max_lag, score_data, score_family, prior, variables)?;
+        let (init_cmask, init_lmask, init_score) = initial_dbn_state(target)?;
 
-        for chain in 0..n_chains {
-            if ctx.cancellation.is_cancelled() {
-                return Err(DiscoveryError::Cancelled);
-            }
-            let mut rng = ctx.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
-            let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-                data_version: 1,
-                family: score_family,
-                var_fingerprint: score_data.n_vars as u64,
-                penalty_fingerprint: score_data.n_rows as u64,
-            });
-            let mut cmask = init_cmask;
-            let mut lmask = init_lmask;
-            let mut cur = init_score;
-            // Overdisperse the starts (chain 0 stays at the required-edge template): identical
-            // starts make R-hat blind to a chain that has not left its initial mode.
-            if chain > 0 {
-                for _ in 0..(4 * n_params).min(400) {
-                    let (pc, pl, _) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
-                    if let Some(ps) = score_dbn_template(
-                        pc, pl, p, max_lag, score_data, &mut cache, prior, variables,
-                    )
-                    .filter(|s| s.is_finite())
-                    {
-                        cmask = pc;
-                        lmask = pl;
-                        cur = ps;
-                    }
-                }
-            }
-            let total = n_warmup + n_draws;
-            let mut kept = 0usize;
-            for step in 0..total {
-                if step % 64 == 0 && ctx.cancellation.is_cancelled() {
-                    return Err(DiscoveryError::Cancelled);
-                }
-                let (pc, pl, rej) = propose_dbn(cmask, lmask, p, max_lag, &mut rng);
-                rejected += rej;
-                let prop = score_dbn_template(
-                    pc, pl, p, max_lag, score_data, &mut cache, prior, variables,
-                );
-                let accept = match prop {
-                    Some(ps) if cur.is_finite() => {
-                        let lr = ps - cur;
-                        lr >= 0.0 || rng.next_f64() < lr.exp()
-                    }
-                    Some(ps) => {
-                        cmask = pc;
-                        lmask = pl;
-                        cur = ps;
-                        false
-                    }
-                    None => false,
+        let (traces, samples, rejected) =
+            run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
+                let mut rng = inner.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
+                let mut walker = DbnWalker {
+                    target,
+                    cache: target.score_cache(),
+                    p,
+                    max_lag,
+                    n_lag_bits,
+                    cmask: init_cmask,
+                    lmask: init_lmask,
+                    cur: init_score,
+                    pending_c: init_cmask,
+                    pending_l: init_lmask,
                 };
-                if accept {
-                    if let Some(ps) = prop {
-                        cmask = pc;
-                        lmask = pl;
-                        cur = ps;
-                    }
-                }
-                if step >= n_warmup && kept < n_draws {
-                    let mut idx = 0;
-                    for i in 0..p {
-                        for j in 0..p {
-                            if i == j {
-                                continue;
-                            }
-                            traces[(chain * n_draws + kept) * n_params + idx] =
-                                if has_edge(cmask, p, i, j) { 1.0 } else { 0.0 };
-                            idx += 1;
-                        }
-                    }
-                    for b in 0..n_lag_bits {
-                        traces[(chain * n_draws + kept) * n_params + idx + b] =
-                            if (lmask >> b) & 1 == 1 { 1.0 } else { 0.0 };
-                    }
-                    samples[chain].push((cmask, lmask));
-                    kept += 1;
-                }
-            }
-        }
+                // `thin` is 1: the historical loop kept every post-warmup step.
+                let run = run_mask_chain(
+                    &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin: 1, n_params },
+                    inner,
+                    &mut rng,
+                    &mut walker,
+                )?;
+                Ok((run.traces, run.samples, run.rejected))
+            })?;
 
         let (diagnostics, param_mcse) = diagnostics_from_traces(
             &schedule,
@@ -397,11 +356,18 @@ impl DbnPosterior {
         let ess = kish_ess(&weights);
         let (edge, orient) = accumulate_marginals(p, &weights, &masks);
         let lagged = accumulate_lagged_marginals(p, max_lag, &weights, &lags);
-        GraphPosterior::new(p, weights, masks, edge, orient, ess, diagnostics, rejected)?
-            .with_lagged_marginals(max_lag, lagged)?
-            .with_lag_masks(lags)?
-            .with_edge_mcse(edge_mcse)?
-            .with_lagged_edge_mcse(lagged_mcse)
+        GraphPosterior::new(
+            p,
+            weights,
+            masks,
+            edge,
+            orient,
+            SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
+        )?
+        .with_lagged_marginals(max_lag, lagged)?
+        .with_lag_masks(lags)?
+        .with_edge_mcse(edge_mcse)?
+        .with_lagged_edge_mcse(lagged_mcse)
     }
 }
 
@@ -410,14 +376,8 @@ impl DbnPosterior {
 /// # Errors
 ///
 /// The required-edge template is cyclic, violates a constraint, or has no finite score.
-fn initial_dbn_state(
-    p: usize,
-    max_lag: u32,
-    data: &GraphScoreData,
-    family: GraphScoreFamily,
-    prior: &GraphPrior,
-    variables: &[VariableId],
-) -> Result<(u64, u64, f64), DiscoveryError> {
+fn initial_dbn_state(target: &DbnTarget<'_>) -> Result<(u64, u64, f64), DiscoveryError> {
+    let DbnTarget { p, max_lag, prior, variables, .. } = *target;
     let mut cmask = 0u64;
     let mut lmask = 0u64;
     for i in 0..p {
@@ -432,13 +392,8 @@ fn initial_dbn_state(
             }
         }
     }
-    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-        data_version: 1,
-        family,
-        var_fingerprint: data.n_vars as u64,
-        penalty_fingerprint: data.n_rows as u64,
-    });
-    let score = score_dbn_template(cmask, lmask, p, max_lag, data, &mut cache, prior, variables)
+    let mut cache = target.score_cache();
+    let score = score_dbn_template(cmask, lmask, target, &mut cache)
         .filter(|s| s.is_finite())
         .ok_or_else(|| {
             DiscoveryError::unsupported(
@@ -726,19 +681,17 @@ pub fn temporal_pag_from_dbn_masks(
 fn score_dbn_template(
     cmask: u64,
     lmask: u64,
-    p: usize,
-    max_lag: u32,
-    data: &GraphScoreData,
+    target: &DbnTarget<'_>,
     cache: &mut LocalScoreCache,
-    prior: &GraphPrior,
-    variables: &[VariableId],
 ) -> Option<f64> {
+    let DbnTarget { p, max_lag, data, prior, variables, .. } = *target;
     if !mask_is_dag(cmask, p) {
         return None;
     }
     let lp = log_prior_mask(cmask, p, prior, variables)?;
     // Lag edges: apply max-parents including lagged.
     let max_pa = prior.constraints.max_parents.unwrap_or(usize::MAX);
+    let index = crate::constraints::ConstraintIndex::compile(&prior.constraints);
     let mut total = lp;
     for j in 0..p {
         let mut pa: Vec<u32> = parents_of(cmask, p, j);
@@ -750,7 +703,9 @@ fn score_dbn_template(
                 // both endpoints pinned to `Lag::CONTEMPORANEOUS`, so they structurally
                 // cannot see a lag > 0 constraint. Without this, a forbidden `X_{t-1} → Y_t`
                 // was a complete no-op for this engine and could carry posterior mass.
-                if present && lagged_edge_forbidden(&prior.constraints, variables, i, lag, j) {
+                if present
+                    && index.is_forbidden(&prior.constraints, lagged_link(variables, i, lag, j))
+                {
                     return None;
                 }
                 if !present && lagged_edge_required(&prior.constraints, variables, i, lag, j) {
@@ -785,6 +740,10 @@ fn score_dbn_template(
     Some(total)
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn accumulate_lagged_marginals(
     p: usize,
     max_lag: u32,
@@ -801,6 +760,73 @@ fn accumulate_lagged_marginals(
         }
     }
     out
+}
+
+struct DbnWalker<'a> {
+    target: &'a DbnTarget<'a>,
+    cache: LocalScoreCache,
+    p: usize,
+    max_lag: u32,
+    n_lag_bits: usize,
+    cmask: u64,
+    lmask: u64,
+    cur: f64,
+    pending_c: u64,
+    pending_l: u64,
+}
+
+impl MaskChain for DbnWalker<'_> {
+    type Sample = (u64, u64);
+
+    fn current_score(&self) -> f64 {
+        self.cur
+    }
+
+    fn accept_policy(&self) -> MaskAccept {
+        MaskAccept::AdoptIfCurrentNonFinite
+    }
+
+    fn cancel_policy(&self) -> MaskCancel {
+        MaskCancel::AbortEvery64
+    }
+
+    fn propose(&mut self, rng: &mut CausalRng) -> u64 {
+        let (cmask, lmask, rejected) =
+            propose_dbn(self.cmask, self.lmask, self.p, self.max_lag, rng);
+        self.pending_c = cmask;
+        self.pending_l = lmask;
+        rejected
+    }
+
+    fn proposed_score(&mut self) -> Option<f64> {
+        score_dbn_template(self.pending_c, self.pending_l, self.target, &mut self.cache)
+    }
+
+    fn commit(&mut self, score: f64) {
+        self.cmask = self.pending_c;
+        self.lmask = self.pending_l;
+        self.cur = score;
+    }
+
+    fn record(&self, row: &mut [f64]) {
+        let mut idx = 0;
+        for i in 0..self.p {
+            for j in 0..self.p {
+                if i == j {
+                    continue;
+                }
+                row[idx] = if has_edge(self.cmask, self.p, i, j) { 1.0 } else { 0.0 };
+                idx += 1;
+            }
+        }
+        for b in 0..self.n_lag_bits {
+            row[idx + b] = if (self.lmask >> b) & 1 == 1 { 1.0 } else { 0.0 };
+        }
+    }
+
+    fn sample(&self) -> (u64, u64) {
+        (self.cmask, self.lmask)
+    }
 }
 
 fn propose_dbn(
@@ -1157,7 +1183,6 @@ mod tests {
     /// constrained support, so a sampler that starts empty never moves. Starting on the
     /// required-edge template, every draw contains both edges, and the reported Monte-Carlo
     /// error of an indicator that never varies is exactly zero.
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

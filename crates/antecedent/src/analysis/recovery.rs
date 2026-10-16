@@ -1,4 +1,4 @@
-//! Prepared exact binary observation recovery (2.2B X10): graph-licensed
+//! Prepared exact binary observation recovery: graph-licensed
 //! recovery, not MAR/IPCW.
 //!
 //! Preparation decides once (class check, checked recovery formula or verified
@@ -95,7 +95,7 @@ impl ObservationRecoveryResult {
 /// for bit, without fetching data.
 ///
 /// # Errors
-/// Any reconstruction or replay failure, with the X10 reason code.
+/// Any reconstruction or replay failure, with the observation-recovery reason code.
 pub fn consume_observation_recovery_artifact(
     bytes: &[u8],
     limits: RecoveryConsumeLimits,
@@ -109,6 +109,16 @@ fn refused(error: &RecoveryError) -> IoError {
     recovery_io_error(error)
 }
 
+/// The observed law, the effect requests and the work limits a recovery preparation evaluates.
+pub struct RecoveryEvaluation {
+    /// The observed joint law the recovered law is checked against.
+    pub observed: ExactDiscreteLaw,
+    /// Assignments at which the recovered effect is evaluated.
+    pub requests: Vec<Assignment>,
+    /// Work limits of the exact evaluation.
+    pub limits: ExactEvaluationLimits,
+}
+
 impl StudyBuilder {
     /// Decide recovery once and prepare exact evaluation of the recovered law and,
     /// when `effect` is given, of its effect at every request.
@@ -117,18 +127,16 @@ impl StudyBuilder {
     /// Any decision refusal (a nonrecoverable decision refuses with
     /// `transport_proven_non_transportable`), requests without an effect, or an
     /// observed law that is not the named one.
-    #[allow(clippy::too_many_arguments)]
     pub fn observation_recovery(
         graph: Admg,
         query: &ObservationRecoveryQuery,
         catalog: EvidenceCatalog,
         effect: Option<RecoveredEffectQuery>,
         decision: RecoveryLimits,
-        observed: ExactDiscreteLaw,
-        requests: Vec<Assignment>,
-        limits: ExactEvaluationLimits,
+        evaluation: RecoveryEvaluation,
         ctx: &ExecutionContext,
     ) -> Result<PreparedObservationRecovery, IoError> {
+        let RecoveryEvaluation { observed, requests, limits } = evaluation;
         let derivation = match decide_observation_recovery(
             &graph,
             query,
@@ -151,7 +159,12 @@ impl StudyBuilder {
             }
         };
         PreparedObservationRecovery::from_derivation(
-            graph, catalog, effect, derivation, observed, requests, limits, ctx,
+            graph,
+            catalog,
+            effect,
+            derivation,
+            RecoveryEvaluation { observed, requests, limits },
+            ctx,
         )
     }
 }
@@ -166,17 +179,15 @@ impl PreparedObservationRecovery {
     /// # Errors
     /// Inputs that are not the derivation's, requests without an effect, or an
     /// observed law that is not the named one.
-    #[allow(clippy::too_many_arguments)]
     pub fn from_derivation(
         graph: Admg,
         catalog: EvidenceCatalog,
         effect: Option<RecoveredEffectQuery>,
         derivation: RecoveryDerivation,
-        observed: ExactDiscreteLaw,
-        requests: Vec<Assignment>,
-        limits: ExactEvaluationLimits,
+        evaluation: RecoveryEvaluation,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
+        let RecoveryEvaluation { observed, requests, limits } = evaluation;
         let invalid = |message: &str| {
             refused(&RecoveryError::new(RecoveryDetail::InvalidDerivation, message))
         };

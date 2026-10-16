@@ -1,4 +1,4 @@
-//! 2.3A X4 remainder / B1 model-provider row: the learned joint transport artifact (model
+//! The learned joint transport artifact (model
 //! with its polynomial basis, priors with provenance, data identities, exact posterior fitted
 //! through `antecedent-learn`, aligned joint draws, diagnostics, graph/provider/query record,
 //! identification, calibration `unmeasured`) replays independently.
@@ -25,6 +25,7 @@ use antecedent_io::joint_bayesian_transport_artifact::{DataIdentityWire, PriorPr
 use antecedent_io::learned_joint_transport_artifact::{
     LearnedJointArtifactWire, LearnedJointConsumeLimits, LearnedJointExpectation,
 };
+use antecedent_io::model_codes::{GraphClassCode, SourceDependenceCode, SourceSharingCode};
 use std::sync::Arc;
 
 const DRAWS: usize = 3000;
@@ -241,7 +242,7 @@ fn oracle(sources: &[SourceData]) -> (Vec<f64>, Vec<Vec<f64>>) {
 // ---------------------------------------------------------------- tests
 
 #[test]
-fn a2_learned_artifact_replays_value_for_value_against_the_exact_oracle() {
+fn learned_joint_artifact_replays_value_for_value_against_the_exact_oracle() {
     let (wire, fit) = built();
     let bytes = wire.export().expect("export");
     let (loaded, replayed) = consume(&bytes).expect("a faithful artifact replays");
@@ -282,7 +283,7 @@ fn a2_learned_artifact_replays_value_for_value_against_the_exact_oracle() {
 }
 
 #[test]
-fn a2_learned_artifact_records_the_learn_provider_row_and_basis_rank() {
+fn learned_joint_artifact_records_the_learn_provider_row_and_basis_rank() {
     let (wire, fit) = built();
     let provider = &wire.result.provider;
     assert_eq!(provider.provider, "antecedent-learn");
@@ -298,7 +299,7 @@ fn a2_learned_artifact_records_the_learn_provider_row_and_basis_rank() {
 }
 
 #[test]
-fn a2_learned_artifact_enforces_an_expected_identity() {
+fn learned_joint_artifact_enforces_an_expected_identity() {
     let (wire, _) = built();
     let bytes = wire.export().expect("export");
     let expected = LearnedJointExpectation {
@@ -341,7 +342,7 @@ fn a2_learned_artifact_enforces_an_expected_identity() {
 type Mutation = (&'static str, fn(&mut LearnedJointArtifactWire));
 
 #[test]
-fn a2_learned_artifact_refuses_resealed_semantic_mutations() {
+fn learned_joint_artifact_refuses_resealed_semantic_mutations() {
     let (wire, _) = built();
     let mutations: [Mutation; 13] = [
         ("prior mean", |w| w.model.invariant_prior.mean[0] = 0.75),
@@ -351,7 +352,7 @@ fn a2_learned_artifact_refuses_resealed_semantic_mutations() {
         ("target covariate", |w| w.target.covariates[0][0] += 0.01),
         ("draw count", |w| w.options.draws += 1),
         ("seed", |w| w.options.seed += 1),
-        ("sharing", |w| w.model.sharing = "shared_varying_block".into()),
+        ("sharing", |w| w.model.sharing = SourceSharingCode::SharedVaryingBlock),
         ("rng id", |w| w.result.draws.rng_id = "splitmix64_box_muller_v1:seed=1:stream=0".into()),
         ("stored posterior", |w| w.result.posterior_mean[0] += 1e-9),
         ("provider basis", |w| w.result.provider.basis_id = "polynomial_degree_3".into()),
@@ -372,10 +373,10 @@ fn a2_learned_artifact_refuses_resealed_semantic_mutations() {
     let message = refusal(&resealed(&wire, |w| w.model.features = vec![8]));
     assert!(message.contains("learned_joint_transport.feature_mismatch"), "{message}");
     // A changed graph class is refused as unsupported before any fit.
-    let message = refusal(&resealed(&wire, |w| w.model.graph = "admg".into()));
+    let message = refusal(&resealed(&wire, |w| w.model.graph = GraphClassCode::Admg));
     assert!(message.contains("learned_joint_transport.unsupported_graph"), "{message}");
     // Undeclared source dependence is refused.
-    let message = refusal(&resealed(&wire, |w| w.model.dependence = "unknown".into()));
+    let message = refusal(&resealed(&wire, |w| w.model.dependence = SourceDependenceCode::Unknown));
     assert!(message.contains("learned_joint_transport.source_dependence"), "{message}");
     // Without resealing, an edited observation breaks the data identity digest.
     let mut edited = wire.clone();
@@ -395,7 +396,7 @@ fn a2_learned_artifact_refuses_resealed_semantic_mutations() {
 }
 
 #[test]
-fn a2_learned_artifact_refuses_prior_bank_and_likelihood_double_use() {
+fn learned_joint_artifact_refuses_prior_bank_and_likelihood_double_use() {
     let overlapping = PriorProvenance::Bank {
         bank_id: "bank-1".into(),
         consumed: vec![DataIdentity { snapshot_digest: "snap-s1".into(), datum_ids: vec![] }],
@@ -448,7 +449,7 @@ fn a2_learned_artifact_refuses_prior_bank_and_likelihood_double_use() {
 }
 
 #[test]
-fn a2_learned_artifact_refuses_an_unknown_version_foreign_feature_and_claim() {
+fn learned_joint_artifact_refuses_an_unknown_version_foreign_feature_and_claim() {
     let (wire, _) = built();
     let mut future = wire.clone();
     future.version = 7;
@@ -469,7 +470,7 @@ fn a2_learned_artifact_refuses_an_unknown_version_foreign_feature_and_claim() {
 }
 
 #[test]
-fn a2_learned_artifact_refuses_stored_sizes_above_the_consumer_limits() {
+fn learned_joint_artifact_refuses_stored_sizes_above_the_consumer_limits() {
     let (wire, _) = built();
     let bytes = wire.export().expect("export");
     let tight = [

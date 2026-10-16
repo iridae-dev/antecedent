@@ -55,7 +55,7 @@ fn build(data: TabularData, accepted: bool, query: ResponseQuery) -> Study {
 }
 
 fn values(result: &antecedent::StudyResult) -> Vec<f64> {
-    match &result.response.as_ref().expect("response payload").estimate {
+    match &result.response().expect("response payload").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => vec![*value],
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
             mean.to_vec()

@@ -235,7 +235,11 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
         (result.effect() - reference.effect()).abs() < 1e-12,
         "{coordinate} changed result vs fresh route"
     );
-    assert_eq!(result.estimate.se_kind, Some(AnalyticSeKind::Hc1), "{coordinate}");
+    assert_eq!(
+        result.estimate.as_effect().unwrap().uncertainty.analytic.kind,
+        Some(AnalyticSeKind::Hc1),
+        "{coordinate}"
+    );
     let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
     assert!(
         (refreshed.effect() - 2.0).abs() < 0.15,

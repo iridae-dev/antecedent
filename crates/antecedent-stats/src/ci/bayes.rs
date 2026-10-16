@@ -17,15 +17,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain};
 use antecedent_kernels::{sample_inv_gamma, standard_normal};
 
@@ -277,12 +268,7 @@ fn refuse_block_shuffle(sig: SignificanceMethod) -> Result<(), StatsError> {
 
 /// Stable `P(M₁|data) = logistic(log BF₁₀)` under equal prior odds.
 fn logistic_from_log_bf(log_bf: f64) -> f64 {
-    if log_bf >= 0.0 {
-        1.0 / (1.0 + (-log_bf).exp())
-    } else {
-        let e = log_bf.exp();
-        e / (1.0 + e)
-    }
+    antecedent_kernels::sigmoid(log_bf)
 }
 
 struct PreparedQuery {
@@ -340,6 +326,10 @@ fn prepare_standardized(
     Ok(Some(PreparedQuery { y, rx, design, x0, p0 }))
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn design_intercept_z(n: usize, z_cols: &[Vec<f64>]) -> Vec<f64> {
     let p0 = 1 + z_cols.len();
     let mut x0 = vec![0.0; n * p0];
@@ -437,6 +427,10 @@ fn log_bf10_partial_corr(request: &CiBatchRequest<'_>, q: CiQuery) -> Result<f64
 }
 
 /// Log marginal likelihood under shared NIG prior `Λ₀ = λ I`, `α₀`, `β₀`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn log_marginal_nig(
     x_cm: &[f64],
     n: usize,
@@ -493,6 +487,10 @@ fn log_marginal_nig(
     Ok((log_m, NigPosterior { chol, m_n, alpha_n, beta_n, p }))
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn draw_m0_replicate(
     nig: &NigPosterior,
     x0_cm: &[f64],
@@ -566,7 +564,6 @@ fn pearson_abs(x: &[f64], y: &[f64]) -> Option<f64> {
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names)]
 mod tests {
     use super::*;
     use crate::ci::types::{CiPreparationPlan, ConfidenceMethod, SignificanceMethod};

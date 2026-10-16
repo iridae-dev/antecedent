@@ -1,6 +1,7 @@
 //! Shared-plan execution of checked finite ADMG responses and multi-source transport.
 //! Reused numerical factors carry no new uncertainty or causal identification license.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use super::recalc_common::{Fields, float_bytes, identity, literal, table_from_columns};
 use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcReceipt, RecalcRunError, ReceiptRecorder, UtilitySpec,
     decide,
@@ -89,12 +90,6 @@ pub struct MzRecalcRequest {
     /// Decision rule.
     pub utility: UtilitySpec,
 }
-fn literal(label: &str, value: &str) -> StageIdentity {
-    StageIdentity::of(label, &[value.as_bytes()])
-}
-fn float_bytes(values: &[f64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect()
-}
 fn graph_identity(graph: &Admg, names: &[String]) -> StageIdentity {
     let directed: Vec<_> = (0..graph.node_count())
         .flat_map(|i| {
@@ -103,7 +98,7 @@ fn graph_identity(graph: &Admg, names: &[String]) -> StageIdentity {
                     u32::try_from(i).unwrap_or(u32::MAX),
                 ))
                 .iter()
-                .map(move |p| (p.raw(), i))
+                .map(move |p| (p.raw(), u32::try_from(i).unwrap_or(u32::MAX)))
         })
         .collect();
     let bidirected: Vec<_> = (0..graph.node_count())
@@ -114,18 +109,20 @@ fn graph_identity(graph: &Admg, names: &[String]) -> StageIdentity {
                 ))
                 .iter()
                 .filter(move |b| b.raw() as usize > i)
-                .map(move |b| (i, b.raw()))
+                .map(move |b| (u32::try_from(i).unwrap_or(u32::MAX), b.raw()))
         })
         .collect();
-    literal(
-        "static.graph.v1",
-        &format!("{:?}:{directed:?}:{bidirected:?}:{names:?}", graph.nodes()),
-    )
+    Fields::new()
+        .nodes(graph.nodes())
+        .pairs(&directed)
+        .pairs(&bidirected)
+        .texts(names)
+        .identity("static.graph.v1")
 }
-fn base_ids(graph: &Admg, names: &[String], query: &str) -> StageIdentities {
+fn base_ids(graph: &Admg, names: &[String], query: Fields) -> StageIdentities {
     let mut ids = StageIdentities::new();
     ids.set(Stage::Graph, graph_identity(graph, names));
-    ids.set(Stage::Query, literal("static.query.v1", query));
+    ids.set(Stage::Query, query.identity("static.query.v1"));
     ids.set(Stage::Regime, literal("static.regime.v1", "explicit.finite"));
     ids.set(Stage::Evidence, literal("static.evidence.v1", "observational"));
     ids.set(Stage::SourcePopulation, literal("static.source.v1", "observed"));
@@ -235,20 +232,18 @@ impl StaticResponseRequest {
         let mut ids = base_ids(
             &self.graph,
             &names,
-            &format!("response:{}:{}:{:?}", self.treatment.raw(), self.outcome.raw(), self.support),
+            Fields::new()
+                .text("response")
+                .word(u64::from(self.treatment.raw()))
+                .word(u64::from(self.outcome.raw()))
+                .reals(&self.support),
         );
         let mut parts = Vec::new();
         for (name, col) in &self.columns {
             parts.push(name.as_bytes().to_vec());
             parts.push(float_bytes(col));
         }
-        ids.set(
-            Stage::DataSnapshot,
-            StageIdentity::of(
-                "static.snapshot.v1",
-                &parts.iter().map(Vec::as_slice).collect::<Vec<_>>(),
-            ),
-        );
+        ids.set(Stage::DataSnapshot, identity("static.snapshot.v1", &parts));
         ids.set(
             Stage::TreatmentGrid,
             StageIdentity::of("static.support.v1", &[&float_bytes(&self.support)]),
@@ -256,10 +251,11 @@ impl StaticResponseRequest {
         ids.set(Stage::Utility, super::recalc_cell::utility_identity(self.utility));
         ids.set(
             Stage::Law,
-            literal(
-                "static.selection.v1",
-                &format!("{:?}:{}:{}", self.actions, self.baseline, self.active),
-            ),
+            Fields::new()
+                .reals(&self.actions)
+                .len(self.baseline)
+                .len(self.active)
+                .identity("static.selection.v1"),
         );
         ids
     }
@@ -352,10 +348,7 @@ impl StaticResponseRequest {
             .saturating_mul(self.columns.len().saturating_mul(2).saturating_add(1))
     }
     fn data(&self) -> Result<TabularData, RecalcRunError> {
-        TabularData::from_f64_columns(
-            self.columns.iter().map(|(n, v)| (n.as_str(), v.as_slice())).collect::<Vec<_>>(),
-        )
-        .map_err(|e| RecalcRunError::Execution(e.into()))
+        table_from_columns(&self.columns).map_err(|e| RecalcRunError::Execution(e.into()))
     }
     fn study(&self) -> Result<Study, RecalcRunError> {
         let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
@@ -488,7 +481,7 @@ impl StaticResponseSession {
     }
 }
 fn response_means(result: &StudyResult) -> Result<Vec<f64>, RecalcRunError> {
-    match result.response.as_ref().map(|r| &r.estimate) {
+    match result.response().map(|r| &r.estimate) {
         Some(ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }))
             if mean.iter().all(|v| v.is_finite()) =>
         {
@@ -497,26 +490,16 @@ fn response_means(result: &StudyResult) -> Result<Vec<f64>, RecalcRunError> {
         _ => Err(RecalcRunError::Request("recalc.static_required_factor_missing")),
     }
 }
-/// Execute static checked preparation, selective factor rebinding and point-law reductions.
-/// # Errors
-/// Typed schema, support, identification/provider, cancellation/budget and receipt refusals.
-pub fn execute_static_response_with_receipt(
-    session: &mut StaticResponseSession,
+/// Static preparation stage: reprepares from the request, rebinds the retained functional, or reuses the live artifact.
+fn static_prepared(
+    session: &StaticResponseSession,
     request: &StaticResponseRequest,
+    plan: &RecalcPlan,
+    recorder: &mut ReceiptRecorder,
     ctx: &ExecutionContext,
-) -> Result<StaticRecalcOutcome, RecalcRunError> {
-    request.validate()?;
-    let ids = request.identities();
-    let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());
-    if !plan.is_executable() {
-        return Err(RecalcRunError::Refused(Box::new(plan)));
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
-    }
-    let mut recorder = ReceiptRecorder::new();
+) -> Result<Arc<PreparedStudy>, RecalcRunError> {
     let old = session.live.as_ref();
-    let prepared = if changed(&plan, Stage::ScoreArtifact) {
+    Ok(if changed(plan, Stage::ScoreArtifact) {
         guards(
             ctx,
             request
@@ -529,7 +512,7 @@ pub fn execute_static_response_with_receipt(
         let ((prepared, checks), work) = count_static_work(|| {
             count_checked_identifications(|| {
                 session.cache.scope(|| -> Result<PreparedStudy, RecalcRunError> {
-                    if changed(&plan, Stage::Identification) {
+                    if changed(plan, Stage::Identification) {
                         request.study()?.prepare(ctx).map_err(Into::into)
                     } else {
                         let mut p = old
@@ -544,17 +527,37 @@ pub fn execute_static_response_with_receipt(
             })
         });
         recorder.record(Counter::Identification, checks);
-        record_artifact(&mut recorder, work);
+        record_artifact(recorder, work);
         Arc::new(prepared?)
     } else {
         Arc::clone(&old.ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.prepared)
-    };
-    let (result, full_means, means, value, context) = if changed(&plan, Stage::Law) {
-        let must_evaluate = changed(&plan, Stage::ScoreArtifact);
+    })
+}
+
+/// The retained point law of the static response: reevaluated, resummarized from retained means, or reused.
+struct StaticLaw {
+    result: Arc<StudyResult>,
+    full_means: Vec<f64>,
+    means: Vec<f64>,
+    value: f64,
+    context: ExecutionContext,
+}
+
+/// Static law stage: evaluates the point law, or reads the action means and contrast from the live state.
+fn static_law(
+    old: Option<&StaticLive>,
+    prepared: &PreparedStudy,
+    request: &StaticResponseRequest,
+    plan: &RecalcPlan,
+    recorder: &mut ReceiptRecorder,
+    ctx: &ExecutionContext,
+) -> Result<StaticLaw, RecalcRunError> {
+    let (result, full_means, means, value, context) = if changed(plan, Stage::Law) {
+        let must_evaluate = changed(plan, Stage::ScoreArtifact);
         let (result, full_means, context) = if must_evaluate {
             let (result, work) =
                 count_static_work(|| prepared.execute_static_functional_retained(ctx));
-            record_law(&mut recorder, work);
+            record_law(recorder, work);
             let result = Arc::new(result?);
             let full = response_means(&result)?;
             (result, full, ctx.clone())
@@ -579,7 +582,7 @@ pub fn execute_static_response_with_receipt(
         } else {
             let (value, work) =
                 count_static_work(|| summarize_contrast(&means, request.baseline, request.active));
-            record_law(&mut recorder, work);
+            record_law(recorder, work);
             value?
         };
         (result, full_means, means, value, context)
@@ -593,6 +596,31 @@ pub fn execute_static_response_with_receipt(
             old.context.clone(),
         )
     };
+    Ok(StaticLaw { result, full_means, means, value, context })
+}
+
+/// Execute static checked preparation, selective factor rebinding and point-law reductions.
+/// # Errors
+/// Typed schema, support, identification/provider, cancellation/budget and receipt refusals.
+pub fn execute_static_response_with_receipt(
+    session: &mut StaticResponseSession,
+    request: &StaticResponseRequest,
+    ctx: &ExecutionContext,
+) -> Result<StaticRecalcOutcome, RecalcRunError> {
+    request.validate()?;
+    let ids = request.identities();
+    let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());
+    if !plan.is_executable() {
+        return Err(RecalcRunError::Refused(Box::new(plan)));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(RecalcRunError::Request("recalc.cancelled"));
+    }
+    let mut recorder = ReceiptRecorder::new();
+    let old = session.live.as_ref();
+    let prepared = static_prepared(session, request, &plan, &mut recorder, ctx)?;
+    let StaticLaw { result, full_means, means, value, context } =
+        static_law(old, &prepared, request, &plan, &mut recorder, ctx)?;
     let decision = if changed(&plan, Stage::Decision) {
         decide(LawValue { ate: value, std_error: f64::NAN }, request.utility, &mut recorder)?
     } else {
@@ -625,16 +653,31 @@ impl MzRecalcRequest {
         let mut ids = base_ids(
             &self.graph,
             &self.variable_names,
-            &format!("mz:{:?}", self.query.canonical()),
+            Fields::new().text("mz").wire(
+                &antecedent_io::transport_query_wire::MzTransportQueryWire::from_query(&self.query),
+            ),
         );
+        let catalog =
+            antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(&self.catalog);
         ids.set(
             Stage::Evidence,
-            literal("mz.catalog.v1", &format!("{:?}:{:?}", self.catalog, self.search)),
+            Fields::new()
+                .wire(&catalog)
+                .len(self.search.operations)
+                .len(self.search.depth)
+                .identity("mz.catalog.v1"),
         );
-        ids.set(Stage::Regime, literal("mz.regimes.v1", &format!("{:?}", self.catalog.regimes)));
+        ids.set(Stage::Regime, Fields::new().wire(&catalog.regimes).identity("mz.regimes.v1"));
         ids.set(
             Stage::SourcePopulation,
-            literal("mz.sources.v1", &format!("{:?}", self.query.canonical().sources)),
+            Fields::new()
+                .wire(
+                    &antecedent_io::transport_query_wire::MzTransportQueryWire::from_query(
+                        &self.query,
+                    )
+                    .sources,
+                )
+                .identity("mz.sources.v1"),
         );
         let source_ids = self
             .data
@@ -658,11 +701,19 @@ impl MzRecalcRequest {
             ),
         );
         ids.set(Stage::RowDesign, literal("mz.rows.v1", "finite.law.axes.and.proof_leaves"));
-        ids.set(Stage::TreatmentGrid, literal("mz.actions.v1", &format!("{:?}", self.requests)));
-        ids.set(Stage::LearnerFoldsRng, literal("mz.evaluation.v1", &format!("{:?}", self.limits)));
+        let requests: Vec<_> =
+            self.requests.iter().map(super::transport_common::assignments).collect();
+        ids.set(Stage::TreatmentGrid, Fields::new().wire(&requests).identity("mz.actions.v1"));
+        ids.set(
+            Stage::LearnerFoldsRng,
+            Fields::new()
+                .len(self.limits.operations)
+                .len(self.limits.depth)
+                .identity("mz.evaluation.v1"),
+        );
         ids.set(
             Stage::Law,
-            literal("mz.reduction.v1", &format!("{}:{}", self.baseline, self.active)),
+            Fields::new().len(self.baseline).len(self.active).identity("mz.reduction.v1"),
         );
         ids.set(Stage::Utility, super::recalc_cell::utility_identity(self.utility));
         ids
@@ -770,26 +821,15 @@ impl MzRecalcSession {
         live.result.export_named(&live.prepared, &live.names, &live.context).map_err(io_error)
     }
 }
-/// Execute a genuine bounded multi-source decision, retained provider refresh, and finite laws.
-/// # Errors
-/// Typed theorem, missing-factor, support, search/budget, cancellation and receipt refusals.
-pub fn execute_mz_with_receipt(
-    session: &mut MzRecalcSession,
+/// Multi-source preparation stage: rebinds the data and re-decides or refreshes the transport, or reuses the live artifact.
+fn mz_prepared(
     request: &MzRecalcRequest,
+    plan: &RecalcPlan,
+    old: Option<&MzLive>,
+    recorder: &mut ReceiptRecorder,
     ctx: &ExecutionContext,
-) -> Result<StaticRecalcOutcome, RecalcRunError> {
-    request.validate()?;
-    let ids = request.identities();
-    let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());
-    if !plan.is_executable() {
-        return Err(RecalcRunError::Refused(Box::new(plan)));
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
-    }
-    let old = session.live.as_ref();
-    let mut recorder = ReceiptRecorder::new();
-    let prepared = if changed(&plan, Stage::ScoreArtifact) {
+) -> Result<Arc<PreparedMzTransport>, RecalcRunError> {
+    Ok(if changed(plan, Stage::ScoreArtifact) {
         guards(
             ctx,
             request
@@ -810,7 +850,7 @@ pub fn execute_mz_with_receipt(
                             message: e.to_string(),
                         })
                     })?;
-                if changed(&plan, Stage::Identification) {
+                if changed(plan, Stage::Identification) {
                     let decision = decide_mz_transport(
                         &request.graph,
                         &request.query,
@@ -860,11 +900,33 @@ pub fn execute_mz_with_receipt(
             })
         });
         recorder.record(Counter::Identification, checks);
-        record_artifact(&mut recorder, work);
+        record_artifact(recorder, work);
         Arc::new(prepared?)
     } else {
         Arc::clone(&old.ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.prepared)
-    };
+    })
+}
+
+/// Execute a genuine bounded multi-source decision, retained provider refresh, and finite laws.
+/// # Errors
+/// Typed theorem, missing-factor, support, search/budget, cancellation and receipt refusals.
+pub fn execute_mz_with_receipt(
+    session: &mut MzRecalcSession,
+    request: &MzRecalcRequest,
+    ctx: &ExecutionContext,
+) -> Result<StaticRecalcOutcome, RecalcRunError> {
+    request.validate()?;
+    let ids = request.identities();
+    let plan = scope_plan(&session.previous, &ids, session.boundary, request.supported());
+    if !plan.is_executable() {
+        return Err(RecalcRunError::Refused(Box::new(plan)));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(RecalcRunError::Request("recalc.cancelled"));
+    }
+    let old = session.live.as_ref();
+    let mut recorder = ReceiptRecorder::new();
+    let prepared = mz_prepared(request, &plan, old, &mut recorder, ctx)?;
     let (result, means, value, context) = if changed(&plan, Stage::Law) {
         if changed(&plan, Stage::ScoreArtifact) {
             let (evaluated, work) = count_static_work(|| -> Result<_, RecalcRunError> {

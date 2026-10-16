@@ -1,4 +1,4 @@
-"""2.2 E7: descriptive raw-versus-adjusted comparison and reporting-scale transforms.
+"""Descriptive raw-versus-adjusted comparison and reporting-scale transforms.
 
 The oracles are hand arithmetic and a pure-Python central-difference Jacobian; nothing here
 calls the Rust delta-method code to check itself.
@@ -6,7 +6,6 @@ calls the Rust delta-method code to check itself.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 
@@ -230,9 +229,12 @@ def test_a_mean_pair_outside_a_scales_domain_or_a_bad_covariance_is_refused():
 
 
 def sealed(body):
+    from antecedent._digest import canonical_digest
+
     body = {k: v for k, v in body.items() if k != "digest"}
-    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
-    return json.dumps({**body, "digest": hashlib.sha256(canonical.encode()).hexdigest()})
+    return json.dumps(
+        {**body, "digest": canonical_digest("antecedent.descriptive.report.v2", body)}
+    )
 
 
 def test_an_exported_comparison_is_replayed_by_an_independent_consumer():

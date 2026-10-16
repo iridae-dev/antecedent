@@ -112,7 +112,7 @@ fn exported_point_is_recomputed_by_an_independent_consumer() {
             (2, "trial".to_owned(), "target".to_owned()),
         ]
     );
-    assert_eq!(wire.proof.rule_set, "x9.rules.v1");
+    assert_eq!(wire.proof.rule_set, "mixed_source_proof_rules.v1");
     let sourced = wire.proof.steps.iter().filter(|s| s.regime.is_some()).collect::<Vec<_>>();
     assert_eq!(sourced.len(), 2);
     assert!(sourced.iter().all(|s| s.source.is_some() && s.snapshot.is_some()));
@@ -120,6 +120,53 @@ fn exported_point_is_recomputed_by_an_independent_consumer() {
     // Every proof step of the stored derivation is recomputable: rechecking the record
     // under a larger-limit consumer accepts it, a smaller one refuses.
     assert!(wire.proof.steps.iter().any(|s| s.rule == "rule3_insert"));
+}
+
+#[test]
+fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
+    use antecedent_identify::MIXED_SOURCE_RULE_SET;
+    let ctx = ExecutionContext::for_tests(2);
+    let (catalog, data) = evidence();
+    let prepared = prepare(&catalog, data, vec![request(X, true)]);
+    let result = prepared.estimate(&ctx).unwrap();
+    let bytes = result.export(&prepared).unwrap();
+    let sealed = MixedSourceArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(sealed.proof.rule_set, MIXED_SOURCE_RULE_SET);
+    let consumed = MixedSourceArtifactWire::consume_with_limits(
+        &bytes,
+        MixedSourceConsumeLimits::default(),
+        &ctx,
+    )
+    .expect("the sealed artifact is consumed");
+    assert_eq!(consumed.functional.derivation().rule_set(), MIXED_SOURCE_RULE_SET);
+    assert_eq!(consumed.wire.proof.rule_set, MIXED_SOURCE_RULE_SET);
+    let facade = consume_mixed_source_artifact(&bytes, MixedSourceConsumeLimits::default(), &ctx)
+        .expect("the facade consumes it too");
+    assert_eq!(consumed.distributions[0].probabilities, result.distribution().probabilities);
+    assert_eq!(facade.distribution().probabilities, result.distribution().probabilities);
+    // Tampering is refused: an unresealed edit hits the carried digest, a resealed
+    // edit fails the proof replay, and no other version is accepted.
+    let refuse = |edit: &dyn Fn(&mut MixedSourceArtifactWire), reseal: bool| {
+        let mut wire = sealed.clone();
+        edit(&mut wire);
+        if reseal {
+            wire.premises_digest = wire.expected_premises_digest().unwrap();
+        }
+        refused(&wire.export().unwrap())
+    };
+    let other = MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
+    assert!(matches!(
+        refuse(&|w| w.proof.rule_set = other.clone(), false),
+        MixedSourceArtifactError::PremisesMismatch
+    ));
+    for edit in [
+        (&|w: &mut MixedSourceArtifactWire| w.proof.rule_set = other.clone())
+            as &dyn Fn(&mut MixedSourceArtifactWire),
+        &|w| w.proof.steps.last_mut().unwrap().params.push(9),
+        &|w| w.proof.operations_to_proof += 1,
+    ] {
+        assert!(matches!(refuse(edit, true), MixedSourceArtifactError::ProofMismatch(_)));
+    }
 }
 
 #[test]
@@ -148,7 +195,7 @@ fn a_mutated_artifact_fails_independent_consumption() {
         (&|w: &mut MixedSourceArtifactWire| w.proof.steps.last_mut().unwrap().params.push(9))
             as &dyn Fn(&mut MixedSourceArtifactWire),
         &|w| w.proof.steps[0].study = Some("someone-else".into()),
-        &|w| w.proof.rule_set = "x9.rules.v0".into(),
+        &|w| w.proof.rule_set = "mixed_source_proof_rules.v0".into(),
         &|w| w.query.target = "elsewhere".into(),
         &|w| w.search_operations -= 1,
         &|w| w.search_depth -= 1,

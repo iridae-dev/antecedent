@@ -5,7 +5,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(unsafe_code)]
+#![allow(
+    unsafe_code,
+    reason = "the isolated Arrow C Data Interface boundary; safe wrappers validate types and lengths first"
+)]
 
 use std::sync::Arc;
 
@@ -14,14 +17,22 @@ use arrow_array::ffi::{FFI_ArrowArray, from_ffi, to_ffi};
 use arrow_array::{Array, ArrayRef, Float64Array};
 use arrow_schema::ffi::FFI_ArrowSchema;
 
-use crate::buffer::{F64Buffer, ForeignF64Buffer};
+use crate::buffer::{F64Buffer, ForeignBufferOwner, ForeignF64Buffer};
 use crate::column::{Float64Column, OwnedColumn, ValidityBitmap, invalid_rows_are_nan};
 use crate::error::DataError;
 use crate::materialize::{MaterializationReason, materialization_diagnostic};
 
 /// Keeps an Arrow array alive for foreign buffer borrows.
 #[derive(Debug)]
-struct ArrayOwner(#[allow(dead_code)] ArrayRef);
+struct ArrayOwner(
+    #[allow(
+        dead_code,
+        reason = "the field exists to keep the imported Arrow array alive; it is never read"
+    )]
+    ArrayRef,
+);
+
+impl ForeignBufferOwner for ArrayOwner {}
 
 /// One column imported from the Arrow C Data Interface.
 ///
@@ -43,6 +54,10 @@ impl ArrowCColumn {
     /// `array` and `schema` must form a valid Arrow C Data Interface pair.
     /// The wrapper assumes those layouts agree; later type checks cannot
     /// establish the original allocation's validity.
+    /// Exported buffers must remain immutable until the imported storage and
+    /// all its clones release them. No mutable alias may write to retained
+    /// buffers. Cached content identities and fitted preparations rely on this
+    /// lifetime premise.
     #[must_use]
     pub unsafe fn from_ffi(
         name: impl Into<String>,
@@ -87,7 +102,7 @@ impl ArrowCColumn {
 /// # Errors
 ///
 /// Returns [`DataError::InvalidArgument`] when the FFI pair cannot be decoded.
-pub unsafe fn import_array(
+pub(crate) unsafe fn import_array(
     array: FFI_ArrowArray,
     schema: &FFI_ArrowSchema,
 ) -> Result<ArrayRef, DataError> {
@@ -121,7 +136,8 @@ pub(crate) fn float64_column_from_array(
 
     if can_borrow {
         let ptr = values_slice.as_ptr();
-        // SAFETY: `array` owns the buffer for the lifetime of ForeignF64Buffer.
+        // SAFETY: `array` owns the buffer for the lifetime of ForeignF64Buffer;
+        // the exporter contract keeps those buffers immutable until release.
         let foreign = unsafe { ForeignF64Buffer::new(Arc::new(ArrayOwner(array)), ptr, n) };
         // Ensure owner holds the array (read through for dead_code).
         debug_assert!(!foreign.as_slice().is_empty() || n == 0);
@@ -135,10 +151,24 @@ pub(crate) fn float64_column_from_array(
         });
         Ok((OwnedColumn::Float64(col), borrowed, validity_copied, diag))
     } else {
-        let mut values = Vec::with_capacity(n);
-        for i in 0..n {
-            values.push(if floats.is_null(i) { f64::NAN } else { floats.value(i) });
-        }
+        let raw = floats.values();
+        // `values()` is the physical buffer. Use it only when it is exactly the
+        // logical column; a non-zero offset or a longer buffer goes through `value`.
+        let values = if floats.offset() == 0 && raw.len() == n {
+            let mut values = raw.to_vec();
+            for (i, value) in values.iter_mut().enumerate() {
+                if floats.is_null(i) {
+                    *value = f64::NAN;
+                }
+            }
+            values
+        } else {
+            let mut values = Vec::with_capacity(n);
+            for i in 0..n {
+                values.push(if floats.is_null(i) { f64::NAN } else { floats.value(i) });
+            }
+            values
+        };
         let value_bytes = (values.len() * core::mem::size_of::<f64>()) as u64;
         let copied = value_bytes + validity_copied;
         let col = Float64Column::new(id, F64Buffer::owned(Arc::from(values)), validity)?;

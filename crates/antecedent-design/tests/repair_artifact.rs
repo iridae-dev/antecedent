@@ -1,4 +1,4 @@
-//! F13 `repair_search_receipt_v1`: the durable identification-repair artifact
+//! `repair_search_receipt_v1`: the durable identification-repair artifact
 //! and its independent consumer. Expected outcomes follow the theorems (a
 //! back-door adjustment set must be read from one joint law; the transport
 //! source factor needs the source experiment), not the code under test.
@@ -7,10 +7,12 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    EvidenceObligationKind, ObligationKind, ObligationRecord, ObligationScope,
+};
 use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
 use antecedent_core::{
-    DistributionAvailability, Environment, EvidenceCatalog, EvidenceObligationKind,
-    ExecutionContext, ObligationKind, ObligationRecord, ObligationScope, SearchLimits,
+    DistributionAvailability, Environment, EvidenceCatalog, ExecutionContext, SearchLimits,
     VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_design::repair_artifact::DurableStudyCandidateWire;
@@ -184,7 +186,7 @@ fn detail(artifact: &RepairReportArtifact) -> &'static str {
 // -------------------------------------------------------------- round trips
 
 #[test]
-fn f13_backdoor_artifact_round_trips_through_the_container_and_replays_identically() {
+fn backdoor_artifact_round_trips_through_the_container_and_replays_identically() {
     let (artifact, report, _) = backdoor_artifact();
     let bytes = artifact.to_bytes("repair-backdoor").unwrap();
     let decoded = RepairReportArtifact::from_bytes(&bytes).unwrap();
@@ -199,7 +201,7 @@ fn f13_backdoor_artifact_round_trips_through_the_container_and_replays_identical
 }
 
 #[test]
-fn f13_transport_artifact_round_trips_and_stores_the_hypothetical_delta() {
+fn transport_artifact_round_trips_and_stores_the_hypothetical_delta() {
     let (artifact, report) = transport_artifact();
     let bytes = artifact.to_bytes("repair-transport").unwrap();
     let decoded = RepairReportArtifact::from_bytes(&bytes).unwrap();
@@ -224,7 +226,7 @@ fn f13_transport_artifact_round_trips_and_stores_the_hypothetical_delta() {
 }
 
 #[test]
-fn f9_artifact_keeps_obligation_ids_kinds_and_the_source_proof_step() {
+fn artifact_keeps_obligation_ids_kinds_and_the_source_proof_step() {
     let (artifact, report, _) = backdoor_artifact();
     let stored = artifact.obligations().unwrap();
     assert_eq!(stored, report.obligations);
@@ -243,7 +245,7 @@ fn f9_artifact_keeps_obligation_ids_kinds_and_the_source_proof_step() {
 }
 
 #[test]
-fn f9_separate_studies_cannot_meet_the_joint_regime_in_the_stored_report() {
+fn separate_studies_cannot_meet_the_joint_regime_in_the_stored_report() {
     let (artifact, _, _) = backdoor_artifact();
     let pair = artifact
         .report
@@ -257,7 +259,7 @@ fn f9_separate_studies_cannot_meet_the_joint_regime_in_the_stored_report() {
 }
 
 #[test]
-fn f13_assumption_obligations_survive_the_artifact_and_block_certification() {
+fn assumption_obligations_survive_the_artifact_and_block_certification() {
     let record = ObligationRecord::new(
         "assume:positivity",
         ObligationScope::Program,
@@ -283,7 +285,7 @@ fn f13_assumption_obligations_survive_the_artifact_and_block_certification() {
 // ------------------------------------------------------------------ replay
 
 #[test]
-fn f13_replay_recomputes_the_verdict_from_the_stored_delta() {
+fn replay_recomputes_the_verdict_from_the_stored_delta() {
     let (artifact, _) = transport_artifact();
     // Keep the claimed "verified_sufficient" but empty its stored delta: the
     // family's own checker, run on the stored delta, no longer identifies.
@@ -310,7 +312,7 @@ fn f13_replay_recomputes_the_verdict_from_the_stored_delta() {
 }
 
 #[test]
-fn f13_resealed_mutation_of_candidate_obligation_classification_or_receipt_is_refused() {
+fn resealed_mutation_of_candidate_obligation_classification_or_receipt_is_refused() {
     let (artifact, _, _) = backdoor_artifact();
 
     // A changed classification, resealed.
@@ -363,7 +365,7 @@ fn f13_resealed_mutation_of_candidate_obligation_classification_or_receipt_is_re
 }
 
 #[test]
-fn f13_unknown_version_and_kind_are_refused_and_stored_limits_are_bounded() {
+fn unknown_version_and_kind_are_refused_and_stored_limits_are_bounded() {
     let (artifact, _, _) = backdoor_artifact();
     let mut future = artifact.clone();
     future.version = 2;
@@ -391,7 +393,7 @@ fn f13_unknown_version_and_kind_are_refused_and_stored_limits_are_bounded() {
 // ------------------------------------------------------- truncated search
 
 #[test]
-fn f13_truncated_search_is_retained_as_unevaluated_never_as_impossible() {
+fn truncated_search_is_retained_as_unevaluated_never_as_impossible() {
     let family = backdoor_family();
     let candidates = vec![
         observation("a", &[T, Y, Z1], 5),
@@ -450,7 +452,7 @@ fn f13_truncated_search_is_retained_as_unevaluated_never_as_impossible() {
 }
 
 #[test]
-fn f13_beyond_depth_is_stored_as_not_examined() {
+fn beyond_depth_is_stored_as_not_examined() {
     let family = backdoor_family();
     let candidates = vec![observation("a", &[T, Y, Z1], 5), observation("b", &[T, Y, Z2], 5)];
     let limits = RepairLimits {
@@ -468,7 +470,7 @@ fn f13_beyond_depth_is_stored_as_not_examined() {
 }
 
 #[test]
-fn f13_a_report_for_another_contract_cannot_be_exported_under_this_family() {
+fn a_report_for_another_contract_cannot_be_exported_under_this_family() {
     let (_, report, candidates) = backdoor_artifact();
     let other = transport_family();
     let error =

@@ -102,7 +102,7 @@ pub(crate) fn undirected_neighbors(
 pub(crate) fn all_marked_edges(adj: &[Vec<AdjEntry>]) -> Vec<MarkedEdge> {
     let mut out = Vec::new();
     for (i, nbrs) in adj.iter().enumerate() {
-        let a = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+        let a = DenseNodeId::from_index(i);
         for e in nbrs {
             if a.raw() < e.neighbor.raw()
                 || (a.raw() == e.neighbor.raw()

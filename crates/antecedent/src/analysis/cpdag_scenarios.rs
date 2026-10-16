@@ -1,5 +1,5 @@
 //! DAG completions of a supplied CPDAG as one finite scenario set, and the
-//! shared-data covariance of scenario estimates (2.3A X2).
+//! shared-data covariance of scenario estimates.
 //!
 //! Preparation enumerates the completions of the CPDAG (at most six fully
 //! observed nodes), binds evidence to each completion, decides each through the
@@ -40,6 +40,16 @@ pub struct PreparedCpdagCompletionScenarios {
     premises: CpdagScenarioPremises,
 }
 
+/// The exact laws, the request and the work limits a completion preparation evaluates.
+pub struct CpdagEvaluation {
+    /// Supplied exact laws.
+    pub data: ExactTransportData,
+    /// The assignment each completion is evaluated at.
+    pub request: Assignment,
+    /// Work limits of the exact evaluation.
+    pub limits: ExactEvaluationLimits,
+}
+
 impl StudyBuilder {
     /// Enumerate every DAG completion of `input`, bind `evidence` to each, decide
     /// each once on the shared `budget` and compile each identified completion
@@ -53,18 +63,16 @@ impl StudyBuilder {
     /// coordinate schema; invalid query, catalog or laws; or a request that fails
     /// for every completion. A budget or cancellation stop is not an error: it
     /// comes back in the report's receipt.
-    #[allow(clippy::too_many_arguments)] // Every premise of the preparation, explicitly.
     pub fn cpdag_completion_scenarios(
         input: CpdagCompletionInput,
         coordinates: Arc<[ScenarioCoordinate]>,
         query: ClassicalTransportQuery,
         evidence: CpdagEvidence,
         budget: SearchLimits,
-        data: ExactTransportData,
-        request: Assignment,
-        limits: ExactEvaluationLimits,
+        evaluation: CpdagEvaluation,
         ctx: &ExecutionContext,
     ) -> Result<PreparedCpdagCompletionScenarios, IoError> {
+        let CpdagEvaluation { data, request, limits } = evaluation;
         let premises = CpdagScenarioPremises {
             input,
             coordinates,

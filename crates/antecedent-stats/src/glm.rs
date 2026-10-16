@@ -2,18 +2,16 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::float_cmp,
         clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
 
-use antecedent_kernels::{norm_cdf, norm_pdf};
+use antecedent_kernels::{norm_cdf, norm_pdf, sigmoid};
 
 use crate::error::{GlmRefusalKind, StatsError};
 use crate::gram::{column_is_constant, invert_square};
@@ -61,7 +59,7 @@ impl GlmFamily {
     #[must_use]
     pub fn mean_from_eta(self, eta: f64) -> f64 {
         match self {
-            Self::BinomialLogit => 1.0 / (1.0 + (-eta).exp()),
+            Self::BinomialLogit => sigmoid(eta),
             Self::BinomialProbit => norm_cdf(eta),
             Self::GaussianIdentity => eta,
             Self::PoissonLog | Self::NegativeBinomial => eta.exp(),
@@ -135,12 +133,11 @@ impl GlmOptions {
 }
 
 /// Convergence / iteration diagnostics from a GLM fit.
+#[derive(Clone, Debug)]
 #[allow(
     clippy::struct_excessive_bools,
-    reason = "each flag is an independent, separately documented fit verdict, part of the public result shape"
+    reason = "independent diagnostic flags, each a distinct verdict"
 )]
-#[derive(Clone, Debug)]
-#[allow(clippy::struct_excessive_bools)] // independent diagnostic flags, each a distinct verdict
 pub struct GlmFit {
     /// Coefficient vector.
     pub coefficients: Vec<f64>,
@@ -246,6 +243,10 @@ fn eta_at(x_colmajor: &[f64], nrows: usize, ncols: usize, beta: &[f64], row: usi
 }
 
 /// Poisson deviance at `β` (log link).
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn poisson_deviance_at(design: GlmDesignRef<'_>, beta: &[f64]) -> f64 {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut deviance = 0.0;
@@ -284,6 +285,10 @@ impl BinomialDiagnostics {
     }
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn binomial_diagnostics_at(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -298,7 +303,7 @@ fn binomial_diagnostics_at(
     for r in 0..nrows {
         let eta = eta_at(x_colmajor, nrows, ncols, beta, r);
         let mu = match family {
-            GlmFamily::BinomialLogit => 1.0 / (1.0 + (-eta).exp()),
+            GlmFamily::BinomialLogit => sigmoid(eta),
             GlmFamily::BinomialProbit => norm_cdf(eta),
             _ => unreachable!("binomial diagnostics require a binomial family"),
         };
@@ -336,6 +341,10 @@ fn validate_glm_shape(design: GlmDesignRef<'_>) -> Result<(), StatsError> {
 }
 
 /// NB2 deviance at `β` with fixed dispersion `α` (log link).
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn negbin_deviance_at(design: GlmDesignRef<'_>, beta: &[f64], alpha: f64) -> f64 {
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let theta = 1.0 / alpha;
@@ -423,6 +432,10 @@ fn fit_poisson(
 /// working response for one row. `data_start` initialises `η₀ = ln(y + 0.5)` (count
 /// families, which diverge from `β = 0` at ordinary magnitudes) instead of `η₀ = 0`.
 /// Returns `(β, iterations, converged)`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn irls_fit(
     design: GlmDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
@@ -483,7 +496,7 @@ fn fit_logistic(
 
     let (beta, iterations, converged) =
         irls_fit(design, backend, workspace, options, false, |eta, yi| {
-            let mu = 1.0 / (1.0 + (-eta).exp());
+            let mu = sigmoid(eta);
             let mu_clamped = mu.clamp(1e-9, 1.0 - 1e-9);
             let w = (mu_clamped * (1.0 - mu_clamped)).sqrt();
             let z = eta + (yi - mu_clamped) / (mu_clamped * (1.0 - mu_clamped));
@@ -503,7 +516,6 @@ fn fit_logistic(
 
 /// Deviance and separation diagnostics for an unpenalized binomial IRLS result, with the
 /// optional ridge refit when the fitted probabilities saturate.
-#[allow(clippy::too_many_arguments)]
 fn finish_binomial(
     family: GlmFamily,
     design: GlmDesignRef<'_>,
@@ -584,6 +596,10 @@ fn fit_probit(
 }
 
 /// NB2 IRLS with fixed, `MoM`, or nested-MLE dispersion α (`Var = μ + α μ²`).
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn fit_negbin(
     design: GlmDesignRef<'_>,
     backend: &impl DenseLinearAlgebra,
@@ -778,7 +794,7 @@ fn fit_binomial_ridge(
             }
             let (_mu, w_fisher, working) = match family {
                 GlmFamily::BinomialLogit => {
-                    let mu = (1.0 / (1.0 + (-eta).exp())).clamp(1e-9, 1.0 - 1e-9);
+                    let mu = sigmoid(eta).clamp(1e-9, 1.0 - 1e-9);
                     let w = mu * (1.0 - mu);
                     let z = eta + (y[r] - mu) / w.max(1e-12);
                     (mu, w, z)
@@ -1092,6 +1108,14 @@ fn weighted_gram_is_full_rank(
     invert_square(&gram, ncols).is_some()
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Fisher scoring loop over classes; the iteration state is read by every step"
+)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn fit_multinomial_fisher(
     design: MultinomialDesignRef<'_>,
     options: &GlmOptions,
@@ -1224,6 +1248,10 @@ fn fit_multinomial_fisher(
 /// Baseline-category softmax probabilities for row `r`: `η₀ = 0`, `ηⱼ = x·βⱼ` for
 /// `j = 1..K-1`, computed against the maximum `η` so the exponentials cannot overflow.
 /// `η₀ = 0` is always a candidate for the maximum, so the normaliser is at least 1.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn softmax_row(
     design: MultinomialDesignRef<'_>,
     beta_free: &[f64],
@@ -1233,7 +1261,6 @@ fn softmax_row(
 ) {
     let MultinomialDesignRef { x_colmajor, nrows, ncols, n_categories: k, .. } = design;
     eta[0] = 0.0;
-    let mut max_eta = 0.0_f64;
     for j in 1..k {
         let mut acc = 0.0;
         let base = (j - 1) * ncols;
@@ -1241,20 +1268,9 @@ fn softmax_row(
             acc += x_colmajor[c * nrows + r] * beta_free[base + c];
         }
         eta[j] = acc;
-        if acc > max_eta {
-            max_eta = acc;
-        }
     }
-    let mut zsum = 0.0;
-    for j in 0..k {
-        let e = (eta[j] - max_eta).exp();
-        pi[j] = e;
-        zsum += e;
-    }
-    let inv_z = 1.0 / zsum;
-    for p in pi.iter_mut().take(k) {
-        *p *= inv_z;
-    }
+    pi[..k].copy_from_slice(&eta[..k]);
+    antecedent_kernels::softmax_in_place(&mut pi[..k]);
 }
 
 /// Multinomial deviance and separation at free coefficients (reference category 0 pinned).
@@ -1282,10 +1298,6 @@ fn multinomial_diagnostics_at(
 }
 
 #[cfg(test)]
-#[allow(
-    clippy::float_cmp,
-    reason = "tests assert exactly representable values and copied inputs, not measurements"
-)]
 mod tests {
     use super::*;
     use crate::faer_backend::FaerBackend;
@@ -1515,6 +1527,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn negbin_nested_mle_recovers_overdispersion() {
         // Intercept-only NB2 with known α≈0.5 via gamma-poisson mixture (deterministic spikes).
         let n = 400usize;
@@ -1555,6 +1571,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn negbin_nested_mle_recovers_alpha_above_two() {
         // Heavy overdispersion so NestedMle Newton enters θ = 1/α < 0.5 (trigamma reflection).
         let n = 500usize;
@@ -1754,6 +1774,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn multinomial_intercept_only_three_class() {
         let n = 90usize;
         let x = vec![1.0; n];
@@ -1833,6 +1857,10 @@ mod tests {
     /// deviance must match a direct recalculation from those returned coefficients
     /// (not the pre-update iterate used inside the working-response pass).
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn glm_deviance_matches_returned_coefficients_at_max_iter_one() {
         let n = 40usize;
         let mut x = vec![0.0; n * 2];
@@ -1882,7 +1910,7 @@ mod tests {
         let mut logit_re = 0.0;
         for r in 0..n {
             let eta = logit.coefficients[0] + x[n + r] * logit.coefficients[1];
-            let mu = (1.0 / (1.0 + (-eta).exp())).clamp(1e-9, 1.0 - 1e-9);
+            let mu = sigmoid(eta).clamp(1e-9, 1.0 - 1e-9);
             if y_bin[r] > 0.0 {
                 logit_re += -2.0 * mu.ln();
             } else {

@@ -39,13 +39,14 @@ registered ``reason_code`` and the typed ``detail``.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import operator
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from .._columns import coerce_fields
+from .._digest import canonical_digest
 from .._native import (
     consume_cpdag_scenarios_artifact as _consume_cpdag,
 )
@@ -58,7 +59,7 @@ from .._native import (
 from .._native import (
     scenario_shared_covariance_stage as _covariance_stage,
 )
-from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from ..graph import Admg, Cpdag, Pag
 from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
 from ._scenarios import _wire
@@ -68,7 +69,7 @@ COVARIANCE_SCOPE: Final = "shared_row_covariance_point_only"
 POINT_ONLY: Final = "point_only"
 
 
-class TransportScenarioRefusal(CausalUnsupportedError):
+class TransportScenarioRefusal(StructuredRefusal):
     """A structured Rust refusal: ``reason_code`` (registered) plus the typed ``detail``.
 
     ``code`` repeats ``reason_code``; ``detail`` is the namespaced
@@ -79,9 +80,9 @@ class TransportScenarioRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         detail = str(refusal.get("detail") or "")
         message = str(refusal.get("message") or "")
-        super().__init__(f"{detail}: {message}" if detail else message, reason_code=refusal["code"])
-        self.code: str = refusal["code"]
-        self.detail: str = detail
+        super().__init__(
+            {**refusal, "detail": detail}, text=f"{detail}: {message}" if detail else message
+        )
         self.refusal_message: str = message
 
 
@@ -383,7 +384,7 @@ class CompletionEvidence:
             raise CausalValueError("evidence identity must be a non-empty string")
         if self.completion is not None and not isinstance(self.completion, str):
             completion = tuple((str(a), str(b)) for a, b in self.completion)
-            object.__setattr__(self, "completion", completion)
+            coerce_fields(self, completion=completion)
 
     def _wire(self) -> tuple[str | None, list[tuple[str, str]] | None, str, Any, str | None]:
         by_id = self.completion if isinstance(self.completion, str) else None
@@ -566,9 +567,9 @@ class RowTable:
     def __post_init__(self) -> None:
         columns = tuple(str(c) for c in self.columns)
         rows = tuple(tuple(_code(v, f"row {i}") for v in row) for i, row in enumerate(self.rows))
-        object.__setattr__(self, "columns", columns)
-        object.__setattr__(self, "rows", rows)
-        object.__setattr__(self, "unit_ids", tuple(str(u) for u in self.unit_ids))
+        coerce_fields(self, columns=columns)
+        coerce_fields(self, rows=rows)
+        coerce_fields(self, unit_ids=tuple(str(u) for u in self.unit_ids))
 
     @classmethod
     def from_columns(
@@ -592,8 +593,9 @@ class RowTable:
 
     def snapshot_label(self) -> str:
         """The default snapshot label: a digest of the table, so every scenario shares it."""
-        blob = json.dumps(self._wire(), sort_keys=True, separators=(",", ":")).encode()
-        return "rows:" + hashlib.sha256(blob).hexdigest()[:32]
+        return (
+            "rows:" + canonical_digest("antecedent.transport.scenario_rows.v2", self._wire())[:32]
+        )
 
 
 def _default_units(n: int) -> tuple[str, ...]:
@@ -689,7 +691,7 @@ class ScenarioEstimator:
         if self.dependence not in _DEPENDENCE:
             raise CausalValueError(f"dependence must be one of {_DEPENDENCE}")
         if self.unit_ids is not None:
-            object.__setattr__(self, "unit_ids", tuple(str(u) for u in self.unit_ids))
+            coerce_fields(self, unit_ids=tuple(str(u) for u in self.unit_ids))
 
 
 @dataclass(frozen=True, slots=True)

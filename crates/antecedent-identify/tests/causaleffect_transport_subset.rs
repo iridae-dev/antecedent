@@ -10,8 +10,10 @@ use antecedent_core::{
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{TransportFormula, TransportIdentification, TransportIdentifier};
 
-fn dense(id: VariableId) -> DenseNodeId {
-    DenseNodeId::from_raw(id.raw())
+fn dense(graph: &Admg, id: VariableId) -> DenseNodeId {
+    graph
+        .dense_of_static(id)
+        .unwrap_or_else(|| panic!("transport fixture has no static node {}", id.raw()))
 }
 
 fn mean_curve_query(treatment: VariableId, outcome: VariableId) -> TransportQuery {
@@ -49,8 +51,8 @@ fn matches_frozen_causaleffect_supported_sid_subset() {
             let to = nodes.iter().position(|n| n.as_str() == edge[1].as_str()).unwrap();
             graph
                 .insert_directed(
-                    dense(VariableId::from_raw(u32::try_from(from).unwrap())),
-                    dense(VariableId::from_raw(u32::try_from(to).unwrap())),
+                    dense(&graph, VariableId::from_raw(u32::try_from(from).unwrap())),
+                    dense(&graph, VariableId::from_raw(u32::try_from(to).unwrap())),
                 )
                 .unwrap();
         }
@@ -148,9 +150,9 @@ fn multinode_c_component_outside_certified_subset_is_not_certified() {
     let y = VariableId::from_raw(2);
 
     let mut graph = Admg::with_variables(u32::try_from(nodes.len()).unwrap());
-    graph.insert_directed(dense(x), dense(y)).unwrap();
-    graph.insert_directed(dense(z), dense(y)).unwrap();
-    graph.insert_bidirected(dense(z), dense(y)).unwrap();
+    graph.insert_directed(dense(&graph, x), dense(&graph, y)).unwrap();
+    graph.insert_directed(dense(&graph, z), dense(&graph, y)).unwrap();
+    graph.insert_bidirected(dense(&graph, z), dense(&graph, y)).unwrap();
 
     let diagram = SelectionDiagram::try_new(graph, [z]).unwrap();
     let result = TransportIdentifier::new().identify(&diagram, &mean_curve_query(x, y)).unwrap();

@@ -1,4 +1,4 @@
-//! X6: the per-proposal receipt linking identification repair and design ranking, its
+//! The per-proposal receipt linking identification repair and design ranking, its
 //! permutation-invariant bundle, the cross-artifact verifier and re-identification on
 //! arrived data.
 //!
@@ -16,11 +16,13 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
+    ScientificQuantity, SignalProviderContract,
+};
 use antecedent_core::{
     CancellationToken, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    ExecutionContext, ExternalCapability, ExternalScientificObject, ExternalTrustState,
-    ProviderObjectIdentity, QuantityRole, ScientificQuantity, SignalProviderContract,
-    VariableCoordinate, VariableDomain, VariableId,
+    ExecutionContext, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_design::design_ranking_artifact::{DesignRankingArtifactWire, SealInputs, seal};
 use antecedent_design::evsi::{
@@ -146,18 +148,13 @@ fn transport_family() -> TransportRepairFamily {
     .unwrap()
 }
 
+mod common;
+
 fn quantity(id: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: id.into(),
-        variable_name: id.into(),
-        role: QuantityRole::Outcome,
         units: "dimensionless".into(),
-        population_id: "target".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(id)
     }
 }
 
@@ -365,7 +362,7 @@ fn arrive_law(law: ObservedLaw, sample_size: u64) -> Arrival {
 // ------------------------------------------------------------- receipt content
 
 #[test]
-fn x6_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision() {
+fn receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision() {
     let fx = backdoor();
     let wide = receipt_of(&fx.bundle, &fx.wide);
     // Base failure: the one joint-law obligation of the frozen contract.
@@ -406,7 +403,7 @@ fn x6_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision() {
 }
 
 #[test]
-fn x6_receipt_never_marks_a_hypothetical_derivation_as_available() {
+fn receipt_never_marks_a_hypothetical_derivation_as_available() {
     let fx = transport();
     let receipt = receipt_of(&fx.bundle, &fx.experiment);
     // The derivation is verified, yet the receipt holds no available evidence.
@@ -437,7 +434,7 @@ fn x6_receipt_never_marks_a_hypothetical_derivation_as_available() {
 // ------------------------------------------------------------------- bundle
 
 #[test]
-fn x6_receipt_bundle_identity_is_invariant_to_proposal_order() {
+fn receipt_bundle_identity_is_invariant_to_proposal_order() {
     let fx = backdoor();
     assert_eq!(fx.bundle.proposals.len(), 2);
     assert!(fx.bundle.proposals[0].candidate_id < fx.bundle.proposals[1].candidate_id);
@@ -459,7 +456,7 @@ fn x6_receipt_bundle_identity_is_invariant_to_proposal_order() {
 }
 
 #[test]
-fn x6_receipt_bundle_assembly_refuses_empty_duplicate_and_foreign_receipts() {
+fn receipt_bundle_assembly_refuses_empty_duplicate_and_foreign_receipts() {
     let fx = backdoor();
     let error = ProposalBundle::from_receipts(vec![]).unwrap_err();
     assert_eq!(detail(&error), "proposal_receipt.empty_bundle");
@@ -570,7 +567,7 @@ const MUTATIONS: &[Mutation] = &[
 ];
 
 #[test]
-fn x6_receipt_every_bound_digest_refuses_when_mutated() {
+fn receipt_every_bound_digest_refuses_when_mutated() {
     let fx = backdoor();
     let wide_id = id_of(&fx.wide);
     for &(name, mutate, expected) in MUTATIONS {
@@ -589,7 +586,7 @@ fn x6_receipt_every_bound_digest_refuses_when_mutated() {
 }
 
 #[test]
-fn x6_receipt_identity_and_bundle_digests_bind() {
+fn receipt_identity_and_bundle_digests_bind() {
     let fx = backdoor();
     let mut bundle = fx.bundle.clone();
     bundle.proposals[0].identity = "forged".into();
@@ -632,7 +629,7 @@ fn x6_receipt_identity_and_bundle_digests_bind() {
 // ------------------------------------------------------- cross-artifact checks
 
 #[test]
-fn x6_receipt_candidate_in_repair_but_not_in_ranking_is_refused() {
+fn receipt_candidate_in_repair_but_not_in_ranking_is_refused() {
     let fx = backdoor();
     let mut ranking = fx.ranking.clone();
     ranking.candidates.retain(|c| c.semantic_id != id_of(&fx.wide));
@@ -649,7 +646,7 @@ fn x6_receipt_candidate_in_repair_but_not_in_ranking_is_refused() {
 }
 
 #[test]
-fn x6_receipt_candidate_in_ranking_but_not_in_repair_is_refused() {
+fn receipt_candidate_in_ranking_but_not_in_repair_is_refused() {
     let fx = backdoor();
     let mut repair = fx.repair.clone();
     repair.premises.candidates.retain(|c| c.semantic_id != id_of(&fx.cheap));
@@ -659,7 +656,7 @@ fn x6_receipt_candidate_in_ranking_but_not_in_repair_is_refused() {
 }
 
 #[test]
-fn x6_receipt_a_candidate_the_repair_did_not_evaluate_cannot_be_proposed() {
+fn receipt_a_candidate_the_repair_did_not_evaluate_cannot_be_proposed() {
     let fx = backdoor();
     let mut repair = fx.repair.clone();
     for outcome in &mut repair.report.outcomes {
@@ -674,7 +671,7 @@ fn x6_receipt_a_candidate_the_repair_did_not_evaluate_cannot_be_proposed() {
 }
 
 #[test]
-fn x6_receipt_a_changed_delta_or_swapped_signal_in_an_artifact_breaks_the_binding() {
+fn receipt_a_changed_delta_or_swapped_signal_in_an_artifact_breaks_the_binding() {
     let fx = backdoor();
     // Change the stored hypothetical delta of the sufficient candidate and re-seal: the
     // repair artifact is internally honest but is no longer the one the bundle binds.
@@ -721,7 +718,7 @@ fn x6_receipt_a_changed_delta_or_swapped_signal_in_an_artifact_breaks_the_bindin
 }
 
 #[test]
-fn x6_receipt_unsealed_artifacts_are_refused_before_any_binding_is_trusted() {
+fn receipt_unsealed_artifacts_are_refused_before_any_binding_is_trusted() {
     let fx = backdoor();
     let mut repair = fx.repair.clone();
     repair.report.obligations.clear();
@@ -734,7 +731,7 @@ fn x6_receipt_unsealed_artifacts_are_refused_before_any_binding_is_trusted() {
 }
 
 #[test]
-fn x6_receipt_a_ranking_that_costs_a_candidate_differently_is_refused() {
+fn receipt_a_ranking_that_costs_a_candidate_differently_is_refused() {
     let fx = backdoor();
     let mut ranking = fx.ranking.clone();
     ranking.candidates[0].cost_amount += 1.0;
@@ -746,7 +743,7 @@ fn x6_receipt_a_ranking_that_costs_a_candidate_differently_is_refused() {
 // ------------------------------------------------------------------ on arrival
 
 #[test]
-fn x6_receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_checker() {
+fn receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_checker() {
     let fx = backdoor();
     let receipt = receipt_of(&fx.bundle, &fx.wide);
     let arrival = arrive_law(law(&[T, Y, Z1, Z2], true, "pop"), SAMPLES);
@@ -765,7 +762,7 @@ fn x6_receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_checke
 }
 
 #[test]
-fn x6_receipt_arrival_missing_the_joint_law_is_still_insufficient() {
+fn receipt_arrival_missing_the_joint_law_is_still_insufficient() {
     let fx = backdoor();
     let receipt = receipt_of(&fx.bundle, &fx.wide);
     // The right variables in the right population, but as separate marginals.
@@ -786,7 +783,7 @@ fn x6_receipt_arrival_missing_the_joint_law_is_still_insufficient() {
 }
 
 #[test]
-fn x6_receipt_arrival_in_a_different_population_invalidates_the_derivation() {
+fn receipt_arrival_in_a_different_population_invalidates_the_derivation() {
     let fx = backdoor();
     let receipt = receipt_of(&fx.bundle, &fx.wide);
     let elsewhere = arrive_law(law(&[T, Y, Z1, Z2], true, "elsewhere"), SAMPLES);
@@ -805,7 +802,7 @@ fn x6_receipt_arrival_in_a_different_population_invalidates_the_derivation() {
 }
 
 #[test]
-fn x6_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed_reason() {
+fn receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed_reason() {
     let fx = backdoor();
     let receipt = receipt_of(&fx.bundle, &fx.wide);
     let family = RepairFamilyRef::Backdoor(&fx.family);
@@ -843,7 +840,7 @@ fn x6_receipt_arrival_that_differs_in_sample_or_shape_is_refused_with_a_typed_re
 }
 
 #[test]
-fn x6_receipt_transport_arrival_of_the_exact_source_experiment_is_verified() {
+fn receipt_transport_arrival_of_the_exact_source_experiment_is_verified() {
     let fx = transport();
     let receipt = receipt_of(&fx.bundle, &fx.experiment);
     let mut regimes = fx.family.hypothetical_regimes(&[&fx.experiment]).unwrap();
@@ -873,7 +870,7 @@ fn x6_receipt_transport_arrival_of_the_exact_source_experiment_is_verified() {
 }
 
 #[test]
-fn x6_receipt_transport_arrival_in_another_population_or_regime_is_invalidated() {
+fn receipt_transport_arrival_in_another_population_or_regime_is_invalidated() {
     let fx = transport();
     let receipt = receipt_of(&fx.bundle, &fx.experiment);
     let family = RepairFamilyRef::Transport(&fx.family);

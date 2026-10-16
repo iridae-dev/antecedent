@@ -6,7 +6,6 @@
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -15,12 +14,16 @@ use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
 use antecedent_kernels::standard_normal;
 
+#[cfg(test)]
+use super::parcorr_variants::BlockTest;
+#[cfg(test)]
 use super::parcorr_variants::MultivariatePartialCorrelation;
 use crate::ci::types::{
     CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
     SignificanceMethod,
 };
 use crate::error::StatsError;
+#[cfg(test)]
 use crate::special::ln_gamma;
 
 /// Stream identifier for trial `t` of a calibration `family`.
@@ -37,6 +40,7 @@ fn trial_stream(family: u64, trial: u32) -> u64 {
 /// A permutation null is a function of (seed, query): reusing one context for every trial
 /// would hand every dataset the same fixed set of permutations. Each trial gets its own seed,
 /// as independent runs of an analysis would.
+#[cfg(test)]
 fn trial_ctx(seed: u64, trial: u32) -> ExecutionContext {
     ExecutionContext::for_tests(trial_stream(seed, trial))
 }
@@ -81,7 +85,6 @@ impl CalibrationReport {
 /// # Errors
 ///
 /// Propagates CI failures.
-#[allow(clippy::many_single_char_names)]
 pub fn calibrate_parcorr_like(
     ci: &dyn ConditionalIndependence,
     n: usize,
@@ -153,8 +156,8 @@ pub fn calibrate_parcorr_like(
 /// # Errors
 ///
 /// Propagates CI failures.
-#[allow(clippy::many_single_char_names)]
-pub fn calibrate_multivariate_parcorr_block(
+#[cfg(test)]
+pub(crate) fn calibrate_multivariate_parcorr_block(
     n: usize,
     px: usize,
     py: usize,
@@ -208,7 +211,8 @@ pub fn calibrate_multivariate_parcorr_block(
 /// # Errors
 ///
 /// Propagates CI-test failures.
-pub fn calibrate_multivariate_parcorr_block_shuffle(
+#[cfg(test)]
+pub(crate) fn calibrate_multivariate_parcorr_block_shuffle(
     n: usize,
     px: usize,
     py: usize,
@@ -257,6 +261,7 @@ pub fn calibrate_multivariate_parcorr_block_shuffle(
     })
 }
 
+#[cfg(test)]
 fn multivariate_block_pvalue_with(
     mv: &MultivariatePartialCorrelation,
     x_cols: &[Vec<f64>],
@@ -270,10 +275,17 @@ fn multivariate_block_pvalue_with(
     cols.extend(y_cols.iter().map(Vec::as_slice));
     let x_idx: Vec<usize> = (0..x_cols.len()).collect();
     let y_idx: Vec<usize> = (x_cols.len()..x_cols.len() + y_cols.len()).collect();
-    let out = mv.test_blocks(&cols, &x_idx, &y_idx, &[], significance, ws, ctx)?;
+    let out = mv.test_blocks(
+        &cols,
+        &BlockTest { x_cols: &x_idx, y_cols: &y_idx, z_flat: &[] },
+        significance,
+        ws,
+        ctx,
+    )?;
     Ok(out.p_value)
 }
 
+#[cfg(test)]
 fn multivariate_block_pvalue(
     mv: &MultivariatePartialCorrelation,
     x_cols: &[Vec<f64>],
@@ -286,7 +298,13 @@ fn multivariate_block_pvalue(
     cols.extend(y_cols.iter().map(Vec::as_slice));
     let x_idx: Vec<usize> = (0..x_cols.len()).collect();
     let y_idx: Vec<usize> = (x_cols.len()..x_cols.len() + y_cols.len()).collect();
-    let out = mv.test_blocks(&cols, &x_idx, &y_idx, &[], SignificanceMethod::Analytic, ws, ctx)?;
+    let out = mv.test_blocks(
+        &cols,
+        &BlockTest { x_cols: &x_idx, y_cols: &y_idx, z_flat: &[] },
+        SignificanceMethod::Analytic,
+        ws,
+        ctx,
+    )?;
     Ok(out.p_value)
 }
 
@@ -295,7 +313,8 @@ fn multivariate_block_pvalue(
 /// # Errors
 ///
 /// Propagates CI failures.
-pub fn calibrate_gsquared(
+#[cfg(test)]
+pub(crate) fn calibrate_gsquared(
     ci: &dyn ConditionalIndependence,
     n: usize,
     trials: u32,
@@ -363,27 +382,22 @@ pub fn calibrate_gsquared(
 
 /// Within ~2 SE of α under a Bernoulli(α) null with `trials` Monte Carlo draws.
 #[must_use]
-pub fn type_i_within_two_se(rate: f64, alpha: f64, trials: u32) -> bool {
+#[cfg(test)]
+pub(crate) fn type_i_within_two_se(rate: f64, alpha: f64, trials: u32) -> bool {
     let n = f64::from(trials);
     let se = (alpha * (1.0 - alpha) / n).sqrt();
     (rate - alpha).abs() <= 2.0 * se + 1e-12
-}
-
-/// Within ~3 SE of α (slightly looser band for nonparametric / discrete CI tests).
-#[must_use]
-pub fn type_i_within_three_se(rate: f64, alpha: f64, trials: u32) -> bool {
-    let n = f64::from(trials);
-    let se = (alpha * (1.0 - alpha) / n).sqrt();
-    (rate - alpha).abs() <= 3.0 * se + 1e-12
 }
 
 /// Two-sided tail mass the exact binomial gate spends (each side gets half).
 ///
 /// 0.2%: a correctly calibrated test trips a gate with probability 0.002, while a rejection
 /// rate that is off by ~3 Monte Carlo SE or more does not pass.
+#[cfg(test)]
 pub const BINOMIAL_GATE_TAIL: f64 = 0.002;
 
 /// Log of the `Binomial(trials, p)` pmf at `k`.
+#[cfg(test)]
 fn ln_binomial_pmf(k: u32, trials: u32, p: f64) -> f64 {
     let (k, n) = (f64::from(k), f64::from(trials));
     ln_gamma(n + 1.0) - ln_gamma(k + 1.0) - ln_gamma(n - k + 1.0)
@@ -398,7 +412,8 @@ fn ln_binomial_pmf(k: u32, trials: u32, p: f64) -> f64 {
 /// Unlike a normal-approximation band this is exact at small `alpha` and `trials`, and unlike
 /// an additive slack it does not widen the region beyond the stated Monte Carlo error.
 #[must_use]
-pub fn type_i_within_binomial_region(rejections: u32, trials: u32, alpha: f64) -> bool {
+#[cfg(test)]
+pub(crate) fn type_i_within_binomial_region(rejections: u32, trials: u32, alpha: f64) -> bool {
     if trials == 0 || !(alpha > 0.0 && alpha < 1.0) || rejections > trials {
         return false;
     }
@@ -414,7 +429,8 @@ pub fn type_i_within_binomial_region(rejections: u32, trials: u32, alpha: f64) -
 /// `(1+k)/(1+R)`; with enough trials and bins ≪ lattice size the continuous
 /// Uniform approximation is adequate for a calibration gate.
 #[must_use]
-pub fn uniform_bin_chi2(p_values: &[f64], n_bins: usize) -> (f64, usize) {
+#[cfg(test)]
+pub(crate) fn uniform_bin_chi2(p_values: &[f64], n_bins: usize) -> (f64, usize) {
     let n = p_values.len();
     if n == 0 || n_bins == 0 {
         return (0.0, 0);
@@ -441,7 +457,8 @@ pub fn uniform_bin_chi2(p_values: &[f64], n_bins: usize) -> (f64, usize) {
 
 /// Critical value for χ²_{df} at ~0.001 (conservative gate; 9 df ≈ 27.9).
 #[must_use]
-pub fn chi2_crit_approx(df: usize) -> f64 {
+#[cfg(test)]
+pub(crate) fn chi2_crit_approx(df: usize) -> f64 {
     // Rough Wilson–Hilferty / tabulated anchors for small df used by gates.
     match df {
         0 => 0.0,
@@ -468,7 +485,8 @@ pub fn chi2_crit_approx(df: usize) -> f64 {
 /// # Errors
 ///
 /// Propagates CI failures.
-pub fn collect_null_pvalues_parcorr_like(
+#[cfg(test)]
+pub(crate) fn collect_null_pvalues_parcorr_like(
     ci: &dyn ConditionalIndependence,
     n: usize,
     trials: u32,

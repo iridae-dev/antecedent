@@ -1,6 +1,6 @@
 //! A mean-only source answers only the expectation of an affine utility.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
     SourceRepresentation, StructuralPolicy, UtilityExpr,
@@ -9,18 +9,14 @@ use antecedent_design::decision_eval::{
     DecisionEvalError, MeanSource, Verdict, evaluate_contract_on_means,
 };
 
+mod common;
+
 fn quantity(regime: &str, functional: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: "y".into(),
-        variable_name: "y".into(),
-        role: QuantityRole::Outcome,
         units: "mmHg".into(),
-        population_id: "target".into(),
         regime_id: regime.into(),
-        horizon: 0,
         functional_id: functional.into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity("y")
     }
 }
 

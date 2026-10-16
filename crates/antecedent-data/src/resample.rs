@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::neg_cmp_op_on_partial_ord)]
 #![cfg_attr(
     test,
     allow(
@@ -26,6 +25,7 @@ use crate::table::TableView;
 
 /// Null / permutation scheme for [`ResamplingPlan::Permutation`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum PermutationScheme {
     /// Full Fisher–Yates (Fisher & Yates 1938; Durstenfeld 1964) shuffle of row indexes `0..n`.
     Full,
@@ -88,15 +88,6 @@ impl ResamplingPlan {
             Self::ClusterBootstrap { .. } | Self::Permutation(PermutationScheme::WithinCluster)
         )
     }
-
-    /// Cluster variable recorded on [`ResamplingPlan::ClusterBootstrap`], if any.
-    #[must_use]
-    pub const fn cluster_variable(self) -> Option<VariableId> {
-        match self {
-            Self::ClusterBootstrap { cluster } => Some(cluster),
-            _ => None,
-        }
-    }
 }
 
 /// Fill `out` with a length-`n` row-index plan under `plan`.
@@ -136,7 +127,7 @@ pub fn fill_resample_indexes(
 ///
 /// Propagates panic from [`unbiased_index`] if a zero-length draw is requested
 /// after the `n > 0` guard (should be unreachable).
-pub fn fill_resample_indexes_grouped(
+pub(crate) fn fill_resample_indexes_grouped(
     plan: ResamplingPlan,
     n: usize,
     cluster_ids: Option<&[u32]>,
@@ -234,7 +225,11 @@ fn fill_indexes_prepared(
                 out.push(unbiased_index(rng, n) as u32);
             }
         }
-        ResamplingPlan::BayesianBootstrap => unreachable!("checked above"),
+        ResamplingPlan::BayesianBootstrap => {
+            return Err(DataError::InvalidArgument {
+                message: "BayesianBootstrap yields weights; use fill_resample_weights".into(),
+            });
+        }
         ResamplingPlan::MovingBlock { length } | ResamplingPlan::CircularBlock { length } => {
             out.resize(n, 0);
             fill_block_slice(
@@ -250,7 +245,12 @@ fn fill_indexes_prepared(
             fill_stationary(n, expected_length, rng, out)?;
         }
         ResamplingPlan::ClusterBootstrap { .. } => {
-            fill_cluster_bootstrap(clusters.expect("clustered plan prepared"), rng, out)?;
+            let Some(clusters) = clusters else {
+                return Err(DataError::InvalidArgument {
+                    message: "clustered resampling requires cluster_ids".into(),
+                });
+            };
+            fill_cluster_bootstrap(clusters, rng, out)?;
         }
         ResamplingPlan::Permutation(PermutationScheme::Full) => {
             out.extend(0..n as u32);
@@ -261,12 +261,12 @@ fn fill_indexes_prepared(
             }
         }
         ResamplingPlan::Permutation(PermutationScheme::WithinCluster) => {
-            fill_within_cluster_permutation(
-                n,
-                clusters.expect("clustered plan prepared"),
-                rng,
-                out,
-            );
+            let Some(clusters) = clusters else {
+                return Err(DataError::InvalidArgument {
+                    message: "clustered resampling requires cluster_ids".into(),
+                });
+            };
+            fill_within_cluster_permutation(n, clusters, rng, out);
         }
     }
     Ok(())
@@ -420,7 +420,11 @@ fn fill_within_cluster_permutation(
 /// # Errors
 ///
 /// Zero length, or a non-weight plan.
-pub fn fill_resample_weights(
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
+pub(crate) fn fill_resample_weights(
     plan: ResamplingPlan,
     n: usize,
     rng: &mut CausalRng,
@@ -474,73 +478,6 @@ fn check_resampling_cancelled(ctx: &ExecutionContext) -> Result<(), DataError> {
     Ok(())
 }
 
-fn check_allocation_len<T>(len: usize) -> Result<(), DataError> {
-    if len.checked_mul(std::mem::size_of::<T>()).is_none_or(|bytes| bytes > isize::MAX as usize) {
-        return Err(DataError::InvalidArgument {
-            message: "resampling allocation size exceeds addressable capacity".into(),
-        });
-    }
-    Ok(())
-}
-
-/// Replicate-major row indexes with offsets for variable-sized replicates.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RaggedResampleIndexBatch {
-    /// Concatenated row indexes for all replicates.
-    pub indexes: Vec<u32>,
-    /// Replicate r occupies `indexes[offsets[r]..offsets[r + 1]]`.
-    /// Contains `n_replicates + 1` entries, beginning with zero.
-    pub offsets: Vec<usize>,
-}
-
-/// Generate index replicates, including unequal-sized whole-cluster bootstrap draws.
-///
-/// Uses the same domain-separated replicate RNG streams as [`fill_resample_index_batch`].
-/// This allocation-returning interface retains variable row counts without padding,
-/// truncation, or conditioning the bootstrap on a fixed total number of rows.
-///
-/// # Errors
-///
-/// Invalid/overflowing counts, cancellation, allocation failure, missing cluster ids,
-/// or a weight-only plan.
-pub fn resample_index_batch_ragged(
-    plan: ResamplingPlan,
-    n: usize,
-    n_replicates: usize,
-    cluster_ids: Option<&[u32]>,
-    ctx: &ExecutionContext,
-    stream_base: u64,
-) -> Result<RaggedResampleIndexBatch, DataError> {
-    check_resampling_cancelled(ctx)?;
-    let nominal_len = checked_batch_len(n, n_replicates)?;
-    check_allocation_len::<u32>(nominal_len)?;
-    let offset_len = n_replicates.checked_add(1).ok_or_else(|| DataError::InvalidArgument {
-        message: "ragged resample offset count overflows usize".into(),
-    })?;
-    check_allocation_len::<usize>(offset_len)?;
-    let clusters = prepare_clusters(plan, n, cluster_ids)?;
-    let mut indexes = Vec::new();
-    let mut offsets = vec![0];
-    let mut scratch = Vec::new();
-    scratch.try_reserve(n).map_err(|error| DataError::InvalidArgument {
-        message: format!("resampling scratch allocation failed: {error}"),
-    })?;
-    for replicate in 0..n_replicates {
-        check_resampling_cancelled(ctx)?;
-        let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate as u64);
-        fill_indexes_prepared(plan, n, clusters.as_ref(), &mut rng, &mut scratch)?;
-        indexes.try_reserve(scratch.len()).map_err(|error| DataError::InvalidArgument {
-            message: format!("ragged resampling allocation failed: {error}"),
-        })?;
-        offsets.try_reserve(1).map_err(|error| DataError::InvalidArgument {
-            message: format!("ragged offset allocation failed: {error}"),
-        })?;
-        indexes.extend_from_slice(&scratch);
-        offsets.push(indexes.len());
-    }
-    Ok(RaggedResampleIndexBatch { indexes, offsets })
-}
-
 /// Fill `out` (`len = n * n_replicates`, replicate-major) with index plans under one
 /// [`ExecutionContext`].
 ///
@@ -553,8 +490,7 @@ pub fn resample_index_batch_ragged(
 ///
 /// Shape / plan mismatches as in [`fill_resample_indexes_grouped`], dimension overflow,
 /// cancellation, or `out` length mismatch.
-/// Unequal cluster sizes cannot fit this fixed-width representation; use
-/// [`resample_index_batch_ragged`] for that case.
+/// Unequal cluster sizes cannot fit this fixed-width representation and are refused.
 pub fn fill_resample_index_batch(
     plan: ResamplingPlan,
     n: usize,
@@ -597,7 +533,8 @@ pub fn fill_resample_index_batch(
         let first = sizes.next();
         if sizes.any(|size| Some(size) != first) {
             return Err(DataError::InvalidArgument {
-                message: "unequal cluster sizes require resample_index_batch_ragged; fixed-width output cannot represent the draws".into(),
+                message: "unequal cluster sizes cannot be represented by fixed-width batch output"
+                    .into(),
             });
         }
     }
@@ -613,7 +550,8 @@ pub fn fill_resample_index_batch(
 /// # Errors
 ///
 /// Non-weight plan, zero/overflowing sizes, cancellation, or `out` length mismatch.
-pub fn fill_resample_weight_batch(
+#[cfg(test)]
+pub(crate) fn fill_resample_weight_batch(
     plan: ResamplingPlan,
     n: usize,
     n_replicates: usize,
@@ -696,7 +634,7 @@ fn fill_replicate_rows<T: Copy + Send>(
 
 /// Smallest integer `k` with `k³ ≥ n` (`0` for `n = 0`), without floating-point rounding.
 #[must_use]
-pub fn integer_cube_root_ceil(n: usize) -> usize {
+fn integer_cube_root_ceil(n: usize) -> usize {
     if n <= 1 {
         return n;
     }
@@ -759,7 +697,7 @@ pub fn resample_timeseries(
 /// # Errors
 ///
 /// Non-float columns, clustered plan without ids, or construction failures.
-pub fn resample_timeseries_grouped(
+pub(crate) fn resample_timeseries_grouped(
     data: &TimeSeriesData,
     plan: ResamplingPlan,
     cluster_ids: Option<&[u32]>,
@@ -784,7 +722,7 @@ pub fn resample_timeseries_grouped(
 /// # Errors
 ///
 /// As [`resample_timeseries_grouped`]; an IID plan under [`TemporalRandomPolicy::Refuse`].
-pub fn resample_timeseries_with_policy(
+pub(crate) fn resample_timeseries_with_policy(
     data: &TimeSeriesData,
     plan: ResamplingPlan,
     cluster_ids: Option<&[u32]>,
@@ -873,7 +811,6 @@ fn apply_row_map(data: &TimeSeriesData, row_map: &[u32]) -> Result<TimeSeriesDat
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use antecedent_core::{
         CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
@@ -1208,10 +1145,11 @@ mod tests {
         let plan = ResamplingPlan::ClusterBootstrap { cluster: VariableId::from_raw(0) };
         let ids = [0, 1, 1, 1];
         let context = ExecutionContext::for_tests(42);
-        let batch = resample_index_batch_ragged(plan, 4, 4000, Some(&ids), &context, 11).unwrap();
+        let mut rng = CausalRng::from_seed(11);
+        let mut rows = Vec::new();
         let mut lengths = [0usize; 3];
-        for bounds in batch.offsets.windows(2) {
-            let rows = &batch.indexes[bounds[0]..bounds[1]];
+        for _ in 0..4000 {
+            fill_resample_indexes_grouped(plan, 4, Some(&ids), &mut rng, &mut rows).unwrap();
             lengths[(rows.len() - 2) / 2] += 1;
             let mut cursor = 0;
             for _ in 0..2 {
@@ -1232,18 +1170,6 @@ mod tests {
         assert!(
             fill_resample_index_batch(plan, 4, 2, Some(&ids), &context, 11, &mut fixed).is_err()
         );
-    }
-
-    #[test]
-    fn ragged_and_fixed_batches_agree_when_clusters_have_equal_sizes() {
-        let plan = ResamplingPlan::ClusterBootstrap { cluster: VariableId::from_raw(0) };
-        let ids = [0, 0, 1, 1];
-        let context = ExecutionContext::for_tests(7);
-        let ragged = resample_index_batch_ragged(plan, 4, 5, Some(&ids), &context, 13).unwrap();
-        let mut fixed = vec![0; 20];
-        fill_resample_index_batch(plan, 4, 5, Some(&ids), &context, 13, &mut fixed).unwrap();
-        assert_eq!(ragged.indexes, fixed);
-        assert_eq!(ragged.offsets, [0, 4, 8, 12, 16, 20]);
     }
 
     #[test]
@@ -1303,45 +1229,9 @@ mod tests {
             &mut [],
         )
         .unwrap_err();
-        let ragged_error = resample_index_batch_ragged(
-            ResamplingPlan::IidBootstrap,
-            usize::MAX,
-            2,
-            None,
-            &context,
-            0,
-        )
-        .unwrap_err();
-        for error in [index_error, weight_error, ragged_error] {
+        for error in [index_error, weight_error] {
             assert!(error.to_string().contains("overflow"));
         }
-        // Element count fits usize but its byte capacity does not fit a Vec.
-        assert!(
-            resample_index_batch_ragged(
-                ResamplingPlan::IidBootstrap,
-                usize::MAX,
-                1,
-                None,
-                &context,
-                0,
-            )
-            .unwrap_err()
-            .to_string()
-            .contains("capacity")
-        );
-        assert!(
-            resample_index_batch_ragged(
-                ResamplingPlan::IidBootstrap,
-                1,
-                (isize::MAX as usize / std::mem::size_of::<usize>()) + 1,
-                None,
-                &context,
-                0,
-            )
-            .unwrap_err()
-            .to_string()
-            .contains("capacity")
-        );
     }
 
     #[test]
@@ -1371,18 +1261,6 @@ mod tests {
                 &context,
                 0,
                 &mut weights,
-            )
-            .unwrap_err()
-                == DataError::Cancelled
-        );
-        assert!(
-            resample_index_batch_ragged(
-                ResamplingPlan::IidBootstrap,
-                usize::MAX,
-                1,
-                None,
-                &context,
-                0,
             )
             .unwrap_err()
                 == DataError::Cancelled

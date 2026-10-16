@@ -39,7 +39,7 @@ fn scenario_error(e: IoError) -> PyErr {
             if code == reason_code!("schema_mismatch")
                 || code == reason_code!("invalid_argument") =>
         {
-            crate::with_reason_code(crate::value_err(message), code)
+            crate::value_err_code(code, message)
         }
         other => error(other),
     }
@@ -285,7 +285,7 @@ impl PreparedTransportScenariosStage {
 /// scenario or none. `laws` are supplied exact laws or `StatisticalTransportData`
 /// for empirical plug-in points. A non-empty `conditioned_on` asks the
 /// conditional question `P*(y | do(x), w)` of the bounded ADMG conditional row
-/// (2.2B B1) in every scenario; it takes exact laws only.
+/// in every scenario; it takes exact laws only.
 #[pyfunction]
 #[pyo3(signature=(scenarios, coordinates, outcomes, treatments, source, target, catalog, laws, assignments, *, conditioned_on=Vec::new(), max_steps=100_000, max_depth=256, max_operations=10_000_000, max_evaluation_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
@@ -377,8 +377,7 @@ fn prepare_transport_scenarios_stage(
                 antecedent::StudyBuilder::conditional_transport_scenarios(
                     &set,
                     ConditionalTransportQuery { base: query, conditioned_on },
-                    catalog,
-                    budget,
+                    antecedent::EvidenceSearch { catalog, budget },
                     data,
                     request,
                     evaluation,
@@ -386,16 +385,20 @@ fn prepare_transport_scenarios_stage(
                 )
             }
             (Provider::Exact(data), None) => antecedent::StudyBuilder::transport_scenarios(
-                &set, query, catalog, budget, data, request, evaluation, &ctx,
+                &set,
+                query,
+                antecedent::EvidenceSearch { catalog, budget },
+                data,
+                request,
+                evaluation,
+                &ctx,
             ),
             (Provider::Empirical(input), _) => {
                 antecedent::StudyBuilder::transport_scenarios_empirical(
                     &set,
                     query,
-                    catalog,
-                    budget,
-                    input,
-                    max_support_rows,
+                    antecedent::EvidenceSearch { catalog, budget },
+                    antecedent::EmpiricalScenarioInput { input, max_joint_cells: max_support_rows },
                     request,
                     evaluation,
                     &ctx,

@@ -23,6 +23,7 @@ from numpy.typing import ArrayLike
 
 from . import _native
 from ._recalc_bounds import MAX_COLUMNS, MAX_ROWS, MAX_VALUES, _columns
+from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .estimators import DML, DRLearner
 from .prediction import FittedEffectModel
@@ -40,7 +41,7 @@ from .recalc import (
     _column,
     _declared,
     _declared_json,
-    _raise,
+    _refusal_type,
     _seed,
 )
 from .recalc_cell import FrozenScores, _frozen
@@ -168,7 +169,7 @@ class DrSession:
         result, artifact, refusal = self._handle.execute(
             names, columns, json.dumps(_spec(request)), seed=_seed(seed), threads=threads
         )
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("DR recalculation returned no result")
         wire = json.loads(result)
@@ -211,7 +212,7 @@ class DrSession:
         report, refusal = self._handle.predict(
             features, list(columns), seed=_seed(seed), threads=threads
         )
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if report is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("DR prediction returned no result")
         wire = json.loads(report)
@@ -224,7 +225,7 @@ class DrSession:
     def export_predictor(self, *, seed: int = 1, threads: int | None = None) -> FittedEffectModel:
         """Load the retained CATE map from its existing verified parent result artifact."""
         artifact, refusal = self._handle.export_predictor(seed=_seed(seed), threads=threads)
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("DR predictor export returned no artifact")
         return FittedEffectModel.load(artifact)

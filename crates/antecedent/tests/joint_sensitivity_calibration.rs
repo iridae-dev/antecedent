@@ -1,5 +1,5 @@
-//! Coverage of the 2.2B X3 conservative endpoint percentile bootstrap (record
-//! `2.2B.X3.joint_sensitivity_uncertainty`).
+//! Coverage of the conservative endpoint percentile bootstrap of the joint mechanism
+//! sensitivity range (record `sensitivity.joint_uncertainty`).
 //!
 //! The registered surrogate formula's cited joint is `P(W) P(X) P(Y | W, X)`
 //! under `do(Z = 0)` with a W-dependent effect. The truth is `psi(delta0)` at
@@ -18,13 +18,11 @@
 //!   designed over-coverage passes.
 //!
 //! Both are registered in `scripts/gate_calibration.sh` (`run_js`, measured over
-//! the sample-size grid) and are measured once at the release cut; until then
-//! the interval route stays closed (`cell_not_licensed`). The estimator is
+//! the sample-size grid); coverage is unmeasured, so the interval route stays
+//! closed (`cell_not_licensed`). The estimator is
 //! compiled only under `calibration-internal`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![allow(clippy::cast_precision_loss)]
 
 mod common;
 

@@ -21,9 +21,9 @@ use crate::result::{
 
 /// Assumption id: the restriction under which the Wald ratio is the average effect
 /// (constant linear effect), or else the complier local effect (monotonicity).
-pub const IV_EFFECT_RESTRICTION_ID: &str = "iv.constant_linear_effect_or_monotonicity";
+pub(crate) const IV_EFFECT_RESTRICTION_ID: &str = "iv.constant_linear_effect_or_monotonicity";
 /// Assumption id: non-zero first stage for one instrument.
-pub const IV_RELEVANCE_ID: &str = "iv.relevance";
+pub(crate) const IV_RELEVANCE_ID: &str = "iv.relevance";
 
 /// Configuration for instrument search.
 #[derive(Clone, Debug)]
@@ -71,7 +71,7 @@ impl InstrumentalVariableIdentifier {
         graph: &Dag,
         assumptions: AssumptionSet,
     ) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        Ok(PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions))
+        Ok(PreparedIdentificationGraph::wrap(graph, assumptions))
     }
 
     /// Identify an average-effect query via a valid instrument.
@@ -117,7 +117,7 @@ impl InstrumentalVariableIdentifier {
             dag.parents(t).iter().copied().filter(|&p| p != y).collect();
         let mut candidates: Vec<DenseNodeId> = parents_of_t.clone();
         for i in 0..dag.node_count() {
-            let v = DenseNodeId::from_raw(u32::try_from(i).expect("node id fits u32"));
+            let v = DenseNodeId::from_index(i);
             if v == t || v == y || candidates.contains(&v) {
                 continue;
             }

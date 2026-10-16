@@ -1,4 +1,4 @@
-"""2.3 B1 dose-grid functional row through the Python facade.
+"""Dose-grid functional row through the Python facade.
 
 The oracle is the closed-form quadratic response ``m(d) = 1 + 0.5 d + 0.25 d**2``, so
 ``m'(d) = 0.5 + 0.5 d`` and ``m(3) - m(1) = 4.75 - 1.75 = 3``. A Gaussian-kernel local quadratic
@@ -63,7 +63,7 @@ def refused(call, detail: str, code: str) -> DoseGridRefusal:
     return error
 
 
-def test_b1_level_recovers_closed_form_with_unmeasured_calibration() -> None:
+def test_level_recovers_closed_form_with_unmeasured_calibration() -> None:
     result = run("level")
     expected = [1.3125, 1.75, 3.0, 5.8125]
     assert [p.dose for p in result.levels] == GRID
@@ -83,7 +83,7 @@ def test_b1_level_recovers_closed_form_with_unmeasured_calibration() -> None:
     assert result.to_dict()["calibration"] == "unmeasured"
 
 
-def test_b1_derivative_recovers_closed_form() -> None:
+def test_derivative_recovers_closed_form() -> None:
     result = run("derivative")
     expected = [0.75, 1.0, 1.5, 2.25]
     for point, truth in zip(result.derivatives, expected, strict=True):
@@ -93,7 +93,7 @@ def test_b1_derivative_recovers_closed_form() -> None:
     assert result.claims == DoseClaims(derivative=True)
 
 
-def test_b1_noisy_rows_give_finite_pointwise_intervals_without_a_coverage_claim() -> None:
+def test_noisy_rows_give_finite_pointwise_intervals_without_a_coverage_claim() -> None:
     result = run("level", noise=0.1)
     for point in result.levels:
         assert point.value == pytest.approx(truth_level(point.dose), abs=0.05)
@@ -103,7 +103,7 @@ def test_b1_noisy_rows_give_finite_pointwise_intervals_without_a_coverage_claim(
         assert point.calibration == "unmeasured"
 
 
-def test_b1_contrast_between_named_doses_matches_closed_form() -> None:
+def test_contrast_between_named_doses_matches_closed_form() -> None:
     exact = run("contrast", contrast=(1.0, 3.0))
     assert exact.contrast is not None
     assert exact.contrast.estimate == pytest.approx(3.0, abs=1e-6)
@@ -118,7 +118,7 @@ def test_b1_contrast_between_named_doses_matches_closed_form() -> None:
     assert [s.dose for s in noisy.support_table] == [1.0, 3.0]
 
 
-def test_b1_claims_are_separate_and_the_simultaneous_band_refuses_closed() -> None:
+def test_claims_are_separate_and_the_simultaneous_band_refuses_closed() -> None:
     level = run("level", noise=0.1)
     assert level.simultaneous_band == "closed"
     assert level.derivatives == ()
@@ -141,7 +141,7 @@ def test_b1_claims_are_separate_and_the_simultaneous_band_refuses_closed() -> No
     )
 
 
-def test_b1_unsupported_doses_refuse_and_the_support_table_labels_them() -> None:
+def test_unsupported_doses_refuse_and_the_support_table_labels_them() -> None:
     dose, _ = design()
     table = dose_support_table(dose, [-1.0, 2.0, 10.0], bandwidth=0.4, minimum_local_ess=10.0)
     assert [s.label for s in table] == [
@@ -164,7 +164,7 @@ def test_b1_unsupported_doses_refuse_and_the_support_table_labels_them() -> None
     )
 
 
-def test_b1_observational_design_and_bad_inputs_refuse() -> None:
+def test_observational_design_and_bad_inputs_refuse() -> None:
     refused(
         lambda: run("level", design="observational"),
         "dose_grid.graph_not_certified",
@@ -194,7 +194,7 @@ def test_b1_observational_design_and_bad_inputs_refuse() -> None:
     )
 
 
-def test_b1_export_consume_round_trip_recomputes_the_result() -> None:
+def test_export_consume_round_trip_recomputes_the_result() -> None:
     result = run("level", noise=0.1)
     artifact = result.export()
     assert isinstance(artifact, bytes)
@@ -209,7 +209,7 @@ def test_b1_export_consume_round_trip_recomputes_the_result() -> None:
     assert contrast.contrast is not None and contrast.levels == ()
 
 
-def test_b1_consumer_limits_and_corrupt_artifacts_refuse() -> None:
+def test_consumer_limits_and_corrupt_artifacts_refuse() -> None:
     artifact = run("level", noise=0.1).export()
     with pytest.raises(DoseGridRefusal) as info:
         consume_dose_grid_artifact(artifact, max_rows=10)
@@ -229,7 +229,7 @@ def test_b1_consumer_limits_and_corrupt_artifacts_refuse() -> None:
 
 @pytest.mark.parametrize("functional", ["level", "derivative", "contrast"])
 @pytest.mark.parametrize("bandwidth", [0.2, 0.4, 0.8])
-def test_b1_quadratic_scope_recovers_functional_across_fixed_bandwidths(
+def test_quadratic_scope_recovers_functional_across_fixed_bandwidths(
     functional: str, bandwidth: float
 ) -> None:
     from antecedent.dose_grid import quadratic_dose_functional
@@ -261,7 +261,7 @@ def test_b1_quadratic_scope_recovers_functional_across_fixed_bandwidths(
     assert fresh.to_dict()["quadratic_mean"] is True
 
 
-def test_b1_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -> None:
+def test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -> None:
     from antecedent.dose_grid import quadratic_dose_functional
 
     dose, outcome = design(0.1)
@@ -295,7 +295,7 @@ def test_b1_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions(
     )
 
 
-def test_b1_quadratic_scope_fresh_process_replays_attested_artifact() -> None:
+def test_quadratic_scope_fresh_process_replays_attested_artifact() -> None:
     import json
     import subprocess
     import sys

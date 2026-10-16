@@ -78,10 +78,60 @@ pub struct RefutationReport {
     pub replicates: u32,
 }
 
+/// Which [`RefutationReport`] fields a [`RefutationReportBuilder`] has already set.
+const REPORT_ORIGINAL: u8 = 1 << 0;
+const REPORT_REFUTED: u8 = 1 << 1;
+const REPORT_COMPARISON: u8 = 1 << 2;
+const REPORT_INFORMATIVE: u8 = 1 << 3;
+const REPORT_PASSED: u8 = 1 << 4;
+const REPORT_FAILURE: u8 = 1 << 5;
+const REPORT_REPLICATES: u8 = 1 << 6;
+const REPORT_ALL: u8 = (1 << 7) - 1;
+
+/// Named construction of a [`RefutationReport`].
+///
+/// `build` records a field only after its setter has run, so a call site cannot omit one
+/// and have a zero or `false` stand in for it. Field order in the finished report is the
+/// struct's own order.
+#[must_use]
+#[derive(Clone, Debug)]
+pub(crate) struct RefutationReportBuilder {
+    refuter: Arc<str>,
+    original_ate: f64,
+    refuted_ate: f64,
+    comparison: f64,
+    informative: bool,
+    passed: bool,
+    failure_condition: Option<Arc<str>>,
+    replicates: u32,
+    set: u8,
+}
+
 impl RefutationReport {
+    /// Start a report named `refuter`. Every other field is set by the builder.
+    pub(crate) fn builder(refuter: impl Into<Arc<str>>) -> RefutationReportBuilder {
+        RefutationReportBuilder {
+            refuter: refuter.into(),
+            original_ate: 0.0,
+            refuted_ate: 0.0,
+            comparison: 0.0,
+            informative: false,
+            passed: false,
+            failure_condition: None,
+            replicates: 0,
+            set: 0,
+        }
+    }
+
     /// Construct a refutation report.
+    ///
+    /// The positional form of [`Self::builder`]. Callers outside this crate keep this
+    /// signature; construction inside the crate names each field.
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "positional form of the named builder, kept for callers outside this crate"
+    )]
     pub fn new(
         refuter: impl Into<Arc<str>>,
         original_ate: f64,
@@ -92,16 +142,15 @@ impl RefutationReport {
         failure_condition: Option<Arc<str>>,
         replicates: u32,
     ) -> Self {
-        Self {
-            refuter: refuter.into(),
-            original_ate,
-            refuted_ate,
-            comparison,
-            informative,
-            passed,
-            failure_condition,
-            replicates,
-        }
+        Self::builder(refuter)
+            .original_ate(original_ate)
+            .refuted_ate(refuted_ate)
+            .comparison(comparison)
+            .informative(informative)
+            .passed(passed)
+            .failure_condition(failure_condition)
+            .replicates(replicates)
+            .build()
     }
 
     /// Mixture-weighted aggregation of per-atom reports of the same refuter id.
@@ -146,16 +195,93 @@ impl RefutationReport {
             return None;
         }
         let passed = passed_mass / w_sum >= 1.0 - 1e-12;
-        Some(Self {
-            refuter: id,
-            original_ate: original / w_sum,
-            refuted_ate: mixed_ate / w_sum,
-            comparison: comparison / w_sum,
-            informative,
-            passed,
-            failure_condition: if passed { None } else { failure },
-            replicates,
-        })
+        Some(
+            Self::builder(id)
+                .original_ate(original / w_sum)
+                .refuted_ate(mixed_ate / w_sum)
+                .comparison(comparison / w_sum)
+                .informative(informative)
+                .passed(passed)
+                .failure_condition(if passed { None } else { failure })
+                .replicates(replicates)
+                .build(),
+        )
+    }
+}
+
+impl RefutationReportBuilder {
+    /// Published estimate the refuter is checking.
+    pub fn original_ate(mut self, original_ate: f64) -> Self {
+        self.original_ate = original_ate;
+        self.set |= REPORT_ORIGINAL;
+        self
+    }
+
+    /// Refuted or transformed estimate.
+    pub fn refuted_ate(mut self, refuted_ate: f64) -> Self {
+        self.refuted_ate = refuted_ate;
+        self.set |= REPORT_REFUTED;
+        self
+    }
+
+    /// Scale-free comparison statistic.
+    pub fn comparison(mut self, comparison: f64) -> Self {
+        self.comparison = comparison;
+        self.set |= REPORT_COMPARISON;
+        self
+    }
+
+    /// Whether the check can falsify the estimator that produced the estimate.
+    pub fn informative(mut self, informative: bool) -> Self {
+        self.informative = informative;
+        self.set |= REPORT_INFORMATIVE;
+        self
+    }
+
+    /// Whether the check passed its configured threshold.
+    pub fn passed(mut self, passed: bool) -> Self {
+        self.passed = passed;
+        self.set |= REPORT_PASSED;
+        self
+    }
+
+    /// Failure text when `passed` is false, and `None` when it is true.
+    pub fn failure_condition(mut self, failure_condition: Option<Arc<str>>) -> Self {
+        self.failure_condition = failure_condition;
+        self.set |= REPORT_FAILURE;
+        self
+    }
+
+    /// Number of replicate estimates that entered the report.
+    pub fn replicates(mut self, replicates: u32) -> Self {
+        self.replicates = replicates;
+        self.set |= REPORT_REPLICATES;
+        self
+    }
+
+    /// Finish the report.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any field setter was skipped. That is a programming error at the call
+    /// site; the stored values are exactly the ones the setters received.
+    #[must_use]
+    pub fn build(self) -> RefutationReport {
+        assert_eq!(
+            self.set, REPORT_ALL,
+            "refutation report builder is missing a field (set bits {:#04x})",
+            self.set
+        );
+        RefutationReport {
+            refuter: self.refuter,
+            original_ate: self.original_ate,
+            refuted_ate: self.refuted_ate,
+            comparison: self.comparison,
+            informative: self.informative,
+            passed: self.passed,
+            failure_condition: self.failure_condition,
+            replicates: self.replicates,
+        }
     }
 }
 
@@ -187,7 +313,7 @@ pub trait EffectRefit: std::fmt::Debug {
 
 /// Refit of a composed estimator on a row map of its lag-aligned rows
 /// (`None` when the fit fails).
-pub type AlignedRowEstimate = Box<dyn FnMut(&[usize]) -> Option<f64>>;
+pub(crate) type AlignedRowEstimate = Box<dyn FnMut(&[usize]) -> Option<f64>>;
 
 /// A composed temporal estimator prepared for evaluation on lag-aligned rows.
 pub struct AlignedRefit {
@@ -233,8 +359,9 @@ pub struct RefutationProblem<'a> {
     /// Optional refit of the original composed causal model.
     pub effect_refit: Option<&'a dyn EffectRefit>,
     /// Prepare-time per-unit slice plan. Filled by [`crate::PreparedRefutation::compile`];
-    /// callers constructing a problem directly leave this unset and the panel refit
-    /// compiles a plan from [`Self::temporal`] on first use.
+    /// callers constructing a problem directly leave this unset. A replicate loop
+    /// compiles one plan from [`Self::temporal`] and reuses it; a single refit
+    /// compiles its own.
     pub(crate) panel_slices: Option<&'a PanelSliceTemplate<'a>>,
 }
 
@@ -275,6 +402,32 @@ impl<'a> RefutationProblem<'a> {
     }
 }
 
+/// What a refit reads of a [`RefutationProblem`] apart from its composed-estimator refit.
+///
+/// The refit is a `dyn` without a `Sync` bound, so it cannot be shared with worker threads;
+/// everything else can, and the refit travels beside this view as a separate argument.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SharedProblem<'a, 'plan> {
+    pub(crate) data: &'a TabularData,
+    pub(crate) estimand: &'a IdentifiedEstimand,
+    pub(crate) query: &'a AverageEffectQuery,
+    pub(crate) temporal: Option<TemporalRefitContext<'a>>,
+    /// `'plan` may be shorter than `'a` when a replicate loop owns the plan.
+    pub(crate) panel_slices: Option<&'plan PanelSliceTemplate<'a>>,
+}
+
+impl<'a> RefutationProblem<'a> {
+    pub(crate) fn shared(&self) -> SharedProblem<'a, 'a> {
+        SharedProblem {
+            data: self.data,
+            estimand: self.estimand,
+            query: self.query,
+            temporal: self.temporal,
+            panel_slices: self.panel_slices,
+        }
+    }
+}
+
 impl RefutationProblem<'_> {
     /// Treatment variable from the query.
     #[must_use]
@@ -286,6 +439,35 @@ impl RefutationProblem<'_> {
     #[must_use]
     pub fn outcome(&self) -> VariableId {
         self.query.outcome
+    }
+
+    /// Schema columns that define the estimate's complete-case sample.
+    ///
+    /// Treatment, outcome, and effect modifiers, plus the adjustment set when
+    /// `include_adjustment` is set. A temporal problem's adjustment ids are dense
+    /// node ids, not columns, so those callers pass `false`; modifiers are still
+    /// included, because a missing modifier drops the row from the conditional fit.
+    /// Duplicate ids (a modifier that is also an adjustment column) are omitted.
+    pub(crate) fn estimation_ids(&self, include_adjustment: bool) -> Vec<VariableId> {
+        let mut ids = Vec::with_capacity(
+            2 + usize::from(include_adjustment) * self.estimand.adjustment_set.len()
+                + self.query.effect_modifiers.len(),
+        );
+        ids.push(self.treatment());
+        ids.push(self.outcome());
+        if include_adjustment {
+            for &id in self.estimand.adjustment_set.iter() {
+                if !ids.contains(&id) {
+                    ids.push(id);
+                }
+            }
+        }
+        for &id in self.query.effect_modifiers.iter() {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        ids
     }
 }
 
@@ -333,7 +515,20 @@ pub(crate) fn fit_once(
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
     if !query.effect_modifiers.is_empty() {
+        // The conditional estimator is a different model. Settings that would
+        // change its answer and that it cannot carry are a refusal, not a silent drop.
+        if estimator.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+            || estimator.cluster_ids.is_some()
+            || estimator.multiway_ids.is_some()
+            || estimator.panel_times.is_some()
+            || !matches!(estimator.fit_kind, antecedent_estimate::LinearFitKind::Ols)
+        {
+            return Err(ValidationError::estimation_msg(
+                "conditional refit cannot apply the caller's cluster, panel, SE, or non-OLS fit; those settings would be dropped",
+            ));
+        }
         return ConditionalLinearAdjustment::new()
+            .with_overlap(estimator.overlap)
             .estimate_ate(data, estimand, query)
             .map(|(estimate, _, _)| estimate)
             .map_err(ValidationError::from);
@@ -364,7 +559,34 @@ pub(crate) fn refit_effect(
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, ValidationError> {
-    if let Some(refit) = problem.effect_refit {
+    refit_effect_shared(
+        &problem.shared(),
+        problem.effect_refit,
+        data,
+        estimand,
+        extra_contemporaneous,
+        caller_estimator,
+        workspace,
+        ctx,
+    )
+}
+
+/// [`refit_effect`] on the shareable part of a problem plus its composed-estimator refit.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the problem's refit travels beside its shared view, which keeps the view Sync"
+)]
+pub(crate) fn refit_effect_shared(
+    problem: &SharedProblem<'_, '_>,
+    effect_refit: Option<&dyn EffectRefit>,
+    data: &TabularData,
+    estimand: &IdentifiedEstimand,
+    extra_contemporaneous: &[VariableId],
+    caller_estimator: &LinearAdjustmentAte,
+    workspace: &mut EstimationWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<EffectEstimate, ValidationError> {
+    if let Some(refit) = effect_refit {
         return refit.refit(data, extra_contemporaneous, ctx);
     }
     let Some(temporal) = problem.temporal else {
@@ -424,12 +646,14 @@ pub(crate) fn refit_effect(
         .map_err(ValidationError::from)?;
     let prep = estimator
         .prepare_with_extras(
-            &series,
-            estimand,
-            temporal.temporal_query,
-            temporal.indexer,
-            temporal.split,
-            temporal.kernel_policy,
+            &antecedent_estimate::TemporalDesignInputs {
+                data: &series,
+                estimand,
+                query: temporal.temporal_query,
+                indexer: temporal.indexer,
+                split: temporal.split,
+                policy: temporal.kernel_policy,
+            },
             extra_contemporaneous,
         )
         .map_err(ValidationError::from)?;
@@ -457,12 +681,14 @@ fn panel_prepare_with_extras(
     for unit in panel.units() {
         let prep = estimator
             .prepare_with_extras(
-                &unit.series,
-                estimand,
-                temporal.temporal_query,
-                temporal.indexer,
-                temporal.split,
-                temporal.kernel_policy,
+                &antecedent_estimate::TemporalDesignInputs {
+                    data: &unit.series,
+                    estimand,
+                    query: temporal.temporal_query,
+                    indexer: temporal.indexer,
+                    split: temporal.split,
+                    policy: temporal.kernel_policy,
+                },
                 extra,
             )
             .map_err(ValidationError::from)?;
@@ -574,9 +800,7 @@ pub(crate) fn propensity_fit_defect(glm: &antecedent_stats::GlmFit) -> Option<&'
     reason = "a binary treatment is coded exactly 0.0 or 1.0; values merely near 0 or 1 are not binary"
 )]
 pub(crate) fn binary_treatment(problem: &RefutationProblem<'_>) -> Result<bool, ValidationError> {
-    let mut ids = vec![problem.treatment(), problem.outcome()];
-    ids.extend_from_slice(&problem.estimand.adjustment_set);
-    ids.extend_from_slice(&problem.query.effect_modifiers);
+    let ids = problem.estimation_ids(true);
     let mask = match problem.data.complete_case_mask(&ids) {
         Ok(mask) => mask,
         Err(DataError::EmptySelection { .. }) => return Ok(false),
@@ -601,9 +825,7 @@ pub(crate) fn fit_diagnostic_propensity(
     include_outcome_in_mask: bool,
     propensity: &mut PropensityWorkspace,
 ) -> Result<DiagnosticPropensityColumns, ValidationError> {
-    let mut ids = vec![problem.treatment(), problem.outcome()];
-    ids.extend_from_slice(&problem.estimand.adjustment_set);
-    ids.extend_from_slice(&problem.query.effect_modifiers);
+    let ids = problem.estimation_ids(true);
     let row_mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
     let treatment = problem
         .data
@@ -715,6 +937,18 @@ pub(crate) enum NoiseReplaceTarget {
     Outcome,
 }
 
+/// Settings of one noise-replace refuter run.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NoiseReplaceSpec {
+    pub replicates: u32,
+    pub alpha: f64,
+    pub target: NoiseReplaceTarget,
+    /// Base of the per-replicate noise stream ids.
+    pub stream_base: u64,
+    pub refuter_id: &'static str,
+    pub failure_label: &'static str,
+}
+
 /// Shared placebo / dummy-outcome loop: replace a column with Gaussian noise and refit.
 ///
 /// Under OLS / linear adjustment the coefficient on independent noise is asymptotically
@@ -722,52 +956,49 @@ pub(crate) enum NoiseReplaceTarget {
 /// Reports are therefore `informative: false` (diagnostic only, not a falsifier).
 /// A non-finite replicate estimate is a failed computation, not evidence: it is a
 /// [`ValidationError`] (rendered `Failed` by the suite), never a verdict.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn noise_replace_refute(
     problem: &RefutationProblem<'_>,
-    workspace: &mut EstimationWorkspace,
+    _workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
     estimator: &LinearAdjustmentAte,
-    replicates: u32,
-    alpha: f64,
-    target: NoiseReplaceTarget,
-    stream_base: u64,
-    refuter_id: &'static str,
-    failure_label: &'static str,
+    spec: &NoiseReplaceSpec,
 ) -> Result<RefutationReport, ValidationError> {
+    let NoiseReplaceSpec { replicates, alpha, target, stream_base, refuter_id, failure_label } =
+        *spec;
     check_replicate_count(replicates)?;
     let replace_id = match target {
         NoiseReplaceTarget::Treatment => problem.treatment(),
         NoiseReplaceTarget::Outcome => problem.outcome(),
     };
     let n = problem.data.row_count();
-    let mut ates = Vec::with_capacity(replicates as usize);
-    for r in 0..replicates {
-        check_cancelled(ctx)?;
-        let mut noise = vec![0.0; n];
-        fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
-        let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
-        let est = refit_effect(problem, &data, problem.estimand, &[], estimator, workspace, ctx)?;
-        ates.push(est.ate);
-    }
-    let mean_ate = ates.iter().sum::<f64>() / f64::from(replicates);
-    let p_value = replicate_p_value(&ates, 0.0)?;
-    let passed = p_value >= alpha;
-    Ok(RefutationReport {
-        refuter: Arc::from(refuter_id),
-        original_ate: problem.original.ate,
-        refuted_ate: mean_ate,
-        comparison: p_value,
-        // OLS recovery of ~0 under independent noise cannot falsify the claim.
-        informative: false,
-        passed,
-        failure_condition: (!passed).then(|| {
-            Arc::from(format!(
-                "{failure_label} ATE distribution (mean {mean_ate}) is inconsistent with zero \
-                 (p={p_value} < alpha={alpha})"
-            ))
-        }),
+    let ates = map_problem_replicates(
+        ctx,
+        problem,
         replicates,
+        EstimationWorkspace::default,
+        |problem, refit, workspace, ctx, r| {
+            let mut noise = vec![0.0; n];
+            fill_gaussian(&mut noise, ctx, stream_base.wrapping_add(u64::from(r)));
+            let data = with_replaced_float(problem.data, replace_id, Arc::from(noise))?;
+            let est = refit_effect_shared(
+                problem,
+                refit,
+                &data,
+                problem.estimand,
+                &[],
+                estimator,
+                workspace,
+                ctx,
+            )?;
+            Ok(est.ate)
+        },
+    )?;
+    // OLS recovery of ~0 under independent noise cannot falsify the claim.
+    finish_p_report(refuter_id, problem.original.ate, &ates, 0.0, alpha, |mean_ate, p_value| {
+        format!(
+            "{failure_label}: null value 0 is atypical under the replicate distribution \
+             (mean {mean_ate}, p={p_value} < alpha={alpha})"
+        )
     })
 }
 
@@ -798,7 +1029,6 @@ pub(crate) fn replicate_p_value(
             "non-finite replicate estimate: the refit did not produce a usable effect",
         ));
     }
-    #[allow(clippy::cast_precision_loss)]
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
     let sd = sample_sd(samples);
     let scale = mean.abs().max(hypothesized.abs()).max(1.0);
@@ -850,9 +1080,221 @@ pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), ValidationEr
 
 /// Mean of the replicate estimates.
 pub(crate) fn replicate_mean(ates: &[f64]) -> f64 {
-    #[allow(clippy::cast_precision_loss)]
     let n = ates.len() as f64;
     ates.iter().sum::<f64>() / n
+}
+
+/// Significance level of the replicate-stability checks that are not user-configurable
+/// (query-native mediation and functional refuters).
+pub(crate) const STABILITY_ALPHA: f64 = 0.05;
+
+/// Replicates per query-native stability check (mediation and functional refuters).
+pub(crate) const STABILITY_REPLICATES: u32 = 20;
+
+/// Run `one(state, ctx, r)` for `r in 0..replicates` and return the results in replicate order.
+///
+/// The replicates are split into contiguous blocks, one per worker of `ctx`'s pool; every block
+/// builds its own scratch with `init` and the closure receives a serial context. A replicate's
+/// randomness must derive from `r` alone (a stream id built from `r`, never a shared stream),
+/// so the results are bit-identical for every thread count. Cancellation is polled before each
+/// replicate, and the error of the lowest failing replicate is the one returned.
+pub(crate) fn map_replicates<S, T: Send>(
+    ctx: &ExecutionContext,
+    replicates: u32,
+    init: impl Fn() -> S + Sync,
+    one: impl Fn(&mut S, &ExecutionContext, u32) -> Result<T, ValidationError> + Sync,
+) -> Result<Vec<T>, ValidationError> {
+    let total = replicates as usize;
+    if total == 0 {
+        return Ok(Vec::new());
+    }
+    let blocks = (ctx.parallelism.max_threads.get() as usize).clamp(1, total);
+    let per_block = total.div_ceil(blocks);
+    let results = ctx.map_indexed(total.div_ceil(per_block), |block, inner| {
+        let mut state = init();
+        let start = block * per_block;
+        let end = (start + per_block).min(total);
+        let mut out = Vec::with_capacity(end - start);
+        for r in start..end {
+            check_cancelled(inner)?;
+            out.push(one(&mut state, inner, u32::try_from(r).unwrap_or(u32::MAX))?);
+        }
+        Ok::<_, ValidationError>(out)
+    })?;
+    Ok(results.into_iter().flatten().collect())
+}
+
+/// [`map_replicates`] for a refit loop over `problem`.
+///
+/// `one` receives the shareable view of the problem and its composed-estimator refit. That
+/// refit cannot be shared between threads, so a problem that carries one runs its replicates
+/// on the caller's thread; every other problem is shared by the workers.
+pub(crate) fn map_problem_replicates<S, T: Send>(
+    ctx: &ExecutionContext,
+    problem: &RefutationProblem<'_>,
+    replicates: u32,
+    init: impl Fn() -> S + Sync,
+    one: impl Fn(
+        &SharedProblem<'_, '_>,
+        Option<&dyn EffectRefit>,
+        &mut S,
+        &ExecutionContext,
+        u32,
+    ) -> Result<T, ValidationError>
+    + Sync,
+) -> Result<Vec<T>, ValidationError> {
+    let plan = compile_replicate_plan(problem)?;
+    let shared = shared_for_replicates(problem, plan.as_ref());
+    if let Some(refit) = problem.effect_refit {
+        let mut state = init();
+        let mut out = Vec::with_capacity(replicates as usize);
+        for r in 0..replicates {
+            check_cancelled(ctx)?;
+            out.push(one(&shared, Some(refit), &mut state, ctx, r)?);
+        }
+        return Ok(out);
+    }
+    map_replicates(ctx, replicates, init, |state, ctx, r| one(&shared, None, state, ctx, r))
+}
+
+/// [`map_replicates`] for replicates whose inputs come from one shared sequential RNG stream.
+///
+/// `draw(r)` runs on the caller's thread in replicate order and owns that stream, so every
+/// replicate sees exactly the draws it saw in a serial loop. The drawn inputs are then
+/// computed on the pool, a bounded batch at a time (memory stays proportional to the worker
+/// count, not the replicate count). A failing draw is reported after the replicates drawn
+/// before it were computed, so a serial loop's error priority is kept.
+pub(crate) fn map_drawn_replicates<D: Sync, S, T: Send>(
+    ctx: &ExecutionContext,
+    replicates: u32,
+    mut draw: impl FnMut(u32) -> Result<D, ValidationError>,
+    init: impl Fn() -> S + Sync,
+    compute: impl Fn(&mut S, &ExecutionContext, u32, &D) -> Result<T, ValidationError> + Sync,
+) -> Result<Vec<T>, ValidationError> {
+    let workers = ctx.parallelism.max_threads.get() as usize;
+    let mut out = Vec::with_capacity(replicates as usize);
+    if workers <= 1 {
+        let mut state = init();
+        for r in 0..replicates {
+            check_cancelled(ctx)?;
+            let drawn = draw(r)?;
+            out.push(compute(&mut state, ctx, r, &drawn)?);
+        }
+        return Ok(out);
+    }
+    let batch = u32::try_from(workers.saturating_mul(2)).unwrap_or(u32::MAX);
+    let mut next = 0u32;
+    while next < replicates {
+        let end = next.saturating_add(batch).min(replicates);
+        let mut drawn = Vec::with_capacity((end - next) as usize);
+        let mut failed = None;
+        for r in next..end {
+            match check_cancelled(ctx).and_then(|()| draw(r)) {
+                Ok(d) => drawn.push(d),
+                Err(e) => {
+                    failed = Some(e);
+                    break;
+                }
+            }
+        }
+        let count = u32::try_from(drawn.len()).unwrap_or(u32::MAX);
+        out.extend(map_replicates(ctx, count, &init, |state, ctx, i| {
+            compute(state, ctx, next + i, &drawn[i as usize])
+        })?);
+        if let Some(e) = failed {
+            return Err(e);
+        }
+        next = end;
+    }
+    Ok(out)
+}
+
+/// [`map_drawn_replicates`] for a refit loop over `problem` (see [`map_problem_replicates`]).
+pub(crate) fn map_drawn_problem_replicates<D: Sync, S, T: Send>(
+    ctx: &ExecutionContext,
+    problem: &RefutationProblem<'_>,
+    replicates: u32,
+    mut draw: impl FnMut(u32) -> Result<D, ValidationError>,
+    init: impl Fn() -> S + Sync,
+    compute: impl Fn(
+        &SharedProblem<'_, '_>,
+        Option<&dyn EffectRefit>,
+        &mut S,
+        &ExecutionContext,
+        u32,
+        &D,
+    ) -> Result<T, ValidationError>
+    + Sync,
+) -> Result<Vec<T>, ValidationError> {
+    let plan = compile_replicate_plan(problem)?;
+    let shared = shared_for_replicates(problem, plan.as_ref());
+    if let Some(refit) = problem.effect_refit {
+        let mut state = init();
+        let mut out = Vec::with_capacity(replicates as usize);
+        for r in 0..replicates {
+            check_cancelled(ctx)?;
+            let drawn = draw(r)?;
+            out.push(compute(&shared, Some(refit), &mut state, ctx, r, &drawn)?);
+        }
+        return Ok(out);
+    }
+    map_drawn_replicates(ctx, replicates, draw, init, |state, ctx, r, drawn| {
+        compute(&shared, None, state, ctx, r, drawn)
+    })
+}
+
+/// Compile one panel slice plan for a replicate loop, when the problem has a
+/// panel and no plan yet.
+///
+/// The mutated table is still sliced and prepared on each replicate; only the
+/// offset plan is shared. A plan already on the problem is left in place.
+fn compile_replicate_plan<'a>(
+    problem: &RefutationProblem<'a>,
+) -> Result<Option<PanelSliceTemplate<'a>>, ValidationError> {
+    if problem.panel_slices.is_some() {
+        return Ok(None);
+    }
+    let Some(panel) = problem.temporal.and_then(|temporal| temporal.panel) else {
+        return Ok(None);
+    };
+    Ok(Some(PanelSliceTemplate::from_panel(panel, problem.data)?))
+}
+
+fn shared_for_replicates<'a, 'plan>(
+    problem: &'plan RefutationProblem<'a>,
+    plan: Option<&'plan PanelSliceTemplate<'a>>,
+) -> SharedProblem<'a, 'plan> {
+    let mut shared = problem.shared();
+    if let Some(plan) = plan {
+        shared.panel_slices = Some(plan);
+    }
+    shared
+}
+
+/// Finish a replicate refuter: mean, p-value of `centre` as a typical single replicate
+/// ([`replicate_p_value`]), `passed = p >= alpha`, and the (always non-informative) report.
+///
+/// `failure` renders the failure condition from `(mean, p)` and runs only on a failure.
+pub(crate) fn finish_p_report(
+    refuter: &str,
+    original_ate: f64,
+    ates: &[f64],
+    centre: f64,
+    alpha: f64,
+    failure: impl FnOnce(f64, f64) -> String,
+) -> Result<RefutationReport, ValidationError> {
+    let mean_ate = replicate_mean(ates);
+    let p_value = replicate_p_value(ates, centre)?;
+    let passed = p_value >= alpha;
+    Ok(RefutationReport::builder(refuter)
+        .original_ate(original_ate)
+        .refuted_ate(mean_ate)
+        .comparison(p_value)
+        .informative(false)
+        .passed(passed)
+        .failure_condition((!passed).then(|| Arc::from(failure(mean_ate, p_value))))
+        .replicates(u32::try_from(ates.len()).unwrap_or(u32::MAX))
+        .build())
 }
 
 /// Copy a full-length float64 column (unmasked; caller handles missingness).
@@ -941,7 +1383,6 @@ pub(crate) fn with_contiguous_row_window(
         });
     }
     #[allow(
-        clippy::cast_precision_loss,
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         reason = "the floored product is at most the row count and `as` saturates negatives and NaN to 0; the result is clamped to 1..=n-1"
@@ -950,7 +1391,6 @@ pub(crate) fn with_contiguous_row_window(
     let span = n - window_len;
     let mut rng = ctx.rng.stream(stream_id);
     #[allow(
-        clippy::cast_precision_loss,
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         reason = "next_f64 is in [0, 1), so the floored product is in [0, span]; it is non-negative and below the row count, then min-bounded to span"
@@ -1077,6 +1517,20 @@ pub(crate) fn sample_sd(values: &[f64]) -> f64 {
     antecedent_stats::sample_std(values)
 }
 
+/// Column-major `Xβ`: `out[r] = Σ_c matrix[c * n + r] * beta[c]`.
+///
+/// Each row accumulates in column order, the same operations as summing that
+/// row's terms from the first column to the last.
+pub(crate) fn column_major_dot(matrix: &[f64], n: usize, beta: &[f64], out: &mut [f64]) {
+    out.fill(0.0);
+    for (c, &b) in beta.iter().enumerate() {
+        let column = &matrix[c * n..(c + 1) * n];
+        for (slot, &x) in out.iter_mut().zip(column) {
+            *slot += x * b;
+        }
+    }
+}
+
 /// Standard-normal draws via Box–Muller from [`ExecutionContext`] RNG.
 ///
 /// Emits both cos/sin components from each uniform pair (same stream use as
@@ -1164,7 +1618,7 @@ mod tests {
         // operational failure the caller must see as an error.
         for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             let err = replicate_p_value(&[1.0, 2.0, bad, 3.0], 0.0).unwrap_err();
-            assert!(matches!(err, ValidationError::Estimation(_)), "{err:?}");
+            assert!(matches!(err, ValidationError::Refused { .. }), "{err:?}");
         }
     }
 

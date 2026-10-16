@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 description = "Causal data views and Arrow-backed adapters for the Antecedent causal inference engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
@@ -22,20 +23,22 @@ arrow = [
     "dep:arrow-array",
     "dep:arrow-schema",
     "dep:arrow-buffer",
-    "dep:arrow-data",
     "arrow-array/ffi",
     "arrow-schema/ffi",
 ]
 
 [dependencies]
-antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
-antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
+antecedent-core = { workspace = true }
+antecedent-kernels = { workspace = true }
 arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
-arrow-data = { workspace = true, optional = true }
 realfft = { workspace = true }
 blake3 = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

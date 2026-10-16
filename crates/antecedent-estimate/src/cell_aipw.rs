@@ -6,8 +6,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -22,8 +20,11 @@ use antecedent_core::{OutcomeFunctional, VariableId};
 use antecedent_data::TabularData;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, GlmOptions};
 
-use crate::aipw::{predict_colmajor, select_rows_colmajor};
+use crate::aipw::predict_colmajor;
 use crate::crossfit_aipw::{DEFAULT_AIPW_FOLDS, thresholds_of};
+use crate::crossfit_plan::{
+    CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor,
+};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::clip_of;
@@ -69,7 +70,7 @@ pub struct CellSaturatedAipw {
     /// Overlap policy (clip applied to each cell propensity before normalize).
     pub overlap: OverlapPolicy,
     /// Seed of the cell-stratified, unit-level fold plan (see
-    /// `learn_nuisance::crossfit_fold_plan`); set it to the run's master seed.
+    /// `crossfit_plan::crossfit_fold_plan`); set it to the run's master seed.
     pub fold_seed: u64,
 }
 
@@ -112,20 +113,14 @@ impl CellSaturatedAipw {
     pub fn fit_scores(
         &self,
         data: &TabularData,
-        treatments: &[VariableId],
-        outcome: VariableId,
-        adjustment: &[VariableId],
-        functional: &OutcomeFunctional,
-        continuous: Option<ContinuousCellSpec<'_>>,
+        spec: &CellScoreSpec<'_>,
     ) -> Result<ScoreTable, EstimationError> {
-        if treatments.is_empty() || treatments.len() > MAX_JOINT_BINARY {
+        if spec.treatments.is_empty() || spec.treatments.len() > MAX_JOINT_BINARY {
             return Err(EstimationError::unsupported(
                 "cell-saturated AIPW supports 1..=3 binary treatments",
             ));
         }
-        self.fit_scores_with_assignment(
-            data, treatments, outcome, adjustment, functional, continuous, None, None,
-        )
+        self.fit_scores_with_assignment(data, spec, SharedCellInputs::default())
     }
 
     /// Fit cell scores using a caller-assigned fold vector and/or `[1 | Z…]` design.
@@ -138,14 +133,11 @@ impl CellSaturatedAipw {
     pub fn fit_scores_with_assignment(
         &self,
         data: &TabularData,
-        treatments: &[VariableId],
-        outcome: VariableId,
-        adjustment: &[VariableId],
-        functional: &OutcomeFunctional,
-        continuous: Option<ContinuousCellSpec<'_>>,
-        fold_ids: Option<&[u32]>,
-        design: Option<&[f64]>,
+        spec: &CellScoreSpec<'_>,
+        shared: SharedCellInputs<'_>,
     ) -> Result<ScoreTable, EstimationError> {
+        let CellScoreSpec { treatments, outcome, adjustment, functional, continuous } = *spec;
+        let SharedCellInputs { fold_ids, design } = shared;
         if treatments.is_empty() || treatments.len() > MAX_JOINT_BINARY {
             return Err(EstimationError::unsupported(
                 "cell-saturated AIPW supports 1..=3 binary treatments",
@@ -184,6 +176,32 @@ impl CellSaturatedAipw {
     }
 }
 
+/// What a cell-saturated score fit estimates: the jointly intervened treatments, the
+/// outcome and its functional, and the adjustment set.
+#[derive(Clone, Copy, Debug)]
+pub struct CellScoreSpec<'a> {
+    /// Binary treatments intervened on jointly (1..=[`MAX_JOINT_BINARY`]).
+    pub treatments: &'a [VariableId],
+    /// Outcome variable.
+    pub outcome: VariableId,
+    /// Common adjustment set.
+    pub adjustment: &'a [VariableId],
+    /// Outcome functional the score table is built for.
+    pub functional: &'a OutcomeFunctional,
+    /// Discretized continuous coordinate; refused as an unlicensed point CDE.
+    pub continuous: Option<ContinuousCellSpec<'a>>,
+}
+
+/// Fold assignment and covariate design shared across a batch, both complete-case aligned
+/// with the prepared rows. `None` derives them from the data.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SharedCellInputs<'a> {
+    /// Caller-assigned fold id per row.
+    pub fold_ids: Option<&'a [u32]>,
+    /// Shared `[1 | Z…]` design.
+    pub design: Option<&'a [f64]>,
+}
+
 /// Optional discretized continuous coordinate alongside the binary cells.
 #[derive(Clone, Copy, Debug)]
 pub struct ContinuousCellSpec<'a> {
@@ -207,6 +225,10 @@ struct PreparedCells {
     shared_design: bool,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "complete-case mask, treatment cell coding, design and row index built in one pass over the same mask"
+)]
 fn prepare_cells(
     data: &TabularData,
     treatments: &[VariableId],
@@ -284,9 +306,7 @@ fn prepare_cells(
     }
     let ncols = 1 + adjustment.len();
     let mut design = vec![0.0; n * ncols];
-    for r in 0..n {
-        design[r] = 1.0;
-    }
+    design[..n].fill(1.0);
     for (j, &z) in adjustment.iter().enumerate() {
         let col = data.float64_masked(z, &mask).map_err(EstimationError::from)?;
         let base = (1 + j) * n;
@@ -333,6 +353,17 @@ fn nearest_index(grid: &[f64], value: f64) -> usize {
     best
 }
 
+/// A fold's fitted cell propensities and the gathered validation design.
+struct CellFoldNuisance {
+    design_valid: Vec<f64>,
+    e_valid: Vec<f64>,
+    floor: f64,
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "cross-fitting loop over thresholds and folds that fills the shared score and propensity buffers"
+)]
 fn crossfit_cell_scores(
     prepared: &PreparedCells,
     thresholds: &[Option<f64>],
@@ -360,140 +391,123 @@ fn crossfit_cell_scores(
             }
             let mut scores = vec![0.0; n * columns.len()];
             let mut propensities = vec![0.0; n * columns.len()];
-            let fold_ids: Vec<u32> = match prepared.fold_assignment.as_deref() {
-                Some(ids) if ids.len() == n => ids.to_vec(),
-                Some(_) => {
-                    return Err(EstimationError::data_msg(
-                        "shared fold assignment length must match complete-case rows",
-                    ));
-                }
-                None => crate::learn_nuisance::crossfit_fold_plan(
-                    &prepared.cell,
-                    &prepared.row_index,
-                    folds,
-                    est.fold_seed,
-                )?,
+            let source = match prepared.fold_assignment.as_deref() {
+                Some(ids) => FoldSource::Shared(ids),
+                None => FoldSource::Stratified {
+                    strata: &prepared.cell,
+                    units: &prepared.row_index,
+                    seed: est.fold_seed,
+                },
             };
-
-            if fold_ids.iter().any(|&id| id as usize >= folds) {
-                return Err(EstimationError::data_msg("shared fold ids must lie in 0..folds"));
-            }
+            let plan = CrossfitPlan::derive(n, folds, source, &SHARED_FOLD_ID_ERRORS)?;
             let clip = clip_of(est.overlap);
             let mut out_ws = crate::aipw::AipwWorkspace::default();
 
-            for fold in 0..folds {
-                let train: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize != fold).collect();
-                let valid: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize == fold).collect();
-                let mut design_train = Vec::new();
-                select_rows_colmajor(
-                    &prepared.design,
-                    n,
-                    prepared.ncols,
-                    &train,
-                    &mut design_train,
-                );
-                let mut design_valid = Vec::new();
-                select_rows_colmajor(
-                    &prepared.design,
-                    n,
-                    prepared.ncols,
-                    &valid,
-                    &mut design_valid,
-                );
+            plan.run(
+                None,
+                |_fold| Ok(()),
+                |FoldRows { train, valid, .. }| {
+                    let design_train = rows_colmajor(&prepared.design, n, prepared.ncols, train);
+                    let design_valid = rows_colmajor(&prepared.design, n, prepared.ncols, valid);
 
-                let train_cells: Vec<_> =
-                    train.iter().map(|&i| prepared.cell[i] as usize).collect();
-                for c in 0..n_cells {
-                    if !train_cells.contains(&c) {
+                    let mut seen_cells = vec![false; n_cells];
+                    for &i in train {
+                        let cell = prepared.cell[i] as usize;
+                        if let Some(slot) = seen_cells.get_mut(cell) {
+                            *slot = true;
+                        }
+                    }
+                    if seen_cells.iter().any(|seen| !seen) {
                         return Err(EstimationError::unsupported(
                             "unsupported cell: cross-fit training fold is missing a joint treatment combination",
                         ));
                     }
-                }
-                let e_valid = multinomial_propensity(
-                    &design_train,
-                    train.len(),
-                    &train_cells,
-                    &design_valid,
-                    valid.len(),
-                    prepared.ncols,
-                    n_cells,
-                    est.backend,
-                )?;
-                note_cell_model_fit();
-                // The clip is the only floor. With none, a cell propensity of exactly 0 (infinite
-                // weight) is refused rather than silently floored at a hidden constant.
-                let floor = clip.unwrap_or(0.0);
-                if clip.is_none() && e_valid.iter().any(|&e| e.is_nan() || e <= 0.0) {
-                    return Err(EstimationError::OverlapWithFields {
-                        message: "a fitted cell propensity is 0 (or not finite) and no clip is set; the inverse-probability weight is infinite — set an overlap clip",
-                        fields: Box::new(crate::overlap::propensity_score_fields(&e_valid)),
-                    });
-                }
-
-                for (t_idx, &threshold) in thresholds.iter().enumerate() {
-                    for c in 0..n_cells {
-                        for (k, &i) in valid.iter().enumerate() {
-                            propensities[(t_idx * n_cells + c) * n + i] =
-                                e_valid[c * valid.len() + k];
-                        }
+                    let train_cells: Vec<_> =
+                        train.iter().map(|&i| prepared.cell[i] as usize).collect();
+                    let e_valid = multinomial_propensity(
+                        DesignRows { values: &design_train, rows: train.len() },
+                        &train_cells,
+                        DesignRows { values: &design_valid, rows: valid.len() },
+                        prepared.ncols,
+                        n_cells,
+                        est.backend,
+                    )?;
+                    note_cell_model_fit();
+                    // The clip is the only floor. With none, a cell propensity of exactly 0
+                    // (infinite weight) is refused rather than silently floored at a hidden
+                    // constant.
+                    let floor = clip.unwrap_or(0.0);
+                    if clip.is_none() && e_valid.iter().any(|&e| e.is_nan() || e <= 0.0) {
+                        return Err(EstimationError::OverlapWithFields {
+                            message: "a fitted cell propensity is 0 (or not finite) and no clip is set; the inverse-probability weight is infinite — set an overlap clip",
+                            fields: Box::new(crate::overlap::propensity_score_fields(&e_valid)),
+                        });
                     }
-                    let y_all = match threshold {
-                        None => prepared.outcome.clone(),
-                        Some(c) => prepared.outcome.iter().map(|&yi| f64::from(yi > c)).collect(),
-                    };
-                    for c in 0..n_cells {
-                        let cell_train: Vec<usize> = train
-                            .iter()
-                            .copied()
-                            .filter(|&i| prepared.cell[i] as usize == c)
-                            .collect();
-                        // The per-cell OLS needs residual degrees of freedom: a cell with no more
-                        // training rows than design columns is an exact interpolant (or
-                        // underdetermined), and swapping in a cell mean would silently leave double
-                        // robustness resting on the propensity alone. Refuse instead.
-                        if cell_train.len() <= prepared.ncols {
-                            return Err(EstimationError::unsupported(
-                                "sparse cell: a cross-fit training cell has no more rows than design columns, so its outcome model has no residual degrees of freedom",
-                            ));
+                    Ok(CellFoldNuisance { design_valid, e_valid, floor })
+                },
+                |FoldRows { train, valid, .. }, nuisance| {
+                    let CellFoldNuisance { design_valid, e_valid, floor } = nuisance;
+                    for (t_idx, &threshold) in thresholds.iter().enumerate() {
+                        for c in 0..n_cells {
+                            for (k, &i) in valid.iter().enumerate() {
+                                propensities[(t_idx * n_cells + c) * n + i] =
+                                    e_valid[c * valid.len() + k];
+                            }
                         }
-                        let mut design_c = Vec::new();
-                        select_rows_colmajor(
-                            &prepared.design,
-                            n,
-                            prepared.ncols,
-                            &cell_train,
-                            &mut design_c,
-                        );
-                        let y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
-                        let fit = est
-                            .backend
-                            .least_squares(
-                                &design_c,
-                                cell_train.len(),
+                        let y_all = match threshold {
+                            None => prepared.outcome.clone(),
+                            Some(c) => {
+                                prepared.outcome.iter().map(|&yi| f64::from(yi > c)).collect()
+                            }
+                        };
+                        for c in 0..n_cells {
+                            let cell_train: Vec<usize> = train
+                                .iter()
+                                .copied()
+                                .filter(|&i| prepared.cell[i] as usize == c)
+                                .collect();
+                            // The per-cell OLS needs residual degrees of freedom: a cell with no
+                            // more training rows than design columns is an exact interpolant (or
+                            // underdetermined), and swapping in a cell mean would silently leave
+                            // double robustness resting on the propensity alone. Refuse instead.
+                            if cell_train.len() <= prepared.ncols {
+                                return Err(EstimationError::unsupported(
+                                    "sparse cell: a cross-fit training cell has no more rows than design columns, so its outcome model has no residual degrees of freedom",
+                                ));
+                            }
+                            let design_c =
+                                rows_colmajor(&prepared.design, n, prepared.ncols, &cell_train);
+                            let y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
+                            let fit = est
+                                .backend
+                                .least_squares(
+                                    &design_c,
+                                    cell_train.len(),
+                                    prepared.ncols,
+                                    &y_c,
+                                    &mut out_ws.outcome,
+                                )
+                                .map_err(stats_err)?;
+                            note_cell_model_fit();
+                            let mut pred = Vec::new();
+                            predict_colmajor(
+                                &design_valid,
+                                valid.len(),
                                 prepared.ncols,
-                                &y_c,
-                                &mut out_ws.outcome,
-                            )
-                            .map_err(stats_err)?;
-                        note_cell_model_fit();
-                        let mut pred = Vec::new();
-                        predict_colmajor(
-                            &design_valid,
-                            valid.len(),
-                            prepared.ncols,
-                            &fit.coefficients,
-                            &mut pred,
-                        );
-                        let col = t_idx * n_cells + c;
-                        for (k, &i) in valid.iter().enumerate() {
-                            let a = f64::from(prepared.cell[i] as usize == c);
-                            let e = e_valid[c * valid.len() + k].max(floor);
-                            scores[col * n + i] = pred[k] + (a / e) * (y_all[i] - pred[k]);
+                                &fit.coefficients,
+                                &mut pred,
+                            );
+                            let col = t_idx * n_cells + c;
+                            for (k, &i) in valid.iter().enumerate() {
+                                let a = f64::from(prepared.cell[i] as usize == c);
+                                let e = e_valid[c * valid.len() + k].max(floor);
+                                scores[col * n + i] = pred[k] + (a / e) * (y_all[i] - pred[k]);
+                            }
                         }
                     }
-                }
-            }
+                    Ok(())
+                },
+            )?;
 
             Ok(ScoreTable {
                 observed_arm: prepared.cell.clone().into(),
@@ -501,7 +515,7 @@ fn crossfit_cell_scores(
                 observed_outcome: prepared.outcome.clone().into(),
                 n_rows: n,
                 row_index: Arc::from(prepared.row_index.clone()),
-                fold_ids: Arc::from(fold_ids),
+                fold_ids: Arc::from(plan.into_fold_ids()),
                 n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
                 scores: Arc::from(scores),
                 columns: Arc::from(columns),
@@ -524,16 +538,27 @@ fn crossfit_cell_scores(
 // Reference-cell multinomial likelihood with Newton steps and backtracking.
 // A tiny diagonal numerical stabilization is used only in the Newton solve;
 // acceptance and convergence use the unpenalized likelihood/score.
+/// Column-major rows of a cell-propensity design.
+#[derive(Clone, Copy)]
+struct DesignRows<'a> {
+    values: &'a [f64],
+    rows: usize,
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one multinomial fit-and-predict over the shared train and validation design rows"
+)]
 fn multinomial_propensity(
-    train: &[f64],
-    n: usize,
+    train: DesignRows<'_>,
     cells: &[usize],
-    valid: &[f64],
-    nv: usize,
+    valid: DesignRows<'_>,
     p: usize,
     k: usize,
     backend: FaerBackend,
 ) -> Result<Vec<f64>, EstimationError> {
+    let DesignRows { values: train, rows: n } = train;
+    let DesignRows { values: valid, rows: nv } = valid;
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::GlmFit,
         || {
@@ -783,7 +808,7 @@ pub fn contrast_named(table: &ScoreTable, spec: &str) -> Result<LinearContrast, 
 }
 
 /// Evaluate a named contrast against a supplied (possibly weighted) summary.
-pub fn contrast_from_summary(
+pub(crate) fn contrast_from_summary(
     table: &ScoreTable,
     summary: &ScoreSummary,
     spec: &str,
@@ -859,11 +884,9 @@ mod tests {
                 }
             }
             let probabilities = super::multinomial_propensity(
-                &train,
-                n,
+                super::DesignRows { values: &train, rows: n },
                 &cells,
-                &[1.0, 1.0, -1.0, 1.0],
-                2,
+                super::DesignRows { values: &[1.0, 1.0, -1.0, 1.0], rows: 2 },
                 2,
                 4,
                 FaerBackend,
@@ -942,11 +965,13 @@ mod tests {
         let table = CellSaturatedAipw::new()
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::exceedance(0.5),
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::exceedance(0.5),
+                    continuous: None,
+                },
             )
             .unwrap();
         let weights: Vec<_> =
@@ -990,11 +1015,13 @@ mod tests {
         let table = CellSaturatedAipw::new()
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
             )
             .unwrap();
         let summary = table.summarize(None).unwrap();
@@ -1013,11 +1040,13 @@ mod tests {
         let table = est
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
             )
             .unwrap();
         let contrast = interaction_contrast(&table).unwrap();
@@ -1036,11 +1065,16 @@ mod tests {
         let err = CellSaturatedAipw::new()
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                Some(ContinuousCellSpec { variable: VariableId::from_raw(1), grid: &[0.0, 1.0] }),
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: Some(ContinuousCellSpec {
+                        variable: VariableId::from_raw(1),
+                        grid: &[0.0, 1.0],
+                    }),
+                },
             )
             .unwrap_err();
         assert!(err.to_string().contains("do(D=d0)"), "{err}");
@@ -1053,11 +1087,13 @@ mod tests {
         let table = est
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
             )
             .unwrap();
         let err = contrast_named(&table, "not-a-contrast").unwrap_err();
@@ -1089,11 +1125,13 @@ mod tests {
         let err = CellSaturatedAipw::new()
             .fit_scores(
                 &data,
-                &[VariableId::from_raw(0), VariableId::from_raw(1)],
-                VariableId::from_raw(2),
-                &[VariableId::from_raw(3)],
-                &OutcomeFunctional::Mean,
-                None,
+                &CellScoreSpec {
+                    treatments: &[VariableId::from_raw(0), VariableId::from_raw(1)],
+                    outcome: VariableId::from_raw(2),
+                    adjustment: &[VariableId::from_raw(3)],
+                    functional: &OutcomeFunctional::Mean,
+                    continuous: None,
+                },
             )
             .unwrap_err();
         assert!(err.to_string().contains("sparse cell"), "{err}");

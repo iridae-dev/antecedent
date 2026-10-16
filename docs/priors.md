@@ -41,8 +41,8 @@ catalog.filter(target) → rank(similarity)
    resolution; multi-step Sustained windows and Bayesian mediation refuse
    transfer, so their isotropic per-mechanism prior is the one checked.
 
-Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/prior_bank_surveys.py)
-(Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/main/examples/rust/prior_bank_surveys.rs)).
+Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/python/prior_bank_surveys.py)
+(Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/rust/prior_bank_surveys.rs)).
 
 ## Invariants
 
@@ -96,8 +96,8 @@ exactly.
 An explicit `NamedParameters` map now also carries the source correlation when
 it is a complete one-to-one map of named coefficient columns. The covariance
 is permuted into target coefficient order; duplicate source or target names
-refuse. This preserves the 2.2 dense hydration path under a changed column
-order, but does not license general 2.3 posterior transfer or a new interval.
+refuse. This preserves the existing dense hydration path under a changed column
+order, but does not license general posterior transfer or a new interval.
 
 Three cases stay **diagonal** and drop posterior correlation between
 coefficients:
@@ -127,10 +127,10 @@ sources on full matrices and pass the composed correlation on.
 
 The `V0` conversion needs the source's σ². A Gaussian posterior with an unknown
 σ² records it as its `residual_variance` draws; a known-σ² Gaussian fit records
-its fixed σ² as a constant `residual_variance` quantity (2.2 and later), so
+its fixed σ² as a constant `residual_variance` quantity, so
 hydration converts with the source's σ². A source with no residual-variance
 quantity (a GLM, a summary built without one, or a known-σ² artifact written
-before 2.2) keeps the earlier behaviour rather than being refused: the hydrated
+without it) keeps the earlier behaviour rather than being refused: the hydrated
 prior keeps the **absolute** SD² and marks it
 (`absolute_coefficient_scale:<indices>` in the prior's restrictions). A Gaussian
 target fit then plugs in its own residual variance, `V0 = SD² / σ̂²` with the
@@ -151,7 +151,7 @@ they produce. On such a target:
   (same lags, same covariates, same order);
 - effect-functional transfer requires the source to carry the target's
   treatment coefficient (same variable at the same lag);
-- a source artifact without coefficient names (written before 1.9) is refused;
+- a source artifact without coefficient names (written by an older writer) is refused;
 - an explicit `NamedParameters` mapping is the declared bridge between
   different lags and is always honoured (names are validated at hydrate).
 
@@ -163,7 +163,7 @@ The catalog offers an additional, **opt-in** check:
 `EstimandFingerprint.temporal` (`TemporalCoordinates`: treatment lags,
 horizon, optional coefficient names). When the *target* fingerprint carries
 temporal coordinates, `compatible_with` rejects a source whose metadata has
-none (`temporal_coordinates_missing`, the case for pre-1.9 metadata) or
+none (`temporal_coordinates_missing`, the case for older metadata) or
 different ones (`temporal_coordinates_mismatch`) unless the source declares a
 `NamedParameters` mapping. Nothing in the library populates these
 coordinates: analyses do not attach them to the posteriors they produce, and
@@ -347,4 +347,4 @@ populations differ, and refuses overlapping study observations. It supports
 one scalar state with Gaussian-mean or binomial future-study signals; compatibility
 and convergence are checked before ranking. It does not reconstruct posterior
 draws from a mean and variance or make an unidentified effect identified.
-See [design ranking](2_3-design-ranking.md) for the complete source-to-study example.
+See [design ranking](design-ranking.md) for the complete source-to-study example.

@@ -15,16 +15,13 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use antecedent_core::{
-    CausalRng, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
-    ValueType, VariableId,
-};
+use antecedent_core::{CausalRng, ExecutionContext, Lag, VariableId};
 use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
-    TimeSeriesData, ValidityBitmap,
+    OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex, TimeSeriesData,
 };
+
+mod common;
 use antecedent_discovery::{
     CiScreenedPosterior, DbnPosterior, DiscoveryConstraints, DiscoveryWorkspace,
     EXACT_ENUM_MAX_NODES, ExactDagPosterior, GraphPosterior, GraphPrior, OrderMcmc, StructureMcmc,
@@ -40,35 +37,9 @@ fn fixture() -> JsonValue {
         .expect("parse dag_posterior fixture")
 }
 
-fn schema(names: &[&str]) -> antecedent_core::CausalSchema {
-    let mut b = CausalSchemaBuilder::new();
-    for name in names {
-        b.add_variable(
-            *name,
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::Context),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-    }
-    b.build().unwrap()
-}
-
 fn storage(names: &[&str], columns: Vec<Vec<f64>>) -> (OwnedColumnarStorage, Vec<VariableId>) {
-    let n = columns[0].len();
     let vars: Vec<_> = (0..names.len() as u32).map(VariableId::from_raw).collect();
-    let cols = columns
-        .into_iter()
-        .zip(&vars)
-        .map(|(values, &id)| {
-            OwnedColumn::Float64(
-                Float64Column::new(id, Arc::from(values), ValidityBitmap::all_valid(n)).unwrap(),
-            )
-        })
-        .collect();
-    (OwnedColumnarStorage::try_new(schema(names), cols, None, None).unwrap(), vars)
+    (common::continuous_storage(names, columns), vars)
 }
 
 fn uniform(rng: &mut CausalRng) -> f64 {

@@ -11,8 +11,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
 
-const MAX_SOURCE_BYTES: usize = 16 * 1024 * 1024;
-const MAX_ARTIFACT_BYTES: usize = 24 * 1024 * 1024;
+const MAX_SOURCE_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
+/// A candidate artifact carries its source and a spec-sized envelope around it.
+const MAX_ARTIFACT_BYTES: usize = MAX_SOURCE_BYTES + crate::bridge::MAX_SPEC_DECLARATION_BYTES;
 const MAX_HISTORY_REFITS: usize = 50_000_000;
 const FEATURE: &str = "checked_temporal_interval_candidate_v1";
 type Outcome = PyResult<(Option<NativeCheckedTemporalIntervalCandidate>, Option<String>)>;
@@ -298,7 +299,7 @@ fn consume_checked_temporal_interval_candidate(
         parse_json(expected_identity_json, "expected checked temporal interval identity")?;
     crate::detach_catch(py, move || {
         let wire: CandidateWire = antecedent_io::from_cbor(&bytes)
-            .map_err(|cause| crate::CausalSerializationError::new_err(cause.to_string()))?;
+            .map_err(|cause| crate::serialization_err(cause.to_string()))?;
         if wire.version != 1
             || wire.required_features != [FEATURE]
             || wire.calibration != "unmeasured"

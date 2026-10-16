@@ -12,7 +12,7 @@ use antecedent_validate::{PredictiveCheckReport, RefutationReport};
 
 use crate::error::CausalError;
 
-/// Canonical progressive-execute stage ids (stable ProgressSink contract).
+/// Canonical progressive-execute stage ids (stable `ProgressSink` contract).
 pub const STAGE_IDENTIFY: &str = "identify";
 pub const STAGE_ESTIMATE_POINT: &str = "estimate_point";
 pub const STAGE_UNCERTAINTY: &str = "uncertainty";
@@ -73,6 +73,12 @@ pub trait StageResultSink: Send + Sync {
     fn on_stage(&self, event: &StageEvent);
 }
 
+impl std::fmt::Debug for dyn StageResultSink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("StageResultSink")
+    }
+}
+
 /// Records per-stage timings and reports progress / cancellation.
 #[derive(Debug)]
 pub(crate) struct StageClock {
@@ -112,7 +118,7 @@ impl StageClock {
 
     /// Finish the current stage and record its wall time.
     pub(crate) fn finish(&mut self, stage: &'static str) {
-        let ns = u64::try_from(self.stage_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        let ns = elapsed_ns(self.stage_started);
         self.timings.push((Arc::from(stage), ns));
     }
 
@@ -133,13 +139,26 @@ impl StageClock {
 
     #[must_use]
     pub(crate) fn wall_time_ns(&self) -> u64 {
-        u64::try_from(self.started.elapsed().as_nanos()).unwrap_or(u64::MAX)
+        elapsed_ns(self.started)
     }
+}
+
+/// Nanoseconds since `since`, saturating at `u64::MAX`.
+#[must_use]
+pub(crate) fn elapsed_ns(since: Instant) -> u64 {
+    u64::try_from(since.elapsed().as_nanos()).unwrap_or(u64::MAX)
 }
 
 /// Emit a stage event when a sink is configured.
 pub(crate) fn emit_stage(sink: Option<&Arc<dyn StageResultSink>>, event: &StageEvent) {
     if let Some(s) = sink {
         s.on_stage(event);
+    }
+}
+
+/// Emit the uncertainty stage of `estimate`, cloning it only when a sink is configured.
+pub(crate) fn emit_uncertainty(sink: Option<&Arc<dyn StageResultSink>>, estimate: &EffectEstimate) {
+    if let Some(s) = sink {
+        s.on_stage(&StageEvent::Uncertainty { estimate: estimate.clone() });
     }
 }

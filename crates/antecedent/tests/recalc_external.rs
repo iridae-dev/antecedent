@@ -73,6 +73,59 @@ fn actual_attested_mean_grid_and_branch_one_receipt_reuse() {
     assert_eq!(changed.claim.values().unwrap(), [4.5, 5.0, 5.5]);
     assert_eq!(changed.receipt.totals().external_invocations, 1);
 }
+
+#[test]
+fn callback_request_identity_changes_when_planner_branch_changes() {
+    use antecedent_core::recalc::{Branch, Stage};
+
+    let request = request(1, CallbackPolicy::Deterministic);
+    let mut other_branch = request.clone();
+    other_branch.branch = Branch::new(2).unwrap();
+
+    assert_ne!(request.digest(), other_branch.digest());
+
+    let mut provider = Provider::new(&request);
+    let mut session = ExternalCallbackSession::new();
+    let first = execute(&mut session, &request, &mut provider);
+    let mut other_provider = Provider::new(&other_branch);
+    let other = execute(&mut ExternalCallbackSession::new(), &other_branch, &mut other_provider);
+    assert_ne!(
+        first.requested.own(Stage::ExternalStudy(request.branch)),
+        other.requested.own(Stage::ExternalStudy(other_branch.branch)),
+    );
+    let artifact = session.export_output().unwrap();
+    assert!(
+        ExternalCallbackSession::resume(&artifact, &other_branch).is_err(),
+        "an attested result for one callback branch cannot be resumed for another"
+    );
+}
+
+#[test]
+fn side_effect_retry_key_cannot_cross_planner_branches() {
+    use antecedent_core::recalc::Branch;
+
+    let mut request = request(1, CallbackPolicy::SideEffecting);
+    request.descriptor.idempotency_supported = true;
+    request.idempotency_key = Some("same-provider-key".into());
+    let mut provider = Provider::new(&request);
+    provider.fail = true;
+    let mut session = ExternalCallbackSession::new();
+
+    assert!(matches!(
+        session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(999)),
+        Err(ExternalCallbackError::Attempt { detail: "external_recalc.callback_failed", .. })
+    ));
+    assert_eq!(provider.calls, 1);
+
+    request.branch = Branch::new(2).unwrap();
+    provider.fail = false;
+    assert!(matches!(
+        session.execute(&request, Some(&mut provider), &ExecutionContext::for_tests(999)),
+        Err(ExternalCallbackError::Request("external_recalc.idempotency_conflict"))
+    ));
+    assert_eq!(provider.calls, 1, "a changed branch must not reuse the first request's key");
+}
+
 #[test]
 fn seeded_callback_rng_mutations_and_actual_fresh_replay() {
     let mut request = request(0, CallbackPolicy::Seeded);
@@ -112,6 +165,30 @@ fn seeded_callback_rng_mutations_and_actual_fresh_replay() {
     assert_eq!(calls, 1);
     assert!(stale.issued_claim().is_none());
 }
+#[test]
+fn portable_output_is_a_container_and_an_original_frame_still_resumes() {
+    use antecedent_io::external_callback_artifact::ExternalCallbackArtifact;
+
+    let request = request(0, CallbackPolicy::Seeded);
+    let mut provider = Provider::new(&request);
+    let mut session = ExternalCallbackSession::new();
+    let original = execute(&mut session, &request, &mut provider);
+    let bytes = session.export_output().unwrap();
+    assert!(bytes.starts_with(b"CAUSAL\0\0"), "new output uses the shared container");
+    assert!(ExternalCallbackArtifact::recognizes(&bytes));
+    let inspected = ExternalCallbackArtifact::inspect(&bytes).unwrap();
+    let mut legacy = b"ANTCALLBACK1".to_vec();
+    ciborium::into_writer(&inspected, &mut legacy).unwrap();
+    assert!(ExternalCallbackArtifact::recognizes(&legacy));
+    let mut fresh = ExternalCallbackSession::resume(&legacy, &request).unwrap();
+    let replayed = execute(&mut fresh, &request, &mut provider);
+    assert_eq!(replayed.claim.values(), original.claim.values());
+    let mut corrupt = bytes;
+    let last = corrupt.len() - 1;
+    corrupt[last] ^= 1;
+    assert!(ExternalCallbackSession::resume(&corrupt, &request).is_err());
+}
+
 #[test]
 fn failures_preserve_success_and_keep_actual_attempt_evidence() {
     let mut request = request(0, CallbackPolicy::Deterministic);

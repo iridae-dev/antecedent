@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -18,6 +10,7 @@ use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_discovery::{DiscoveryWorkspace, LaggedLink, PcmciPlus};
 use antecedent_graph::{DenseNodeId, Endpoint, NodeRef};
 
+use crate::common::map_drawn_replicates;
 use crate::error::ValidationError;
 
 use super::pcmci_grid::{LinkStability, report_from_counts};
@@ -87,7 +80,7 @@ impl OrientationStability {
         &self,
         data: &TimeSeriesData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<OrientationStabilityReport, ValidationError> {
         if self.replicates == 0 || self.block_size == 0 {
@@ -103,7 +96,7 @@ impl OrientationStability {
         let mut directed_counts: BTreeMap<LaggedLink, u32> = BTreeMap::new();
         let mut undirected_counts: BTreeMap<(VariableId, VariableId), u32> = BTreeMap::new();
         let mut conflict_reps = 0u32;
-        let mut rng = ctx.rng.stream(0x0E1E_u64);
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_ORIENTATION);
         let mut index_scratch = Vec::new();
         // PCMCI+ materializes lags up to twice its maximum lag: separate blocks by that many
         // missing rows so no lag window mixes two blocks (see `gapped_block_bootstrap`).
@@ -116,43 +109,26 @@ impl OrientationStability {
             Some(constraints) => self.pcmci_plus.clone().with_constraints(constraints),
             None => self.pcmci_plus.clone(),
         };
-        for _ in 0..self.replicates {
-            let boot =
-                gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
-            let result = pcmci_plus
-                .run(&boot.series, variables, workspace, ctx)
-                .map_err(ValidationError::from)?;
-            let mut had_conflict = false;
-            for edge in result.evidence.graph.edges() {
-                let (Some(va), Some(vb)) = (
-                    lagged_var_lag0(result.evidence.graph.nodes(), edge.a),
-                    lagged_var_lag0(result.evidence.graph.nodes(), edge.b),
-                ) else {
-                    continue;
-                };
-                if edge.is_conflict() {
-                    had_conflict = true;
-                    continue;
-                }
-                if edge.is_undirected() {
-                    let (a, b) = if va.raw() <= vb.raw() { (va, vb) } else { (vb, va) };
-                    *undirected_counts.entry((a, b)).or_insert(0) += 1;
-                    continue;
-                }
-                if edge.is_dag_directed() {
-                    let (src, tgt) = match (edge.at_a, edge.at_b) {
-                        (Endpoint::Tail, Endpoint::Arrow) => (va, vb),
-                        (Endpoint::Arrow, Endpoint::Tail) => (vb, va),
-                        _ => continue,
-                    };
-                    let link = LaggedLink {
-                        source: src,
-                        source_lag: Lag::CONTEMPORANEOUS,
-                        target: tgt,
-                        target_lag: Lag::CONTEMPORANEOUS,
-                    };
-                    *directed_counts.entry(link).or_insert(0) += 1;
-                }
+        // Replicates share one bootstrap stream, drawn in order here; the discovery runs go to
+        // the pool and report what each found.
+        let found = map_drawn_replicates(
+            ctx,
+            self.replicates,
+            |_| gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch),
+            DiscoveryWorkspace::default,
+            |workspace, ctx, _r, boot| {
+                let result = pcmci_plus
+                    .run(&boot.series, variables, workspace, ctx)
+                    .map_err(ValidationError::from)?;
+                Ok(orientation_findings(&result))
+            },
+        )?;
+        for OrientationFindings { directed, undirected, had_conflict } in found {
+            for link in directed {
+                *directed_counts.entry(link).or_insert(0) += 1;
+            }
+            for pair in undirected {
+                *undirected_counts.entry(pair).or_insert(0) += 1;
             }
             if had_conflict {
                 conflict_reps += 1;
@@ -167,9 +143,7 @@ impl OrientationStability {
                 frequency: f64::from(c) / f64::from(self.replicates),
             });
         }
-        undirected.sort_by(|x, y| {
-            y.frequency.partial_cmp(&x.frequency).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        undirected.sort_by(|x, y| y.frequency.total_cmp(&x.frequency));
         Ok(OrientationStabilityReport {
             directed: directed.frequencies,
             undirected: Arc::from(undirected),
@@ -178,6 +152,52 @@ impl OrientationStability {
             block_size: self.block_size,
         })
     }
+}
+
+/// What one bootstrap replicate's PCMCI+ run reports: the edges counted per kind and whether any
+/// edge was left in conflict.
+struct OrientationFindings {
+    directed: Vec<LaggedLink>,
+    undirected: Vec<(VariableId, VariableId)>,
+    had_conflict: bool,
+}
+
+fn orientation_findings(
+    result: &antecedent_discovery::CpdagDiscoveryResult,
+) -> OrientationFindings {
+    let mut findings =
+        OrientationFindings { directed: Vec::new(), undirected: Vec::new(), had_conflict: false };
+    for edge in result.evidence.graph.edges() {
+        let (Some(va), Some(vb)) = (
+            lagged_var_lag0(result.evidence.graph.nodes(), edge.a),
+            lagged_var_lag0(result.evidence.graph.nodes(), edge.b),
+        ) else {
+            continue;
+        };
+        if edge.is_conflict() {
+            findings.had_conflict = true;
+            continue;
+        }
+        if edge.is_undirected() {
+            let (a, b) = if va.raw() <= vb.raw() { (va, vb) } else { (vb, va) };
+            findings.undirected.push((a, b));
+            continue;
+        }
+        if edge.is_dag_directed() {
+            let (src, tgt) = match (edge.at_a, edge.at_b) {
+                (Endpoint::Tail, Endpoint::Arrow) => (va, vb),
+                (Endpoint::Arrow, Endpoint::Tail) => (vb, va),
+                _ => continue,
+            };
+            findings.directed.push(LaggedLink {
+                source: src,
+                source_lag: Lag::CONTEMPORANEOUS,
+                target: tgt,
+                target_lag: Lag::CONTEMPORANEOUS,
+            });
+        }
+    }
+    findings
 }
 
 fn lagged_var_lag0(nodes: &[NodeRef], id: DenseNodeId) -> Option<VariableId> {
@@ -189,7 +209,6 @@ fn lagged_var_lag0(nodes: &[NodeRef], id: DenseNodeId) -> Option<VariableId> {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use std::sync::Arc;
 

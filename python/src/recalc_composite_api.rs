@@ -14,10 +14,13 @@ fn field<'py>(dict: &Bound<'py, PyDict>, name: &str) -> PyResult<Bound<'py, PyAn
     dict.get_item(name)?
         .ok_or_else(|| invalid("composite_recalc.invalid_request", format!("missing{name}")))
 }
+/// One declared text field of a composite recalculation request.
+const MAX_TEXT_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
+
 fn bounded_text(dict: &Bound<'_, PyDict>, name: &str) -> PyResult<String> {
     let value = field(dict, name)?;
     let value = value.cast::<PyString>()?;
-    if value.len()? > 1024 * 1024 || value.to_str()?.len() > 1024 * 1024 {
+    if value.len()? > MAX_TEXT_BYTES || value.to_str()?.len() > MAX_TEXT_BYTES {
         return Err(invalid("composite_recalc.invalid_request", "text exceeds byte bound"));
     }
     Ok(value.to_str()?.to_owned())
@@ -106,23 +109,23 @@ fn request(payload: &Bound<'_, PyDict>) -> PyResult<CompositeRequest> {
         },
     })
 }
-fn error(error: &CompositeError) -> String {
+fn error(error: &CompositeError) -> PyResult<String> {
     match error {
-        CompositeError::Native(cause) => crate::recalc_static_api::static_error(cause),
+        CompositeError::Native(cause) => Ok(crate::recalc_static_api::static_error(cause)),
         CompositeError::External { branch, cause } => {
             crate::recalc_external_api::error(cause, *branch)
         }
         CompositeError::Binding(cause) => serde_json::to_string(
             &antecedent_io::external_binding_wire::RefusalWire::from((**cause).clone()),
         )
-        .expect("refusal serialization"),
-        CompositeError::Refused(plan) => plan_refusal_json(plan),
+        .map_err(|cause| crate::serialization_err(cause.to_string())),
+        CompositeError::Refused(plan) => Ok(plan_refusal_json(plan)),
         _ => {
             let detail = match error {
                 CompositeError::Request(detail) => *detail,
                 _ => "composite_recalc.receipt_invalid",
             };
-            refusal_json(
+            Ok(refusal_json(
                 error
                     .request_reason_code()
                     .unwrap_or(antecedent_core::reason_code!("invalid_argument")),
@@ -132,7 +135,7 @@ fn error(error: &CompositeError) -> String {
                 None,
                 &format!("{error:?}"),
                 None,
-            )
+            ))
         }
     }
 }
@@ -181,7 +184,7 @@ impl PyCompositeSession {
                 ),
                 None,
             )),
-            Err(cause) => Ok((None, Some(error(&cause)))),
+            Err(cause) => Ok((None, Some(error(&cause)?))),
         }
     }
     #[pyo3(signature=(payload,providers,*,seed=1,threads=None,cancel=None))]
@@ -220,7 +223,7 @@ impl PyCompositeSession {
             self.inner.execute(&request, &mut providers, &ctx)
         });
         match outcome {
-            Err(cause) => Ok((None, None, Some(error(&cause)))),
+            Err(cause) => Ok((None, None, Some(error(&cause)?))),
             Ok(out) => crate::recalc_family_api::payload(
                 &out.previous,
                 &out.requested,

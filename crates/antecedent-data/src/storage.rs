@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use antecedent_core::{CausalSchema, VariableId};
 
@@ -20,7 +20,9 @@ pub struct OwnedColumnarStorage {
     analysis_mask: Option<crate::column::ValidityBitmap>,
     /// Optional observation weights.
     weights: Option<Arc<[f64]>>,
-    content_digest: [u8; 32],
+    /// Memoised on first read. Shared across clones: every clone views the same
+    /// immutable columns, mask, and weights, so one computation serves all.
+    content_digest: Arc<OnceLock<[u8; 32]>>,
 }
 
 impl OwnedColumnarStorage {
@@ -44,6 +46,11 @@ impl OwnedColumnarStorage {
             });
         }
         let row_count = columns.first().map_or(0, OwnedColumn::len);
+        if row_count > u32::MAX as usize {
+            return Err(DataError::InvalidArgument {
+                message: "a dataset may have at most 2^32 - 1 rows".into(),
+            });
+        }
         for (i, col) in columns.iter().enumerate() {
             let expected_id = VariableId::from_raw(u32::try_from(i).map_err(|_| {
                 DataError::InvalidArgument { message: "schema exceeds VariableId range".into() }
@@ -78,26 +85,21 @@ impl OwnedColumnarStorage {
             }
             validate_weights(w, analysis_mask.as_ref())?;
         }
-        let content_digest = crate::content_identity::storage_digest(
-            &columns,
-            row_count,
-            analysis_mask.as_ref(),
-            weights.as_deref(),
-        );
         Ok(Self {
             schema,
             columns: Arc::from(columns),
             row_count,
             analysis_mask,
             weights,
-            content_digest,
+            content_digest: Arc::new(OnceLock::new()),
         })
     }
 
     /// Version-1 BLAKE3 digest of typed column contents, validity, mask, and weights.
     ///
-    /// Computed once at construction without copying cell buffers; this accessor
-    /// and storage clones never rescan rows. The enclosing snapshot must also bind
+    /// Computed on first use without copying cell buffers and memoised (storage is
+    /// immutable, so the value equals what construction would have produced);
+    /// later calls and clones never rescan rows. The enclosing snapshot must also bind
     /// schema, modality, temporal metadata, and unit/environment partitions.
     ///
     /// Encoding uses the `antecedent.data.storage.v1` derive-key domain, little-endian
@@ -106,8 +108,21 @@ impl OwnedColumnarStorage {
     /// mask/weight presence are retained. Equality is representational, not a claim
     /// of equivalent statistical meaning or proof against hash collisions.
     #[must_use]
-    pub const fn content_digest(&self) -> [u8; 32] {
-        self.content_digest
+    pub fn content_digest(&self) -> [u8; 32] {
+        *self.content_digest.get_or_init(|| {
+            crate::content_identity::storage_digest(
+                &self.columns,
+                self.row_count,
+                self.analysis_mask.as_ref(),
+                self.weights.as_deref(),
+            )
+        })
+    }
+
+    /// Whether the digest has been computed yet (laziness probe).
+    #[cfg(test)]
+    pub(crate) fn digest_is_computed(&self) -> bool {
+        self.content_digest.get().is_some()
     }
 
     /// Optional analysis mask.

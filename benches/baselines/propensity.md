@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (propensity); do not edit -->
 # Propensity bootstrap baselines 
 
 Established: 2026-07-13 (the date this file was first committed; the measurement date was not written down)

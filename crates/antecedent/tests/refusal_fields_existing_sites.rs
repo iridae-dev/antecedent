@@ -1,5 +1,5 @@
 //! Structured refusal fields at the existing refusal sites that live above the estimators
-//! (2.2 preflight cell, completion): the real cross-fitted AIPW refusals under rank 174 of 175
+//! (preflight cell, completion): the real cross-fitted AIPW refusals under rank 174 of 175
 //! and joint separation (both flow through the stats-layer conversion), the retargeted overlap
 //! refusal, the batch retarget members, and the builder's estimator-setting conflict.
 //!

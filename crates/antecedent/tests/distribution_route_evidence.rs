@@ -6,9 +6,9 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,
     StructureSource, Study,
 };
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
-    CausalQuery, ExecutionContext, Intervention, InterventionalDistributionQuery, SlotAvailability,
-    Value, VariableId,
+    CausalQuery, ExecutionContext, Intervention, InterventionalDistributionQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Dag, DenseNodeId};
@@ -135,7 +135,7 @@ fn verify_distribution_coordinate(
     );
 
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let distribution = result.distribution.as_ref().expect("distribution result");
+    let distribution = result.distribution().expect("distribution result");
     assert!(distribution.mean.is_finite(), "{coordinate}");
     assert!(
         (distribution.mean - 0.7).abs() < if bayesian { 0.08 } else { 1e-12 },
@@ -168,7 +168,7 @@ fn verify_distribution_coordinate(
     );
 
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-    let refreshed_distribution = refreshed.distribution.as_ref().expect("refreshed distribution");
+    let refreshed_distribution = refreshed.distribution().expect("refreshed distribution");
     assert!(
         (refreshed_distribution.mean - 0.7).abs() < if bayesian { 0.08 } else { 1e-12 },
         "{coordinate}: refreshed mean {}",

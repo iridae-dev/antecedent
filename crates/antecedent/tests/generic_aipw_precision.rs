@@ -18,7 +18,7 @@ use antecedent::analysis::recalc_receipt::{
 };
 use antecedent_core::recalc::RetargetSupport;
 use antecedent_core::{ExecutionContext, VariableId};
-use antecedent_estimate::AipwAte;
+use antecedent_estimate::{AipwAte, ScoreTable};
 use antecedent_io::frozen_scores_artifact::FrozenScoreTable;
 use antecedent_stats::fit_counts::count_least_squares_solves;
 use serde_json::json;
@@ -58,7 +58,7 @@ fn portable(session: &RecalcSession, r: &RecalcRequest, n: usize, law: LawValue)
     let artifact = freeze_crossfit_scores(session, n as u64, RetargetSupport::Licensed).ok()?;
     let bytes = artifact.to_bytes("generic-aipw-known-target-se").ok()?;
     let checked = FrozenScoreTable::from_bytes(&bytes, Some(artifact.identity())).ok()?;
-    let row_ids = checked.score_table().ok()?.row_index.to_vec();
+    let row_ids = ScoreTable::from_frozen(&checked).ok()?.row_index.to_vec();
     let mut fresh = ScoreResumeSession::resume_from_scores(&checked).ok()?;
     let resume = ScoreResumeRequest {
         n_variables: 3,

@@ -1,4 +1,4 @@
-//! Selective recalculation on the cell-AIPW route, with portable score resume (2.3 C2).
+//! Selective recalculation on the cell-AIPW route, with portable score resume.
 //!
 //! [`super::recalc_receipt`] executes the cross-fitted AIPW average effect under a
 //! [`RecalcPlan`] and counts the work that ran. This module adds, without touching that
@@ -56,6 +56,7 @@ use antecedent_io::frozen_scores_artifact::{
 use crate::error::CausalError;
 use crate::graph::{Dag, DenseNodeId};
 
+use super::recalc_common::{Fields, float_bytes, identity as digest, literal, table_from_columns};
 use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, RecalcSession,
     ReceiptRecorder, TargetWeights, UtilitySpec, decide,
@@ -65,19 +66,6 @@ type Columns = Vec<(String, Vec<f64>)>;
 
 fn to_u64(value: usize) -> u64 {
     u64::try_from(value).unwrap_or(u64::MAX)
-}
-
-fn f64_bytes(values: &[f64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect()
-}
-
-fn digest(label: &str, parts: &[Vec<u8>]) -> StageIdentity {
-    let refs: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
-    StageIdentity::of(label, &refs)
-}
-
-fn literal(label: &str, text: &str) -> StageIdentity {
-    StageIdentity::of(label, &[text.as_bytes()])
 }
 
 fn estimation(error: EstimationError) -> RecalcRunError {
@@ -96,6 +84,17 @@ pub enum ScoreQuantity {
     },
     /// The 2x2 interaction contrast `mu00 - mu10 - mu01 + mu11`.
     Interaction,
+}
+
+impl ScoreQuantity {
+    /// Stable identity encoding: a name and the requested cell, if any.
+    fn tag(self) -> (&'static str, Option<u32>) {
+        match self {
+            Self::AverageEffect => ("average_effect", None),
+            Self::CellMinusControl { arm } => ("cell_minus_control", Some(arm)),
+            Self::Interaction => ("interaction", None),
+        }
+    }
 }
 
 /// The cell-AIPW question and the declared inputs around it.
@@ -143,20 +142,20 @@ pub(crate) fn target_identity(target: Option<&TargetWeights>) -> StageIdentity {
         |t| {
             let parents: Vec<u8> =
                 t.depends_on.iter().flat_map(|v| v.raw().to_le_bytes()).collect();
-            digest("target_population", &[f64_bytes(&t.weights), parents])
+            digest("target_population", &[float_bytes(&t.weights), parents])
         },
     )
 }
 
 pub(crate) fn utility_identity(utility: UtilitySpec) -> StageIdentity {
-    digest("utility", &[f64_bytes(&[utility.benefit_per_unit, utility.cost])])
+    digest("utility", &[float_bytes(&[utility.benefit_per_unit, utility.cost])])
 }
 
 fn snapshot_identity(columns: &Columns) -> StageIdentity {
     let mut parts = Vec::new();
     for (name, values) in columns {
         parts.push(name.as_bytes().to_vec());
-        parts.push(f64_bytes(values));
+        parts.push(float_bytes(values));
     }
     digest("data_snapshot", &parts)
 }
@@ -174,13 +173,13 @@ impl CellRequest {
         ids.set(Stage::Graph, graph_identity(self.columns.len(), &spec.edges));
         ids.set(
             Stage::Query,
-            literal(
-                "query",
-                &format!(
-                    "cell:{:?}:{}:{:?}:{:?}",
-                    spec.treatments, spec.outcome, spec.adjustment, spec.quantity
-                ),
-            ),
+            Fields::new()
+                .text("cell")
+                .ids(&spec.treatments)
+                .word(u64::from(spec.outcome))
+                .ids(&spec.adjustment)
+                .wire(&spec.quantity.tag())
+                .identity("query"),
         );
         ids.set(Stage::Regime, literal("regime", "static.binary_joint_cells"));
         ids.set(Stage::Evidence, literal("evidence", "observational.no_external"));
@@ -200,7 +199,12 @@ impl CellRequest {
             digest(
                 "learner_folds_rng",
                 &[
-                    format!("{:?}", spec.estimator).into_bytes(),
+                    Fields::new()
+                        .len(spec.estimator.folds)
+                        .wire(&super::contract_identity::glm_options(&spec.estimator.glm_options))
+                        .wire(&super::contract_identity::overlap_policy(spec.estimator.overlap))
+                        .word(spec.estimator.fold_seed)
+                        .into_bytes(),
                     to_u64(spec.estimator.folds).to_le_bytes().to_vec(),
                     ctx.rng.master_seed().to_le_bytes().to_vec(),
                 ],
@@ -218,9 +222,7 @@ impl CellRequest {
     }
 
     fn data(&self) -> Result<TabularData, RecalcRunError> {
-        let borrowed: Vec<(&str, &[f64])> =
-            self.columns.iter().map(|(n, v)| (n.as_str(), v.as_slice())).collect();
-        TabularData::from_f64_columns(borrowed)
+        table_from_columns(&self.columns)
             .map_err(|_| RecalcRunError::Request("recalc.invalid_data"))
     }
 }
@@ -474,11 +476,13 @@ fn fit_cells(
     let (fitted, fits) = count_cell_model_fits(|| {
         estimator.fit_scores(
             &data,
-            &treatments,
-            VariableId::from_raw(spec.outcome),
-            &adjustment,
-            &OutcomeFunctional::Mean,
-            None,
+            &antecedent_estimate::CellScoreSpec {
+                treatments: &treatments,
+                outcome: VariableId::from_raw(spec.outcome),
+                adjustment: &adjustment,
+                functional: &OutcomeFunctional::Mean,
+                continuous: None,
+            },
         )
     });
     recorder.record(Counter::FoldFit, fits);
@@ -645,7 +649,7 @@ impl ScoreResumeSession {
     ) -> Result<Self, FrozenScoresArtifactError> {
         let anchor = artifact.declared()?;
         Ok(Self {
-            table: Arc::new(artifact.score_table()?),
+            table: Arc::new(ScoreTable::from_frozen(artifact)?),
             artifact_identity: artifact.identity().to_owned(),
             previous: anchor.clone(),
             anchor,
@@ -715,7 +719,7 @@ impl ScoreResumeSession {
                 "resumed_score_law",
                 &[
                     self.anchor.own(Stage::Law).as_bytes(),
-                    format!("{:?}", request.quantity).as_bytes(),
+                    Fields::new().wire(&request.quantity.tag()).into_bytes().as_slice(),
                 ],
             ),
         );

@@ -1,4 +1,4 @@
-//! Sealed temporal response execution for a fixed TemporalDag: a dose × horizon
+//! Sealed temporal response execution for a fixed `TemporalDag`: a dose × horizon
 //! mean curve or a single-step intervention response, frequentist or Bayesian.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -14,6 +14,7 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{NodeRef, TemporalDag};
 use antecedent_identify::result::IdentificationResult;
 
+use super::proof_support::{proof_supplies, require_primary_pair};
 use crate::InferenceMode;
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
@@ -58,11 +59,7 @@ impl TemporalResponseHorizonEvidence {
         estimand: IdentifiedEstimand,
         indexer: TemporalIndexer,
     ) -> Result<Self, CausalError> {
-        if !identification.estimands.iter().any(|candidate| {
-            candidate.functional == estimand.functional
-                && candidate.method == estimand.method
-                && candidate.adjustment_set == estimand.adjustment_set
-        }) {
+        if !proof_supplies(&identification, &estimand) {
             return Err(CausalError::Compile {
                 message: "temporal response estimand is not supplied by its horizon proof".into(),
             });
@@ -70,9 +67,7 @@ impl TemporalResponseHorizonEvidence {
         let expected_offset = effect_query.outcome_offset();
         let treatment_key = TemporalNodeKey {
             variable: effect_query.treatment,
-            offset: effect_query
-                .try_treatment_offset()
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+            offset: effect_query.try_treatment_offset()?,
         };
         let outcome_key =
             TemporalNodeKey { variable: effect_query.outcome, offset: expected_offset };
@@ -132,13 +127,16 @@ impl TemporalResponseHorizonEvidence {
 
     /// Requested horizon retained by this proof member.
     #[must_use]
-    #[cfg(test)]
     pub(crate) const fn horizon(&self) -> u32 {
         self.horizon
     }
 
     /// Retained finite-unfolding proof.
     #[must_use]
+    pub(crate) const fn effect_query(&self) -> &TemporalEffectQuery {
+        &self.effect_query
+    }
+
     pub(crate) const fn identification(&self) -> &IdentificationResult {
         &self.identification
     }
@@ -170,7 +168,18 @@ impl TemporalResponseHorizonEvidence {
     }
 }
 
-/// Checked TemporalDag response operation.
+/// Identifier, estimator, uncertainty method, and bootstrap budget a sealed
+/// temporal response fixed at preparation.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct TemporalResponseProcedure {
+    pub(crate) identifier: IdentifierId,
+    pub(crate) estimator: EstimatorId,
+    /// Wire tag of the uncertainty method the procedure reports.
+    pub(crate) uncertainty: &'static str,
+    pub(crate) bootstrap_replicates: u32,
+}
+
+/// Checked `TemporalDag` response operation.
 ///
 /// The operation fixes the response functional (an ordered dose grid for a
 /// mean curve, or one single-step intervention), every horizon's
@@ -191,6 +200,37 @@ pub(crate) struct CheckedTemporalResponseOperation {
     grid: Arc<[f64]>,
 }
 
+/// The dose grid of a direct temporal response, refusing one that is empty or
+/// exceeds the dose-by-horizon materialization limit.
+fn checked_response_grid(
+    query: &ResponseQuery,
+    spec: &antecedent_core::TemporalResponseSpec,
+) -> Result<Vec<f64>, CausalError> {
+    let grid = match &query.functional {
+        ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?,
+        _ => match antecedent_estimate::plan_from_response_query(query) {
+            Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single {
+                level: Some(level),
+                ..
+            })) => vec![level],
+            _ => Vec::new(),
+        },
+    };
+    let cells_per_horizon = match &query.functional {
+        ResponseFunctional::MeanCurve { .. } => grid.len(),
+        _ => 1,
+    };
+    if cells_per_horizon == 0
+        || cells_per_horizon.saturating_mul(spec.horizons.len())
+            > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
+    {
+        return Err(CausalError::Unsupported {
+            message: "temporal response dose-by-horizon grid exceeds its materialization limit",
+        });
+    }
+    Ok(grid)
+}
+
 impl CheckedTemporalResponseOperation {
     /// Seal a point-identified temporal response route.
     pub(crate) fn checked(
@@ -202,7 +242,7 @@ impl CheckedTemporalResponseOperation {
         bootstrap_replicates: u32,
         inference: &InferenceMode,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         let spec = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "checked temporal response requires a temporal response specification".into(),
         })?;
@@ -211,35 +251,8 @@ impl CheckedTemporalResponseOperation {
                 message: "checked temporal operation supports MeanCurve and single-step InterventionResponse only",
             });
         }
-        let (treatment, outcome) =
-            query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                message: "temporal response query has no treatment/outcome pair".into(),
-            })?;
-        let grid = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => treatment
-                .grid
-                .values()
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?,
-            _ => match antecedent_estimate::plan_from_response_query(query) {
-                Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single {
-                    level: Some(level),
-                    ..
-                })) => vec![level],
-                _ => Vec::new(),
-            },
-        };
-        let cells_per_horizon = match &query.functional {
-            ResponseFunctional::MeanCurve { .. } => grid.len(),
-            _ => 1,
-        };
-        if cells_per_horizon == 0
-            || cells_per_horizon.saturating_mul(spec.horizons.len())
-                > antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
-        {
-            return Err(CausalError::Unsupported {
-                message: "temporal response dose-by-horizon grid exceeds its materialization limit",
-            });
-        }
+        let (treatment, outcome) = require_primary_pair(&query.functional)?;
+        let grid = checked_response_grid(query, spec)?;
         let expected_estimator = EstimatorId::temporal_response_for(inference);
         if identifier != IdentifierId::TemporalBackdoorUnfolded || estimator != expected_estimator {
             return Err(CausalError::Compile {
@@ -290,7 +303,9 @@ impl CheckedTemporalResponseOperation {
             status = Some(member.identification.status);
             assumptions.extend_unique(&member.identification.required_assumptions.entries);
         }
-        let signature = temporal_graph_signature(graph);
+        let signature = temporal_graph_signature(graph).ok_or_else(|| CausalError::Compile {
+            message: "temporal response graph holds a node that is not a lagged variable".into(),
+        })?;
         let fitter = antecedent_estimate::TemporalResponseEstimator::new()
             .with_bootstrap_replicates(bootstrap_replicates);
         Ok(Self {
@@ -314,39 +329,39 @@ impl CheckedTemporalResponseOperation {
         &self.inference
     }
 
-    /// Exact retained query and ordered dose grid.
-    #[must_use]
-    pub(crate) fn query(&self) -> &ResponseQuery {
-        &self.query
+    crate::analysis::checked_ref! {
+        /// Exact retained query and ordered dose grid.
+        #[must_use]
+        pub(crate) fn query(&self) -> &ResponseQuery { &self.query }
+        /// Ordered requested doses.
+        #[must_use]
+        pub(crate) fn grid(&self) -> &[f64] { &self.grid }
+        /// Ordered horizon-proof members.
+        #[must_use]
+        pub(crate) fn evidence(&self) -> &[TemporalResponseHorizonEvidence] { &self.evidence }
+    }
+
+    /// The first requested horizon's proof member. `checked` refuses an empty
+    /// member list, so the refusal here is unreachable for a sealed operation.
+    fn primary(&self) -> Result<&TemporalResponseHorizonEvidence, CausalError> {
+        self.evidence.first().ok_or_else(|| CausalError::Compile {
+            message: "temporal response retains no horizon proof member".into(),
+        })
     }
 
     /// Primary horizon identification copied into the full result claim.
-    #[must_use]
-    pub(crate) fn primary_identification(&self) -> &IdentificationResult {
-        &self.evidence[0].identification
+    pub(crate) fn primary_identification(&self) -> Result<&IdentificationResult, CausalError> {
+        Ok(&self.primary()?.identification)
     }
 
     /// Primary horizon target copied into the full result claim.
-    #[must_use]
-    pub(crate) fn primary_estimand(&self) -> &IdentifiedEstimand {
-        &self.evidence[0].estimand
-    }
-
-    /// Ordered requested doses.
-    #[must_use]
-    pub(crate) fn grid(&self) -> &[f64] {
-        &self.grid
-    }
-
-    /// Ordered horizon-proof members.
-    #[must_use]
-    pub(crate) fn evidence(&self) -> &[TemporalResponseHorizonEvidence] {
-        &self.evidence
+    pub(crate) fn primary_estimand(&self) -> Result<&IdentifiedEstimand, CausalError> {
+        Ok(&self.primary()?.estimand)
     }
 
     /// Fixed method, backend and uncertainty identity.
     #[must_use]
-    pub(crate) fn procedure(&self) -> (IdentifierId, EstimatorId, &'static str, u32) {
+    pub(crate) fn procedure(&self) -> TemporalResponseProcedure {
         let uncertainty = match &self.inference {
             InferenceMode::Bayesian(_) => "bayesian.posterior_draws",
             InferenceMode::Frequentist if self.bootstrap_replicates == 0 => {
@@ -354,14 +369,19 @@ impl CheckedTemporalResponseOperation {
             }
             InferenceMode::Frequentist => "frequentist.circular_block_bootstrap",
         };
-        (self.identifier, self.estimator, uncertainty, self.bootstrap_replicates)
+        TemporalResponseProcedure {
+            identifier: self.identifier,
+            estimator: self.estimator,
+            uncertainty,
+            bootstrap_replicates: self.bootstrap_replicates,
+        }
     }
 
     /// Verify that refresh keeps the same temporal graph.
     #[must_use]
     pub(crate) fn matches_graph(&self, graph: &TemporalDag) -> bool {
-        temporal_graph_signature(graph) == self.graph_signature
-            && temporal_graph_signature(&self.graph) == self.graph_signature
+        temporal_graph_signature(graph).as_ref() == Some(&self.graph_signature)
+            && temporal_graph_signature(&self.graph).as_ref() == Some(&self.graph_signature)
     }
 
     /// Execute the frequentist procedure from retained proof members, without
@@ -383,7 +403,7 @@ impl CheckedTemporalResponseOperation {
             });
         }
         let pairs = self.horizon_pairs();
-        let status = self.evidence[0].identification.status;
+        let status = self.primary()?.identification.status;
         self.fitter
             .estimate(data, &pairs, &self.query, status, self.assumptions.clone(), ctx)
             .map_err(CausalError::from)
@@ -408,14 +428,16 @@ impl CheckedTemporalResponseOperation {
             });
         }
         let pairs = self.horizon_pairs();
-        let status = self.evidence[0].identification.status;
+        let status = self.primary()?.identification.status;
         self.fitter
             .estimate_bayesian(
                 data,
-                &pairs,
+                antecedent_estimate::TemporalIdentification {
+                    horizons: &pairs,
+                    status,
+                    assumptions: self.assumptions.clone(),
+                },
                 &self.query,
-                status,
-                self.assumptions.clone(),
                 bayes,
                 ctx,
             )
@@ -433,18 +455,21 @@ struct TemporalGraphSignature {
     edges: Arc<[(u32, u32)]>,
 }
 
-fn temporal_graph_signature(graph: &TemporalDag) -> TemporalGraphSignature {
+/// The lagged-node and edge signature of `graph`; `None` when it holds a node
+/// other than a lagged variable, which a `TemporalDag` never stores.
+fn temporal_graph_signature(graph: &TemporalDag) -> Option<TemporalGraphSignature> {
     let nodes = graph
         .nodes()
         .iter()
         .map(|node| match node {
-            NodeRef::Lagged { variable, lag } => (variable.raw(), lag.raw()),
-            _ => unreachable!("TemporalDag stores lagged nodes only"),
+            NodeRef::Lagged { variable, lag } => Some((variable.raw(), lag.raw())),
+            _ => None,
         })
-        .collect::<Vec<_>>();
-    let mut edges = graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
-    edges.sort_unstable();
-    TemporalGraphSignature { nodes: nodes.into(), edges: edges.into() }
+        .collect::<Option<Vec<_>>>()?;
+    Some(TemporalGraphSignature {
+        nodes: nodes.into(),
+        edges: graph.directed_edge_pairs_sorted().into(),
+    })
 }
 
 #[cfg(test)]
@@ -531,7 +556,7 @@ mod tests {
         for (value, level) in mean.iter().zip([-0.5, 0.0, 0.5]) {
             assert!((*value - (1.5 + 2.0 * level)).abs() < 0.08);
         }
-        assert_eq!(operation.procedure().3, 0);
+        assert_eq!(operation.procedure().bootstrap_replicates, 0);
     }
 
     #[test]

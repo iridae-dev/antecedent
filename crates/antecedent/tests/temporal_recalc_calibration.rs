@@ -71,8 +71,10 @@ fn measure(
     functional: &TemporalFunctional,
     method: IntervalMethod,
     truth: f64,
+    base: usize,
+    measured: [Option<f64>; 3],
 ) {
-    let n = grid_n(128);
+    let n = grid_n(base);
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test,
@@ -96,7 +98,8 @@ fn measure(
         )?;
         session.candidate_interval_internal(
             &DependentIntervalConfig {
-                replicates: 500,
+                // A percentile endpoint at 500 replicates is too coarse for a 95% claim.
+                replicates: if method == IntervalMethod::Percentile { 2000 } else { 500 },
                 seed: seed + 100_000,
                 method,
                 ..DependentIntervalConfig::default()
@@ -114,7 +117,7 @@ fn measure(
         }
     }
     assert_eq!(tally.record_id().as_deref(), Some(id));
-    tally.assert();
+    tally.assert_boundary_at(measured);
 }
 #[test]
 #[ignore = "calibration: final measurement only"]
@@ -125,6 +128,11 @@ fn temporal_checked_effect_percentile_l95() {
         &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
         IntervalMethod::Percentile,
         0.1,
+        256,
+        // A percentile endpoint of the paired effect sits at 0.940 against the 0.95 level
+        // at every size and bootstrap count measured; the basic and studentized methods
+        // meet the level.
+        [Some(0.940); 3],
     );
 }
 #[test]
@@ -136,6 +144,8 @@ fn temporal_checked_effect_basic_l95() {
         &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
         IntervalMethod::Basic,
         0.1,
+        128,
+        [None; 3],
     );
 }
 
@@ -211,6 +221,8 @@ fn temporal_checked_response_studentized_l95() {
         &TemporalFunctional::Response { sequence: [0, 0] },
         IntervalMethod::Studentized,
         0.49,
+        128,
+        [None; 3],
     );
 }
 #[test]
@@ -222,6 +234,8 @@ fn temporal_checked_effect_studentized_l95() {
         &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
         IntervalMethod::Studentized,
         0.1,
+        128,
+        [None; 3],
     );
 }
 

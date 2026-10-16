@@ -6,13 +6,7 @@ from collections.abc import Iterator, Mapping
 from types import MappingProxyType
 from typing import Any
 
-
-def _freeze(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return MappingProxyType({k: _freeze(v) for k, v in value.items()})
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze(v) for v in value)
-    return value
+from ._freeze import freeze as _freeze
 
 
 def _thaw(value: Any) -> Any:

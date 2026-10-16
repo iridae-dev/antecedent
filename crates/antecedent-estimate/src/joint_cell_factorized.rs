@@ -1,4 +1,4 @@
-//! Factorized-propensity AIPW for bounded discrete joint cells (2.2 E5).
+//! Factorized-propensity AIPW for bounded discrete joint cells.
 //!
 //! The joint treatment `T = (T_1, .., T_k)` is `k <= 3` binary coordinates, so there are at
 //! most 8 cells. [`crate::cell_aipw::CellSaturatedAipw`] fits one multinomial logit over all
@@ -47,8 +47,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -60,14 +58,16 @@ use antecedent_learn::{
 };
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::aipw::{predict_colmajor, select_rows_colmajor};
+use crate::aipw::predict_colmajor;
 use crate::cell_aipw::{cell_minus_control_coefficients, interaction_coefficients};
+use crate::crossfit_plan::{CrossfitPlan, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor};
 use crate::error::EstimationError;
-use crate::learn_nuisance::{crossfit_fold_plan, design_for_spec};
+use crate::learn_nuisance::design_for_spec;
 use crate::propensity::{
-    PropensityNuisance, RidgeFoldInput, RidgeFoldSelection, RidgeTuning, fit_ridge_fold, refuse,
+    PropensityNuisance, RidgeFoldInput, RidgeFoldSelection, RidgeTuning, fit_ridge_fold,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
+use crate::util::refuse;
 
 /// Most jointly intervened binary components of a factorized joint cell.
 pub const MAX_FACTORIZED_COMPONENTS: usize = 3;
@@ -503,9 +503,10 @@ struct Problem {
     adjustment_set: Arc<[VariableId]>,
 }
 
-struct FoldSplit {
-    train: Vec<usize>,
-    valid: Vec<usize>,
+/// One fold's row lists, borrowed from the shared cross-fit plan, with the validation design.
+struct FoldSplit<'a> {
+    train: &'a [usize],
+    valid: &'a [usize],
     design_valid: Vec<f64>,
 }
 
@@ -671,7 +672,7 @@ struct ConditionalFits<'a> {
     ctx: &'a ExecutionContext,
     config: &'a FactorizedJointConfig,
     problem: &'a Problem,
-    folds: &'a [FoldSplit],
+    folds: &'a [FoldSplit<'a>],
     learned: Option<&'a LearnedNuisance>,
     cache: HashMap<ConditionalKey, Result<Vec<f64>, String>>,
     selections: Vec<RidgeFoldSelection>,
@@ -732,8 +733,7 @@ impl ConditionalFits<'_> {
         if let Some(learned) = self.learned {
             return self.fit_learned(learned, fold, &rows, target);
         }
-        let mut design_train = Vec::new();
-        select_rows_colmajor(&problem.design, problem.n, problem.ncols, &rows, &mut design_train);
+        let design_train = rows_colmajor(&problem.design, problem.n, problem.ncols, &rows);
         let units: Vec<u32> = rows.iter().map(|&i| problem.row_index[i]).collect();
         let input = RidgeFoldInput {
             design_train: &design_train,
@@ -772,7 +772,7 @@ impl ConditionalFits<'_> {
     ) -> Result<Result<Vec<f64>, String>, EstimationError> {
         let problem = self.problem;
         let train = row_ids(rows)?;
-        let valid = row_ids(&self.folds[fold].valid)?;
+        let valid = row_ids(self.folds[fold].valid)?;
         let t_full: Vec<f64> =
             problem.cell.iter().map(|&code| f64::from((code >> target) & 1)).collect();
         match learner_fold_predict(
@@ -806,7 +806,7 @@ type LearnedOutcome = (Vec<f64>, Vec<LearnerProvenance>);
 fn learned_outcome_predictions(
     learned: &LearnedNuisance,
     problem: &Problem,
-    folds: &[FoldSplit],
+    folds: &[FoldSplit<'_>],
     cell: u32,
     ctx: &ExecutionContext,
 ) -> Result<Result<LearnedOutcome, String>, EstimationError> {
@@ -822,7 +822,7 @@ fn learned_outcome_predictions(
             return Ok(Err(format!("fold {fold}: no training row lies in the cell")));
         }
         let train = row_ids(&rows)?;
-        let valid = row_ids(&split.valid)?;
+        let valid = row_ids(split.valid)?;
         match learner_fold_predict(
             learned.outcome.as_ref(),
             learned.outcome_spec,
@@ -873,7 +873,7 @@ fn learned_suffix(
 /// Out-of-fold outcome-model predictions of one cell, or why the model is unsupported.
 fn outcome_predictions(
     problem: &Problem,
-    folds: &[FoldSplit],
+    folds: &[FoldSplit<'_>],
     cell: u32,
 ) -> Result<Vec<f64>, String> {
     let mut out = vec![0.0; problem.n];
@@ -889,8 +889,7 @@ fn outcome_predictions(
                 problem.ncols
             ));
         }
-        let mut design = Vec::new();
-        select_rows_colmajor(&problem.design, problem.n, problem.ncols, &rows, &mut design);
+        let design = rows_colmajor(&problem.design, problem.n, problem.ncols, &rows);
         let y: Vec<f64> = rows.iter().map(|&i| problem.outcome[i]).collect();
         let fit = FaerBackend
             .least_squares(&design, rows.len(), problem.ncols, &y, &mut workspace)
@@ -989,6 +988,10 @@ fn evaluate_cell(
             format!("cell {cell} has a non-finite fitted propensity"),
         ));
     }
+    // A one-sided floor, not the two-sided `[clip, 1 - clip]` propensity clamp of the binary
+    // AIPW pipelines: a cell propensity is the product of conditional factors with no upper
+    // role in its inverse weight, and the floor is applied in the weight so the retained
+    // propensities and the clipped share stay the raw out-of-fold products.
     let weight = |p: f64| 1.0 / p.max(config.clip);
     let (mut sum_w, mut sum_w2) = (0.0, 0.0);
     for (i, &p) in e.iter().enumerate() {
@@ -1084,10 +1087,7 @@ pub fn fit_factorized_joint_cells(
     config.validate()?;
     let learned = config.learner.map(LearnedNuisance::resolve).transpose()?;
     fit_with_nuisance(
-        data,
-        treatments,
-        outcome,
-        adjustment,
+        &JointCellRows { data, treatments, outcome, adjustment },
         orderings,
         config,
         ctx,
@@ -1095,34 +1095,47 @@ pub fn fit_factorized_joint_cells(
     )
 }
 
+/// The table and variable roles of a factorized joint-cell fit.
+struct JointCellRows<'a> {
+    data: &'a TabularData,
+    treatments: &'a [VariableId],
+    outcome: VariableId,
+    adjustment: &'a [VariableId],
+}
+
 #[allow(
-    clippy::too_many_arguments,
-    reason = "the public entry point's arguments plus the resolved nuisance learners"
+    clippy::too_many_lines,
+    reason = "fit each cell's outcome nuisance under every ordering, then assemble the score table; the orderings share the fold plan and fitted nuisances"
 )]
 fn fit_with_nuisance(
-    data: &TabularData,
-    treatments: &[VariableId],
-    outcome: VariableId,
-    adjustment: &[VariableId],
+    rows: &JointCellRows<'_>,
     orderings: &[Vec<usize>],
     config: &FactorizedJointConfig,
     ctx: &ExecutionContext,
     learned: Option<&LearnedNuisance>,
 ) -> Result<FactorizedJointFit, EstimationError> {
+    let JointCellRows { data, treatments, outcome, adjustment } = *rows;
     let k = treatments.len();
     check_permutation(k, &(0..k).collect::<Vec<_>>())?;
     validate_orderings(k, orderings)?;
     let problem = prepare_problem(data, treatments, outcome, adjustment)?;
     let n = problem.n;
     let n_cells = 1u32 << k;
-    let plan = crossfit_fold_plan(&problem.cell, &problem.row_index, config.folds, config.seed)?;
-    let folds: Vec<FoldSplit> = (0..config.folds)
+    let plan = CrossfitPlan::derive(
+        n,
+        config.folds,
+        FoldSource::Stratified {
+            strata: &problem.cell,
+            units: &problem.row_index,
+            seed: config.seed,
+        },
+        &SHARED_FOLD_ID_ERRORS,
+    )?;
+    let folds: Vec<FoldSplit<'_>> = (0..config.folds)
         .map(|fold| {
-            let train: Vec<usize> = (0..n).filter(|&i| plan[i] as usize != fold).collect();
-            let valid: Vec<usize> = (0..n).filter(|&i| plan[i] as usize == fold).collect();
-            let mut design_valid = Vec::new();
-            select_rows_colmajor(&problem.design, n, problem.ncols, &valid, &mut design_valid);
-            FoldSplit { train, valid, design_valid }
+            let rows = plan.rows(fold);
+            let design_valid = rows_colmajor(&problem.design, n, problem.ncols, rows.valid);
+            FoldSplit { train: rows.train, valid: rows.valid, design_valid }
         })
         .collect();
     let rows_in_cell: Vec<usize> =
@@ -1247,7 +1260,7 @@ fn fit_with_nuisance(
         observed_outcome: problem.outcome.clone().into(),
         n_rows: n,
         row_index: Arc::from(problem.row_index.clone()),
-        fold_ids: Arc::from(plan),
+        fold_ids: Arc::from(plan.into_fold_ids()),
         n_folds: u32::try_from(config.folds).unwrap_or(u32::MAX),
         scores: Arc::from(scores),
         columns: Arc::from(columns),
@@ -1323,7 +1336,7 @@ mod tests {
         let config = FactorizedJointConfig::new(RidgeTuning::default());
         // This actual fold has no training rows. The original fit retains its
         // unsupported conditional-prefix result rather than invoking a solver.
-        let folds = [FoldSplit { train: Vec::new(), valid: vec![0], design_valid: vec![1.0] }];
+        let folds = [FoldSplit { train: &[], valid: &[0], design_valid: vec![1.0] }];
         let mut fits = ConditionalFits {
             ctx: &ctx,
             config: &config,
@@ -1572,10 +1585,12 @@ mod tests {
         let mut config = FactorizedJointConfig::new(RidgeTuning::default());
         config.seed = 5;
         fit_with_nuisance(
-            &fixture.data,
-            &fixture.treatments,
-            fixture.outcome,
-            &fixture.adjustment,
+            &JointCellRows {
+                data: &fixture.data,
+                treatments: &fixture.treatments,
+                outcome: fixture.outcome,
+                adjustment: &fixture.adjustment,
+            },
             &[vec![0, 1]],
             &config,
             &ExecutionContext::for_tests(9),

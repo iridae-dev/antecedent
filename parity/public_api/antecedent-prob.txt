@@ -1,0 +1,941 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_prob::CoefficientPrecision
+#[non_exhaustive] pub enum antecedent_prob::ProbError
+#[non_exhaustive] pub enum antecedent_prob::TransportError
+impl antecedent_prob::InferenceBackend for antecedent_prob::ConjugateGaussianBackend
+impl antecedent_prob::InferenceBackend for antecedent_prob::HmcGlmBackend
+impl antecedent_prob::InferenceBackend for antecedent_prob::LaplaceGlmBackend
+impl core::clone::Clone for antecedent_prob::BayesFitOptions
+impl core::clone::Clone for antecedent_prob::BayesFitResult
+impl core::clone::Clone for antecedent_prob::BayesLikelihood
+impl core::clone::Clone for antecedent_prob::BetaHyperparameters
+impl core::clone::Clone for antecedent_prob::CoefficientCorrelation
+impl core::clone::Clone for antecedent_prob::CoefficientPrecision
+impl core::clone::Clone for antecedent_prob::ComposedPrior
+impl core::clone::Clone for antecedent_prob::ConflictSummary
+impl core::clone::Clone for antecedent_prob::ConjugateGaussianBackend
+impl core::clone::Clone for antecedent_prob::ContrastCoding
+impl core::clone::Clone for antecedent_prob::EffectBatch
+impl core::clone::Clone for antecedent_prob::EffectPrior
+impl core::clone::Clone for antecedent_prob::ExternalPriorSource
+impl core::clone::Clone for antecedent_prob::ExternalPriorWeight
+impl core::clone::Clone for antecedent_prob::GammaHyperparameters
+impl core::clone::Clone for antecedent_prob::GaussianCoefficientPrior
+impl core::clone::Clone for antecedent_prob::GaussianVarianceModel
+impl core::clone::Clone for antecedent_prob::GraphEnvelopeSubsample
+impl core::clone::Clone for antecedent_prob::GraphIdentFlag
+impl core::clone::Clone for antecedent_prob::HessianFactorization
+impl core::clone::Clone for antecedent_prob::HmcGlmBackend
+impl core::clone::Clone for antecedent_prob::HmcOptions
+impl core::clone::Clone for antecedent_prob::InferenceDiagnostics
+impl core::clone::Clone for antecedent_prob::InvGammaPrior
+impl core::clone::Clone for antecedent_prob::LaplaceGlmBackend
+impl core::clone::Clone for antecedent_prob::LaplaceWorkspace
+impl core::clone::Clone for antecedent_prob::McmcSummary
+impl core::clone::Clone for antecedent_prob::ParameterMcmcDiagnostics
+impl core::clone::Clone for antecedent_prob::PosteriorDraws
+impl core::clone::Clone for antecedent_prob::PosteriorEvalWorkspace
+impl core::clone::Clone for antecedent_prob::PosteriorQuantityKind
+impl core::clone::Clone for antecedent_prob::PosteriorSchema
+impl core::clone::Clone for antecedent_prob::PosteriorSummary
+impl core::clone::Clone for antecedent_prob::PriorSensitivityFamily
+impl core::clone::Clone for antecedent_prob::PriorSensitivitySummary
+impl core::clone::Clone for antecedent_prob::PriorSet
+impl core::clone::Clone for antecedent_prob::PriorSpec
+impl core::clone::Clone for antecedent_prob::ProbError
+impl core::clone::Clone for antecedent_prob::TransportAdjustment
+impl core::clone::Clone for antecedent_prob::TransportError
+impl core::clone::Clone for antecedent_prob::TransportOutcome
+impl core::clone::Clone for antecedent_prob::TransportPolicy
+impl core::clone::Clone for antecedent_prob::WeightedGraphSamples
+impl core::clone::Clone for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::cmp::Eq for antecedent_prob::BayesLikelihood
+impl core::cmp::Eq for antecedent_prob::ContrastCoding
+impl core::cmp::Eq for antecedent_prob::GraphIdentFlag
+impl core::cmp::Eq for antecedent_prob::HessianFactorization
+impl core::cmp::Eq for antecedent_prob::PosteriorQuantityKind
+impl core::cmp::Eq for antecedent_prob::PosteriorSchema
+impl core::cmp::Eq for antecedent_prob::PriorSensitivityFamily
+impl core::cmp::Eq for antecedent_prob::ProbError
+impl core::cmp::Eq for antecedent_prob::TransportError
+impl core::cmp::Eq for antecedent_prob::TransportPolicy
+impl core::cmp::Eq for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::cmp::PartialEq for antecedent_prob::BayesFitOptions
+impl core::cmp::PartialEq for antecedent_prob::BayesLikelihood
+impl core::cmp::PartialEq for antecedent_prob::BetaHyperparameters
+impl core::cmp::PartialEq for antecedent_prob::CoefficientCorrelation
+impl core::cmp::PartialEq for antecedent_prob::CoefficientPrecision
+impl core::cmp::PartialEq for antecedent_prob::ComposedPrior
+impl core::cmp::PartialEq for antecedent_prob::ConflictSummary
+impl core::cmp::PartialEq for antecedent_prob::ContrastCoding
+impl core::cmp::PartialEq for antecedent_prob::EffectPrior
+impl core::cmp::PartialEq for antecedent_prob::ExternalPriorSource
+impl core::cmp::PartialEq for antecedent_prob::ExternalPriorWeight
+impl core::cmp::PartialEq for antecedent_prob::GammaHyperparameters
+impl core::cmp::PartialEq for antecedent_prob::GaussianCoefficientPrior
+impl core::cmp::PartialEq for antecedent_prob::GaussianVarianceModel
+impl core::cmp::PartialEq for antecedent_prob::GraphIdentFlag
+impl core::cmp::PartialEq for antecedent_prob::HessianFactorization
+impl core::cmp::PartialEq for antecedent_prob::HmcOptions
+impl core::cmp::PartialEq for antecedent_prob::InferenceDiagnostics
+impl core::cmp::PartialEq for antecedent_prob::InvGammaPrior
+impl core::cmp::PartialEq for antecedent_prob::ParameterMcmcDiagnostics
+impl core::cmp::PartialEq for antecedent_prob::PosteriorDraws
+impl core::cmp::PartialEq for antecedent_prob::PosteriorQuantityKind
+impl core::cmp::PartialEq for antecedent_prob::PosteriorSchema
+impl core::cmp::PartialEq for antecedent_prob::PosteriorSummary
+impl core::cmp::PartialEq for antecedent_prob::PriorSensitivityFamily
+impl core::cmp::PartialEq for antecedent_prob::PriorSensitivitySummary
+impl core::cmp::PartialEq for antecedent_prob::PriorSet
+impl core::cmp::PartialEq for antecedent_prob::PriorSpec
+impl core::cmp::PartialEq for antecedent_prob::ProbError
+impl core::cmp::PartialEq for antecedent_prob::TransportAdjustment
+impl core::cmp::PartialEq for antecedent_prob::TransportError
+impl core::cmp::PartialEq for antecedent_prob::TransportOutcome
+impl core::cmp::PartialEq for antecedent_prob::TransportPolicy
+impl core::cmp::PartialEq for antecedent_prob::WeightedGraphSamples
+impl core::cmp::PartialEq for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::convert::From<alloc::vec::Vec<f64>> for antecedent_prob::CoefficientPrecision
+impl core::convert::From<antecedent_prob::TransportError> for antecedent_prob::ProbError
+impl core::default::Default for antecedent_prob::BayesFitOptions
+impl core::default::Default for antecedent_prob::ConflictSummary
+impl core::default::Default for antecedent_prob::ConjugateGaussianBackend
+impl core::default::Default for antecedent_prob::EffectBatch
+impl core::default::Default for antecedent_prob::HmcGlmBackend
+impl core::default::Default for antecedent_prob::HmcOptions
+impl core::default::Default for antecedent_prob::LaplaceGlmBackend
+impl core::default::Default for antecedent_prob::LaplaceWorkspace
+impl core::default::Default for antecedent_prob::PosteriorEvalWorkspace
+impl core::default::Default for antecedent_prob::PriorSensitivityFamily
+impl core::default::Default for antecedent_prob::PriorSensitivitySummary
+impl core::default::Default for antecedent_prob::PriorSet
+impl core::default::Default for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::error::Error for antecedent_prob::ProbError
+impl core::error::Error for antecedent_prob::TransportError
+impl core::fmt::Debug for antecedent_prob::BayesFitOptions
+impl core::fmt::Debug for antecedent_prob::BayesFitResult
+impl core::fmt::Debug for antecedent_prob::BayesLikelihood
+impl core::fmt::Debug for antecedent_prob::BetaHyperparameters
+impl core::fmt::Debug for antecedent_prob::CoefficientCorrelation
+impl core::fmt::Debug for antecedent_prob::CoefficientPrecision
+impl core::fmt::Debug for antecedent_prob::ComposedPrior
+impl core::fmt::Debug for antecedent_prob::ConflictSummary
+impl core::fmt::Debug for antecedent_prob::ConjugateGaussianBackend
+impl core::fmt::Debug for antecedent_prob::ContrastCoding
+impl core::fmt::Debug for antecedent_prob::EffectBatch
+impl core::fmt::Debug for antecedent_prob::EffectPrior
+impl core::fmt::Debug for antecedent_prob::ExternalPriorSource
+impl core::fmt::Debug for antecedent_prob::ExternalPriorWeight
+impl core::fmt::Debug for antecedent_prob::GammaHyperparameters
+impl core::fmt::Debug for antecedent_prob::GaussianCoefficientPrior
+impl core::fmt::Debug for antecedent_prob::GaussianVarianceModel
+impl core::fmt::Debug for antecedent_prob::GraphEnvelopeSubsample
+impl core::fmt::Debug for antecedent_prob::GraphIdentFlag
+impl core::fmt::Debug for antecedent_prob::HessianFactorization
+impl core::fmt::Debug for antecedent_prob::HmcGlmBackend
+impl core::fmt::Debug for antecedent_prob::HmcOptions
+impl core::fmt::Debug for antecedent_prob::InferenceDiagnostics
+impl core::fmt::Debug for antecedent_prob::InvGammaPrior
+impl core::fmt::Debug for antecedent_prob::LaplaceGlmBackend
+impl core::fmt::Debug for antecedent_prob::LaplaceWorkspace
+impl core::fmt::Debug for antecedent_prob::McmcSummary
+impl core::fmt::Debug for antecedent_prob::ParameterMcmcDiagnostics
+impl core::fmt::Debug for antecedent_prob::PosteriorDraws
+impl core::fmt::Debug for antecedent_prob::PosteriorEvalWorkspace
+impl core::fmt::Debug for antecedent_prob::PosteriorQuantityKind
+impl core::fmt::Debug for antecedent_prob::PosteriorSchema
+impl core::fmt::Debug for antecedent_prob::PosteriorSummary
+impl core::fmt::Debug for antecedent_prob::PriorSensitivityFamily
+impl core::fmt::Debug for antecedent_prob::PriorSensitivitySummary
+impl core::fmt::Debug for antecedent_prob::PriorSet
+impl core::fmt::Debug for antecedent_prob::PriorSpec
+impl core::fmt::Debug for antecedent_prob::ProbError
+impl core::fmt::Debug for antecedent_prob::TransportAdjustment
+impl core::fmt::Debug for antecedent_prob::TransportError
+impl core::fmt::Debug for antecedent_prob::TransportOutcome
+impl core::fmt::Debug for antecedent_prob::TransportPolicy
+impl core::fmt::Debug for antecedent_prob::WeightedGraphSamples
+impl core::fmt::Debug for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::fmt::Display for antecedent_prob::ProbError
+impl core::fmt::Display for antecedent_prob::TransportError
+impl core::hash::Hash for antecedent_prob::BayesLikelihood
+impl core::hash::Hash for antecedent_prob::ContrastCoding
+impl core::hash::Hash for antecedent_prob::GraphIdentFlag
+impl core::hash::Hash for antecedent_prob::HessianFactorization
+impl core::hash::Hash for antecedent_prob::PosteriorQuantityKind
+impl core::hash::Hash for antecedent_prob::PriorSensitivityFamily
+impl core::hash::Hash for antecedent_prob::TransportPolicy
+impl core::marker::Copy for antecedent_prob::BayesFitOptions
+impl core::marker::Copy for antecedent_prob::BayesLikelihood
+impl core::marker::Copy for antecedent_prob::BetaHyperparameters
+impl core::marker::Copy for antecedent_prob::ConjugateGaussianBackend
+impl core::marker::Copy for antecedent_prob::ContrastCoding
+impl core::marker::Copy for antecedent_prob::EffectPrior
+impl core::marker::Copy for antecedent_prob::ExternalPriorWeight
+impl core::marker::Copy for antecedent_prob::GammaHyperparameters
+impl core::marker::Copy for antecedent_prob::GaussianVarianceModel
+impl core::marker::Copy for antecedent_prob::GraphIdentFlag
+impl core::marker::Copy for antecedent_prob::HessianFactorization
+impl core::marker::Copy for antecedent_prob::HmcGlmBackend
+impl core::marker::Copy for antecedent_prob::HmcOptions
+impl core::marker::Copy for antecedent_prob::InvGammaPrior
+impl core::marker::Copy for antecedent_prob::LaplaceGlmBackend
+impl core::marker::Copy for antecedent_prob::McmcSummary
+impl core::marker::Copy for antecedent_prob::ParameterMcmcDiagnostics
+impl core::marker::Copy for antecedent_prob::PriorSensitivityFamily
+impl core::marker::Copy for antecedent_prob::TransportPolicy
+impl core::marker::Copy for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::marker::Freeze for antecedent_prob::BayesFitOptions [auto]
+impl core::marker::Freeze for antecedent_prob::BayesFitResult [auto]
+impl core::marker::Freeze for antecedent_prob::BayesLikelihood [auto]
+impl core::marker::Freeze for antecedent_prob::BetaHyperparameters [auto]
+impl core::marker::Freeze for antecedent_prob::CoefficientCorrelation [auto]
+impl core::marker::Freeze for antecedent_prob::CoefficientPrecision [auto]
+impl core::marker::Freeze for antecedent_prob::ComposedPrior [auto]
+impl core::marker::Freeze for antecedent_prob::ConflictSummary [auto]
+impl core::marker::Freeze for antecedent_prob::ConjugateGaussianBackend [auto]
+impl core::marker::Freeze for antecedent_prob::ContrastCoding [auto]
+impl core::marker::Freeze for antecedent_prob::EffectBatch [auto]
+impl core::marker::Freeze for antecedent_prob::EffectPrior [auto]
+impl core::marker::Freeze for antecedent_prob::ExternalPriorSource [auto]
+impl core::marker::Freeze for antecedent_prob::ExternalPriorWeight [auto]
+impl core::marker::Freeze for antecedent_prob::GammaHyperparameters [auto]
+impl core::marker::Freeze for antecedent_prob::GaussianCoefficientPrior [auto]
+impl core::marker::Freeze for antecedent_prob::GaussianVarianceModel [auto]
+impl core::marker::Freeze for antecedent_prob::GraphEnvelopeSubsample [auto]
+impl core::marker::Freeze for antecedent_prob::GraphIdentFlag [auto]
+impl core::marker::Freeze for antecedent_prob::HessianFactorization [auto]
+impl core::marker::Freeze for antecedent_prob::HmcGlmBackend [auto]
+impl core::marker::Freeze for antecedent_prob::HmcOptions [auto]
+impl core::marker::Freeze for antecedent_prob::InferenceDiagnostics [auto]
+impl core::marker::Freeze for antecedent_prob::InvGammaPrior [auto]
+impl core::marker::Freeze for antecedent_prob::LaplaceGlmBackend [auto]
+impl core::marker::Freeze for antecedent_prob::LaplaceWorkspace [auto]
+impl core::marker::Freeze for antecedent_prob::McmcSummary [auto]
+impl core::marker::Freeze for antecedent_prob::ParameterMcmcDiagnostics [auto]
+impl core::marker::Freeze for antecedent_prob::PosteriorDraws [auto]
+impl core::marker::Freeze for antecedent_prob::PosteriorEvalWorkspace [auto]
+impl core::marker::Freeze for antecedent_prob::PosteriorQuantityKind [auto]
+impl core::marker::Freeze for antecedent_prob::PosteriorSchema [auto]
+impl core::marker::Freeze for antecedent_prob::PosteriorSummary [auto]
+impl core::marker::Freeze for antecedent_prob::PriorSensitivityFamily [auto]
+impl core::marker::Freeze for antecedent_prob::PriorSensitivitySummary [auto]
+impl core::marker::Freeze for antecedent_prob::PriorSet [auto]
+impl core::marker::Freeze for antecedent_prob::PriorSpec [auto]
+impl core::marker::Freeze for antecedent_prob::ProbError [auto]
+impl core::marker::Freeze for antecedent_prob::TransportAdjustment [auto]
+impl core::marker::Freeze for antecedent_prob::TransportError [auto]
+impl core::marker::Freeze for antecedent_prob::TransportOutcome [auto]
+impl core::marker::Freeze for antecedent_prob::TransportPolicy [auto]
+impl core::marker::Freeze for antecedent_prob::WeightedGraphSamples [auto]
+impl core::marker::Freeze for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Send for antecedent_prob::BayesFitOptions [auto]
+impl core::marker::Send for antecedent_prob::BayesFitResult [auto]
+impl core::marker::Send for antecedent_prob::BayesLikelihood [auto]
+impl core::marker::Send for antecedent_prob::BetaHyperparameters [auto]
+impl core::marker::Send for antecedent_prob::CoefficientCorrelation [auto]
+impl core::marker::Send for antecedent_prob::CoefficientPrecision [auto]
+impl core::marker::Send for antecedent_prob::ComposedPrior [auto]
+impl core::marker::Send for antecedent_prob::ConflictSummary [auto]
+impl core::marker::Send for antecedent_prob::ConjugateGaussianBackend [auto]
+impl core::marker::Send for antecedent_prob::ContrastCoding [auto]
+impl core::marker::Send for antecedent_prob::EffectBatch [auto]
+impl core::marker::Send for antecedent_prob::EffectPrior [auto]
+impl core::marker::Send for antecedent_prob::ExternalPriorSource [auto]
+impl core::marker::Send for antecedent_prob::ExternalPriorWeight [auto]
+impl core::marker::Send for antecedent_prob::GammaHyperparameters [auto]
+impl core::marker::Send for antecedent_prob::GaussianCoefficientPrior [auto]
+impl core::marker::Send for antecedent_prob::GaussianVarianceModel [auto]
+impl core::marker::Send for antecedent_prob::GraphEnvelopeSubsample [auto]
+impl core::marker::Send for antecedent_prob::GraphIdentFlag [auto]
+impl core::marker::Send for antecedent_prob::HessianFactorization [auto]
+impl core::marker::Send for antecedent_prob::HmcGlmBackend [auto]
+impl core::marker::Send for antecedent_prob::HmcOptions [auto]
+impl core::marker::Send for antecedent_prob::InferenceDiagnostics [auto]
+impl core::marker::Send for antecedent_prob::InvGammaPrior [auto]
+impl core::marker::Send for antecedent_prob::LaplaceGlmBackend [auto]
+impl core::marker::Send for antecedent_prob::LaplaceWorkspace [auto]
+impl core::marker::Send for antecedent_prob::McmcSummary [auto]
+impl core::marker::Send for antecedent_prob::ParameterMcmcDiagnostics [auto]
+impl core::marker::Send for antecedent_prob::PosteriorDraws [auto]
+impl core::marker::Send for antecedent_prob::PosteriorEvalWorkspace [auto]
+impl core::marker::Send for antecedent_prob::PosteriorQuantityKind [auto]
+impl core::marker::Send for antecedent_prob::PosteriorSchema [auto]
+impl core::marker::Send for antecedent_prob::PosteriorSummary [auto]
+impl core::marker::Send for antecedent_prob::PriorSensitivityFamily [auto]
+impl core::marker::Send for antecedent_prob::PriorSensitivitySummary [auto]
+impl core::marker::Send for antecedent_prob::PriorSet [auto]
+impl core::marker::Send for antecedent_prob::PriorSpec [auto]
+impl core::marker::Send for antecedent_prob::ProbError [auto]
+impl core::marker::Send for antecedent_prob::TransportAdjustment [auto]
+impl core::marker::Send for antecedent_prob::TransportError [auto]
+impl core::marker::Send for antecedent_prob::TransportOutcome [auto]
+impl core::marker::Send for antecedent_prob::TransportPolicy [auto]
+impl core::marker::Send for antecedent_prob::WeightedGraphSamples [auto]
+impl core::marker::Send for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::StructuralPartialEq for antecedent_prob::BayesFitOptions
+impl core::marker::StructuralPartialEq for antecedent_prob::BayesLikelihood
+impl core::marker::StructuralPartialEq for antecedent_prob::BetaHyperparameters
+impl core::marker::StructuralPartialEq for antecedent_prob::CoefficientCorrelation
+impl core::marker::StructuralPartialEq for antecedent_prob::CoefficientPrecision
+impl core::marker::StructuralPartialEq for antecedent_prob::ComposedPrior
+impl core::marker::StructuralPartialEq for antecedent_prob::ConflictSummary
+impl core::marker::StructuralPartialEq for antecedent_prob::ContrastCoding
+impl core::marker::StructuralPartialEq for antecedent_prob::EffectPrior
+impl core::marker::StructuralPartialEq for antecedent_prob::ExternalPriorSource
+impl core::marker::StructuralPartialEq for antecedent_prob::ExternalPriorWeight
+impl core::marker::StructuralPartialEq for antecedent_prob::GammaHyperparameters
+impl core::marker::StructuralPartialEq for antecedent_prob::GaussianCoefficientPrior
+impl core::marker::StructuralPartialEq for antecedent_prob::GaussianVarianceModel
+impl core::marker::StructuralPartialEq for antecedent_prob::GraphIdentFlag
+impl core::marker::StructuralPartialEq for antecedent_prob::HessianFactorization
+impl core::marker::StructuralPartialEq for antecedent_prob::HmcOptions
+impl core::marker::StructuralPartialEq for antecedent_prob::InferenceDiagnostics
+impl core::marker::StructuralPartialEq for antecedent_prob::InvGammaPrior
+impl core::marker::StructuralPartialEq for antecedent_prob::ParameterMcmcDiagnostics
+impl core::marker::StructuralPartialEq for antecedent_prob::PosteriorDraws
+impl core::marker::StructuralPartialEq for antecedent_prob::PosteriorQuantityKind
+impl core::marker::StructuralPartialEq for antecedent_prob::PosteriorSchema
+impl core::marker::StructuralPartialEq for antecedent_prob::PosteriorSummary
+impl core::marker::StructuralPartialEq for antecedent_prob::PriorSensitivityFamily
+impl core::marker::StructuralPartialEq for antecedent_prob::PriorSensitivitySummary
+impl core::marker::StructuralPartialEq for antecedent_prob::PriorSet
+impl core::marker::StructuralPartialEq for antecedent_prob::PriorSpec
+impl core::marker::StructuralPartialEq for antecedent_prob::ProbError
+impl core::marker::StructuralPartialEq for antecedent_prob::TransportAdjustment
+impl core::marker::StructuralPartialEq for antecedent_prob::TransportError
+impl core::marker::StructuralPartialEq for antecedent_prob::TransportOutcome
+impl core::marker::StructuralPartialEq for antecedent_prob::TransportPolicy
+impl core::marker::StructuralPartialEq for antecedent_prob::WeightedGraphSamples
+impl core::marker::StructuralPartialEq for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::marker::Sync for antecedent_prob::BayesFitOptions [auto]
+impl core::marker::Sync for antecedent_prob::BayesFitResult [auto]
+impl core::marker::Sync for antecedent_prob::BayesLikelihood [auto]
+impl core::marker::Sync for antecedent_prob::BetaHyperparameters [auto]
+impl core::marker::Sync for antecedent_prob::CoefficientCorrelation [auto]
+impl core::marker::Sync for antecedent_prob::CoefficientPrecision [auto]
+impl core::marker::Sync for antecedent_prob::ComposedPrior [auto]
+impl core::marker::Sync for antecedent_prob::ConflictSummary [auto]
+impl core::marker::Sync for antecedent_prob::ConjugateGaussianBackend [auto]
+impl core::marker::Sync for antecedent_prob::ContrastCoding [auto]
+impl core::marker::Sync for antecedent_prob::EffectBatch [auto]
+impl core::marker::Sync for antecedent_prob::EffectPrior [auto]
+impl core::marker::Sync for antecedent_prob::ExternalPriorSource [auto]
+impl core::marker::Sync for antecedent_prob::ExternalPriorWeight [auto]
+impl core::marker::Sync for antecedent_prob::GammaHyperparameters [auto]
+impl core::marker::Sync for antecedent_prob::GaussianCoefficientPrior [auto]
+impl core::marker::Sync for antecedent_prob::GaussianVarianceModel [auto]
+impl core::marker::Sync for antecedent_prob::GraphEnvelopeSubsample [auto]
+impl core::marker::Sync for antecedent_prob::GraphIdentFlag [auto]
+impl core::marker::Sync for antecedent_prob::HessianFactorization [auto]
+impl core::marker::Sync for antecedent_prob::HmcGlmBackend [auto]
+impl core::marker::Sync for antecedent_prob::HmcOptions [auto]
+impl core::marker::Sync for antecedent_prob::InferenceDiagnostics [auto]
+impl core::marker::Sync for antecedent_prob::InvGammaPrior [auto]
+impl core::marker::Sync for antecedent_prob::LaplaceGlmBackend [auto]
+impl core::marker::Sync for antecedent_prob::LaplaceWorkspace [auto]
+impl core::marker::Sync for antecedent_prob::McmcSummary [auto]
+impl core::marker::Sync for antecedent_prob::ParameterMcmcDiagnostics [auto]
+impl core::marker::Sync for antecedent_prob::PosteriorDraws [auto]
+impl core::marker::Sync for antecedent_prob::PosteriorEvalWorkspace [auto]
+impl core::marker::Sync for antecedent_prob::PosteriorQuantityKind [auto]
+impl core::marker::Sync for antecedent_prob::PosteriorSchema [auto]
+impl core::marker::Sync for antecedent_prob::PosteriorSummary [auto]
+impl core::marker::Sync for antecedent_prob::PriorSensitivityFamily [auto]
+impl core::marker::Sync for antecedent_prob::PriorSensitivitySummary [auto]
+impl core::marker::Sync for antecedent_prob::PriorSet [auto]
+impl core::marker::Sync for antecedent_prob::PriorSpec [auto]
+impl core::marker::Sync for antecedent_prob::ProbError [auto]
+impl core::marker::Sync for antecedent_prob::TransportAdjustment [auto]
+impl core::marker::Sync for antecedent_prob::TransportError [auto]
+impl core::marker::Sync for antecedent_prob::TransportOutcome [auto]
+impl core::marker::Sync for antecedent_prob::TransportPolicy [auto]
+impl core::marker::Sync for antecedent_prob::WeightedGraphSamples [auto]
+impl core::marker::Sync for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Unpin for antecedent_prob::BayesFitOptions [auto]
+impl core::marker::Unpin for antecedent_prob::BayesFitResult [auto]
+impl core::marker::Unpin for antecedent_prob::BayesLikelihood [auto]
+impl core::marker::Unpin for antecedent_prob::BetaHyperparameters [auto]
+impl core::marker::Unpin for antecedent_prob::CoefficientCorrelation [auto]
+impl core::marker::Unpin for antecedent_prob::CoefficientPrecision [auto]
+impl core::marker::Unpin for antecedent_prob::ComposedPrior [auto]
+impl core::marker::Unpin for antecedent_prob::ConflictSummary [auto]
+impl core::marker::Unpin for antecedent_prob::ConjugateGaussianBackend [auto]
+impl core::marker::Unpin for antecedent_prob::ContrastCoding [auto]
+impl core::marker::Unpin for antecedent_prob::EffectBatch [auto]
+impl core::marker::Unpin for antecedent_prob::EffectPrior [auto]
+impl core::marker::Unpin for antecedent_prob::ExternalPriorSource [auto]
+impl core::marker::Unpin for antecedent_prob::ExternalPriorWeight [auto]
+impl core::marker::Unpin for antecedent_prob::GammaHyperparameters [auto]
+impl core::marker::Unpin for antecedent_prob::GaussianCoefficientPrior [auto]
+impl core::marker::Unpin for antecedent_prob::GaussianVarianceModel [auto]
+impl core::marker::Unpin for antecedent_prob::GraphEnvelopeSubsample [auto]
+impl core::marker::Unpin for antecedent_prob::GraphIdentFlag [auto]
+impl core::marker::Unpin for antecedent_prob::HessianFactorization [auto]
+impl core::marker::Unpin for antecedent_prob::HmcGlmBackend [auto]
+impl core::marker::Unpin for antecedent_prob::HmcOptions [auto]
+impl core::marker::Unpin for antecedent_prob::InferenceDiagnostics [auto]
+impl core::marker::Unpin for antecedent_prob::InvGammaPrior [auto]
+impl core::marker::Unpin for antecedent_prob::LaplaceGlmBackend [auto]
+impl core::marker::Unpin for antecedent_prob::LaplaceWorkspace [auto]
+impl core::marker::Unpin for antecedent_prob::McmcSummary [auto]
+impl core::marker::Unpin for antecedent_prob::ParameterMcmcDiagnostics [auto]
+impl core::marker::Unpin for antecedent_prob::PosteriorDraws [auto]
+impl core::marker::Unpin for antecedent_prob::PosteriorEvalWorkspace [auto]
+impl core::marker::Unpin for antecedent_prob::PosteriorQuantityKind [auto]
+impl core::marker::Unpin for antecedent_prob::PosteriorSchema [auto]
+impl core::marker::Unpin for antecedent_prob::PosteriorSummary [auto]
+impl core::marker::Unpin for antecedent_prob::PriorSensitivityFamily [auto]
+impl core::marker::Unpin for antecedent_prob::PriorSensitivitySummary [auto]
+impl core::marker::Unpin for antecedent_prob::PriorSet [auto]
+impl core::marker::Unpin for antecedent_prob::PriorSpec [auto]
+impl core::marker::Unpin for antecedent_prob::ProbError [auto]
+impl core::marker::Unpin for antecedent_prob::TransportAdjustment [auto]
+impl core::marker::Unpin for antecedent_prob::TransportError [auto]
+impl core::marker::Unpin for antecedent_prob::TransportOutcome [auto]
+impl core::marker::Unpin for antecedent_prob::TransportPolicy [auto]
+impl core::marker::Unpin for antecedent_prob::WeightedGraphSamples [auto]
+impl core::marker::Unpin for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BayesFitOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BayesFitResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BayesLikelihood [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BetaHyperparameters [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::CoefficientCorrelation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::CoefficientPrecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::ComposedPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::ConflictSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::ConjugateGaussianBackend [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::ContrastCoding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::EffectBatch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::EffectPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::ExternalPriorSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::ExternalPriorWeight [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::GammaHyperparameters [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::GaussianCoefficientPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::GaussianVarianceModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::GraphEnvelopeSubsample [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::GraphIdentFlag [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::HessianFactorization [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::HmcGlmBackend [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::HmcOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::InferenceDiagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::InvGammaPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::LaplaceGlmBackend [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::LaplaceWorkspace [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::McmcSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::ParameterMcmcDiagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PosteriorDraws [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PosteriorEvalWorkspace [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PosteriorQuantityKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PosteriorSchema [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PosteriorSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PriorSensitivityFamily [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PriorSensitivitySummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PriorSet [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PriorSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::ProbError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportAdjustment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::WeightedGraphSamples [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::BayesFitOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::BayesFitResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::BayesLikelihood [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::BetaHyperparameters [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::CoefficientCorrelation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::CoefficientPrecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::ComposedPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::ConflictSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::ConjugateGaussianBackend [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::ContrastCoding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::EffectBatch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::EffectPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::ExternalPriorSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::ExternalPriorWeight [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::GammaHyperparameters [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::GaussianCoefficientPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::GaussianVarianceModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::GraphEnvelopeSubsample [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::GraphIdentFlag [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::HessianFactorization [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::HmcGlmBackend [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::HmcOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::InferenceDiagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::InvGammaPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::LaplaceGlmBackend [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::LaplaceWorkspace [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::McmcSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::ParameterMcmcDiagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::PosteriorDraws [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::PosteriorEvalWorkspace [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::PosteriorQuantityKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::PosteriorSchema [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::PosteriorSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::PriorSensitivityFamily [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::PriorSensitivitySummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::PriorSet [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::PriorSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::ProbError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportAdjustment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::WeightedGraphSamples [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl<'a> core::clone::Clone for antecedent_prob::BayesDesignRef<'a>
+impl<'a> core::clone::Clone for antecedent_prob::PosteriorBatch<'a>
+impl<'a> core::clone::Clone for antecedent_prob::TransportContext<'a>
+impl<'a> core::fmt::Debug for antecedent_prob::BayesDesignRef<'a>
+impl<'a> core::fmt::Debug for antecedent_prob::PosteriorBatch<'a>
+impl<'a> core::fmt::Debug for antecedent_prob::TransportContext<'a>
+impl<'a> core::marker::Copy for antecedent_prob::BayesDesignRef<'a>
+impl<'a> core::marker::Copy for antecedent_prob::PosteriorBatch<'a>
+impl<'a> core::marker::Freeze for antecedent_prob::BayesDesignRef<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_prob::PosteriorBatch<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::marker::Send for antecedent_prob::BayesDesignRef<'a> [auto]
+impl<'a> core::marker::Send for antecedent_prob::PosteriorBatch<'a> [auto]
+impl<'a> core::marker::Send for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_prob::BayesDesignRef<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_prob::PosteriorBatch<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_prob::BayesDesignRef<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_prob::PosteriorBatch<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BayesDesignRef<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PosteriorBatch<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportContext<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::BayesDesignRef<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::PosteriorBatch<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportContext<'a> [auto]
+pub const antecedent_prob::POPULATION_TAG_KEY: &str
+pub const antecedent_prob::TRANSPORT_MIN_KISH_ESS: f64
+pub enum antecedent_prob::BayesLikelihood
+pub enum antecedent_prob::ContrastCoding
+pub enum antecedent_prob::GaussianVarianceModel
+pub enum antecedent_prob::GraphIdentFlag
+pub enum antecedent_prob::HessianFactorization
+pub enum antecedent_prob::PosteriorQuantityKind
+pub enum antecedent_prob::PriorSensitivityFamily
+pub enum antecedent_prob::PriorSpec
+pub enum antecedent_prob::TransportPolicy
+pub field antecedent_prob::BayesDesignRef::ncols: usize
+pub field antecedent_prob::BayesDesignRef::nrows: usize
+pub field antecedent_prob::BayesDesignRef::offsets: core::option::Option<&'a [f64]>
+pub field antecedent_prob::BayesDesignRef::weights: core::option::Option<&'a [f64]>
+pub field antecedent_prob::BayesDesignRef::x_colmajor: &'a [f64]
+pub field antecedent_prob::BayesDesignRef::y: &'a [f64]
+pub field antecedent_prob::BayesFitOptions::grad_tol: f64
+pub field antecedent_prob::BayesFitOptions::max_iter: u32
+pub field antecedent_prob::BayesFitOptions::n_draws: usize
+pub field antecedent_prob::BayesFitOptions::seed: u64
+pub field antecedent_prob::BayesFitResult::cov: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_prob::BayesFitResult::diagnostics: antecedent_prob::InferenceDiagnostics
+pub field antecedent_prob::BayesFitResult::draws: antecedent_prob::PosteriorDraws
+pub field antecedent_prob::BayesFitResult::map: alloc::vec::Vec<f64>
+pub field antecedent_prob::BetaHyperparameters::alpha: f64
+pub field antecedent_prob::BetaHyperparameters::beta: f64
+pub field antecedent_prob::ComposedPrior::alphas_applied: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::ComposedPrior::alphas_requested: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::ComposedPrior::composed_ess: core::option::Option<f64>
+pub field antecedent_prob::ComposedPrior::effective_ess: alloc::sync::Arc<[core::option::Option<f64>]>
+pub field antecedent_prob::ComposedPrior::kish_ess: core::option::Option<f64>
+pub field antecedent_prob::ComposedPrior::mixture_weights: alloc::sync::Arc<[core::option::Option<f64>]>
+pub field antecedent_prob::ComposedPrior::prior: antecedent_prob::PriorSet
+pub field antecedent_prob::ComposedPrior::source_ids: alloc::sync::Arc<[alloc::sync::Arc<str>]>
+pub field antecedent_prob::ConflictSummary::alphas_applied: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::ConflictSummary::alphas_requested: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::ConflictSummary::kl_values: alloc::sync::Arc<[core::option::Option<f64>]>
+pub field antecedent_prob::ConflictSummary::p_values: alloc::sync::Arc<[core::option::Option<f64>]>
+pub field antecedent_prob::ConflictSummary::source_ids: alloc::sync::Arc<[alloc::sync::Arc<str>]>
+pub field antecedent_prob::EffectBatch::values: alloc::vec::Vec<f64>
+pub field antecedent_prob::EffectPrior::mean: f64
+pub field antecedent_prob::EffectPrior::sd: f64
+pub field antecedent_prob::ExternalPriorSource::ess: core::option::Option<f64>
+pub field antecedent_prob::ExternalPriorSource::id: alloc::sync::Arc<str>
+pub field antecedent_prob::ExternalPriorSource::prior: antecedent_prob::PriorSet
+pub field antecedent_prob::ExternalPriorSource::weight: antecedent_prob::ExternalPriorWeight
+pub field antecedent_prob::ExternalPriorWeight::alpha: f64
+pub field antecedent_prob::ExternalPriorWeight::mixture_weight: core::option::Option<f64>
+pub field antecedent_prob::GammaHyperparameters::rate: f64
+pub field antecedent_prob::GammaHyperparameters::shape: f64
+pub field antecedent_prob::GaussianCoefficientPrior::mean: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::GaussianCoefficientPrior::variance: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::GraphEnvelopeSubsample::approximate: bool
+pub field antecedent_prob::GraphEnvelopeSubsample::graphs: antecedent_prob::WeightedGraphSamples
+pub field antecedent_prob::GraphEnvelopeSubsample::leftover_identified_mass: f64
+pub field antecedent_prob::HmcGlmBackend::options: antecedent_prob::HmcOptions
+pub field antecedent_prob::HmcOptions::adapt_metric: bool
+pub field antecedent_prob::HmcOptions::leapfrog_steps: u32
+pub field antecedent_prob::HmcOptions::mass: f64
+pub field antecedent_prob::HmcOptions::n_chains: usize
+pub field antecedent_prob::HmcOptions::n_warmup: usize
+pub field antecedent_prob::HmcOptions::step_size: f64
+pub field antecedent_prob::HmcOptions::target_accept: f64
+pub field antecedent_prob::InferenceDiagnostics::all_chains_moved: core::option::Option<bool>
+pub field antecedent_prob::InferenceDiagnostics::backend_id: alloc::sync::Arc<str>
+pub field antecedent_prob::InferenceDiagnostics::converged: bool
+pub field antecedent_prob::InferenceDiagnostics::ess_bulk_min: core::option::Option<f64>
+pub field antecedent_prob::InferenceDiagnostics::ess_tail_min: core::option::Option<f64>
+pub field antecedent_prob::InferenceDiagnostics::factorization: antecedent_prob::HessianFactorization
+pub field antecedent_prob::InferenceDiagnostics::grad_inf_norm: f64
+pub field antecedent_prob::InferenceDiagnostics::hessian_condition: f64
+pub field antecedent_prob::InferenceDiagnostics::iterations: u32
+pub field antecedent_prob::InferenceDiagnostics::max_abs_delta_h: core::option::Option<f64>
+pub field antecedent_prob::InferenceDiagnostics::mean_accept_prob: core::option::Option<f64>
+pub field antecedent_prob::InferenceDiagnostics::n_chains: core::option::Option<u32>
+pub field antecedent_prob::InferenceDiagnostics::n_divergences: core::option::Option<u32>
+pub field antecedent_prob::InferenceDiagnostics::n_postwarmup_divergences: core::option::Option<u32>
+pub field antecedent_prob::InferenceDiagnostics::n_warmup: core::option::Option<u32>
+pub field antecedent_prob::InferenceDiagnostics::n_warmup_divergences: core::option::Option<u32>
+pub field antecedent_prob::InferenceDiagnostics::notes: alloc::vec::Vec<alloc::sync::Arc<str>>
+pub field antecedent_prob::InferenceDiagnostics::rhat_max: core::option::Option<f64>
+pub field antecedent_prob::InferenceDiagnostics::separation_warning: bool
+pub field antecedent_prob::InvGammaPrior::scale: f64
+pub field antecedent_prob::InvGammaPrior::shape: f64
+pub field antecedent_prob::LaplaceWorkspace::beta: alloc::vec::Vec<f64>
+pub field antecedent_prob::LaplaceWorkspace::draw_scratch: alloc::vec::Vec<f64>
+pub field antecedent_prob::LaplaceWorkspace::eta: alloc::vec::Vec<f64>
+pub field antecedent_prob::LaplaceWorkspace::factor: alloc::vec::Vec<f64>
+pub field antecedent_prob::LaplaceWorkspace::grad: alloc::vec::Vec<f64>
+pub field antecedent_prob::LaplaceWorkspace::grow_count: u32
+pub field antecedent_prob::LaplaceWorkspace::neg_hessian: alloc::vec::Vec<f64>
+pub field antecedent_prob::LaplaceWorkspace::p: alloc::vec::Vec<f64>
+pub field antecedent_prob::LaplaceWorkspace::q: alloc::vec::Vec<f64>
+pub field antecedent_prob::LaplaceWorkspace::step: alloc::vec::Vec<f64>
+pub field antecedent_prob::LaplaceWorkspace::work_w: alloc::vec::Vec<f64>
+pub field antecedent_prob::McmcSummary::max_rhat: f64
+pub field antecedent_prob::McmcSummary::min_bulk_ess: f64
+pub field antecedent_prob::McmcSummary::min_tail_ess: f64
+pub field antecedent_prob::ParameterMcmcDiagnostics::ess_bulk: f64
+pub field antecedent_prob::ParameterMcmcDiagnostics::ess_tail: f64
+pub field antecedent_prob::ParameterMcmcDiagnostics::rhat: f64
+pub field antecedent_prob::ParameterMcmcDiagnostics::rhat_folded: f64
+pub field antecedent_prob::ParameterMcmcDiagnostics::rhat_rank: f64
+pub field antecedent_prob::PosteriorBatch::draws: &'a antecedent_prob::PosteriorDraws
+pub field antecedent_prob::PosteriorBatch::len: usize
+pub field antecedent_prob::PosteriorBatch::start: usize
+pub field antecedent_prob::PosteriorDraws::n_draws: usize
+pub field antecedent_prob::PosteriorDraws::schema: antecedent_prob::PosteriorSchema
+pub field antecedent_prob::PosteriorDraws::values: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PosteriorEvalWorkspace::effects: alloc::vec::Vec<f64>
+pub field antecedent_prob::PosteriorEvalWorkspace::grow_count: u32
+pub field antecedent_prob::PosteriorEvalWorkspace::row: alloc::vec::Vec<f64>
+pub field antecedent_prob::PosteriorSchema::quantities: alloc::sync::Arc<[antecedent_prob::PosteriorQuantityKind]>
+pub field antecedent_prob::PosteriorSummary::mean: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PosteriorSummary::n_draws: usize
+pub field antecedent_prob::PosteriorSummary::q025: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PosteriorSummary::q975: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PosteriorSummary::schema: antecedent_prob::PosteriorSchema
+pub field antecedent_prob::PosteriorSummary::sd: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PriorSensitivitySummary::alphas: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PriorSensitivitySummary::effect_means: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PriorSensitivitySummary::effect_sds: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PriorSensitivitySummary::family: antecedent_prob::PriorSensitivityFamily
+pub field antecedent_prob::PriorSensitivitySummary::prior_scales: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PriorSensitivitySummary::variance_multipliers: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::PriorSet::categorical: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_prob::PriorSet::contrast: core::option::Option<antecedent_prob::ContrastCoding>
+pub field antecedent_prob::PriorSet::restrictions: alloc::vec::Vec<antecedent_core::assumption::PriorAssumption>
+pub field antecedent_prob::PriorSet::specs: alloc::vec::Vec<antecedent_prob::PriorSpec>
+pub field antecedent_prob::TransportAdjustment::target_weights: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::TransportAdjustment::unit_effects: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::TransportContext::adjustment: core::option::Option<&'a antecedent_prob::TransportAdjustment>
+pub field antecedent_prob::TransportContext::coef_index: core::option::Option<usize>
+pub field antecedent_prob::TransportContext::policy: core::option::Option<antecedent_prob::TransportPolicy>
+pub field antecedent_prob::TransportContext::source_populations: &'a [core::option::Option<&'a str>]
+pub field antecedent_prob::TransportContext::target_population: core::option::Option<&'a str>
+pub field antecedent_prob::TransportOutcome::alpha_override: core::option::Option<f64>
+pub field antecedent_prob::TransportOutcome::required: bool
+pub field antecedent_prob::TransportOutcome::source_id: alloc::sync::Arc<str>
+pub field antecedent_prob::TransportOutcome::zero_reason: core::option::Option<alloc::sync::Arc<str>>
+pub field antecedent_prob::WeightedGraphSamples::edge_marginals: core::option::Option<alloc::sync::Arc<[f64]>>
+pub field antecedent_prob::WeightedGraphSamples::graph_keys: alloc::sync::Arc<[u64]>
+pub field antecedent_prob::WeightedGraphSamples::identified: alloc::sync::Arc<[antecedent_prob::GraphIdentFlag]>
+pub field antecedent_prob::WeightedGraphSamples::n_samples: usize
+pub field antecedent_prob::WeightedGraphSamples::orientation_marginals: core::option::Option<alloc::sync::Arc<[f64]>>
+pub field antecedent_prob::WeightedGraphSamples::weights: alloc::sync::Arc<[f64]>
+pub field antecedent_prob::fit_counts::BayesianWorkCounts::model_fits: u64
+pub field antecedent_prob::fit_counts::BayesianWorkCounts::posterior_draws: u64
+pub fn <antecedent_prob::BetaHyperparameters>::fn ess(&self) -> f64
+pub fn <antecedent_prob::BetaHyperparameters>::fn from_mean_and_ess(mean: f64, ess: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::BetaHyperparameters>::fn from_moments(mean: f64, variance: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::BetaHyperparameters>::fn mean(&self) -> f64
+pub fn <antecedent_prob::BetaHyperparameters>::fn variance(&self) -> f64
+pub fn <antecedent_prob::CoefficientCorrelation>::const fn dim(&self) -> usize
+pub fn <antecedent_prob::CoefficientCorrelation>::fn cholesky(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
+pub fn <antecedent_prob::CoefficientCorrelation>::fn from_covariance(covariance: &[f64], dim: usize) -> core::result::Result<core::option::Option<Self>, antecedent_prob::ProbError>
+pub fn <antecedent_prob::CoefficientCorrelation>::fn matrix(&self) -> &[f64]
+pub fn <antecedent_prob::CoefficientCorrelation>::fn new(dim: usize, matrix: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::CoefficientCorrelation>::fn scale_matrix(&self, variance: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
+pub fn <antecedent_prob::CoefficientPrecision>::const fn is_dense(&self) -> bool
+pub fn <antecedent_prob::CoefficientPrecision>::fn add_divided_to(&self, m: &mut [f64], n: usize, divisor: f64)
+pub fn <antecedent_prob::CoefficientPrecision>::fn get(&self, i: usize, j: usize) -> f64
+pub fn <antecedent_prob::CoefficientPrecision>::fn is_empty(&self) -> bool
+pub fn <antecedent_prob::CoefficientPrecision>::fn len(&self) -> usize
+pub fn <antecedent_prob::CoefficientPrecision>::fn log_kernel(&self, beta: &[f64], mean: &[f64]) -> f64
+pub fn <antecedent_prob::CoefficientPrecision>::fn mul_into(&self, x: &[f64], out: &mut [f64])
+pub fn <antecedent_prob::CoefficientPrecision>::fn quadratic(&self, beta: &[f64], mean: &[f64]) -> f64
+pub fn <antecedent_prob::CoefficientPrecision>::fn sub_prior_gradient(&self, beta: &[f64], mean: &[f64], grad: &mut [f64])
+pub fn <antecedent_prob::EffectBatch>::fn prepare(&mut self, n: usize)
+pub fn <antecedent_prob::EffectPrior>::fn from_effect_draws(draws: &[f64]) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::EffectPrior>::fn new(mean: f64, sd: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::EffectPrior>::fn validate(self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::ExternalPriorSource>::fn validate(&self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::ExternalPriorWeight>::fn new(alpha: f64, mixture_weight: core::option::Option<f64>) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::ExternalPriorWeight>::fn power(alpha: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::ExternalPriorWeight>::fn power_mixture(alpha: f64, mixture_weight: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::ExternalPriorWeight>::fn validate(self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::GammaHyperparameters>::fn ess(&self) -> f64
+pub fn <antecedent_prob::GammaHyperparameters>::fn from_mean_and_ess(mean: f64, ess: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::GammaHyperparameters>::fn from_moments(mean: f64, variance: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::GammaHyperparameters>::fn mean(&self) -> f64
+pub fn <antecedent_prob::GammaHyperparameters>::fn variance(&self) -> f64
+pub fn <antecedent_prob::GaussianCoefficientPrior>::fn absolute_precision(&self, sigma2: f64) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
+pub fn <antecedent_prob::GaussianCoefficientPrior>::fn absolute_variance(&self, sigma2: f64) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
+pub fn <antecedent_prob::GaussianCoefficientPrior>::fn from_absolute_variance(mean: impl core::convert::Into<alloc::sync::Arc<[f64]>>, absolute_variance: impl core::convert::Into<alloc::sync::Arc<[f64]>>, sigma2: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::GaussianCoefficientPrior>::fn is_empty(&self) -> bool
+pub fn <antecedent_prob::GaussianCoefficientPrior>::fn isotropic(n_coef: usize, scale: f64) -> Self
+pub fn <antecedent_prob::GaussianCoefficientPrior>::fn len(&self) -> usize
+pub fn <antecedent_prob::GaussianCoefficientPrior>::fn precision(&self) -> alloc::vec::Vec<f64>
+pub fn <antecedent_prob::GaussianCoefficientPrior>::fn shared(n_coef: usize, mean: f64, variance: f64) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::GaussianCoefficientPrior>::fn validate(&self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::GaussianVarianceModel>::const fn include_sigma2(self) -> bool
+pub fn <antecedent_prob::GaussianVarianceModel>::const fn state_dim(self, ncols: usize) -> usize
+pub fn <antecedent_prob::GaussianVarianceModel>::fn from_prior_set(prior: &antecedent_prob::PriorSet) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::HmcGlmBackend>::const fn with_options(self, options: antecedent_prob::HmcOptions) -> Self
+pub fn <antecedent_prob::HmcGlmBackend>::fn new() -> Self
+pub fn <antecedent_prob::InferenceDiagnostics>::fn allows_posterior(&self) -> bool
+pub fn <antecedent_prob::InferenceDiagnostics>::fn analytic(backend_id: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_prob::InferenceDiagnostics>::fn curvature_refusal(&self) -> core::option::Option<alloc::string::String>
+pub fn <antecedent_prob::InferenceDiagnostics>::fn laplace(backend_id: impl core::convert::Into<alloc::sync::Arc<str>>, converged: bool, iterations: u32, grad_inf_norm: f64, hessian_condition: f64, separation_warning: bool, notes: alloc::vec::Vec<alloc::sync::Arc<str>>) -> Self
+pub fn <antecedent_prob::InferenceDiagnostics>::fn mcmc_publication_failures(&self) -> alloc::vec::Vec<&'static str>
+pub fn <antecedent_prob::InferenceDiagnostics>::fn mcmc_publication_ok(&self) -> bool
+pub fn <antecedent_prob::InferenceDiagnostics>::fn record_postwarmup_divergences(&mut self, n: u32)
+pub fn <antecedent_prob::InvGammaPrior>::const fn weakly_informative() -> Self
+pub fn <antecedent_prob::InvGammaPrior>::fn validate(self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::LaplaceWorkspace>::fn invalidate_design(&mut self)
+pub fn <antecedent_prob::LaplaceWorkspace>::fn prepare(&mut self, nrows: usize, ncols: usize, n_draws: usize)
+pub fn <antecedent_prob::PosteriorBatch<'a>>::fn column(&self, q: usize) -> core::result::Result<&'a [f64], antecedent_prob::ProbError>
+pub fn <antecedent_prob::PosteriorDraws>::fn batch(&self, start: usize, len: usize) -> core::result::Result<antecedent_prob::PosteriorBatch<'_>, antecedent_prob::ProbError>
+pub fn <antecedent_prob::PosteriorDraws>::fn column(&self, q: usize) -> core::result::Result<&[f64], antecedent_prob::ProbError>
+pub fn <antecedent_prob::PosteriorDraws>::fn from_column_major(schema: antecedent_prob::PosteriorSchema, n_draws: usize, values: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::PosteriorDraws>::fn get(&self, draw: usize, quantity: usize) -> core::result::Result<f64, antecedent_prob::ProbError>
+pub fn <antecedent_prob::PosteriorDraws>::fn n_quantities(&self) -> usize
+pub fn <antecedent_prob::PosteriorDraws>::fn probability_below(&self, q: usize, threshold: f64) -> core::result::Result<f64, antecedent_prob::ProbError>
+pub fn <antecedent_prob::PosteriorDraws>::fn summarize(&self) -> antecedent_prob::PosteriorSummary
+pub fn <antecedent_prob::PosteriorEvalWorkspace>::fn prepare(&mut self, n_draws: usize, ncols: usize)
+pub fn <antecedent_prob::PosteriorSchema>::fn coefficients(n_coef: usize) -> Self
+pub fn <antecedent_prob::PosteriorSchema>::fn n_quantities(&self) -> usize
+pub fn <antecedent_prob::PosteriorSchema>::fn with_coefficient_names(&self, names: &[alloc::sync::Arc<str>]) -> Self
+pub fn <antecedent_prob::PriorSensitivityFamily>::const fn as_str(self) -> &'static str
+pub fn <antecedent_prob::PriorSet>::fn absolute_coefficient_scale(&self) -> core::option::Option<alloc::vec::Vec<usize>>
+pub fn <antecedent_prob::PriorSet>::fn coefficient_correlation(&self) -> core::option::Option<&antecedent_prob::CoefficientCorrelation>
+pub fn <antecedent_prob::PriorSet>::fn coefficient_precision(&self, coef: &antecedent_prob::GaussianCoefficientPrior) -> core::result::Result<antecedent_prob::CoefficientPrecision, antecedent_prob::ProbError>
+pub fn <antecedent_prob::PriorSet>::fn gaussian_coefficients(&self) -> core::option::Option<&antecedent_prob::GaussianCoefficientPrior>
+pub fn <antecedent_prob::PriorSet>::fn known_residual_variance(&self) -> core::option::Option<f64>
+pub fn <antecedent_prob::PriorSet>::fn mark_absolute_coefficient_scale(&mut self, indices: &[usize])
+pub fn <antecedent_prob::PriorSet>::fn new() -> Self
+pub fn <antecedent_prob::PriorSet>::fn push(&mut self, spec: antecedent_prob::PriorSpec)
+pub fn <antecedent_prob::PriorSet>::fn residual_inv_gamma(&self) -> core::option::Option<antecedent_prob::InvGammaPrior>
+pub fn <antecedent_prob::PriorSet>::fn resolve_absolute_coefficient_scale(&self, sigma2: f64) -> core::result::Result<core::option::Option<Self>, antecedent_prob::ProbError>
+pub fn <antecedent_prob::PriorSet>::fn validate(&self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::PriorSet>::fn validate_contrasts(&self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::PriorSet>::fn weakly_informative(n_coef: usize) -> Self
+pub fn <antecedent_prob::PriorSpec>::fn as_assumption(&self) -> antecedent_core::assumption::PriorAssumption
+pub fn <antecedent_prob::PriorSpec>::fn validate(&self) -> core::result::Result<(), antecedent_prob::ProbError>
+pub fn <antecedent_prob::TransportAdjustment>::fn kish_ess(&self) -> f64
+pub fn <antecedent_prob::TransportAdjustment>::fn new(unit_effects: impl core::convert::Into<alloc::sync::Arc<[f64]>>, target_weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_prob::TransportError>
+pub fn <antecedent_prob::TransportAdjustment>::fn reweighted_mean_variance(&self) -> f64
+pub fn <antecedent_prob::TransportAdjustment>::fn weighted_moments(&self) -> (f64, f64)
+pub fn <antecedent_prob::TransportError>::const fn code(&self) -> &'static str
+pub fn <antecedent_prob::TransportPolicy>::const fn id(self) -> &'static str
+pub fn <antecedent_prob::TransportPolicy>::fn parse(s: &str) -> core::result::Result<Self, antecedent_prob::TransportError>
+pub fn <antecedent_prob::WeightedGraphSamples>::fn identified_mass(&self) -> f64
+pub fn <antecedent_prob::WeightedGraphSamples>::fn new(weights: impl core::convert::Into<alloc::sync::Arc<[f64]>>, identified: impl core::convert::Into<alloc::sync::Arc<[antecedent_prob::GraphIdentFlag]>>, graph_keys: impl core::convert::Into<alloc::sync::Arc<[u64]>>) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::WeightedGraphSamples>::fn normalized(&self) -> core::result::Result<Self, antecedent_prob::ProbError>
+pub fn <antecedent_prob::WeightedGraphSamples>::fn stratified_interactive_subsample(&self, max_identified: usize, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_prob::GraphEnvelopeSubsample, antecedent_prob::ProbError>
+pub fn <antecedent_prob::WeightedGraphSamples>::fn total_weight(&self) -> f64
+pub fn <antecedent_prob::WeightedGraphSamples>::fn unidentified_mass(&self) -> f64
+pub fn antecedent_prob::all_chains_moved(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> bool
+pub fn antecedent_prob::apply_transport(sources: &[antecedent_prob::ExternalPriorSource], ctx: &antecedent_prob::TransportContext<'_>) -> core::result::Result<(alloc::vec::Vec<antecedent_prob::ExternalPriorSource>, alloc::vec::Vec<antecedent_prob::TransportOutcome>), antecedent_prob::TransportError>
+pub fn antecedent_prob::compose_external_priors(sources: &[antecedent_prob::ExternalPriorSource], baseline: &antecedent_prob::PriorSet) -> core::result::Result<antecedent_prob::ComposedPrior, antecedent_prob::ProbError>
+pub fn antecedent_prob::compose_external_priors_with_alphas(sources: &[antecedent_prob::ExternalPriorSource], alphas_requested: &[f64], alphas_applied: &[f64], baseline: &antecedent_prob::PriorSet) -> core::result::Result<antecedent_prob::ComposedPrior, antecedent_prob::ProbError>
+pub fn antecedent_prob::compose_with_transport(sources: &[antecedent_prob::ExternalPriorSource], baseline: &antecedent_prob::PriorSet, ctx: &antecedent_prob::TransportContext<'_>) -> core::result::Result<(antecedent_prob::ComposedPrior, alloc::vec::Vec<antecedent_prob::TransportOutcome>), antecedent_prob::ProbError>
+pub fn antecedent_prob::conjugate::fit_conjugate_gaussian(design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
+pub fn antecedent_prob::fit_counts::count_bayesian_work<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, antecedent_prob::fit_counts::BayesianWorkCounts)
+pub fn antecedent_prob::fit_counts::note_posterior_draw()
+pub fn antecedent_prob::fit_counts::note_posterior_fit()
+pub fn antecedent_prob::fit_hmc_glm(likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, fit_opts: &antecedent_prob::BayesFitOptions, hmc: antecedent_prob::HmcOptions, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
+pub fn antecedent_prob::fit_laplace_glm(likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
+pub fn antecedent_prob::laplace::sample_gaussian_mvn(mean: &[f64], cov: &[f64], n_draws: usize, seed: u64, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<alloc::sync::Arc<[f64]>, antecedent_prob::ProbError>
+pub fn antecedent_prob::mcmc_stats::mcmc_summary(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> antecedent_prob::McmcSummary
+pub fn antecedent_prob::mcmc_stats::min_bulk_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64
+pub fn antecedent_prob::mcmc_stats::min_tail_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64
+pub fn antecedent_prob::mcmc_stats::parameter_mcmc_diagnostics(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> alloc::vec::Vec<antecedent_prob::ParameterMcmcDiagnostics>
+pub mod antecedent_prob::backend
+pub mod antecedent_prob::conjugate
+pub mod antecedent_prob::conjugate_moment_match
+pub mod antecedent_prob::diagnostics
+pub mod antecedent_prob::error
+pub mod antecedent_prob::external_prior
+pub mod antecedent_prob::fit_counts
+pub mod antecedent_prob::gaussian_target
+pub mod antecedent_prob::graph_samples
+pub mod antecedent_prob::hmc
+pub mod antecedent_prob::laplace
+pub mod antecedent_prob::mcmc_stats
+pub mod antecedent_prob::posterior
+pub mod antecedent_prob::prior
+pub mod antecedent_prob::transport
+pub struct antecedent_prob::BayesDesignRef<'a>
+pub struct antecedent_prob::BayesFitOptions
+pub struct antecedent_prob::BayesFitResult
+pub struct antecedent_prob::BetaHyperparameters
+pub struct antecedent_prob::CoefficientCorrelation
+pub struct antecedent_prob::CoefficientCorrelation has private fields
+pub struct antecedent_prob::ComposedPrior
+pub struct antecedent_prob::ConflictSummary
+pub struct antecedent_prob::ConjugateGaussianBackend
+pub struct antecedent_prob::EffectBatch
+pub struct antecedent_prob::EffectPrior
+pub struct antecedent_prob::ExternalPriorSource
+pub struct antecedent_prob::ExternalPriorWeight
+pub struct antecedent_prob::GammaHyperparameters
+pub struct antecedent_prob::GaussianCoefficientPrior
+pub struct antecedent_prob::GraphEnvelopeSubsample
+pub struct antecedent_prob::HmcGlmBackend
+pub struct antecedent_prob::HmcOptions
+pub struct antecedent_prob::InferenceDiagnostics
+pub struct antecedent_prob::InvGammaPrior
+pub struct antecedent_prob::LaplaceGlmBackend
+pub struct antecedent_prob::LaplaceWorkspace
+pub struct antecedent_prob::LaplaceWorkspace has private fields
+pub struct antecedent_prob::McmcSummary
+pub struct antecedent_prob::ParameterMcmcDiagnostics
+pub struct antecedent_prob::PosteriorBatch<'a>
+pub struct antecedent_prob::PosteriorDraws
+pub struct antecedent_prob::PosteriorEvalWorkspace
+pub struct antecedent_prob::PosteriorSchema
+pub struct antecedent_prob::PosteriorSummary
+pub struct antecedent_prob::PriorSensitivitySummary
+pub struct antecedent_prob::PriorSet
+pub struct antecedent_prob::TransportAdjustment
+pub struct antecedent_prob::TransportContext<'a>
+pub struct antecedent_prob::TransportOutcome
+pub struct antecedent_prob::WeightedGraphSamples
+pub struct antecedent_prob::fit_counts::BayesianWorkCounts
+pub trait antecedent_prob::InferenceBackend: core::marker::Send + core::marker::Sync
+pub trait fn fn antecedent_prob::InferenceBackend::fit(&self, likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
+pub use antecedent_prob::backend::BayesDesignRef = antecedent_prob::BayesDesignRef
+pub use antecedent_prob::backend::BayesFitOptions = antecedent_prob::BayesFitOptions
+pub use antecedent_prob::backend::BayesFitResult = antecedent_prob::BayesFitResult
+pub use antecedent_prob::backend::BayesLikelihood = antecedent_prob::BayesLikelihood
+pub use antecedent_prob::backend::InferenceBackend = antecedent_prob::InferenceBackend
+pub use antecedent_prob::backend::LaplaceWorkspace = antecedent_prob::LaplaceWorkspace
+pub use antecedent_prob::conjugate::ConjugateGaussianBackend = antecedent_prob::ConjugateGaussianBackend
+pub use antecedent_prob::conjugate::sample_gamma = antecedent_kernels::sample_gamma
+pub use antecedent_prob::conjugate::sample_inv_gamma = antecedent_kernels::sample_inv_gamma
+pub use antecedent_prob::conjugate_moment_match::BetaHyperparameters = antecedent_prob::BetaHyperparameters
+pub use antecedent_prob::conjugate_moment_match::GammaHyperparameters = antecedent_prob::GammaHyperparameters
+pub use antecedent_prob::diagnostics::ConflictSummary = antecedent_prob::ConflictSummary
+pub use antecedent_prob::diagnostics::HessianFactorization = antecedent_prob::HessianFactorization
+pub use antecedent_prob::diagnostics::InferenceDiagnostics = antecedent_prob::InferenceDiagnostics
+pub use antecedent_prob::diagnostics::PriorSensitivityFamily = antecedent_prob::PriorSensitivityFamily
+pub use antecedent_prob::diagnostics::PriorSensitivitySummary = antecedent_prob::PriorSensitivitySummary
+pub use antecedent_prob::error::ProbError = antecedent_prob::ProbError
+pub use antecedent_prob::external_prior::ComposedPrior = antecedent_prob::ComposedPrior
+pub use antecedent_prob::external_prior::ExternalPriorSource = antecedent_prob::ExternalPriorSource
+pub use antecedent_prob::external_prior::ExternalPriorWeight = antecedent_prob::ExternalPriorWeight
+pub use antecedent_prob::external_prior::compose_external_priors = antecedent_prob::compose_external_priors
+pub use antecedent_prob::external_prior::compose_external_priors_with_alphas = antecedent_prob::compose_external_priors_with_alphas
+pub use antecedent_prob::external_prior::kish_ess = antecedent_kernels::kish_ess
+pub use antecedent_prob::fit_conjugate_gaussian = antecedent_prob::conjugate::fit_conjugate_gaussian
+pub use antecedent_prob::graph_samples::GraphEnvelopeSubsample = antecedent_prob::GraphEnvelopeSubsample
+pub use antecedent_prob::graph_samples::GraphIdentFlag = antecedent_prob::GraphIdentFlag
+pub use antecedent_prob::graph_samples::WeightedGraphSamples = antecedent_prob::WeightedGraphSamples
+pub use antecedent_prob::hmc::HmcGlmBackend = antecedent_prob::HmcGlmBackend
+pub use antecedent_prob::hmc::HmcOptions = antecedent_prob::HmcOptions
+pub use antecedent_prob::hmc::fit_hmc_glm = antecedent_prob::fit_hmc_glm
+pub use antecedent_prob::kish_ess = external_prior::kish_ess
+pub use antecedent_prob::laplace::LaplaceGlmBackend = antecedent_prob::LaplaceGlmBackend
+pub use antecedent_prob::laplace::fit_laplace_glm = antecedent_prob::fit_laplace_glm
+pub use antecedent_prob::mcmc_stats::McmcSummary = antecedent_prob::McmcSummary
+pub use antecedent_prob::mcmc_stats::ParameterMcmcDiagnostics = antecedent_prob::ParameterMcmcDiagnostics
+pub use antecedent_prob::mcmc_stats::all_chains_moved = antecedent_prob::all_chains_moved
+pub use antecedent_prob::mcmc_summary = antecedent_prob::mcmc_stats::mcmc_summary
+pub use antecedent_prob::min_bulk_ess = antecedent_prob::mcmc_stats::min_bulk_ess
+pub use antecedent_prob::min_tail_ess = antecedent_prob::mcmc_stats::min_tail_ess
+pub use antecedent_prob::parameter_mcmc_diagnostics = antecedent_prob::mcmc_stats::parameter_mcmc_diagnostics
+pub use antecedent_prob::posterior::EffectBatch = antecedent_prob::EffectBatch
+pub use antecedent_prob::posterior::PosteriorBatch = antecedent_prob::PosteriorBatch
+pub use antecedent_prob::posterior::PosteriorDraws = antecedent_prob::PosteriorDraws
+pub use antecedent_prob::posterior::PosteriorEvalWorkspace = antecedent_prob::PosteriorEvalWorkspace
+pub use antecedent_prob::posterior::PosteriorQuantityKind = antecedent_prob::PosteriorQuantityKind
+pub use antecedent_prob::posterior::PosteriorSchema = antecedent_prob::PosteriorSchema
+pub use antecedent_prob::posterior::PosteriorSummary = antecedent_prob::PosteriorSummary
+pub use antecedent_prob::prior::CoefficientCorrelation = antecedent_prob::CoefficientCorrelation
+pub use antecedent_prob::prior::CoefficientPrecision = antecedent_prob::CoefficientPrecision
+pub use antecedent_prob::prior::ContrastCoding = antecedent_prob::ContrastCoding
+pub use antecedent_prob::prior::EffectPrior = antecedent_prob::EffectPrior
+pub use antecedent_prob::prior::GaussianCoefficientPrior = antecedent_prob::GaussianCoefficientPrior
+pub use antecedent_prob::prior::GaussianVarianceModel = antecedent_prob::GaussianVarianceModel
+pub use antecedent_prob::prior::InvGammaPrior = antecedent_prob::InvGammaPrior
+pub use antecedent_prob::prior::PriorSet = antecedent_prob::PriorSet
+pub use antecedent_prob::prior::PriorSpec = antecedent_prob::PriorSpec
+pub use antecedent_prob::sample_gamma = conjugate::sample_gamma
+pub use antecedent_prob::sample_gaussian_mvn = antecedent_prob::laplace::sample_gaussian_mvn
+pub use antecedent_prob::sample_inv_gamma = conjugate::sample_inv_gamma
+pub use antecedent_prob::transport::POPULATION_TAG_KEY = antecedent_prob::POPULATION_TAG_KEY
+pub use antecedent_prob::transport::TRANSPORT_MIN_KISH_ESS = antecedent_prob::TRANSPORT_MIN_KISH_ESS
+pub use antecedent_prob::transport::TransportAdjustment = antecedent_prob::TransportAdjustment
+pub use antecedent_prob::transport::TransportContext = antecedent_prob::TransportContext
+pub use antecedent_prob::transport::TransportError = antecedent_prob::TransportError
+pub use antecedent_prob::transport::TransportOutcome = antecedent_prob::TransportOutcome
+pub use antecedent_prob::transport::TransportPolicy = antecedent_prob::TransportPolicy
+pub use antecedent_prob::transport::apply_transport = antecedent_prob::apply_transport
+pub use antecedent_prob::transport::compose_with_transport = antecedent_prob::compose_with_transport
+pub variant antecedent_prob::BayesLikelihood::BernoulliLogit
+pub variant antecedent_prob::BayesLikelihood::BernoulliProbit
+pub variant antecedent_prob::BayesLikelihood::GaussianIdentity
+pub variant antecedent_prob::BayesLikelihood::PoissonLog
+pub variant antecedent_prob::CoefficientPrecision::Dense { dim: usize, matrix: alloc::vec::Vec<f64> }
+pub variant antecedent_prob::CoefficientPrecision::Diagonal(alloc::vec::Vec<f64>)
+pub variant antecedent_prob::ContrastCoding::Sum
+pub variant antecedent_prob::ContrastCoding::Treatment
+pub variant antecedent_prob::GaussianVarianceModel::InvGamma { shape: f64, scale: f64 }
+pub variant antecedent_prob::GaussianVarianceModel::Known { sigma2: f64 }
+pub variant antecedent_prob::GraphIdentFlag::Identified
+pub variant antecedent_prob::GraphIdentFlag::Unidentified
+pub variant antecedent_prob::HessianFactorization::Analytic
+pub variant antecedent_prob::HessianFactorization::Cholesky
+pub variant antecedent_prob::HessianFactorization::Mcmc
+pub variant antecedent_prob::PosteriorQuantityKind::Coefficient { index: usize, name: core::option::Option<alloc::sync::Arc<str>> }
+pub variant antecedent_prob::PosteriorQuantityKind::Effect { name: alloc::sync::Arc<str> }
+pub variant antecedent_prob::PosteriorQuantityKind::ResidualVariance
+pub variant antecedent_prob::PosteriorQuantityKind::Scalar { name: alloc::sync::Arc<str> }
+pub variant antecedent_prob::PriorSensitivityFamily::ExternalAlpha
+pub variant antecedent_prob::PriorSensitivityFamily::IsotropicScale
+pub variant antecedent_prob::PriorSensitivityFamily::ResolvedPriorVariance
+pub variant antecedent_prob::PriorSpec::CoefficientCorrelation(antecedent_prob::CoefficientCorrelation)
+pub variant antecedent_prob::PriorSpec::GaussianCoefficients(antecedent_prob::GaussianCoefficientPrior)
+pub variant antecedent_prob::PriorSpec::KnownResidualVariance(f64)
+pub variant antecedent_prob::PriorSpec::ResidualInvGamma(antecedent_prob::InvGammaPrior)
+pub variant antecedent_prob::ProbError::Inference { message: &'static str }
+pub variant antecedent_prob::ProbError::InvalidPrior { message: &'static str }
+pub variant antecedent_prob::ProbError::MissingDiagnostics { message: alloc::string::String }
+pub variant antecedent_prob::ProbError::Numerical { message: alloc::string::String }
+pub variant antecedent_prob::ProbError::Refused { code: &'static str, message: alloc::string::String }
+pub variant antecedent_prob::ProbError::Shape { message: &'static str }
+pub variant antecedent_prob::TransportError::CoefIndexOutOfRange { index: usize, n_coef: usize }
+pub variant antecedent_prob::TransportError::InvalidWeights { message: &'static str }
+pub variant antecedent_prob::TransportError::PolicyRequired { source_population: alloc::sync::Arc<str>, target_population: alloc::sync::Arc<str> }
+pub variant antecedent_prob::TransportError::SourceCountMismatch { n_sources: usize, n_populations: usize }
+pub variant antecedent_prob::TransportError::UnknownPolicy { name: alloc::sync::Arc<str> }
+pub variant antecedent_prob::TransportPolicy::InvariantConditionalOutcome
+pub variant antecedent_prob::TransportPolicy::InvariantEffectModifiers
+pub variant antecedent_prob::TransportPolicy::InvariantPropensity

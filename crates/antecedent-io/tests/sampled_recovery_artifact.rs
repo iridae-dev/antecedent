@@ -1,4 +1,4 @@
-//! 2.3A A6 (X10) `x10_sampled_recovery_replay`: the sampled observation-recovery artifact
+//! The sampled observation-recovery artifact
 //! (version 3: derivation identity, observation rows and pattern counts, recovered law,
 //! point, `BCa` interval with calibration `unmeasured`, replicate receipt) replays
 //! independently and refuses a changed pattern, snapshot, seed or interval receipt.
@@ -6,12 +6,7 @@
 //! The oracle is the enumerated binary missingness SCM of the engine's own tests (the
 //! shared fixture module is included by path), never the code under test. Interval
 //! calibration is unmeasured; nothing here asserts a coverage claim.
-#![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_precision_loss,
-    reason = "test counts and indices are small and nonnegative"
-)]
+#![allow(clippy::cast_precision_loss, reason = "test counts and indices are small and nonnegative")]
 
 #[path = "../../antecedent-estimate/tests/support/recovery_scm.rs"]
 mod recovery_scm;
@@ -25,7 +20,9 @@ use antecedent_estimate::{
     SampledRecoveryResult, derive_sampled_recovery, estimate_sampled_recovery,
 };
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
-use antecedent_identify::{RecoveredEffectQuery, RecoveryDerivation, RecoveryLimits};
+use antecedent_identify::{
+    RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryDerivation, RecoveryLimits,
+};
 use antecedent_io::IoError;
 use antecedent_io::sampled_recovery_artifact::{
     SampledRecoveryArtifactInput, SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits,
@@ -191,7 +188,7 @@ fn refusal(bytes: &[u8]) -> String {
 }
 
 #[test]
-fn x10_sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covariance() {
+fn sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covariance() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let consumed = consume(&wire.export().expect("export")).expect("replays");
@@ -212,7 +209,7 @@ fn x10_sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covarianc
 type Mutation = (&'static str, fn(&mut SampledRecoveryArtifactWire));
 
 #[test]
-fn x10_sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_receipt() {
+fn sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_receipt() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let mutations: [Mutation; 7] = [
@@ -236,8 +233,9 @@ fn x10_sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interv
     assert!(message.contains("sampled_recovery.invalid_input"), "{message}");
     // A tampered derivation does not verify.
     assert!(
-        consume(&resealed(&wire, |w| w.derivation.rule_version = "x10.recovery.v0".into()))
-            .is_err()
+        consume(&resealed(&wire, |w| w.derivation.rule_version =
+            "binary_observation_recovery.v0".into()))
+        .is_err()
     );
     // Without resealing, edited rows break the data identity and an edited seed breaks
     // the premises digest.
@@ -256,7 +254,41 @@ fn x10_sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interv
 }
 
 #[test]
-fn x10_sampled_recovery_replay_enforces_an_expected_identity() {
+fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
+    let current = fixture(seeded_rows(4000, 17), &loose(99));
+    let sealed = wire_of(&current);
+    assert_eq!(sealed.derivation.rule_version, RECOVERY_RULE_VERSION);
+    let consumed = consume(&sealed.export().unwrap()).expect("the sealed artifact replays");
+    // The identity the artifact bound is the one the producer sealed.
+    assert_eq!(consumed.derivation.record().rule_version, RECOVERY_RULE_VERSION);
+    assert!(consumed.derivation.identity().starts_with(RECOVERY_RULE_VERSION));
+    assert_eq!(consumed.wire.premises_digest, sealed.premises_digest);
+    assert_eq!(consumed.wire.receipt.receipt_digest, sealed.receipt.receipt_digest);
+    assert_eq!(consumed.result.effect.to_bits(), current.result.effect.to_bits());
+    assert_eq!(consumed.result.interval, current.result.interval);
+    // Tampering is refused: an unresealed version edit hits the carried digest, a
+    // resealed edit fails the replay, and no other version spelling is accepted.
+    let mut swapped = sealed.clone();
+    swapped.derivation.rule_version = RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert!(refusal(&swapped.export().unwrap()).contains("premises digest"));
+    let mut row = sealed.clone();
+    row.rows[0].3 ^= 1;
+    assert!(
+        refusal(&resealed(&row, |_| {})).contains("sampled_recovery.receipt_mismatch"),
+        "a changed row"
+    );
+    let mut seed = sealed.clone();
+    seed.receipt.config.seed += 1;
+    assert!(refusal(&resealed(&seed, |_| {})).contains("sampled_recovery.receipt_mismatch"));
+    let other = RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert!(
+        consume(&resealed(&sealed, |w| w.derivation.rule_version = other.clone())).is_err(),
+        "another version spelling"
+    );
+}
+
+#[test]
+fn sampled_recovery_replay_enforces_an_expected_identity() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let expected = SampledRecoveryExpectation {
@@ -284,7 +316,7 @@ fn x10_sampled_recovery_replay_enforces_an_expected_identity() {
 }
 
 #[test]
-fn x10_sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim() {
+fn sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     // Version 1 is the exact-law point artifact; version 4 is unknown.
@@ -308,7 +340,7 @@ fn x10_sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim(
 }
 
 #[test]
-fn x10_sampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits() {
+fn sampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let bytes = wire_of(&f).export().expect("export");
     let tight = [

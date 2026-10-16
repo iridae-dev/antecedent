@@ -1,5 +1,8 @@
 //! Durable transport grid and statistical-provider records.
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "field meanings mirror the fully documented domain types; the compact serde layout is easier to review"
+)]
 use crate::error::convert_err as err;
 use crate::identity::digest_wire_hex as digest;
 use crate::{
@@ -138,7 +141,7 @@ pub struct TransportGridFailureWire {
 
 impl TransportGridFailureWire {
     #[must_use]
-    pub fn from_failure(f: &antecedent_core::TransportGridFailure) -> Self {
+    pub fn from_failure(f: &antecedent_contract::TransportGridFailure) -> Self {
         Self {
             kind: f.kind.clone(),
             detail: f.detail.clone(),
@@ -155,8 +158,8 @@ impl TransportGridFailureWire {
         }
     }
     #[must_use]
-    pub fn to_failure(&self) -> antecedent_core::TransportGridFailure {
-        antecedent_core::TransportGridFailure {
+    pub fn to_failure(&self) -> antecedent_contract::TransportGridFailure {
+        antecedent_contract::TransportGridFailure {
             kind: self.kind.clone(),
             detail: self.detail.clone(),
             code: self.code.clone(),

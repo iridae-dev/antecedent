@@ -1,4 +1,4 @@
-//! Python bindings for exact binary observation recovery (2.2B X10):
+//! Python bindings for exact binary observation recovery:
 //! graph-licensed recovery, not MAR/IPCW.
 use crate::graphs::Admg;
 use crate::transport_common::{
@@ -29,6 +29,10 @@ use std::sync::Arc;
 /// Magic prefix of a portable recovery artifact: the io crate's versioned CBOR
 /// wire, framed with the m-graph's variable names.
 const RECOVERY_PREFIX: &[u8] = b"ANTECEDENT-OBSERVATION-RECOVERY\x01";
+
+/// Largest sampled-recovery artifact a consumer reads: it carries the sampled replicates.
+#[cfg(feature = "calibration-internal")]
+const MAX_SAMPLED_RECOVERY_ARTIFACT_BYTES: usize = 2 * crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
 /// Graph-licensed recovery of the full law, exact laws, point only.
 const SCOPE: &str = "graph_licensed_observation_recovery_not_mar_ipcw";
@@ -346,28 +350,24 @@ impl ObservationRecoveryStage {
                 "sampled_recovery.invalid_input: stage must retain a downstream effect",
             )
         })?;
-        let partial_order: Vec<_> = canonical
+        let partial_order = canonical
             .partially_observed
             .iter()
             .map(|p| {
-                declared
-                    .partially_observed
-                    .iter()
-                    .position(|s| s == p)
-                    .expect("canonicalization preserves roles")
+                declared.partially_observed.iter().position(|s| s == p).ok_or_else(|| {
+                    crate::value_err("canonicalization dropped a declared observation role")
+                })
             })
-            .collect();
-        let full_order: Vec<_> = canonical
+            .collect::<PyResult<Vec<_>>>()?;
+        let full_order = canonical
             .fully_observed
             .iter()
             .map(|p| {
-                declared
-                    .fully_observed
-                    .iter()
-                    .position(|s| s == p)
-                    .expect("canonicalization preserves roles")
+                declared.fully_observed.iter().position(|s| s == p).ok_or_else(|| {
+                    crate::value_err("canonicalization dropped a declared observation role")
+                })
             })
-            .collect();
+            .collect::<PyResult<Vec<_>>>()?;
         let remap = |bits: u8, order: &[usize]| {
             order.iter().enumerate().fold(0u8, |v, (dst, src)| v | (((bits >> src) & 1) << dst))
         };
@@ -577,7 +577,10 @@ impl ObservationRecoveryStage {
             )));
         }
         let RecoveryDecision::Recovered(derivation) = &self.decision else {
-            unreachable!("a nonrecoverable decision refused above");
+            return Err(recovery_err(&RecoveryError::new(
+                RecoveryDetail::NonrecoverableWitness,
+                "recovery decision is not recovered",
+            )));
         };
         let observed = parse_observed(law, &self.graph.names, &self.catalog)?;
         let requests = parse_requests(&self.graph.names, requests)?;
@@ -596,9 +599,11 @@ impl ObservationRecoveryStage {
                 catalog,
                 effect,
                 derivation,
-                observed,
-                requests,
-                ExactEvaluationLimits { operations: max_operations, depth: max_depth },
+                antecedent::RecoveryEvaluation {
+                    observed,
+                    requests,
+                    limits: ExactEvaluationLimits { operations: max_operations, depth: max_depth },
+                },
                 &ctx,
             )
             .map_err(|e| io_err(&e))
@@ -613,7 +618,7 @@ impl ObservationRecoveryStage {
         })
     }
 
-    /// Counted laws are not licensed on this route (a sampled provider is 2.3A):
+    /// Counted laws are not licensed on this route (a sampled provider is not licensed):
     /// preparation refuses.
     #[pyo3(signature=(law, requests=None, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
     #[allow(clippy::too_many_arguments, clippy::unused_self, unused_variables)]
@@ -964,7 +969,7 @@ fn consume_sampled_recovery_candidate(
     let valid_digest = |value: &str| {
         value.len() == 64 && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     };
-    if artifact.len() > 32 * 1024 * 1024
+    if artifact.len() > MAX_SAMPLED_RECOVERY_ARTIFACT_BYTES
         || !valid_digest(&premises_digest)
         || !valid_digest(&data_digest)
         || !(1..=100_000).contains(&max_rows)

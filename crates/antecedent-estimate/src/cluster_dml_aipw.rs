@@ -1,4 +1,4 @@
-//! Cluster-aware cross-fitted AIPW (2.2 E4): the independence unit is a declared cluster.
+//! Cluster-aware cross-fitted AIPW: the independence unit is a declared cluster.
 //!
 //! Rows of one cluster are never split across cross-fit folds, so the nuisances scoring a
 //! cluster are fit on other clusters only, and the dependence enters the *score* level: the
@@ -11,7 +11,7 @@
 //! cluster-sandwich standard error of the scores (`se_analytic`, also the named
 //! [`ClusterDmlReceipt`]; the derivation and its conditions are in
 //! `docs/guides/clustered-dml.md`), with the few-cluster Student-t reference
-//! (`EffectEstimate::se_reference_df`). A retarget of the table uses the cluster-summed joint
+//! (`EffectEstimate.uncertainty.analytic.reference_df`). A retarget of the table uses the cluster-summed joint
 //! covariance ([`ClusterDml::influence_covariance`]). Its coverage is measured by the
 //! calibration harness, not asserted here. A cluster count below the declared minimum is a
 //! typed refusal.
@@ -33,9 +33,10 @@ use antecedent_core::TargetPopulation;
 use crate::error::{EstimationError, RefusalFields};
 use crate::joint_if::JointCovariance;
 use crate::overlap::OverlapPolicy;
-use crate::propensity::{refuse, trim_of};
+use crate::propensity::trim_of;
 use crate::scores::ScoreTable;
 use crate::se::AnalyticSeKind;
+use crate::util::refuse;
 
 /// Smallest cluster count a declaration may require. Below it the sandwich over cluster sums
 /// has too few terms to mean anything, and a fold's training set would hold under eight
@@ -484,7 +485,7 @@ pub struct ClusterDmlReceipt {
     pub n_components: Option<usize>,
     /// The few-cluster reference convention `min(G_a, G_b) - 1` (`G - 1` for a cluster
     /// unit): the degrees of freedom a t reference would use. The facade's published interval
-    /// uses this as its Student-t reference (`EffectEstimate::se_reference_df`).
+    /// uses this as its Student-t reference (`EffectEstimate.uncertainty.analytic.reference_df`).
     pub reference_df: usize,
     /// The declared minimum the count satisfied.
     pub min_clusters: usize,
@@ -510,7 +511,7 @@ pub fn cluster_fold_plan(
     folds: usize,
     seed: u64,
 ) -> Result<Vec<u32>, EstimationError> {
-    crate::learn_nuisance::crossfit_fold_plan(&vec![0; clusters.len()], clusters, folds, seed)
+    crate::crossfit_plan::crossfit_fold_plan(&vec![0; clusters.len()], clusters, folds, seed)
 }
 
 /// The route is licensed for the untrimmed `AllObserved` mean ATE only.
@@ -726,18 +727,19 @@ fn distinct_count(ids: &[u32]) -> usize {
     ids.iter().collect::<BTreeSet<_>>().len()
 }
 
-/// FNV-1a over the sorted distinct labels: a fingerprint, not a cryptographic digest (the
-/// estimator identity digests the full label vector).
+/// Domain tag of the distinct-unit-label digest.
+const UNIT_DIGEST_TAG: &str = "antecedent.estimate.cluster_dml_aipw.units";
+
+/// BLAKE3 of the sorted distinct labels (hex). Names the set of clusters a receipt covers;
+/// the estimator identity digests the full label vector.
 fn unit_digest(ids: &[u32]) -> String {
     let distinct: BTreeSet<u32> = ids.iter().copied().collect();
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut writer = antecedent_core::CanonicalWriter::new(UNIT_DIGEST_TAG);
+    writer.word(distinct.len() as u64);
     for id in distinct {
-        for byte in id.to_le_bytes() {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-        }
+        writer.word(u64::from(id));
     }
-    format!("{hash:016x}")
+    writer.finish_hex()
 }
 
 fn require_whole_clusters_per_fold(
@@ -755,4 +757,23 @@ fn require_whole_clusters_per_fold(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use super::unit_digest;
+
+    #[test]
+    fn unit_digest_is_the_canonical_stream_of_the_sorted_distinct_labels() {
+        // Golden vector: BLAKE3 over a length-prefixed domain tag, the distinct count, then
+        // each sorted label as a little-endian word; repeats and row order do not matter.
+        let mut writer =
+            antecedent_core::CanonicalWriter::new("antecedent.estimate.cluster_dml_aipw.units");
+        writer.word(3).word(1).word(2).word(3);
+        let expected = writer.finish_hex();
+        assert_eq!(unit_digest(&[3, 1, 3, 2, 1]), expected);
+        assert_eq!(unit_digest(&[2, 3, 1]), expected);
+        assert_ne!(unit_digest(&[1, 2, 4]), expected);
+        assert_eq!(expected, "4f02b3c17b6ea0c01be8ccf7ee9bc04ad8b4ddbf245e1da7926766487b8e1f9f");
+    }
 }

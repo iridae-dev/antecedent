@@ -1,4 +1,4 @@
-//! B4 joint vector-treatment coefficients: several treatments estimated *together* by one
+//! Joint vector-treatment coefficients: several treatments estimated *together* by one
 //! ordinary-least-squares regression that shares ONE adjustment set and ONE row snapshot.
 //!
 //! # Contract
@@ -37,11 +37,12 @@
 use std::collections::BTreeSet;
 
 use antecedent_core::reason_code;
-use antecedent_kernels::erfc;
-use antecedent_stats::gamma_q;
+use antecedent_stats::chi_square_sf;
 
 use crate::effect_constancy::{CalibrationStatus, holm_adjust};
 use crate::error::EstimationError;
+use crate::util::dot;
+use crate::util::{count, refuse};
 
 /// The frozen null of the joint Wald test.
 pub const VECTOR_TREATMENT_NULL: &str = "all treatment coefficients are zero";
@@ -53,7 +54,7 @@ pub const VECTOR_TREATMENT_INFERENCE_CLAIM: &str = "asymptotic_wald_calibration_
 pub const VECTOR_TREATMENT_MAX_TREATMENTS: usize = 64;
 
 /// Name reserved for the intercept; no column may use it.
-pub const VECTOR_TREATMENT_INTERCEPT: &str = "(intercept)";
+pub(crate) const VECTOR_TREATMENT_INTERCEPT: &str = "(intercept)";
 
 /// Relative tolerance of the Gram--Schmidt rank test.
 const RANK_TOLERANCE: f64 = 1e-10;
@@ -256,26 +257,6 @@ impl VectorTreatmentFit {
     }
 }
 
-pub(crate) fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-pub(crate) fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
-}
-
-/// Two-sided normal p-value.
-pub(crate) fn normal_two_sided(z: f64) -> f64 {
-    erfc(z.abs() / std::f64::consts::SQRT_2)
-}
-
-fn chi_square_sf(statistic: f64, df: usize) -> f64 {
-    if statistic <= 0.0 {
-        return 1.0;
-    }
-    gamma_q(count(df) * 0.5, statistic * 0.5)
-}
-
 /// The design: intercept, shared adjustment columns, then the treatments (column-major).
 struct Design {
     names: Vec<String>,
@@ -407,10 +388,6 @@ fn validate_shared(input: &VectorTreatmentInput) -> Result<(), EstimationError> 
     Ok(())
 }
 
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
 /// Index of the first column that is a linear combination of the earlier ones.
 fn first_dependent_column(cols: &[Vec<f64>]) -> Option<usize> {
     let mut basis: Vec<Vec<f64>> = Vec::with_capacity(cols.len());
@@ -471,55 +448,6 @@ fn check_design(design: &Design, input: &VectorTreatmentInput) -> Result<(), Est
     Ok(())
 }
 
-/// Inverse of a row-major `p x p` matrix by Gauss--Jordan elimination with partial pivoting.
-fn invert(matrix: &[f64], p: usize) -> Option<Vec<f64>> {
-    let w = 2 * p;
-    let mut aug = vec![0.0; p * w];
-    for i in 0..p {
-        for j in 0..p {
-            aug[i * w + j] = matrix[i * p + j];
-        }
-        aug[i * w + p + i] = 1.0;
-    }
-    for col in 0..p {
-        let mut pivot = col;
-        for r in (col + 1)..p {
-            if aug[r * w + col].abs() > aug[pivot * w + col].abs() {
-                pivot = r;
-            }
-        }
-        let value = aug[pivot * w + col];
-        if !value.is_finite() || value.abs() < 1e-300 {
-            return None;
-        }
-        if pivot != col {
-            for j in 0..w {
-                aug.swap(col * w + j, pivot * w + j);
-            }
-        }
-        let scale = 1.0 / aug[col * w + col];
-        for j in 0..w {
-            aug[col * w + j] *= scale;
-        }
-        for r in 0..p {
-            if r != col {
-                let factor = aug[r * w + col];
-                for j in 0..w {
-                    let delta = factor * aug[col * w + j];
-                    aug[r * w + j] -= delta;
-                }
-            }
-        }
-    }
-    let mut inverse = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..p {
-            inverse[i * p + j] = aug[i * w + p + j];
-        }
-    }
-    Some(inverse)
-}
-
 fn matmul(a: &[f64], b: &[f64], p: usize) -> Vec<f64> {
     let mut out = vec![0.0; p * p];
     for i in 0..p {
@@ -556,7 +484,7 @@ fn fit_ols(design: &Design, y: &[f64]) -> Result<Ols, EstimationError> {
                     gram[j * p + i] = value;
                 }
             }
-            let Some(ginv) = invert(&gram, p) else {
+            let Some(ginv) = antecedent_stats::invert_square(&gram, p) else {
                 return Err(refuse(
                     reason_code!("design_rank_deficient"),
                     "vector_treatment.rank_deficient_adjustment",
@@ -623,38 +551,10 @@ fn full_covariance(
     Ok(matmul(&matmul(&ols.ginv, &meat, p), &ols.ginv, p))
 }
 
-/// Lower Cholesky factor of a row-major symmetric matrix; `None` unless positive definite.
-fn cholesky(matrix: &[f64], n: usize) -> Option<Vec<f64>> {
-    let mut lower = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = matrix[i * n + j];
-            for k in 0..j {
-                sum -= lower[i * n + k] * lower[j * n + k];
-            }
-            if i == j {
-                if sum.is_nan() || sum <= 0.0 || !sum.is_finite() {
-                    return None;
-                }
-                lower[i * n + i] = sum.sqrt();
-            } else {
-                lower[i * n + j] = sum / lower[j * n + j];
-            }
-        }
-    }
-    Some(lower)
-}
-
 /// `x' V^-1 x` from the Cholesky factor of `V`.
 fn quadratic_form(lower: &[f64], n: usize, x: &[f64]) -> f64 {
     let mut y = vec![0.0; n];
-    for i in 0..n {
-        let mut sum = x[i];
-        for k in 0..i {
-            sum -= lower[i * n + k] * y[k];
-        }
-        y[i] = sum / lower[i * n + i];
-    }
+    antecedent_kernels::forward_solve_into(lower, n, x, &mut y);
     y.iter().map(|v| v * v).sum()
 }
 
@@ -683,7 +583,7 @@ fn wald_rows(
             rvr[a * m + b] = sum;
         }
     }
-    let Some(lower) = cholesky(&rvr, m) else {
+    let Some(lower) = antecedent_stats::cholesky_spd(&rvr, m) else {
         return Err(degenerate("the restriction covariance is singular or not positive definite"));
     };
     let statistic = quadratic_form(&lower, m, &rb);
@@ -777,7 +677,7 @@ fn evaluate_contrasts(
             standard_error,
             naive_independent_standard_error: naive.sqrt(),
             z,
-            p_value: normal_two_sided(z),
+            p_value: crate::util::normal_two_sided_p(z),
             p_holm: 0.0,
         });
     }
@@ -892,7 +792,7 @@ fn assemble(
             estimate: beta[i],
             standard_error,
             z,
-            p_value: normal_two_sided(z),
+            p_value: crate::util::normal_two_sided_p(z),
         });
     }
     let identity: Vec<Vec<f64>> =
@@ -978,6 +878,82 @@ pub fn summarize_vector_design(
     summarize_joint(input, 2)
 }
 
+/// Posterior mean of the treatment coefficients under independent normal priors
+/// on every non-intercept column, with the OLS residual variance plugged in.
+///
+/// The mean is the ridge solution `(X'X + λ D)^-1 X'y` where `λ = σ² / scale²`
+/// and `D` is zero on the intercept and one on every other column. No standard
+/// error or interval is returned: draws are not a band.
+///
+/// # Errors
+///
+/// `invalid_argument` with `vector_treatment.summary_inconsistent` or
+/// `vector_treatment.non_finite_value` for a malformed summary, and
+/// `design_rank_deficient` with `vector_treatment.rank_deficient_adjustment`
+/// when the penalized normal equations are singular.
+pub fn coefficient_posterior_mean(
+    summary: &DesignSummary,
+    prior_scale: f64,
+) -> Result<Vec<f64>, EstimationError> {
+    let beta = full_coefficient_posterior_mean(summary, prior_scale)?;
+    Ok(beta[summary.first_treatment..].to_vec())
+}
+
+/// Posterior mean of every coefficient, intercept included.
+///
+/// The intercept is unpenalized. Every other column has an independent normal prior of
+/// scale `prior_scale` and the OLS residual variance plugged in. No interval is returned.
+///
+/// # Errors
+///
+/// The same refusals as [`coefficient_posterior_mean`].
+pub fn full_coefficient_posterior_mean(
+    summary: &DesignSummary,
+    prior_scale: f64,
+) -> Result<Vec<f64>, EstimationError> {
+    let p = summary.xty.len();
+    let n = summary.n_rows;
+    let consistent = p > 0
+        && summary.first_treatment > 0
+        && summary.first_treatment < p
+        && summary.gram.len() == p * p
+        && n > p
+        && prior_scale.is_finite()
+        && prior_scale > 0.0
+        && summary.xty.iter().chain(&summary.gram).all(|v| v.is_finite())
+        && summary.rss.is_finite()
+        && summary.rss >= 0.0;
+    if !consistent {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "vector_treatment.summary_inconsistent",
+            "a posterior mean needs a finite full-rank design summary and a positive prior scale",
+        ));
+    }
+    let sigma2 = summary.rss / count(n - p);
+    let penalty = sigma2 / (prior_scale * prior_scale);
+    let mut gram = summary.gram.clone();
+    for column in 1..p {
+        gram[column * p + column] += penalty;
+    }
+    let Some(ginv) = antecedent_stats::invert_square(&gram, p) else {
+        return Err(refuse(
+            reason_code!("design_rank_deficient"),
+            "vector_treatment.rank_deficient_adjustment",
+            "the penalized normal equations are singular",
+        ));
+    };
+    let beta: Vec<f64> = (0..p).map(|i| dot(&ginv[i * p..(i + 1) * p], &summary.xty)).collect();
+    if beta.iter().any(|v| !v.is_finite()) {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "vector_treatment.non_finite_value",
+            "the posterior mean overflowed finite precision",
+        ));
+    }
+    Ok(beta)
+}
+
 /// Joint fit from sufficient statistics, bit-identical to the model-based fit of the rows the
 /// summary came from.
 ///
@@ -1056,7 +1032,7 @@ pub(crate) fn fit_joint_from_summary(
             "the summary must be finite with a non-negative residual sum of squares",
         ));
     }
-    let Some(ginv) = invert(&summary.gram, p) else {
+    let Some(ginv) = antecedent_stats::invert_square(&summary.gram, p) else {
         return Err(refuse(
             reason_code!("design_rank_deficient"),
             "vector_treatment.rank_deficient_adjustment",
@@ -1083,4 +1059,20 @@ pub(crate) fn fit_joint_from_summary(
         residual_variance: sigma2,
     };
     assemble(solved, options)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wald_rows;
+
+    #[test]
+    fn a_restriction_covariance_that_cancels_to_rounding_noise_is_refused() {
+        // [[1, 1], [1, 1 + 1e-15]] has a positive but cancelled second pivot: the former
+        // `sum <= 0` Cholesky accepted it, the kernel pivot floor refuses it.
+        let rows = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
+        let beta = [1.0, 1.0];
+        assert!(wald_rows(&rows, &beta, &[1.0, 1.0, 1.0, 1.0 + 1e-15]).is_err());
+        let joint = wald_rows(&rows, &beta, &[2.0, 1.0, 1.0, 2.0]).unwrap();
+        assert!((joint.statistic - 2.0 / 3.0).abs() < 1e-12, "{}", joint.statistic);
+    }
 }

@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
@@ -126,7 +124,7 @@ fn mean_curve_query_horizons(
 }
 
 fn surface_mean(result: &antecedent::result::StudyResult) -> Arc<[f64]> {
-    let response = result.response.as_ref().expect("temporal response payload");
+    let response = result.response().expect("temporal response payload");
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
     else {
@@ -286,9 +284,9 @@ fn prepare_then_estimate(
 
 fn assert_ate(result: &antecedent::result::StudyResult, expected: f64, atol: f64, label: &str) {
     assert!(
-        (result.estimate.ate - expected).abs() <= atol,
+        (result.estimate.as_effect().unwrap().ate - expected).abs() <= atol,
         "{label}: ate={} expected={expected}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
 }
 
@@ -340,7 +338,7 @@ fn confounded_pulse_recovers_structural_surface_and_unadjusted_does_not() {
     for (index, (&actual, &truth)) in mean.iter().zip(&expected).enumerate() {
         assert!((actual - truth).abs() <= atol, "adjusted[{index}]={actual} truth={truth}");
     }
-    assert_eq!(adjusted.response.as_ref().unwrap().support.status, SupportStatus::Supported);
+    assert_eq!(adjusted.response().unwrap().support.status, SupportStatus::Supported);
 
     let prepared = Study::series(data.clone())
         .graph(graph.clone())
@@ -470,6 +468,10 @@ fn confounded_pulse_and_sustained_match_structural_contrast() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for confounded multi horizon identifies per horizon not at max"
+)]
 fn confounded_multi_horizon_identifies_per_horizon_not_at_max() {
     let fixture = confounded_fixture();
     let n = usize::try_from(fixture["generation"]["n"].as_u64().unwrap()).unwrap();
@@ -537,7 +539,7 @@ fn confounded_multi_horizon_identifies_per_horizon_not_at_max() {
             .any(|d| d.code.as_ref() == "identify.temporal_response.horizon_dependent"),
         "mixed I(h) must be observable"
     );
-    let response = adjusted.response.as_ref().expect("temporal response payload");
+    let response = adjusted.response().expect("temporal response payload");
     let horizon_id = response.horizon_identification.as_ref().expect("I(h) on the surface");
     assert_eq!(horizon_id.len(), 2);
     assert_eq!(horizon_id[0].horizon, 1);
@@ -631,7 +633,7 @@ fn horizon_support_is_per_cell_not_union() {
         .unwrap()
         .run(&ExecutionContext::for_tests(11))
         .unwrap();
-    let support = &result.response.as_ref().unwrap().support;
+    let support = &result.response().unwrap().support;
     assert_eq!(
         support.status,
         parse_status(fixture["contract"]["support"]["status"].as_str().unwrap())
@@ -684,7 +686,7 @@ fn horizon_support_is_per_cell_not_union() {
         .unwrap()
         .run(&ExecutionContext::for_tests(11))
         .unwrap();
-    let path_support = &path.response.as_ref().unwrap().support;
+    let path_support = &path.response().unwrap().support;
     assert_eq!(path_support.status, SupportStatus::Extrapolative);
     assert_eq!(
         path_support.point_status.as_ref().map(AsRef::as_ref),
@@ -718,7 +720,7 @@ fn bayesian_horizon_support_matches_frequentist_geometry() {
         .unwrap()
         .run(&ExecutionContext::for_tests(11))
         .unwrap();
-    let support = &result.response.as_ref().unwrap().support;
+    let support = &result.response().unwrap().support;
     let expected: Vec<SupportStatus> = fixture["contract"]["support"]["point_status"]
         .as_array()
         .unwrap()

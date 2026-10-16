@@ -1,4 +1,4 @@
-//! F14 / F12: the durable `design_ranking_v1` artifact and its independent consumer.
+//! The durable `design_ranking_v1` artifact and its independent consumer.
 //!
 //! Oracles are the constants of the core EVSI tests, written out by hand and not read from the
 //! code under test:
@@ -6,7 +6,7 @@
 //! * Gaussian-mean decision, prior `N(1/2, 1)`, `n = 4`, noise variance 12:
 //!   `EVSI = 0.04165773529384315` (unit normal linear loss `G(1) / 2`).
 //! * Binomial bet with a two-point prior `{1/4, 3/4}` and `n = 2`: `EVSI = 1/16`, `EVPI = 1/8`.
-//! * Frozen F14 record: binary state, guess it for utility 1, prior 1/2; signals of accuracy 3/4
+//! * Frozen guess-decision record: binary state, guess it for utility 1, prior 1/2; signals of accuracy 3/4
 //!   and 5/8 have `EVSI = 1/4` and `1/8`; with an identical utility-unit cost 1/10 the net values
 //!   are `3/20` and `1/40`, in that order.
 //!
@@ -16,14 +16,15 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use antecedent_core::{
-    CancellationToken, ExternalCapability, ExternalScientificObject, ExternalTrustState,
-    ProviderObjectIdentity, QuantityRole, ScientificQuantity, SignalProviderContract,
+use antecedent_contract::{
+    ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
+    ScientificQuantity, SignalProviderContract,
 };
+use antecedent_core::CancellationToken;
 use antecedent_design::design_ranking_artifact::{
-    CandidateWire, ConsumeExpectation, ConsumedCandidate, DESIGN_RANKING_CALIBRATION,
-    DesignRankingArtifactError, DesignRankingArtifactWire, LawWire, MAX_RANKING_CANDIDATES,
-    ReplayKind, SealInputs, consume, consume_wire, seal,
+    ConsumeExpectation, ConsumedCandidate, DESIGN_RANKING_CALIBRATION, DesignRankingArtifactError,
+    DesignRankingArtifactWire, EvsiCandidateWire, LawWire, MAX_RANKING_CANDIDATES, ReplayKind,
+    SealInputs, consume, consume_wire, seal,
 };
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiReport, EvsiRequest, StudyCostSpec, evaluate_evsi,
@@ -38,25 +39,17 @@ use antecedent_design::{
     AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignRankConfig,
     SamplingPlan,
 };
+use antecedent_test_support::within as near;
 
 const EVSI_GAUSSIAN: f64 = 0.041_657_735_293_843_15;
 
-fn near(a: f64, b: f64, tol: f64) -> bool {
-    (a - b).abs() <= tol
-}
+mod common;
 
 fn quantity(id: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: id.into(),
-        variable_name: id.into(),
-        role: QuantityRole::Outcome,
         units: "dimensionless".into(),
-        population_id: "target".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(id)
     }
 }
 
@@ -163,7 +156,7 @@ fn digests() -> Vec<String> {
     vec!["digest-b".into(), "digest-a".into()]
 }
 
-// -- the frozen F14 decision ----------------------------------------------------------------
+// -- the frozen guess decision ----------------------------------------------------------------
 
 const GUESS: [&str; 2] = ["guess0", "guess1"];
 
@@ -238,12 +231,15 @@ fn refusal_detail(error: &DesignRankingArtifactError) -> String {
     error.refusal().expect("a refusal").detail
 }
 
-fn candidate_mut<'a>(wire: &'a mut DesignRankingArtifactWire, id: &str) -> &'a mut CandidateWire {
+fn candidate_mut<'a>(
+    wire: &'a mut DesignRankingArtifactWire,
+    id: &str,
+) -> &'a mut EvsiCandidateWire {
     wire.candidates.iter_mut().find(|c| c.semantic_id == id).unwrap()
 }
 
 #[test]
-fn f14_round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
+fn round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
     let wire = seal_guess(frozen_candidates());
     assert_eq!(wire.calibration, DESIGN_RANKING_CALIBRATION);
     assert_eq!(wire.calibration, "unmeasured");
@@ -283,7 +279,28 @@ fn f14_round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
 }
 
 #[test]
-fn f14_reordered_candidates_preserve_identity_and_bytes() {
+fn seal_refuses_a_later_declaration_with_the_same_id() {
+    let problem = guess_problem();
+    let prior = guess_prior();
+    let unique = frozen_candidates();
+    let req = request(&GUESS, unique, Some(utility_map()));
+    let report = evaluate_evsi(&problem, &prior, &req, &CancellationToken::new()).unwrap();
+    let mut duplicated = frozen_candidates();
+    duplicated.push(guess_candidate("cand-1", 0.9));
+    let bad = request(&GUESS, duplicated, Some(utility_map()));
+    let error = seal(&SealInputs {
+        problem: &problem,
+        prior: &prior,
+        request: &bad,
+        report: &report,
+        source_digests: &digests(),
+    })
+    .unwrap_err();
+    assert!(matches!(error, DesignRankingArtifactError::InvalidWire("duplicate candidate")));
+}
+
+#[test]
+fn reordered_candidates_preserve_identity_and_bytes() {
     let forward = seal_guess(frozen_candidates());
     let mut reversed_input = frozen_candidates();
     reversed_input.reverse();
@@ -299,7 +316,7 @@ fn f14_reordered_candidates_preserve_identity_and_bytes() {
 }
 
 #[test]
-fn f14_unsealed_mutation_corruption_and_unknown_version_refuse() {
+fn unsealed_mutation_corruption_and_unknown_version_refuse() {
     let wire = seal_guess(frozen_candidates());
     let mut edited = wire.clone();
     candidate_mut(&mut edited, "cand-1").evsi = 0.9;
@@ -330,8 +347,8 @@ fn f14_unsealed_mutation_corruption_and_unknown_version_refuse() {
 }
 
 #[test]
-fn f14_altered_signal_or_update_is_refused_even_when_resealed() {
-    type CandidateMutation = Box<dyn Fn(&mut CandidateWire)>;
+fn altered_signal_or_update_is_refused_even_when_resealed() {
+    type CandidateMutation = Box<dyn Fn(&mut EvsiCandidateWire)>;
     let wire = seal_guess(frozen_candidates());
 
     // Update mode relabelled to the other mode the law could claim.
@@ -445,7 +462,7 @@ fn f14_altered_signal_or_update_is_refused_even_when_resealed() {
 }
 
 #[test]
-fn f14_altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
+fn altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
     let wire = seal_guess(frozen_candidates());
 
     let mut edited = wire.clone();
@@ -490,7 +507,7 @@ fn f14_altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
 }
 
 #[test]
-fn f14_source_overlap_is_refused_before_ranking_and_when_resealed() {
+fn source_overlap_is_refused_before_ranking_and_when_resealed() {
     // The evaluator refuses to produce the ranking at all.
     let mut overlapping = frozen_candidates();
     overlapping[0].reused_observation_ids = vec!["obs-prior".into()];
@@ -531,7 +548,7 @@ fn f14_source_overlap_is_refused_before_ranking_and_when_resealed() {
 }
 
 #[test]
-fn f14_stored_order_and_search_receipt_must_follow_from_the_values() {
+fn stored_order_and_search_receipt_must_follow_from_the_values() {
     let wire = seal_guess(frozen_candidates());
     let mut edited = wire.clone();
     candidate_mut(&mut edited, "cand-1").rank = 1;
@@ -550,7 +567,7 @@ fn f14_stored_order_and_search_receipt_must_follow_from_the_values() {
 }
 
 #[test]
-fn f14_bounds_are_checked_before_any_recomputation() {
+fn bounds_are_checked_before_any_recomputation() {
     let wire = seal_guess(frozen_candidates());
     let mut huge = wire.clone();
     let template = huge.candidates[0].clone();
@@ -610,7 +627,7 @@ fn seal_bet(candidates: Vec<EvsiCandidate>) -> (DesignRankingArtifactWire, EvsiR
 }
 
 #[test]
-fn f12_native_binomial_is_natively_replayed_and_equivalent_external_signals_are_not() {
+fn native_binomial_is_natively_replayed_and_equivalent_external_signals_are_not() {
     let native: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
     let (wire, _) = seal_bet(vec![
         candidate("a_native", 2, native, 0.0, "utility"),
@@ -664,7 +681,7 @@ fn f12_native_binomial_is_natively_replayed_and_equivalent_external_signals_are_
 }
 
 #[test]
-fn f12_attested_decision_values_stay_attested_when_altered_or_relabelled() {
+fn attested_decision_values_stay_attested_when_altered_or_relabelled() {
     let (wire, _) = seal_bet(vec![candidate(
         "values",
         2,
@@ -705,7 +722,7 @@ fn f12_attested_decision_values_stay_attested_when_altered_or_relabelled() {
 }
 
 #[test]
-fn f12_native_gaussian_matches_the_closed_form_and_alterations_are_refused() {
+fn native_gaussian_matches_the_closed_form_and_alterations_are_refused() {
     let utility = AffineUtility::new(vec![0.0, 0.0], vec![0.0, 1.0]).unwrap();
     let problem = DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]);
     let prior = DecisionPrior::Normal { mean: 0.5, variance: 1.0 };
@@ -752,7 +769,7 @@ fn f12_native_gaussian_matches_the_closed_form_and_alterations_are_refused() {
 }
 
 #[test]
-fn f12_monte_carlo_value_is_bound_but_never_marked_replayed() {
+fn monte_carlo_value_is_bound_but_never_marked_replayed() {
     let utility = AffineUtility::new(vec![0.0, -0.45], vec![0.0, 1.0]).unwrap();
     let problem = DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]);
     let prior = DecisionPrior::Draws(vec![0.2, 0.5, 0.8]);
@@ -789,4 +806,101 @@ fn f12_monte_carlo_value_is_bound_but_never_marked_replayed() {
     candidate_mut(&mut edited, "mc").replicates = 0;
     let error = consume_wire(&resealed(edited), &open()).unwrap_err();
     assert!(matches!(&error, DesignRankingArtifactError::ReplayMismatch { .. }), "{error:?}");
+}
+
+/// Relabel one candidate `exact_request_verified` and recompute its signal
+/// identity, as a forger who can reseal would.
+fn relabelled_verified(wire: &DesignRankingArtifactWire, id: &str) -> DesignRankingArtifactWire {
+    use antecedent_design::signal::SignalReceipt;
+    let mut edited = wire.clone();
+    let candidate = candidate_mut(&mut edited, id);
+    candidate.trust = "exact_request_verified".into();
+    let provider = candidate.provider.clone().expect("an external candidate");
+    let mut lineage = candidate.request.evidence_lineage.clone();
+    lineage.sort();
+    let receipt = SignalReceipt {
+        request_fingerprint: candidate.request_fingerprint.clone(),
+        candidate_id: candidate.request.candidate_id.clone(),
+        prior_id: candidate.request.prior_id.clone(),
+        sample_size: candidate.sample_size,
+        rng_seed: candidate.request.rng_seed,
+        family: candidate.family.clone(),
+        update_mode: SignalUpdateMode::ExternalPosterior,
+        trust: SignalTrustLabel::ExactRequestVerified,
+        attestor: candidate.attestor.clone(),
+        provider_identity: Some(ProviderObjectIdentity {
+            provider_id: provider.provider_id,
+            object_id: provider.object_id,
+            version_id: provider.version_id,
+            snapshot_id: provider.snapshot_id,
+            request_id: provider.request_id,
+        }),
+        evidence_lineage: lineage,
+        conditional_independence: candidate.request.conditional_independence.clone(),
+        limits: SignalLimits {
+            max_sample_size: candidate.request.max_sample_size,
+            max_support: usize::try_from(candidate.request.max_support).unwrap(),
+        },
+        law_digest: candidate.law_digest.clone(),
+    };
+    candidate.signal_identity = receipt.identity();
+    edited.reseal_ranking().unwrap();
+    edited
+}
+
+#[test]
+fn a_stored_verification_label_without_a_receipt_is_consumed_as_an_attestation() {
+    let wire = seal_guess(frozen_candidates());
+    let edited = relabelled_verified(&wire, "cand-1");
+
+    // No receipt supplied: the label cannot be re-derived, so it is read as an attestation.
+    let consumed = consume_wire(&edited, &open()).unwrap();
+    let one = consumed.candidates.iter().find(|c| c.semantic_id == "cand-1").unwrap();
+    assert_eq!(one.trust, SignalTrustLabel::ExternallyAttested);
+    assert!(one.trust_limit.contains("no receipt"));
+    assert!(!one.natively_replayed());
+
+    // A consumer that holds the receipt for that candidate keeps the label.
+    let receipts: std::collections::BTreeSet<String> = ["cand-1".to_owned()].into();
+    let verified = antecedent_design::design_ranking_artifact::consume_wire_with_receipts(
+        &edited,
+        &open(),
+        &receipts,
+    )
+    .unwrap();
+    let one = verified.candidates.iter().find(|c| c.semantic_id == "cand-1").unwrap();
+    assert_eq!(one.trust, SignalTrustLabel::ExactRequestVerified);
+}
+
+#[test]
+fn a_newer_body_version_is_refused_as_a_version_before_any_field_is_read() {
+    // A body whose version word is not this reader's and whose shape is
+    // unrelated: the refusal names the version, not a field.
+    #[derive(serde::Serialize)]
+    struct Future {
+        version: u32,
+        unrelated: Vec<String>,
+    }
+    let body = antecedent_io_core::convert::to_cbor(&Future {
+        version: 99,
+        unrelated: vec!["a new layout".into()],
+    })
+    .unwrap();
+    let bytes = antecedent_io_core::encode_container(
+        &antecedent_io_core::ArtifactContainer {
+            kind: antecedent_design::design_ranking_artifact::DESIGN_RANKING_ARTIFACT_KIND,
+            note: "design_ranking",
+            max_bytes: 8 * 1024 * 1024,
+            artifact_id: "future",
+            library_version: "0.0.0",
+        },
+        &[antecedent_io_core::OutSection {
+            id: "design_ranking_body",
+            content_type: antecedent_io_core::CONTENT_CBOR,
+            bytes: &body,
+        }],
+    )
+    .unwrap();
+    let error = DesignRankingArtifactWire::from_bytes(&bytes).unwrap_err();
+    assert!(matches!(error, DesignRankingArtifactError::UnsupportedVersion(99)), "{error:?}");
 }

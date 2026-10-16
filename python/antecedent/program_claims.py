@@ -38,10 +38,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from ._columns import coerce_fields
 from ._native import NativeResponseClaim as _NativeResponseClaim
 from ._native import check_external_program as _check_external_program
 from ._native import native_response_claim as _native_response_claim
 from ._native import program_binding_identity as _program_binding_identity
+from ._refusal import raise_refusal
 from .decision import Contract, MeanSource
 from .errors import CausalUnsupportedError, CausalValueError
 from .extensibility import ProviderTrust
@@ -62,11 +64,6 @@ if TYPE_CHECKING:
 
 Calibration = Literal["unmeasured", "point_only"]
 SourceKind = Literal["mean", "joint_draws"]
-
-
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise ExternalRefusal(json.loads(refusal))
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +106,7 @@ class ProgramBinding:
         grid = tuple(float(dose) for dose in self.dose_grid)
         if not all(math.isfinite(dose) for dose in grid):
             raise CausalValueError("dose_grid must be finite")
-        object.__setattr__(self, "dose_grid", grid)
+        coerce_fields(self, dose_grid=grid)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -131,7 +128,7 @@ class ProgramBinding:
     def identity(self) -> str:
         """Durable identity of the full program and request; refuses an invalid binding."""
         value, refusal = _program_binding_identity(json.dumps(self._wire()))
-        _raise(refusal)
+        raise_refusal(refusal, ExternalRefusal)
         assert value is not None
         return value
 
@@ -232,7 +229,7 @@ def check_external_program(spec: ExternalSpec, program: ProgramBinding) -> Progr
     value, refusal = _check_external_program(
         json.dumps(program._wire()), json.dumps(spec._program_claim())
     )
-    _raise(refusal)
+    raise_refusal(refusal, ExternalRefusal)
     assert value is not None
     body = json.loads(value)
     return ProgramCheck(identity=str(body["identity"]), coordinates=int(body["coordinates"]))
@@ -343,6 +340,8 @@ class NativeDecisionSource:
                 causal_contract_id=str(mean["causal_contract_id"]),
                 rng_id=str(mean["rng_id"]),
                 _original_native=original,
+                trust=str(body["trust"]),
+                lineage=tuple(original.lineage) if original is not None else (),
             ),
         )
 
@@ -435,13 +434,13 @@ class NativeClaim:
         ``native_claims.no_supported_coordinate``.
         """
         body, refusal = self._native.decision_source(json.dumps(requirement._wire()))
-        _raise(refusal)
+        raise_refusal(refusal, ExternalRefusal)
         assert body is not None
         decoded = json.loads(body)
         joint = None
         if "joint_law" in decoded:
             artifact, refusal = self._native.joint_artifact(json.dumps(requirement._wire()))
-            _raise(refusal)
+            raise_refusal(refusal, ExternalRefusal)
             assert artifact is not None
             joint = JointDistributionArtifact._from_native(artifact)
         return NativeDecisionSource._from_wire(decoded, joint, self)
@@ -601,7 +600,7 @@ def native_claim(
         # Rust owns the full coordinate comparison and registered refusals.
         # A descriptor-bearing response cannot be relabelled by a new program.
         _, refusal = _check_external_program(binding_json, json.dumps(declared))
-        _raise(refusal)
+        raise_refusal(refusal, ExternalRefusal)
     claim, refusal = _native_response_claim(
         response._raw,
         json.dumps(projection),
@@ -611,7 +610,7 @@ def native_claim(
         calibration,
         program._contract_premises_json,
     )
-    _raise(refusal)
+    raise_refusal(refusal, ExternalRefusal)
     assert claim is not None
     return NativeClaim(claim)
 

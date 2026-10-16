@@ -75,7 +75,7 @@ def test_staged_learner_artifact_roundtrip(estimator):
     )
     result = prepared.estimate(data)
     restored = antecedent.load(result.export())
-    payload = restored.artifact.payload
+    payload = restored.decoded_artifact.payload
     assert (
         tuple(tuple(p) for p in payload["learner_provenance"]) == result.estimate.learner_provenance
     )

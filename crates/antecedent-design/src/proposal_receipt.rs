@@ -1,4 +1,4 @@
-//! X6 per-proposal receipt linking identification repair and design ranking, with
+//! Per-proposal receipt linking identification repair and design ranking, with
 //! re-identification on arrived data.
 //!
 //! A [`ProposalReceipt`] binds, for one candidate study, by identities and digests
@@ -39,12 +39,12 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_core::{
-    DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext,
-    IdentityDomain, RegimeId, RegimeKind, VariableId,
+    CanonicalWriter, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
+    ExecutionContext, IdentityDomain, RegimeId, RegimeKind, VariableId,
 };
-use antecedent_io::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRegimeWire};
+use antecedent_io_core::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRegimeWire};
 
-use crate::design_ranking_artifact::{CandidateWire, DesignRankingArtifactWire};
+use crate::design_ranking_artifact::{DesignRankingArtifactWire, EvsiCandidateWire};
 use crate::repair::{FamilyVerdict, RepairCancelled, RepairFamily};
 use crate::repair_artifact::{RepairFamilyRef, RepairOutcomeWire, RepairReportArtifact};
 use crate::study_candidate::DurableStudyCandidate;
@@ -111,65 +111,18 @@ type Result<T> = std::result::Result<T, ProposalReceiptError>;
 
 // ----------------------------------------------------------------- hashing
 
-fn put_str(hasher: &mut blake3::Hasher, value: &str) {
-    hasher.update(&(value.len() as u64).to_le_bytes());
-    hasher.update(value.as_bytes());
-}
-
-fn put_u64(hasher: &mut blake3::Hasher, value: u64) {
-    hasher.update(&value.to_le_bytes());
-}
-
-fn put_list(hasher: &mut blake3::Hasher, values: &[String]) {
-    put_u64(hasher, values.len() as u64);
-    for value in values {
-        put_str(hasher, value);
-    }
-}
-
-fn put_opt_str(hasher: &mut blake3::Hasher, value: Option<&String>) {
-    match value {
-        Some(text) => {
-            hasher.update(&[1]);
-            put_str(hasher, text);
-        }
-        None => {
-            hasher.update(&[0]);
-        }
-    }
-}
-
-fn put_opt_u64(hasher: &mut blake3::Hasher, value: Option<u64>) {
-    match value {
-        Some(number) => {
-            hasher.update(&[1]);
-            put_u64(hasher, number);
-        }
-        None => {
-            hasher.update(&[0]);
-        }
-    }
-}
-
-fn hex(hasher: &blake3::Hasher) -> String {
-    hasher.finalize().to_hex().to_string()
-}
-
 fn list_digest(label: &str, values: &[String]) -> String {
     let mut sorted = values.to_vec();
     sorted.sort();
-    let mut hasher = blake3::Hasher::new();
-    put_str(&mut hasher, label);
-    put_list(&mut hasher, &sorted);
-    hex(&hasher)
+    let mut hasher = CanonicalWriter::new("antecedent.proposal_receipt.list.v1");
+    hasher.text(label).texts(&sorted);
+    hasher.finish_hex()
 }
 
 fn regimes_digest(regimes: &[EvidenceRegimeWire]) -> Result<String> {
-    antecedent_io::identity::digest_wire(IdentityDomain::Identification, &regimes.to_vec())
-        .map(|digest| digest.to_hex())
-        .map_err(|error| {
-            ProposalReceiptError::invalid("proposal_receipt.invalid_delta", error.to_string())
-        })
+    antecedent_io_core::digest_hex(IdentityDomain::Identification, &regimes.to_vec()).map_err(
+        |error| ProposalReceiptError::invalid("proposal_receipt.invalid_delta", error.to_string()),
+    )
 }
 
 // ---------------------------------------------------------------- receipts
@@ -309,45 +262,44 @@ impl ProposalReceipt {
     /// Recompute the identity from the fields.
     #[must_use]
     pub fn compute_identity(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, RECEIPT_DOMAIN);
-        put_str(&mut hasher, &self.candidate_id);
+        let mut hasher = CanonicalWriter::new(RECEIPT_DOMAIN);
+        hasher.text(&self.candidate_id);
         let base = &self.base_failure;
-        put_str(&mut hasher, &base.family);
-        put_str(&mut hasher, &base.contract);
-        put_list(&mut hasher, &base.obligation_ids);
-        put_str(&mut hasher, &base.premises_digest);
-        put_str(&mut hasher, &base.data_digest);
+        hasher.text(&base.family);
+        hasher.text(&base.contract);
+        hasher.texts(&base.obligation_ids);
+        hasher.text(&base.premises_digest);
+        hasher.text(&base.data_digest);
         let hyp = &self.hypothetical;
-        put_str(&mut hasher, &hyp.classification);
-        put_str(&mut hasher, &hyp.delta_digest);
-        put_u64(&mut hasher, hyp.delta_regimes);
-        put_opt_str(&mut hasher, hyp.derivation_digest.as_ref());
-        hasher.update(&[u8::from(hyp.derivation_verified)]);
-        put_list(&mut hasher, &hyp.addressed);
-        put_list(&mut hasher, &hyp.unmet);
+        hasher.text(&hyp.classification);
+        hasher.text(&hyp.delta_digest);
+        hasher.word(hyp.delta_regimes);
+        hasher.opt_text(hyp.derivation_digest.as_deref());
+        hasher.word(u64::from(hyp.derivation_verified));
+        hasher.texts(&hyp.addressed);
+        hasher.texts(&hyp.unmet);
         let cost = &self.cost;
-        put_u64(&mut hasher, cost.units);
-        put_str(&mut hasher, &cost.unit_label);
-        put_u64(&mut hasher, cost.sample_budget);
-        put_u64(&mut hasher, cost.sample_size);
-        put_list(&mut hasher, &self.lineage.snapshots);
-        put_str(&mut hasher, &self.lineage.source_digest);
+        hasher.word(cost.units);
+        hasher.text(&cost.unit_label);
+        hasher.word(cost.sample_budget);
+        hasher.word(cost.sample_size);
+        hasher.texts(&self.lineage.snapshots);
+        hasher.text(&self.lineage.source_digest);
         let value = &self.valuation;
-        put_str(&mut hasher, &value.basis);
-        put_str(&mut hasher, &value.signal_request_fingerprint);
-        put_str(&mut hasher, &value.signal_identity);
-        put_u64(&mut hasher, value.evsi_bits);
-        put_opt_u64(&mut hasher, value.net_value_bits);
-        put_u64(&mut hasher, value.rank);
+        hasher.text(&value.basis);
+        hasher.text(&value.signal_request_fingerprint);
+        hasher.text(&value.signal_identity);
+        hasher.word(value.evsi_bits);
+        hasher.opt_word(value.net_value_bits);
+        hasher.word(value.rank);
         let decision = &self.decision;
-        put_str(&mut hasher, &decision.contract_identity);
-        put_str(&mut hasher, &decision.utility_unit);
-        put_str(&mut hasher, &decision.action_ids_digest);
-        put_str(&mut hasher, &decision.ranking_identity);
-        put_str(&mut hasher, &self.repair_report_digest);
-        put_str(&mut hasher, &self.ranking_digest);
-        hex(&hasher)
+        hasher.text(&decision.contract_identity);
+        hasher.text(&decision.utility_unit);
+        hasher.text(&decision.action_ids_digest);
+        hasher.text(&decision.ranking_identity);
+        hasher.text(&self.repair_report_digest);
+        hasher.text(&self.ranking_digest);
+        hasher.finish_hex()
     }
 
     /// Recompute and store the identity (after an edit, to re-seal).
@@ -398,7 +350,10 @@ fn singleton_outcome<'a>(
     ))
 }
 
-fn find_scored<'a>(ranking: &'a DesignRankingArtifactWire, id: &str) -> Result<&'a CandidateWire> {
+fn find_scored<'a>(
+    ranking: &'a DesignRankingArtifactWire,
+    id: &str,
+) -> Result<&'a EvsiCandidateWire> {
     ranking.candidates.iter().find(|c| c.semantic_id == id).ok_or_else(|| {
         ProposalReceiptError::mismatch(
             "proposal_receipt.candidate_not_in_ranking",
@@ -407,7 +362,11 @@ fn find_scored<'a>(ranking: &'a DesignRankingArtifactWire, id: &str) -> Result<&
     })
 }
 
-fn check_declared(repair: &RepairReportArtifact, scored: &CandidateWire, id: &str) -> Result<()> {
+fn check_declared(
+    repair: &RepairReportArtifact,
+    scored: &EvsiCandidateWire,
+    id: &str,
+) -> Result<()> {
     let declared =
         repair.premises.candidates.iter().find(|c| c.semantic_id == id).ok_or_else(|| {
             ProposalReceiptError::mismatch(
@@ -435,16 +394,15 @@ fn check_declared(repair: &RepairReportArtifact, scored: &CandidateWire, id: &st
 
 fn derivation_digest(outcome: &RepairOutcomeWire) -> Option<String> {
     outcome.derivation.as_ref().map(|d| {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "antecedent.proposal_receipt.derivation");
-        put_str(&mut hasher, &d.checker);
-        put_list(&mut hasher, &d.steps);
-        hasher.update(&[u8::from(d.verified)]);
-        hex(&hasher)
+        let mut hasher = CanonicalWriter::new("antecedent.proposal_receipt.derivation");
+        hasher.text(&d.checker);
+        hasher.texts(&d.steps);
+        hasher.word(u64::from(d.verified));
+        hasher.finish_hex()
     })
 }
 
-fn snapshots_of(scored: &CandidateWire) -> Vec<String> {
+fn snapshots_of(scored: &EvsiCandidateWire) -> Vec<String> {
     let mut snapshots = scored.request.evidence_lineage.clone();
     if let Some(provider) = &scored.provider {
         snapshots.push(format!("provider:{}/{}", provider.provider_id, provider.snapshot_id));
@@ -651,17 +609,16 @@ impl ProposalBundle {
             .map(|p| (p.candidate_id.as_str(), p.compute_identity()))
             .collect();
         identities.sort();
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, BUNDLE_DOMAIN);
-        put_str(&mut hasher, &self.repair_report_digest);
-        put_str(&mut hasher, &self.ranking_digest);
-        put_str(&mut hasher, &self.decision_contract_identity);
-        put_u64(&mut hasher, identities.len() as u64);
+        let mut hasher = CanonicalWriter::new(BUNDLE_DOMAIN);
+        hasher.text(&self.repair_report_digest);
+        hasher.text(&self.ranking_digest);
+        hasher.text(&self.decision_contract_identity);
+        hasher.word(identities.len() as u64);
         for (candidate, identity) in &identities {
-            put_str(&mut hasher, candidate);
-            put_str(&mut hasher, identity);
+            hasher.text(candidate);
+            hasher.text(identity);
         }
-        hex(&hasher)
+        hasher.finish_hex()
     }
 
     /// Recompute and store the identity (after an edit, to re-seal).

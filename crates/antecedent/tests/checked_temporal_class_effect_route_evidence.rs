@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study};
@@ -120,7 +121,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
                     assert!(plan.identified_mass > 0.0);
 
                     let result = prepared.estimate_series(&data, &ctx).unwrap();
-                    assert!(result.estimate.ate.is_finite());
+                    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
                     let true_effect = truth(&graph, multi_step);
                     let mixture = result
                         .structural_response
@@ -146,7 +147,9 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
                     }
                     let standard_error = result
                         .estimate
-                        .se_bootstrap
+                        .as_effect()
+                        .unwrap()
+                        .se_bootstrap()
                         .expect("shared circular-block procedure must execute");
                     assert!(standard_error.is_finite() && standard_error >= 0.0);
 

@@ -1,18 +1,8 @@
 //! Lag-aligned sample planning for temporal discovery.
 //!
-//! General x/y/z [`SampleRequest`](crate::SampleRequest) planning lives in
-//! [`sample_request`](crate::sample_request). This module owns the lag-gather
-//! hot path ([`LaggedSamplePlan`]).
+//! This module owns the lag-gather hot path ([`LaggedSamplePlan`]).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
 
 use std::sync::Arc;
 
@@ -305,7 +295,8 @@ impl LaggedSamplePlan {
                 F64VectorView::contiguous(src.values.as_slice()),
                 &workspace.row_indexes[..n],
                 dst,
-            );
+            )
+            .map_err(|err| DataError::InvalidArgument { message: err.to_string() })?;
         }
 
         Ok(LaggedPreparedSample {
@@ -404,7 +395,6 @@ impl TimeSeriesData {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests {
     use std::sync::Arc;
 

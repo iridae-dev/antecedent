@@ -2,10 +2,13 @@
 //! No calibrated public posterior route is issued by this candidate adapter.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::recalc_bayesian::{BayesianLaw, PosteriorSummarySpec};
+use super::recalc_common::{Fields, literal};
 use super::recalc_receipt::{DecisionValue, RecalcReceipt, UtilitySpec};
 use antecedent_core::{TransportQuery, recalc::RecalcPlan};
 use antecedent_estimate::joint_bayesian_transport::{
-    JointTransportFit, JointTransportModel, JointTransportOptions, SourceData, TargetData,
+    DataIdentity, GaussianPrior, JointTransportFit, JointTransportModel, JointTransportOptions,
+    PriorProvenance, SourceData, SourceDependence, SourceSharing, TargetData, TransportGraphClass,
+    VaryingBlock,
 };
 use antecedent_graph::SelectionDiagram;
 
@@ -55,8 +58,77 @@ pub struct JointBayesianSession {
     live: Option<JointBayesianLive>,
     boundary: antecedent_core::recalc::Boundary,
 }
-fn literal(label: &str, text: &str) -> antecedent_core::recalc::StageIdentity {
-    antecedent_core::recalc::StageIdentity::of(label, &[text.as_bytes()])
+fn data_identity_fields(fields: Fields, identity: &DataIdentity) -> Fields {
+    fields.text(&identity.snapshot_digest).texts(&identity.datum_ids)
+}
+fn prior_fields(fields: Fields, prior: &GaussianPrior) -> Fields {
+    let fields = fields.reals(&prior.mean).reals(&prior.covariance);
+    match &prior.provenance {
+        PriorProvenance::Declared => fields.text("declared"),
+        PriorProvenance::Bank { bank_id, consumed } => {
+            let mut fields = fields.text("bank").text(bank_id).len(consumed.len());
+            for identity in consumed {
+                fields = data_identity_fields(fields, identity);
+            }
+            fields
+        }
+    }
+}
+fn model_fields(model: &JointTransportModel) -> Fields {
+    let fields = Fields::new()
+        .text(match model.graph {
+            TransportGraphClass::FixedDag => "fixed_dag",
+            TransportGraphClass::Admg => "admg",
+            TransportGraphClass::GraphPosterior => "graph_posterior",
+        })
+        .ids(&model.features)
+        .text(match model.varying {
+            VaryingBlock::Intercept => "intercept",
+            VaryingBlock::InterceptAndCovariates => "intercept_and_covariates",
+        })
+        .text(match model.sharing {
+            SourceSharing::IndependentVaryingBlocks => "independent_varying_blocks",
+            SourceSharing::SharedVaryingBlock => "shared_varying_block",
+        })
+        .text(match model.dependence {
+            SourceDependence::IndependentSamples => "independent_samples",
+            SourceDependence::OverlappingUnits => "overlapping_units",
+            SourceDependence::Unknown => "unknown",
+        });
+    let fields = prior_fields(fields, &model.priors.invariant);
+    prior_fields(fields, &model.priors.varying)
+        .real(model.max_unsupported_mass)
+        .real(model.conflict_z_threshold)
+}
+fn sources_fields(sources: &[SourceData]) -> Fields {
+    let mut fields = Fields::new().len(sources.len());
+    for source in sources {
+        fields = data_identity_fields(fields.text(&source.id), &source.identity);
+        let treatment: Vec<u8> = source.treatment.iter().map(|&t| u8::from(t)).collect();
+        fields = fields.bytes(&treatment).reals(&source.outcome).len(source.covariates.len());
+        for column in &source.covariates {
+            fields = fields.reals(column);
+        }
+        fields = fields.real(source.noise_variance);
+    }
+    fields
+}
+fn target_fields(target: &TargetData) -> Fields {
+    let mut fields = data_identity_fields(Fields::new(), &target.identity)
+        .len(target.rows)
+        .len(target.covariates.len());
+    for column in &target.covariates {
+        fields = fields.reals(column);
+    }
+    fields
+}
+fn diagram_fields(diagram: &SelectionDiagram) -> Fields {
+    let graph = diagram.causal_graph();
+    let selections: Vec<u32> = diagram.selection_targets().iter().map(|v| v.raw()).collect();
+    Fields::new()
+        .nodes(graph.nodes())
+        .wire(&antecedent_io::admg_to_wire(graph).ok())
+        .ids(&selections)
 }
 impl JointBayesianRequest {
     fn validate(
@@ -159,39 +231,72 @@ impl JointBayesianRequest {
     pub fn identities(&self) -> antecedent_core::recalc::StageIdentities {
         use antecedent_core::recalc::{Stage, StageIdentities};
         let mut ids = StageIdentities::new();
-        ids.set(Stage::Graph, literal("joint.graph.v1", &format!("{:?}", self.diagram)));
-        ids.set(Stage::Query, literal("joint.query.v1", &format!("{:?}", self.query)));
-        ids.set(Stage::Regime, literal("joint.regime.v1", "randomized.binary.known_noise"));
+        ids.set(Stage::Graph, diagram_fields(&self.diagram).identity("joint.graph.v1"));
+        let catalog = self
+            .query
+            .catalog
+            .as_ref()
+            .map(antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog);
+        let query = antecedent_core::CausalQuery::Transport(self.query.clone());
         ids.set(
-            Stage::Evidence,
-            literal("joint.evidence.v1", &format!("{:?}", self.query.catalog)),
+            Stage::Query,
+            Fields::new()
+                .wire(&antecedent_io::causal_query_to_wire(&query).ok())
+                .wire(&catalog)
+                .identity("joint.query.v1"),
         );
+        ids.set(Stage::Regime, literal("joint.regime.v1", "randomized.binary.known_noise"));
+        ids.set(Stage::Evidence, Fields::new().wire(&catalog).identity("joint.evidence.v1"));
         ids.set(
             Stage::SourcePopulation,
-            literal(
-                "joint.source.v1",
-                &format!("{:?}", self.sources.iter().map(|source| &source.id).collect::<Vec<_>>()),
-            ),
+            Fields::new()
+                .texts(&self.sources.iter().map(|source| source.id.as_str()).collect::<Vec<_>>())
+                .identity("joint.source.v1"),
         );
         ids.set(Stage::TargetPopulation, literal("joint.target.v1", "declared.target.covariates"));
         ids.set(
             Stage::DataSnapshot,
-            literal("joint.units.v1", &format!("{:?}:{:?}", self.sources, self.target)),
+            Fields::new()
+                .bytes(&sources_fields(&self.sources).into_bytes())
+                .bytes(&target_fields(&self.target).into_bytes())
+                .identity("joint.units.v1"),
         );
         ids.set(Stage::RowDesign, literal("joint.rows.v1", "identity_bound_source_units"));
         ids.set(Stage::TreatmentGrid, literal("joint.actions.v1", "binary.0_1"));
         ids.set(
             Stage::LearnerFoldsRng,
-            literal("joint.inference.v1", &format!("{:?}:{:?}", self.model, self.options)),
+            Fields::new()
+                .bytes(&model_fields(&self.model).into_bytes())
+                .len(self.options.draws)
+                .word(self.options.seed)
+                .identity("joint.inference.v1"),
         );
         ids.set(
             Stage::Identification,
             literal("joint.checked.v1", "original.transport.identifier"),
         );
         ids.set(Stage::ScoreArtifact, literal("joint.posterior.v1", "native.aligned.candidate"));
-        ids.set(Stage::Law, literal("joint.projection.v1", &format!("{:?}", self.summary)));
+        ids.set(
+            Stage::Law,
+            Fields::new()
+                .real(self.summary.lower_probability)
+                .real(self.summary.upper_probability)
+                .real(self.summary.threshold)
+                .identity("joint.projection.v1"),
+        );
         ids.set(Stage::Utility, super::recalc_cell::utility_identity(self.utility));
         ids.set(Stage::Decision, literal("joint.decision.v1", "candidate.expected_net_benefit"));
+        // The projection states an uncertainty claim with no calibration record, and its draws
+        // are rows of one aligned joint posterior over the sources: the alignment is the draw
+        // count, the seed and the source units it was drawn for.
+        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::Unmeasured);
+        ids.set_coupling(&antecedent_core::recalc::CouplingInput::AlignedJoint {
+            alignment: Fields::new()
+                .texts(&self.sources.iter().map(|source| source.id.as_str()).collect::<Vec<_>>())
+                .len(self.options.draws)
+                .word(self.options.seed)
+                .identity("joint.coupling.v1"),
+        });
         ids
     }
 }
@@ -234,6 +339,10 @@ impl JointBayesianSession {
 /// This internal route publishes no calibrated posterior or confidence interval.
 /// # Errors
 /// Original identification/likelihood/prior ownership refusals, bounds, or receipt errors.
+#[allow(
+    clippy::too_many_lines,
+    reason = "plans the staged recalculation and runs each stage the plan marks changed against one receipt recorder and one live session, so the stage bodies share the counters and the previous session"
+)]
 pub fn execute_joint_bayesian_with_receipt(
     session: &mut JointBayesianSession,
     request: &JointBayesianRequest,

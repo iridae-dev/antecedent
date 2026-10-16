@@ -1,6 +1,6 @@
 //! Independent point-result artifacts for the smoothed dose-response transport grid.
 //!
-//! Format version 1 of the 2.2B cell X4 artifact (`checked_smoothed_dose_transport_v1`).
+//! Format version 1 of the artifact (`checked_smoothed_dose_transport_v1`).
 //! A consumer never fits a learner or resamples. Before any replay work it refuses a
 //! stored bound that is looser than this build's compiled bound (compared field by field:
 //! a larger cap, a lower replicate floor or a node count this build does not offer; an
@@ -70,83 +70,7 @@ pub const SMOOTHED_DOSE_ARTIFACT_FEATURE: &str = "checked_smoothed_dose_transpor
 
 use crate::learned_continuous_artifact::CertificateRecord;
 
-/// Why a smoothed-dose artifact was refused. Callers match the kind.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum SmoothedDoseArtifactError {
-    /// The feature marker or shape is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A stored size or bound exceeds the consumer's own limits or compiled bounds.
-    #[error("limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored request no longer validates, or replay refused it; carries the
-    /// registered reason code and the namespaced detail of the refusal.
-    #[error("replay refused ({code}): {message}")]
-    ReplayRefused {
-        /// Registered runtime reason code.
-        code: &'static str,
-        /// The refusal message, starting with its namespaced detail.
-        message: String,
-    },
-    /// The request is malformed (not a coded refusal).
-    #[error("request does not validate: {0}")]
-    InvalidRequest(String),
-    /// The certificate re-derived from the stored graph and query is not the stored one.
-    #[error("certificate does not verify: {0}")]
-    ProofMismatch(String),
-    /// The stored fold assignment or scheme is not the recomputed one.
-    #[error("fold provenance does not match the stored rows")]
-    FoldMismatch,
-    /// The stored fold models or provenance do not match the specs, folds or design.
-    #[error("fold models or provenance contradict the learner specs")]
-    ProvenanceMismatch,
-    /// A replayed grid estimate differs from the stored one.
-    #[error("point estimate does not replay")]
-    PointMismatch,
-    /// A replayed quadrature record differs from the stored one.
-    #[error("quadrature record does not replay")]
-    QuadratureMismatch,
-    /// A replayed smoothing-bias diagnostic differs from the stored one.
-    #[error("smoothing-bias diagnostic does not replay")]
-    SmoothingBiasMismatch,
-    /// A replayed local-support record or influence diagnostic differs.
-    #[error("local support does not replay")]
-    SupportMismatch,
-    /// The replayed held-out diagnostics differ from the stored ones.
-    #[error("nuisance diagnostics do not replay")]
-    DiagnosticsMismatch,
-    /// The replayed membership overlap differs from the stored one.
-    #[error("overlap report does not replay")]
-    OverlapMismatch,
-    /// The stored interval status contradicts the closed interval route.
-    #[error("uncertainty bookkeeping does not check: {0}")]
-    UncertaintyMismatch(&'static str),
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The data digest does not match the stored rows.
-    #[error("data digest mismatch")]
-    DataIdentityMismatch,
-    /// The evidence digest does not match the stored result.
-    #[error("evidence digest mismatch")]
-    EvidenceMismatch,
-    /// The caller's variable names are not the names the artifact was built under.
-    #[error("variable names do not match the verified name mapping")]
-    NamesMismatch,
-}
-
-impl SmoothedDoseArtifactError {
-    /// The registered reason code a replay refusal carries.
-    #[must_use]
-    pub const fn reason_code(&self) -> Option<&'static str> {
-        match self {
-            Self::ReplayRefused { code, .. } => Some(code),
-            _ => None,
-        }
-    }
-}
-
+pub use antecedent_io_core::transport_errors::SmoothedDoseArtifactError;
 /// Bounds a consumer imposes on a replay. Nothing the artifact stores raises them.
 #[derive(Clone, Copy, Debug)]
 pub struct SmoothedDoseConsumeLimits {
@@ -323,11 +247,6 @@ struct EvidenceView<'a> {
     result: &'a SmoothedDoseEstimate,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// A verified replay: the wire plus the independently rebuilt identification.
 pub struct ConsumedSmoothedDose {
     /// The decoded, verified artifact.
@@ -385,7 +304,7 @@ impl SmoothedDoseArtifactWire {
         let mut graph = self.graph.clone();
         graph.directed.sort_unstable();
         graph.bidirected.sort_unstable();
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &PremisesView {
                 tag: "smoothed_dose_transport_premises_v1",
@@ -401,8 +320,7 @@ impl SmoothedDoseArtifactWire {
                 sampling: self.input.sampling,
                 variable_names: &self.variable_names,
             },
-        )?
-        .to_hex())
+        )
     }
 
     /// The data digest the stored rows hash to.
@@ -410,7 +328,7 @@ impl SmoothedDoseArtifactWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn expected_data_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &DataView {
                 tag: "smoothed_dose_transport_data_v1",
@@ -420,8 +338,7 @@ impl SmoothedDoseArtifactWire {
                 dose_density: &self.input.dose_density,
                 source: &self.input.source,
             },
-        )?
-        .to_hex())
+        )
     }
 
     /// The evidence digest the stored result hashes to.
@@ -429,11 +346,10 @@ impl SmoothedDoseArtifactWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &EvidenceView { tag: "smoothed_dose_transport_evidence_v1", result: &self.result },
-        )?
-        .to_hex())
+        )
     }
 
     /// Scientific execution identity.
@@ -441,7 +357,7 @@ impl SmoothedDoseArtifactWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn identity(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(IdentityDomain::LearnedTrial, self)?.to_hex())
+        crate::digest_hex(IdentityDomain::LearnedTrial, self)
     }
 
     /// [`Refusal::NamesMismatch`] unless the stored source and target
@@ -485,11 +401,13 @@ impl SmoothedDoseArtifactWire {
     /// [`IoError::UnsupportedVersion`], or a decoding failure (an artifact carrying an
     /// interval field fails here).
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != SMOOTHED_DOSE_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        crate::from_cbor(bytes)
+        crate::decode_with_version(bytes, |version| {
+            if version == SMOOTHED_DOSE_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })
     }
 
     /// Decode and independently verify without fitting or resampling, under the caller's
@@ -655,15 +573,24 @@ impl SmoothedDoseArtifactWire {
         if self.replay_workspace_bytes(ctx).is_none_or(|bytes| bytes > cap) {
             return Err(Refusal::LimitsExceeded("replay workspace above the memory limit").into());
         }
-        if self.premises_digest != self.expected_premises_digest()? {
-            return Err(Refusal::PremisesMismatch.into());
-        }
-        if self.data_digest != self.expected_data_digest()? {
-            return Err(Refusal::DataIdentityMismatch.into());
-        }
-        if self.evidence_digest != self.expected_evidence_digest()? {
-            return Err(Refusal::EvidenceMismatch.into());
-        }
+        crate::require_digest(
+            &self.premises_digest,
+            self.expected_premises_digest(),
+            std::convert::identity,
+            || Refusal::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &self.data_digest,
+            self.expected_data_digest(),
+            std::convert::identity,
+            || Refusal::DataIdentityMismatch.into(),
+        )?;
+        crate::require_digest(
+            &self.evidence_digest,
+            self.expected_evidence_digest(),
+            std::convert::identity,
+            || Refusal::EvidenceMismatch.into(),
+        )?;
         let graph = admg_from_wire(&self.graph)?;
         let diagram = antecedent_graph::SelectionDiagram::try_new(
             graph,
@@ -707,6 +634,7 @@ impl SmoothedDoseArtifactWire {
                 || stored.estimate.to_bits() != replayed.estimate.to_bits()
                 || stored.plug_in.to_bits() != replayed.plug_in.to_bits()
                 || stored.augmentation.to_bits() != replayed.augmentation.to_bits()
+                || stored.row_scores != replayed.row_scores
                 || !stored.estimate.is_finite()
             {
                 return Err(Refusal::PointMismatch.into());

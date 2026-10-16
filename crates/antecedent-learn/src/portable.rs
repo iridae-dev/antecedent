@@ -128,7 +128,6 @@ impl PortablePredictor {
 }
 
 impl FittedPredictor for PortablePredictor {
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     fn predict(
         &self,
         x: DesignView<'_>,
@@ -204,14 +203,13 @@ impl FittedPredictor for PortablePredictor {
                             message: "no supported prediction at requested row",
                         });
                     }
-                    #[allow(clippy::cast_precision_loss)]
                     {
                         *value = base + if *average { sum / votes as f64 } else { sum };
                     }
                     if *logistic {
                         *value = sigmoid(*value);
                     } else if *probability {
-                        *value = value.clamp(1e-9, 1.0 - 1e-9);
+                        *value = crate::learner::clip_probability(*value);
                     }
                 }
             }
@@ -233,8 +231,9 @@ impl FittedPredictor for PortablePredictor {
     }
 }
 
+/// The stable logistic with the provider's explicit probability clip.
 fn sigmoid(value: f64) -> f64 {
-    (1.0 / (1.0 + (-value).exp())).clamp(1e-9, 1.0 - 1e-9)
+    crate::learner::clip_probability(antecedent_kernels::sigmoid(value))
 }
 
 #[cfg(test)]
@@ -248,7 +247,6 @@ mod tests {
         let mut x = vec![1.0; n * 2];
         let y: Vec<_> = (0..n)
             .map(|i| {
-                #[allow(clippy::cast_precision_loss)]
                 let v = i as f64 / 10.0;
                 x[n + i] = v;
                 2.0 + v.sin()

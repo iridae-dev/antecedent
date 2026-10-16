@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -200,6 +199,10 @@ fn prepare_click(
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal mediation i1 not equal i2 on confounded pulse"
+)]
 fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
     let (data, graph) = confounded_mediation_series();
     let q = query(&[1, 2]);
@@ -228,7 +231,7 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let grid = multi.mediation_grid.as_ref().expect("multi-horizon mediation grid");
+    let grid = multi.mediation_grid().expect("multi-horizon mediation grid");
     assert_eq!(grid.slices.len(), 2);
     assert!(!grid.joint_posterior);
     assert_eq!(grid.slices[0].horizon, 1);
@@ -252,8 +255,11 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
             .collect::<Vec<_>>(),
         vec![(0, 0), (3, 0)]
     );
-    assert!(multi.estimate.ate.is_nan(), "multi-horizon results have no scalar representative");
-    assert!(multi.mediation.is_none());
+    assert!(
+        multi.estimate.as_effect().unwrap().ate.is_nan(),
+        "multi-horizon results have no scalar representative"
+    );
+    assert!(multi.mediation().is_none());
 
     let z1_cols = [LaggedColumn { variable: VariableId::from_raw(3), lag: Lag::from_raw(1) }];
     let under_i1 = estimate_h1(&data, &z1_cols);
@@ -279,13 +285,15 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         assert!(has_cached(&click), "prepared click must reuse exec.identify.cached");
         match inference {
             InferenceMode::Frequentist => {
-                assert!((click.estimate.ate - structural_mediated()).abs() < 1e-6);
+                assert!(
+                    (click.estimate.as_effect().unwrap().ate - structural_mediated()).abs() < 1e-6
+                );
             }
             InferenceMode::Bayesian(_) => {
                 assert!(
-                    (click.estimate.ate - structural_mediated()).abs() < 0.08,
+                    (click.estimate.as_effect().unwrap().ate - structural_mediated()).abs() < 0.08,
                     "Bayesian I(1) ate {} vs structural {}",
-                    click.estimate.ate,
+                    click.estimate.as_effect().unwrap().ate,
                     structural_mediated()
                 );
             }
@@ -296,9 +304,9 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
     let (prepared, prepared_multi) =
         prepare_click(&data, &graph, &q, InferenceMode::Frequentist, RefuteSuite::None, false);
     assert!(has_cached(&prepared_multi));
-    assert_eq!(prepared_multi.mediation_grid.as_ref().unwrap().slices.len(), 2);
+    assert_eq!(prepared_multi.mediation_grid().unwrap().slices.len(), 2);
     let refreshed = prepared.estimate_series(&data, &ctx).unwrap();
-    assert_eq!(refreshed.mediation_grid.as_ref().unwrap().slices.len(), 2);
+    assert_eq!(refreshed.mediation_grid().unwrap().slices.len(), 2);
 
     let (_, bayesian_multi) = prepare_click(
         &data,
@@ -308,11 +316,11 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
         RefuteSuite::None,
         false,
     );
-    let bayesian_grid = bayesian_multi.mediation_grid.as_ref().unwrap();
+    let bayesian_grid = bayesian_multi.mediation_grid().unwrap();
     assert_eq!(bayesian_grid.slices.len(), 2);
     assert!(!bayesian_grid.joint_posterior);
     assert!(bayesian_multi.posterior.is_none());
-    assert!(bayesian_multi.mediation.is_none());
+    assert!(bayesian_multi.mediation().is_none());
     assert!(bayesian_grid.slices.iter().all(|slice| matches!(
         slice.uncertainty,
         antecedent::estimate::TemporalMediationUncertainty::BayesianPointwise { .. }
@@ -331,7 +339,7 @@ fn multi_horizon_parent_identification_is_the_conservative_join() {
         .unwrap()
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
-    let grid = result.mediation_grid.as_ref().expect("multi-horizon mediation grid");
+    let grid = result.mediation_grid().expect("multi-horizon mediation grid");
     assert!(grid.slices.iter().all(|slice| {
         slice.identification_status == IdentificationStatus::IdentifiedUnderParametricRestrictions
     }));
@@ -373,7 +381,7 @@ fn class_mediation_study(data: &TimeSeriesData, accepted: bool) -> antecedent::S
 /// The horizon-1 slice's identified set brackets the structural mediated effect
 /// `a·b` of the law to within `tol` at both ends.
 fn assert_horizon_one_mediated(result: &antecedent::StudyResult, tol: f64, case: &str) {
-    let grid = result.mediation_grid.as_ref().expect("class mediation grid");
+    let grid = result.mediation_grid().expect("class mediation grid");
     let slice = grid.slices.iter().find(|slice| slice.horizon == 1).expect("horizon-1 slice");
     let set = slice.identified_set.expect("horizon-1 identified set");
     assert!(
@@ -399,15 +407,15 @@ fn temporal_cpdag_mediation_returns_per_horizon_identified_sets() {
             .run(&ExecutionContext::for_tests(27))
             .unwrap();
         let case = format!("Frequentist accepted={accepted} none");
-        let grid = result.mediation_grid.as_ref().expect("class mediation grid");
+        let grid = result.mediation_grid().expect("class mediation grid");
         assert_eq!(grid.slices.len(), 2, "{case}");
         assert!(grid.slices.iter().all(|slice| {
             slice.identified_set.is_some_and(|set| set.lower.is_finite() && set.lower <= set.upper)
         }));
         assert_horizon_one_mediated(&result, 1e-6, &case);
         assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
-        assert!(result.mediation.is_none());
-        assert!(result.estimate.ate.is_nan());
+        assert!(result.mediation().is_none());
+        assert!(result.estimate.as_effect().unwrap().ate.is_nan());
     }
 }
 
@@ -441,15 +449,16 @@ fn temporal_cpdag_mediation_cheap_and_full_run_per_completion() {
             // scalar estimate beside the set.
             assert_horizon_one_mediated(&result, 1e-6, &case);
             assert!(
-                (result.estimate.ate - structural_mediated()).abs() < 1e-6,
+                (result.estimate.as_effect().unwrap().ate - structural_mediated()).abs() < 1e-6,
                 "{case}: estimate {} vs structural {}",
-                result.estimate.ate,
+                result.estimate.as_effect().unwrap().ate,
                 structural_mediated()
             );
-            assert!(result.mediation.is_some(), "{case}");
-            assert!(result.mediation_grid.as_ref().is_some_and(|grid| {
+            assert!(result.mediation().is_some(), "{case}");
+            assert!(result.mediation_grid().is_some_and(|grid| {
                 grid.slices[0].identified_set.is_some_and(|set| {
-                    set.lower == result.estimate.ate && set.upper == result.estimate.ate
+                    set.lower == result.estimate.as_effect().unwrap().ate
+                        && set.upper == result.estimate.as_effect().unwrap().ate
                 })
             }));
         }
@@ -470,7 +479,7 @@ fn temporal_class_bayesian_mediation_returns_identified_sets() {
             .run(&ExecutionContext::for_tests(31))
             .unwrap();
         let case = format!("Bayesian accepted={accepted} none");
-        let grid = result.mediation_grid.as_ref().expect("Bayesian class mediation grid");
+        let grid = result.mediation_grid().expect("Bayesian class mediation grid");
         assert_eq!(grid.slices.len(), 2, "{case}");
         assert!(grid.slices.iter().all(|slice| {
             slice.identified_set.is_some_and(|set| set.lower.is_finite() && set.lower <= set.upper)
@@ -478,7 +487,7 @@ fn temporal_class_bayesian_mediation_returns_identified_sets() {
         // Same tolerance as the Bayesian I(1) pin on the oriented TemporalDag.
         assert_horizon_one_mediated(&result, 0.08, &case);
         assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
-        assert!(result.estimate.ate.is_nan());
+        assert!(result.estimate.as_effect().unwrap().ate.is_nan());
     }
 }
 

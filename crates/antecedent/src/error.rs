@@ -3,25 +3,28 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_attribution::AttributionError;
-use antecedent_core::SchemaError;
+use antecedent_core::{QueryError, SchemaError, TemporalIndexError};
 use antecedent_counterfactual::CounterfactualError;
 use antecedent_data::DataError;
 use antecedent_design::DesignError;
 use antecedent_discovery::DiscoveryError;
 use antecedent_estimate::EstimationError;
+use antecedent_expr::ProgramError;
 use antecedent_graph::GraphError;
 use antecedent_identify::IdentificationError;
 use antecedent_io::IoError;
+use antecedent_learn::LearnError;
 use antecedent_model::ModelError;
+use antecedent_prob::ProbError;
 use antecedent_state::StateError;
+use antecedent_stats::StatsError;
 use antecedent_validate::ValidationError;
 use thiserror::Error;
 
 /// Which review artifact is blocking execution.
 ///
-/// Mirrors the `kind` strings accepted by [`CausalError::ReviewRequired`]. Kept as a
-/// closed enum so callers get exhaustiveness checking; [`Self::as_str`] is the bridge
-/// to the wire-level `String` field (kept as `String` for the Python binding today).
+/// The `kind` carried by [`CausalError::ReviewRequired`]. A closed enum so callers get
+/// exhaustiveness checking; [`Self::as_str`] is the wire-level name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum ReviewKind {
@@ -104,6 +107,98 @@ impl PendingEdge {
     }
 }
 
+/// The typed domain error that made a plan or program refuse to compile.
+///
+/// A compile refusal that used to flatten its cause with `e.to_string()` carries
+/// it here instead, so the source chain survives. Every variant renders exactly as
+/// the error it wraps.
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum CompileCause {
+    /// A query failed its own validation.
+    #[error(transparent)]
+    Query(#[from] QueryError),
+    /// A prior, posterior or inference backend refused.
+    #[error(transparent)]
+    Probability(#[from] ProbError),
+    /// A schema lookup or construction failed.
+    #[error(transparent)]
+    Schema(#[from] SchemaError),
+    /// A table, column or series could not be built or read.
+    #[error(transparent)]
+    Data(#[from] DataError),
+    /// A graph failed construction or validation.
+    #[error(transparent)]
+    Graph(#[from] GraphError),
+    /// A lagged node could not be indexed.
+    #[error(transparent)]
+    TemporalIndex(#[from] TemporalIndexError),
+    /// An attribution input was refused.
+    #[error(transparent)]
+    Attribution(#[from] AttributionError),
+    /// A structural model failed.
+    #[error(transparent)]
+    Model(#[from] ModelError),
+    /// A counterfactual input was refused.
+    #[error(transparent)]
+    Counterfactual(#[from] CounterfactualError),
+    /// A learned basis or surrogate refused.
+    #[error(transparent)]
+    Learn(#[from] LearnError),
+    /// A discovery input was refused.
+    #[error(transparent)]
+    Discovery(#[from] DiscoveryError),
+    /// A statistical primitive refused.
+    #[error(transparent)]
+    Stats(#[from] StatsError),
+    /// A functional program failed to build.
+    #[error(transparent)]
+    Program(#[from] ProgramError),
+    /// An estimator refused its input.
+    #[error(transparent)]
+    Estimation(#[from] EstimationError),
+    /// An identification routine refused its input.
+    #[error(transparent)]
+    Identification(#[from] IdentificationError),
+    /// An artifact could not be encoded or decoded.
+    #[error(transparent)]
+    Serialization(#[from] IoError),
+}
+
+/// A compile refusal raised from a typed cause ([`CausalError::Rejected`]).
+///
+/// The message is the cause's rendering, held once so the refusal classifies
+/// ([`CausalError::reason_code`], the Python exception class) exactly as the
+/// message-only [`CausalError::Compile`] it replaces; [`Self::cause`] keeps the
+/// typed error and is the [`std::error::Error::source`] of the failure.
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
+#[error("{message}")]
+pub struct CompileFailure {
+    message: String,
+    #[source]
+    cause: CompileCause,
+}
+
+impl CompileFailure {
+    /// The rendered cause: the text of the refusal.
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// The typed error that made the compile refuse.
+    #[must_use]
+    pub const fn cause(&self) -> &CompileCause {
+        &self.cause
+    }
+}
+
+impl From<CompileCause> for CompileFailure {
+    fn from(cause: CompileCause) -> Self {
+        Self { message: cause.to_string(), cause }
+    }
+}
+
 /// Pipeline and facade failures — structured sum over domain errors.
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 #[non_exhaustive]
@@ -122,10 +217,10 @@ pub enum CausalError {
     Discovery(DiscoveryError),
     /// Structural / probabilistic model failure.
     #[error(transparent)]
-    Model(#[from] ModelError),
+    Model(ModelError),
     /// Counterfactual evaluation failed.
     #[error(transparent)]
-    Counterfactual(#[from] CounterfactualError),
+    Counterfactual(CounterfactualError),
     /// Attribution failed.
     #[error(transparent)]
     Attribution(AttributionError),
@@ -148,11 +243,20 @@ pub enum CausalError {
     #[error(transparent)]
     Schema(#[from] SchemaError),
     /// Logical / physical plan compilation failed.
+    ///
+    /// The residual form: a refusal with no typed domain error behind it (an
+    /// invariant stated in prose, or a reason-coded message). A refusal that
+    /// has a typed cause is [`Self::Rejected`].
     #[error("{message}")]
     Compile {
         /// Message.
         message: String,
     },
+    /// Plan or program compilation failed because a typed domain error refused
+    /// its input. Rendered, classified and raised exactly as [`Self::Compile`]
+    /// with the cause's message; the typed cause is the error source.
+    #[error(transparent)]
+    Rejected(CompileFailure),
     /// The question has no identified estimand under the declared structure.
     ///
     /// A refusal, not a failure: it carries the identification outcome so a
@@ -178,9 +282,8 @@ pub enum CausalError {
     /// Graph review incomplete (structured for facade UX).
     #[error("{message}")]
     ReviewRequired {
-        /// Review kind: `static_dag`, `static_cpdag`, `static_pag`, `temporal_dag`,
-        /// `temporal_cpdag`, `temporal_pag`, `generic` (see [`ReviewKind::as_str`]).
-        kind: String,
+        /// Which review artifact is blocking (wire name: [`ReviewKind::as_str`]).
+        kind: ReviewKind,
         /// Discovery / supply algorithm id when known.
         algorithm: Option<String>,
         /// Count of pending / ambiguous marks blocking estimation.
@@ -273,6 +376,10 @@ const STAGE_DISCOVER: &str = "discover";
 const STAGE_ATTRIBUTE: &str = "attribute";
 /// Stage id reported on a [`CausalError::Cancelled`] raised by identification.
 const STAGE_IDENTIFY: &str = "identify";
+/// Stage id reported on a [`CausalError::Cancelled`] raised by a model fit.
+const STAGE_MODEL: &str = "model";
+/// Stage id reported on a [`CausalError::Cancelled`] raised by counterfactual evaluation.
+const STAGE_COUNTERFACTUAL: &str = "counterfactual";
 
 /// Cooperative cancellation and resource refusals are non-scientific facade
 /// outcomes, not refutation/discovery/attribution findings, so they are
@@ -312,6 +419,65 @@ impl From<DiscoveryError> for CausalError {
             DiscoveryError::Cancelled => Self::Cancelled { stage: STAGE_DISCOVER },
             DiscoveryError::Resource(message) => Self::Resource { message },
             other => Self::Discovery(other),
+        }
+    }
+}
+
+impl From<ModelError> for CausalError {
+    fn from(error: ModelError) -> Self {
+        match error {
+            ModelError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
+            other => Self::Model(other),
+        }
+    }
+}
+
+/// A typed cause refuses compilation. Not provided for [`SchemaError`],
+/// [`DataError`], [`GraphError`], [`ModelError`], [`CounterfactualError`],
+/// [`AttributionError`], [`DiscoveryError`], [`EstimationError`],
+/// [`IdentificationError`] or [`IoError`], which already convert to their own
+/// variants: wrap those with [`CausalError::rejected`].
+impl From<QueryError> for CausalError {
+    fn from(error: QueryError) -> Self {
+        Self::rejected(error)
+    }
+}
+
+impl From<ProbError> for CausalError {
+    fn from(error: ProbError) -> Self {
+        Self::rejected(error)
+    }
+}
+
+impl From<TemporalIndexError> for CausalError {
+    fn from(error: TemporalIndexError) -> Self {
+        Self::rejected(error)
+    }
+}
+
+impl From<LearnError> for CausalError {
+    fn from(error: LearnError) -> Self {
+        Self::rejected(error)
+    }
+}
+
+impl From<StatsError> for CausalError {
+    fn from(error: StatsError) -> Self {
+        Self::rejected(error)
+    }
+}
+
+impl From<ProgramError> for CausalError {
+    fn from(error: ProgramError) -> Self {
+        Self::rejected(error)
+    }
+}
+
+impl From<CounterfactualError> for CausalError {
+    fn from(error: CounterfactualError) -> Self {
+        match error {
+            CounterfactualError::Cancelled => Self::Cancelled { stage: STAGE_COUNTERFACTUAL },
+            other => Self::Counterfactual(other),
         }
     }
 }
@@ -378,6 +544,7 @@ macro_rules! support_reason {
 }
 
 /// Compile-time check used by [`unsupported_reason!`] and [`support_reason!`].
+// doc(hidden): expanded by the exported `unsupported_reason!` and `support_reason!` macros.
 #[doc(hidden)]
 #[must_use]
 pub const fn is_runtime_refusal_code(code: &str) -> bool {
@@ -430,10 +597,29 @@ macro_rules! compile_reason {
 }
 
 /// Wire prefix of a reason-coded message (see `antecedent_core::reason_code::PREFIX`).
-#[doc(hidden)]
-pub const REASON_PREFIX: &str = antecedent_core::reason_code::PREFIX;
+pub(crate) const REASON_PREFIX: &str = antecedent_core::reason_code::PREFIX;
 
 impl CausalError {
+    /// Refuse compilation because `cause` refused its input, keeping the typed
+    /// error as the source. Prefer `?` where [`CausalError`] converts from the
+    /// cause directly; this is the explicit form for causes that already have
+    /// a variant of their own (`.map_err(CausalError::rejected)`).
+    #[must_use]
+    pub fn rejected(cause: impl Into<CompileCause>) -> Self {
+        Self::Rejected(CompileFailure::from(cause.into()))
+    }
+
+    /// The message of a plan or program compile refusal, whether it carries a
+    /// typed cause ([`Self::Rejected`]) or only prose ([`Self::Compile`]).
+    #[must_use]
+    pub fn compile_message(&self) -> Option<&str> {
+        match self.peeled() {
+            Self::Compile { message } => Some(message),
+            Self::Rejected(failure) => Some(failure.message()),
+            _ => None,
+        }
+    }
+
     /// This refusal with structured diagnostics attached. The message and every
     /// classification are unchanged; match the refusal itself through [`Self::peeled`].
     #[must_use]
@@ -491,6 +677,7 @@ impl CausalError {
         let message = match self.peeled() {
             Self::NotIdentified { .. } => return Some("effect_not_identified"),
             Self::Compile { message } => message.as_str(),
+            Self::Rejected(failure) => failure.message(),
             Self::Unsupported { message } | Self::Support { message, .. } => message,
             Self::Estimate(
                 EstimationError::Refused { code, .. }
@@ -499,7 +686,9 @@ impl CausalError {
             | Self::Serialization(IoError::Refused { code, .. }) => return Some(code),
             // The multi-source limited-experiment route's frozen (code, detail) pairs.
             Self::Identify(error) => {
-                return antecedent_identify::mz_transport_refusal(error).map(|(code, _)| code);
+                return antecedent_identify::mz_transport_refusal(error)
+                    .or_else(|| antecedent_identify::counterfactual_transport_refusal(error))
+                    .map(|(code, _)| code);
             }
             Self::Serialization(error @ IoError::MzTransport(_)) => return error.reason_code(),
             _ => return None,
@@ -540,7 +729,7 @@ impl CausalError {
     /// for genuinely edge-free reviews.
     #[must_use]
     pub fn review_required(
-        kind: impl Into<String>,
+        kind: ReviewKind,
         algorithm: Option<impl Into<String>>,
         pending_edge_count: usize,
         pending_edges: impl Into<std::sync::Arc<[PendingEdge]>>,
@@ -548,7 +737,7 @@ impl CausalError {
         hint: impl Into<String>,
     ) -> Self {
         Self::ReviewRequired {
-            kind: kind.into(),
+            kind,
             algorithm: algorithm.map(Into::into),
             pending_edge_count,
             pending_edges: pending_edges.into(),
@@ -560,8 +749,8 @@ impl CausalError {
     /// Stable capability-report blocker id, when this error is a preflight/execution
     /// refusal. Budget and cancel are marked non-scientific.
     #[must_use]
-    pub fn blocker_id(&self) -> Option<antecedent_core::BlockedOperation> {
-        use antecedent_core::BlockedOperation;
+    pub fn blocker_id(&self) -> Option<antecedent_contract::BlockedOperation> {
+        use antecedent_contract::BlockedOperation;
         match self.peeled() {
             Self::Support { id: crate::support::SupportRefusal::NotApplicable, message } => {
                 Some(BlockedOperation::not_applicable(*message))
@@ -590,7 +779,7 @@ impl CausalError {
     pub fn review_required_msg(message: impl Into<String>) -> Self {
         let message = message.into();
         Self::review_required(
-            "generic",
+            ReviewKind::Generic,
             None::<String>,
             0,
             Vec::<PendingEdge>::new(),
@@ -627,6 +816,51 @@ mod tests {
         assert_eq!(remedied.to_string(), "no");
         assert_eq!(CausalError::from(EstimationError::unsupported("no")).remedy(), None);
         assert_eq!(CausalError::Unsupported { message: "no" }.remedy(), None);
+    }
+
+    /// A typed compile cause renders and classifies as the message it replaces,
+    /// and keeps the typed error reachable as the source.
+    #[test]
+    fn a_typed_compile_cause_keeps_the_message_the_classification_and_the_source() {
+        use antecedent_core::{QueryError, VariableId};
+        use std::error::Error as _;
+        let cause = QueryError::TreatmentEqualsOutcome { id: VariableId::from_raw(3) };
+        let text = cause.to_string();
+        let error = CausalError::from(cause.clone());
+        assert_eq!(error.to_string(), text);
+        assert_eq!(error.compile_message(), Some(text.as_str()));
+        assert_eq!(error.reason_code(), None);
+        assert!(error.blocker_id().is_none());
+        assert!(matches!(
+            &error,
+            CausalError::Rejected(failure)
+                if matches!(failure.cause(), crate::CompileCause::Query(q) if *q == cause)
+        ));
+        assert!(error.source().is_some_and(|source| source.to_string() == text));
+        assert_eq!(error, CausalError::rejected(cause));
+    }
+
+    /// The residual message-only refusal still classifies by the code its
+    /// message names, and reads through `compile_message` like a typed one.
+    #[test]
+    fn a_message_only_compile_refusal_is_classified_by_its_code() {
+        let coded = CausalError::Compile {
+            message: format!("{}effect_not_identified: x", super::REASON_PREFIX),
+        };
+        assert_eq!(coded.reason_code(), Some("effect_not_identified"));
+        assert_eq!(coded.compile_message(), Some(coded.to_string().as_str()));
+    }
+
+    #[test]
+    fn model_and_counterfactual_cancellation_are_top_level() {
+        use antecedent_counterfactual::CounterfactualError;
+        use antecedent_model::ModelError;
+        let model = CausalError::from(ModelError::Cancelled);
+        assert!(matches!(model, CausalError::Cancelled { stage: "model" }), "{model:?}");
+        assert!(model.blocker_id().is_some_and(|b| !b.scientific));
+        let cf = CausalError::from(CounterfactualError::Cancelled);
+        assert!(matches!(cf, CausalError::Cancelled { stage: "counterfactual" }), "{cf:?}");
+        assert!(cf.blocker_id().is_some_and(|b| !b.scientific));
     }
 
     #[test]

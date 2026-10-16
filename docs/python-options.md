@@ -224,7 +224,7 @@ one and also selects its support on those rows (recorded per fold in
 covariance) and publishes the cross-fitted influence-function SE; with `bootstrap > 0` it
 publishes a bootstrap SE whose every replicate repeats penalty selection and nuisance
 fitting (`estimate.penalized_bootstrap` lists the penalties each replicate selected). Both
-rest on a stated remainder condition and are calibration-wired but not yet measured, so
+rest on a stated remainder condition and are calibration-wired and unmeasured, so
 they report `scope_not_assessed`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
 `PropensityPenalty` for its tuning) re-runs the route with that propensity when the plain
 GLM fit fails and records the failed fit in `estimate.penalized_fallback`;
@@ -318,7 +318,7 @@ replay from bytes alone; `acceptance.verified` and `acceptance.replayable`
 stay `False` for it. Acceptance verifies the artifact's semantic
 contract, not the truth of causal assumptions. Loading does not reconstruct a
 live study or recover the source dataset. The original decoded body is available
-as `loaded.artifact.payload`.
+as `loaded.decoded_artifact.payload`.
 
 For prior transfer, `Bayesian(prior_from=...)` still expects the posterior-only
 payload from `result.study.export_artifact()`, taken before the study changes.

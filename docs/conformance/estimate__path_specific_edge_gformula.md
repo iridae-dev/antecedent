@@ -16,7 +16,7 @@ SCM (see `reference.py`) has
 level on the `t -> m` edge (it starts a selected path) and to the control level
 on `t -> y`, minus the all-control g-formula. An evaluator that binds one level
 everywhere returns the total effect; one that swaps the levels returns the
-natural direct effect. Before 1.9 the surgical-graph functional returned the
+natural direct effect. Previously the surgical-graph functional returned the
 total effect here.
 
 The contingency table is the exact SCM law. `reference.py` enumerates the
@@ -58,7 +58,7 @@ Consumers:
 - `crates/antecedent-estimate/src/functional_distribution.rs` checks the
   plug-in and that one Bayesian draw evaluates the edge g-formula on a single
   reweighted row law.
-- `crates/antecedent/tests/v19_static_calibration.rs`
+- `crates/antecedent/tests/static_calibration.rs`
   (`path_specific_two_path_*_nominal_90_coverage`) samples from the same SCM
   for 400-replicate coverage.
 

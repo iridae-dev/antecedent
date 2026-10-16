@@ -1,4 +1,4 @@
-//! Finite graph/selection scenario sets for one transport question (X2, A2).
+//! Finite graph/selection scenario sets for one transport question.
 //!
 //! Every scenario shares `z -> x`, `z -> y`, `x -> y`, `x <-> y` and differs only
 //! in which mechanisms may change between source and target:
@@ -171,8 +171,7 @@ fn try_prepare(
     StudyBuilder::transport_scenarios(
         &set,
         query(),
-        catalog,
-        budget,
+        antecedent::EvidenceSearch { catalog, budget },
         data,
         request(),
         ExactEvaluationLimits::default(),
@@ -389,7 +388,10 @@ fn inference_across_scenarios_is_refused() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One artifact round trip, then each mutation it must refuse.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for artifact keeps every scenario and fails on mutation"
+)]
 fn artifact_keeps_every_scenario_and_fails_on_mutation() {
     let prepared = prepare(three(Some([0.3, 0.2, 0.4])), catalog(true), laws(SOURCE, true), BUDGET);
     let ctx = ExecutionContext::for_tests(1);
@@ -549,8 +551,7 @@ fn laws_requests_and_catalogs_are_validated_against_the_shared_schema() {
     let outside = StudyBuilder::transport_scenarios(
         &set,
         query(),
-        catalog(true),
-        BUDGET,
+        antecedent::EvidenceSearch { catalog: catalog(true), budget: BUDGET },
         laws(SOURCE, true),
         Assignment::from_pairs([(v(X), Value::f64(2.0))]),
         ExactEvaluationLimits::default(),
@@ -561,8 +562,7 @@ fn laws_requests_and_catalogs_are_validated_against_the_shared_schema() {
     let stray = StudyBuilder::transport_scenarios(
         &set,
         ClassicalTransportQuery { outcomes: Arc::from([v(7)]), ..query() },
-        catalog(true),
-        BUDGET,
+        antecedent::EvidenceSearch { catalog: catalog(true), budget: BUDGET },
         laws(SOURCE, true),
         request(),
         ExactEvaluationLimits::default(),
@@ -819,10 +819,8 @@ fn empirical_plug_in_points_compile_per_scenario_through_the_same_plan() {
     let prepared = StudyBuilder::transport_scenarios_empirical(
         &set,
         query(),
-        catalog,
-        BUDGET,
-        input,
-        1000,
+        antecedent::EvidenceSearch { catalog, budget: BUDGET },
+        antecedent::EmpiricalScenarioInput { input, max_joint_cells: 1000 },
         request(),
         ExactEvaluationLimits::default(),
         &ctx,
@@ -878,7 +876,7 @@ fn empirical_plug_in_points_compile_per_scenario_through_the_same_plan() {
 }
 
 // ---------------------------------------------------------------------------
-// Data identity (D1)
+// Data identity
 // ---------------------------------------------------------------------------
 
 /// `catalog(true)` with snapshot bindings for its two regimes.
@@ -944,10 +942,8 @@ fn the_data_identity_binds_the_catalog_laws_provider_and_samples() {
         let empirical = StudyBuilder::transport_scenarios_empirical(
             &set,
             query(),
-            catalog,
-            BUDGET,
-            input,
-            1000,
+            antecedent::EvidenceSearch { catalog, budget: BUDGET },
+            antecedent::EmpiricalScenarioInput { input, max_joint_cells: 1000 },
             request(),
             ExactEvaluationLimits::default(),
             &ctx,
@@ -974,7 +970,7 @@ fn the_data_identity_binds_the_catalog_laws_provider_and_samples() {
 }
 
 // ---------------------------------------------------------------------------
-// Coordinate schema on sample rows (D2)
+// Coordinate schema on sample rows
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -987,10 +983,8 @@ fn sample_rows_are_validated_against_the_shared_schema() {
         StudyBuilder::transport_scenarios_empirical(
             &set,
             query(),
-            catalog,
-            BUDGET,
-            input,
-            1000,
+            antecedent::EvidenceSearch { catalog, budget: BUDGET },
+            antecedent::EmpiricalScenarioInput { input, max_joint_cells: 1000 },
             request(),
             ExactEvaluationLimits::default(),
             &ctx,
@@ -1021,7 +1015,7 @@ fn sample_rows_are_validated_against_the_shared_schema() {
 }
 
 // ---------------------------------------------------------------------------
-// Shared budget (D3)
+// Shared budget
 // ---------------------------------------------------------------------------
 
 /// Bytes an engine holds per charged step on the three-variable schema.
@@ -1226,7 +1220,7 @@ fn a_report_truncated_by_a_recorded_bound_replays_to_the_identical_prefix() {
 }
 
 // ---------------------------------------------------------------------------
-// Empirical path (D4)
+// Empirical path
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1238,10 +1232,8 @@ fn empirical_tables_are_fitted_once_and_coverage_is_per_scenario() {
         StudyBuilder::transport_scenarios_empirical(
             &set,
             query(),
-            catalog.clone(),
-            BUDGET,
-            input,
-            1000,
+            antecedent::EvidenceSearch { catalog: catalog.clone(), budget: BUDGET },
+            antecedent::EmpiricalScenarioInput { input, max_joint_cells: 1000 },
             request(),
             ExactEvaluationLimits::default(),
             &ctx,

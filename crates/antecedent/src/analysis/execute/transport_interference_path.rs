@@ -14,7 +14,13 @@ use antecedent_identify::{
     TransportIdentification, TransportIdentifier, bind_transport_derivation, lower_transport_mean,
 };
 
-use super::*;
+use super::{
+    Arc, BayesianConfig, CausalExprArena, CausalPosterior, DerivationMeta, DerivationTrace,
+    DomainRef, ExprNode, IdentificationPerformanceRecord, IdentificationResult,
+    IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteFinish, InferenceDiagnostics,
+    InferenceMode, OutcomeExprId, PhysicalExecutionPlan, Strategy, StudyResult, TabularData,
+    VariableId, effect_from_posterior, elapsed_ns, report_identify_compute,
+};
 use crate::error::CausalError;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
@@ -40,7 +46,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
             message: "TransportQuery execute requires a selection diagram",
         })?;
@@ -98,21 +104,13 @@ impl super::Study {
             identify_cached,
         } = inputs;
         let (treatment, outcome) = transport_primary_pair(query)?;
-        let outcomes = data
-            .float64_values(outcome)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let treatment_col = data
-            .float64_values(treatment)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let trial_col = data
-            .float64_values(trial_spec.trial)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let selection = data
-            .float64_values(trial_spec.selection_probability)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let propensity = data
-            .float64_values(trial_spec.treatment_probability)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let outcomes = data.float64_values(outcome).map_err(CausalError::rejected)?;
+        let treatment_col = data.float64_values(treatment).map_err(CausalError::rejected)?;
+        let trial_col = data.float64_values(trial_spec.trial).map_err(CausalError::rejected)?;
+        let selection =
+            data.float64_values(trial_spec.selection_probability).map_err(CausalError::rejected)?;
+        let propensity =
+            data.float64_values(trial_spec.treatment_probability).map_err(CausalError::rejected)?;
         let treatment_bool: Vec<bool> = treatment_col.iter().map(|v| *v != 0.0).collect();
         let trial_bool: Vec<bool> = trial_col.iter().map(|v| *v != 0.0).collect();
         let mut transported = trial_to_target_effect(
@@ -126,139 +124,54 @@ impl super::Study {
         )
         .map_err(CausalError::from)?;
         let mut assumptions = identification.required_assumptions.clone();
-        assumptions.push(antecedent_core::AssumptionRecord {
-            assumption: antecedent_core::Assumption::ParametricRestriction(
-                antecedent_core::ParametricAssumption {
-                    id: Arc::from("transport.known_selection_probabilities"),
-                    description: Arc::from(
-                        "selection and treatment probabilities are treated as known: uncertainty conditions on the supplied probability columns and excludes the estimation error of any fitted participation or propensity model",
-                    ),
-                },
-            ),
-            source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                algorithm: Arc::from("estimate.transport.trial_ipw"),
-            },
-            scope: antecedent_core::AssumptionScope::Estimation,
-            status: antecedent_core::AssumptionStatus::Declared,
-        });
+        assumptions.push(known_probability_assumption());
+        let columns = TrialColumns {
+            outcomes: &outcomes,
+            treatment: &treatment_bool,
+            trial: &trial_bool,
+            selection: &selection,
+            propensity: &propensity,
+        };
         let (estimate, posterior, estimator_id, diagnostic) = match inference {
             InferenceMode::Bayesian(cfg) => {
-                refuse_transport_bayesian_priors(cfg)?;
-                let draws = trial_to_target_bayesian_bootstrap(
+                let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
+                    cfg,
                     transport_id,
-                    &outcomes,
-                    &treatment_bool,
-                    &trial_bool,
-                    &selection,
-                    &propensity,
-                    cfg.n_draws,
-                    ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
-                )
-                .map_err(CausalError::from)?;
-                assumptions.push(antecedent_core::AssumptionRecord {
-                    assumption: antecedent_core::Assumption::ParametricRestriction(
-                        antecedent_core::ParametricAssumption {
-                            id: Arc::from("transport.trial_empirical_support_prior"),
-                            description: Arc::from("Dirichlet(1,...,1) Bayesian bootstrap over the observed trial rows, conditional on the selected trial sample size, target sample size, and supplied selection/treatment probabilities; the target row law and fitted probability-model uncertainty are held fixed"),
-                        },
-                    ),
-                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                        algorithm: Arc::from("transport.trial_bayesian_bootstrap"),
-                    },
-                    scope: antecedent_core::AssumptionScope::Estimation,
-                    status: antecedent_core::AssumptionStatus::Declared,
-                });
-                let schema = antecedent_prob::PosteriorSchema {
-                    quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
-                        name: Arc::from("transported_ate"),
-                    }]),
-                };
-                let draws = antecedent_prob::PosteriorDraws::from_column_major(
-                    schema,
-                    draws.len(),
-                    Arc::<[f64]>::from(draws),
-                )
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                let posterior = CausalPosterior {
-                    summaries: draws.summarize(),
-                    draws,
-                    identification: identification.status,
-                    prior_sensitivity: None,
-                    conflict_summary: None,
-                    diagnostics: InferenceDiagnostics::analytic(
-                        "transport.trial_bayesian_bootstrap",
-                    ),
+                    &columns,
                     assumptions,
-                    unidentified_mass: 0.0,
-                    subsampled_out_mass: 0.0,
-                    unevaluable_mass: 0.0,
-                    early_stopped: false,
-                    treatment_contrast: None,
-                };
-                let estimate = effect_from_posterior(&posterior)?;
+                    identification.status,
+                    ctx,
+                )?;
                 transported.ipw = estimate.ate;
                 (
                     estimate,
                     Some(posterior),
                     EstimatorId::TransportTrialBayesianBootstrap,
-                    Diagnostic::new(
-                        "estimate.transport.trial_bayesian_bootstrap",
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        "Dirichlet trial-row-law posterior of binary trial-to-target IPW; supplied probabilities and target sample size held fixed",
-                    ),
+                    diagnostic,
                 )
             }
             InferenceMode::Frequentist => {
-                // Known probabilities: delta-method SE of the ratio-of-means IPW contrast.
-                let se = trial_to_target_ipw_se(
-                    &outcomes,
-                    &treatment_bool,
-                    &trial_bool,
-                    &selection,
-                    &propensity,
-                    transported.ipw,
-                )
-                .map_err(CausalError::from)?;
-                (
-                    EffectEstimate::new(
-                        transported.ipw,
-                        se,
-                        assumptions,
-                        OverlapPolicy::ExplicitOverride,
-                    ),
-                    None,
-                    EstimatorId::TransportTrialIpw,
-                    Diagnostic::new(
-                        "estimate.transport.trial_ipw",
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        "binary trial-to-target IPW; inner ResponseCurve names treatment/outcome only",
-                    ),
-                )
+                let (estimate, diagnostic) =
+                    frequentist_transport_estimate(&columns, transported.ipw, assumptions)?;
+                (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
             }
         };
-        let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
-            estimate,
-            identifier_id: IdentifierId::TransportSid,
-            estimator_id,
-            treatment,
-            outcome,
-            identify_cached,
-            extra_diagnostics: vec![diagnostic],
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
-        });
-        result.transport = Some(transported);
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand.clone(),
+                estimate,
+                Strategy::new(IdentifierId::TransportSid, estimator_id),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(vec![diagnostic])
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled()),
+        );
+        result.payload = crate::result::ResultPayload::Transport(transported);
         result.posterior = posterior;
         Ok(result)
     }
@@ -271,7 +184,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         // The executed outcomes are `data`, under the frozen network and assignment.
         let spec = self
             .interference
@@ -282,7 +195,7 @@ impl super::Study {
             .bound_to(data)?;
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             query.functional;
-        let bayesian_model = matches!(self.inference, InferenceMode::Bayesian(_));
+        let bayesian_model = self.inference.is_bayesian();
         let estimated = if bayesian_model {
             None
         } else {
@@ -319,92 +232,216 @@ impl super::Study {
                 )
             }
             InferenceMode::Bayesian(cfg) => {
-                if cfg.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian interference currently requires the analytic conjugate Gaussian backend",
-                    });
-                }
-                if cfg.prior.is_some()
-                    || cfg.prior_artifact.is_some()
-                    || cfg.external_compose.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "Bayesian interference uses its declared isotropic Gaussian coefficient prior; transferred and composed priors are unsupported",
-                    });
-                }
-                let model = estimate_interference_bayesian(
-                    query,
-                    &spec.network,
-                    &spec.assignment,
-                    cfg.n_draws,
-                    ctx.rng.stream_for(StreamDomain::Bayesian, 0x1F7E).next_u64(),
-                    cfg.prior_scale,
-                )
-                .map_err(CausalError::from)?;
-                let assumptions = interference_bayesian_assumptions(cfg.prior_scale);
-                let schema = antecedent_prob::PosteriorSchema {
-                    quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
-                        name: Arc::from("finite_network_exposure_contrast"),
-                    }]),
-                };
-                let draws = antecedent_prob::PosteriorDraws::from_column_major(
-                    schema,
-                    model.contrast_draws.len(),
-                    Arc::<[f64]>::from(model.contrast_draws),
-                )
-                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-                let posterior = CausalPosterior {
-                    summaries: draws.summarize(),
-                    draws,
-                    identification: identification.status,
-                    prior_sensitivity: None,
-                    conflict_summary: None,
-                    diagnostics: InferenceDiagnostics::analytic("interference.bayesian_gaussian"),
-                    assumptions: assumptions.clone(),
-                    unidentified_mass: 0.0,
-                    subsampled_out_mass: 0.0,
-                    unevaluable_mass: 0.0,
-                    early_stopped: false,
-                    treatment_contrast: None,
-                };
-                let estimate = effect_from_posterior(&posterior)?;
-                (
-                    estimate,
-                    Some(posterior),
-                    EstimatorId::InterferenceBayesianGaussian,
-                    Diagnostic::new(
-                        "estimate.interference.bayesian_gaussian",
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        "finite-network posterior under an additive Gaussian potential-outcome model with shared unit disturbances; conditional on fixed network and realized assignment",
-                    ),
-                )
+                let (estimate, posterior, diagnostic) =
+                    interference_bayesian_estimate(cfg, query, &spec, identification.status, ctx)?;
+                (estimate, Some(posterior), EstimatorId::InterferenceBayesianGaussian, diagnostic)
             }
         };
-        let mut result = self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::InterferenceDesign,
-            estimator_id,
-            treatment: outcome,
-            outcome,
-            identify_cached: false,
-            extra_diagnostics: vec![diagnostic],
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
-        });
-        result.interference = estimated;
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(IdentifierId::InterferenceDesign, estimator_id),
+                outcome,
+                outcome,
+            )
+            .extra_diagnostics(vec![diagnostic])
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled()),
+        );
+        result.payload = crate::result::ResultPayload::from_interference(estimated, None);
         result.posterior = posterior;
         Ok(result)
     }
+}
+
+/// Conjugate-Gaussian finite-network posterior for the exposure contrast under the declared isotropic prior.
+fn interference_bayesian_estimate(
+    cfg: &BayesianConfig,
+    query: &antecedent_core::InterferenceQuery,
+    spec: &crate::InterferenceSpec,
+    status: IdentificationStatus,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, CausalPosterior, Diagnostic), CausalError> {
+    if cfg.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
+        return Err(CausalError::Unsupported {
+            message: "Bayesian interference currently requires the analytic conjugate Gaussian backend",
+        });
+    }
+    if cfg.has_transfer() {
+        return Err(CausalError::Unsupported {
+            message: "Bayesian interference uses its declared isotropic Gaussian coefficient prior; transferred and composed priors are unsupported",
+        });
+    }
+    let model = estimate_interference_bayesian(
+        query,
+        &spec.network,
+        &spec.assignment,
+        cfg.n_draws,
+        ctx.rng.stream_for(StreamDomain::Bayesian, 0x1F7E).next_u64(),
+        cfg.prior_scale,
+    )
+    .map_err(CausalError::from)?;
+    let assumptions = interference_bayesian_assumptions(cfg.prior_scale);
+    let schema = antecedent_prob::PosteriorSchema {
+        quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+            name: Arc::from("finite_network_exposure_contrast"),
+        }]),
+    };
+    let draws = antecedent_prob::PosteriorDraws::from_column_major(
+        schema,
+        model.contrast_draws.len(),
+        Arc::<[f64]>::from(model.contrast_draws),
+    )?;
+    let posterior = CausalPosterior {
+        summaries: draws.summarize(),
+        draws,
+        identification: status,
+        prior_sensitivity: None,
+        conflict_summary: None,
+        diagnostics: InferenceDiagnostics::analytic("interference.bayesian_gaussian"),
+        assumptions: assumptions.clone(),
+        unidentified_mass: 0.0,
+        subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
+        early_stopped: false,
+        treatment_contrast: None,
+    };
+    let estimate = effect_from_posterior(&posterior)?;
+    Ok((
+        estimate,
+        posterior,
+        Diagnostic::new(
+            "estimate.interference.bayesian_gaussian",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "finite-network posterior under an additive Gaussian potential-outcome model with shared unit disturbances; conditional on fixed network and realized assignment",
+        ),
+    ))
+}
+
+/// Estimation-scope assumption that the supplied selection and treatment probabilities are known.
+fn known_probability_assumption() -> antecedent_core::AssumptionRecord {
+    antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from("transport.known_selection_probabilities"),
+                description: Arc::from(
+                    "selection and treatment probabilities are treated as known: uncertainty conditions on the supplied probability columns and excludes the estimation error of any fitted participation or propensity model",
+                ),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.transport.trial_ipw"),
+        },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    }
+}
+
+/// Delta-method SE of the ratio-of-means IPW contrast under known probabilities.
+fn frequentist_transport_estimate(
+    columns: &TrialColumns<'_>,
+    ipw: f64,
+    assumptions: antecedent_core::AssumptionSet,
+) -> Result<(EffectEstimate, Diagnostic), CausalError> {
+    let TrialColumns { outcomes, treatment, trial, selection, propensity } = *columns;
+    let se = trial_to_target_ipw_se(outcomes, treatment, trial, selection, propensity, ipw)
+        .map_err(CausalError::from)?;
+    Ok((
+        EffectEstimate::new(ipw, se, assumptions, OverlapPolicy::ExplicitOverride),
+        Diagnostic::new(
+            "estimate.transport.trial_ipw",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "binary trial-to-target IPW; inner ResponseCurve names treatment/outcome only",
+        ),
+    ))
+}
+
+/// The binary trial-to-target columns the IPW estimator and its bootstrap read.
+struct TrialColumns<'a> {
+    outcomes: &'a [f64],
+    treatment: &'a [bool],
+    trial: &'a [bool],
+    selection: &'a [f64],
+    propensity: &'a [f64],
+}
+
+/// Dirichlet Bayesian bootstrap of the trial-to-target IPW contrast over the observed trial rows.
+fn bayesian_transport_estimate(
+    cfg: &BayesianConfig,
+    transport_id: &TransportIdentification,
+    columns: &TrialColumns<'_>,
+    mut assumptions: antecedent_core::AssumptionSet,
+    status: IdentificationStatus,
+    ctx: &ExecutionContext,
+) -> Result<(EffectEstimate, CausalPosterior, Diagnostic), CausalError> {
+    let TrialColumns { outcomes, treatment, trial, selection, propensity } = *columns;
+    refuse_transport_bayesian_priors(cfg)?;
+    let draws = trial_to_target_bayesian_bootstrap(
+        transport_id,
+        outcomes,
+        treatment,
+        trial,
+        selection,
+        propensity,
+        antecedent_estimate::DrawSpec::new(
+            cfg.n_draws,
+            ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
+        ),
+    )
+    .map_err(CausalError::from)?;
+    assumptions.push(antecedent_core::AssumptionRecord {
+                    assumption: antecedent_core::Assumption::ParametricRestriction(
+                        antecedent_core::ParametricAssumption {
+                            id: Arc::from("transport.trial_empirical_support_prior"),
+                            description: Arc::from("Dirichlet(1,...,1) Bayesian bootstrap over the observed trial rows, conditional on the selected trial sample size, target sample size, and supplied selection/treatment probabilities; the target row law and fitted probability-model uncertainty are held fixed"),
+                        },
+                    ),
+                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                        algorithm: Arc::from("transport.trial_bayesian_bootstrap"),
+                    },
+                    scope: antecedent_core::AssumptionScope::Estimation,
+                    status: antecedent_core::AssumptionStatus::Declared,
+                });
+    let schema = antecedent_prob::PosteriorSchema {
+        quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+            name: Arc::from("transported_ate"),
+        }]),
+    };
+    let draws = antecedent_prob::PosteriorDraws::from_column_major(
+        schema,
+        draws.len(),
+        Arc::<[f64]>::from(draws),
+    )?;
+    let posterior = CausalPosterior {
+        summaries: draws.summarize(),
+        draws,
+        identification: status,
+        prior_sensitivity: None,
+        conflict_summary: None,
+        diagnostics: InferenceDiagnostics::analytic("transport.trial_bayesian_bootstrap"),
+        assumptions,
+        unidentified_mass: 0.0,
+        subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
+        early_stopped: false,
+        treatment_contrast: None,
+    };
+    let estimate = effect_from_posterior(&posterior)?;
+    Ok((
+        estimate,
+        posterior,
+        Diagnostic::new(
+            "estimate.transport.trial_bayesian_bootstrap",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "Dirichlet trial-row-law posterior of binary trial-to-target IPW; supplied probabilities and target sample size held fixed",
+        ),
+    ))
 }
 
 fn interference_bayesian_identification(
@@ -468,15 +505,13 @@ fn interference_bayesian_assumptions(prior_sd: f64) -> antecedent_core::Assumpti
 pub(super) fn transport_primary_pair(
     query: &antecedent_core::TransportQuery,
 ) -> Result<(VariableId, VariableId), CausalError> {
-    query.response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-        message: "TransportQuery inner response has no treatment/outcome".into(),
-    })
+    crate::analysis::proof_support::require_primary_pair(&query.response.functional)
 }
 
 /// The Bayesian trial route owns its row-law prior; coefficient and transferred
 /// priors have no meaning for it.
 pub(super) fn refuse_transport_bayesian_priors(cfg: &BayesianConfig) -> Result<(), CausalError> {
-    if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+    if cfg.has_transfer() {
         return Err(CausalError::Unsupported {
             message: "Bayesian trial transport uses an empirical-support row-law prior and does not accept coefficient or transferred priors",
         });
@@ -488,9 +523,8 @@ pub(crate) fn live_transport_identification(
     diagram: &antecedent_graph::SelectionDiagram,
     query: &antecedent_core::TransportQuery,
 ) -> Result<TransportIdentification, CausalError> {
-    let identified = TransportIdentifier::new()
-        .identify(diagram, query)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let identified =
+        TransportIdentifier::new().identify(diagram, query).map_err(CausalError::rejected)?;
     refuse_unestimable_transport(&identified)?;
     Ok(identified)
 }

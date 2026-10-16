@@ -1,0 +1,1437 @@
+//! Durable wire forms for causal-response queries and results.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+// Field meanings intentionally mirror the fully documented domain types. Keeping the
+// serde representation visually compact makes format review substantially easier.
+#![allow(
+    missing_docs,
+    reason = "field meanings mirror the fully documented domain types; the compact serde layout is easier to review"
+)]
+
+use std::sync::Arc;
+
+use antecedent_core::{
+    CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting, DiagnosticScope,
+    GridSpec, HorizonIdentification, IdentificationStatus, IntervalInterpretation,
+    ObservationAssumption, ObservationSpec, ResponseEnvelope, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus, TemporalNodeKey, VariableId,
+};
+use serde::{Deserialize, Serialize};
+
+use crate::analysis_wire::{DiagnosticWire, diagnostic_from_wire, diagnostic_to_wire};
+use crate::error::IoError;
+use crate::query_wire::{InterventionWire, TargetPopulationWire};
+use crate::trace::{AssumptionRecordWire, assumptions_from_wire, assumptions_to_wire};
+
+/// Evaluation grid on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+pub enum GridSpecWire {
+    /// Explicit grid values.
+    Values(Vec<f64>),
+    /// Inclusive evenly spaced grid.
+    Linspace {
+        /// First point.
+        start: f64,
+        /// Last point.
+        end: f64,
+        /// Number of points.
+        points: u64,
+    },
+}
+
+/// Scalar continuous intervention domain on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ContinuousDomainWire {
+    /// Intervened variable raw id.
+    pub variable: u32,
+    /// Evaluation grid.
+    pub grid: GridSpecWire,
+}
+
+/// Average-derivative weighting law on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+pub enum DerivativeWeightingWire {
+    /// Observed treatment/covariate law.
+    Observed,
+    /// Uniform law on an interval.
+    Uniform {
+        /// Lower endpoint.
+        lower: f64,
+        /// Upper endpoint.
+        upper: f64,
+    },
+    /// Caller-supplied row weights.
+    Custom(Vec<f64>),
+}
+
+/// Derivative reporting scale on the wire.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum DerivativeScaleWire {
+    /// `dm/da`.
+    Identity,
+    /// `a * dm/da`.
+    LogTreatment,
+    /// `(1/m) * dm/da`.
+    LogOutcome,
+    /// `(a/m) * dm/da`.
+    LogLog,
+}
+
+/// Observation mechanism on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+pub enum ObservationSpecWire {
+    /// Complete observation.
+    Complete,
+    /// Right-censored outcome.
+    RightCensored { latent: u32, observed: u32, censoring: u32, event: u32 },
+    /// Left-censored outcome.
+    LeftCensored { latent: u32, observed: u32, censoring: u32, event: u32 },
+    /// Interval-censored outcome.
+    IntervalCensored { latent: u32, lower: u32, upper: u32 },
+    /// Truncated sampling.
+    Truncated { latent: u32, observed: u32, lower: Option<u32>, upper: Option<u32> },
+    /// Indicator-selected outcome.
+    Selected { latent: u32, observed: u32, indicator: u32 },
+}
+
+/// Explicit observation assumption on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+pub enum ObservationAssumptionWire {
+    /// Conditional observation/censoring independence.
+    IndependentGiven(Vec<u32>),
+    /// Conditional independence from the latent outcome.
+    OutcomeIndependentGiven(Vec<u32>),
+    /// Named structural observation model.
+    Structural(String),
+}
+
+/// Response functional on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+pub enum ResponseFunctionalWire {
+    /// Mean response curve.
+    MeanCurve { outcome: u32, treatment: ContinuousDomainWire },
+    /// Average derivative.
+    AverageDerivative { outcome: u32, treatment: u32, weighting: DerivativeWeightingWire },
+    /// Point derivative.
+    PointDerivative { outcome: u32, treatment: u32, at: f64, order: u8, scale: DerivativeScaleWire },
+    /// Directional derivative.
+    DirectionalDerivative {
+        outcomes: Vec<u32>,
+        treatments: Vec<u32>,
+        at: Vec<f64>,
+        direction: Vec<f64>,
+    },
+    /// Response Jacobian.
+    Jacobian { outcomes: Vec<u32>, treatments: Vec<u32>, at: Vec<f64>, scale: DerivativeScaleWire },
+    /// Mean under an existing intervention set.
+    InterventionResponse { outcome: u32, interventions: Vec<InterventionWire> },
+}
+
+/// Complete response query on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ResponseQueryWire {
+    /// Requested functional.
+    pub functional: ResponseFunctionalWire,
+    /// Target population.
+    pub target_population: TargetPopulationWire,
+    /// Observation mechanism.
+    pub observation: ObservationSpecWire,
+    /// Explicit observation assumptions.
+    #[serde(default)]
+    pub observation_assumptions: Vec<ObservationAssumptionWire>,
+    /// Optional temporal attachment (format ≥ 0.4). Absent/None = static response.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal: Option<TemporalResponseSpecWire>,
+    /// Outcome functional. Absent field decodes as Mean.
+    #[serde(default, skip_serializing_if = "crate::query_wire::OutcomeFunctionalWire::is_mean")]
+    pub outcome_functional: crate::query_wire::OutcomeFunctionalWire,
+}
+
+/// Temporal dose-over-horizon / policy-path attachment on the wire (format 0.4).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TemporalResponseSpecWire {
+    /// Outcome horizons (steps after policy origin), each ≥ 1, strictly increasing.
+    pub horizons: Vec<u32>,
+    /// Temporal intervention policy.
+    pub policy: crate::query_wire::TemporalPolicyWire,
+    /// Optional unfolding history cap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_history_lag: Option<u32>,
+}
+
+/// Encode a response query.
+///
+/// # Errors
+///
+/// Unsupported intervention or target-population fields.
+pub fn response_query_to_wire(q: &ResponseQuery) -> Result<ResponseQueryWire, IoError> {
+    Ok(ResponseQueryWire {
+        functional: functional_to_wire(&q.functional)?,
+        target_population: TargetPopulationWire::from_domain(&q.target_population)?,
+        observation: observation_to_wire(&q.observation),
+        observation_assumptions: q
+            .observation_assumptions
+            .iter()
+            .map(observation_assumption_to_wire)
+            .collect(),
+        temporal: match &q.temporal {
+            None => None,
+            Some(t) => Some(TemporalResponseSpecWire {
+                horizons: t.horizons.to_vec(),
+                policy: crate::query_wire::TemporalPolicyWire::from_domain(&t.policy)?,
+                max_history_lag: t.max_history_lag,
+            }),
+        },
+        outcome_functional: crate::query_wire::OutcomeFunctionalWire::from_domain(
+            &q.outcome_functional,
+        ),
+    })
+}
+
+/// Decode and validate a response query.
+///
+/// # Errors
+///
+/// Invalid dimensions, values, interventions, or platform-size overflows.
+pub fn response_query_from_wire(w: &ResponseQueryWire) -> Result<ResponseQuery, IoError> {
+    use antecedent_core::TemporalResponseSpec;
+    let mut q = ResponseQuery {
+        functional: functional_from_wire(&w.functional)?,
+        target_population: w.target_population.to_domain()?,
+        observation: observation_from_wire(&w.observation),
+        observation_assumptions: w
+            .observation_assumptions
+            .iter()
+            .map(observation_assumption_from_wire)
+            .collect::<Vec<_>>()
+            .into(),
+        temporal: None,
+        outcome_functional: w.outcome_functional.to_domain(),
+    };
+    if let Some(t) = &w.temporal {
+        q.temporal = Some(
+            TemporalResponseSpec::new(t.horizons.clone(), t.policy.to_domain(), t.max_history_lag)
+                .map_err(|e| IoError::Convert(e.to_string()))?,
+        );
+    }
+    q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
+    Ok(q)
+}
+
+fn grid_to_wire(grid: &GridSpec) -> GridSpecWire {
+    match grid {
+        GridSpec::Values(values) => GridSpecWire::Values(values.to_vec()),
+        GridSpec::Linspace { start, end, points } => GridSpecWire::Linspace {
+            start: *start,
+            end: *end,
+            points: crate::error::lossless_u64(*points),
+        },
+    }
+}
+
+pub(crate) fn grid_from_wire(grid: &GridSpecWire) -> Result<GridSpec, IoError> {
+    Ok(match grid {
+        GridSpecWire::Values(values) => GridSpec::Values(values.clone().into()),
+        GridSpecWire::Linspace { start, end, points } => GridSpec::Linspace {
+            start: *start,
+            end: *end,
+            points: usize::try_from(*points).map_err(|_| IoError::TooLarge)?,
+        },
+    })
+}
+
+fn scale_to_wire(scale: DerivativeScale) -> DerivativeScaleWire {
+    match scale {
+        DerivativeScale::Identity => DerivativeScaleWire::Identity,
+        DerivativeScale::LogTreatment => DerivativeScaleWire::LogTreatment,
+        DerivativeScale::LogOutcome => DerivativeScaleWire::LogOutcome,
+        DerivativeScale::LogLog => DerivativeScaleWire::LogLog,
+    }
+}
+
+fn scale_from_wire(scale: DerivativeScaleWire) -> DerivativeScale {
+    match scale {
+        DerivativeScaleWire::Identity => DerivativeScale::Identity,
+        DerivativeScaleWire::LogTreatment => DerivativeScale::LogTreatment,
+        DerivativeScaleWire::LogOutcome => DerivativeScale::LogOutcome,
+        DerivativeScaleWire::LogLog => DerivativeScale::LogLog,
+    }
+}
+
+fn functional_to_wire(f: &ResponseFunctional) -> Result<ResponseFunctionalWire, IoError> {
+    Ok(match f {
+        ResponseFunctional::MeanCurve { outcome, treatment } => ResponseFunctionalWire::MeanCurve {
+            outcome: outcome.raw(),
+            treatment: ContinuousDomainWire {
+                variable: treatment.variable.raw(),
+                grid: grid_to_wire(&treatment.grid),
+            },
+        },
+        ResponseFunctional::AverageDerivative { outcome, treatment, weighting } => {
+            ResponseFunctionalWire::AverageDerivative {
+                outcome: outcome.raw(),
+                treatment: treatment.raw(),
+                weighting: match weighting {
+                    DerivativeWeighting::Observed => DerivativeWeightingWire::Observed,
+                    DerivativeWeighting::Uniform { lower, upper } => {
+                        DerivativeWeightingWire::Uniform { lower: *lower, upper: *upper }
+                    }
+                    DerivativeWeighting::Custom(weights) => {
+                        DerivativeWeightingWire::Custom(weights.to_vec())
+                    }
+                },
+            }
+        }
+        ResponseFunctional::PointDerivative { outcome, treatment, at, order, scale } => {
+            ResponseFunctionalWire::PointDerivative {
+                outcome: outcome.raw(),
+                treatment: treatment.raw(),
+                at: *at,
+                order: *order,
+                scale: scale_to_wire(*scale),
+            }
+        }
+        ResponseFunctional::DirectionalDerivative { outcomes, treatments, at, direction } => {
+            ResponseFunctionalWire::DirectionalDerivative {
+                outcomes: outcomes.iter().map(|v| v.raw()).collect(),
+                treatments: treatments.iter().map(|v| v.raw()).collect(),
+                at: at.to_vec(),
+                direction: direction.to_vec(),
+            }
+        }
+        ResponseFunctional::Jacobian { outcomes, treatments, at, scale } => {
+            ResponseFunctionalWire::Jacobian {
+                outcomes: outcomes.iter().map(|v| v.raw()).collect(),
+                treatments: treatments.iter().map(|v| v.raw()).collect(),
+                at: at.to_vec(),
+                scale: scale_to_wire(*scale),
+            }
+        }
+        ResponseFunctional::InterventionResponse { outcome, interventions } => {
+            ResponseFunctionalWire::InterventionResponse {
+                outcome: outcome.raw(),
+                interventions: interventions
+                    .iter()
+                    .map(InterventionWire::from_domain)
+                    .collect::<Result<Vec<_>, _>>()?,
+            }
+        }
+    })
+}
+
+fn functional_from_wire(f: &ResponseFunctionalWire) -> Result<ResponseFunctional, IoError> {
+    Ok(match f {
+        ResponseFunctionalWire::MeanCurve { outcome, treatment } => ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(*outcome),
+            treatment: ContinuousDomain {
+                variable: VariableId::from_raw(treatment.variable),
+                grid: grid_from_wire(&treatment.grid)?,
+            },
+        },
+        ResponseFunctionalWire::AverageDerivative { outcome, treatment, weighting } => {
+            ResponseFunctional::AverageDerivative {
+                outcome: VariableId::from_raw(*outcome),
+                treatment: VariableId::from_raw(*treatment),
+                weighting: match weighting {
+                    DerivativeWeightingWire::Observed => DerivativeWeighting::Observed,
+                    DerivativeWeightingWire::Uniform { lower, upper } => {
+                        DerivativeWeighting::Uniform { lower: *lower, upper: *upper }
+                    }
+                    DerivativeWeightingWire::Custom(weights) => {
+                        DerivativeWeighting::Custom(weights.clone().into())
+                    }
+                },
+            }
+        }
+        ResponseFunctionalWire::PointDerivative { outcome, treatment, at, order, scale } => {
+            ResponseFunctional::PointDerivative {
+                outcome: VariableId::from_raw(*outcome),
+                treatment: VariableId::from_raw(*treatment),
+                at: *at,
+                order: *order,
+                scale: scale_from_wire(*scale),
+            }
+        }
+        ResponseFunctionalWire::DirectionalDerivative { outcomes, treatments, at, direction } => {
+            ResponseFunctional::DirectionalDerivative {
+                outcomes: outcomes
+                    .iter()
+                    .copied()
+                    .map(VariableId::from_raw)
+                    .collect::<Vec<_>>()
+                    .into(),
+                treatments: treatments
+                    .iter()
+                    .copied()
+                    .map(VariableId::from_raw)
+                    .collect::<Vec<_>>()
+                    .into(),
+                at: at.clone().into(),
+                direction: direction.clone().into(),
+            }
+        }
+        ResponseFunctionalWire::Jacobian { outcomes, treatments, at, scale } => {
+            ResponseFunctional::Jacobian {
+                outcomes: outcomes
+                    .iter()
+                    .copied()
+                    .map(VariableId::from_raw)
+                    .collect::<Vec<_>>()
+                    .into(),
+                treatments: treatments
+                    .iter()
+                    .copied()
+                    .map(VariableId::from_raw)
+                    .collect::<Vec<_>>()
+                    .into(),
+                at: at.clone().into(),
+                scale: scale_from_wire(*scale),
+            }
+        }
+        ResponseFunctionalWire::InterventionResponse { outcome, interventions } => {
+            ResponseFunctional::InterventionResponse {
+                outcome: VariableId::from_raw(*outcome),
+                interventions: interventions
+                    .iter()
+                    .map(InterventionWire::to_domain)
+                    .collect::<Vec<_>>()
+                    .into(),
+            }
+        }
+    })
+}
+
+fn observation_to_wire(o: &ObservationSpec) -> ObservationSpecWire {
+    match o {
+        ObservationSpec::Complete => ObservationSpecWire::Complete,
+        ObservationSpec::RightCensored { latent, observed, censoring, event } => {
+            ObservationSpecWire::RightCensored {
+                latent: latent.raw(),
+                observed: observed.raw(),
+                censoring: censoring.raw(),
+                event: event.raw(),
+            }
+        }
+        ObservationSpec::LeftCensored { latent, observed, censoring, event } => {
+            ObservationSpecWire::LeftCensored {
+                latent: latent.raw(),
+                observed: observed.raw(),
+                censoring: censoring.raw(),
+                event: event.raw(),
+            }
+        }
+        ObservationSpec::IntervalCensored { latent, lower, upper } => {
+            ObservationSpecWire::IntervalCensored {
+                latent: latent.raw(),
+                lower: lower.raw(),
+                upper: upper.raw(),
+            }
+        }
+        ObservationSpec::Truncated { latent, observed, lower, upper } => {
+            ObservationSpecWire::Truncated {
+                latent: latent.raw(),
+                observed: observed.raw(),
+                lower: lower.map(VariableId::raw),
+                upper: upper.map(VariableId::raw),
+            }
+        }
+        ObservationSpec::Selected { latent, observed, indicator } => {
+            ObservationSpecWire::Selected {
+                latent: latent.raw(),
+                observed: observed.raw(),
+                indicator: indicator.raw(),
+            }
+        }
+    }
+}
+
+fn observation_from_wire(o: &ObservationSpecWire) -> ObservationSpec {
+    match o {
+        ObservationSpecWire::Complete => ObservationSpec::Complete,
+        ObservationSpecWire::RightCensored { latent, observed, censoring, event } => {
+            ObservationSpec::RightCensored {
+                latent: VariableId::from_raw(*latent),
+                observed: VariableId::from_raw(*observed),
+                censoring: VariableId::from_raw(*censoring),
+                event: VariableId::from_raw(*event),
+            }
+        }
+        ObservationSpecWire::LeftCensored { latent, observed, censoring, event } => {
+            ObservationSpec::LeftCensored {
+                latent: VariableId::from_raw(*latent),
+                observed: VariableId::from_raw(*observed),
+                censoring: VariableId::from_raw(*censoring),
+                event: VariableId::from_raw(*event),
+            }
+        }
+        ObservationSpecWire::IntervalCensored { latent, lower, upper } => {
+            ObservationSpec::IntervalCensored {
+                latent: VariableId::from_raw(*latent),
+                lower: VariableId::from_raw(*lower),
+                upper: VariableId::from_raw(*upper),
+            }
+        }
+        ObservationSpecWire::Truncated { latent, observed, lower, upper } => {
+            ObservationSpec::Truncated {
+                latent: VariableId::from_raw(*latent),
+                observed: VariableId::from_raw(*observed),
+                lower: lower.map(VariableId::from_raw),
+                upper: upper.map(VariableId::from_raw),
+            }
+        }
+        ObservationSpecWire::Selected { latent, observed, indicator } => {
+            ObservationSpec::Selected {
+                latent: VariableId::from_raw(*latent),
+                observed: VariableId::from_raw(*observed),
+                indicator: VariableId::from_raw(*indicator),
+            }
+        }
+    }
+}
+
+fn observation_assumption_to_wire(a: &ObservationAssumption) -> ObservationAssumptionWire {
+    match a {
+        ObservationAssumption::IndependentGiven(v) => {
+            ObservationAssumptionWire::IndependentGiven(v.iter().map(|x| x.raw()).collect())
+        }
+        ObservationAssumption::OutcomeIndependentGiven(v) => {
+            ObservationAssumptionWire::OutcomeIndependentGiven(v.iter().map(|x| x.raw()).collect())
+        }
+        ObservationAssumption::Structural(id) => {
+            ObservationAssumptionWire::Structural(id.to_string())
+        }
+    }
+}
+
+fn observation_assumption_from_wire(a: &ObservationAssumptionWire) -> ObservationAssumption {
+    match a {
+        ObservationAssumptionWire::IndependentGiven(v) => ObservationAssumption::IndependentGiven(
+            v.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>().into(),
+        ),
+        ObservationAssumptionWire::OutcomeIndependentGiven(v) => {
+            ObservationAssumption::OutcomeIndependentGiven(
+                v.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>().into(),
+            )
+        }
+        ObservationAssumptionWire::Structural(id) => {
+            ObservationAssumption::Structural(Arc::from(id.as_str()))
+        }
+    }
+}
+
+/// Empirical support status on the wire.
+///
+/// `missing_evidence` is additive: every earlier spelling decodes unchanged, and
+/// a writer emits it only for a coordinate whose required evidence is absent.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum SupportStatusWire {
+    Supported,
+    WeakOverlap,
+    Extrapolative,
+    OutsideEmpiricalSupport,
+    MissingEvidence,
+}
+
+/// Region evaluated by support diagnostics on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SupportRegionWire {
+    pub minima: Vec<f64>,
+    pub maxima: Vec<f64>,
+}
+
+/// One support diagnostic on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SupportDiagnosticWire {
+    pub id: String,
+    pub values: Vec<f64>,
+    pub detail: String,
+    /// `per_coordinate`, `global` or `inapplicable`. Artifacts written before
+    /// the scope existed omit it and load as `global`, which never lets a
+    /// value be read as local support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+}
+
+/// Complete empirical support report on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SupportReportWire {
+    pub status: SupportStatusWire,
+    pub query_region: SupportRegionWire,
+    pub diagnostics: Vec<SupportDiagnosticWire>,
+    pub warnings: Vec<DiagnosticWire>,
+    /// Per-cell status on a temporal surface; omitted on static curves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub point_status: Option<Vec<SupportStatusWire>>,
+}
+
+/// Function-valued identified envelope on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ResponseEnvelopeWire {
+    pub grid: Vec<f64>,
+    pub dimension: u64,
+    pub lower: Vec<f64>,
+    pub upper: Vec<f64>,
+}
+
+/// Numerical response payload on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum ResponseValueWire {
+    Scalar(f64),
+    Surface { grid: Vec<f64>, dimension: u64, mean: Vec<f64> },
+    Vector(Vec<f64>),
+    Jacobian { outcomes: u64, treatments: u64, values: Vec<f64> },
+    Envelope(ResponseEnvelopeWire),
+}
+
+/// Whether an interval is a frequentist confidence interval or a Bayesian credible one.
+///
+/// Required on every interval-bearing [`ResponseUncertaintyWire`] variant: an untagged
+/// payload is refused rather than read as one or the other.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum IntervalInterpretationWire {
+    Confidence,
+    Credible,
+}
+
+/// Statistical response uncertainty on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum ResponseUncertaintyWire {
+    None,
+    Scalar {
+        standard_error: f64,
+        level: f64,
+        lower: f64,
+        upper: f64,
+        interpretation: IntervalInterpretationWire,
+    },
+    PointwiseBand {
+        level: f64,
+        lower: Vec<f64>,
+        upper: Vec<f64>,
+        interpretation: IntervalInterpretationWire,
+    },
+    SimultaneousBand {
+        level: f64,
+        lower: Vec<f64>,
+        upper: Vec<f64>,
+        replicates: u32,
+        interpretation: IntervalInterpretationWire,
+    },
+    IdentifiedEnvelopeBand {
+        level: f64,
+        lower_outer: Vec<f64>,
+        upper_outer: Vec<f64>,
+        interpretation: IntervalInterpretationWire,
+    },
+    Posterior {
+        artifact_id: String,
+    },
+}
+
+/// Structural identification payload on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum ResponseIdentificationWire {
+    PointIdentified(ResponseValueWire),
+    PartiallyIdentified(ResponseValueWire),
+    GraphDependent(Vec<(u64, ResponseValueWire)>),
+    Unidentified { certificate: String },
+}
+
+/// Identification status on the wire.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub enum IdentificationStatusWire {
+    NonparametricallyIdentified,
+    IdentifiedUnderParametricRestrictions,
+    IdentifiedUnderPriorRestrictions,
+    PartiallyIdentified,
+    GraphDependent,
+    NotIdentified,
+}
+
+/// Per-horizon identification on a temporal response surface.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HorizonIdentificationWire {
+    pub horizon: u32,
+    pub identification_status: IdentificationStatusWire,
+    pub method: String,
+    pub adjustment: Vec<HorizonAdjustmentNodeWire>,
+}
+
+/// Template-level adjustment node `(variable, offset)`.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct HorizonAdjustmentNodeWire {
+    pub variable: u32,
+    pub offset: i32,
+}
+
+/// Complete causal-response artifact payload on the wire.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CausalResponseWire {
+    pub estimand: ResponseFunctionalWire,
+    pub identification_status: IdentificationStatusWire,
+    pub estimate: ResponseIdentificationWire,
+    pub uncertainty: ResponseUncertaintyWire,
+    pub support: SupportReportWire,
+    pub assumptions: Vec<AssumptionRecordWire>,
+    pub provenance_id: String,
+    /// Per-horizon identification; omitted on static curves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub horizon_identification: Option<Vec<HorizonIdentificationWire>>,
+    /// Additive joint path: interaction contrast is structurally zero.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub interaction_structurally_zero: bool,
+    /// Optional scientific coordinate of each response value, in value order.
+    ///
+    /// Absent on artifacts that predate response coordinates. When present it has exactly one
+    /// descriptor per response value and consumers identify a value by its
+    /// descriptor, never by grid position or display label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coordinates: Option<Vec<crate::quantity_wire::ScientificQuantityWire>>,
+}
+
+impl CausalResponseWire {
+    /// Attach scientific coordinate descriptors, one per response value.
+    #[must_use]
+    pub fn with_coordinates(
+        mut self,
+        coordinates: Vec<crate::quantity_wire::ScientificQuantityWire>,
+    ) -> Self {
+        self.coordinates = Some(coordinates);
+        self
+    }
+}
+
+/// Encode a causal response artifact payload.
+///
+/// # Errors
+///
+/// Unsupported intervention fields in the estimand.
+pub fn causal_response_to_wire(r: &CausalResponse) -> Result<CausalResponseWire, IoError> {
+    Ok(CausalResponseWire {
+        estimand: functional_to_wire(&r.estimand)?,
+        identification_status: status_to_wire(r.identification_status),
+        estimate: identification_to_wire(&r.estimate),
+        uncertainty: uncertainty_to_wire(&r.uncertainty),
+        support: support_to_wire(&r.support),
+        assumptions: assumptions_to_wire(&r.assumptions),
+        provenance_id: r.provenance_id.to_string(),
+        horizon_identification: r.horizon_identification.as_ref().map(|horizons| {
+            horizons
+                .iter()
+                .map(|h| HorizonIdentificationWire {
+                    horizon: h.horizon,
+                    identification_status: status_to_wire(h.status),
+                    method: h.method.to_string(),
+                    adjustment: h
+                        .adjustment
+                        .iter()
+                        .map(|key| HorizonAdjustmentNodeWire {
+                            variable: key.variable.raw(),
+                            offset: key.offset,
+                        })
+                        .collect(),
+                })
+                .collect()
+        }),
+        interaction_structurally_zero: r.interaction_structurally_zero,
+        coordinates: None,
+    })
+}
+
+/// Decode a causal response artifact payload.
+///
+/// # Errors
+///
+/// Invalid response dimensions, query values, or platform-size overflows.
+pub fn causal_response_from_wire(w: &CausalResponseWire) -> Result<CausalResponse, IoError> {
+    Ok(CausalResponse {
+        estimand: functional_from_wire(&w.estimand)?,
+        identification_status: status_from_wire(w.identification_status),
+        estimate: identification_from_wire(&w.estimate)?,
+        uncertainty: uncertainty_from_wire(&w.uncertainty),
+        support: support_from_wire(&w.support)?,
+        assumptions: assumptions_from_wire(&w.assumptions)?,
+        provenance_id: Arc::from(w.provenance_id.as_str()),
+        horizon_identification: w.horizon_identification.as_ref().map(|horizons| {
+            Arc::from(
+                horizons
+                    .iter()
+                    .map(|h| HorizonIdentification {
+                        horizon: h.horizon,
+                        status: status_from_wire(h.identification_status),
+                        method: Arc::from(h.method.as_str()),
+                        adjustment: Arc::from(
+                            h.adjustment
+                                .iter()
+                                .map(|node| TemporalNodeKey {
+                                    variable: VariableId::from_raw(node.variable),
+                                    offset: node.offset,
+                                })
+                                .collect::<Vec<_>>(),
+                        ),
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        }),
+        interaction_structurally_zero: w.interaction_structurally_zero,
+    })
+}
+
+fn status_to_wire(s: IdentificationStatus) -> IdentificationStatusWire {
+    match s {
+        IdentificationStatus::NonparametricallyIdentified => {
+            IdentificationStatusWire::NonparametricallyIdentified
+        }
+        IdentificationStatus::IdentifiedUnderParametricRestrictions => {
+            IdentificationStatusWire::IdentifiedUnderParametricRestrictions
+        }
+        IdentificationStatus::IdentifiedUnderPriorRestrictions => {
+            IdentificationStatusWire::IdentifiedUnderPriorRestrictions
+        }
+        IdentificationStatus::PartiallyIdentified => IdentificationStatusWire::PartiallyIdentified,
+        IdentificationStatus::GraphDependent => IdentificationStatusWire::GraphDependent,
+        IdentificationStatus::NotIdentified => IdentificationStatusWire::NotIdentified,
+    }
+}
+fn status_from_wire(s: IdentificationStatusWire) -> IdentificationStatus {
+    match s {
+        IdentificationStatusWire::NonparametricallyIdentified => {
+            IdentificationStatus::NonparametricallyIdentified
+        }
+        IdentificationStatusWire::IdentifiedUnderParametricRestrictions => {
+            IdentificationStatus::IdentifiedUnderParametricRestrictions
+        }
+        IdentificationStatusWire::IdentifiedUnderPriorRestrictions => {
+            IdentificationStatus::IdentifiedUnderPriorRestrictions
+        }
+        IdentificationStatusWire::PartiallyIdentified => IdentificationStatus::PartiallyIdentified,
+        IdentificationStatusWire::GraphDependent => IdentificationStatus::GraphDependent,
+        IdentificationStatusWire::NotIdentified => IdentificationStatus::NotIdentified,
+    }
+}
+
+/// Convert a numerical response value to its durable wire representation.
+#[must_use]
+pub fn response_value_to_wire(v: &ResponseValue) -> ResponseValueWire {
+    match v {
+        ResponseValue::Scalar(x) => ResponseValueWire::Scalar(*x),
+        ResponseValue::Surface { grid, dimension, mean } => ResponseValueWire::Surface {
+            grid: grid.to_vec(),
+            dimension: crate::error::lossless_u64(*dimension),
+            mean: mean.to_vec(),
+        },
+        ResponseValue::Vector(v) => ResponseValueWire::Vector(v.to_vec()),
+        ResponseValue::Jacobian { outcomes, treatments, values } => ResponseValueWire::Jacobian {
+            outcomes: crate::error::lossless_u64(*outcomes),
+            treatments: crate::error::lossless_u64(*treatments),
+            values: values.to_vec(),
+        },
+        ResponseValue::Envelope(e) => ResponseValueWire::Envelope(ResponseEnvelopeWire {
+            grid: e.grid.to_vec(),
+            dimension: crate::error::lossless_u64(e.dimension),
+            lower: e.lower.to_vec(),
+            upper: e.upper.to_vec(),
+        }),
+    }
+}
+
+/// Convert a durable numerical response value from the wire.
+///
+/// # Errors
+///
+/// Returns an error for dimensions that cannot be represented on this platform.
+pub fn response_value_from_wire(v: &ResponseValueWire) -> Result<ResponseValue, IoError> {
+    Ok(match v {
+        ResponseValueWire::Scalar(x) => ResponseValue::Scalar(*x),
+        ResponseValueWire::Surface { grid, dimension, mean } => ResponseValue::Surface {
+            grid: grid.clone().into(),
+            dimension: usize::try_from(*dimension).map_err(|_| IoError::TooLarge)?,
+            mean: mean.clone().into(),
+        },
+        ResponseValueWire::Vector(v) => ResponseValue::Vector(v.clone().into()),
+        ResponseValueWire::Jacobian { outcomes, treatments, values } => ResponseValue::Jacobian {
+            outcomes: usize::try_from(*outcomes).map_err(|_| IoError::TooLarge)?,
+            treatments: usize::try_from(*treatments).map_err(|_| IoError::TooLarge)?,
+            values: values.clone().into(),
+        },
+        ResponseValueWire::Envelope(e) => ResponseValue::Envelope(ResponseEnvelope {
+            grid: e.grid.clone().into(),
+            dimension: usize::try_from(e.dimension).map_err(|_| IoError::TooLarge)?,
+            lower: e.lower.clone().into(),
+            upper: e.upper.clone().into(),
+        }),
+    })
+}
+
+fn identification_to_wire(i: &ResponseIdentification) -> ResponseIdentificationWire {
+    match i {
+        ResponseIdentification::PointIdentified(v) => {
+            ResponseIdentificationWire::PointIdentified(response_value_to_wire(v))
+        }
+        ResponseIdentification::PartiallyIdentified(v) => {
+            ResponseIdentificationWire::PartiallyIdentified(response_value_to_wire(v))
+        }
+        ResponseIdentification::GraphDependent(v) => ResponseIdentificationWire::GraphDependent(
+            v.iter().map(|(id, value)| (*id, response_value_to_wire(value))).collect(),
+        ),
+        ResponseIdentification::Unidentified { certificate } => {
+            ResponseIdentificationWire::Unidentified { certificate: certificate.to_string() }
+        }
+    }
+}
+fn identification_from_wire(
+    i: &ResponseIdentificationWire,
+) -> Result<ResponseIdentification, IoError> {
+    Ok(match i {
+        ResponseIdentificationWire::PointIdentified(v) => {
+            ResponseIdentification::PointIdentified(response_value_from_wire(v)?)
+        }
+        ResponseIdentificationWire::PartiallyIdentified(v) => {
+            ResponseIdentification::PartiallyIdentified(response_value_from_wire(v)?)
+        }
+        ResponseIdentificationWire::GraphDependent(v) => ResponseIdentification::GraphDependent(
+            v.iter()
+                .map(|(id, value)| Ok((*id, response_value_from_wire(value)?)))
+                .collect::<Result<Vec<_>, IoError>>()?,
+        ),
+        ResponseIdentificationWire::Unidentified { certificate } => {
+            ResponseIdentification::Unidentified { certificate: Arc::from(certificate.as_str()) }
+        }
+    })
+}
+
+fn interpretation_to_wire(i: IntervalInterpretation) -> IntervalInterpretationWire {
+    match i {
+        IntervalInterpretation::Confidence => IntervalInterpretationWire::Confidence,
+        IntervalInterpretation::Credible => IntervalInterpretationWire::Credible,
+    }
+}
+
+fn interpretation_from_wire(i: IntervalInterpretationWire) -> IntervalInterpretation {
+    match i {
+        IntervalInterpretationWire::Confidence => IntervalInterpretation::Confidence,
+        IntervalInterpretationWire::Credible => IntervalInterpretation::Credible,
+    }
+}
+
+/// The retained `CredibleDraws` behind a credible scalar interval or pointwise
+/// band are an in-process payload for re-summarization: they are not encoded
+/// (the wire and artifact shape is unchanged) and decode as `None`.
+fn uncertainty_to_wire(u: &ResponseUncertainty) -> ResponseUncertaintyWire {
+    match u {
+        ResponseUncertainty::None => ResponseUncertaintyWire::None,
+        ResponseUncertainty::Scalar {
+            standard_error, level, lower, upper, interpretation, ..
+        } => ResponseUncertaintyWire::Scalar {
+            standard_error: *standard_error,
+            level: *level,
+            lower: *lower,
+            upper: *upper,
+            interpretation: interpretation_to_wire(*interpretation),
+        },
+        ResponseUncertainty::PointwiseBand { level, lower, upper, interpretation, .. } => {
+            ResponseUncertaintyWire::PointwiseBand {
+                level: *level,
+                lower: lower.to_vec(),
+                upper: upper.to_vec(),
+                interpretation: interpretation_to_wire(*interpretation),
+            }
+        }
+        ResponseUncertainty::SimultaneousBand {
+            level,
+            lower,
+            upper,
+            replicates,
+            interpretation,
+        } => ResponseUncertaintyWire::SimultaneousBand {
+            level: *level,
+            lower: lower.to_vec(),
+            upper: upper.to_vec(),
+            replicates: *replicates,
+            interpretation: interpretation_to_wire(*interpretation),
+        },
+        ResponseUncertainty::IdentifiedEnvelopeBand {
+            level,
+            lower_outer,
+            upper_outer,
+            interpretation,
+        } => ResponseUncertaintyWire::IdentifiedEnvelopeBand {
+            level: *level,
+            lower_outer: lower_outer.to_vec(),
+            upper_outer: upper_outer.to_vec(),
+            interpretation: interpretation_to_wire(*interpretation),
+        },
+        ResponseUncertainty::Posterior { artifact_id } => {
+            ResponseUncertaintyWire::Posterior { artifact_id: artifact_id.to_string() }
+        }
+    }
+}
+fn uncertainty_from_wire(u: &ResponseUncertaintyWire) -> ResponseUncertainty {
+    match u {
+        ResponseUncertaintyWire::None => ResponseUncertainty::None,
+        ResponseUncertaintyWire::Scalar { standard_error, level, lower, upper, interpretation } => {
+            ResponseUncertainty::Scalar {
+                standard_error: *standard_error,
+                level: *level,
+                lower: *lower,
+                upper: *upper,
+                interpretation: interpretation_from_wire(*interpretation),
+                draws: None,
+            }
+        }
+        ResponseUncertaintyWire::PointwiseBand { level, lower, upper, interpretation } => {
+            ResponseUncertainty::PointwiseBand {
+                level: *level,
+                lower: lower.clone().into(),
+                upper: upper.clone().into(),
+                interpretation: interpretation_from_wire(*interpretation),
+                draws: None,
+            }
+        }
+        ResponseUncertaintyWire::SimultaneousBand {
+            level,
+            lower,
+            upper,
+            replicates,
+            interpretation,
+        } => ResponseUncertainty::SimultaneousBand {
+            level: *level,
+            lower: lower.clone().into(),
+            upper: upper.clone().into(),
+            replicates: *replicates,
+            interpretation: interpretation_from_wire(*interpretation),
+        },
+        ResponseUncertaintyWire::IdentifiedEnvelopeBand {
+            level,
+            lower_outer,
+            upper_outer,
+            interpretation,
+        } => ResponseUncertainty::IdentifiedEnvelopeBand {
+            level: *level,
+            lower_outer: lower_outer.clone().into(),
+            upper_outer: upper_outer.clone().into(),
+            interpretation: interpretation_from_wire(*interpretation),
+        },
+        ResponseUncertaintyWire::Posterior { artifact_id } => {
+            ResponseUncertainty::Posterior { artifact_id: Arc::from(artifact_id.as_str()) }
+        }
+    }
+}
+
+fn support_status_to_wire(status: SupportStatus) -> SupportStatusWire {
+    match status {
+        SupportStatus::Supported => SupportStatusWire::Supported,
+        SupportStatus::WeakOverlap => SupportStatusWire::WeakOverlap,
+        SupportStatus::Extrapolative => SupportStatusWire::Extrapolative,
+        SupportStatus::OutsideEmpiricalSupport => SupportStatusWire::OutsideEmpiricalSupport,
+        SupportStatus::MissingEvidence => SupportStatusWire::MissingEvidence,
+    }
+}
+
+pub(crate) fn support_status_from_wire(status: SupportStatusWire) -> SupportStatus {
+    match status {
+        SupportStatusWire::Supported => SupportStatus::Supported,
+        SupportStatusWire::WeakOverlap => SupportStatus::WeakOverlap,
+        SupportStatusWire::Extrapolative => SupportStatus::Extrapolative,
+        SupportStatusWire::OutsideEmpiricalSupport => SupportStatus::OutsideEmpiricalSupport,
+        SupportStatusWire::MissingEvidence => SupportStatus::MissingEvidence,
+    }
+}
+
+fn support_to_wire(s: &SupportReport) -> SupportReportWire {
+    SupportReportWire {
+        status: support_status_to_wire(s.status),
+        query_region: SupportRegionWire {
+            minima: s.query_region.minima.to_vec(),
+            maxima: s.query_region.maxima.to_vec(),
+        },
+        diagnostics: s
+            .diagnostics
+            .iter()
+            .map(|d| SupportDiagnosticWire {
+                id: d.id.to_string(),
+                values: d.values.to_vec(),
+                detail: d.detail.to_string(),
+                scope: Some(d.scope.as_str().to_owned()),
+            })
+            .collect(),
+        warnings: s.warnings.iter().map(diagnostic_to_wire).collect(),
+        point_status: s
+            .point_status
+            .as_ref()
+            .map(|cells| cells.iter().copied().map(support_status_to_wire).collect()),
+    }
+}
+fn support_from_wire(s: &SupportReportWire) -> Result<SupportReport, IoError> {
+    Ok(SupportReport {
+        status: support_status_from_wire(s.status),
+        query_region: SupportRegion {
+            minima: s.query_region.minima.clone().into(),
+            maxima: s.query_region.maxima.clone().into(),
+        },
+        diagnostics: s
+            .diagnostics
+            .iter()
+            .map(|d| {
+                let scope = match d.scope.as_deref() {
+                    None => DiagnosticScope::Global,
+                    Some(name) => DiagnosticScope::from_name(name).ok_or_else(|| {
+                        IoError::Convert(format!("unknown diagnostic scope `{name}`"))
+                    })?,
+                };
+                Ok(SupportDiagnostic {
+                    id: Arc::from(d.id.as_str()),
+                    values: d.values.clone().into(),
+                    detail: Arc::from(d.detail.as_str()),
+                    scope,
+                })
+            })
+            .collect::<Result<Vec<_>, IoError>>()?,
+        warnings: s.warnings.iter().map(diagnostic_from_wire).collect::<Result<Vec<_>, _>>()?,
+        point_status: s.point_status.as_ref().map(|cells| {
+            cells.iter().copied().map(support_status_from_wire).collect::<Vec<_>>().into()
+        }),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::{
+        Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+        AssumptionStatus, Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention, Value,
+    };
+
+    use super::*;
+    use crate::convert::{from_cbor, to_cbor};
+
+    fn round_trip_query(query: &ResponseQuery) {
+        let wire = response_query_to_wire(query).unwrap();
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: ResponseQueryWire = from_cbor(&bytes).unwrap();
+        assert_eq!(response_query_from_wire(&decoded).unwrap(), *query);
+    }
+
+    #[test]
+    fn every_response_functional_round_trips() {
+        let t = VariableId::from_raw(0);
+        let t2 = VariableId::from_raw(1);
+        let y = VariableId::from_raw(2);
+        let y2 = VariableId::from_raw(3);
+        let functionals = vec![
+            ResponseFunctional::MeanCurve {
+                outcome: y,
+                treatment: ContinuousDomain::new(
+                    t,
+                    GridSpec::Linspace { start: 0.0, end: 2.0, points: 5 },
+                ),
+            },
+            ResponseFunctional::AverageDerivative {
+                outcome: y,
+                treatment: t,
+                weighting: DerivativeWeighting::Custom(Arc::from([0.25, 0.75])),
+            },
+            ResponseFunctional::PointDerivative {
+                outcome: y,
+                treatment: t,
+                at: 1.5,
+                order: 2,
+                scale: DerivativeScale::LogLog,
+            },
+            ResponseFunctional::DirectionalDerivative {
+                outcomes: Arc::from([y, y2]),
+                treatments: Arc::from([t, t2]),
+                at: Arc::from([1.0, 2.0]),
+                direction: Arc::from([0.5, -0.5]),
+            },
+            ResponseFunctional::Jacobian {
+                outcomes: Arc::from([y, y2]),
+                treatments: Arc::from([t, t2]),
+                at: Arc::from([1.0, 2.0]),
+                scale: DerivativeScale::Identity,
+            },
+            ResponseFunctional::InterventionResponse {
+                outcome: y,
+                interventions: Arc::from([
+                    Intervention::set(t, Value::f64(1.0)),
+                    Intervention::shift(t2, Value::f64(0.5)),
+                ]),
+            },
+        ];
+        for functional in functionals {
+            round_trip_query(&ResponseQuery::new(functional));
+        }
+    }
+
+    #[test]
+    fn observation_query_and_causal_query_round_trip() {
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(2),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.0, 1.0, 3.0])),
+            ),
+        })
+        .with_observation(
+            ObservationSpec::RightCensored {
+                latent: VariableId::from_raw(2),
+                observed: VariableId::from_raw(3),
+                censoring: VariableId::from_raw(4),
+                event: VariableId::from_raw(5),
+            },
+            Arc::from([ObservationAssumption::IndependentGiven(Arc::from([
+                VariableId::from_raw(6),
+            ]))]),
+        );
+        round_trip_query(&query);
+
+        let causal = antecedent_core::CausalQuery::Response(query);
+        let wire = crate::query_wire::causal_query_to_wire(&causal).unwrap();
+        let back = crate::query_wire::causal_query_from_wire(&wire).unwrap();
+        assert_eq!(back, causal);
+    }
+
+    #[test]
+    fn complete_response_artifact_round_trips() {
+        let estimand = ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([0.0, 1.0, 2.0])),
+            ),
+        };
+        let mut assumptions = AssumptionSet::new();
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Positivity,
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Estimation,
+            status: AssumptionStatus::Supported,
+        });
+        let response = CausalResponse {
+            estimand,
+            identification_status: IdentificationStatus::NonparametricallyIdentified,
+            estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
+                grid: Arc::from([0.0, 1.0, 2.0]),
+                dimension: 1,
+                mean: Arc::from([2.0, 2.5, 3.2]),
+            }),
+            uncertainty: ResponseUncertainty::SimultaneousBand {
+                level: 0.95,
+                lower: Arc::from([1.8, 2.2, 2.8]),
+                upper: Arc::from([2.2, 2.8, 3.6]),
+                replicates: 500,
+                interpretation: antecedent_core::IntervalInterpretation::Credible,
+            },
+            support: SupportReport {
+                status: SupportStatus::WeakOverlap,
+                query_region: SupportRegion { minima: Arc::from([0.0]), maxima: Arc::from([2.0]) },
+                diagnostics: vec![SupportDiagnostic {
+                    id: Arc::from("local_ess"),
+                    values: Arc::from([80.0, 60.0, 20.0]),
+                    detail: Arc::from("effective sample size by grid point"),
+                    scope: DiagnosticScope::PerCoordinate,
+                }],
+                warnings: vec![Diagnostic::new(
+                    "support.weak_overlap",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    "overlap weak at upper endpoint",
+                )],
+                point_status: Some(Arc::from([
+                    SupportStatus::Supported,
+                    SupportStatus::WeakOverlap,
+                    SupportStatus::OutsideEmpiricalSupport,
+                ])),
+            },
+            assumptions,
+            provenance_id: Arc::from("response-fit-17"),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+        };
+        let wire = causal_response_to_wire(&response).unwrap();
+        let bytes = to_cbor(&wire).unwrap();
+        let decoded: CausalResponseWire = from_cbor(&bytes).unwrap();
+        assert_eq!(causal_response_from_wire(&decoded).unwrap(), response);
+    }
+    #[test]
+    fn response_coordinates_are_additive_on_the_wire() {
+        let coordinate = |dose: &str| crate::quantity_wire::ScientificQuantityWire {
+            version: crate::quantity_wire::QUANTITY_WIRE_VERSION,
+            variable_id: "schema:y".into(),
+            variable_name: "y".into(),
+            role: "outcome".into(),
+            units: "kg".into(),
+            population_id: "target".into(),
+            regime_id: format!("do(a={dose})"),
+            horizon: 0,
+            functional_id: "mean".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let response = CausalResponseWire {
+            estimand: ResponseFunctionalWire::AverageDerivative {
+                outcome: 1,
+                treatment: 0,
+                weighting: DerivativeWeightingWire::Observed,
+            },
+            identification_status: IdentificationStatusWire::NotIdentified,
+            estimate: ResponseIdentificationWire::Unidentified { certificate: "c".into() },
+            uncertainty: ResponseUncertaintyWire::None,
+            support: SupportReportWire {
+                status: SupportStatusWire::Supported,
+                query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
+                diagnostics: vec![],
+                warnings: vec![],
+                point_status: None,
+            },
+            assumptions: vec![],
+            provenance_id: "p".into(),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+            coordinates: None,
+        };
+        let absent = serde_json::to_string(&response).unwrap();
+        assert!(!absent.contains("coordinates"));
+        let decoded: CausalResponseWire = serde_json::from_str(&absent).unwrap();
+        assert_eq!(decoded.coordinates, None);
+
+        let with = response.with_coordinates(vec![coordinate("0"), coordinate("1")]);
+        let bytes = serde_json::to_vec(&with).unwrap();
+        let decoded: CausalResponseWire = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(decoded, with);
+        let ids: Vec<_> = decoded.coordinates.unwrap().into_iter().map(|c| c.regime_id).collect();
+        assert_eq!(ids, ["do(a=0)", "do(a=1)"]);
+    }
+
+    #[test]
+    fn support_status_wire_spellings_are_the_core_spellings_and_stay_readable() {
+        // The four earlier spellings decode as before; `missing_evidence` is additive.
+        for status in [
+            SupportStatus::Supported,
+            SupportStatus::WeakOverlap,
+            SupportStatus::Extrapolative,
+            SupportStatus::OutsideEmpiricalSupport,
+            SupportStatus::MissingEvidence,
+        ] {
+            let wire = support_status_to_wire(status);
+            let bytes = to_cbor(&status.as_str()).unwrap();
+            let decoded: SupportStatusWire = from_cbor(&bytes).unwrap();
+            assert_eq!(decoded, wire, "{} decodes to its own wire variant", status.as_str());
+            assert_eq!(
+                to_cbor(&wire).unwrap(),
+                bytes,
+                "{} encodes as its core spelling",
+                status.as_str()
+            );
+            assert_eq!(support_status_from_wire(decoded), status);
+        }
+    }
+    #[test]
+    fn diagnostic_scope_round_trips_and_older_artifacts_load_as_global() {
+        let report = |scope: Option<&str>| SupportReportWire {
+            status: SupportStatusWire::Supported,
+            query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
+            diagnostics: vec![SupportDiagnosticWire {
+                id: "d".into(),
+                values: vec![1.0],
+                detail: "x".into(),
+                scope: scope.map(str::to_owned),
+            }],
+            warnings: vec![],
+            point_status: None,
+        };
+        for scope in
+            [DiagnosticScope::PerCoordinate, DiagnosticScope::Global, DiagnosticScope::Inapplicable]
+        {
+            let loaded = support_from_wire(&report(Some(scope.as_str()))).unwrap();
+            assert_eq!(loaded.diagnostics[0].scope, scope);
+            assert_eq!(
+                support_to_wire(&loaded).diagnostics[0].scope.as_deref(),
+                Some(scope.as_str())
+            );
+        }
+        // No scope was recorded: the safe reading never implies local support.
+        let old = support_from_wire(&report(None)).unwrap();
+        assert_eq!(old.diagnostics[0].scope, DiagnosticScope::Global);
+        assert!(support_from_wire(&report(Some("local"))).is_err());
+    }
+
+    #[test]
+    fn credible_and_confidence_intervals_stay_distinct_on_the_wire() {
+        for interpretation in [IntervalInterpretation::Confidence, IntervalInterpretation::Credible]
+        {
+            for uncertainty in [
+                ResponseUncertainty::Scalar {
+                    standard_error: 0.25,
+                    level: 0.9,
+                    lower: -0.4,
+                    upper: 0.6,
+                    interpretation,
+                    draws: None,
+                },
+                ResponseUncertainty::PointwiseBand {
+                    level: 0.95,
+                    lower: Arc::from([0.0, 1.0]),
+                    upper: Arc::from([1.0, 2.0]),
+                    interpretation,
+                    draws: None,
+                },
+            ] {
+                let wire = uncertainty_to_wire(&uncertainty);
+                let bytes = serde_json::to_vec(&wire).unwrap();
+                let decoded: ResponseUncertaintyWire = serde_json::from_slice(&bytes).unwrap();
+                assert_eq!(uncertainty_from_wire(&decoded), uncertainty);
+            }
+        }
+        // The tag is required: a payload without it is refused, not read as either kind.
+        let untagged = r#"{"scalar":{"standard_error":0.25,"level":0.9,"lower":-0.4,"upper":0.6}}"#;
+        assert!(serde_json::from_str::<ResponseUncertaintyWire>(untagged).is_err());
+        let credible = r#"{"scalar":{"standard_error":0.25,"level":0.9,"lower":-0.4,"upper":0.6,"interpretation":"credible"}}"#;
+        assert_eq!(
+            uncertainty_from_wire(&serde_json::from_str(credible).unwrap()),
+            ResponseUncertainty::Scalar {
+                standard_error: 0.25,
+                level: 0.9,
+                lower: -0.4,
+                upper: 0.6,
+                interpretation: IntervalInterpretation::Credible,
+                draws: None,
+            }
+        );
+    }
+}

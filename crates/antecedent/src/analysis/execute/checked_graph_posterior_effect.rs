@@ -3,7 +3,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, DataInput, ExecutionContext, PhysicalExecutionPlan, StudyResult, TabularData,
+};
 use crate::analysis::{CheckedBayesianGraphPosteriorAte, CheckedClassGraphPosteriorEffect};
 
 impl super::Study {
@@ -21,9 +23,9 @@ impl super::Study {
         click_analysis.query = operation.target().causal_query();
         click_analysis.graph_posterior = Some(operation.posterior().clone());
         click_analysis.graph_posterior_identification_cache =
-            Some(Arc::new(operation.identification().clone()));
+            Some(Arc::clone(operation.identification()));
         click_analysis.inference = operation.inference().clone();
-        click_analysis.estimator_spec = Some(operation.procedure().clone());
+        click_analysis.estimator_spec = Some(Arc::new(operation.procedure().clone()));
         click_analysis.estimator = Some(operation.procedure().id());
         click_analysis.refute = operation.validation();
         click_analysis.overlap_policy = Some(operation.overlap());
@@ -51,9 +53,9 @@ impl super::Study {
         click_analysis.query = operation.target().causal_query();
         click_analysis.graph_posterior = Some(operation.posterior().clone());
         click_analysis.graph_posterior_identification_cache =
-            Some(Arc::new(operation.identification().clone()));
+            Some(Arc::clone(operation.identification()));
         click_analysis.inference = operation.inference().clone();
-        click_analysis.estimator_spec = Some(operation.procedure().clone());
+        click_analysis.estimator_spec = Some(Arc::new(operation.procedure().clone()));
         click_analysis.estimator = Some(operation.procedure().id());
         click_analysis.refute = operation.validation();
         click_analysis.overlap_policy = Some(operation.overlap());

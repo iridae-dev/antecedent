@@ -1,4 +1,4 @@
-"""X6 study planning over the X9 mixed-source catalog, through the Python surface.
+"""Study planning over the mixed-source catalog, through the Python surface.
 
 The fixture is the front door ``x -> z -> y`` with ``x <-> y``: an observational
 study of ``(x, z)`` and a surrogate trial on ``z`` that published only separate

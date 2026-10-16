@@ -1,4 +1,4 @@
-//! 2.2 E7: conditional odds ratio from matched case-control sets, against hand-enumerated
+//! Conditional odds ratio from matched case-control sets, against hand-enumerated
 //! closed forms and an independent brute-force profile likelihood, plus the typed refusals.
 
 #![allow(clippy::float_cmp, reason = "rows are coded exactly 0.0 or 1.0")]
@@ -8,6 +8,9 @@ use antecedent_estimate::{
     EstimationError, MATCHED_ESTIMAND, MATCHED_SAMPLING, conditional_odds_ratio,
     parse_matched_estimand, parse_matched_sampling, refuse_matched_interval,
 };
+
+#[path = "common/checks.rs"]
+mod checks;
 
 /// `(case, exposed)` members of one matched set.
 type Set = Vec<(f64, f64)>;
@@ -40,10 +43,7 @@ fn repeat(set: &[(f64, f64)], times: usize) -> Vec<Set> {
 }
 
 fn refused(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 /// Independent oracle: the conditional log likelihood written as the probability of the

@@ -1,5 +1,5 @@
-//! Independent artifact of the bounded binary nested-Markov likelihood pilot (2.3A A3,
-//! record `2.3A.X4.binary_nested_markov_pilot`). Internal and non-routed: the public
+//! Independent artifact of the bounded binary nested-Markov likelihood pilot
+//! (record `identify.binary_nested_markov`). Internal and non-routed: the public
 //! route `antecedent.transport.binary_nested_markov` stays closed
 //! (`cell_not_licensed`, `nested_markov.route_frozen`) until calibration is measured, so
 //! this artifact publishes a fit and a point contrast, never an interval or posterior.
@@ -482,11 +482,6 @@ struct DataView {
     cells: Vec<Vec<u64>>,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 impl NestedMarkovArtifactWire {
     /// Run the pilot through the engine and build the artifact from its inputs and
     /// receipt, with the report returned alongside.
@@ -547,7 +542,7 @@ impl NestedMarkovArtifactWire {
                 .map(|r| (r.regime.as_str(), r.fixed.as_slice(), r.levels.as_slice()))
                 .collect(),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// The data-identity digest the stored counts should carry.
@@ -563,7 +558,7 @@ impl NestedMarkovArtifactWire {
                 .map(|r| r.cells.iter().map(|v| v.to_bits()).collect())
                 .collect(),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// Encode as CBOR.
@@ -579,11 +574,13 @@ impl NestedMarkovArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure or a foreign feature or claim.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != NESTED_MARKOV_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == NESTED_MARKOV_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         let unsupported = NestedMarkovArtifactError::UnsupportedSemantics;
         if wire.required_features != [NESTED_MARKOV_ARTIFACT_FEATURE] {
             return Err(unsupported("required features").into());
@@ -653,12 +650,18 @@ impl NestedMarkovArtifactWire {
     ) -> Result<(Self, PilotReport), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(NestedMarkovArtifactError::PremisesMismatch.into());
-        }
-        if wire.expected_data_digest()? != wire.data_digest {
-            return Err(NestedMarkovArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || NestedMarkovArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            wire.expected_data_digest(),
+            std::convert::identity,
+            || NestedMarkovArtifactError::DataIdentityMismatch.into(),
+        )?;
         if expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest) {
             return Err(NestedMarkovArtifactError::ExpectationMismatch("premises").into());
         }

@@ -12,20 +12,23 @@ keywords.workspace = true
 categories.workspace = true
 description = "Causal discovery for the Antecedent engine: PC, GES, LiNGAM, NOTEARS, FCI, the PCMCI family, and Bayesian graph posteriors; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.3.0", path = "../antecedent-data" }
-antecedent-graph = { version = "2.3.0", path = "../antecedent-graph" }
-antecedent-prob = { version = "2.3.0", path = "../antecedent-prob" }
-antecedent-state = { version = "2.3.0", path = "../antecedent-state" }
-antecedent-stats = { version = "2.3.0", path = "../antecedent-stats" }
+antecedent-core = { workspace = true }
+antecedent-data = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-kernels = { workspace = true }
+antecedent-prob = { workspace = true }
+antecedent-state = { workspace = true }
+antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+antecedent-test-support = { workspace = true }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 
@@ -44,3 +47,11 @@ harness = false
 [[bench]]
 name = "rpcmci"
 harness = false
+
+[[bench]]
+name = "ci_search"
+harness = false
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

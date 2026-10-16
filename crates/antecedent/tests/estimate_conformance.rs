@@ -6,9 +6,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::doc_markdown)]
-
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -23,15 +20,11 @@ use antecedent_data::{
 };
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/estimate").join(name)
-}
-
-fn load_expected(name: &str) -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir(name).join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("estimate").join(name)
 }
 
 /// Build `TabularData` from `(name, role, column)` triples; variable ids follow slice order.
@@ -72,9 +65,9 @@ fn assert_recovers(result: &antecedent::StudyResult, expected: &JsonValue) {
     let true_effect = expected["true_effect"].as_f64().unwrap();
     let tolerance = expected["tolerance"].as_f64().unwrap();
     assert!(
-        (result.estimate.ate - true_effect).abs() < tolerance,
+        (result.estimate.as_effect().unwrap().ate - true_effect).abs() < tolerance,
         "ate={} expected true_effect={} tolerance={}",
-        result.estimate.ate,
+        result.estimate.as_effect().unwrap().ate,
         true_effect,
         tolerance
     );
@@ -121,7 +114,7 @@ fn propensity_ipw_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQu
 
 #[test]
 fn estimate_propensity_ipw_recovers_ate() {
-    let expected = load_expected("propensity_ipw");
+    let expected = load_expected_json(&fixture_dir("propensity_ipw"));
     let (data, graph, query) = propensity_ipw_scm(1200, 3);
     let analysis = Study::tabular(data)
         .graph(graph)
@@ -135,7 +128,10 @@ fn estimate_propensity_ipw_recovers_ate() {
     let result = analysis.run(&ctx).unwrap();
     assert_recovers(&result, &expected);
     // No SE comparison here: see `SE_NOT_COMPARABLE`.
-    assert!(result.estimate.overlap_report.is_some(), "propensity.weighting must report overlap");
+    assert!(
+        result.estimate.as_effect().unwrap().diagnostics.overlap_report.is_some(),
+        "propensity.weighting must report overlap"
+    );
 }
 
 /// Binary instrument `Z`; unobserved confounder `U` (absent from the graph) with
@@ -169,7 +165,7 @@ fn iv_2sls_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
 
 #[test]
 fn estimate_iv_2sls_recovers_structural_effect() {
-    let expected = load_expected("iv_2sls");
+    let expected = load_expected_json(&fixture_dir("iv_2sls"));
     let (data, graph, query) = iv_2sls_scm(4000, 5);
     let analysis = Study::tabular(data)
         .graph(graph)
@@ -224,16 +220,18 @@ fn frontdoor_query() -> AverageEffectQuery {
 }
 
 fn records_assumption(result: &antecedent::StudyResult, id: &str) -> bool {
-    result.estimate.assumptions.entries.iter().any(|r| match &r.assumption {
-        antecedent_core::Assumption::ParametricRestriction(p) => p.id.as_ref() == id,
-        antecedent_core::Assumption::Custom { id: custom, .. } => custom.as_ref() == id,
-        _ => false,
+    result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|r| {
+        match &r.assumption {
+            antecedent_core::Assumption::ParametricRestriction(p) => p.id.as_ref() == id,
+            antecedent_core::Assumption::Custom { id: custom, .. } => custom.as_ref() == id,
+            _ => false,
+        }
     })
 }
 
 #[test]
 fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
-    let expected = load_expected("frontdoor");
+    let expected = load_expected_json(&fixture_dir("frontdoor"));
     let (data, graph, query) = frontdoor_scm(4000, 1);
     let analysis = Study::tabular(data)
         .graph(graph)
@@ -253,9 +251,10 @@ fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
     assert!((0.4 - truth).abs() > tol, "T→M slope alone must fail the band");
     assert!((5.0 - truth).abs() > tol, "M→Y coefficient alone must fail the band");
     assert!(
-        (result.estimate.ate - 5.0).abs() > tol && (result.estimate.ate - 0.4).abs() > tol,
+        (result.estimate.as_effect().unwrap().ate - 5.0).abs() > tol
+            && (result.estimate.as_effect().unwrap().ate - 0.4).abs() > tol,
         "estimate {} must not collapse to a single path coefficient",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
 
     // Large-sample SE of the product `ab` in this linear Gaussian SCM, by the delta method with
@@ -265,11 +264,11 @@ fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
     let var_u_given_t = 0.01 / 1.01;
     let n_var = 25.0 * (0.01 / 1.01) + 0.16 * (var_u_given_t + 0.01) / 0.01;
     let closed_form = (n_var / 4000.0_f64).sqrt();
-    let log_ratio = (result.estimate.se_analytic / closed_form).ln();
+    let log_ratio = (result.estimate.as_effect().unwrap().se_analytic() / closed_form).ln();
     assert!(
         log_ratio.abs() < 0.1,
         "se_analytic={} closed form={closed_form}",
-        result.estimate.se_analytic
+        result.estimate.as_effect().unwrap().se_analytic()
     );
 }
 
@@ -311,7 +310,7 @@ fn frontdoor_interaction_table() -> TabularData {
 
 #[test]
 fn estimate_frontdoor_functional_matches_enumerated_truth_where_path_product_does_not() {
-    let expected = load_expected("frontdoor_functional");
+    let expected = load_expected_json(&fixture_dir("frontdoor_functional"));
     let truth = expected["true_effect"].as_f64().unwrap();
     let run = |estimator: &str| {
         Study::tabular(frontdoor_interaction_table())
@@ -329,12 +328,16 @@ fn estimate_frontdoor_functional_matches_enumerated_truth_where_path_product_doe
     assert_recovers(&functional, &expected);
     assert!(records_assumption(&functional, "frontdoor.functional.saturated_cells"));
     assert!(!records_assumption(&functional, "frontdoor.linear_path_product"));
-    assert!(functional.estimate.se_analytic > 0.0);
+    assert!(functional.estimate.as_effect().unwrap().se_analytic() > 0.0);
 
     let shortcut = run("frontdoor.linear_two_stage");
     let shortcut_limit = expected["linear_path_product_limit"].as_f64().unwrap();
-    assert!((shortcut.estimate.ate - shortcut_limit).abs() < 1e-3, "{}", shortcut.estimate.ate);
-    assert!((shortcut.estimate.ate - truth).abs() > 0.04);
+    assert!(
+        (shortcut.estimate.as_effect().unwrap().ate - shortcut_limit).abs() < 1e-3,
+        "{}",
+        shortcut.estimate.as_effect().unwrap().ate
+    );
+    assert!((shortcut.estimate.as_effect().unwrap().ate - truth).abs() > 0.04);
     assert!(records_assumption(&shortcut, "frontdoor.linear_path_product"));
 }
 
@@ -381,7 +384,7 @@ fn frontdoor_claim_follows_the_executed_estimator() {
         );
         // Recorded once: the estimate inherits the claim's record, it does not add a second.
         assert_eq!(
-            path_product(&linear.estimate.assumptions),
+            path_product(&linear.estimate.as_effect().unwrap().provenance.assumptions),
             vec![AssumptionScope::Identification]
         );
 
@@ -392,7 +395,7 @@ fn frontdoor_claim_follows_the_executed_estimator() {
             "{identifier:?}"
         );
         assert!(path_product(&functional.identification.required_assumptions).is_empty());
-        assert!((functional.estimate.ate - 0.315).abs() < 1e-12);
+        assert!((functional.estimate.as_effect().unwrap().ate - 0.315).abs() < 1e-12);
     }
 }
 
@@ -486,11 +489,15 @@ fn mediation_linear_claim_is_restricted_under_interaction() {
     let true_pure_nie = 0.06;
     let total_minus_direct = 0.16;
     assert!(
-        (result.estimate.ate - total_minus_direct).abs() < 1e-6,
+        (result.estimate.as_effect().unwrap().ate - total_minus_direct).abs() < 1e-6,
         "the estimator still reports total - direct: {}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
-    assert!((result.estimate.ate - true_pure_nie).abs() > 0.05, "{}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - true_pure_nie).abs() > 0.05,
+        "{}",
+        result.estimate.as_effect().unwrap().ate
+    );
 
     assert_eq!(
         result.identification.status,
@@ -500,7 +507,10 @@ fn mediation_linear_claim_is_restricted_under_interaction() {
         restriction(&result.identification.required_assumptions),
         vec![AssumptionScope::Identification]
     );
-    assert_eq!(restriction(&result.estimate.assumptions), vec![AssumptionScope::Identification]);
+    assert_eq!(
+        restriction(&result.estimate.as_effect().unwrap().provenance.assumptions),
+        vec![AssumptionScope::Identification]
+    );
 }
 
 fn run_static(
@@ -510,7 +520,7 @@ fn run_static(
     query: AverageEffectQuery,
     seed: u64,
 ) -> antecedent::StudyResult {
-    let expected = load_expected(name);
+    let expected = load_expected_json(&fixture_dir(name));
     let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
@@ -618,6 +628,8 @@ fn estimate_ipw_scores_heterogeneous_att_atc_against_own_targets() {
             .run(&ExecutionContext::for_tests(seed))
             .unwrap()
             .estimate
+            .as_effect()
+            .unwrap()
             .ate
     };
 
@@ -662,7 +674,11 @@ fn auto_with_wald_reports_the_iv_claim() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(22)).unwrap();
-    assert!((result.estimate.ate - 2.0).abs() < 0.5, "ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.5,
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     assert_eq!(result.estimand.instruments.as_ref(), &[VariableId::from_raw(2)]);
     assert_eq!(
         result.identification.status,
@@ -678,7 +694,17 @@ fn auto_with_wald_reports_the_iv_claim() {
             .iter()
             .any(|r| r.assumption == exclusion)
     );
-    assert!(result.estimate.assumptions.entries.iter().any(|r| r.assumption == exclusion));
+    assert!(
+        result
+            .estimate
+            .as_effect()
+            .unwrap()
+            .provenance
+            .assumptions
+            .entries
+            .iter()
+            .any(|r| r.assumption == exclusion)
+    );
 }
 
 /// Binary outcome logistic SCM: `Y ~ Bern(sigmoid(-0.5 + 1.2 T + 0.8 Z))` with confounded T.
@@ -725,7 +751,7 @@ fn glm_binary_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery,
 #[test]
 fn estimate_glm_adjustment_recovers_positive_ate() {
     // Monte Carlo: logistic g-comp ATE is positive and typically ~0.2–0.3 under this SCM.
-    let expected = load_expected("glm_adjustment");
+    let expected = load_expected_json(&fixture_dir("glm_adjustment"));
     let truth = expected["true_effect"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
     let (data, graph, query, unadjusted) = glm_binary_scm(2000, 23);
@@ -743,11 +769,15 @@ fn estimate_glm_adjustment_recovers_positive_ate() {
         .unwrap();
     let ctx = ExecutionContext::for_tests(24);
     let result = analysis.run(&ctx).unwrap();
-    assert!(result.estimate.ate > 0.05, "ate={}", result.estimate.ate);
     assert!(
-        (result.estimate.ate - truth).abs() < tol,
+        result.estimate.as_effect().unwrap().ate > 0.05,
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - truth).abs() < tol,
         "ate={} truth={truth} tol={tol}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
 }
 
@@ -807,9 +837,21 @@ fn rd_sharp_reports_the_cutoff_effect_and_labels_it() {
     let study = rd_study(rd_heterogeneous_scm(60_000, 31), rd_dag(), 0.4);
     let result = study.run(&ExecutionContext::for_tests(32)).unwrap();
     // Smoothing bias of the cubic baseline term is about -0.4 h^3 = -0.026.
-    assert!((result.estimate.ate - 2.0).abs() < 0.06, "jump={}", result.estimate.ate);
-    assert!((result.estimate.ate - 2.32).abs() > 0.25, "jump={}", result.estimate.ate);
-    assert!((result.estimate.ate - 8.0).abs() > 5.0, "jump={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.06,
+        "jump={}",
+        result.estimate.as_effect().unwrap().ate
+    );
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 2.32).abs() > 0.25,
+        "jump={}",
+        result.estimate.as_effect().unwrap().ate
+    );
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 8.0).abs() > 5.0,
+        "jump={}",
+        result.estimate.as_effect().unwrap().ate
+    );
 
     let local = antecedent_core::TargetPopulation::local_at_cutoff(VariableId::from_raw(2), 0.0);
     let identified = result.identification.average_effect().expect("average effect");
@@ -825,9 +867,13 @@ fn rd_sharp_reports_the_cutoff_effect_and_labels_it() {
         result.diagnostics
     );
     let status = |id: &str| {
-        result.estimate.assumptions.entries.iter().find_map(|r| match &r.assumption {
-            antecedent_core::Assumption::Custom { id: i, .. } if i.as_ref() == id => Some(r.status),
-            _ => None,
+        result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().find_map(|r| {
+            match &r.assumption {
+                antecedent_core::Assumption::Custom { id: i, .. } if i.as_ref() == id => {
+                    Some(r.status)
+                }
+                _ => None,
+            }
         })
     };
     assert_eq!(status("rd.continuity"), Some(antecedent_core::AssumptionStatus::Untestable));
@@ -898,7 +944,7 @@ fn rd_scm(n: usize, seed: u64) -> (TabularData, AverageEffectQuery) {
 
 #[test]
 fn estimate_rd_sharp_recovers_jump() {
-    let expected = load_expected("rd_sharp");
+    let expected = load_expected_json(&fixture_dir("rd_sharp"));
     let (data, query) = rd_scm(3000, 25);
     let graph = rd_dag();
     let analysis = Study::tabular(data.clone())
@@ -942,14 +988,25 @@ fn estimate_rd_sharp_recovers_jump() {
         .run(&ctx)
         .unwrap();
     let declares = |r: &antecedent::StudyResult, id: &str| {
-        r.estimate.assumptions.entries.iter().any(|a| {
+        r.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|a| {
             matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p)
                 if p.id.as_ref() == id)
         })
     };
-    assert_eq!(classical.estimate.ate.to_bits(), result.estimate.ate.to_bits());
-    assert!(result.estimate.se_analytic.is_finite() && classical.estimate.se_analytic.is_finite());
-    assert!((classical.estimate.se_analytic - result.estimate.se_analytic).abs() > 1e-9);
+    assert_eq!(
+        classical.estimate.as_effect().unwrap().ate.to_bits(),
+        result.estimate.as_effect().unwrap().ate.to_bits()
+    );
+    assert!(
+        result.estimate.as_effect().unwrap().se_analytic().is_finite()
+            && classical.estimate.as_effect().unwrap().se_analytic().is_finite()
+    );
+    assert!(
+        (classical.estimate.as_effect().unwrap().se_analytic()
+            - result.estimate.as_effect().unwrap().se_analytic())
+        .abs()
+            > 1e-9
+    );
     assert!(declares(&result, "rd.sharp.conventional_robust_se"));
     assert!(!declares(&result, "rd.sharp.homoskedastic_se"));
     assert!(declares(&classical, "rd.sharp.homoskedastic_se"));
@@ -962,7 +1019,7 @@ fn estimate_rd_sharp_recovers_jump() {
 /// homoskedastic opt-in its classical value.
 #[test]
 fn estimate_rd_sharp_analytic_se_matches_reference() {
-    let block = load_expected("rd_sharp")["se_reference"].clone();
+    let block = load_expected_json(&fixture_dir("rd_sharp"))["se_reference"].clone();
     let floats = |key: &str| -> Vec<f64> {
         block[key].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
     };
@@ -1000,9 +1057,9 @@ fn estimate_rd_sharp_analytic_se_matches_reference() {
     };
     let config = antecedent::RdConfig::new(VariableId::from_raw(2), cutoff, bandwidth);
     let default = run(config);
-    close(default.estimate.ate, "jump");
-    close(default.estimate.se_analytic, "se_hc1");
+    close(default.estimate.as_effect().unwrap().ate, "jump");
+    close(default.estimate.as_effect().unwrap().se_analytic(), "se_hc1");
     let classical = run(config.with_se_kind(antecedent_estimate::AnalyticSeKind::Homoskedastic));
-    close(classical.estimate.ate, "jump");
-    close(classical.estimate.se_analytic, "se_homoskedastic");
+    close(classical.estimate.as_effect().unwrap().ate, "jump");
+    close(classical.estimate.as_effect().unwrap().se_analytic(), "se_homoskedastic");
 }

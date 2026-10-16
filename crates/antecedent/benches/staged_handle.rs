@@ -1,7 +1,6 @@
-#![allow(clippy::semicolon_if_nothing_returned)]
 //! Prepared derivative and counterfactual execution costs.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(missing_docs)]
+#![allow(missing_docs, reason = "bench binaries are not public API")]
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, CounterfactualQuery, DerivativeScale, ExecutionContext, Intervention,

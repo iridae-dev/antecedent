@@ -17,8 +17,9 @@ use antecedent_core::CausalRng;
 use antecedent_kernels::fill_standard_normal;
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace, GlmDesignRef, GlmFamily, GlmOptions,
-    LeastSquaresWorkspace, NbAlphaPolicy, SandwichKind, SmoothSpec, coefficient_covariance,
-    expand_bspline, fit_gam, fit_glm, fit_wls, mean_var, predict_gam, sample_std,
+    LeastSquaresWorkspace, NbAlphaPolicy, PredictorMatrix, SandwichKind, SmoothSpec,
+    coefficient_covariance, expand_bspline, fit_gam, fit_glm, fit_wls, mean_var, predict_gam,
+    sample_std,
 };
 use serde_json::Value;
 
@@ -385,9 +386,7 @@ fn gam_basis_matches_scipy_oracle_and_fit_matches_self_snapshot() {
         }
 
         let fit = fit_gam(
-            &x,
-            nrows,
-            x_columns.len(),
+            &PredictorMatrix::new(&x, nrows, x_columns.len()),
             &y,
             &specs,
             &GamOptions { max_iter: 5000, tol: 1e-10 },
@@ -469,9 +468,7 @@ fn update_gam_oracle_fixture() {
             specs.push(SmoothSpec::new(raw_col, n_basis, lambda).with_knots(knots));
         }
         let fit = fit_gam(
-            &x,
-            nrows,
-            x_columns.len(),
+            &PredictorMatrix::new(&x, nrows, x_columns.len()),
             &y,
             &specs,
             &GamOptions { max_iter: 5000, tol: 1e-10 },

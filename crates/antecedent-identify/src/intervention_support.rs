@@ -6,19 +6,30 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::float_cmp,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{Intervention, InterventionSequence, StochasticPolicy, Value};
+use antecedent_expr::{CausalExprArena, InterventionAssignment, InterventionSetId};
 
 use crate::error::IdentificationError;
+
+/// Intern hard interventions, refusing two levels for one variable.
+///
+/// Query-derived assignments use this instead of
+/// [`CausalExprArena::intern_intervention_assignments`], which panics on that conflict.
+/// Identical repeated levels stay idempotent, so a well-formed assignment set interns
+/// to the same id as before.
+///
+/// # Errors
+///
+/// [`IdentificationError::InvalidInput`] with `identification.conflicting_intervention_levels`
+/// when one variable is assigned two different levels.
+pub(crate) fn intern_assignments(
+    arena: &mut CausalExprArena,
+    assignments: impl IntoIterator<Item = InterventionAssignment>,
+) -> Result<InterventionSetId, IdentificationError> {
+    arena.try_intern_intervention_assignments(assignments).map_err(|_| {
+        IdentificationError::invalid_input("identification.conflicting_intervention_levels")
+    })
+}
 
 /// Human-readable name for an intervention variant.
 #[must_use]
@@ -339,6 +350,37 @@ mod tests {
         assert!(
             matches!(err, IdentificationError::UnsupportedQuery { message } if message.contains("additive_shift"))
         );
+    }
+
+    #[test]
+    fn conflicting_levels_are_an_input_error() {
+        use antecedent_expr::InterventionAssignment;
+        let t = VariableId::from_raw(3);
+        let mut arena = CausalExprArena::new();
+        let err = intern_assignments(
+            &mut arena,
+            [
+                InterventionAssignment::concrete(t, Value::f64(1.0)),
+                InterventionAssignment::concrete(t, Value::f64(0.0)),
+            ],
+        )
+        .unwrap_err();
+        assert_eq!(
+            err,
+            IdentificationError::invalid_input("identification.conflicting_intervention_levels")
+        );
+        let once =
+            intern_assignments(&mut arena, [InterventionAssignment::concrete(t, Value::f64(1.0))])
+                .unwrap();
+        let twice = intern_assignments(
+            &mut arena,
+            [
+                InterventionAssignment::concrete(t, Value::f64(1.0)),
+                InterventionAssignment::concrete(t, Value::f64(1.0)),
+            ],
+        )
+        .unwrap();
+        assert_eq!(once, twice);
     }
 
     #[test]

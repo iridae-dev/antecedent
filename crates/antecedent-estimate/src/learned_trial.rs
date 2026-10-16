@@ -6,7 +6,7 @@
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
-use crate::{EstimationError, trial_to_target_effect};
+use crate::EstimationError;
 use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::{ResamplingPlan, fill_resample_indexes};
 use antecedent_identify::{TransportFormula, TransportIdentification};
@@ -141,6 +141,9 @@ pub struct TrialAipwEstimate {
     pub diagnostics: TrialNuisanceDiagnostics,
     /// Separate source-selection and randomization overlap diagnostics.
     pub overlap: crate::TransportOverlapReport,
+    /// Per-row AIPW scores whose sample mean is [`Self::estimate`].
+    #[serde(default)]
+    pub scores: Vec<f64>,
 }
 
 /// Validate certificate/provider compatibility before fitting any nuisance.
@@ -300,30 +303,32 @@ pub fn estimate_trial_aipw(
     Ok(result)
 }
 
-/// Stratified round-robin fold of every row: each source arm and the target sample
-/// is dealt across the `folds` folds in row order, so every fold holds every role.
+/// Key of the seeded trial fold shuffle.
+const FOLD_PLAN_SEED: u64 = 0x5452_1A1F_01D5_0001;
+
+/// Stratified fold of every row: each source arm and the target sample is shuffled with a
+/// fixed key and dealt round-robin across the `folds` folds by the shared cross-fit plan, so
+/// every fold holds every role and no periodic structure in the row order can align with
+/// the folds.
 ///
-/// The assignment is deterministic in the input alone; no seed enters it.
+/// The assignment is deterministic in the stratum of each row alone. Empty when `folds` or
+/// the sample size is outside what [`validate_trial_aipw`] accepts.
 #[must_use]
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "i % folds is below the fold count, which validation bounds by u16::MAX + 1"
-)]
 pub fn trial_fold_assignment(input: &TrialAipwInput, folds: usize) -> Vec<u16> {
-    let mut assignment = vec![0u16; input.source.len()];
-    for rows in strata(input) {
-        for (i, row) in rows.into_iter().enumerate() {
-            assignment[row] = (i % folds) as u16;
+    let mut stratum = vec![0u32; input.source.len()];
+    for (id, rows) in (0u32..).zip(strata(input)) {
+        for row in rows {
+            stratum[row] = id;
         }
     }
-    assignment
+    crate::crossfit_plan::row_fold_ids_u16(&stratum, folds, FOLD_PLAN_SEED)
 }
 
 /// The resampling units of the joint outer bootstrap: one cohort for a nested
 /// cohort, and the trial and target samples separately (each keeping its fixed
 /// size) for independent samples.
 #[must_use]
-pub fn bootstrap_groups(input: &TrialAipwInput) -> Vec<Vec<usize>> {
+pub(crate) fn bootstrap_groups(input: &TrialAipwInput) -> Vec<Vec<usize>> {
     let n = input.source.len();
     match input.sampling {
         TrialSampling::NestedCohort => vec![(0..n).collect()],
@@ -433,7 +438,7 @@ fn fit_point(
             .map_err(crate::learn_nuisance::learn_err)?,
         );
     }
-    let effect = trial_to_target_effect(
+    let (effect, scores) = crate::transport::trial_to_target_parts(
         id,
         &input.outcome,
         &input.treatment,
@@ -470,6 +475,7 @@ fn fit_point(
         mu0,
         mu1,
         provenance,
+        scores,
     })
 }
 

@@ -1,4 +1,4 @@
-//! 2.3 B1 (X4): the named-functional dose-response row against closed-form truth.
+//! The named-functional dose-response row against closed-form truth.
 //!
 //! Oracle (independent of the estimator): the response is the quadratic
 //! `m(d) = 1 + 0.5 d + 0.25 d^2`, so `m'(d) = 0.5 + 0.5 d`, written out per grid
@@ -79,7 +79,7 @@ fn run(functional: DoseFunctional, claim_set: ClaimSet, noise: f64) -> DoseGridR
 }
 
 #[test]
-fn b1_level_recovers_closed_form_exactly_without_noise() {
+fn level_recovers_closed_form_exactly_without_noise() {
     // Truth per dose: m(0.5)=1.3125, m(1)=1.75, m(2)=3, m(3.5)=5.8125.
     let row = run(DoseFunctional::Level, claims(true, false), 0.0);
     let expected = [1.3125, 1.75, 3.0, 5.8125];
@@ -92,7 +92,7 @@ fn b1_level_recovers_closed_form_exactly_without_noise() {
 }
 
 #[test]
-fn b1_derivative_recovers_closed_form_exactly_without_noise() {
+fn derivative_recovers_closed_form_exactly_without_noise() {
     // Truth per dose: m'(0.5)=0.75, m'(1)=1, m'(2)=1.5, m'(3.5)=2.25.
     let row = run(DoseFunctional::Derivative, claims(false, true), 0.0);
     let expected = [0.75, 1.0, 1.5, 2.25];
@@ -104,7 +104,7 @@ fn b1_derivative_recovers_closed_form_exactly_without_noise() {
 }
 
 #[test]
-fn b1_level_and_derivative_recover_truth_under_alternating_noise_within_tolerance() {
+fn level_and_derivative_recover_truth_under_alternating_noise_within_tolerance() {
     let level_row = run(DoseFunctional::Level, claims(true, false), 0.1);
     for level in &level_row.levels {
         assert!((level.level - truth_level(level.dose)).abs() < 0.02, "level at {}", level.dose);
@@ -122,7 +122,7 @@ fn b1_level_and_derivative_recover_truth_under_alternating_noise_within_toleranc
 }
 
 #[test]
-fn b1_contrast_between_named_doses_matches_closed_form() {
+fn contrast_between_named_doses_matches_closed_form() {
     // m(3) - m(1) = 4.75 - 1.75 = 3.
     let (dose, outcome) = design(0.0);
     let contrast = DoseFunctional::Contrast { from: 1.0, to: 3.0 };
@@ -157,7 +157,7 @@ fn b1_contrast_between_named_doses_matches_closed_form() {
 }
 
 #[test]
-fn b1_claims_are_separate_typed_fields_and_band_stays_closed() {
+fn claims_are_separate_typed_fields_and_band_stays_closed() {
     let level = run(DoseFunctional::Level, claims(true, false), 0.1);
     assert!(level.derivatives.is_empty() && level.contrast.is_none());
     assert!(level.simultaneous_band.is_none());
@@ -182,7 +182,7 @@ fn b1_claims_are_separate_typed_fields_and_band_stays_closed() {
 }
 
 #[test]
-fn b1_derivative_without_derivative_claim_is_refused() {
+fn derivative_without_derivative_claim_is_refused() {
     let (dose, outcome) = design(0.1);
     // A pointwise level claim does not license a derivative.
     let refused = estimate_dose_grid_functional(&request(
@@ -207,7 +207,7 @@ fn b1_derivative_without_derivative_claim_is_refused() {
 }
 
 #[test]
-fn b1_dose_outside_support_is_labelled_and_refused() {
+fn dose_outside_support_is_labelled_and_refused() {
     let (dose, outcome) = design(0.1);
     let points = [1.0, 5.0];
     let report = dose_support_report(&dose, &points, 0.4, 50.0);
@@ -231,7 +231,7 @@ fn b1_dose_outside_support_is_labelled_and_refused() {
 }
 
 #[test]
-fn b1_insufficient_local_weight_is_labelled_and_refused() {
+fn insufficient_local_weight_is_labelled_and_refused() {
     let (dose, outcome) = design(0.1);
     // The effective size can never exceed the row count, so this minimum is unmeetable.
     let mut asked = request(&dose, &outcome, &GRID, DoseFunctional::Level, claims(true, false));
@@ -244,7 +244,7 @@ fn b1_insufficient_local_weight_is_labelled_and_refused() {
 }
 
 #[test]
-fn b1_support_report_uses_the_same_local_ess_floor_as_estimation() {
+fn support_report_uses_the_same_local_ess_floor_as_estimation() {
     let (dose, outcome) = design(0.1);
     let mut asked = request(&dose, &outcome, &GRID, DoseFunctional::Level, claims(true, false));
     for minimum in [-1.0, 0.0, 2.0] {
@@ -261,7 +261,7 @@ fn b1_support_report_uses_the_same_local_ess_floor_as_estimation() {
 }
 
 #[test]
-fn b1_bandwidth_outside_declared_range_is_refused() {
+fn bandwidth_outside_declared_range_is_refused() {
     let (dose, outcome) = design(0.1);
     for bandwidth in [0.05, 2.0] {
         let mut asked = request(&dose, &outcome, &GRID, DoseFunctional::Level, claims(true, false));
@@ -273,7 +273,7 @@ fn b1_bandwidth_outside_declared_range_is_refused() {
 }
 
 #[test]
-fn b1_observational_dose_is_not_certified() {
+fn observational_dose_is_not_certified() {
     let (dose, outcome) = design(0.1);
     let mut asked = request(&dose, &outcome, &GRID, DoseFunctional::Level, claims(true, false));
     asked.design = DoseDesign::Observational;
@@ -283,7 +283,7 @@ fn b1_observational_dose_is_not_certified() {
 }
 
 #[test]
-fn b1_numerical_error_is_measured_and_negligible() {
+fn numerical_error_is_measured_and_negligible() {
     let row = run(DoseFunctional::Level, claims(true, false), 0.1);
     assert_eq!(row.numerical.fits, GRID.len());
     // The linearized level influences sum to zero in exact arithmetic.
@@ -298,7 +298,7 @@ fn b1_numerical_error_is_measured_and_negligible() {
 }
 
 #[test]
-fn b1_exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration() {
+fn exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration() {
     use antecedent_estimate::dose_grid_functional::estimate_dose_grid_quadratic_mean;
     let oracle: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/transport/quadratic_dose/expected.json"

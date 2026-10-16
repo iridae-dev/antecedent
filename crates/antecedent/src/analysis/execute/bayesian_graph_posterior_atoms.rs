@@ -6,7 +6,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, CausalError,
+    CausalPosterior, ExecutionContext, GraphEffectDraws, IdentificationStatus, IdentifiedEstimand,
+    PreparedBayesianProblem, PriorSet, resolve_envelope_prior_anchor,
+};
 
 /// One identified DAG atom ready for Bayesian g-computation.
 #[derive(Clone, Debug)]
@@ -149,21 +153,21 @@ fn graph_effect_draws(
     let column = posterior.effect_column().ok_or_else(|| CausalError::Compile {
         message: "Bayesian posterior missing its effect column".into(),
     })?;
-    let draws = posterior
-        .draws
-        .column(column)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let draws = posterior.draws.column(column)?;
     Ok(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws.to_vec()) })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::strategy_table::IdentifierId;
     use crate::strategy_table::identify_static;
+    use antecedent_core::AverageEffectQuery;
     use antecedent_core::ExecutionContext;
     use antecedent_data::{TableView, TabularData};
     use antecedent_estimate::BayesianGComputationAte;
     use antecedent_graph::Dag;
+    use antecedent_graph::DenseNodeId;
 
     fn data(n: usize) -> TabularData {
         let mut x = Vec::with_capacity(n);

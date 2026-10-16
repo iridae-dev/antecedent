@@ -30,15 +30,10 @@ fuzz_target!(|data: &[u8]| {
         let b = data.get(1 + (i % (data.len() - 1)).max(1)).copied().unwrap_or(0);
         values[i] = if b & 0x80 != 0 { f64::NAN } else { f64::from(b) };
         let b2 = data.get(2 + (i % (data.len() - 1)).max(1)).copied().unwrap_or(1);
-        values_y[i] = if b2 & 0x80 != 0 {
-            f64::NAN
-        } else {
-            f64::from(b2) * 0.5
-        };
+        values_y[i] = if b2 & 0x80 != 0 { f64::NAN } else { f64::from(b2) * 0.5 };
     }
-    let weights: Vec<f64> = (0..n)
-        .map(|i| f64::from(data.get(i % data.len()).copied().unwrap_or(1)) / 255.0)
-        .collect();
+    let weights: Vec<f64> =
+        (0..n).map(|i| f64::from(data.get(i % data.len()).copied().unwrap_or(1)) / 255.0).collect();
     let mut bits = vec![0u8; n.div_ceil(8)];
     for i in 0..n {
         if data.get(i % data.len()).copied().unwrap_or(0) & 1 == 1 {
@@ -62,25 +57,25 @@ fuzz_target!(|data: &[u8]| {
     let mut table_s = vec![0.0; 4 * 3];
     let mut table_p = vec![0.0; 4 * 3];
 
-    let s_sum = scalar::masked_sum(view, Some(mask));
-    let p_sum = portable::masked_sum(view, Some(mask));
+    let s_sum = scalar::masked_sum(view, Some(mask)).unwrap();
+    let p_sum = portable::masked_sum(view, Some(mask)).unwrap();
     assert!(floats_agree(s_sum, p_sum), "masked_sum {s_sum} vs {p_sum}");
 
-    let s_mean = scalar::masked_mean(view, Some(mask));
-    let p_mean = portable::masked_mean(view, Some(mask));
+    let s_mean = scalar::masked_mean(view, Some(mask)).unwrap();
+    let p_mean = portable::masked_mean(view, Some(mask)).unwrap();
     assert!(options_agree(s_mean, p_mean), "masked_mean {s_mean:?} vs {p_mean:?}");
 
-    let s_var = scalar::masked_variance(view, Some(mask));
-    let p_var = portable::masked_variance(view, Some(mask));
+    let s_var = scalar::masked_variance(view, Some(mask)).unwrap();
+    let p_var = portable::masked_variance(view, Some(mask)).unwrap();
     assert!(options_agree(s_var, p_var), "masked_variance {s_var:?} vs {p_var:?}");
 
-    let s_cov = scalar::masked_covariance(view, view_y, Some(mask));
-    let p_cov = portable::masked_covariance(view, view_y, Some(mask));
+    let s_cov = scalar::masked_covariance(view, view_y, Some(mask)).unwrap();
+    let p_cov = portable::masked_covariance(view, view_y, Some(mask)).unwrap();
     assert!(options_agree(s_cov, p_cov), "masked_covariance {s_cov:?} vs {p_cov:?}");
 
     let x_contig: Vec<f64> = (0..n).map(|i| view.get(i).unwrap_or(0.0)).collect();
-    let s_w = scalar::weighted_sum(&x_contig, &weights);
-    let p_w = portable::weighted_sum(&x_contig, &weights);
+    let s_w = scalar::weighted_sum(&x_contig, &weights).unwrap();
+    let p_w = portable::weighted_sum(&x_contig, &weights).unwrap();
     assert!(floats_agree(s_w, p_w), "weighted_sum {s_w} vs {p_w}");
 
     let mut std_s = x_contig.clone();
@@ -93,11 +88,11 @@ fuzz_target!(|data: &[u8]| {
     }
 
     let pair_x: Vec<f64> = (0..n_pair).map(|i| view.get(i).unwrap_or(0.0)).collect();
-    scalar::pairwise_l1_fill(&pair_x, &mut pair_out_s);
-    portable::pairwise_l1_fill(&pair_x, &mut pair_out_p);
+    scalar::pairwise_l1_fill(&pair_x, &mut pair_out_s).unwrap();
+    portable::pairwise_l1_fill(&pair_x, &mut pair_out_p).unwrap();
     assert_eq!(pair_out_s, pair_out_p, "pairwise_l1");
 
-    scalar::accumulate_contingency(&xc, &yc, &mut table_s, 3);
-    portable::accumulate_contingency(&xc, &yc, &mut table_p, 3);
+    scalar::accumulate_contingency(&xc, &yc, &mut table_s, 3).unwrap();
+    portable::accumulate_contingency(&xc, &yc, &mut table_p, 3).unwrap();
     assert_eq!(table_s, table_p, "contingency");
 });

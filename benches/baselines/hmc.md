@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (hmc); do not edit -->
 # HMC GLM baselines
 
 Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)

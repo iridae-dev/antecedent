@@ -1,4 +1,4 @@
-"""The transported static path-specific counterfactual, narrow class (2.3.0 A5).
+"""The transported static path-specific counterfactual, narrow class.
 
 Two populations, a source and a target, share one structural model
 
@@ -43,17 +43,23 @@ unmeasured.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field
+from functools import partial
 from typing import Any
 
+from ._artifact_protocol import ExportedArtifact
+from ._columns import coerce_fields
+from ._mean_binding import bind_mean_reading
 from ._native import (
     consume_transported_counterfactual_artifact as _consume,
 )
 from ._native import (
     evaluate_transported_counterfactual as _evaluate,
 )
+from ._refusal import raise_refusal
+from ._scientific import ScientificResult
+from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
@@ -81,20 +87,14 @@ def _name(value: object, what: str) -> str:
     return value
 
 
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        try:
-            number = float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError) as error:
-            raise CausalTypeError(f"{what} must be a real number") from error
-    else:
-        number = float(value)
-    if not math.isfinite(number):
-        raise CausalValueError(
-            f"transported_counterfactual.invalid_model: {what} is not finite",
-            reason_code="invalid_argument",
-        )
-    return number
+def _non_finite(what: str) -> CausalValueError:
+    return CausalValueError(
+        f"transported_counterfactual.invalid_model: {what} is not finite",
+        reason_code="invalid_argument",
+    )
+
+
+_real = partial(real, finite=True, non_finite=_non_finite)
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,11 +105,10 @@ class Affine:
     slopes: Mapping[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "constant", _real(self.constant, "constant"))
-        object.__setattr__(
+        coerce_fields(self, constant=_real(self.constant, "constant"))
+        coerce_fields(
             self,
-            "slopes",
-            {_name(k, "covariate"): _real(v, "slope") for k, v in dict(self.slopes).items()},
+            slopes={_name(k, "covariate"): _real(v, "slope") for k, v in dict(self.slopes).items()},
         )
 
     def _wire(self) -> dict[str, Any]:
@@ -139,12 +138,13 @@ class Mechanism:
 
     def __post_init__(self) -> None:
         _name(self.node, "node")
-        object.__setattr__(
+        coerce_fields(
             self,
-            "parents",
-            {_name(p, "parent"): _affine(c, "coefficient") for p, c in dict(self.parents).items()},
+            parents={
+                _name(p, "parent"): _affine(c, "coefficient") for p, c in dict(self.parents).items()
+            },
         )
-        object.__setattr__(self, "intercept", _affine(self.intercept, "intercept"))
+        coerce_fields(self, intercept=_affine(self.intercept, "intercept"))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -166,10 +166,8 @@ class AdditiveNoiseScm:
         _name(self.treatment, "treatment")
         if isinstance(self.covariates, str):
             raise CausalTypeError("covariates must be a sequence of names")
-        object.__setattr__(
-            self, "covariates", tuple(_name(c, "covariate") for c in self.covariates)
-        )
-        object.__setattr__(self, "mechanisms", tuple(self.mechanisms))
+        coerce_fields(self, covariates=tuple(_name(c, "covariate") for c in self.covariates))
+        coerce_fields(self, mechanisms=tuple(self.mechanisms))
         if not all(isinstance(m, Mechanism) for m in self.mechanisms):
             raise CausalTypeError("mechanisms must be Mechanism objects")
 
@@ -197,7 +195,7 @@ class CovariateLaw:
                 _name(k, "covariate"): _real(v, "covariate value") for k, v in dict(point).items()
             }
             points.append((values, _real(weight, "weight")))
-        object.__setattr__(self, "points", tuple(points))
+        coerce_fields(self, points=tuple(points))
 
     @classmethod
     def univariate(cls, covariate: str, weights: Mapping[float, float]) -> CovariateLaw:
@@ -228,7 +226,7 @@ class MechanismSelection:
             _name(k, "selection label"): _name(v, "selection target")
             for k, v in dict(self.nodes).items()
         }
-        object.__setattr__(self, "nodes", nodes)
+        coerce_fields(self, nodes=nodes)
 
     @classmethod
     def on(cls, *targets: str) -> MechanismSelection:
@@ -257,13 +255,13 @@ class EdgeAssignment:
 
     def __post_init__(self) -> None:
         _name(self.outcome, "outcome")
-        object.__setattr__(self, "treated_value", _real(self.treated_value, "treated_value"))
-        object.__setattr__(self, "control_value", _real(self.control_value, "control_value"))
+        coerce_fields(self, treated_value=_real(self.treated_value, "treated_value"))
+        coerce_fields(self, control_value=_real(self.control_value, "control_value"))
         for what in ("plus", "minus"):
             children = getattr(self, what)
             if isinstance(children, str):
                 raise CausalTypeError(f"{what} must be a sequence of node names")
-            object.__setattr__(self, what, tuple(_name(c, what) for c in children))
+            coerce_fields(self, **{what: tuple(_name(c, what) for c in children)})
 
     @classmethod
     def natural_direct(
@@ -466,13 +464,8 @@ class TransportedCounterfactualRefusal(StructuredRefusal):
         self.missing_factors: tuple[str, ...] = tuple(refusal.get("missing_factors", ()))
 
 
-def _raise_refusal(payload: str | None) -> None:
-    if payload is not None:
-        raise TransportedCounterfactualRefusal(json.loads(payload))
-
-
-@dataclass(frozen=True, slots=True)
-class TransportedPathSpecificEffect:
+@dataclass(repr=False, frozen=True, slots=True)
+class TransportedPathSpecificEffect(ScientificResult):
     """The transported path-specific mean contrast, its derivation and its artifact.
 
     ``target_contrast`` is ``sum_z P_T(z) G(z)``; ``source_contrast`` is the same contrast
@@ -481,17 +474,25 @@ class TransportedPathSpecificEffect:
     ``inference_claim`` is ``"point_only"``: no interval, and calibration is unmeasured.
     """
 
+    _mean_binding: Any = field(default=None, init=False, repr=False, compare=False)
+
     target_contrast: float
     source_contrast: float
     unit_contrasts: tuple[UnitContrast, ...]
     derivation: Derivation
     inference_claim: str
     identity: TransportedCounterfactualIdentity
-    artifact: bytes
+    _artifact_bytes: bytes
+
+    def artifact(self) -> ExportedArtifact[TransportedPathSpecificEffect]:
+        """Bytes and producer metadata; load returns the typed consumed result."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``transported_counterfactual_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
     def __repr__(self) -> str:
         return (
@@ -521,7 +522,7 @@ class TransportedPathSpecificEffect:
             },
             "inference_claim": self.inference_claim,
             "identity": asdict(self.identity),
-            "artifact_bytes": len(self.artifact),
+            "artifact_bytes": len(self._artifact_bytes),
         }
 
     def explain(self) -> str:
@@ -550,6 +551,7 @@ class TransportedPathSpecificEffect:
         )
 
 
+@bind_mean_reading
 def _effect(report_json: str, artifact: bytes) -> TransportedPathSpecificEffect:
     report = json.loads(report_json)
     result = report["result"]
@@ -573,7 +575,7 @@ def _effect(report_json: str, artifact: bytes) -> TransportedPathSpecificEffect:
         ),
         inference_claim=report["inference_claim"],
         identity=TransportedCounterfactualIdentity(**report["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 
@@ -645,7 +647,7 @@ def transported_path_specific_effect(
         "evidence": _evidence(evidence),
     }
     report, artifact, refusal = _evaluate(json.dumps(request, allow_nan=False), artifact_id)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TransportedCounterfactualRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native transported counterfactual returned neither a result nor a refusal"
@@ -653,6 +655,7 @@ def transported_path_specific_effect(
     return _effect(report, bytes(artifact))
 
 
+@bind_mean_reading
 def consume_transported_counterfactual_artifact(
     artifact: bytes,
     *,
@@ -686,7 +689,7 @@ def consume_transported_counterfactual_artifact(
         )
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TransportedCounterfactualRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _effect(report, data)

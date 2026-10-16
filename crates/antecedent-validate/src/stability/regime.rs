@@ -2,20 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::BTreeMap;
 
 use antecedent_core::{ExecutionContext, RegimeId, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
 use antecedent_discovery::{DiscoveryWorkspace, LaggedLink, RegimeAssignment, Rpcmci};
 
+use crate::common::map_drawn_replicates;
 use crate::error::ValidationError;
 
 use super::pcmci_grid::{DiscoveryStabilityReport, report_from_counts};
@@ -72,7 +65,7 @@ impl RegimeStability {
         &self,
         data: &TimeSeriesData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RegimeStabilityReport, ValidationError> {
         if self.replicates == 0 || self.block_size == 0 {
@@ -95,7 +88,7 @@ impl RegimeStability {
         for &r in &regimes {
             counts.insert(r, BTreeMap::new());
         }
-        let mut rng = ctx.rng.stream(0x5E61_u64);
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_REGIME);
         let mut index_scratch = Vec::new();
         // RPCMCI's nested PCMCI+ materializes lags up to twice its maximum lag: separate blocks
         // by that many missing rows so no lag window mixes two blocks, and so none straddles
@@ -110,29 +103,59 @@ impl RegimeStability {
                     .with_pcmci_plus(pcmci_plus.clone().with_constraints(constraints)),
                 None => self.rpcmci.clone(),
             };
-        for _ in 0..self.replicates {
-            let boot =
-                gapped_block_bootstrap(data, self.block_size, gap, &mut rng, &mut index_scratch)?;
-            // Re-apply fixed labels by mapping every position back to its original row's regime
-            // (a separator row takes its predecessor's label; its values are missing anyway).
-            let boot_labels: Vec<_> = boot
-                .source_rows
-                .iter()
-                .map(|&i| self.assignment.at(i).expect("bootstrap index in range"))
-                .collect();
-            let boot_assign =
-                RegimeAssignment::try_new(boot_labels).map_err(ValidationError::from)?;
-            let result = rpcmci
-                .run(&boot.series, variables, &boot_assign, workspace, ctx)
-                .map_err(ValidationError::from)?;
-            for (idx, &(regime, _)) in result.graphs.graphs.iter().enumerate() {
-                let Some(per) = result.per_regime.get(idx) else {
-                    continue;
-                };
-                let entry = counts.entry(regime).or_default();
-                for s in per.evidence.links.iter() {
-                    *entry.entry(s.link).or_insert(0) += 1;
+        // Replicates share one bootstrap stream, drawn in order here (with their re-mapped fixed
+        // labels); the RPCMCI runs go to the pool and report which links each regime found.
+        let found = map_drawn_replicates(
+            ctx,
+            self.replicates,
+            |_| {
+                let boot = gapped_block_bootstrap(
+                    data,
+                    self.block_size,
+                    gap,
+                    &mut rng,
+                    &mut index_scratch,
+                )?;
+                // Re-apply fixed labels by mapping every position back to its original row's
+                // regime (a separator row takes its predecessor's label; its values are missing
+                // anyway).
+                let boot_labels = boot
+                    .source_rows
+                    .iter()
+                    .map(|&i| {
+                        self.assignment.at(i).ok_or_else(|| {
+                            ValidationError::estimation_msg(
+                                "bootstrap index is outside the regime assignment",
+                            )
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let assignment =
+                    RegimeAssignment::try_new(boot_labels).map_err(ValidationError::from)?;
+                Ok((boot.series, assignment))
+            },
+            DiscoveryWorkspace::default,
+            |workspace, ctx, _r, (series, assignment)| {
+                let result = rpcmci
+                    .run(series, variables, assignment, workspace, ctx)
+                    .map_err(ValidationError::from)?;
+                let mut per_regime_links = Vec::new();
+                for (idx, &(regime, _)) in result.graphs.graphs.iter().enumerate() {
+                    let Some(per) = result.per_regime.get(idx) else {
+                        continue;
+                    };
+                    per_regime_links.push((
+                        regime,
+                        per.evidence.links.iter().map(|s| s.link).collect::<Vec<_>>(),
+                    ));
                 }
+                Ok(per_regime_links)
+            },
+        )?;
+        for (regime, links) in found.into_iter().flatten() {
+            let entry = counts.entry(regime).or_default();
+            for link in links {
+                *entry.entry(link).or_insert(0) += 1;
             }
         }
         let mut per_regime = BTreeMap::new();
@@ -148,7 +171,6 @@ impl RegimeStability {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use antecedent_core::{
         CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,

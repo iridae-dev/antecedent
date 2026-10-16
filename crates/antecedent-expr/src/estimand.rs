@@ -120,7 +120,7 @@ impl From<EstimandMethod> for Arc<str> {
 /// Backdoor estimands use [`Self::adjustment_set`]; IV estimands populate
 /// [`Self::instruments`]; front-door estimands populate [`Self::mediators`].
 /// Sharp RD estimands populate [`Self::rd_design`]. Unused role slices are empty.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct IdentifiedEstimand {
     /// Method tag (wire string; parse with [`Self::method_kind`]).

@@ -1,15 +1,14 @@
-//! 2.3A X4 remainder / B1 model-provider row: learned joint source-target transport whose
+//! Learned joint source-target transport (model-provider row) whose
 //! outcome mechanism is fitted through `antecedent-learn`'s Bayesian basis regression.
 //!
 //! The oracle below is written out in closed-form matrix algebra (Gauss-Jordan inverse of the
 //! posterior precision, polynomial basis written out by hand) and never calls the code under
-//! test. The one exception is `a2_learned_linear_basis_reproduces_joint_bayesian_moments`,
+//! test. The one exception is `learned_joint_linear_basis_reproduces_joint_bayesian_moments`,
 //! which is a labelled regression cross-check between two Antecedent paths, not independent
 //! truth. Calibration is unmeasured; nothing here asserts coverage.
 #![allow(
     clippy::cast_precision_loss,
     clippy::similar_names,
-    clippy::too_many_arguments,
     clippy::needless_range_loop,
     reason = "small dense closed-form algebra with short symbol names"
 )]
@@ -35,6 +34,7 @@ use antecedent_identify::{
     MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,
     TransportFormula, TransportIdentification,
 };
+use antecedent_test_support::dot;
 use std::sync::Arc;
 
 const DRAWS: usize = 40_000;
@@ -183,8 +183,10 @@ fn small() -> JointTransportOptions {
     JointTransportOptions { draws: 50, seed: 1 }
 }
 
-// The public refusal type is deliberately rich; tests exercise it unboxed.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the public refusal type is deliberately rich; tests exercise it unboxed"
+)]
 fn fit(
     model: &LearnedJointModel,
     sources: &[SourceData],
@@ -339,10 +341,6 @@ fn quad(cov: &[Vec<f64>], a: &[f64], b: &[f64]) -> f64 {
     s
 }
 
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
 /// Effect vectors: each source then the target.
 fn effect_vectors(o: &Oracle, degree: usize, raws: &[&Raw]) -> Vec<Vec<f64>> {
     let mut v: Vec<Vec<f64>> = raws.iter().map(|r| effect_vec(o.dim, degree, &r.x)).collect();
@@ -432,7 +430,7 @@ fn wiggly(n: usize, offset: usize, b0: f64, noise: f64) -> Raw {
 // ---------------------------------------------------------------- positive oracle
 
 #[test]
-fn a2_learned_quadratic_basis_single_source_matches_closed_form() {
+fn learned_joint_quadratic_basis_single_source_matches_closed_form() {
     let r1 = wiggly(60, 0, 1.0, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let f = fit(&model(), &sources, &options()).unwrap();
@@ -466,7 +464,7 @@ fn a2_learned_quadratic_basis_single_source_matches_closed_form() {
 }
 
 #[test]
-fn a2_learned_two_sources_independent_and_shared_blocks_degrees_two_and_three() {
+fn learned_joint_two_sources_independent_and_shared_blocks_degrees_two_and_three() {
     let r1 = wiggly(50, 0, 1.0, 0.09);
     let r2 = wiggly(45, 200, -0.5, 0.16);
     let sources = [to_source("s1", &r1, "snap-s1", "s1"), to_source("s2", &r2, "snap-s2", "s2")];
@@ -490,7 +488,7 @@ fn a2_learned_two_sources_independent_and_shared_blocks_degrees_two_and_three() 
 }
 
 #[test]
-fn a2_learned_varying_covariate_block_and_dense_prior_match_closed_form() {
+fn learned_joint_varying_covariate_block_and_dense_prior_match_closed_form() {
     let r1 = wiggly(60, 0, 1.0, 0.09);
     let r2 = wiggly(55, 300, 2.0, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1"), to_source("s2", &r2, "snap-s2", "s2")];
@@ -529,7 +527,7 @@ fn a2_learned_varying_covariate_block_and_dense_prior_match_closed_form() {
 }
 
 #[test]
-fn a2_learned_linear_basis_reproduces_joint_bayesian_moments() {
+fn learned_joint_linear_basis_reproduces_joint_bayesian_moments() {
     // Labelled regression cross-check between two Antecedent paths (not independent truth):
     // with a degree-one basis the learned provider and the joint closed-form engine are the
     // same model, so their exact moments agree.
@@ -588,7 +586,7 @@ fn a2_learned_linear_basis_reproduces_joint_bayesian_moments() {
 }
 
 #[test]
-fn a2_learned_nonlinear_truth_is_recovered_on_an_exact_design() {
+fn learned_joint_nonlinear_truth_is_recovered_on_an_exact_design() {
     // Noise-free data whose mean function lies exactly in the quadratic basis span, a very
     // weak prior and a tiny declared noise: the posterior concentrates on the exact truth.
     let exact = raw(60, 0, 1.0, 2.0, (1.5, 1.2), (1e-4, 0.0));
@@ -634,7 +632,7 @@ fn a2_learned_nonlinear_truth_is_recovered_on_an_exact_design() {
 // ---------------------------------------------------------------- identification and guards
 
 #[test]
-fn a2_learned_prior_strength_never_changes_identification_status() {
+fn learned_joint_prior_strength_never_changes_identification_status() {
     let r1 = wiggly(30, 0, 1.0, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let mut records = Vec::new();
@@ -689,7 +687,7 @@ fn a2_learned_prior_strength_never_changes_identification_status() {
 }
 
 #[test]
-fn a2_learned_prior_bank_and_likelihood_double_use_refuses() {
+fn learned_joint_prior_bank_and_likelihood_double_use_refuses() {
     let r1 = wiggly(30, 0, 1.0, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let mut m = model();
@@ -726,7 +724,7 @@ fn a2_learned_prior_bank_and_likelihood_double_use_refuses() {
 }
 
 #[test]
-fn a2_learned_weak_overlap_refuses_with_retained_diagnostics() {
+fn learned_joint_weak_overlap_refuses_with_retained_diagnostics() {
     let r1 = wiggly(40, 0, 1.0, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let mut shifted = target();
@@ -758,7 +756,7 @@ fn a2_learned_weak_overlap_refuses_with_retained_diagnostics() {
 }
 
 #[test]
-fn a2_learned_rank_deficient_basis_refuses_with_failure_diagnostics() {
+fn learned_joint_rank_deficient_basis_refuses_with_failure_diagnostics() {
     // Every source covariate equals 0.5: x and x^2 are constant, so the basis columns are
     // collinear with the intercept and the treatment column.
     let mut r1 = wiggly(30, 0, 1.0, 0.09);
@@ -783,7 +781,7 @@ fn a2_learned_rank_deficient_basis_refuses_with_failure_diagnostics() {
 }
 
 #[test]
-fn a2_learned_conflicting_sources_are_reported_not_silently_pooled() {
+fn learned_joint_conflicting_sources_are_reported_not_silently_pooled() {
     let r1 = raw(60, 0, 1.0, 3.0, (0.0, 0.0), (0.04, 0.3));
     let r2 = raw(60, 500, 1.0, -3.0, (0.0, 0.0), (0.04, 0.3));
     let conflicting =
@@ -810,7 +808,7 @@ fn a2_learned_conflicting_sources_are_reported_not_silently_pooled() {
 }
 
 #[test]
-fn a2_learned_draws_are_seeded_deterministic_and_bounded() {
+fn learned_joint_draws_are_seeded_deterministic_and_bounded() {
     let r1 = wiggly(30, 0, 1.0, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let few = JointTransportOptions { draws: 500, seed: 9 };
@@ -852,7 +850,7 @@ fn a2_learned_draws_are_seeded_deterministic_and_bounded() {
 }
 
 #[test]
-fn a2_learned_provider_record_and_effect_draws_name_the_learn_row() {
+fn learned_joint_provider_record_and_effect_draws_name_the_learn_row() {
     let r1 = wiggly(30, 0, 1.0, 0.09);
     let r2 = wiggly(30, 100, 1.0, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1"), to_source("s2", &r2, "snap-s2", "s2")];
@@ -872,7 +870,7 @@ fn a2_learned_provider_record_and_effect_draws_name_the_learn_row() {
 }
 
 #[test]
-fn a2_learned_declaration_and_input_refusals_carry_typed_details() {
+fn learned_joint_declaration_and_input_refusals_carry_typed_details() {
     let r1 = wiggly(30, 0, 1.0, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     for graph in [TransportGraphClass::Admg, TransportGraphClass::GraphPosterior] {
@@ -957,7 +955,7 @@ fn a2_learned_declaration_and_input_refusals_carry_typed_details() {
 }
 
 #[test]
-fn a2_learned_too_many_parameters_refuses() {
+fn learned_joint_too_many_parameters_refuses() {
     let p = 130;
     let over: Vec<VariableId> = (0..p).map(VariableId::from_raw).collect();
     let id = TransportIdentification::Transportable {

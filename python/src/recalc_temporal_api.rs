@@ -349,8 +349,8 @@ impl PyTemporalSession {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ReplayPayload> {
-        if artifact.len() > 16 * 1024 * 1024 {
-            return Err(invalid("recalc.limits_exceeded", "temporal artifact exceeds16MiB"));
+        if artifact.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
+            return Err(invalid("recalc.limits_exceeded", "temporal artifact exceeds byte bound"));
         }
         let bytes = artifact.to_vec();
         let ctx = context(seed, threads);

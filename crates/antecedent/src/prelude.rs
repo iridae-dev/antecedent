@@ -20,9 +20,10 @@ pub use crate::options::FdrControl;
 pub use crate::result::StudyResult;
 pub use crate::strategy_table::{EstimatorId, IdentifierId};
 
+pub use antecedent_contract::TransformIntent;
 pub use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalSchema, CausalSchemaBuilder, ExecutionContext,
-    Intervention, OutcomeFunctional, TemporalEffectQuery, TransformIntent, Value, VariableId,
+    Intervention, OutcomeFunctional, TemporalEffectQuery, Value, VariableId,
 };
 pub use antecedent_data::{
     EventData, MultiEnvironmentData, PanelData, PanelUnit, TabularData, TimeSeriesData,

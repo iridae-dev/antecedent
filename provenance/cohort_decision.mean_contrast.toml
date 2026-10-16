@@ -1,0 +1,23 @@
+feature_id = "cohort_decision.mean_contrast"
+implementation_crate = "antecedent-io-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# papers = [] is an explicit judgment: the construction is original engineering over standard identities.
+papers = []
+implementation_deviations = [
+  "Original construction: a weighted mean of conditional contrast predictions of a retained model over a declared cohort is the cohort expectation of an affine utility by linearity. No procedure is taken from a paper; papers = [] is an explicit judgment.",
+  "The support check is a necessary condition only: a row inside the fitted-row feature box can still lie in a region with no fitted rows. It is not a density-ratio overlap diagnostic and is never described as one.",
+  "Claim policy: point-only. No standard error, interval or posterior is inherited from the fit; the cohort-mean contrast is issued as an affine expectation of one coordinate and nothing else.",
+  "Trust policy: numbers are always recomputed from the retained model and cohort rows; a source built from a verified analysis result is native, one built from a caller-built compact export is a declared model and is never native.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "python/tests/test_cohort_decision.py",
+  "python/tests/test_producer_consumer_matrix.py",
+  "crates/antecedent/tests/cohort_decision.rs",
+  "crates/antecedent-io-core/src/cohort_decision/tests.rs",
+  "crates/antecedent-design/tests/cohort_decision_input.rs",
+]

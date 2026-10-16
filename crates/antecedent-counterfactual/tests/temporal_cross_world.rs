@@ -1,4 +1,4 @@
-//! X8 fixed-population temporal counterfactual and the closed transported gate.
+//! Fixed-population temporal counterfactual and the closed transported gate.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -123,7 +123,7 @@ fn detail(error: &TemporalCounterfactualError) -> &str {
 }
 
 #[test]
-fn x8_temporal_shared_scm_matches_hand_abduction_and_replay() {
+fn temporal_shared_scm_matches_hand_abduction_and_replay() {
     let result = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap();
     assert_eq!(result.units.len(), 4);
     let (mut sum_plus, mut sum_minus) = (0.0, 0.0);
@@ -151,7 +151,7 @@ fn x8_temporal_shared_scm_matches_hand_abduction_and_replay() {
 }
 
 #[test]
-fn x8_temporal_shared_scm_shared_draw_differs_from_independent_noise() {
+fn temporal_shared_scm_shared_draw_differs_from_independent_noise() {
     let result = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap();
     // Independent fresh noise per world: the minus world uses another unit's draw.
     let mut differing = 0;
@@ -176,7 +176,7 @@ fn x8_temporal_shared_scm_shared_draw_differs_from_independent_noise() {
 }
 
 #[test]
-fn x8_temporal_shared_scm_unit_order_does_not_change_the_answer() {
+fn temporal_shared_scm_unit_order_does_not_change_the_answer() {
     let base = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap();
     let mut shuffled = spec();
     shuffled.factual.reverse();
@@ -187,7 +187,7 @@ fn x8_temporal_shared_scm_unit_order_does_not_change_the_answer() {
 }
 
 #[test]
-fn x8_temporal_shared_scm_cancelled_context_stops() {
+fn temporal_shared_scm_cancelled_context_stops() {
     let context = ctx();
     context.cancellation.cancel();
     let error = evaluate_temporal_counterfactual(&spec(), &context).unwrap_err();
@@ -195,7 +195,7 @@ fn x8_temporal_shared_scm_cancelled_context_stops() {
 }
 
 #[test]
-fn x8_temporal_shared_scm_bounds_are_enforced() {
+fn temporal_shared_scm_bounds_are_enforced() {
     let mut deep = spec();
     deep.graph.horizon = 3;
     let error = evaluate_temporal_counterfactual(&deep, &ctx()).unwrap_err();
@@ -216,7 +216,7 @@ fn x8_temporal_shared_scm_bounds_are_enforced() {
 }
 
 #[test]
-fn x8_unpaired_history_missing_unit_in_a_world_refuses_with_witness() {
+fn unpaired_history_missing_unit_in_a_world_refuses_with_witness() {
     let mut s = spec();
     s.minus.units.retain(|u| *u != unit(2));
     let error = evaluate_temporal_counterfactual(&s, &ctx()).unwrap_err();
@@ -231,7 +231,7 @@ fn x8_unpaired_history_missing_unit_in_a_world_refuses_with_witness() {
 }
 
 #[test]
-fn x8_unpaired_history_extra_world_unit_and_duplicate_factual_refuse() {
+fn unpaired_history_extra_world_unit_and_duplicate_factual_refuse() {
     let mut extra = spec();
     extra.plus.units.push(UnitId::new("stranger"));
     let error = evaluate_temporal_counterfactual(&extra, &ctx()).unwrap_err();
@@ -250,7 +250,7 @@ fn x8_unpaired_history_extra_world_unit_and_duplicate_factual_refuse() {
 }
 
 #[test]
-fn x8_unpaired_history_refuting_witness_is_retained() {
+fn unpaired_history_refuting_witness_is_retained() {
     let mut s = spec();
     s.fit = fit(Some(1.5));
     // Unit 3's factual outcome carries a residual far outside the declared support.
@@ -272,7 +272,7 @@ fn x8_unpaired_history_refuting_witness_is_retained() {
 }
 
 #[test]
-fn x8_unpaired_history_time_misaligned_and_missing_histories_refuse() {
+fn unpaired_history_time_misaligned_and_missing_histories_refuse() {
     let mut s = spec();
     s.plus.times = [0, 2];
     let error = evaluate_temporal_counterfactual(&s, &ctx()).unwrap_err();
@@ -287,21 +287,30 @@ fn x8_unpaired_history_time_misaligned_and_missing_histories_refuse() {
 }
 
 #[test]
-fn x8_temporal_world_replay_digests_recompute_bit_identically() {
+fn temporal_world_replay_digests_recompute_bit_identically() {
     let a = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap();
     let b = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap();
     assert_eq!(a.receipt, b.receipt);
-    assert_eq!(a.receipt.digest.len(), 32);
+    assert_eq!(a.receipt.digest.len(), 64);
     assert!(a.receipt.is_self_consistent());
     assert_eq!(a.receipt.digest, a.receipt.recompute_digest());
     assert_eq!(a.receipt.unit_draws.len(), 4);
     let mut tampered = a.receipt.clone();
-    tampered.unit_draws[0].digest = "0".repeat(32);
+    tampered.unit_draws[0].digest = "0".repeat(64);
     assert!(!tampered.is_self_consistent());
 }
 
 #[test]
-fn x8_temporal_world_replay_any_identity_change_changes_the_digest() {
+fn temporal_world_replay_digest_golden_vector() {
+    let r = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap().receipt;
+    // Pinned: a change to any component's tag, framing or field order changes these.
+    assert_eq!(r.graph_digest, "c23c126c16c88afb9624e7c738011577c6f291368fd6b932a5436109902c3d25");
+    assert_eq!(r.fit_digest, "cc323915fc507a89ab5d7d78c28972123223f5a97b8027d72c455ccfcedf198e");
+    assert_eq!(r.digest, "0820ea467948aabed7d17f3f34556219caa6c0a54682dd969f164cdf69a35362");
+}
+
+#[test]
+fn temporal_world_replay_any_identity_change_changes_the_digest() {
     let base = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap().receipt.digest;
     let digest_of = |s: &TemporalCounterfactualSpec| {
         evaluate_temporal_counterfactual(s, &ctx()).unwrap().receipt.digest
@@ -367,7 +376,7 @@ fn all_gates() -> TransportedCounterfactualPrerequisites {
 }
 
 #[test]
-fn x8_transported_gate_reports_exact_missing_gates_and_route_frozen() {
+fn transported_gate_reports_exact_missing_gates_and_route_frozen() {
     let required = [factor(PopulationRole::Source, "obs"), factor(PopulationRole::Target, "obs")];
     let supplied: BTreeMap<RegimeFactorKey, String> =
         required.iter().cloned().map(|k| (k, "evidence".to_owned())).collect();
@@ -408,7 +417,7 @@ fn x8_transported_gate_reports_exact_missing_gates_and_route_frozen() {
 }
 
 #[test]
-fn x8_transported_gate_absent_regime_factor_is_factor_missing() {
+fn transported_gate_absent_regime_factor_is_factor_missing() {
     let required = [factor(PopulationRole::Source, "obs"), factor(PopulationRole::Target, "do_x")];
     let mut supplied: BTreeMap<RegimeFactorKey, String> = BTreeMap::new();
     supplied.insert(required[0].clone(), "evidence".to_owned());

@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (temporal_zero_replicates); do not edit -->
 # Temporal Pulse / Sustained without replicates — 1.9.0
 
 Established: 2026-09-14 (the first measurement date the note below states)

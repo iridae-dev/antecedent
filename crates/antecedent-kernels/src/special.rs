@@ -16,7 +16,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Coefficients for erf on |x| <= 0.46875 (Cody, SPECFUN `CALERF`).
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_A: [f64; 5] = [
     3.161_123_743_870_565_60e00,
     1.138_641_541_510_501_56e02,
@@ -24,7 +27,10 @@ const CODY_A: [f64; 5] = [
     3.209_377_589_138_469_47e03,
     1.857_777_061_846_031_53e-1,
 ];
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_B: [f64; 4] = [
     2.360_129_095_234_412_09e01,
     2.440_246_379_344_441_73e02,
@@ -33,7 +39,10 @@ const CODY_B: [f64; 4] = [
 ];
 
 /// Coefficients for erfc on 0.46875 < |x| <= 4.
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_C: [f64; 9] = [
     5.641_884_969_886_700_89e-1,
     8.883_149_794_388_375_94e0,
@@ -45,7 +54,10 @@ const CODY_C: [f64; 9] = [
     1.230_339_354_797_997_25e03,
     2.153_115_354_744_038_46e-8,
 ];
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_D: [f64; 8] = [
     1.574_492_611_070_983_47e01,
     1.176_939_508_913_124_99e02,
@@ -58,7 +70,10 @@ const CODY_D: [f64; 8] = [
 ];
 
 /// Coefficients for erfc on |x| > 4.
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_P: [f64; 6] = [
     3.053_266_349_612_323_44e-1,
     3.603_448_999_498_044_39e-1,
@@ -67,7 +82,10 @@ const CODY_P: [f64; 6] = [
     6.587_491_615_298_378_03e-4,
     1.631_538_713_730_209_78e-2,
 ];
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const CODY_Q: [f64; 5] = [
     2.568_520_192_289_822_42e00,
     1.872_952_849_923_460_47e00,
@@ -77,7 +95,10 @@ const CODY_Q: [f64; 5] = [
 ];
 
 /// 1/sqrt(pi).
-#[allow(clippy::excessive_precision)]
+#[allow(
+    clippy::excessive_precision,
+    reason = "reference coefficients are kept digit for digit as published"
+)]
 const SQRT_PI_INV: f64 = 5.641_895_835_477_562_869_5e-1;
 /// Below this |x|, erfc is evaluated as `1 - erf`.
 const CODY_THRESH: f64 = 0.46875;
@@ -181,19 +202,111 @@ pub fn norm_pdf(x: f64) -> f64 {
     INV_SQRT_2PI * (-0.5 * x * x).exp()
 }
 
-/// Standard normal quantile Φ⁻¹(p) (Acklam rational approximation).
-///
-/// Absolute error is typically below ~1e-9 on `(0, 1)`. Returns `±∞` at the
-/// endpoints and `NaN` outside `[0, 1]`.
+/// `ln √(2π) = ½ ln 2π`.
+const LN_SQRT_2PI: f64 = 0.918_938_533_204_672_8;
+
+/// Log standard-normal density `ln φ(x) = −x²/2 − ½ ln 2π`, finite where `φ` underflows.
 #[must_use]
+pub fn log_norm_pdf(x: f64) -> f64 {
+    -LN_SQRT_2PI - 0.5 * x * x
+}
+
+/// Left-tail Mills ratio pieces for `t ≥ 8`: returns `(ratio, delta)` with
+/// `ratio = φ(t) / Φ(−t) = t + delta` and `delta = 1 / (t + 1 / (t + 2 / (t + 3 / …)))`.
+///
+/// The continued fraction (64 levels) is evaluated bottom-up. Keeping `delta` separate avoids
+/// subtracting nearly equal values when the observed curvature `ratio · delta` is needed.
+/// Accurate to a few ulps for `t ≥ 3`; not intended for smaller `t`.
+#[must_use]
+pub fn mills_left_tail(t: f64) -> (f64, f64) {
+    let mut delta = 0.0;
+    for k in (1..=64).rev() {
+        delta = f64::from(k) / (t + delta);
+    }
+    (t + delta, delta)
+}
+
+/// Below this `x`, [`log_norm_cdf`] switches from `ln Φ(x)` to the Mills continued fraction.
+const LOG_CDF_TAIL_FROM: f64 = -8.0;
+
+/// Numerically stable `ln Φ(x)`, the single owner of the log normal tail.
+///
+/// Branch policy (each branch is the accurate one for its range):
+///
+/// * `x ≤ −8`: `ln φ(x) − ln(ratio)` from the Mills continued fraction
+///   ([`mills_left_tail`]). It never underflows (`x = −40` gives `−804.6`) and keeps relative
+///   accuracy at a few ulps of the result; `norm_cdf(x).ln()` is accurate to `~1e-16`
+///   absolute here but hits subnormals near `x ≈ −37.5` and `0` at `−38.6`.
+/// * `−8 < x ≤ 0`: `ln Φ(x)` through the Cody CDF.
+/// * `x > 0`: `ln_1p(−Φ(−x))`, which keeps the tiny negative values (`−6.2e−16` at `x = 8`)
+///   that `ln Φ(x)` would round to `0`.
+///
+/// `ln Φ̄(z) = log_norm_cdf(−z)`; checked against 60-digit `mpmath` over `[−40, 10]`.
+#[must_use]
+pub fn log_norm_cdf(x: f64) -> f64 {
+    if x <= LOG_CDF_TAIL_FROM {
+        return log_norm_pdf(x) - mills_left_tail(-x).0.ln();
+    }
+    if x > 0.0 {
+        return (-norm_cdf(-x)).ln_1p();
+    }
+    norm_cdf(x).ln()
+}
+
+/// Numerically stable log survival function `ln Φ̄(z) = ln Φ(−z)`, without underflow in the
+/// upper tail. See [`log_norm_cdf`] for the branch policy.
+#[must_use]
+pub fn log_norm_sf(z: f64) -> f64 {
+    log_norm_cdf(-z)
+}
+
+/// The 97.5% standard-normal quantile `z_{0.975}`, the two-sided 95% critical value.
+///
+/// The single workspace owner of the constant a Wald 95% interval multiplies its standard
+/// error by. The nearest `f64` to `z_{0.975} = 1.95996398454005423552…` (verified against 40-digit `mpmath`; asserted within one ulp of `norm_inv(0.975)`), but a
+/// `const` so it carries no evaluation cost and reads identically at every interval site.
+pub const NORMAL_Q975: f64 = 1.959_963_984_540_054_3;
+
+/// Standard normal quantile Φ⁻¹(p): Acklam's rational approximation refined by one Halley step.
+///
+/// This is the one high-accuracy quantile owner; `antecedent_stats::normal_ppf` is an alias.
+/// Acklam's approximation alone has relative error ~1.2e-9; one Halley (second-order Newton)
+/// correction against the Cody-rational CDF/survival function brings the result to a few
+/// ulps for every normal-range probability, including the far tails. Subnormal
+/// probabilities keep reduced relative precision. Returns `±∞` at `0` / `1` and `NaN`
+/// outside `[0, 1]` (and for `NaN`).
+#[must_use]
+pub fn norm_inv(p: f64) -> f64 {
+    let x0 = norm_inv_acklam(p);
+    if !x0.is_finite() {
+        return x0;
+    }
+    // Halley step for f(x) = Φ(x) − p with f' = φ and f'' = −xφ: the update
+    // 2 f f' / (2 f'² − f f'') simplifies to 2f / (2φ + f·x).
+    //
+    // For p > 0.5 the residual is taken through the survival function: `norm_cdf` saturates to
+    // exactly 1.0 beyond x ≈ 8, which would erase the sub-ulp information the step needs in
+    // the upper tail, while `Φ(x) − p == −(Sf(x) − (1 − p))` stays accurate there.
+    let f = if p <= 0.5 { norm_cdf(x0) - p } else { -(norm_sf(x0) - (1.0 - p)) };
+    let phi = norm_pdf(x0);
+    let denom = 2.0 * phi + f * x0;
+    if phi > 0.0 && denom.is_finite() && denom != 0.0 {
+        let refined = x0 - 2.0 * f / denom;
+        if refined.is_finite() {
+            return refined;
+        }
+    }
+    x0
+}
+
+/// Acklam's rational approximation of Φ⁻¹(p), relative error ~1.2e-9; the Halley seed of
+/// [`norm_inv`].
 #[allow(
-    clippy::excessive_precision,
     clippy::float_cmp,
     clippy::items_after_statements,
-    clippy::manual_range_contains,
     reason = "the exact comparisons test the endpoints p == 0.0 and p == 1.0, which are special-cased"
 )]
-pub fn norm_inv(p: f64) -> f64 {
+fn norm_inv_acklam(p: f64) -> f64 {
     if !(0.0..=1.0).contains(&p) {
         return f64::NAN;
     }
@@ -280,10 +393,115 @@ mod tests {
     #[test]
     fn norm_inv_known_quantiles() {
         // Reference Φ⁻¹ values (high precision).
-        assert!((norm_inv(0.5) - 0.0).abs() < 1e-12);
-        assert!((norm_inv(0.975) - 1.959_963_984_540_054).abs() < 1e-8);
-        assert!((norm_inv(0.025) + 1.959_963_984_540_054).abs() < 1e-8);
-        assert!((norm_inv(0.841_344_746_068_542_9) - 1.0).abs() < 1e-7);
+        assert!((norm_inv(0.5) - 0.0).abs() < 1e-15);
+        assert!((norm_inv(0.975) - NORMAL_Q975).abs() < 2.3e-16);
+        assert!((norm_inv(0.025) + NORMAL_Q975).abs() < 2.3e-16);
+        assert!((norm_inv(0.841_344_746_068_542_9) - 1.0).abs() < 4e-16);
+    }
+
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
+    #[allow(
+        clippy::excessive_precision,
+        reason = "reference coefficients are kept digit for digit as published"
+    )]
+    fn norm_inv_matches_mpmath_across_the_tails() {
+        // Φ⁻¹ of the exact f64 argument, solved by `mpmath.findroot` on `ncdf` at 60 digits.
+        // The Acklam seed alone is off by up to ~1e-9 relative; the Halley step must reach a
+        // few ulps everywhere, including p = 1 − 1e-10 where the argument itself is rounded.
+        let cases: [(f64, f64); 22] = [
+            (1e-300, -37.047_096_299_361_2),
+            (1e-100, -21.273_453_560_965_324),
+            (1e-50, -14.933_337_534_788_49),
+            (1e-15, -7.941_345_326_170_997),
+            (1e-12, -7.034_483_825_301_132),
+            (1e-10, -6.361_340_902_404_056),
+            (1e-8, -5.612_001_244_174_789),
+            (1e-5, -4.264_890_793_922_825),
+            (0.001, -3.090_232_306_167_813_5),
+            (0.01, -2.326_347_874_040_841),
+            (0.025, -1.959_963_984_540_054_2),
+            (0.1, -1.281_551_565_544_600_4),
+            (0.3, -0.524_400_512_708_040_8),
+            (0.7, 0.524_400_512_708_040_66),
+            (0.9, 1.281_551_565_544_600_6),
+            (0.975, 1.959_963_984_540_053_9),
+            (0.99, 2.326_347_874_040_840_8),
+            (0.999, 3.090_232_306_167_813_3),
+            (0.99999, 4.264_890_793_923_840_8),
+            (0.999_999_99, 5.612_001_243_305_505),
+            (0.999_999_999_9, 6.361_340_889_697_422),
+            (0.999_999_999_999, 7.034_486_910_047_835),
+        ];
+        for (p, expected) in cases {
+            let got = norm_inv(p);
+            let rel = ((got - expected) / expected).abs();
+            assert!(rel < 5e-15, "p={p:e}: got {got:.17e} want {expected:.17e} rel {rel:e}");
+        }
+        assert_eq!(norm_inv(0.5), 0.0);
+        // Symmetry holds to rounding.
+        for p in [1e-10, 1e-4, 0.2, 0.4] {
+            assert!(
+                (norm_inv(p) + norm_inv(1.0 - p)).abs() < 1e-8 * norm_inv(1.0 - p).abs().max(1.0)
+            );
+        }
+    }
+
+    #[test]
+    #[allow(clippy::approx_constant, reason = "tabulated reference value, kept digit for digit")]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact comparison against exactly representable or bit-identical reference values"
+    )]
+    fn log_norm_cdf_matches_mpmath_across_branches() {
+        // `mpmath.log(mpmath.ncdf(x))` at 60 digits; covers the 8-40 sigma band that the
+        // previous prob (cf below -8) and stats (series from 30) owners treated differently,
+        // both branch boundaries, and the upper side where ln Φ is a tiny negative.
+        let cases: [(f64, f64); 17] = [
+            (-40.0, -804.608_442_013_753_8),
+            (-38.0, -726.557_216_018_820_1),
+            (-30.0, -454.321_243_956_343_2),
+            (-20.0, -203.917_155_371_097_26),
+            (-12.0, -75.410_673_001_568_8),
+            (-9.0, -43.628_149_113_332_115),
+            (-8.0, -35.013_437_159_914_55),
+            (-7.5, -31.075_890_902_890_0),
+            (-5.0, -15.064_998_393_988_726),
+            (-3.0, -6.607_726_221_510_35),
+            (-1.0, -1.841_021_645_009_263_5),
+            (0.0, -0.693_147_180_559_945_3),
+            (1.0, -0.172_753_779_023_449_9),
+            (3.0, -0.001_350_809_964_748_193_8),
+            (5.0, -2.866_516_129_637_636e-7),
+            (8.0, -6.220_960_574_271_786e-16),
+            (10.0, -7.619_853_024_160_526e-24),
+        ];
+        for (x, expected) in cases {
+            let got = log_norm_cdf(x);
+            let tol = 1e-14 * expected.abs();
+            assert!((got - expected).abs() <= tol, "x={x}: got {got:.17e} want {expected:.17e}");
+            // The survival-function form is the same function reflected.
+            assert_eq!(log_norm_sf(-x), got);
+        }
+        assert_eq!(log_norm_sf(f64::INFINITY), f64::NEG_INFINITY);
+        assert_eq!(log_norm_cdf(f64::INFINITY), 0.0);
+        assert!(log_norm_cdf(f64::NAN).is_nan());
+    }
+
+    #[test]
+    fn log_norm_cdf_branches_agree_where_they_meet() {
+        // Left tail: the continued fraction against ln of the Cody CDF at the switch point.
+        let cf = log_norm_pdf(-8.0) - mills_left_tail(8.0).0.ln();
+        assert!((cf - norm_cdf(-8.0).ln()).abs() < 1e-14 * cf.abs());
+        // Centre: ln Φ(x) against ln_1p(−Φ(−x)) at x = 0 and a point beyond it.
+        for x in [0.0, 0.5, 2.0] {
+            let direct = norm_cdf(x).ln();
+            let stable = (-norm_cdf(-x)).ln_1p();
+            assert!((direct - stable).abs() < 1e-15 * direct.abs().max(1e-300), "x={x}");
+        }
     }
 
     #[test]
@@ -301,7 +519,10 @@ mod tests {
     /// from x = 1 outward here, by 6.6e-7 at x = 1 rising to 2.7e-2 at x = 8.
     #[test]
     fn erfc_matches_reference_into_the_tail() {
-        #[allow(clippy::excessive_precision)]
+        #[allow(
+            clippy::excessive_precision,
+            reason = "reference coefficients are kept digit for digit as published"
+        )]
         const CASES: &[(f64, f64)] = &[
             (0.0, 1.0),
             (0.25, 7.236_736_098_317_630_7e-1),
@@ -324,7 +545,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)] // exact underflow to zero is the property under test
+    #[allow(clippy::float_cmp, reason = "exact underflow to zero is the property under test")]
     fn erfc_reflection_and_saturation() {
         // erfc(-x) = 2 - erfc(x).
         for &x in &[0.3, 1.0, 2.5, 5.0] {
@@ -343,7 +564,10 @@ mod tests {
 
     #[test]
     fn erf_keeps_relative_accuracy_near_zero() {
-        #[allow(clippy::excessive_precision)]
+        #[allow(
+            clippy::excessive_precision,
+            reason = "reference coefficients are kept digit for digit as published"
+        )]
         const CASES: &[(f64, f64)] = &[
             (0.5, 5.204_998_778_130_465_3e-1),
             (1.0, 8.427_007_929_497_148_7e-1),
@@ -363,9 +587,12 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)] // Phi(0) = 1/2 is exact in binary floating point
+    #[allow(clippy::float_cmp, reason = "Phi(0) = 1/2 is exact in binary floating point")]
     fn norm_cdf_and_sf_agree_with_reference() {
-        #[allow(clippy::excessive_precision)]
+        #[allow(
+            clippy::excessive_precision,
+            reason = "reference coefficients are kept digit for digit as published"
+        )]
         const CASES: &[(f64, f64)] = &[
             (0.0, 0.5),
             (-1.0, 1.586_552_539_314_570_5e-1),
@@ -385,7 +612,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)] // the saturation of 1 - Phi(x) to exactly 0 is the point
+    #[allow(clippy::float_cmp, reason = "the saturation of 1 - Phi(x) to exactly 0 is the point")]
     fn norm_sf_survives_where_one_minus_cdf_saturates() {
         // 1 - norm_cdf(x) hits exactly 0 around x = 9; norm_sf keeps going.
         assert_eq!(1.0 - norm_cdf(9.0), 0.0);

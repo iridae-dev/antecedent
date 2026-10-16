@@ -22,7 +22,7 @@ documented in `CHANGELOG.md`:
   study cannot measure.
 
 The artifact format moved to `FormatVersion { major: 0, minor: 2 }`
-(`antecedent_io::STABLE_FORMAT`, `crates/antecedent-io/src/migrate.rs`)
+(`antecedent_io::STABLE_FORMAT`, `crates/antecedent-io-core/src/migrate.rs`)
 during the 0.2.0 cut and has not changed since; `{ major: 0, minor: 1 }`
 remains a supported **source** format for migration
 (`SUPPORTED_SOURCE_FORMATS`) but is not the frozen target. ADR 0017's

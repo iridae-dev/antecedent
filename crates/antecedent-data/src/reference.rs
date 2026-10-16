@@ -4,6 +4,7 @@
 
 /// How lag-aligned samples choose their contemporaneous origin row.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
+#[non_exhaustive]
 pub enum ReferencePointPolicy {
     /// Origin at row `max_lag` so every lag in `0..=max_lag` is in-bounds
     /// (default stationary series alignment).

@@ -1,4 +1,4 @@
-//! Learned continuous-outcome trial transport (2.2A cell X4): known-truth execution under
+//! Learned continuous-outcome trial transport: known-truth execution under
 //! both sampling designs, overlap refusals, the estimator menu, thread-budget invariance,
 //! the prepared lifecycle, the independently consumed artifact and the closed interval route.
 //!
@@ -649,7 +649,7 @@ fn the_exported_point_is_replayed_by_an_independent_consumer() {
         // The artifact carries the certificate, provider provenance, folds and the point.
         assert_eq!(wire.certificate.formula, "standardize");
         assert_eq!(wire.result.provenance.len(), 9);
-        assert_eq!(wire.result.folds.scheme, "stratified_round_robin_source_arm_and_target");
+        assert_eq!(wire.result.folds.scheme, "stratified_seeded_source_arm_and_target");
         assert_eq!(wire.variable_names, ["z", "a", "y"]);
         assert_eq!(wire.result.uncertainty.status, "point_only");
         // Consumption re-exports to the same bytes without any fitting.
@@ -702,7 +702,8 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     let folds = mutate(
         &original,
         |w| {
-            let other = w.result.folds.assignment.iter().position(|f| *f != 0).unwrap();
+            let first = w.result.folds.assignment[0];
+            let other = w.result.folds.assignment.iter().position(|f| *f != first).unwrap();
             w.result.folds.assignment.swap(0, other);
         },
         true,
@@ -1052,7 +1053,7 @@ fn a_resealed_source_relabel_changes_the_consumed_identity() {
     assert_eq!(forged.check_population_names(&source, &target), Err(Refusal::NamesMismatch));
 }
 
-/// Cross-format: a 2.2 learned-continuous artifact is never read as a 2.1
+/// Cross-format: a learned-continuous artifact is never read as a
 /// learned-trial artifact or as a smoothed-dose grid, nor the reverse.
 #[test]
 fn a_learned_continuous_artifact_is_refused_by_other_trial_consumers() {
@@ -1066,4 +1067,62 @@ fn a_learned_continuous_artifact_is_refused_by_other_trial_consumers() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn learned_continuous_posterior_mean_stays_at_the_known_truth() {
+    use antecedent_estimate::posterior_mean::{
+        PosteriorRequest, learned_continuous_score_posterior,
+    };
+    let (diagram, query, _) = graph();
+    let input = draw(Design::NestedCohort, Scenario::Good, 1000, 600, 11);
+    let id = antecedent_identify::TransportIdentifier::new().identify(&diagram, &query).unwrap();
+    let estimate = antecedent_estimate::estimate_learned_continuous(
+        &id,
+        &input,
+        &options(),
+        &ExecutionContext::for_tests(11),
+    )
+    .unwrap();
+    let score_mean = estimate.scores.iter().sum::<f64>() / estimate.scores.len() as f64;
+    assert!((score_mean - estimate.estimate).abs() < 1e-9, "{score_mean} vs {}", estimate.estimate);
+    let mean = learned_continuous_score_posterior(
+        &estimate.scores,
+        PosteriorRequest::IndependentNormal { scale: 1.0e6 },
+    )
+    .unwrap();
+    assert!((mean - estimate.estimate).abs() < 1e-6, "{mean} vs {}", estimate.estimate);
+    assert!((mean - Scenario::Good.truth()).abs() < 0.3, "{mean}");
+}
+
+#[test]
+fn learned_continuous_posterior_refuses_a_mapped_prior() {
+    use antecedent_estimate::posterior_mean::{
+        PosteriorRequest, learned_continuous_score_posterior,
+    };
+    let err =
+        learned_continuous_score_posterior(&[0.0, 1.0, 2.0], PosteriorRequest::MappedCoefficient)
+            .unwrap_err();
+    let EstimationError::Refused { message, .. } = err else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("learned_continuous_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn learned_continuous_posterior_consumer_replays_the_score_mean() {
+    use antecedent_estimate::posterior_mean::{
+        PosteriorRequest, learned_continuous_score_posterior,
+    };
+    let scores = [1.0, 3.0];
+    let mean = learned_continuous_score_posterior(
+        &scores,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+    )
+    .unwrap();
+    let n = 2.0;
+    let sample_mean = 2.0;
+    let variance = 2.0;
+    let weight = (n / variance) / (n / variance + 1.0);
+    assert!((mean - weight * sample_mean).abs() < 1e-12, "{mean}");
 }

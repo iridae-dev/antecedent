@@ -1,4 +1,4 @@
-//! Independent artifacts for the DAG completions of a supplied CPDAG (2.3A X2).
+//! Independent artifacts for the DAG completions of a supplied CPDAG.
 //!
 //! Format version 1. The artifact binds the CPDAG (variables, directed and
 //! undirected edges), the shared coordinate schema, the question, the evidence
@@ -169,7 +169,7 @@ impl Default for CpdagConsumeLimits {
 /// `(low, high)` undirected edges, each sorted.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct CpdagWire {
+pub struct CompletionCpdagWire {
     /// Variable ids, ascending.
     pub variables: Vec<u32>,
     /// Directed `(parent, child)` edges, sorted.
@@ -178,7 +178,12 @@ pub struct CpdagWire {
     pub undirected: Vec<(u32, u32)>,
 }
 
-impl CpdagWire {
+/// Historical Rust name for [`CompletionCpdagWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type CpdagWire = CompletionCpdagWire;
+
+impl CompletionCpdagWire {
     /// Encode a static CPDAG over variable ids, independent of node and edge
     /// insertion order.
     ///
@@ -548,11 +553,6 @@ pub struct CpdagCompletionArtifactWire {
     pub data_digest: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
     let mut laws = data
         .laws()
@@ -580,21 +580,19 @@ fn premises_identity(wire: &CpdagCompletionArtifactWire) -> Result<String, IoErr
         (wire.search_operations, wire.search_depth, wire.search_memory_bytes),
         (wire.operation_limit, wire.depth_limit, wire.max_support_rows),
     );
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("cpdag_completion_scenarios_v1", cpdag, coordinates, &wire.query, request, budget),
-    )?
-    .to_hex())
+    )
 }
 
 fn data_identity(wire: &CpdagCompletionArtifactWire) -> Result<String, IoError> {
     let mut evidence = wire.evidence.clone();
     evidence.bindings.sort_by(|a, b| a.completion.cmp(&b.completion));
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("cpdag_completion_data_v1", &wire.provider, evidence, &wire.laws),
-    )?
-    .to_hex())
+    )
 }
 
 fn query_wire(query: &ClassicalTransportQuery) -> ScenarioQueryWire {
@@ -707,11 +705,13 @@ impl CpdagCompletionArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != CPDAG_COMPLETION_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == CPDAG_COMPLETION_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         if wire.required_features != [CPDAG_COMPLETION_ARTIFACT_FEATURE] {
             return Err(CpdagArtifactError::UnsupportedSemantics("required features").into());
         }
@@ -741,11 +741,13 @@ impl CpdagCompletionArtifactWire {
         {
             return Err(exceeded("evaluation limits"));
         }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(exceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(exceeded("law count"));
+        if let Some(what) = crate::stored_law_bounds(
+            self.max_support_rows,
+            limits.max_support_rows,
+            self.laws.len(),
+            limits.max_laws,
+        ) {
+            return Err(exceeded(what));
         }
         if self.cpdag.variables.len() > CPDAG_MAX_NODES {
             return Err(exceeded("cpdag node count"));
@@ -817,12 +819,18 @@ impl CpdagCompletionArtifactWire {
     ) -> Result<(Self, CpdagScenarioReport), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits, ctx)?;
-        if premises_identity(&wire)? != wire.premises_digest {
-            return Err(CpdagArtifactError::PremisesMismatch.into());
-        }
-        if data_identity(&wire)? != wire.data_digest {
-            return Err(CpdagArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            premises_identity(&wire),
+            std::convert::identity,
+            || CpdagArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            data_identity(&wire),
+            std::convert::identity,
+            || CpdagArtifactError::DataIdentityMismatch.into(),
+        )?;
         let premises = wire.to_premises()?;
         // Replay under the producer's memory limit, which the consumer's own
         // hard limit already bounds, so a memory truncation reproduces.

@@ -176,7 +176,7 @@ fn assert_surface(
     atol: f64,
     expected_provenance: &str,
 ) {
-    let response = result.response.as_ref().expect("temporal response payload");
+    let response = result.response().expect("temporal response payload");
     assert_eq!(response.provenance_id.as_ref(), expected_provenance);
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
@@ -252,13 +252,13 @@ fn temporal_dose_horizon_surface_matches_fixture_and_prepared_path() {
             .collect();
         let ResponseIdentification::PointIdentified(ResponseValue::Surface {
             grid, dimension, ..
-        }) = &direct.response.as_ref().unwrap().estimate
+        }) = &direct.response().unwrap().estimate
         else {
             unreachable!()
         };
         assert_eq!(*dimension, 2);
         assert_eq!(grid.as_ref(), expected_grid.as_slice());
-        let support = &direct.response.as_ref().unwrap().support;
+        let support = &direct.response().unwrap().support;
         assert_eq!(support.status, SupportStatus::Supported);
         let expected_cells: Vec<SupportStatus> = fixture["contract"]["support"]["point_status"]
             .as_array()
@@ -285,7 +285,7 @@ fn temporal_dose_horizon_surface_matches_fixture_and_prepared_path() {
             "prepared estimate_series must reuse identification"
         );
 
-        let surface = direct.response.as_ref().unwrap();
+        let surface = direct.response().unwrap();
         let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
             &surface.estimate
         else {
@@ -371,9 +371,9 @@ fn pulse_and_single_step_sustained_match_surface_projection() {
         ("sustained prepared", &sustained_click),
     ] {
         assert!(
-            (result.estimate.ate - expected).abs() <= atol,
+            (result.estimate.as_effect().unwrap().ate - expected).abs() <= atol,
             "{label}: ate={}, expected={expected}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
     }
     assert!(
@@ -452,7 +452,7 @@ fn noisy_pulse_series(n: usize) -> (TimeSeriesData, TemporalDag) {
 
 fn pointwise_halfwidths(result: &antecedent::result::StudyResult) -> Vec<f64> {
     let ResponseUncertainty::PointwiseBand { lower, upper, .. } =
-        &result.response.as_ref().expect("response").uncertainty
+        &result.response().expect("response").uncertainty
     else {
         panic!("expected pointwise band on temporal surface");
     };
@@ -514,16 +514,25 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
     };
 
     // One series: the Pulse publishes only the circular-block bootstrap SE
-    // (R-1). With no replicates there is no calibrated SE, so none is published.
+    //. With no replicates there is no calibrated SE, so none is published.
     let pulse_analytic = run_pulse(0);
     let pulse_boot = run_pulse(40);
-    assert!(pulse_analytic.estimate.se_analytic.is_nan(), "iid OLS SE must not be published");
-    assert!(pulse_analytic.estimate.se_bootstrap.is_none());
-    let se_pulse_b = pulse_boot.estimate.se_bootstrap.expect("pulse bootstrap SE");
+    assert!(
+        pulse_analytic.estimate.as_effect().unwrap().se_analytic().is_nan(),
+        "iid OLS SE must not be published"
+    );
+    assert!(pulse_analytic.estimate.as_effect().unwrap().se_bootstrap().is_none());
+    let se_pulse_b =
+        pulse_boot.estimate.as_effect().unwrap().se_bootstrap().expect("pulse bootstrap SE");
     assert!(se_pulse_b.is_finite() && se_pulse_b > 0.0, "bootstrap pulse se={se_pulse_b}");
-    assert!(pulse_boot.estimate.se_analytic.is_nan());
+    assert!(pulse_boot.estimate.as_effect().unwrap().se_analytic().is_nan());
 
-    let se_sustained_b = run_sustained(40).estimate.se_bootstrap.expect("sustained bootstrap SE");
+    let se_sustained_b = run_sustained(40)
+        .estimate
+        .as_effect()
+        .unwrap()
+        .se_bootstrap()
+        .expect("sustained bootstrap SE");
     assert!(se_sustained_b.is_finite() && se_sustained_b > 0.0);
     let pulse_sustained_ratio = se_pulse_b / se_sustained_b;
     assert!(
@@ -535,7 +544,7 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
     let surface_analytic = run_surface(0);
     assert!(
         matches!(
-            surface_analytic.response.as_ref().expect("response").uncertainty,
+            surface_analytic.response().expect("response").uncertainty,
             ResponseUncertainty::None
         ),
         "the analytic surface band must not be published"
@@ -758,7 +767,7 @@ fn multi_step_sequence_matches_two_step_truth_and_does_not_collapse() {
         result.diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
     );
     assert_eq!(result.identification.estimands[0].method.as_ref(), "temporal.backdoor.unfolded");
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     assert_eq!(response.support.status, SupportStatus::Extrapolative);
     assert!(matches!(response.uncertainty, ResponseUncertainty::None));
     assert!(response.support.warnings.iter().any(|warning| {
@@ -793,7 +802,7 @@ fn single_step_sequence_uses_its_explicit_policy_not_the_outer_policy() {
 
     // Y_s = 1 + 2 T_{s-1} + 3 T_{s-2}; E[T_{s-1}] = 0 and do(T_{s-2}=1).
     assert_surface(&result, &[4.0], 1e-10, "estimate.temporal_response.intervention_gcomp");
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     let overlay = response
         .support
         .diagnostics
@@ -1178,7 +1187,7 @@ fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
             .unwrap()
     };
     let analytic = run(0);
-    let response = analytic.response.as_ref().expect("response payload");
+    let response = analytic.response().expect("response payload");
     assert!(matches!(response.uncertainty, ResponseUncertainty::None), "no analytic band");
     assert!(
         response
@@ -1190,7 +1199,7 @@ fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
     );
 
     let boot = run(replicates);
-    let response = boot.response.as_ref().expect("response payload");
+    let response = boot.response().expect("response payload");
     assert_surface(
         &boot,
         &fixture_f64s(&fixture["contract"]["surface"]["mean"]),
@@ -1280,7 +1289,10 @@ fn assert_block_band_diagnostics(
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for bayesian temporal response and sustained window known truth"
+)]
 fn bayesian_temporal_response_and_sustained_window_known_truth() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/response_surfaces/expected.json"
@@ -1367,7 +1379,8 @@ fn bayesian_temporal_response_and_sustained_window_known_truth() {
                 .estimate_series(&series, &ctx)
                 .unwrap();
             assert!(
-                (result.estimate.ate - pin["window_effect"].as_f64().unwrap()).abs()
+                (result.estimate.as_effect().unwrap().ate - pin["window_effect"].as_f64().unwrap())
+                    .abs()
                     < pin["window_tolerance"].as_f64().unwrap()
             );
             assert_eq!(result.posterior.is_some(), bayesian);
@@ -1450,7 +1463,7 @@ fn bayesian_sequence_band_matches_posterior_quantiles() {
         .unwrap();
     let posterior = result.posterior.as_ref().unwrap();
     let ResponseUncertainty::PointwiseBand { lower, upper, .. } =
-        &result.response.as_ref().unwrap().uncertainty
+        &result.response().unwrap().uncertainty
     else {
         panic!("missing band")
     };
@@ -1480,7 +1493,7 @@ fn bayesian_temporal_curve_discloses_inestimable_tempering() {
         .unwrap()
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
-    let response = result.response.as_ref().expect("temporal response");
+    let response = result.response().expect("temporal response");
     let tempering = response
         .support
         .diagnostics

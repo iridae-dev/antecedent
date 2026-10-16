@@ -14,12 +14,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -35,7 +33,11 @@ use crate::error::ModelError;
 /// # Errors
 ///
 /// `output` shorter than `n_rows`.
-pub fn sample_lgssm_noise(
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
+pub(crate) fn sample_lgssm_noise(
     n_rows: usize,
     a: f64,
     process_std: f64,

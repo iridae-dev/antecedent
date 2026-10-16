@@ -274,7 +274,10 @@ impl PolicyValueQuery {
     /// estimator, or the uplift binning is malformed.
     // A flat sequence of independent guard checks; splitting it would only scatter
     // the query's validity contract across helpers with no shared logic.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one validation per query field, in declaration order"
+    )]
     pub fn validate(&self) -> Result<(), QueryError> {
         if let Some(multi) = &self.multi_action {
             if !self.assignment.is_empty()

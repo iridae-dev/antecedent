@@ -1,4 +1,4 @@
-//! B3 source-target mechanism discrepancy diagnostic: a Wald test of the null that the
+//! Source-target mechanism discrepancy diagnostic: a Wald test of the null that the
 //! conditional mechanism of one node `V` given its parents is the same in a source and a target
 //! population, from comparable measurements.
 //!
@@ -24,7 +24,7 @@
 //! * **Power limit:** for every compared coefficient the result carries the minimal detectable
 //!   difference `(z_{1-alpha/2} + z_{power}) * se_j` of a two-sided single-coefficient z test at the
 //!   declared `alpha` and `power` (no multiplicity adjustment). The normal quantiles come from
-//!   bisection on `erfc`. A non-rejection therefore reads "coefficient differences smaller than
+//!   the shared refined normal quantile. A non-rejection therefore reads "coefficient differences smaller than
 //!   these were not detectable" (the `power_statement` field of [`MechanismDiscrepancyResult`]).
 //!
 //! # What a result does not say
@@ -42,10 +42,13 @@ use std::collections::BTreeSet;
 
 use antecedent_core::reason_code;
 use antecedent_kernels::erfc;
-use antecedent_stats::gamma_q;
+use antecedent_stats::chi_square_sf;
 
 use crate::effect_constancy::{CalibrationStatus, holm_adjust};
 use crate::error::EstimationError;
+use crate::util::dot;
+use crate::util::{count, refuse};
+use crate::vector_treatment::DesignSummary;
 
 /// The frozen null of the diagnostic.
 pub const MECHANISM_DISCREPANCY_NULL: &str = "the conditional mechanism of the node given its \
@@ -82,19 +85,16 @@ pub const MECHANISM_DISCREPANCY_INTERCEPT: &str = "(intercept)";
 pub const MECHANISM_DISCREPANCY_MAX_PARENTS: usize = 64;
 
 /// Smallest residual degrees of freedom `n - p` of either population.
-pub const MECHANISM_DISCREPANCY_MIN_RESIDUAL_DF: usize = 2;
+pub(crate) const MECHANISM_DISCREPANCY_MIN_RESIDUAL_DF: usize = 2;
 
-/// Normal quantile `z_{0.975}` to six decimals (reference constant; the code uses bisection).
-pub const Z_ALPHA_TWO_SIDED_05: f64 = 1.959_964;
+/// Normal quantile `z_{0.975}` (the shared 95% critical value).
+pub const Z_ALPHA_TWO_SIDED_05: f64 = antecedent_stats::NORMAL_Q975;
 
-/// Normal quantile `z_{0.80}` to six decimals (reference constant; the code uses bisection).
+/// Normal quantile `z_{0.80}` to six decimals (reference constant; the code uses the shared normal quantile).
 pub const Z_POWER_80: f64 = 0.841_621;
 
 /// Smallest accepted `alpha`, and `1 - ` the largest accepted `power`.
 const LEVEL_FLOOR: f64 = 1e-12;
-
-/// Relative pivot tolerance of the Cholesky rank test.
-const RANK_TOLERANCE: f64 = 1e-10;
 
 /// Residual sum of squares at or below this fraction of `y'y` counts as an exact fit.
 const EXACT_FIT_TOLERANCE: f64 = 1e-12;
@@ -288,46 +288,20 @@ pub struct MechanismDiscrepancyResult {
     pub calibration: CalibrationStatus,
     /// [`MECHANISM_DISCREPANCY_INFERENCE_CLAIM`].
     pub inference_claim: &'static str,
+    /// Canonical sufficient statistics of the source fit (`X'X`, `X'y`, `y'y`).
+    pub source_summary: MechanismSummary,
+    /// Canonical sufficient statistics of the target fit (`X'X`, `X'y`, `y'y`).
+    pub target_summary: MechanismSummary,
 }
 
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
-fn chi_square_sf(statistic: f64, df: usize) -> f64 {
-    if statistic <= 0.0 {
-        return 1.0;
-    }
-    gamma_q(count(df) * 0.5, statistic * 0.5)
-}
-
-/// Upper-tail probability of the standard normal at `z >= 0`.
-fn normal_upper_tail(z: f64) -> f64 {
-    0.5 * erfc(z / std::f64::consts::SQRT_2)
-}
-
-/// `z` with `P(Z > z) = tail`, for `tail` in `(0, 0.5]`, by bisection on `erfc` over `[0, 40]`
-/// (200 halvings, far below the `f64` resolution).
+/// `z` with `P(Z > z) = tail`, for `tail` in `(0, 0.5]`, from the shared refined normal
+/// quantile `-Φ⁻¹(tail)`, clamped to the `[0, 40]` range the former bisection searched.
 #[must_use]
 pub fn normal_upper_quantile(tail: f64) -> f64 {
-    let (mut lo, mut hi) = (0.0_f64, 40.0_f64);
-    for _ in 0..200 {
-        let mid = 0.5 * (lo + hi);
-        if normal_upper_tail(mid) > tail {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
+    if tail.is_nan() {
+        return 0.0;
     }
-    0.5 * (lo + hi)
+    (-antecedent_stats::normal_ppf(tail)).clamp(0.0, 40.0)
 }
 
 fn validate_options(options: &DiscrepancyOptions) -> Result<(), EstimationError> {
@@ -573,53 +547,18 @@ fn check_comparable(
     Ok(())
 }
 
-/// Lower Cholesky factor of a row-major symmetric matrix; `None` unless every pivot exceeds
-/// [`RANK_TOLERANCE`] times its diagonal entry (so rank deficiency is detected).
-fn cholesky(matrix: &[f64], n: usize) -> Option<Vec<f64>> {
-    let mut lower = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..=i {
-            let mut sum = matrix[i * n + j];
-            for k in 0..j {
-                sum -= lower[i * n + k] * lower[j * n + k];
-            }
-            if i == j {
-                if sum.is_nan() || !sum.is_finite() || sum <= RANK_TOLERANCE * matrix[i * n + i] {
-                    return None;
-                }
-                lower[i * n + i] = sum.sqrt();
-            } else {
-                lower[i * n + j] = sum / lower[j * n + j];
-            }
-        }
-    }
-    Some(lower)
-}
-
 /// Solve `L y = b` (forward substitution).
 fn forward_solve(lower: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
     let mut y = vec![0.0; n];
-    for i in 0..n {
-        let mut sum = b[i];
-        for k in 0..i {
-            sum -= lower[i * n + k] * y[k];
-        }
-        y[i] = sum / lower[i * n + i];
-    }
+    antecedent_kernels::forward_solve_into(lower, n, b, &mut y);
     y
 }
 
 /// Solve `L L' x = b`.
 fn chol_solve(lower: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
-    let y = forward_solve(lower, n, b);
+    let mut y = vec![0.0; n];
     let mut x = vec![0.0; n];
-    for i in (0..n).rev() {
-        let mut sum = y[i];
-        for k in (i + 1)..n {
-            sum -= lower[k * n + i] * x[k];
-        }
-        x[i] = sum / lower[i * n + i];
-    }
+    antecedent_kernels::chol_solve_into(lower, n, b, &mut y, &mut x);
     x
 }
 
@@ -632,7 +571,7 @@ struct Ols {
 
 fn ols(c: &Canonical) -> Result<Ols, EstimationError> {
     let p = c.names.len();
-    let lower = cholesky(&c.xtx, p).ok_or_else(|| {
+    let lower = antecedent_stats::cholesky_spd(&c.xtx, p).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
             "mechanism_discrepancy.rank_deficient_design",
@@ -640,15 +579,7 @@ fn ols(c: &Canonical) -> Result<Ols, EstimationError> {
         )
     })?;
     let beta = chol_solve(&lower, p, &c.xty);
-    let mut inverse = vec![0.0; p * p];
-    for j in 0..p {
-        let mut unit = vec![0.0; p];
-        unit[j] = 1.0;
-        let column = chol_solve(&lower, p, &unit);
-        for (i, v) in column.iter().enumerate() {
-            inverse[i * p + j] = *v;
-        }
-    }
+    let inverse = antecedent_kernels::chol_inverse(&lower, p);
     let residual_df = c.n - p;
     let rss = (c.yty - dot(&beta, &c.xty)).max(0.0);
     if rss <= EXACT_FIT_TOLERANCE * c.yty {
@@ -670,6 +601,37 @@ fn ols(c: &Canonical) -> Result<Ols, EstimationError> {
     Ok(Ols { beta, covariance, residual_df, sigma2 })
 }
 
+fn stored_summary(label: &str, canonical: &Canonical) -> MechanismSummary {
+    MechanismSummary {
+        label: label.to_owned(),
+        measurement: canonical.measurement.clone(),
+        n: canonical.n,
+        xtx: canonical.xtx.clone(),
+        xty: canonical.xty.clone(),
+        yty: canonical.yty,
+    }
+}
+
+/// Design summary of one population's linear mechanism, enough for a coefficient posterior mean.
+///
+/// # Errors
+///
+/// The summary-shape and ordinary-least-squares refusals of the discrepancy diagnostic.
+pub(crate) fn mechanism_design_summary(
+    summary: &MechanismSummary,
+) -> Result<DesignSummary, EstimationError> {
+    let canonical = canonicalize(summary)?;
+    let fit = ols(&canonical)?;
+    let rss = (canonical.yty - dot(&fit.beta, &canonical.xty)).max(0.0);
+    Ok(DesignSummary {
+        n_rows: canonical.n,
+        first_treatment: 1,
+        gram: canonical.xtx,
+        xty: canonical.xty,
+        rss,
+    })
+}
+
 /// Wald statistic of `d` against `V_s + V_t` restricted to the compared coefficients.
 fn joint_wald(compared: &[usize], p: usize, s: &Ols, t: &Ols) -> Result<f64, EstimationError> {
     let m = compared.len();
@@ -680,7 +642,7 @@ fn joint_wald(compared: &[usize], p: usize, s: &Ols, t: &Ols) -> Result<f64, Est
             v[a * m + b] = s.covariance[i * p + j] + t.covariance[i * p + j];
         }
     }
-    let lower = cholesky(&v, m).ok_or_else(|| {
+    let lower = antecedent_stats::cholesky_spd(&v, m).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
             "mechanism_discrepancy.degenerate_covariance",
@@ -853,6 +815,8 @@ pub fn test_mechanism_discrepancy_from_summaries(
         calibration: CalibrationStatus::Unmeasured,
         inference_claim: MECHANISM_DISCREPANCY_INFERENCE_CLAIM,
         coefficients: rows,
-        measurement: s.measurement,
+        measurement: s.measurement.clone(),
+        source_summary: stored_summary(&source.label, &s),
+        target_summary: stored_summary(&target.label, &t),
     })
 }

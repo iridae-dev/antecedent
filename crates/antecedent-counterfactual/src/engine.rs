@@ -2,11 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
-
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, Intervention, StreamDomain, VariableId};
+use antecedent_core::{CausalRng, ExecutionContext, Intervention, StreamDomain, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
@@ -17,9 +15,24 @@ use antecedent_model::{
 
 use crate::error::CounterfactualError;
 
-/// Stream index of the abduction draw within [`StreamDomain::Counterfactual`]
-/// (prediction uses `0xCF_01`).
+/// Stream index of the abduction draw within [`StreamDomain::Counterfactual`].
 const ABDUCTION_STREAM: u64 = 0xAB_D0;
+
+/// Stream index of world 0, and of the nested column-frozen pass.
+///
+/// A one-world prediction and the nested freeze both start here, so a one-pass
+/// freeze matches the historical per-unit `predict` restart bit-for-bit. Later
+/// worlds use [`predict_world_stream`] and do not continue this generator.
+const PREDICT_STREAM: u64 = 0xCF_01;
+
+/// Stream index of world `world` inside [`PREDICT_STREAM`].
+///
+/// World 0 is `PREDICT_STREAM` itself. A later world mixes in its index, so its
+/// stochastic draws do not continue the previous world's generator.
+fn predict_world_stream(world: usize) -> u64 {
+    let world = u64::try_from(world).unwrap_or(u64::MAX);
+    PREDICT_STREAM ^ world.wrapping_mul(antecedent_core::GOLDEN_GAMMA)
+}
 
 /// Assumption recorded on every result whose abduction drew posterior noise. A
 /// categorical node's law given its parents does not identify unit-level
@@ -158,7 +171,7 @@ impl CounterfactualEngine {
         ctx: &ExecutionContext,
     ) -> Result<ExogenousPosterior, CounterfactualError> {
         let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, ABDUCTION_STREAM);
-        self.abduct_with_rng(data, missing, &mut rng)
+        self.abduct_impl(data, missing, &mut rng, Some(ctx))
     }
 
     /// Abduce exogenous noise with an explicit RNG (Discrete / LGSSM posterior draws).
@@ -172,6 +185,18 @@ impl CounterfactualEngine {
         missing: AbductionMissingPolicy,
         rng: &mut antecedent_core::CausalRng,
     ) -> Result<ExogenousPosterior, CounterfactualError> {
+        self.abduct_impl(data, missing, rng, None)
+    }
+
+    /// Shared abduction body. When `ctx` is supplied, cancellation is observed once per
+    /// node column; the draws and results are identical to the uncancelled path.
+    fn abduct_impl(
+        &self,
+        data: &TabularData,
+        missing: AbductionMissingPolicy,
+        rng: &mut antecedent_core::CausalRng,
+        ctx: Option<&ExecutionContext>,
+    ) -> Result<ExogenousPosterior, CounterfactualError> {
         let n = data.row_count();
         let n_nodes = self.model.n_nodes();
         let mut noise = vec![0.0; n * n_nodes];
@@ -182,13 +207,24 @@ impl CounterfactualEngine {
         let mut values = vec![0.0; n * n_nodes];
         for (i, &var) in self.model.output_layout.variables.iter().enumerate() {
             match data.float64_cow(var) {
-                Ok(col) => values[i * n..(i + 1) * n].copy_from_slice(&col[..n]),
+                Ok(col) => {
+                    if col.iter().take(n).any(|v| !v.is_finite()) {
+                        return Err(CounterfactualError::MissingFactual {
+                            message: format!(
+                                "variable {var}: non-finite factual value is not a missing column"
+                            ),
+                        });
+                    }
+                    values[i * n..(i + 1) * n].copy_from_slice(&col[..n]);
+                }
                 Err(e) => {
-                    if missing.allows_missing() {
+                    // Only a column that is not in the table is "missing". A type
+                    // mismatch is a caller error; imputing prior noise would hide it.
+                    let absent = matches!(e, antecedent_data::DataError::UnknownVariable { .. });
+                    if missing.allows_missing() && absent {
                         kind = NoiseInferenceKind::AssumedNoise;
                         assumed_columns[i] = true;
                         values[i * n..(i + 1) * n].fill(0.0);
-                        let _ = e;
                     } else {
                         return Err(CounterfactualError::MissingFactual {
                             message: format!("variable {var}: {e}"),
@@ -203,6 +239,9 @@ impl CounterfactualEngine {
         let mut parent_buf: Vec<f64> = Vec::new();
         let mut mechanism_workspace = MechanismWorkspace::default();
         for gather in self.model.parent_gathers.iter() {
+            if ctx.is_some_and(|c| c.cancellation.is_cancelled()) {
+                return Err(CounterfactualError::Cancelled);
+            }
             let node = gather.child;
             let idx = node.as_usize();
             let out = &mut noise[idx * n..(idx + 1) * n];
@@ -262,7 +301,8 @@ impl CounterfactualEngine {
         ws: &mut MechanismWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CounterfactualResult, CounterfactualError> {
-        self.predict_impl(exo, worlds, outcomes, allow_nested, false, ws, ctx)
+        let mode = PredictMode { allow_nested, outcomes_only: false };
+        self.predict_impl(exo, worlds, outcomes, mode, ws, ctx)
     }
 
     /// [`Self::predict`] retaining only the requested outcome columns.
@@ -287,7 +327,8 @@ impl CounterfactualEngine {
         ws: &mut MechanismWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CounterfactualResult, CounterfactualError> {
-        self.predict_impl(exo, worlds, outcomes, allow_nested, true, ws, ctx)
+        let mode = PredictMode { allow_nested, outcomes_only: true };
+        self.predict_impl(exo, worlds, outcomes, mode, ws, ctx)
     }
 
     fn resolve_outcomes(
@@ -335,11 +376,11 @@ impl CounterfactualEngine {
         exo: &ExogenousPosterior,
         worlds: &[CounterfactualWorld],
         outcomes: &[VariableId],
-        allow_nested: bool,
-        outcomes_only: bool,
+        mode: PredictMode,
         ws: &mut MechanismWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CounterfactualResult, CounterfactualError> {
+        let PredictMode { allow_nested, outcomes_only } = mode;
         self.validate_prediction_inputs(exo, worlds)?;
         let n_units = exo.n_units;
         let n_nodes = self.model.n_nodes();
@@ -355,9 +396,13 @@ impl CounterfactualEngine {
         if exo.kind == NoiseInferenceKind::PosteriorNoise {
             notes.push(Arc::from(RANK_PRESERVING_ASSUMPTION));
         }
-        let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, 0xCF_01);
+        let mut values_buf = vec![0.0; n_units * n_nodes];
+        let mut parent_buf = Vec::new();
 
         for (wi, world) in worlds.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CounterfactualError::Cancelled);
+            }
             if !allow_nested {
                 for iv in world.interventions.iter() {
                     if matches!(iv, Intervention::Sequence(_)) {
@@ -369,52 +414,18 @@ impl CounterfactualEngine {
                 InterventionOverlay::from_interventions(&self.model, &world.interventions)?;
             let unit_filter: Option<&[usize]> = world.unit_rows.as_ref().map(AsRef::as_ref);
 
-            let mut values_buf = vec![0.0; n_units * n_nodes];
+            values_buf.fill(0.0);
             let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
-
-            let mut parent_buf: Vec<f64> = Vec::new();
-            for gather in self.model.parent_gathers.iter() {
-                let node = gather.child;
-                let idx = node.as_usize();
-                let need = gather.n_parents().max(1).saturating_mul(n_units);
-                if parent_buf.len() < need {
-                    parent_buf.resize(need, 0.0);
-                }
-                gather.gather(values.values, n_units, &mut parent_buf);
-                let parents = ParentBatch {
-                    n_rows: n_units,
-                    n_parents: gather.n_parents(),
-                    values: &parent_buf[..gather.n_parents().saturating_mul(n_units)],
-                };
-                let out = values.column_mut(idx)?;
-                if let Some(v) = overlay.hard_set[idx] {
-                    out.fill(v);
-                    continue;
-                }
-                if let Some(policy) = &overlay.stochastic[idx] {
-                    sample_stochastic(policy, n_units, &mut rng, out)?;
-                    if overlay.shifts[idx] != 0.0 {
-                        for x in out.iter_mut() {
-                            *x += overlay.shifts[idx];
-                        }
-                    }
-                    continue;
-                }
-                let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
-                let existing = self.model.mechanisms.get(node);
-                let slot = if let Some(soft) = &overlay.soft[idx] {
-                    refuse_cross_family_soft(existing, soft)?;
-                    soft_to_slot(soft, gather.n_parents())?
-                } else {
-                    existing.clone()
-                };
-                evaluate_column(&slot, parents, noise_col, out, ws)?;
-                if overlay.shifts[idx] != 0.0 {
-                    for x in out.iter_mut() {
-                        *x += overlay.shifts[idx];
-                    }
-                }
-            }
+            // Each world opens its own stream. World 0 stays on `0xCF_01`.
+            let mut rng =
+                ctx.rng.stream_for(StreamDomain::Counterfactual, predict_world_stream(wi));
+            evaluate_world_into(
+                WorldEvaluation { model: &self.model, exo, overlay: &overlay, frozen: None },
+                &mut rng,
+                &mut values,
+                &mut parent_buf,
+                ws,
+            )?;
 
             let base = wi * stored_width * n_units;
             for slot in 0..stored_width {
@@ -457,6 +468,10 @@ impl CounterfactualEngine {
     /// # Errors
     ///
     /// Prediction failures.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     pub fn individual_treatment_effect(
         &self,
         exo: &ExogenousPosterior,
@@ -619,7 +634,7 @@ pub fn simultaneous_hard_counterfactual(
 /// # Errors
 ///
 /// Engine failures, unknown outcome, or overlapping targets.
-pub fn simultaneous_hard_counterfactual_with_exo(
+pub(crate) fn simultaneous_hard_counterfactual_with_exo(
     engine: &CounterfactualEngine,
     exo: &ExogenousPosterior,
     outer: &[Intervention],
@@ -682,6 +697,19 @@ fn interventions_overlap(outer: &[Intervention], inner: &[Intervention]) -> bool
         .any(|ov| inner.iter().any(|i| i.primary_variable() == Some(ov)))
 }
 
+/// Interventions, frozen set and outcome of a nested counterfactual query.
+#[derive(Debug, Clone, Copy)]
+pub struct NestedSpec<'a> {
+    /// Outer-world interventions.
+    pub outer: &'a [Intervention],
+    /// Inner-world interventions.
+    pub inner: &'a [Intervention],
+    /// Nodes held at their outer-world value in the inner world.
+    pub frozen: &'a [VariableId],
+    /// Outcome variable.
+    pub outcome: VariableId,
+}
+
 /// Nested counterfactual (twin-network) under shared abduced noise.
 ///
 /// The query `Y_{inner, F_{outer}}`: the outcome under the `inner` interventions
@@ -708,16 +736,13 @@ fn interventions_overlap(outer: &[Intervention], inner: &[Intervention]) -> bool
 pub fn nested_counterfactual(
     engine: &CounterfactualEngine,
     data: &TabularData,
-    outer: &[Intervention],
-    inner: &[Intervention],
-    frozen: &[VariableId],
-    outcome: VariableId,
+    spec: &NestedSpec<'_>,
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<f64, CounterfactualError> {
     // Intervention-kind validation lives in the `_with_exo` body.
     let exo = engine.abduct(data, AbductionMissingPolicy::Error, ctx)?;
-    nested_counterfactual_with_exo(engine, &exo, outer, inner, frozen, outcome, ws, ctx)
+    nested_counterfactual_with_exo(engine, &exo, spec, ws, ctx)
 }
 
 /// [`nested_counterfactual`] against a caller-supplied [`ExogenousPosterior`]
@@ -726,16 +751,18 @@ pub fn nested_counterfactual(
 /// # Errors
 ///
 /// Unsupported intervention kinds, an invalid frozen set, or predict failures.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub fn nested_counterfactual_with_exo(
     engine: &CounterfactualEngine,
     exo: &ExogenousPosterior,
-    outer: &[Intervention],
-    inner: &[Intervention],
-    frozen: &[VariableId],
-    outcome: VariableId,
+    spec: &NestedSpec<'_>,
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<f64, CounterfactualError> {
+    let NestedSpec { outer, inner, frozen, outcome } = *spec;
     for iv in outer.iter().chain(inner.iter()) {
         match iv {
             Intervention::Set { .. }
@@ -798,13 +825,19 @@ pub fn nested_counterfactual_with_exo(
         }
         let start = node * n_units;
         let col = &outer_res.values[start..start + n_units];
-        let first = col.first().copied().unwrap_or(0.0);
-        if col.iter().any(|&v| (v - first).abs() > 1e-12) {
-            need_unitwise = true;
-            break;
+        // A non-finite column is not a constant. `NaN - NaN` is not greater than
+        // the tolerance, so a NaN column used to be frozen as if it were constant.
+        match column_is_finite_constant(col) {
+            Some(first) => {
+                let var = engine.model.output_layout.variables[node];
+                freeze_ivs.push(Intervention::set(var, antecedent_core::Value::f64(first)));
+            }
+            None if col.is_empty() => {}
+            None => {
+                need_unitwise = true;
+                break;
+            }
         }
-        let var = engine.model.output_layout.variables[node];
-        freeze_ivs.push(Intervention::set(var, antecedent_core::Value::f64(first)));
     }
 
     if need_unitwise {
@@ -822,16 +855,9 @@ pub fn nested_counterfactual_with_exo(
         let row_independent = nested_rows_independent(engine, &overlay, &is_frozen, n_nodes)?;
 
         if row_independent {
-            return nested_column_frozen_mean(
-                engine,
-                exo,
-                &outer_res,
-                &overlay,
-                &is_frozen,
-                outcome_dense,
-                ws,
-                ctx,
-            );
+            let frozen =
+                FrozenOuter { outer_res: &outer_res, overlay: &overlay, is_frozen: &is_frozen };
+            return nested_column_frozen_mean(engine, exo, &frozen, outcome_dense, ws, ctx);
         }
 
         // Row-coupled (temporal) mechanisms cannot be evaluated per unit by
@@ -862,6 +888,10 @@ pub fn nested_counterfactual_with_exo(
 /// the column-frozen pass cannot reproduce; those refuse. Overlay-driven nodes
 /// (hard set / stochastic / soft) never consult the fitted mechanism, so they are
 /// row-independent regardless of family.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn nested_rows_independent(
     engine: &CounterfactualEngine,
     overlay: &InterventionOverlay,
@@ -902,38 +932,47 @@ fn nested_rows_independent(
     Ok(row_independent)
 }
 
-/// One-pass evaluation of the unit-wise nested counterfactual: frozen nodes
-/// keep their outer counterfactual *columns*; every other node is re-evaluated
-/// row-wise with the abduced noise. Bit-identical to the per-unit
-/// freeze-and-predict loop for row-independent mechanisms (see the caller's
-/// derivation and the differential test).
-#[allow(clippy::too_many_arguments)]
-fn nested_column_frozen_mean(
-    engine: &CounterfactualEngine,
-    exo: &ExogenousPosterior,
-    outer_res: &CounterfactualResult,
-    overlay: &InterventionOverlay,
-    is_frozen: &[bool],
-    outcome_dense: DenseNodeId,
+/// `Some(value)` when every entry is finite and within `1e-12` of the first.
+/// An empty column and any non-finite entry are not constants.
+fn column_is_finite_constant(col: &[f64]) -> Option<f64> {
+    let &first = col.first()?;
+    (first.is_finite() && col.iter().all(|&v| (v - first).abs() <= 1e-12)).then_some(first)
+}
+
+/// Evaluate one world's nodes into `values`, in parent-gather order.
+///
+/// `frozen` nodes keep the values already in the batch (the outer counterfactual
+/// columns). The mechanism slot is borrowed unless a soft overlay replaces it.
+/// `rng` is the caller's stream. [`CounterfactualEngine::predict`] passes each
+/// world its own stream from [`predict_world_stream`].
+#[derive(Clone, Copy)]
+struct WorldEvaluation<'a> {
+    model: &'a CompiledCausalModel,
+    exo: &'a ExogenousPosterior,
+    overlay: &'a InterventionOverlay,
+    frozen: Option<&'a [bool]>,
+}
+
+fn evaluate_world_into(
+    evaluation: WorldEvaluation<'_>,
+    rng: &mut CausalRng,
+    values: &mut ValueBatchMut<'_>,
+    parent_buf: &mut Vec<f64>,
     ws: &mut MechanismWorkspace,
-    ctx: &ExecutionContext,
-) -> Result<f64, CounterfactualError> {
+) -> Result<(), CounterfactualError> {
+    let WorldEvaluation { model, exo, overlay, frozen } = evaluation;
     let n_units = exo.n_units;
-    let n_nodes = exo.n_nodes;
-    let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, 0xCF_01);
-    let mut values_buf = outer_res.values[..n_nodes * n_units].to_vec();
-    let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
-    let mut parent_buf: Vec<f64> = Vec::new();
-    for gather in engine.model.parent_gathers.iter() {
-        let idx = gather.child.as_usize();
-        if is_frozen[idx] {
-            continue; // frozen at its outer column
+    for gather in model.parent_gathers.iter() {
+        let node = gather.child;
+        let idx = node.as_usize();
+        if frozen.is_some_and(|mask| mask[idx]) {
+            continue;
         }
         let need = gather.n_parents().max(1).saturating_mul(n_units);
         if parent_buf.len() < need {
             parent_buf.resize(need, 0.0);
         }
-        gather.gather(values.values, n_units, &mut parent_buf);
+        gather.gather(values.values, n_units, parent_buf);
         let parents = ParentBatch {
             n_rows: n_units,
             n_parents: gather.n_parents(),
@@ -945,7 +984,7 @@ fn nested_column_frozen_mean(
             continue;
         }
         if let Some(policy) = &overlay.stochastic[idx] {
-            sample_stochastic(policy, n_units, &mut rng, out)?;
+            sample_stochastic(policy, n_units, rng, out)?;
             if overlay.shifts[idx] != 0.0 {
                 for x in out.iter_mut() {
                     *x += overlay.shifts[idx];
@@ -954,20 +993,68 @@ fn nested_column_frozen_mean(
             continue;
         }
         let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
-        let existing = engine.model.mechanisms.get(gather.child);
+        let existing = model.mechanisms.get(node);
+        let owned;
         let slot = if let Some(soft) = &overlay.soft[idx] {
             refuse_cross_family_soft(existing, soft)?;
-            soft_to_slot(soft, gather.n_parents())?
+            owned = soft_to_slot(soft, gather.n_parents())?;
+            &owned
         } else {
-            existing.clone()
+            existing
         };
-        evaluate_column(&slot, parents, noise_col, out, ws)?;
+        evaluate_column(slot, parents, noise_col, out, ws)?;
         if overlay.shifts[idx] != 0.0 {
             for x in out.iter_mut() {
                 *x += overlay.shifts[idx];
             }
         }
     }
+    Ok(())
+}
+
+/// The outer world, the inner overlay and the frozen-node mask a nested evaluation reads.
+#[derive(Clone, Copy)]
+struct FrozenOuter<'a> {
+    outer_res: &'a CounterfactualResult,
+    overlay: &'a InterventionOverlay,
+    is_frozen: &'a [bool],
+}
+
+/// Prediction options: whether nested interventions are allowed, and whether only the
+/// requested outcome columns are retained.
+#[derive(Clone, Copy)]
+struct PredictMode {
+    allow_nested: bool,
+    outcomes_only: bool,
+}
+
+/// One-pass evaluation of the unit-wise nested counterfactual: frozen nodes
+/// keep their outer counterfactual *columns*; every other node is re-evaluated
+/// row-wise with the abduced noise. Bit-identical to the per-unit
+/// freeze-and-predict loop for row-independent mechanisms (see the caller's
+/// derivation and the differential test).
+fn nested_column_frozen_mean(
+    engine: &CounterfactualEngine,
+    exo: &ExogenousPosterior,
+    frozen: &FrozenOuter<'_>,
+    outcome_dense: DenseNodeId,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<f64, CounterfactualError> {
+    let FrozenOuter { outer_res, overlay, is_frozen } = *frozen;
+    let n_units = exo.n_units;
+    let n_nodes = exo.n_nodes;
+    let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, PREDICT_STREAM);
+    let mut values_buf = outer_res.values[..n_nodes * n_units].to_vec();
+    let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
+    let mut parent_buf = Vec::new();
+    evaluate_world_into(
+        WorldEvaluation { model: &engine.model, exo, overlay, frozen: Some(is_frozen) },
+        &mut rng,
+        &mut values,
+        &mut parent_buf,
+        ws,
+    )?;
     let start = outcome_dense.as_usize() * n_units;
     let mut sum = 0.0;
     let mut count = 0usize;
@@ -995,24 +1082,20 @@ fn nested_column_frozen_mean(
 pub fn nested_hard_counterfactual(
     engine: &CounterfactualEngine,
     data: &TabularData,
-    outer: &[Intervention],
-    inner: &[Intervention],
-    frozen: &[VariableId],
-    outcome: VariableId,
+    spec: &NestedSpec<'_>,
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<f64, CounterfactualError> {
-    nested_counterfactual(engine, data, outer, inner, frozen, outcome, ws, ctx)
+    nested_counterfactual(engine, data, spec, ws, ctx)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CounterfactualTrajectoryRequest, TrajectoryArm, evaluate_trajectories};
     use antecedent_core::{
         CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec,
-        MechanismOverride, RoleHint, SequencedIntervention, SmallRoleSet, TemporalPolicy,
-        ToleranceClass, Value, ValueType,
+        MechanismOverride, RoleHint, SequencedIntervention, SmallRoleSet, StochasticPolicy,
+        TemporalPolicy, ToleranceClass, Value, ValueType,
     };
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
@@ -1020,6 +1103,15 @@ mod tests {
     use antecedent_model::{
         CompiledMechanismStore, MechanismRegistry, MechanismSlot, SelectionPolicy,
     };
+
+    #[test]
+    fn a_non_finite_column_is_not_a_constant() {
+        assert_eq!(column_is_finite_constant(&[1.0, 1.0]), Some(1.0));
+        assert_eq!(column_is_finite_constant(&[1.0, 1.0 + 2e-12]), None);
+        assert_eq!(column_is_finite_constant(&[f64::NAN, f64::NAN]), None);
+        assert_eq!(column_is_finite_constant(&[1.0, f64::NAN]), None);
+        assert_eq!(column_is_finite_constant(&[]), None);
+    }
 
     fn unit_normal(rng: &mut antecedent_core::CausalRng) -> f64 {
         let u1 = rng.next_f64().clamp(1e-12, 1.0);
@@ -1074,6 +1166,24 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         (CounterfactualEngine::new(compiled.with_mechanisms(store)), data)
+    }
+
+    #[test]
+    fn cancelled_context_stops_abduction_and_prediction_with_typed_error() {
+        let (engine, data) = toy();
+        let live = ExecutionContext::for_tests(1);
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error, &live).unwrap();
+
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        let err = engine.abduct(&data, AbductionMissingPolicy::Error, &cancelled).unwrap_err();
+        assert_eq!(err, CounterfactualError::Cancelled);
+
+        let y = VariableId::from_raw(1);
+        let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from([]) };
+        let mut ws = MechanismWorkspace::default();
+        let err = engine.predict(&exo, &[world], &[y], false, &mut ws, &cancelled).unwrap_err();
+        assert_eq!(err, CounterfactualError::Cancelled);
     }
 
     #[test]
@@ -1232,6 +1342,58 @@ mod tests {
         assert!((m1 - m0 - 2.0).abs() < 0.15, "E[Y|do(1)]-E[Y|do(0)]={}", m1 - m0);
     }
 
+    #[test]
+    fn world_streams_are_independent_of_other_world_draws() {
+        let (engine, data) = toy();
+        let ctx = ExecutionContext::for_tests(0xCF_91);
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error, &ctx).unwrap();
+        let mut ws = MechanismWorkspace::default();
+        let treatment = VariableId::from_raw(0);
+        let outcome = DenseNodeId::from_raw(1);
+        let stochastic = Intervention::stochastic(treatment, StochasticPolicy::gaussian(0.0, 1.0));
+        let hard = Intervention::set(treatment, Value::f64(0.0));
+
+        // World 1 uses the same stream in both calls even though world 0 consumes a
+        // different number of draws (the hard intervention consumes none; the stochastic
+        // policy samples a column). World 0 of the second call must also match a standalone
+        // world-0 prediction, preserving the documented one-world stream.
+        let with_hard_first = [
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([hard]) },
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([stochastic.clone()]) },
+        ];
+        let with_stochastic_first = [
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([stochastic.clone()]) },
+            CounterfactualWorld { unit_rows: None, interventions: Arc::from([stochastic.clone()]) },
+        ];
+        let first = engine
+            .predict(&exo, &with_hard_first, &[VariableId::from_raw(1)], false, &mut ws, &ctx)
+            .unwrap();
+        let second = engine
+            .predict(&exo, &with_stochastic_first, &[VariableId::from_raw(1)], false, &mut ws, &ctx)
+            .unwrap();
+        let standalone = engine
+            .predict(
+                &exo,
+                &[CounterfactualWorld { unit_rows: None, interventions: Arc::from([stochastic]) }],
+                &[VariableId::from_raw(1)],
+                false,
+                &mut ws,
+                &ctx,
+            )
+            .unwrap();
+
+        for unit in 0..exo.n_units {
+            assert_eq!(
+                first.get(1, outcome, unit).to_bits(),
+                second.get(1, outcome, unit).to_bits()
+            );
+            assert_eq!(
+                second.get(0, outcome, unit).to_bits(),
+                standalone.get(0, outcome, unit).to_bits()
+            );
+        }
+    }
+
     /// Invertible linear SEM with pinned β: mean ITE must recover structural β
     /// (`ToleranceClass::StableFloat` under exact mechanisms; `MonteCarlo` floor if fit noise).
     #[test]
@@ -1381,11 +1543,22 @@ mod tests {
         let exo = engine
             .abduct(&data, AbductionMissingPolicy::Error, &ExecutionContext::for_tests(1))
             .unwrap();
-        let a =
-            nested_counterfactual(&engine, &data, &outer, &inner, &[t], y, &mut ws, &ctx).unwrap();
-        let b =
-            nested_counterfactual_with_exo(&engine, &exo, &outer, &inner, &[t], y, &mut ws, &ctx)
-                .unwrap();
+        let a = nested_counterfactual(
+            &engine,
+            &data,
+            &NestedSpec { outer: &outer, inner: &inner, frozen: &[t], outcome: y },
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
+        let b = nested_counterfactual_with_exo(
+            &engine,
+            &exo,
+            &NestedSpec { outer: &outer, inner: &inner, frozen: &[t], outcome: y },
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
         assert!(a.to_bits() == b.to_bits(), "nested: {a:?} vs {b:?}");
 
         let c = simultaneous_hard_counterfactual(&engine, &data, &outer, &[], y, &mut ws, &ctx)
@@ -1506,10 +1679,12 @@ mod tests {
         let got = nested_counterfactual(
             &engine,
             &data,
-            &[Intervention::set(x, Value::f64(0.0))],
-            &[Intervention::set(x, Value::f64(1.0))],
-            &[m],
-            y,
+            &NestedSpec {
+                outer: &[Intervention::set(x, Value::f64(0.0))],
+                inner: &[Intervention::set(x, Value::f64(1.0))],
+                frozen: &[m],
+                outcome: y,
+            },
             &mut ws,
             &ctx,
         )
@@ -1554,10 +1729,12 @@ mod tests {
         let got = nested_counterfactual(
             &engine,
             &data,
-            &[],
-            &[Intervention::set(VariableId::from_raw(1), Value::f64(5.0))],
-            &[],
-            VariableId::from_raw(3),
+            &NestedSpec {
+                outer: &[],
+                inner: &[Intervention::set(VariableId::from_raw(1), Value::f64(5.0))],
+                frozen: &[],
+                outcome: VariableId::from_raw(3),
+            },
             &mut ws,
             &ctx,
         )
@@ -1577,10 +1754,12 @@ mod tests {
             let err = nested_counterfactual(
                 &engine,
                 &data,
-                &[],
-                &[Intervention::set(x, Value::f64(1.0))],
-                &[frozen],
-                y,
+                &NestedSpec {
+                    outer: &[],
+                    inner: &[Intervention::set(x, Value::f64(1.0))],
+                    frozen: &[frozen],
+                    outcome: y,
+                },
                 &mut ws,
                 &ctx,
             )
@@ -1689,8 +1868,14 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let outer = [Intervention::set(t, Value::f64(1.0))];
         let inner = [Intervention::set(VariableId::from_raw(1), Value::f64(0.3))];
-        let fast =
-            nested_counterfactual(&engine, &data, &outer, &inner, &[t], y, &mut ws, &ctx).unwrap();
+        let fast = nested_counterfactual(
+            &engine,
+            &data,
+            &NestedSpec { outer: &outer, inner: &inner, frozen: &[t], outcome: y },
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
 
         // Historical reference, via the public predict API.
         let exo = engine
@@ -1777,8 +1962,14 @@ mod tests {
         // values, which is exactly the case the per-unit fallback served.
         let outer: [Intervention; 0] = [];
         let inner = [Intervention::set(VariableId::from_raw(1), Value::f64(0.3))];
-        let err = nested_counterfactual(&engine, &data, &outer, &inner, &[t], y, &mut ws, &ctx)
-            .expect_err("row-coupled nested CF with unit-varying freeze must refuse");
+        let err = nested_counterfactual(
+            &engine,
+            &data,
+            &NestedSpec { outer: &outer, inner: &inner, frozen: &[t], outcome: y },
+            &mut ws,
+            &ctx,
+        )
+        .expect_err("row-coupled nested CF with unit-varying freeze must refuse");
         let msg = format!("{err:?}");
         assert!(
             msg.contains("row-coupled"),
@@ -1786,9 +1977,14 @@ mod tests {
         );
 
         // The row-independent fixture keeps working through the column-frozen pass.
-        let ok =
-            nested_counterfactual(&engine_linear, &data, &outer, &inner, &[t], y, &mut ws, &ctx)
-                .unwrap();
+        let ok = nested_counterfactual(
+            &engine_linear,
+            &data,
+            &NestedSpec { outer: &outer, inner: &inner, frozen: &[t], outcome: y },
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
         assert!(ok.is_finite());
     }
 
@@ -1819,10 +2015,12 @@ mod tests {
         let got = nested_counterfactual(
             &engine,
             &data,
-            &[],
-            &[Intervention::set(m, Value::f64(0.3))],
-            &[t],
-            y,
+            &NestedSpec {
+                outer: &[],
+                inner: &[Intervention::set(m, Value::f64(0.3))],
+                frozen: &[t],
+                outcome: y,
+            },
             &mut ws,
             &ctx,
         )
@@ -1849,10 +2047,12 @@ mod tests {
         let nested = nested_hard_counterfactual(
             &engine,
             &data,
-            &[Intervention::set(t, Value::f64(0.0))],
-            &[Intervention::set(t, Value::f64(1.0))],
-            &[VariableId::from_raw(1)],
-            y,
+            &NestedSpec {
+                outer: &[Intervention::set(t, Value::f64(0.0))],
+                inner: &[Intervention::set(t, Value::f64(1.0))],
+                frozen: &[VariableId::from_raw(1)],
+                outcome: y,
+            },
             &mut ws,
             &ctx,
         )
@@ -1877,39 +2077,6 @@ mod tests {
             (nested - pure - fixture["reference"]["difference"].as_f64().unwrap()).abs()
                 <= tolerance
         );
-
-        let request = CounterfactualTrajectoryRequest {
-            arms: Arc::from([
-                TrajectoryArm {
-                    schedule: Arc::from([
-                        Arc::from([Intervention::set(t, Value::f64(0.0))]),
-                        Arc::from([Intervention::set(t, Value::f64(0.0))]),
-                    ]),
-                },
-                TrajectoryArm {
-                    schedule: Arc::from([
-                        Arc::from([Intervention::set(t, Value::f64(1.0))]),
-                        Arc::from([Intervention::set(t, Value::f64(1.0))]),
-                    ]),
-                },
-            ]),
-            outcome: y,
-        };
-        let trajectories = evaluate_trajectories(&engine, &exo, &request, &mut ws, &ctx).unwrap();
-        for time in 0..2 {
-            assert!(
-                (trajectories.mean_at(time, 0)
-                    - fixture["reference"]["trajectory_do_t0_mean"].as_f64().unwrap())
-                .abs()
-                    <= tolerance
-            );
-            assert!(
-                (trajectories.mean_at(time, 1)
-                    - fixture["reference"]["trajectory_do_t1_mean"].as_f64().unwrap())
-                .abs()
-                    <= tolerance
-            );
-        }
     }
 
     /// Streaming ≡ retained under random unit counts and multi-world intervention sets.
@@ -2043,6 +2210,48 @@ mod tests {
         for (row, &factual) in data.float64_cow(y).unwrap().iter().enumerate() {
             assert!((result.get(0, child_node, row) - factual).abs() < 1e-12);
         }
+    }
+
+    #[test]
+    fn zero_fill_does_not_impute_a_non_finite_factual_column() {
+        use antecedent_core::NodeRef;
+        let y = VariableId::from_raw(0);
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let storage = OwnedColumnarStorage::try_new(
+            schema,
+            vec![OwnedColumn::Float64(
+                Float64Column::new(y, Arc::from([1.0, f64::NAN]), ValidityBitmap::all_valid(2))
+                    .unwrap(),
+            )],
+            None,
+            None,
+        )
+        .unwrap();
+        let data = TabularData::new(storage);
+        let mut graph = Dag::empty();
+        graph.add_node(NodeRef::Static(y)).unwrap();
+        let model =
+            CompiledCausalModel::compile(graph).unwrap().with_mechanisms(CompiledMechanismStore {
+                slots: Arc::from([MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([]),
+                    sigma: 1.0,
+                }]),
+            });
+        let err = CounterfactualEngine::new(model)
+            .abduct(&data, AbductionMissingPolicy::ZeroFill, &ExecutionContext::for_tests(1))
+            .unwrap_err();
+        assert!(matches!(err, CounterfactualError::MissingFactual { .. }), "{err:?}");
     }
 
     #[test]

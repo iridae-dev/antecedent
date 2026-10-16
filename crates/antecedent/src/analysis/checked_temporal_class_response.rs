@@ -3,10 +3,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{
-    CausalQuery, ObservationSpec, OutcomeFunctional, ResponseQuery, TargetPopulation,
-    TemporalEffectQuery, TemporalNodeKey,
-};
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::{complete_mean_response, inference_label};
+use antecedent_core::{CausalQuery, ResponseQuery, TemporalEffectQuery, TemporalNodeKey};
+use std::sync::Arc;
 
 use crate::error::CausalError;
 use crate::planner::PhysicalExecutionPlan;
@@ -16,10 +16,11 @@ use crate::{AcceptedGraph, ClassPrior, GraphClass, InferenceMode};
 use super::builder::RefuteSuite;
 use super::checked_temporal_response::temporal_response_is_direct;
 use super::prepared::CachedTemporalClassIdentification;
+use super::proof_support::{Procedure, require_primary_pair};
 use super::route_guards::same_accepted_graph;
 
 /// A complete, checked completion envelope per requested horizon for a
-/// TemporalCpdag or TemporalPag response. The per-horizon envelopes and their
+/// `TemporalCpdag` or `TemporalPag` response. The per-horizon envelopes and their
 /// aligned unfolding indexers stay together with the source graph, so no
 /// completion can be evaluated against another completion's time window and no
 /// execution can re-derive the class from a different graph.
@@ -28,14 +29,27 @@ pub(crate) struct CheckedTemporalClassResponseOperation {
     source_graph: AcceptedGraph,
     max_completions: Option<usize>,
     query: ResponseQuery,
-    bundle: CachedTemporalClassIdentification,
+    bundle: Arc<CachedTemporalClassIdentification>,
     identifier: IdentifierId,
     estimator: EstimatorId,
     inference: InferenceMode,
     bootstrap_replicates: u32,
     class_prior: Option<ClassPrior>,
     validation: RefuteSuite,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
+}
+
+/// The frozen premises of [`CheckedTemporalClassResponseOperation::checked`], carried together.
+pub(crate) struct CheckedTemporalClassResponseOperationPremises<'a> {
+    pub(crate) source_graph: AcceptedGraph,
+    pub(crate) query: &'a ResponseQuery,
+    pub(crate) bundle: &'a Arc<CachedTemporalClassIdentification>,
+    pub(crate) max_completions: Option<usize>,
+    pub(crate) inference: &'a InferenceMode,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) class_prior: Option<ClassPrior>,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 impl std::fmt::Debug for CheckedTemporalClassResponseOperation {
@@ -54,21 +68,82 @@ impl std::fmt::Debug for CheckedTemporalClassResponseOperation {
     }
 }
 
+/// Checks one horizon's completion proof: it must hold completions with one
+/// unfolding indexer each, and every completion's certificate must bind back
+/// to the requested treatment, outcome, policy origin and horizon.
+fn check_class_response_horizon(
+    bundle: &CachedTemporalClassIdentification,
+    spec: &antecedent_core::TemporalResponseSpec,
+    query: &ResponseQuery,
+    (treatment, outcome): (antecedent_core::VariableId, antecedent_core::VariableId),
+    horizon: u32,
+) -> Result<(), CausalError> {
+    let (_, envelope) = bundle
+        .by_horizon
+        .iter()
+        .find(|(cached, _)| *cached == horizon)
+        .ok_or_else(|| CausalError::Compile {
+            message: format!(
+                "temporal class response proof lacks a completion envelope for horizon {horizon}"
+            ),
+        })?;
+    if envelope.envelope.cases.is_empty() {
+        return Err(CausalError::Compile {
+            message: format!(
+                "temporal class response proof has no completion cases at horizon {horizon}"
+            ),
+        });
+    }
+    if envelope.indexers.len() != envelope.envelope.cases.len() {
+        return Err(CausalError::Compile {
+            message:
+                "temporal class response proof does not bind one unfolding indexer per completion"
+                    .into(),
+        });
+    }
+    // Every completion proof is an unfolded (dense) adjustment certificate;
+    // bind its treatment/outcome nodes back through that completion's own
+    // indexer to the requested variables, policy origin, and horizon.
+    let witness = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
+        .with_policy(spec.policy.clone())
+        .with_horizon_steps(horizon)
+        .with_max_history_lag(spec.max_history_lag)
+        .with_target_population(query.target_population.clone());
+    let treatment_key =
+        TemporalNodeKey { variable: treatment, offset: witness.try_treatment_offset()? };
+    let outcome_key = TemporalNodeKey { variable: outcome, offset: witness.outcome_offset() };
+    let witness_binds =
+        envelope.envelope.cases.iter().zip(&envelope.indexers).all(|(case, indexer)| {
+            case.result.average_effect().is_none_or(|proof| {
+                Some(proof.treatment.raw()) == indexer.dense_id(treatment_key).ok()
+                    && Some(proof.outcome.raw()) == indexer.dense_id(outcome_key).ok()
+            })
+        });
+    if !witness_binds {
+        return Err(CausalError::Compile {
+                message: "temporal class response proof was certified for a different treatment, outcome, policy, or horizon".into(),
+            });
+    }
+    Ok(())
+}
+
 impl CheckedTemporalClassResponseOperation {
     /// Check and freeze the per-horizon completion proofs and selected procedure.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn checked(
-        source_graph: AcceptedGraph,
-        query: &ResponseQuery,
-        bundle: &CachedTemporalClassIdentification,
-        max_completions: Option<usize>,
-        inference: &InferenceMode,
-        bootstrap_replicates: u32,
-        class_prior: Option<ClassPrior>,
-        validation: RefuteSuite,
-        physical: PhysicalExecutionPlan,
+        premises: CheckedTemporalClassResponseOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let CheckedTemporalClassResponseOperationPremises {
+            source_graph,
+            query,
+            bundle,
+            max_completions,
+            inference,
+            bootstrap_replicates,
+            class_prior,
+            validation,
+            physical,
+        } = premises;
+        query.validate()?;
         if !matches!(source_graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Err(CausalError::Compile {
                 message: "temporal class response requires a TemporalCpdag or TemporalPag proof"
@@ -83,10 +158,7 @@ impl CheckedTemporalClassResponseOperation {
                 message: "checked temporal class response supports MeanCurve and single-step InterventionResponse only",
             });
         }
-        if query.observation != ObservationSpec::Complete
-            || query.target_population != TargetPopulation::AllObserved
-            || !matches!(query.outcome_functional, OutcomeFunctional::Mean)
-        {
+        if !complete_mean_response(query) {
             return Err(CausalError::Unsupported {
                 message: "checked temporal class response requires complete observation, the all-observed population, and the mean outcome functional",
             });
@@ -101,25 +173,11 @@ impl CheckedTemporalClassResponseOperation {
                 message: "checked temporal class response supports validation suite none only",
             });
         }
-        let (treatment, outcome) =
-            query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                message: "temporal class response has no treatment/outcome pair".into(),
-            })?;
+        let (treatment, outcome) = require_primary_pair(&query.functional)?;
         let identifier = IdentifierId::GeneralizedAdjustment;
         let estimator = EstimatorId::temporal_response_for(inference);
         if physical.logical.query != CausalQuery::Response(query.clone())
-            || physical
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .is_some_and(|selected| selected != identifier.as_str())
-            || physical
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .is_some_and(|selected| selected != estimator.as_str())
+            || !physical.binding().names(identifier, estimator)
         {
             return Err(CausalError::Compile {
                 message:
@@ -128,61 +186,13 @@ impl CheckedTemporalClassResponseOperation {
             });
         }
         for &horizon in spec.horizons.iter() {
-            let (_, envelope) = bundle
-                .by_horizon
-                .iter()
-                .find(|(cached, _)| *cached == horizon)
-                .ok_or_else(|| CausalError::Compile {
-                    message: format!(
-                        "temporal class response proof lacks a completion envelope for horizon {horizon}"
-                    ),
-                })?;
-            if envelope.envelope.cases.is_empty() {
-                return Err(CausalError::Compile {
-                    message: format!(
-                        "temporal class response proof has no completion cases at horizon {horizon}"
-                    ),
-                });
-            }
-            if envelope.indexers.len() != envelope.envelope.cases.len() {
-                return Err(CausalError::Compile {
-                    message: "temporal class response proof does not bind one unfolding indexer per completion".into(),
-                });
-            }
-            // Every completion proof is an unfolded (dense) adjustment certificate;
-            // bind its treatment/outcome nodes back through that completion's own
-            // indexer to the requested variables, policy origin, and horizon.
-            let witness = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
-                .with_policy(spec.policy.clone())
-                .with_horizon_steps(horizon)
-                .with_max_history_lag(spec.max_history_lag)
-                .with_target_population(query.target_population.clone());
-            let treatment_key = TemporalNodeKey {
-                variable: treatment,
-                offset: witness
-                    .try_treatment_offset()
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?,
-            };
-            let outcome_key =
-                TemporalNodeKey { variable: outcome, offset: witness.outcome_offset() };
-            let witness_binds =
-                envelope.envelope.cases.iter().zip(&envelope.indexers).all(|(case, indexer)| {
-                    case.result.average_effect().is_none_or(|proof| {
-                        Some(proof.treatment.raw()) == indexer.dense_id(treatment_key).ok()
-                            && Some(proof.outcome.raw()) == indexer.dense_id(outcome_key).ok()
-                    })
-                });
-            if !witness_binds {
-                return Err(CausalError::Compile {
-                    message: "temporal class response proof was certified for a different treatment, outcome, policy, or horizon".into(),
-                });
-            }
+            check_class_response_horizon(bundle, spec, query, (treatment, outcome), horizon)?;
         }
         Ok(Self {
             source_graph,
             max_completions,
             query: query.clone(),
-            bundle: bundle.clone(),
+            bundle: Arc::clone(bundle),
             identifier,
             estimator,
             inference: inference.clone(),
@@ -226,7 +236,7 @@ impl CheckedTemporalClassResponseOperation {
     }
 
     #[must_use]
-    pub(crate) fn bundle(&self) -> &CachedTemporalClassIdentification {
+    pub(crate) fn bundle(&self) -> &Arc<CachedTemporalClassIdentification> {
         &self.bundle
     }
 
@@ -236,8 +246,13 @@ impl CheckedTemporalClassResponseOperation {
     }
 
     #[must_use]
-    pub(crate) fn procedure(&self) -> (IdentifierId, EstimatorId, u32, RefuteSuite) {
-        (self.identifier, self.estimator, self.bootstrap_replicates, self.validation)
+    pub(crate) fn procedure(&self) -> Procedure {
+        Procedure {
+            identifier: self.identifier,
+            estimator: self.estimator,
+            bootstrap_replicates: self.bootstrap_replicates,
+            validation: self.validation,
+        }
     }
 
     #[must_use]
@@ -274,5 +289,62 @@ impl CheckedTemporalClassResponseOperation {
             .map_or((0.0, 0.0), |(_, envelope)| {
                 (envelope.envelope.identified_weight.0, envelope.envelope.unidentified_weight.0)
             })
+    }
+}
+
+/// Read-only source graph, completion proof, and procedure of a retained
+/// TemporalCpdag/TemporalPag response.
+#[derive(Clone, Debug)]
+pub struct CheckedTemporalClassResponseInfo {
+    /// Exact response functional, policy, and requested horizons.
+    pub query: antecedent_core::ResponseQuery,
+    /// Source class retained with the completion proof.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Inference mode label fixed during preparation.
+    pub inference: std::sync::Arc<str>,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Circular-block bootstrap budget fixed during preparation.
+    pub bootstrap_replicates: u32,
+    /// Ordered requested horizons, each with a retained completion envelope.
+    pub horizons: std::sync::Arc<[u32]>,
+    /// Number of completion atoms retained for the first requested horizon.
+    pub completion_count: usize,
+    /// Maximum number of class completions searched, when configured.
+    pub completion_limit: Option<usize>,
+    /// Identified enumeration mass retained for the first requested horizon.
+    pub identified_mass: f64,
+    /// Unidentified enumeration mass retained for the first requested horizon.
+    pub unidentified_mass: f64,
+    /// Source graph version sealed with the proof.
+    pub graph_version: u64,
+}
+
+impl Inspect for CheckedTemporalClassResponseOperation {
+    type Info = CheckedTemporalClassResponseInfo;
+
+    fn info(&self) -> CheckedTemporalClassResponseInfo {
+        let Procedure { identifier, estimator, bootstrap_replicates, validation } =
+            self.procedure();
+        let (identified_mass, unidentified_mass) = self.enumeration_mass();
+        CheckedTemporalClassResponseInfo {
+            query: self.query().clone(),
+            graph_class: self.graph_class(),
+            identifier,
+            estimator,
+            inference: inference_label(self.inference()),
+            validation,
+            bootstrap_replicates,
+            horizons: Arc::from(self.horizons()),
+            completion_count: self.completion_count(),
+            completion_limit: self.max_completions(),
+            identified_mass,
+            unidentified_mass,
+            graph_version: u64::from(self.structure_version()),
+        }
     }
 }

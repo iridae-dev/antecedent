@@ -1,0 +1,57 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+impl core::clone::Clone for antecedent_learn_burn::LearnBurnError
+impl core::clone::Clone for antecedent_learn_burn::MlpSpec
+impl core::clone::Clone for antecedent_learn_burn::TrainedMlp
+impl core::error::Error for antecedent_learn_burn::LearnBurnError
+impl core::fmt::Debug for antecedent_learn_burn::LearnBurnError
+impl core::fmt::Debug for antecedent_learn_burn::MlpSpec
+impl core::fmt::Debug for antecedent_learn_burn::TrainedMlp
+impl core::fmt::Display for antecedent_learn_burn::LearnBurnError
+impl core::marker::Copy for antecedent_learn_burn::MlpSpec
+impl core::marker::Freeze for antecedent_learn_burn::LearnBurnError [auto]
+impl core::marker::Freeze for antecedent_learn_burn::MlpSpec [auto]
+impl core::marker::Freeze for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Send for antecedent_learn_burn::LearnBurnError [auto]
+impl core::marker::Send for antecedent_learn_burn::MlpSpec [auto]
+impl core::marker::Send for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Sync for antecedent_learn_burn::LearnBurnError [auto]
+impl core::marker::Sync for antecedent_learn_burn::MlpSpec [auto]
+impl core::marker::Sync for antecedent_learn_burn::TrainedMlp [auto]
+impl core::marker::Unpin for antecedent_learn_burn::LearnBurnError [auto]
+impl core::marker::Unpin for antecedent_learn_burn::MlpSpec [auto]
+impl core::marker::Unpin for antecedent_learn_burn::TrainedMlp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::LearnBurnError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::MlpSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn_burn::TrainedMlp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::LearnBurnError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::MlpSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn_burn::TrainedMlp [auto]
+pub enum antecedent_learn_burn::LearnBurnError
+pub field antecedent_learn_burn::MlpSpec::binary: bool
+pub field antecedent_learn_burn::MlpSpec::epochs: usize
+pub field antecedent_learn_burn::MlpSpec::hidden: usize
+pub field antecedent_learn_burn::MlpSpec::learning_rate: f64
+pub field antecedent_learn_burn::MlpSpec::seed: u64
+pub fn <antecedent_learn_burn::TrainedMlp>::fn predict(&self, x_colmajor: &[f64], nrows: usize, ncols: usize, out: &mut [f64]) -> core::result::Result<(), antecedent_learn_burn::LearnBurnError>
+pub fn antecedent_learn_burn::train(x_colmajor: &[f64], nrows: usize, ncols: usize, y: &[f64], spec: &antecedent_learn_burn::MlpSpec) -> core::result::Result<antecedent_learn_burn::TrainedMlp, antecedent_learn_burn::LearnBurnError>
+pub struct antecedent_learn_burn::MlpSpec
+pub struct antecedent_learn_burn::TrainedMlp
+pub struct antecedent_learn_burn::TrainedMlp has private fields
+pub variant antecedent_learn_burn::LearnBurnError::Architecture
+pub variant antecedent_learn_burn::LearnBurnError::Bias(alloc::string::String)
+pub variant antecedent_learn_burn::LearnBurnError::BinaryLabels
+pub variant antecedent_learn_burn::LearnBurnError::Diverged(f32)
+pub variant antecedent_learn_burn::LearnBurnError::EmptyDesign
+pub variant antecedent_learn_burn::LearnBurnError::LearningRate
+pub variant antecedent_learn_burn::LearnBurnError::LockPoisoned
+pub variant antecedent_learn_burn::LearnBurnError::Loss(alloc::string::String)
+pub variant antecedent_learn_burn::LearnBurnError::MissingBias
+pub variant antecedent_learn_burn::LearnBurnError::NonFiniteInput
+pub variant antecedent_learn_burn::LearnBurnError::NonFiniteWeights
+pub variant antecedent_learn_burn::LearnBurnError::PredictBuffer
+pub variant antecedent_learn_burn::LearnBurnError::PredictShape
+pub variant antecedent_learn_burn::LearnBurnError::ShapeMismatch
+pub variant antecedent_learn_burn::LearnBurnError::Weight(alloc::string::String)
+pub variant antecedent_learn_burn::LearnBurnError::WeightShape

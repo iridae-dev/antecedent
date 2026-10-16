@@ -1,12 +1,9 @@
-//! 2.3A X5 `dependent_temporal_interval`: the internal interval artifact replays the whole
+//! `dependent_temporal_interval`: the internal interval artifact replays the whole
 //! unit resampling from its embedded panel and refuses every resealed mutation of a unit,
 //! time id, value, snapshot, design, estimator or stored replicate. The public interval
 //! route stays closed; this artifact is internal and records calibration `unmeasured`.
 #![allow(
     clippy::cast_precision_loss,
-    clippy::cast_possible_wrap,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     reason = "enumerated binary SCM fixtures use bounded nonnegative counts and indices"
 )]
 
@@ -125,7 +122,7 @@ fn refused(error: IoError) -> (&'static str, String) {
 }
 
 #[test]
-fn x5_dependent_interval_artifact_replays_the_whole_resampling() {
+fn dependent_interval_artifact_replays_the_whole_resampling() {
     let p = panel();
     let estimator =
         antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
@@ -154,7 +151,7 @@ fn x5_dependent_interval_artifact_replays_the_whole_resampling() {
 }
 
 #[test]
-fn x5_dependent_interval_artifact_replays_the_marginalized_estimator() {
+fn dependent_interval_artifact_replays_the_marginalized_estimator() {
     let query = marginalized();
     let wire = artifact_for(&query, IntervalEstimatorWire::marginalized(SEQUENCE, &query));
     assert_eq!(wire.result.estimand, "marginalized_initial_state");
@@ -165,7 +162,7 @@ fn x5_dependent_interval_artifact_replays_the_marginalized_estimator() {
 }
 
 #[test]
-fn x5_dependent_interval_reseal_refuses_unsealed_edits() {
+fn dependent_interval_reseal_refuses_unsealed_edits() {
     let mut wire = artifact();
     wire.result.lower -= 0.01;
     let message = convert_detail(consume(&wire.export().unwrap()));
@@ -173,7 +170,7 @@ fn x5_dependent_interval_reseal_refuses_unsealed_edits() {
 }
 
 #[test]
-fn x5_dependent_interval_reseal_refuses_a_changed_unit_time_value_or_snapshot() {
+fn dependent_interval_reseal_refuses_a_changed_unit_time_value_or_snapshot() {
     let mut unit = artifact();
     unit.panel.units[0].unit_id = 99;
     let message = convert_detail(consume(&reseal(unit)));
@@ -203,7 +200,7 @@ fn x5_dependent_interval_reseal_refuses_a_changed_unit_time_value_or_snapshot() 
 }
 
 #[test]
-fn x5_dependent_interval_reseal_refuses_ill_formed_units_through_the_core() {
+fn dependent_interval_reseal_refuses_ill_formed_units_through_the_core() {
     let mut duplicate = artifact();
     duplicate.panel.units[1].unit_id = duplicate.panel.units[0].unit_id;
     let (code, message) = refused(consume(&reseal(duplicate)));
@@ -224,7 +221,7 @@ fn x5_dependent_interval_reseal_refuses_ill_formed_units_through_the_core() {
 }
 
 #[test]
-fn x5_dependent_interval_reseal_refuses_a_changed_design_estimator_or_stored_replicate() {
+fn dependent_interval_reseal_refuses_a_changed_design_estimator_or_stored_replicate() {
     let mut seed = artifact();
     seed.config.seed += 1;
     let message = convert_detail(consume(&reseal(seed)));
@@ -262,7 +259,7 @@ fn x5_dependent_interval_reseal_refuses_a_changed_design_estimator_or_stored_rep
 }
 
 #[test]
-fn x5_dependent_interval_reseal_refuses_a_source_law_and_over_limit_replays() {
+fn dependent_interval_reseal_refuses_a_source_law_and_over_limit_replays() {
     let query = marginalized();
     let mut source = artifact_for(&query, IntervalEstimatorWire::marginalized(SEQUENCE, &query));
     source.estimator.law.as_mut().unwrap().population = "source".into();
@@ -293,7 +290,7 @@ fn identity(snapshot: &str, period: (i64, i64)) -> TemporalWindowIdentity {
 }
 
 #[test]
-fn x5_dependent_interval_artifact_links_the_refresh_that_produced_its_panel() {
+fn dependent_interval_artifact_links_the_refresh_that_produced_its_panel() {
     let held = HeldTemporalResult {
         identity: identity("interval-panel-old", (0, 10)),
         value: 0.0_f64,
@@ -336,7 +333,7 @@ fn x5_dependent_interval_artifact_links_the_refresh_that_produced_its_panel() {
 }
 
 #[test]
-fn x5_dependent_interval_artifact_refuses_an_interval_of_another_panel() {
+fn dependent_interval_artifact_refuses_an_interval_of_another_panel() {
     let p = panel();
     let estimator =
         antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(

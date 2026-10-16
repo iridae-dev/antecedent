@@ -87,7 +87,7 @@ def test_combined_entry_fixed_g_pointwise_interval_round_trip(competing: bool) -
     else:
         assert section.rmst_difference_interval is not None
         assert section.survival_at_tau_difference_interval is not None
-    body = ant.load(result.export()).artifact.payload
+    body = ant.load(result.export()).decoded_artifact.payload
     assert body["query"]["survival"]["delayed_entry"] is not None
     assert len(body["query"]["survival"]["censoring_columns"]) == 5
     assert body["survival"]["difference_at_tau_interval"] is not None

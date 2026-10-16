@@ -1,4 +1,4 @@
-//! F11/F12/F14 facade: candidate signals, preposterior EVSI with a cost mapping, and the
+//! Design-ranking facade: candidate signals, preposterior EVSI with a cost mapping, and the
 //! durable `design_ranking_v1` ranking artifact.
 //!
 //! A caller declares the decision (terminal actions, an affine utility in a scalar state, a
@@ -20,10 +20,11 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    CancellationToken, ExternalCapability, ExternalRefusal, ExternalScientificObject,
-    ExternalTrustState, ProviderObjectIdentity, ScientificQuantity, SignalProviderContract,
+use antecedent_contract::{
+    ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
+    ProviderObjectIdentity, ScientificQuantity, SignalProviderContract,
 };
+use antecedent_core::CancellationToken;
 use antecedent_design::design_ranking_artifact::{SealInputs, seal};
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiReport, EvsiRequest, StudyCostSpec,
@@ -42,11 +43,11 @@ use antecedent_io::quantity_wire::ScientificQuantityWire;
 use serde::Deserialize;
 
 pub use antecedent_design::design_ranking_artifact::{
-    CandidateWire, ConsumeExpectation, ConsumedCandidate, ConsumedDesignRanking,
-    DESIGN_RANKING_ARTIFACT_KIND, DESIGN_RANKING_ARTIFACT_VERSION, DESIGN_RANKING_CALIBRATION,
-    DesignRankingArtifactError, DesignRankingArtifactWire, ReplayKind, consume, consume_wire,
+    ConsumeExpectation, ConsumedCandidate, ConsumedDesignRanking, DESIGN_RANKING_ARTIFACT_KIND,
+    DESIGN_RANKING_ARTIFACT_VERSION, DESIGN_RANKING_CALIBRATION, DesignRankingArtifactError,
+    DesignRankingArtifactWire, EvsiCandidateWire, ReplayKind, consume, consume_wire,
 };
-pub use antecedent_design::ranking::{DesignRanking, DesignRankingBasis};
+pub use antecedent_design::ranking::{DesignRankingBasis, RankingRecord};
 pub use antecedent_design::signal::{SignalTrustLabel, SignalUpdateMode};
 
 fn default_mc_error_tolerance() -> f64 {
@@ -552,7 +553,7 @@ fn prepare(wire: &DesignRankingRequestWire) -> Result<Prepared, DesignRankingErr
 #[derive(Clone, Debug)]
 pub struct DesignRankingEvaluation {
     report: EvsiReport,
-    ranking: DesignRanking,
+    ranking: RankingRecord,
     wire: DesignRankingArtifactWire,
 }
 
@@ -565,7 +566,7 @@ impl DesignRankingEvaluation {
 
     /// The order-invariant in-memory ranking value.
     #[must_use]
-    pub fn ranking(&self) -> &DesignRanking {
+    pub fn ranking(&self) -> &RankingRecord {
         &self.ranking
     }
 
@@ -614,18 +615,18 @@ pub fn evaluate(
         report: &report,
         source_digests: &wire.source_digests,
     })?;
-    let ranking = DesignRanking::from_evsi(&report, &wire.source_digests)?;
+    let ranking = RankingRecord::from_evsi(&report, &wire.source_digests)?;
     Ok(DesignRankingEvaluation { report, ranking, wire: artifact })
 }
 
-/// The 2.2 ordering when no probabilistic model is licensed: verified structural
+/// The structural ordering when no probabilistic model is licensed: verified structural
 /// sufficiency, then fewer cost units, then smaller sample budget, then semantic id.
 ///
 /// # Errors
 /// No candidates, or a repeated semantic id.
 pub fn rank_structural(
     candidates: &[StructuralCandidateDeclWire],
-) -> Result<DesignRanking, DesignRankingError> {
+) -> Result<RankingRecord, DesignRankingError> {
     let declared: Vec<StructuralCandidate> = candidates
         .iter()
         .map(|c| StructuralCandidate {
@@ -634,5 +635,5 @@ pub fn rank_structural(
             cost: StudyCost { units: c.cost_units, sample_budget: c.sample_budget },
         })
         .collect();
-    Ok(DesignRanking::from_structural(&declared)?)
+    Ok(RankingRecord::from_structural(&declared)?)
 }

@@ -75,7 +75,7 @@ impl OverlapRuleRefuter {
             report.refuter = Arc::from("overlap.continuous_rule");
             return Ok(report);
         }
-        let report = if let Some(r) = &problem.original.overlap_report {
+        let report = if let Some(r) = &problem.original.diagnostics.overlap_report {
             r.clone()
         } else {
             let fit = self.diagnostic_report(problem, eps, propensity)?;
@@ -102,37 +102,35 @@ impl OverlapRuleRefuter {
             fit.report.target_population_support
         };
         let passed = retained >= self.min_retained_fraction;
-        Ok(RefutationReport {
-            refuter: Arc::from("overlap.rule"),
-            original_ate: problem.original.ate,
-            refuted_ate: problem.original.ate,
-            comparison: 1.0 - retained,
-            informative: true,
-            passed,
-            failure_condition: if passed {
+        Ok(RefutationReport::builder("overlap.rule")
+            .original_ate(problem.original.ate)
+            .refuted_ate(problem.original.ate)
+            .comparison(1.0 - retained)
+            .informative(true)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(format!(
                     "overlap rule eps={eps}: retained_fraction={retained} < min {}",
                     self.min_retained_fraction
                 )))
-            },
-            replicates: 0,
-        })
+            })
+            .replicates(0)
+            .build())
     }
 
     /// The rule failure a separated / non-converged diagnostic propensity fit stands for.
     fn separated_report(problem: &RefutationProblem<'_>, defect: &str) -> RefutationReport {
-        RefutationReport {
-            refuter: Arc::from("overlap.rule"),
-            original_ate: problem.original.ate,
-            refuted_ate: problem.original.ate,
-            comparison: 1.0,
-            informative: true,
-            passed: false,
-            failure_condition: Some(Arc::from(defect)),
-            replicates: 0,
-        }
+        RefutationReport::builder("overlap.rule")
+            .original_ate(problem.original.ate)
+            .refuted_ate(problem.original.ate)
+            .comparison(1.0)
+            .informative(true)
+            .passed(false)
+            .failure_condition(Some(Arc::from(defect)))
+            .replicates(0)
+            .build()
     }
 
     fn diagnostic_report(

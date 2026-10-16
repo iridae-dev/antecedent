@@ -1,4 +1,4 @@
-//! B3 mechanism discrepancy artifact: hand-derived acceptance numbers through the container, a
+//! Mechanism discrepancy artifact: hand-derived acceptance numbers through the container, a
 //! recomputing consumer, resealed-mutation refusals against a retained identity, unresealed
 //! tampering, unknown versions, the never-certifies-invariance flag and the unmeasured
 //! calibration coordinate.
@@ -9,7 +9,6 @@
 //! `RSS`). Both covariances are `[[0.63,-0.27],[-0.27,0.18]]`, the summed covariance is twice
 //! that, the difference is `(0.5, 0.5)` and the Wald statistic is `25/6` with df 2, so
 //! `p = exp(-25/12)`.
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::mechanism_discrepancy_artifact::{
     MECHANISM_DISCREPANCY_ARTIFACT_VERSION, MECHANISM_DISCREPANCY_CALIBRATION, MeasurementWire,
@@ -48,18 +47,21 @@ fn request() -> MechanismDiscrepancyRequestWire {
     }
 }
 
+#[path = "common/mod.rs"]
+mod common;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    common::close(actual, expected, 1e-9, what);
 }
 
 fn export(request: &MechanismDiscrepancyRequestWire) -> (MechanismDiscrepancyArtifact, Vec<u8>) {
     let artifact = MechanismDiscrepancyArtifact::seal(request).unwrap();
-    let bytes = artifact.to_bytes("b3-discrepancy-test").unwrap();
+    let bytes = artifact.to_bytes("discrepancy-test").unwrap();
     (artifact, bytes)
 }
 
 #[test]
-fn b3_discrepancy_artifact_acceptance_numbers_replay_through_the_container() {
+fn discrepancy_artifact_acceptance_numbers_replay_through_the_container() {
     let (artifact, bytes) = export(&request());
     let consumed =
         MechanismDiscrepancyArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
@@ -87,7 +89,7 @@ fn b3_discrepancy_artifact_acceptance_numbers_replay_through_the_container() {
 }
 
 #[test]
-fn b3_discrepancy_artifact_incomparable_measurements_refuse_with_the_core_detail() {
+fn discrepancy_artifact_incomparable_measurements_refuse_with_the_core_detail() {
     let mut units = request();
     units.target.measurement = measurement("protocol-1", "m");
     let (code, detail, _) =
@@ -103,7 +105,7 @@ fn b3_discrepancy_artifact_incomparable_measurements_refuse_with_the_core_detail
 }
 
 #[test]
-fn b3_discrepancy_artifact_dependence_must_be_declared_independent() {
+fn discrepancy_artifact_dependence_must_be_declared_independent() {
     for kind in ["unknown", "shared_units"] {
         let mut dependent = request();
         dependent.dependence = kind.into();
@@ -141,7 +143,7 @@ fn resealed_mutation_refuses(
 }
 
 #[test]
-fn b3_discrepancy_artifact_resealed_measurement_contract_is_refused() {
+fn discrepancy_artifact_resealed_measurement_contract_is_refused() {
     let original = request();
     let mut protocol = original.clone();
     protocol.source.measurement = measurement("protocol-9", "cm");
@@ -154,7 +156,7 @@ fn b3_discrepancy_artifact_resealed_measurement_contract_is_refused() {
 }
 
 #[test]
-fn b3_discrepancy_artifact_resealed_evidence_is_refused() {
+fn discrepancy_artifact_resealed_evidence_is_refused() {
     let original = request();
     let mut source = original.clone();
     source.source.yty = 31.0;
@@ -168,7 +170,7 @@ fn b3_discrepancy_artifact_resealed_evidence_is_refused() {
 }
 
 #[test]
-fn b3_discrepancy_artifact_resealed_design_is_refused() {
+fn discrepancy_artifact_resealed_design_is_refused() {
     let original = request();
     let mut level = original.clone();
     level.alpha = 0.01;
@@ -182,7 +184,7 @@ fn b3_discrepancy_artifact_resealed_design_is_refused() {
 }
 
 #[test]
-fn b3_discrepancy_artifact_unresealed_tampering_does_not_replay() {
+fn discrepancy_artifact_unresealed_tampering_does_not_replay() {
     let (artifact, bytes) = export(&request());
     let (meta, numbers) = decode_parts(&bytes).unwrap();
     let reencode = |m: &MechanismDiscrepancyMeta, n: &[u8]| encode_parts(m, n, "forged").unwrap();
@@ -283,7 +285,7 @@ fn b3_discrepancy_artifact_unresealed_tampering_does_not_replay() {
 }
 
 #[test]
-fn b3_discrepancy_artifact_unknown_version_and_corruption_refuse() {
+fn discrepancy_artifact_unknown_version_and_corruption_refuse() {
     let (_, bytes) = export(&request());
     let (meta, numbers) = decode_parts(&bytes).unwrap();
     let mut future = meta.clone();

@@ -1,15 +1,11 @@
-//! 2.3A A1 (X2): independent recomputation of the shared-data covariance.
+//! Independent recomputation of the shared-data covariance.
 //!
 //! The units are the six complete rows `(z, x, y)` the estimate-layer oracle uses. The
 //! declared scenarios are linear plug-in scores (closed form `(E[ab] - E[a]E[b]) / n`
 //! under multinomial resampling) and the adjusted and crude contrasts (checked against a
 //! walk of all `n^n` row-index tuples). A fresh consumer must reproduce the matrix bit
 //! for bit from the artifact alone and refuse every re-sealed change.
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::float_cmp,
-    reason = "tiny fixtures with exact small integers"
-)]
+#![allow(clippy::cast_precision_loss, reason = "tiny fixtures with exact small integers")]
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::scenario_covariance::ScenarioCovariance;
@@ -225,7 +221,7 @@ fn enumerate_tuples() -> ([[f64; 2]; 2], f64) {
 // ---- positive: the declared functionals match the oracles -------------------------------
 
 #[test]
-fn x2_covariance_artifact_exact_linear_scores_match_closed_form_and_replay() {
+fn covariance_artifact_exact_linear_scores_match_closed_form_and_replay() {
     let (bytes, original) = produce(&spec(&["a", "b", "c"], exact(0.0)));
     let names = ["a", "b", "c"];
     for (i, first) in names.iter().enumerate() {
@@ -252,7 +248,7 @@ fn x2_covariance_artifact_exact_linear_scores_match_closed_form_and_replay() {
 }
 
 #[test]
-fn x2_covariance_artifact_adjusted_pair_matches_tuple_enumeration_with_joint_dropping() {
+fn covariance_artifact_adjusted_pair_matches_tuple_enumeration_with_joint_dropping() {
     let (oracle, failed_fraction) = enumerate_tuples();
     assert!(failed_fraction > 0.0, "empty strata must occur");
     let (bytes, exact) = produce(&spec(&["adjusted", "crude"], exact(0.9)));
@@ -268,7 +264,7 @@ fn x2_covariance_artifact_adjusted_pair_matches_tuple_enumeration_with_joint_dro
 }
 
 #[test]
-fn x2_covariance_artifact_bootstrap_replays_bit_identically_and_is_seed_sensitive() {
+fn covariance_artifact_bootstrap_replays_bit_identically_and_is_seed_sensitive() {
     let (bytes, original) = produce(&spec(&["a", "b"], bootstrap(42)));
     assert_eq!(original.seed, Some(42));
     assert_eq!(original.replicates_total, 300);
@@ -282,7 +278,7 @@ fn x2_covariance_artifact_bootstrap_replays_bit_identically_and_is_seed_sensitiv
 }
 
 #[test]
-fn x2_covariance_artifact_scenario_permutation_reorders_rows_and_columns_identically() {
+fn covariance_artifact_scenario_permutation_reorders_rows_and_columns_identically() {
     let first = spec(&["a", "b", "c"], exact(0.0)).compute(&ctx()).unwrap();
     let second = spec(&["c", "a", "b"], exact(0.0)).compute(&ctx()).unwrap();
     for x in ["a", "b", "c"] {
@@ -298,7 +294,7 @@ fn x2_covariance_artifact_scenario_permutation_reorders_rows_and_columns_identic
 // ---- negative: resealed changes ----------------------------------------------------------
 
 #[test]
-fn x2_covariance_artifact_resealed_changes_are_refused() {
+fn covariance_artifact_resealed_changes_are_refused() {
     let (bytes, _) = produce(&spec(&["a", "b"], exact(0.0)));
     let mismatch = |wire: ScenarioCovarianceArtifactWire| {
         let (code, message) = refused(consume(&reseal(wire)));
@@ -326,7 +322,7 @@ fn x2_covariance_artifact_resealed_changes_are_refused() {
 }
 
 #[test]
-fn x2_covariance_artifact_scenario_on_a_different_snapshot_refuses_unknown_dependence() {
+fn covariance_artifact_scenario_on_a_different_snapshot_refuses_unknown_dependence() {
     let (bytes, _) = produce(&spec(&["a", "b"], exact(0.0)));
     let other = |wire: &mut ScenarioCovarianceArtifactWire| {
         wire.scenarios[1].snapshot = "snapshot:rows-v2".into();
@@ -356,7 +352,7 @@ fn x2_covariance_artifact_scenario_on_a_different_snapshot_refuses_unknown_depen
 }
 
 #[test]
-fn x2_covariance_artifact_version_features_and_consumer_limits_refuse() {
+fn covariance_artifact_version_features_and_consumer_limits_refuse() {
     let (bytes, _) = produce(&spec(&["a", "b"], bootstrap(7)));
     let future = edit(&bytes, |w| w.version = 2).export().unwrap();
     assert!(matches!(
@@ -391,7 +387,7 @@ fn x2_covariance_artifact_version_features_and_consumer_limits_refuse() {
 }
 
 #[test]
-fn x2_covariance_artifact_invalid_declarations_refuse_with_typed_details() {
+fn covariance_artifact_invalid_declarations_refuse_with_typed_details() {
     let invalid = |change: &dyn Fn(&mut CovarianceSpec), detail: &str| {
         let mut declared = spec(&["a", "b"], exact(0.0));
         change(&mut declared);

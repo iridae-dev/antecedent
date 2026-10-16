@@ -1,4 +1,4 @@
-//! Stage model for selective recalculation (2.3 C2).
+//! Stage model for selective recalculation.
 //!
 //! A causal workflow is a small directed graph of stages: declared inputs (graph, query,
 //! regime, evidence, populations, data snapshot, row design, treatment grid,
@@ -15,6 +15,15 @@
 //! only ever reused when an artifact for it exists on the declared side of the process
 //! boundary (see [`Boundary`] and [`ResumeContext`]).
 //!
+//! Besides the declared inputs, a workflow may declare typed standing inputs: the calibration
+//! record an uncertainty statement rests on, the representation (model family and version),
+//! the coupling between sampled streams, and the standing of each external provider (see
+//! [`CalibrationInput`], [`RepresentationInput`], [`CouplingInput`], [`ProviderStandingInput`]).
+//! A standing input is part of an effective identity only when it is declared, so a workflow
+//! that declares none keeps the identities it always had; once declared, a change in any of them
+//! flows to the law and the decision as a recomputation (or, when the input was removed, as a
+//! withdrawal under [`Revalidation`]).
+//!
 //! Scope notes that matter to readers of a plan:
 //!
 //! - "Reused" never means "persistently cached". Within one process it names an artifact the
@@ -29,6 +38,15 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+
+use crate::identity::CanonicalWriter;
+
+mod standing;
+
+pub use standing::{
+    CalibrationInput, CouplingInput, ProviderStandingInput, RepresentationInput,
+    STANDING_INPUT_VERSION,
+};
 
 /// Number of external-study branches a workflow may carry.
 pub const MAX_EXTERNAL_BRANCHES: u8 = 8;
@@ -47,13 +65,12 @@ impl StageIdentity {
     /// `["a", "bc"]` differ.
     #[must_use]
     pub fn of(label: &str, parts: &[&[u8]]) -> Self {
-        let mut hasher = blake3::Hasher::new_derive_key(STAGE_IDENTITY_KEY);
-        put(&mut hasher, label.as_bytes());
-        hasher.update(&(parts.len() as u64).to_le_bytes());
+        let mut hasher = CanonicalWriter::new(STAGE_IDENTITY_KEY);
+        hasher.text(label).word(parts.len() as u64);
         for part in parts {
-            put(&mut hasher, part);
+            hasher.bytes(part);
         }
-        Self(*hasher.finalize().as_bytes())
+        Self(hasher.finish())
     }
 
     /// Raw digest bytes.
@@ -89,6 +106,18 @@ impl StageIdentity {
         Some(Self(out))
     }
 
+    /// The three-state class of this identity against the one retained for the same
+    /// artifact: equal is `still_valid`; a different identity, or none retained, asks for
+    /// recomputation. A planner that keeps its own stage identities (discovery, counterfactual
+    /// execution, callback replay) adapts onto the one classification through this.
+    #[must_use]
+    pub fn revalidation_since(&self, retained: Option<Self>) -> Revalidation {
+        match retained {
+            Some(previous) if previous == *self => Revalidation::StillValid,
+            _ => Revalidation::Recompute,
+        }
+    }
+
     /// Whether this is [`Self::ABSENT`].
     #[must_use]
     pub fn is_absent(&self) -> bool {
@@ -98,13 +127,7 @@ impl StageIdentity {
     /// Lowercase hex encoding (64 characters).
     #[must_use]
     pub fn to_hex(&self) -> String {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let mut out = String::with_capacity(64);
-        for byte in self.0 {
-            out.push(HEX[usize::from(byte >> 4)] as char);
-            out.push(HEX[usize::from(byte & 0x0f)] as char);
-        }
-        out
+        crate::identity::to_hex(&self.0)
     }
 }
 
@@ -112,11 +135,6 @@ impl fmt::Display for StageIdentity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.to_hex())
     }
-}
-
-fn put(hasher: &mut blake3::Hasher, bytes: &[u8]) {
-    hasher.update(&(bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
 }
 
 /// Index of one external-study branch, below [`MAX_EXTERNAL_BRANCHES`].
@@ -162,8 +180,16 @@ pub enum Stage {
     LearnerFoldsRng,
     /// Input: the utility declaration.
     Utility,
+    /// Standing input: the calibration record an uncertainty statement rests on.
+    Calibration,
+    /// Standing input: the representation (model family and version) the artifacts use.
+    Representation,
+    /// Standing input: the coupling between sampled streams (shared noise, aligned draws).
+    Coupling,
     /// Input: one external study.
     ExternalStudy(Branch),
+    /// Standing input: the verification standing of one external provider.
+    ProviderStanding(Branch),
     /// Derived: the provider request and version for one external study.
     ProviderRequest(Branch),
     /// Derived: the prior built from one external study and the evidence.
@@ -194,9 +220,13 @@ impl Stage {
             Self::TreatmentGrid,
             Self::LearnerFoldsRng,
             Self::Utility,
+            Self::Calibration,
+            Self::Representation,
+            Self::Coupling,
         ];
         let branches = || (0..MAX_EXTERNAL_BRANCHES).map(Branch);
         stages.extend(branches().map(Self::ExternalStudy));
+        stages.extend(branches().map(Self::ProviderStanding));
         stages.extend(branches().map(Self::ProviderRequest));
         stages.extend(branches().map(Self::Prior));
         stages.extend([Self::Identification, Self::ScoreArtifact, Self::Law, Self::Decision]);
@@ -218,7 +248,11 @@ impl Stage {
             Self::TreatmentGrid => "treatment_grid".to_string(),
             Self::LearnerFoldsRng => "learner_folds_rng".to_string(),
             Self::Utility => "utility".to_string(),
+            Self::Calibration => "calibration".to_string(),
+            Self::Representation => "representation".to_string(),
+            Self::Coupling => "coupling".to_string(),
             Self::ExternalStudy(b) => format!("external_study.{}", b.0),
+            Self::ProviderStanding(b) => format!("provider_standing.{}", b.0),
             Self::ProviderRequest(b) => format!("provider_request.{}", b.0),
             Self::Prior(b) => format!("prior.{}", b.0),
             Self::Identification => "identification".to_string(),
@@ -239,6 +273,16 @@ impl Stage {
                 | Self::ScoreArtifact
                 | Self::Law
                 | Self::Decision
+        )
+    }
+
+    /// Whether this stage is a standing input: an input that enters an effective identity only
+    /// when it is declared, so that workflows predating it keep their identities.
+    #[must_use]
+    pub const fn is_standing(self) -> bool {
+        matches!(
+            self,
+            Self::Calibration | Self::Representation | Self::Coupling | Self::ProviderStanding(_)
         )
     }
 
@@ -263,9 +307,12 @@ impl Stage {
                 if retarget == RetargetSupport::NotDeclared {
                     deps.push(Self::TargetPopulation);
                 }
+                deps.push(Self::Representation);
                 deps
             }
-            Self::Law => vec![Self::ScoreArtifact, Self::TargetPopulation],
+            Self::Law => {
+                vec![Self::ScoreArtifact, Self::TargetPopulation, Self::Calibration, Self::Coupling]
+            }
             Self::ProviderRequest(b) => {
                 vec![
                     Self::ExternalStudy(b),
@@ -276,6 +323,7 @@ impl Stage {
                     Self::SourcePopulation,
                     Self::TargetPopulation,
                     Self::TreatmentGrid,
+                    Self::ProviderStanding(b),
                 ]
             }
             Self::Prior(b) => {
@@ -288,10 +336,11 @@ impl Stage {
                     Self::SourcePopulation,
                     Self::TargetPopulation,
                     Self::TreatmentGrid,
+                    Self::ProviderStanding(b),
                 ]
             }
             Self::Decision => {
-                let mut deps = vec![Self::Law, Self::Utility];
+                let mut deps = vec![Self::Law, Self::Utility, Self::Calibration, Self::Coupling];
                 for i in 0..MAX_EXTERNAL_BRANCHES {
                     deps.push(Self::Prior(Branch(i)));
                     deps.push(Self::ProviderRequest(Branch(i)));
@@ -338,6 +387,26 @@ impl StageIdentities {
         self.own.insert(stage, own);
     }
 
+    /// Declare the calibration standing input.
+    pub fn set_calibration(&mut self, input: &CalibrationInput) {
+        self.set(Stage::Calibration, input.identity());
+    }
+
+    /// Declare the representation standing input.
+    pub fn set_representation(&mut self, input: &RepresentationInput) {
+        self.set(Stage::Representation, input.identity());
+    }
+
+    /// Declare the coupling standing input.
+    pub fn set_coupling(&mut self, input: &CouplingInput) {
+        self.set(Stage::Coupling, input.identity());
+    }
+
+    /// Declare the standing of the provider behind `branch`.
+    pub fn set_provider_standing(&mut self, branch: Branch, input: &ProviderStandingInput) {
+        self.set(Stage::ProviderStanding(branch), input.identity(branch));
+    }
+
     /// Remove `stage` from the workflow.
     pub fn remove(&mut self, stage: Stage) {
         self.own.remove(&stage);
@@ -367,6 +436,11 @@ impl StageIdentities {
             };
             let mut parts: Vec<Vec<u8>> = vec![own.0.to_vec()];
             for dep in stage.dependencies(retarget) {
+                // An undeclared standing input contributes nothing, so a workflow that
+                // never declared one keeps the effective identities it had before.
+                if dep.is_standing() && !self.own.contains_key(&dep) {
+                    continue;
+                }
                 let id = out.get(&dep).copied().unwrap_or(StageIdentity::ABSENT);
                 parts.push(dep.label().into_bytes());
                 parts.push(id.0.to_vec());
@@ -412,7 +486,10 @@ pub enum RequestSupport {
 /// An ordinary loaded result supplies none of these (all `false`).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 // Independent availability flags; a state enum would not model their combinations.
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent switch of the record; they do not form a state machine"
+)]
 pub struct ResumeContext {
     /// A portable fitted predictor is available.
     pub portable_fit: bool,
@@ -471,7 +548,58 @@ pub enum ChangeKind {
     Modified,
 }
 
+/// The one three-state classification of anything that rests on recalculation inputs: a
+/// stage artifact, a claim, a ledger result, a cached query result.
+///
+/// Every other reuse vocabulary (planner statuses, ledger standings, claim freshness,
+/// discovery and counterfactual stage receipts, callback replay plans) adapts onto this enum.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub enum Revalidation {
+    /// Nothing it rests on changed.
+    StillValid,
+    /// An input changed but a successor exists: recompute it.
+    Recompute,
+    /// An input it cannot do without is gone: it must not be used.
+    Withdrawn,
+}
+
+impl Revalidation {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::StillValid => "still_valid",
+            Self::Recompute => "recompute",
+            Self::Withdrawn => "withdrawn",
+        }
+    }
+
+    /// Parse a wire name.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [Self::StillValid, Self::Recompute, Self::Withdrawn]
+            .into_iter()
+            .find(|class| class.as_str() == name)
+    }
+
+    /// The more severe of two classes (`withdrawn` over `recompute` over `still_valid`).
+    #[must_use]
+    pub fn worst(self, other: Self) -> Self {
+        self.max(other)
+    }
+}
+
 impl ChangeKind {
+    /// The class an input change of this kind gives its dependents: an input that is gone is a
+    /// withdrawal, any other change asks for recomputation.
+    #[must_use]
+    pub const fn revalidation(self) -> Revalidation {
+        match self {
+            Self::Removed => Revalidation::Withdrawn,
+            Self::Added | Self::Modified => Revalidation::Recompute,
+        }
+    }
+
     const fn as_str(self) -> &'static str {
         match self {
             Self::Added => "added",
@@ -596,6 +724,22 @@ pub enum StageStatus {
 }
 
 impl StageStatus {
+    /// The three-state class of this status: reuse is `still_valid`; a recomputation is
+    /// `recompute`, unless the change that forced it removed an input (`withdrawn`); a refused
+    /// stage cannot be served and is `withdrawn`.
+    #[must_use]
+    pub const fn revalidation(&self) -> Revalidation {
+        match self {
+            Self::Reused { .. } => Revalidation::StillValid,
+            Self::Recomputed { because } => match because {
+                ChangedDependency::Own { change, .. }
+                | ChangedDependency::Upstream { change, .. } => (*change).revalidation(),
+                ChangedDependency::FreshProcess => Revalidation::Recompute,
+            },
+            Self::Refused { .. } => Revalidation::Withdrawn,
+        }
+    }
+
     /// `reused`, `recomputed`, or `refused`.
     #[must_use]
     pub const fn tag(&self) -> &'static str {
@@ -704,6 +848,12 @@ impl RecalcPlan {
     #[must_use]
     pub fn status(&self, stage: Stage) -> Option<&StageStatus> {
         self.entries.iter().find(|e| e.stage == stage).map(|e| &e.status)
+    }
+
+    /// Three-state class of `stage`, when it is part of the requested workflow.
+    #[must_use]
+    pub fn revalidation(&self, stage: Stage) -> Option<Revalidation> {
+        self.status(stage).map(StageStatus::revalidation)
     }
 
     /// Effective identity of `stage` in the requested workflow.

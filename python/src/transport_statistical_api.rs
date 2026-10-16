@@ -228,7 +228,7 @@ impl PreparedStatisticalStage {
             if result.bayesian_estimate().is_some() {
                 let available = result.reasoning().uncertainty.is_available();
                 let reason = match &result.reasoning().uncertainty {
-                    antecedent_core::SlotAvailability::Unavailable { reason } => {
+                    antecedent_contract::SlotAvailability::Unavailable { reason } => {
                         Some(reason.as_ref())
                     }
                     _ => None,
@@ -253,7 +253,9 @@ impl PreparedStatisticalStage {
         } else {
             let licensed = view.reasoning.uncertainty.is_available();
             let reason = match &view.reasoning.uncertainty {
-                antecedent_core::SlotAvailability::Unavailable { reason } => Some(reason.as_ref()),
+                antecedent_contract::SlotAvailability::Unavailable { reason } => {
+                    Some(reason.as_ref())
+                }
                 _ => None,
             };
             serde_json::json!({

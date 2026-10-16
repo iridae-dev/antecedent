@@ -1,5 +1,5 @@
 //! Coverage of the unpublished family-level max-t band of a batch retarget (record
-//! `2.2E.E3.batch_retarget_covariance_contrasts`, closed route
+//! `estimate.batch_retarget_covariance`, closed route
 //! `antecedent.PreparedBatch.simultaneous_interval`).
 //!
 //! Four retargeted AIPW claims share one row snapshot: two binary treatments and two
@@ -11,13 +11,10 @@
 //! (covered) or 2.0 (missed), the same way the response-curve simultaneous band is scored.
 //!
 //! `batch_retarget_max_t_simultaneous_band` is registered in `scripts/gate_calibration.sh`
-//! (`run_br`, measured over the sample-size grid) and is measured once at the release cut;
-//! until then the published interval stays closed (`cell_not_licensed`) and no coverage
-//! record exists. The evaluator is `antecedent::simultaneous_band_unpublished`.
+//! (`run_br`, measured over the sample-size grid); its coverage is unmeasured, so the
+//! published interval stays closed (`cell_not_licensed`) and no coverage record exists. The evaluator is `antecedent::simultaneous_band_unpublished`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![allow(clippy::cast_precision_loss)]
 
 mod common;
 

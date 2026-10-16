@@ -318,12 +318,7 @@ fn independently_bound_prior_transfer_body() {
     let source_wire =
         antecedent_io::bayesian_prior_recalc_artifact::BoundBayesianPriorWire::decode(&bytes)
             .unwrap();
-    let source_snapshot =
-        source_wire.source_snapshot.iter().fold(String::new(), |mut text, byte| {
-            use std::fmt::Write;
-            write!(text, "{byte:02x}").unwrap();
-            text
-        });
+    let source_snapshot = antecedent_core::to_hex(&source_wire.source_snapshot);
     assert_eq!(
         consumed
             .contract

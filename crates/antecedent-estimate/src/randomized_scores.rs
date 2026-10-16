@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Minimum independently assigned rows for a pointwise action-contrast interval.
-pub const MIN_ROWS_FOR_INTERVAL: usize = 400;
+pub(crate) const MIN_ROWS_FOR_INTERVAL: usize = 400;
 /// Minimum observed rows in each contrasted action for an interval.
-pub const MIN_ACTION_ROWS_FOR_INTERVAL: usize = 30;
+pub(crate) const MIN_ACTION_ROWS_FOR_INTERVAL: usize = 30;
 /// Minimum declared probability for either contrasted action at every row.
-pub const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.2;
+pub(crate) const MIN_ACTION_PROBABILITY_FOR_INTERVAL: f64 = 0.2;
 use antecedent_stats::NORMAL_Q975 as NORMAL_95;
 
 /// Horvitz–Thompson effect and its conservative independent-row score variance.
@@ -78,8 +78,8 @@ pub fn independent_action_contrast(
         return None;
     }
     let effect = scores.iter().sum::<f64>() / n as f64;
-    let variance_upper_bound =
-        scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>() / ((n - 1) * n) as f64;
+    let variance_upper_bound = scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>()
+        / ((n - 1) as f64 * n as f64);
     if !effect.is_finite() || !variance_upper_bound.is_finite() || variance_upper_bound < 0.0 {
         return None;
     }
@@ -177,7 +177,7 @@ pub fn complier_wald_effect(
     }
     let first_stage_variance =
         receipt_scores.iter().map(|score| (score - first_stage).powi(2)).sum::<f64>()
-            / ((n - 1) * n) as f64;
+            / ((n - 1) as f64 * n as f64);
     let effect = intention_to_treat_effect / first_stage;
     let influence = outcome_scores
         .iter()
@@ -185,8 +185,8 @@ pub fn complier_wald_effect(
         .map(|(outcome, receipt)| (outcome - effect * receipt) / first_stage)
         .collect::<Vec<_>>();
     let mean = influence.iter().sum::<f64>() / n as f64;
-    let variance =
-        influence.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / ((n - 1) * n) as f64;
+    let variance = influence.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
+        / ((n - 1) as f64 * n as f64);
     if !effect.is_finite() || !variance.is_finite() || variance < 0.0 {
         return None;
     }
@@ -210,13 +210,128 @@ pub fn complier_wald_effect(
     })
 }
 
+/// Horvitz–Thompson contrast after pooled covariate residualization.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CupedHtEffect {
+    /// Contrast of the residualized outcome.
+    pub effect: f64,
+    /// Pooled outcome-on-covariate slope.
+    pub beta: f64,
+    /// Independent-row score standard error of [`Self::effect`].
+    pub standard_error: f64,
+}
+
+/// CUPED residualization with a known-propensity Horvitz–Thompson contrast.
+///
+/// The slope is the pooled outcome–covariate covariance divided by the
+/// covariate's second moment. Refusal strings match the historical Python entry.
+pub fn cuped_ht_effect(
+    outcome: &[f64],
+    covariate: &[f64],
+    assignment: &[bool],
+    propensity: &[f64],
+) -> Result<CupedHtEffect, &'static str> {
+    let n = outcome.len();
+    if n < 2
+        || covariate.len() != n
+        || assignment.len() != n
+        || (propensity.len() != 1 && propensity.len() != n)
+    {
+        return Err("outcome, covariate, assignment, and propensity must have compatible rows");
+    }
+    if outcome.iter().chain(covariate).any(|value| !value.is_finite()) {
+        return Err("outcomes and covariates must be finite");
+    }
+    let y_mean = outcome.iter().sum::<f64>() / n as f64;
+    let x_mean = covariate.iter().sum::<f64>() / n as f64;
+    let covariance =
+        outcome.iter().zip(covariate).map(|(a, b)| (a - y_mean) * (b - x_mean)).sum::<f64>();
+    let x_variance = covariate.iter().map(|value| (value - x_mean).powi(2)).sum::<f64>();
+    if x_variance <= f64::EPSILON {
+        return Err("CUPED covariate must have non-zero variance");
+    }
+    let beta = covariance / x_variance;
+    let mut scores = Vec::with_capacity(n);
+    for i in 0..n {
+        let pi = propensity[if propensity.len() == 1 { 0 } else { i }];
+        if !pi.is_finite() || pi <= 0.0 || pi >= 1.0 {
+            return Err("assignment propensities must be strictly between zero and one");
+        }
+        let adjusted = outcome[i] - beta * (covariate[i] - x_mean);
+        let sign = if assignment[i] { 1.0 / pi } else { -1.0 / (1.0 - pi) };
+        scores.push(sign * adjusted);
+    }
+    let effect = scores.iter().sum::<f64>() / n as f64;
+    let variance = scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>()
+        / ((n - 1) as f64 * n as f64);
+    Ok(CupedHtEffect { effect, beta, standard_error: variance.sqrt() })
+}
+
+/// Sharp-null Bernoulli randomization test of a Horvitz–Thompson contrast.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BernoulliExactTest {
+    /// Observed Horvitz–Thompson contrast.
+    pub observed: f64,
+    /// Probability-weighted two-sided tail under the sharp no-effect null.
+    pub p_value: f64,
+    /// Enumerated allocations, `2^n`.
+    pub allocations: usize,
+}
+
+/// Exact Bernoulli randomization test for one to twenty units.
+///
+/// Every allocation is weighted by its known assignment probability. This is
+/// not the equal-probability complete-randomization test.
+pub fn bernoulli_exact_randomization_test(
+    outcome: &[f64],
+    assignment: &[bool],
+    propensity: &[f64],
+) -> Result<BernoulliExactTest, &'static str> {
+    let n = outcome.len();
+    if n == 0 || n > 20 || assignment.len() != n || (propensity.len() != 1 && propensity.len() != n)
+    {
+        return Err("exact randomization inference requires 1–20 aligned rows and propensities");
+    }
+    if outcome.iter().any(|value| !value.is_finite()) {
+        return Err("outcomes must be finite");
+    }
+    let probabilities =
+        (0..n).map(|i| propensity[if propensity.len() == 1 { 0 } else { i }]).collect::<Vec<_>>();
+    if probabilities.iter().any(|value| !value.is_finite() || *value <= 0.0 || *value >= 1.0) {
+        return Err("assignment propensities must be strictly between zero and one");
+    }
+    let observed = (0..n)
+        .map(|i| {
+            if assignment[i] {
+                outcome[i] / probabilities[i]
+            } else {
+                -outcome[i] / (1.0 - probabilities[i])
+            }
+        })
+        .sum::<f64>()
+        / n as f64;
+    let mut p_value = 0.0;
+    let allocations = 1_usize << n;
+    for mask in 0..allocations {
+        let mut probability = 1.0;
+        let mut statistic = 0.0;
+        for i in 0..n {
+            let treated = (mask & (1_usize << i)) != 0;
+            let pi = probabilities[i];
+            probability *= if treated { pi } else { 1.0 - pi };
+            statistic += if treated { outcome[i] / pi } else { -outcome[i] / (1.0 - pi) };
+        }
+        statistic /= n as f64;
+        if statistic.abs() + 1e-12 >= observed.abs() {
+            p_value += probability;
+        }
+    }
+    Ok(BernoulliExactTest { observed, p_value: p_value.min(1.0), allocations })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn uniform(state: u64) -> f64 {
-        crate::splitmix::unit_f64(crate::splitmix::mix64(state))
-    }
 
     fn study(
         arms: usize,
@@ -240,10 +355,7 @@ mod tests {
             } else {
                 vec![1.0 / arms as f64; arms]
             };
-            let draw = uniform(
-                (replicate as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                    ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
-            );
+            let draw = crate::splitmix::keyed_unit(replicate as u64, i as u64);
             let mut cumulative = 0.0;
             let action = row
                 .iter()
@@ -344,10 +456,7 @@ mod tests {
                         "high_boundary" => 0.8,
                         _ => 0.2 + 0.6 * (i % 7) as f64 / 6.0,
                     };
-                    let treated = uniform(
-                        (rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                            ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
-                    ) < p;
+                    let treated = crate::splitmix::keyed_unit(rep as u64, i as u64) < p;
                     let outcome = 2.0
                         + coefficient * x
                         + 0.4 * (0.29 * i as f64).sin()
@@ -389,12 +498,8 @@ mod tests {
         tau_c: f64,
         one_sided: bool,
     ) -> (Vec<f64>, Vec<bool>, Vec<bool>, Vec<f64>) {
-        let draw = |i: usize, salt: u64| {
-            uniform(
-                (rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-                    ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03)
-                    ^ salt.wrapping_mul(0xA076_1D64_78BD_642F),
-            )
+        let draw = |i: usize, stream_coordinate: u64| {
+            crate::splitmix::keyed_unit_stream(rep as u64, i as u64, stream_coordinate)
         };
         let mut outcomes = Vec::with_capacity(n);
         let mut assignment = Vec::with_capacity(n);

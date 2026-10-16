@@ -1,4 +1,8 @@
 //! Original posterior artifacts through the checked prior/future-signal adapter.
+use crate::bridge::{
+    MAX_DECLARED_ARTIFACT_BYTES, RefusalJson, check_declared_len, check_declared_size,
+    external_refusal_json,
+};
 use crate::value_err;
 use antecedent::analysis::design_ranking::{
     DesignRankingRequestWire, PriorDeclWire, ProviderDeclWire,
@@ -16,7 +20,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
 use serde::Deserialize;
 
-const MAX_BYTES: usize = 16 * 1024 * 1024;
+const MAX_BYTES: usize = MAX_DECLARED_ARTIFACT_BYTES;
 const MAX_SOURCES: usize = 64;
 
 #[derive(Deserialize)]
@@ -90,7 +94,9 @@ impl CheckedPriorSignal {
                 ));
             }
         }
-        let DecisionPrior::Draws(draws) = &self.adapted.prior else { unreachable!() };
+        let DecisionPrior::Draws(draws) = &self.adapted.prior else {
+            return Err(refusal("prior_signal.adapted_prior_not_draws", "invalid_argument"));
+        };
         request.decision.prior = PriorDeclWire::Draws { states: draws.clone() };
         request.prior_observation_ids.extend(self.observations.iter().cloned());
         request.source_digests.extend(self.source_digests.iter().cloned());
@@ -110,7 +116,7 @@ impl CheckedPriorSignal {
     }
 }
 fn refusal(detail: &str, code: &str) -> String {
-    serde_json::json!({"code":code,"stage":"declare","detail":detail,"offending":null,"expected":null,"supplied":null,"remedy":null}).to_string()
+    RefusalJson::bare(code, "declare", detail).json()
 }
 
 #[pyfunction]
@@ -118,9 +124,10 @@ pub(crate) fn adapt_prior_signal(
     sources: &Bound<'_, PyList>,
     request_json: &str,
 ) -> PyResult<(Option<CheckedPriorSignal>, Option<String>)> {
-    if sources.len() > MAX_SOURCES || request_json.len() > MAX_BYTES {
-        return Err(value_err("prior signal declaration exceeds its resource bound"));
+    if sources.len() > MAX_SOURCES {
+        return Err(value_err("too many prior signal sources"));
     }
+    check_declared_size(request_json, MAX_BYTES, "prior signal")?;
     let wire: RequestWire = serde_json::from_str(request_json)
         .map_err(|e| value_err(format!("prior_signal.invalid_request: {e}")))?;
     if wire.sources.len() > MAX_SOURCES {
@@ -132,7 +139,7 @@ pub(crate) fn adapt_prior_signal(
             Some(refusal("prior_signal.target_population_mismatch", "invalid_argument")),
         ));
     }
-    let _: antecedent_core::ScientificQuantity =
+    let _: antecedent_contract::ScientificQuantity =
         wire.state.clone().try_into().map_err(|e| value_err(format!("{e:?}")))?;
     let family = match wire.signal {
         ProviderDeclWire::Binomial => NativeSignalFamily::Binomial,
@@ -164,9 +171,7 @@ pub(crate) fn adapt_prior_signal(
         let bytes = if let Some(object) = bytes_object {
             let object = object.cast::<PyBytes>()?;
             total_bytes = total_bytes.saturating_add(object.as_bytes().len());
-            if total_bytes > MAX_BYTES {
-                return Err(value_err("prior artifacts exceed byte bound"));
-            }
+            check_declared_len(total_bytes, MAX_BYTES, "prior signal artifacts")?;
             Some(object.as_bytes().to_vec())
         } else {
             None
@@ -253,7 +258,7 @@ pub(crate) fn adapt_prior_signal(
                 },
             });
             observations.extend(input.observation_ids.iter().cloned());
-            digests.push(blake3::hash(bytes).to_hex().to_string());
+            digests.push(antecedent_core::blake3_hex(bytes));
         }
         refs.push(match bytes {
             Some(bytes) => PriorSourceRef::with_bytes(meta, bytes),
@@ -287,11 +292,15 @@ pub(crate) fn adapt_prior_signal(
     {
         Ok(adapted) => adapted,
         Err(error) => {
-            let r = error.to_refusal();
-            return Ok((None, Some(serde_json::json!({"code":r.code,"stage":r.stage,"detail":r.detail,"offending":r.offending,"expected":r.expected,"supplied":r.supplied,"remedy":r.remedy}).to_string())));
+            return Ok((None, Some(external_refusal_json(&error.to_refusal()))));
         }
     };
-    let DecisionPrior::Draws(rows) = &adapted.prior else { unreachable!() };
+    let DecisionPrior::Draws(rows) = &adapted.prior else {
+        return Ok((
+            None,
+            Some(refusal("prior_signal.adapted_prior_not_draws", "invalid_argument")),
+        ));
+    };
     if !rows.iter().all(|v| v.is_finite()) || !adapted.diagnostics.pooled_mean.is_finite() {
         return Ok((
             None,
@@ -302,7 +311,7 @@ pub(crate) fn adapt_prior_signal(
     let diagnostics_json = serde_json::json!({"source_posteriors":posterior_diagnostics,"prior_approximation":"deterministic_resampled_original_posterior_draws","calibration":"unmeasured","source_ids":d.source_ids,"effective_weights":d.effective_weights,"draws_allocated":d.draws_allocated,"pooled_mean":d.pooled_mean,"lineage":d.lineage,"observations_checked":d.observations_checked,"overlapping_observations":d.overlapping_observations,"transport_policy_id":d.transport_policy_id,"source_digest":d.source_digest}).to_string();
     digests.push(d.source_digest.clone());
     // Bind population/maps/declared observation lineage, not only numerical adapter rows.
-    digests.push(blake3::hash(request_json.as_bytes()).to_hex().to_string());
+    digests.push(antecedent_core::blake3_hex(request_json.as_bytes()));
     Ok((
         Some(CheckedPriorSignal {
             adapted,

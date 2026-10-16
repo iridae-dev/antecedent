@@ -1,0 +1,23 @@
+feature_id = "observation_query.calibrated_probability"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: the interval is the equal-tailed posterior quantile interval of a
+# conjugate Dirichlet-multinomial model pushed through exact enumeration; standard
+# identities, so there is nothing to cite.
+papers = [
+]
+implementation_deviations = [
+  "A declared model's posterior probability is an exact number with no sampling distribution; its interval and calibration statements stay closed with cell_not_licensed (observation_query.declared_model_has_no_sampling_interval, observation_query.calibrated_probability_closed).",
+  "For tables fitted to counts the interval is the equal-tailed posterior quantile interval of P(target | evidence) by Monte Carlo over independent Dirichlet posteriors with exact enumeration of each draw, reported only as a measured scalar bound to a currently attesting coverage record of the whole method (fit, condition, query).",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs",
+  "crates/antecedent/tests/count_fitted_observation_facade.rs",
+  "crates/antecedent-contract/src/observation_query.rs",
+  "crates/antecedent/tests/observation_query_facade.rs",
+]

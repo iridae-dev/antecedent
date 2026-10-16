@@ -2,22 +2,27 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
+use std::collections::HashMap;
 
 /// Scratch for residualization and Pearson correlation.
+///
+/// `design` stays public so a caller can check that a batch reused the same
+/// allocation. The Gram, coefficients, and residuals are crate-private.
 #[derive(Clone, Debug, Default)]
 pub struct ParCorrWorkspace {
-    /// Design matrix column-major `[Z…]` (`n * p`). Every column is centered, which is the
-    /// implicit intercept: X and Y are residualized on `[1, Z…]`.
+    /// Design matrix column-major `[Z…]` (`n * p`). Every column is centered and scaled
+    /// to unit sum of squares, which is the implicit intercept: X and Y are residualized
+    /// on `[1, Z…]` in a scale-free basis. A constant or collinear column is a refusal,
+    /// not a ridge.
     pub design: Vec<f64>,
     /// `XtX` / Gram (`p^2`).
-    pub gram: Vec<f64>,
-    /// RHS / coefficients (`p`).
-    pub beta: Vec<f64>,
+    gram: Vec<f64>,
+    /// Coefficients of X then Y (`2p`).
+    beta: Vec<f64>,
     /// Residual of X.
-    pub rx: Vec<f64>,
+    rx: Vec<f64>,
     /// Residual of Y.
-    pub ry: Vec<f64>,
+    ry: Vec<f64>,
     capacity_n: usize,
     capacity_p: usize,
 }
@@ -30,12 +35,19 @@ impl ParCorrWorkspace {
         if self.design.len() < need_design {
             self.design.resize(need_design, 0.0);
         }
+        self.prepare_solve(n, ncols);
+        self.capacity_n = self.capacity_n.max(n);
+        self.capacity_p = self.capacity_p.max(p);
+    }
+
+    /// Everything but the design matrix: Gram, the two coefficient vectors, residuals.
+    fn prepare_solve(&mut self, n: usize, ncols: usize) {
         let need_gram = ncols.saturating_mul(ncols);
         if self.gram.len() < need_gram {
             self.gram.resize(need_gram, 0.0);
         }
-        if self.beta.len() < ncols {
-            self.beta.resize(ncols, 0.0);
+        if self.beta.len() < 2 * ncols {
+            self.beta.resize(2 * ncols, 0.0);
         }
         if self.rx.len() < n {
             self.rx.resize(n, 0.0);
@@ -43,8 +55,6 @@ impl ParCorrWorkspace {
         if self.ry.len() < n {
             self.ry.resize(n, 0.0);
         }
-        self.capacity_n = self.capacity_n.max(n);
-        self.capacity_p = self.capacity_p.max(p);
     }
 
     /// Retained row capacity.
@@ -78,7 +88,7 @@ pub struct ParCorrQuery {
 /// `None` for fewer than two points, a non-finite column, or an effectively
 /// constant column (see `constant_column`).
 #[must_use]
-pub fn pearson(x: &[f64], y: &[f64]) -> Option<f64> {
+fn pearson(x: &[f64], y: &[f64]) -> Option<f64> {
     pearson_floored(x, y, None)
 }
 
@@ -148,14 +158,45 @@ fn constant_column(css: f64, floor: f64) -> bool {
     !(css.is_finite() && css > floor)
 }
 
-fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) {
+/// Center each conditioning column and scale it to unit sum of squares.
+///
+/// Singularity is then a property of the correlation Gram, not of the column units.
+/// A constant or non-finite column returns `false` so the caller refuses the test
+/// instead of ridge-shrinking that column toward zero.
+fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) -> bool {
     for (j, z) in z_cols.iter().enumerate() {
-        let base = j * n;
-        let mean = z.iter().sum::<f64>() / n as f64;
-        for r in 0..n {
-            design[base + r] = z[r] - mean;
+        if !scale_column(z, n, &mut design[j * n..(j + 1) * n]) {
+            return false;
         }
     }
+    true
+}
+
+/// One column of [`build_design`]: centered and scaled to unit sum of squares into `out`.
+fn scale_column(z: &[f64], n: usize, out: &mut [f64]) -> bool {
+    let nf = n as f64;
+    let mut mean = 0.0;
+    for &v in z.iter().take(n) {
+        if !v.is_finite() {
+            return false;
+        }
+        mean += v;
+    }
+    mean /= nf;
+    let mut css = 0.0;
+    for r in 0..n {
+        let d = z[r] - mean;
+        out[r] = d;
+        css += d * d;
+    }
+    if constant_column(css, raw_floor(mean, nf)) {
+        return false;
+    }
+    let scale = css.sqrt();
+    for v in out.iter_mut().take(n) {
+        *v /= scale;
+    }
+    true
 }
 
 fn form_gram(design: &[f64], n: usize, ncols: usize, gram: &mut [f64]) {
@@ -177,181 +218,69 @@ fn form_gram(design: &[f64], n: usize, ncols: usize, gram: &mut [f64]) {
 fn form_xty(design: &[f64], y: &[f64], n: usize, ncols: usize, out: &mut [f64]) {
     let y_mean = y.iter().sum::<f64>() / n as f64;
     for c in 0..ncols {
-        let mut acc = 0.0;
         let col = &design[c * n..(c + 1) * n];
-        for r in 0..n {
-            acc += col[r] * (y[r] - y_mean);
-        }
-        out[c] = acc;
+        out[c] = centered_dot(col, y, y_mean);
     }
 }
 
-/// Gauss–Jordan with partial pivoting; singularity is judged relative to the Gram's
-/// largest diagonal so the verdict does not depend on the data's units.
-fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize) -> bool {
-    let mut scale = 0.0_f64;
-    for d in 0..ncols {
-        scale = scale.max(gram[d * ncols + d].abs());
+fn centered_dot(col: &[f64], y: &[f64], y_mean: f64) -> f64 {
+    let mut acc = 0.0;
+    for r in 0..col.len() {
+        acc += col[r] * (y[r] - y_mean);
     }
-    if !(scale.is_finite() && scale > 0.0) {
-        return false;
-    }
-    let tol = 1e-12 * scale;
-    for col in 0..ncols {
-        let mut best_row = col;
-        let mut best = gram[col * ncols + col].abs();
-        for row in (col + 1)..ncols {
-            let v = gram[row * ncols + col].abs();
-            if v > best {
-                best = v;
-                best_row = row;
-            }
-        }
-        if best <= tol {
-            return false;
-        }
-        if best_row != col {
-            for j in 0..ncols {
-                gram.swap(col * ncols + j, best_row * ncols + j);
-            }
-            rhs.swap(col, best_row);
-        }
-        let pivot = gram[col * ncols + col];
-        for j in 0..ncols {
-            gram[col * ncols + j] /= pivot;
-        }
-        rhs[col] /= pivot;
-        for row in 0..ncols {
-            if row == col {
-                continue;
-            }
-            let factor = gram[row * ncols + col];
-            for j in 0..ncols {
-                gram[row * ncols + j] -= factor * gram[col * ncols + j];
-            }
-            rhs[row] -= factor * rhs[col];
-        }
-    }
-    true
+    acc
 }
 
-/// Relative ridge added to the Gram diagonal when the plain solve reports a singular
-/// system (exactly collinear conditioning columns). The regularized projection keeps
-/// residualization well defined — matching least-squares-based reference stacks — with
-/// an O(1e-8) relative perturbation.
-const SINGULAR_RIDGE: f64 = 1e-8;
-
-/// Solve the normal equations for `y` on `design`, retrying once with a scaled ridge
-/// when the Gram is singular. Reforms `gram`/`rhs` internally.
-fn solve_normal_equations(
-    design: &[f64],
-    y: &[f64],
-    n: usize,
-    ncols: usize,
-    gram: &mut [f64],
-    beta: &mut [f64],
-) -> bool {
-    form_gram(design, n, ncols, gram);
-    form_xty(design, y, n, ncols, beta);
-    if solve_inplace(gram, beta, ncols) {
-        return true;
-    }
-    form_gram(design, n, ncols, gram);
-    form_xty(design, y, n, ncols, beta);
-    let mut scale = 0.0_f64;
-    for d in 0..ncols {
-        scale = scale.max(gram[d * ncols + d].abs());
-    }
-    if !(scale.is_finite() && scale > 0.0) {
-        return false;
-    }
-    for d in 0..ncols {
-        gram[d * ncols + d] += SINGULAR_RIDGE * scale;
-    }
-    solve_inplace(gram, beta, ncols)
+/// Gauss–Jordan with partial pivoting on `nrhs` right-hand sides stored back to back
+/// (`ncols` each). Columns are already unit-scaled, so the pivot floor is relative to a
+/// correlation Gram (diagonals are 1) and a mixed-scale conditioning column is not
+/// declared singular.
+///
+/// Pivoting and the row operations depend on the Gram alone, so each right-hand side
+/// sees exactly the operations a solve of that vector by itself would apply, and one
+/// elimination serving X and Y returns bit-identical coefficients to two. A Cholesky
+/// factorization would not: it rounds differently and its pivot floor (`64 eps`
+/// Gauss-Jordan on a unit-scaled Gram.
+///
+/// The diagonal is already 1, so [`crate::gram::symmetric_scales`] would be the
+/// identity. The pivot floor is [`crate::gram::EQUILIBRATED_PIVOT_FLOOR`] times
+/// that diagonal: the same predicate [`crate::gram::invert_square`] applies
+/// after equilibration.
+fn solve_inplace(gram: &mut [f64], rhs: &mut [f64], ncols: usize, nrhs: usize) -> bool {
+    crate::gram::gauss_jordan_solve(gram, rhs, ncols, nrhs)
 }
 
-fn residualize_into_scalar(
-    y: &[f64],
-    z_cols: &[&[f64]],
-    design: &mut [f64],
-    gram: &mut [f64],
-    beta: &mut [f64],
-    out: &mut [f64],
-) -> bool {
+fn residual_from_cols(y: &[f64], cols: &[&[f64]], beta: &[f64], out: &mut [f64]) {
     let n = y.len();
-    let p = z_cols.len();
-    for col in z_cols {
-        if col.len() != n {
-            return false;
-        }
-    }
-    let ncols = p;
-    build_design(z_cols, n, design);
-    if !solve_normal_equations(design, y, n, ncols, gram, beta) {
-        return false;
-    }
     let y_mean = y.iter().sum::<f64>() / n as f64;
     for r in 0..n {
         let mut pred = 0.0;
-        for c in 0..ncols {
-            pred += design[c * n + r] * beta[c];
+        for (col, b) in cols.iter().zip(beta) {
+            pred += col[r] * b;
         }
         out[r] = (y[r] - y_mean) - pred;
     }
-    true
 }
 
-/// Scalar reference: residualize X and Y independently (correctness path).
-fn partial_correlation_scalar_impl(
+/// Partial correlation of X and Y given the Z columns: the design and its Gram are formed
+/// once and a single elimination yields both coefficient vectors.
+///
+/// `empty_z` is the plain Pearson kernel used when there is nothing to condition on, and
+/// `corr` the floored one applied to the residuals.
+fn partial_correlation_impl(
     x: &[f64],
     y: &[f64],
     z_cols: &[&[f64]],
     workspace: &mut ParCorrWorkspace,
+    empty_z: fn(&[f64], &[f64]) -> Option<f64>,
+    corr: FlooredPearson,
 ) -> Option<f64> {
     if x.len() != y.len() || x.len() < 3 {
         return None;
     }
     let n = x.len();
     if z_cols.is_empty() {
-        return pearson(x, y);
-    }
-    workspace.prepare(n, z_cols.len());
-    let ncols = z_cols.len();
-    let design = &mut workspace.design[..n * ncols];
-    let gram = &mut workspace.gram[..ncols * ncols];
-    let beta = &mut workspace.beta[..ncols];
-    let rx = &mut workspace.rx[..n];
-    if !residualize_into_scalar(x, z_cols, design, gram, beta, rx) {
-        return None;
-    }
-    let design = &mut workspace.design[..n * ncols];
-    let gram = &mut workspace.gram[..ncols * ncols];
-    let beta = &mut workspace.beta[..ncols];
-    let ry = &mut workspace.ry[..n];
-    if !residualize_into_scalar(y, z_cols, design, gram, beta, ry) {
-        return None;
-    }
-    // Finite zero-variance residuals ⇒ trivial conditional independence (r = 0).
-    // Non-finite residuals must stay None: `constant_column` also fires on NaN css,
-    // so pearson alone cannot distinguish them from a real constant residual.
-    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], x, y, pearson_floored)
-}
-
-/// Portable optimized path: design built once, Gram reformed once between X/Y
-/// solves, fused Pearson on residuals (chunked contiguous loops).
-fn partial_correlation_portable_impl(
-    x: &[f64],
-    y: &[f64],
-    z_cols: &[&[f64]],
-    workspace: &mut ParCorrWorkspace,
-) -> Option<f64> {
-    if x.len() != y.len() || x.len() < 3 {
-        return None;
-    }
-    let n = x.len();
-    if z_cols.is_empty() {
-        return pearson_fused(x, y);
+        return empty_z(x, y);
     }
     for col in z_cols {
         if col.len() != n {
@@ -360,29 +289,26 @@ fn partial_correlation_portable_impl(
     }
     workspace.prepare(n, z_cols.len());
     let ncols = z_cols.len();
-    {
-        let design = &mut workspace.design[..n * ncols];
-        build_design(z_cols, n, design);
-        let gram = &mut workspace.gram[..ncols * ncols];
-        let beta = &mut workspace.beta[..ncols];
-        if !solve_normal_equations(design, x, n, ncols, gram, beta) {
-            return None;
-        }
-        let rx = &mut workspace.rx[..n];
-        residual_from_beta(x, design, beta, n, ncols, rx);
+    let design = &mut workspace.design[..n * ncols];
+    if !build_design(z_cols, n, design) {
+        return None;
     }
-    {
-        let design = &mut workspace.design[..n * ncols];
-        let gram = &mut workspace.gram[..ncols * ncols];
-        let beta = &mut workspace.beta[..ncols];
-        if !solve_normal_equations(design, y, n, ncols, gram, beta) {
-            return None;
-        }
-        let ry = &mut workspace.ry[..n];
-        residual_from_beta(y, design, beta, n, ncols, ry);
+    let gram = &mut workspace.gram[..ncols * ncols];
+    let beta = &mut workspace.beta[..2 * ncols];
+    form_gram(design, n, ncols, gram);
+    form_xty(design, x, n, ncols, &mut beta[..ncols]);
+    form_xty(design, y, n, ncols, &mut beta[ncols..]);
+    if !solve_inplace(gram, beta, ncols, 2) {
+        return None;
     }
-    // See the scalar path: finite constant residual ⇒ Some(0.0); non-finite ⇒ None.
-    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], x, y, pearson_fused_floored)
+    let mut cols: Vec<&[f64]> = Vec::with_capacity(ncols);
+    cols.extend(design.chunks_exact(n));
+    residual_from_cols(x, &cols, &beta[..ncols], &mut workspace.rx[..n]);
+    residual_from_cols(y, &cols, &beta[ncols..], &mut workspace.ry[..n]);
+    // Finite zero-variance residuals ⇒ trivial conditional independence (r = 0).
+    // Non-finite residuals must stay None: `constant_column` also fires on NaN css,
+    // so pearson alone cannot distinguish them from a real constant residual.
+    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], x, y, corr)
 }
 
 /// A Pearson kernel taking optional per-column constant-column floors.
@@ -407,120 +333,207 @@ fn pearson_after_residualize(
     }
 }
 
-fn residual_from_beta(
-    y: &[f64],
-    design: &[f64],
-    beta: &[f64],
-    n: usize,
-    ncols: usize,
-    out: &mut [f64],
-) {
-    let y_mean = y.iter().sum::<f64>() / n as f64;
-    for r in 0..n {
-        let mut pred = 0.0;
-        for c in 0..ncols {
-            pred += design[c * n + r] * beta[c];
-        }
-        out[r] = (y[r] - y_mean) - pred;
-    }
-}
-
-/// Fused two-pass Pearson favoring contiguous auto-vectorization.
+/// Same reduction as [`pearson`].
+///
+/// A chunked accumulator was kept here so the portable path could vectorise.
+/// The partial sums are a different addition order from [`pearson`], so the two
+/// paths disagreed in the last bits and neither was benchmarked as a replacement
+/// for the other. One reduction is canonical.
 fn pearson_fused(x: &[f64], y: &[f64]) -> Option<f64> {
-    pearson_fused_floored(x, y, None)
+    pearson(x, y)
 }
 
 fn pearson_fused_floored(x: &[f64], y: &[f64], floors: Option<(f64, f64)>) -> Option<f64> {
-    const CHUNK: usize = 8;
-    debug_assert_eq!(x.len(), y.len());
-    let n = x.len();
-    if n < 2 {
-        return None;
-    }
-    let nf = n as f64;
-    let (mut mx, mut my) = (0.0, 0.0);
-    let mut i = 0;
-    while i + CHUNK <= n {
-        let mut sx = 0.0;
-        let mut sy = 0.0;
-        for k in 0..CHUNK {
-            sx += x[i + k];
-            sy += y[i + k];
+    pearson_floored(x, y, floors)
+}
+
+/// Cap on the retained scaled conditioning columns of one batch (`f64` count, 128 MiB).
+const SHARED_POOL_LIMIT: usize = 1 << 24;
+
+/// Where a conditioning column's scaled copy lives in the pool.
+#[derive(Clone, Copy)]
+enum ColumnSlot {
+    Unseen,
+    /// Constant, non-finite or otherwise refused by [`scale_column`].
+    Refused,
+    At(usize),
+}
+
+/// Outcome of answering a query from [`SharedDesign`].
+enum Served {
+    Answer(Option<f64>),
+    /// The pool is full or the shapes are unusual; answer with the lone kernel.
+    Lone,
+}
+
+/// What the queries of one batch share: scaled conditioning columns, their pairwise
+/// Gram entries and their products with the X/Y targets.
+///
+/// Each stored value is produced by the loop a lone query would run on the same column
+/// data, so a query answered from here is bit-identical to one answered alone.
+struct SharedDesign {
+    n: usize,
+    pool: Vec<f64>,
+    slot: Vec<ColumnSlot>,
+    gram_pair: HashMap<(usize, usize), f64>,
+    target_dot: HashMap<(usize, usize), f64>,
+    target_mean: Vec<Option<f64>>,
+}
+
+impl SharedDesign {
+    fn new(n: usize, columns: usize) -> Self {
+        Self {
+            n,
+            pool: Vec::new(),
+            slot: vec![ColumnSlot::Unseen; columns],
+            gram_pair: HashMap::new(),
+            target_dot: HashMap::new(),
+            target_mean: vec![None; columns],
         }
-        mx += sx;
-        my += sy;
-        i += CHUNK;
     }
-    while i < n {
-        mx += x[i];
-        my += y[i];
-        i += 1;
-    }
-    mx /= nf;
-    my /= nf;
-    let (mut cxx, mut cyy, mut cxy) = (0.0, 0.0, 0.0);
-    i = 0;
-    while i + CHUNK <= n {
-        let mut sxx = 0.0;
-        let mut syy = 0.0;
-        let mut sxy = 0.0;
-        for k in 0..CHUNK {
-            let dx = x[i + k] - mx;
-            let dy = y[i + k] - my;
-            sxx += dx * dx;
-            syy += dy * dy;
-            sxy += dx * dy;
+
+    /// Scaled copy of column `idx`; `Err(true)` when refused, `Err(false)` when the pool
+    /// is full and the caller must answer the query without the cache.
+    fn column(&mut self, columns: &[&[f64]], idx: usize) -> Result<usize, bool> {
+        let slot = self.slot[idx];
+        match slot {
+            ColumnSlot::At(off) => Ok(off),
+            ColumnSlot::Refused => Err(true),
+            ColumnSlot::Unseen => {
+                let off = self.pool.len();
+                if off.saturating_add(self.n) > SHARED_POOL_LIMIT {
+                    return Err(false);
+                }
+                self.pool.resize(off + self.n, 0.0);
+                if scale_column(columns[idx], self.n, &mut self.pool[off..off + self.n]) {
+                    self.slot[idx] = ColumnSlot::At(off);
+                    Ok(off)
+                } else {
+                    self.pool.truncate(off);
+                    self.slot[idx] = ColumnSlot::Refused;
+                    Err(true)
+                }
+            }
         }
-        cxx += sxx;
-        cyy += syy;
-        cxy += sxy;
-        i += CHUNK;
     }
-    while i < n {
-        let dx = x[i] - mx;
-        let dy = y[i] - my;
-        cxx += dx * dx;
-        cyy += dy * dy;
-        cxy += dx * dy;
-        i += 1;
+
+    fn scaled(&self, off: usize) -> &[f64] {
+        &self.pool[off..off + self.n]
     }
-    let (floor_x, floor_y) = floors.unwrap_or((raw_floor(mx, nf), raw_floor(my, nf)));
-    if constant_column(cxx, floor_x) || constant_column(cyy, floor_y) {
-        return None;
+
+    fn gram_entry(&mut self, key: (usize, usize), offs: (usize, usize)) -> f64 {
+        if let Some(&v) = self.gram_pair.get(&key) {
+            return v;
+        }
+        let (a, b) = (self.scaled(offs.0), self.scaled(offs.1));
+        let mut acc = 0.0;
+        for r in 0..self.n {
+            acc += a[r] * b[r];
+        }
+        self.gram_pair.insert(key, acc);
+        acc
     }
-    Some(cxy / (cxx * cyy).sqrt())
+
+    fn target_entry(&mut self, columns: &[&[f64]], idx: usize, target: usize, off: usize) -> f64 {
+        if let Some(&v) = self.target_dot.get(&(idx, target)) {
+            return v;
+        }
+        let y = columns[target];
+        let mean =
+            *self.target_mean[target].get_or_insert_with(|| y.iter().sum::<f64>() / self.n as f64);
+        let acc = centered_dot(self.scaled(off), y, mean);
+        self.target_dot.insert((idx, target), acc);
+        acc
+    }
+
+    /// The partial correlation of one query from shared pieces, or [`Served::Lone`] when
+    /// the query must take the lone path.
+    fn query(
+        &mut self,
+        columns: &[&[f64]],
+        q: &ParCorrQuery,
+        z_flat: &[usize],
+        workspace: &mut ParCorrWorkspace,
+        corr: FlooredPearson,
+    ) -> Served {
+        let n = self.n;
+        let (x, y) = (columns[q.x], columns[q.y]);
+        let z_idx = &z_flat[q.z_start..q.z_start + q.z_len];
+        let ncols = z_idx.len();
+        if x.len() != n || y.len() != n || z_idx.iter().any(|&zi| columns[zi].len() != n) {
+            return Served::Lone;
+        }
+        let mut offs = Vec::with_capacity(ncols);
+        for &zi in z_idx {
+            match self.column(columns, zi) {
+                Ok(off) => offs.push(off),
+                Err(true) => return Served::Answer(None),
+                Err(false) => return Served::Lone,
+            }
+        }
+        workspace.prepare_solve(n, ncols);
+        for c1 in 0..ncols {
+            for c2 in c1..ncols {
+                let key = (z_idx[c1].min(z_idx[c2]), z_idx[c1].max(z_idx[c2]));
+                let v = self.gram_entry(key, (offs[c1], offs[c2]));
+                workspace.gram[c1 * ncols + c2] = v;
+                workspace.gram[c2 * ncols + c1] = v;
+            }
+        }
+        for c in 0..ncols {
+            workspace.beta[c] = self.target_entry(columns, z_idx[c], q.x, offs[c]);
+            workspace.beta[ncols + c] = self.target_entry(columns, z_idx[c], q.y, offs[c]);
+        }
+        let gram = &mut workspace.gram[..ncols * ncols];
+        let beta = &mut workspace.beta[..2 * ncols];
+        if !solve_inplace(gram, beta, ncols, 2) {
+            return Served::Answer(None);
+        }
+        let cols: Vec<&[f64]> = offs.iter().map(|&o| self.scaled(o)).collect();
+        residual_from_cols(x, &cols, &beta[..ncols], &mut workspace.rx[..n]);
+        residual_from_cols(y, &cols, &beta[ncols..], &mut workspace.ry[..n]);
+        Served::Answer(pearson_after_residualize(
+            &workspace.rx[..n],
+            &workspace.ry[..n],
+            x,
+            y,
+            corr,
+        ))
+    }
 }
 
 /// Scalar reference partial correlation.
 #[must_use]
-pub fn partial_correlation_scalar(
+pub(crate) fn partial_correlation_scalar(
     x: &[f64],
     y: &[f64],
     z_cols: &[&[f64]],
     workspace: &mut ParCorrWorkspace,
 ) -> Option<f64> {
-    partial_correlation_scalar_impl(x, y, z_cols, workspace)
+    partial_correlation_impl(x, y, z_cols, workspace, pearson, pearson_floored)
 }
 
 /// Portable optimized partial correlation (shared Gram, fused Pearson).
 #[must_use]
-pub fn partial_correlation_portable(
+pub(crate) fn partial_correlation_portable(
     x: &[f64],
     y: &[f64],
     z_cols: &[&[f64]],
     workspace: &mut ParCorrWorkspace,
 ) -> Option<f64> {
-    partial_correlation_portable_impl(x, y, z_cols, workspace)
+    partial_correlation_impl(x, y, z_cols, workspace, pearson_fused, pearson_fused_floored)
 }
 
-/// Run a batch of [`ParCorrQuery`] items against shared columns (deterministic order).
+/// Which reduction a batch selects.
 ///
-/// Kernel path for batch partial correlation.
+/// [`Self::Native`] and [`Self::Portable`] both call the scalar Pearson
+/// reduction. The names stay so a kernel policy can still request a mode; they
+/// no longer select different arithmetic.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ParCorrMode {
-    /// Scalar reference implementation.
+    /// Canonical reduction.
     Native,
-    /// Portable-optimized path.
+    /// Same reduction as [`Self::Native`].
     Portable,
 }
 
@@ -538,11 +551,15 @@ impl From<bool> for ParCorrMode {
     }
 }
 
-/// `z_flat` holds concatenated conditioning indexes for all queries.
+/// Run a batch of [`ParCorrQuery`] items against shared columns, in order.
 ///
-/// # Panics
+/// `z_flat` holds the concatenated conditioning indexes. Repeated conditioning
+/// columns in one batch are scaled once. [`ParCorrMode::Native`] and
+/// [`ParCorrMode::Portable`] perform the same arithmetic.
 ///
-/// Panics if `out.len() != queries.len()`.
+/// # Errors
+///
+/// [`crate::view::ViewError::InvalidShape`] when `out.len() != queries.len()`.
 pub fn partial_correlation_batch(
     columns: &[&[f64]],
     queries: &[ParCorrQuery],
@@ -550,10 +567,28 @@ pub fn partial_correlation_batch(
     out: &mut [Option<f64>],
     workspace: &mut ParCorrWorkspace,
     mode: ParCorrMode,
-) {
-    assert_eq!(out.len(), queries.len());
+) -> Result<(), crate::view::ViewError> {
+    if out.len() != queries.len() {
+        return Err(crate::view::ViewError::InvalidShape {
+            message: "partial correlation out.len() must equal queries.len()",
+        });
+    }
+    // Queries of one batch usually repeat conditioning columns; a lone query gains
+    // nothing from the bookkeeping.
+    let mut shared = (queries.len() > 1)
+        .then(|| columns.first().map(|c| SharedDesign::new(c.len(), columns.len())))
+        .flatten();
+    let corr: FlooredPearson =
+        if mode.is_portable() { pearson_fused_floored } else { pearson_floored };
     let mut z_bufs: Vec<&[f64]> = Vec::new();
     for (qi, q) in queries.iter().enumerate() {
+        // Queries with nothing to condition on, or too few rows, never touch the pool.
+        if let Some(sd) = shared.as_mut().filter(|sd| q.z_len > 0 && sd.n >= 3) {
+            if let Served::Answer(r) = sd.query(columns, q, z_flat, workspace, corr) {
+                out[qi] = r;
+                continue;
+            }
+        }
         z_bufs.clear();
         let end = q.z_start + q.z_len;
         for &zi in &z_flat[q.z_start..end] {
@@ -566,15 +601,117 @@ pub fn partial_correlation_batch(
         };
         out[qi] = r;
     }
+    Ok(())
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests {
     use antecedent_core::{KernelPolicy, ToleranceClass};
 
     use super::*;
-    use crate::dispatch::{KernelImpl, partial_correlation, select_impl};
+    use crate::dispatch::{KernelImpl, select_impl};
+
+    /// The solve this module used before the two right-hand sides shared one
+    /// elimination: Gram formed and eliminated once for X and again for Y.
+    fn two_solve_reference(
+        x: &[f64],
+        y: &[f64],
+        z_cols: &[&[f64]],
+        corr: FlooredPearson,
+    ) -> Option<f64> {
+        let n = x.len();
+        let ncols = z_cols.len();
+        let mut design = vec![0.0; n * ncols];
+        if !build_design(z_cols, n, &mut design) {
+            return None;
+        }
+        let mut residuals = Vec::new();
+        for target in [x, y] {
+            let mut gram = vec![0.0; ncols * ncols];
+            let mut beta = vec![0.0; ncols];
+            form_gram(&design, n, ncols, &mut gram);
+            form_xty(&design, target, n, ncols, &mut beta);
+            if !solve_inplace(&mut gram, &mut beta, ncols, 1) {
+                return None;
+            }
+            let cols: Vec<&[f64]> = design.chunks_exact(n).collect();
+            let mut out = vec![0.0; n];
+            residual_from_cols(target, &cols, &beta, &mut out);
+            residuals.push(out);
+        }
+        pearson_after_residualize(&residuals[0], &residuals[1], x, y, corr)
+    }
+
+    #[test]
+    fn shared_elimination_and_batch_cache_are_bit_identical_to_two_solves() {
+        let mut state = 0xA076_1D64_78BD_642F_u64;
+        let mut unit = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
+        };
+        let n = 60;
+        let p = 7;
+        let mut cols: Vec<Vec<f64>> = (0..p)
+            .map(|j| {
+                let scale = 10f64.powi(i32::try_from(j).unwrap() - 3);
+                (0..n).map(|_| scale * unit() + 1e3 * scale).collect()
+            })
+            .collect();
+        // Column 4 near-collinear with 3, column 5 non-finite, column 6 constant.
+        for r in 0..n {
+            cols[4][r] = cols[3][r] * 2.0 + 1e-9 * unit();
+        }
+        cols[5][7] = f64::NAN;
+        cols[6] = vec![3.0; n];
+        let refs: Vec<&[f64]> = cols.iter().map(Vec::as_slice).collect();
+        let mut queries = Vec::new();
+        let mut z_flat = Vec::new();
+        for x in 0..p {
+            for y in 0..p {
+                for z in [vec![], vec![2], vec![2, 3], vec![3, 4], vec![2, 5], vec![1, 6, 3]] {
+                    if x == y || z.contains(&x) || z.contains(&y) {
+                        continue;
+                    }
+                    let z_start = z_flat.len();
+                    z_flat.extend(&z);
+                    queries.push(ParCorrQuery { x, y, z_start, z_len: z.len() });
+                }
+            }
+        }
+        let mut ws = ParCorrWorkspace::default();
+        for (mode, corr) in [
+            (ParCorrMode::Portable, pearson_fused_floored as FlooredPearson),
+            (ParCorrMode::Native, pearson_floored as FlooredPearson),
+        ] {
+            let mut out = vec![None; queries.len()];
+            partial_correlation_batch(&refs, &queries, &z_flat, &mut out, &mut ws, mode).unwrap();
+            let mut some = 0;
+            for (q, got) in queries.iter().zip(&out) {
+                let z: Vec<&[f64]> =
+                    z_flat[q.z_start..q.z_start + q.z_len].iter().map(|&i| refs[i]).collect();
+                let single = if mode.is_portable() {
+                    partial_correlation_portable(refs[q.x], refs[q.y], &z, &mut ws)
+                } else {
+                    partial_correlation_scalar(refs[q.x], refs[q.y], &z, &mut ws)
+                };
+                let reference = if z.is_empty() {
+                    if mode.is_portable() {
+                        pearson_fused(refs[q.x], refs[q.y])
+                    } else {
+                        pearson(refs[q.x], refs[q.y])
+                    }
+                } else {
+                    two_solve_reference(refs[q.x], refs[q.y], &z, corr)
+                };
+                assert_eq!(got.map(f64::to_bits), reference.map(f64::to_bits), "batch {q:?}");
+                assert_eq!(single.map(f64::to_bits), reference.map(f64::to_bits), "single {q:?}");
+                some += usize::from(reference.is_some());
+            }
+            assert!(some > 20 && some < queries.len(), "mix of answers and refusals: {some}");
+        }
+    }
 
     #[test]
     fn pearson_perfect() {
@@ -655,7 +792,8 @@ mod tests {
             &mut base,
             &mut ws,
             ParCorrMode::Native,
-        );
+        )
+        .unwrap();
         partial_correlation_batch(
             &[&x, &y, &z_shifted],
             &queries,
@@ -663,7 +801,8 @@ mod tests {
             &mut shifted,
             &mut ws,
             ParCorrMode::Portable,
-        );
+        )
+        .unwrap();
         assert!((base[0].unwrap() - shifted[0].unwrap()).abs() <= 1e-10);
     }
 
@@ -675,10 +814,9 @@ mod tests {
         let y: Vec<_> = (0..n).map(|i| -1.2 * z[i] + (i as f64 * 0.29).sin() + 4.0).collect();
         let mut ws = ParCorrWorkspace::default();
         let reference = partial_correlation_scalar(&x, &y, &[&z], &mut ws).unwrap();
-        let mut state = 0x5eed_cafe_f00d_beefu64;
+        let mut rng = antecedent_core::CausalRng::from_seed(0x5eed_cafe_f00d_beef);
         for _ in 0..100 {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-            let unit = (state >> 11) as f64 / (1u64 << 53) as f64;
+            let unit = rng.next_f64();
             let offset = -10_000.0 + 20_000.0 * unit;
             let shifted: Vec<_> = z.iter().map(|value| value + offset).collect();
             let scalar = partial_correlation_scalar(&x, &y, &[&shifted], &mut ws).unwrap();
@@ -698,7 +836,7 @@ mod tests {
         let mut ws_p = ParCorrWorkspace::default();
         let s = partial_correlation_scalar(&x, &y, &[&z], &mut ws_s).unwrap();
         let p = partial_correlation_portable(&x, &y, &[&z], &mut ws_p).unwrap();
-        assert!(ToleranceClass::StableFloat.close(s, p));
+        assert_eq!(s.to_bits(), p.to_bits());
     }
 
     #[test]
@@ -722,7 +860,8 @@ mod tests {
             &mut out,
             &mut ws,
             ParCorrMode::Native,
-        );
+        )
+        .unwrap();
         let cap_n = ws.capacity_n();
         let cap_p = ws.capacity_p();
         for _ in 0..20 {
@@ -733,7 +872,8 @@ mod tests {
                 &mut out,
                 &mut ws,
                 ParCorrMode::Portable,
-            );
+            )
+            .unwrap();
             assert_eq!(ws.capacity_n(), cap_n);
             assert_eq!(ws.capacity_p(), cap_p);
         }
@@ -747,7 +887,7 @@ mod tests {
         let mut ws = ParCorrWorkspace::default();
         let policy = KernelPolicy::scalar_only();
         assert_eq!(select_impl(&policy), KernelImpl::Scalar);
-        let r = partial_correlation(&policy, &x, &y, &[], &mut ws).unwrap();
+        let r = partial_correlation_scalar(&x, &y, &[], &mut ws).unwrap();
         assert!(ToleranceClass::StableFloat.close(r, 1.0));
     }
 
@@ -865,5 +1005,48 @@ mod tests {
         let oracle = pearson(&xs, &ys).unwrap();
         assert!((r - oracle).abs() < 1e-12, "{r} vs {oracle}");
         assert!(pearson(&[3.0; 20], &y).is_none(), "a genuinely constant column stays None");
+    }
+
+    #[test]
+    fn mixed_scale_conditioning_column_is_actually_partialled_out() {
+        // A 0/1 flag next to a column whose sd is ~1e8 used to fail the Gram pivot
+        // (tol = 1e-12 * max diagonal) and get ridge-shrunk to ~0, so the partial
+        // correlation collapsed to the marginal correlation through the flag.
+        let n = 160;
+        let z_big: Vec<f64> = (0..n).map(|i| 1e8 * (0.17 * i as f64).sin()).collect();
+        let z_flag: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+        let ex: Vec<f64> = (0..n).map(|i| (0.9 * i as f64).sin()).collect();
+        let ey: Vec<f64> = (0..n).map(|i| (1.3 * i as f64).cos()).collect();
+        let x: Vec<f64> = (0..n).map(|i| 4.0 * z_flag[i] + ex[i]).collect();
+        let y: Vec<f64> = (0..n).map(|i| 4.0 * z_flag[i] + ey[i]).collect();
+        let mut ws = ParCorrWorkspace::default();
+        let partial = partial_correlation_scalar(&x, &y, &[&z_big, &z_flag], &mut ws)
+            .expect("mixed-scale Z is a valid design");
+        let flag_only =
+            partial_correlation_scalar(&x, &y, &[&z_flag], &mut ws).expect("flag-only design");
+        let marginal = pearson(&x, &y).expect("marginal");
+        assert!(
+            (partial - flag_only).abs() < 1e-4,
+            "partial {partial} should match conditioning on the flag alone ({flag_only}), not the marginal {marginal}"
+        );
+        assert!(
+            marginal.abs() - partial.abs() > 0.2,
+            "conditioning on the flag must move the correlation: marginal {marginal}, partial {partial}"
+        );
+        let portable = partial_correlation_portable(&x, &y, &[&z_big, &z_flag], &mut ws)
+            .expect("portable mixed-scale");
+        assert!((portable - partial).abs() < 1e-8, "{portable} vs {partial}");
+    }
+
+    #[test]
+    fn collinear_conditioning_columns_are_refused() {
+        let n = 40;
+        let z1: Vec<f64> = (0..n).map(f64::from).collect();
+        let z2: Vec<f64> = z1.iter().map(|v| 2.0 * v + 3.0).collect();
+        let x: Vec<f64> = (0..n).map(|i| f64::from(i).sin()).collect();
+        let y: Vec<f64> = (0..n).map(|i| f64::from(i).cos()).collect();
+        let mut ws = ParCorrWorkspace::default();
+        assert!(partial_correlation_scalar(&x, &y, &[&z1, &z2], &mut ws).is_none());
+        assert!(partial_correlation_portable(&x, &y, &[&z1, &z2], &mut ws).is_none());
     }
 }

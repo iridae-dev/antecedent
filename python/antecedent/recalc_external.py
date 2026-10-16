@@ -17,6 +17,7 @@ from numpy.typing import ArrayLike, NDArray
 
 from . import _native
 from ._recalc_bounds import _columns
+from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .external import BoundExternalClaim, ExternalSpec, ProviderObject, Response
 from .program_claims import ProgramBinding
@@ -162,11 +163,6 @@ class ExternalCallbackRefusal(RecalcRefusal):
         self.attempt: Mapping[str, Any] | None = wire.get("attempt")
 
 
-def _raise(error: str | None) -> None:
-    if error is not None:
-        raise ExternalCallbackRefusal(json.loads(error))
-
-
 @dataclass(frozen=True, slots=True)
 class ExternalCallbackResult:
     plan: RecalcPlan
@@ -189,7 +185,7 @@ class ExternalCallbackSession:
     ) -> RecalcPlan:
         names, columns = _columns(request.data)
         result, error = self._handle.plan(names, columns, request._wire(), provider is not None)
-        _raise(error)
+        raise_refusal(error, ExternalCallbackRefusal)
         assert result is not None
         return RecalcPlan.from_wire(json.loads(result))
 
@@ -210,7 +206,7 @@ class ExternalCallbackSession:
             threads=threads,
             cancel=cancel,
         )
-        _raise(error)
+        raise_refusal(error, ExternalCallbackRefusal)
         if wire is None or receipt is None or claim is None:
             raise CausalSerializationError("external callback returned no issued output")
         body = json.loads(wire)
@@ -222,7 +218,7 @@ class ExternalCallbackSession:
 
     def export_output(self) -> bytes:
         result, error = self._handle.export_output()
-        _raise(error)
+        raise_refusal(error, ExternalCallbackRefusal)
         if result is None:
             raise CausalSerializationError("external callback has no portable output")
         return bytes(result)
@@ -233,7 +229,7 @@ class ExternalCallbackSession:
         handle, error = _native.ExternalCallbackSessionHandle.resume(
             artifact, names, columns, request._wire()
         )
-        _raise(error)
+        raise_refusal(error, ExternalCallbackRefusal)
         if handle is None:
             raise CausalSerializationError("external callback replay returned no session")
         session = cls.__new__(cls)

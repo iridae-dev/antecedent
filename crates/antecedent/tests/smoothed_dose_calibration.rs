@@ -1,4 +1,4 @@
-//! Coverage of the smoothed dose-response transport interval (2.2B cell X4) against the
+//! Coverage of the smoothed dose-response transport interval against the
 //! closed-form smoothed target.
 //!
 //! The estimator measured is the whole composed one the public route withholds

@@ -2,14 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{Lag, VariableId};
@@ -347,7 +340,8 @@ impl Default for DiscoveryConstraints {
     }
 }
 
-fn contemp_link(source: VariableId, target: VariableId) -> LaggedLink {
+/// Contemporaneous link `source → target`.
+pub(crate) fn contemp_link(source: VariableId, target: VariableId) -> LaggedLink {
     LaggedLink {
         source,
         source_lag: Lag::CONTEMPORANEOUS,
@@ -358,6 +352,7 @@ fn contemp_link(source: VariableId, target: VariableId) -> LaggedLink {
 
 /// Whether the contemporaneous edge `variables[par] → variables[child]` is
 /// forbidden by the constraints. Out-of-range indices are treated as forbidden.
+#[cfg(test)]
 pub(crate) fn forbidden_edge(
     constraints: &DiscoveryConstraints,
     variables: &[VariableId],
@@ -370,7 +365,59 @@ pub(crate) fn forbidden_edge(
     let Some(&tgt) = variables.get(child) else {
         return true;
     };
-    constraints.is_forbidden(contemp_link(src, tgt)) || constraints.tier_forbids(src, tgt)
+    // `is_forbidden` already applies `tier_forbids`.
+    constraints.is_forbidden(contemp_link(src, tgt))
+}
+
+/// First-tier index and forbidden-link set, built once for a scan of many edges.
+///
+/// Empty tiers stay a `None` index so a variable is absent rather than tier 0.
+/// A variable listed in several tiers keeps the earliest tier, matching
+/// [`DiscoveryConstraints::tier_of`].
+/// Tier index and forbidden-link set compiled for one constraint scan.
+pub(crate) struct ConstraintIndex {
+    tiers: Option<HashMap<VariableId, usize>>,
+    forbidden: HashSet<LaggedLink>,
+}
+
+impl ConstraintIndex {
+    /// Compile tiers and the forbidden list. Günther rules stay on `constraints`.
+    pub(crate) fn compile(constraints: &DiscoveryConstraints) -> Self {
+        let tiers = if constraints.tiers.is_empty() {
+            None
+        } else {
+            let mut index = HashMap::new();
+            for (tier_index, tier) in constraints.tiers.iter().enumerate() {
+                for &variable in tier.iter() {
+                    index.entry(variable).or_insert(tier_index);
+                }
+            }
+            Some(index)
+        };
+        Self { tiers, forbidden: constraints.forbidden.iter().copied().collect() }
+    }
+
+    fn tier_of(&self, variable: VariableId) -> Option<usize> {
+        self.tiers.as_ref()?.get(&variable).copied()
+    }
+
+    fn tier_forbids(&self, src: VariableId, target: VariableId) -> bool {
+        match (self.tier_of(src), self.tier_of(target)) {
+            (Some(src_tier), Some(target_tier)) => src_tier > target_tier,
+            _ => false,
+        }
+    }
+
+    /// Same boolean as [`DiscoveryConstraints::is_forbidden`].
+    pub(crate) fn is_forbidden(
+        &self,
+        constraints: &DiscoveryConstraints,
+        link: LaggedLink,
+    ) -> bool {
+        self.forbidden.contains(&link)
+            || self.tier_forbids(link.source, link.target)
+            || constraints.multi_dataset.gunther_forbids(link)
+    }
 }
 
 impl DiscoveryConstraints {
@@ -428,7 +475,7 @@ impl DiscoveryConstraints {
     /// both context and ordinary without a clear role.
     pub fn validate(&self) -> Result<(), DiscoveryError> {
         for r in self.required.iter() {
-            if self.is_forbidden(*r) || self.tier_forbids(r.source, r.target) {
+            if self.is_forbidden(*r) {
                 return Err(DiscoveryError::Unsupported {
                     message: "required edge conflicts with forbidden or tier constraints",
                 });
@@ -454,6 +501,7 @@ impl DiscoveryConstraints {
     ) -> Vec<(VariableId, Lag)> {
         let min_l = self.temporal.min_lag.raw();
         let max_l = self.temporal.max_lag.raw();
+        let index = ConstraintIndex::compile(self);
         let mut out = Vec::new();
         for &v in variables {
             for lag in min_l..=max_l {
@@ -463,7 +511,7 @@ impl DiscoveryConstraints {
                     target,
                     target_lag: Lag::CONTEMPORANEOUS,
                 };
-                if self.is_forbidden(link) {
+                if index.is_forbidden(self, link) {
                     continue;
                 }
                 if v == target && lag == 0 {
@@ -493,12 +541,13 @@ impl DiscoveryConstraints {
     pub fn compile(&self, variables: &[VariableId]) -> Result<CompiledConstraints, DiscoveryError> {
         self.validate()?;
         let catalog = CandidateCatalog::build(variables, &self.temporal)?;
+        let index = ConstraintIndex::compile(self);
         let mut forbidden = BitSet::with_len(catalog.len());
         let mut required = BitSet::with_len(catalog.len());
         let mut candidates = BitSet::with_len(catalog.len());
         for idx in 0..catalog.len() {
             let link = catalog.link_at(idx);
-            let banned = self.is_forbidden(link);
+            let banned = index.is_forbidden(self, link);
             if banned {
                 forbidden.insert(DenseNodeId::from_raw(crate::indexing::dense_u32(idx)));
             } else {
@@ -731,5 +780,112 @@ mod tests {
         assert!(CiMaskType::Yxz.includes_x());
         assert!(CiMaskType::Y.includes_y());
         assert!(!CiMaskType::Y.includes_x());
+    }
+
+    fn scan_tier(tiers: &[Arc<[VariableId]>], variable: VariableId) -> Option<usize> {
+        if tiers.is_empty() {
+            return None;
+        }
+        tiers.iter().position(|tier| tier.iter().any(|id| *id == variable))
+    }
+
+    fn scan_forbidden(constraints: &DiscoveryConstraints, link: LaggedLink) -> bool {
+        let tier_forbids = match (
+            scan_tier(&constraints.tiers, link.source),
+            scan_tier(&constraints.tiers, link.target),
+        ) {
+            (Some(src), Some(target)) => src > target,
+            _ => false,
+        };
+        constraints.forbidden.iter().any(|forbidden| *forbidden == link)
+            || tier_forbids
+            || constraints.multi_dataset.gunther_forbids(link)
+    }
+
+    #[test]
+    fn tiered_forbidden_edge_matches_the_tier_scan() {
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let absent = VariableId::from_raw(99);
+        let constraints = DiscoveryConstraints {
+            tiers: Arc::from([Arc::from([vars[0], vars[1]]), Arc::from([vars[1], vars[2]])]),
+            forbidden: Arc::from([contemp_link(vars[0], vars[2])]),
+            required: Arc::from([
+                LaggedLink {
+                    source: vars[0],
+                    source_lag: Lag::from_raw(1),
+                    target: vars[2],
+                    target_lag: Lag::CONTEMPORANEOUS,
+                },
+                LaggedLink {
+                    source: absent,
+                    source_lag: Lag::from_raw(1),
+                    target: vars[2],
+                    target_lag: Lag::CONTEMPORANEOUS,
+                },
+            ]),
+            temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::from_raw(0) },
+            ..DiscoveryConstraints::default()
+        };
+        let probed = [vars[0], vars[1], vars[2], absent];
+        for &src in &probed {
+            assert_eq!(constraints.tier_of(src), scan_tier(&constraints.tiers, src));
+            for &target in &probed {
+                let link = contemp_link(src, target);
+                assert_eq!(constraints.tier_forbids(src, target), {
+                    match (
+                        scan_tier(&constraints.tiers, src),
+                        scan_tier(&constraints.tiers, target),
+                    ) {
+                        (Some(src_tier), Some(target_tier)) => src_tier > target_tier,
+                        _ => false,
+                    }
+                });
+                assert_eq!(constraints.is_forbidden(link), scan_forbidden(&constraints, link));
+            }
+        }
+        for par in 0..vars.len() {
+            for child in 0..vars.len() {
+                let link = contemp_link(vars[par], vars[child]);
+                assert_eq!(
+                    forbidden_edge(&constraints, &vars, par, child),
+                    scan_forbidden(&constraints, link)
+                );
+            }
+        }
+        assert!(forbidden_edge(&constraints, &vars, vars.len(), 0));
+
+        let mut expected = Vec::new();
+        for &source in &vars {
+            for lag in 0..=1 {
+                let link = LaggedLink {
+                    source,
+                    source_lag: Lag::from_raw(lag),
+                    target: vars[2],
+                    target_lag: Lag::CONTEMPORANEOUS,
+                };
+                if scan_forbidden(&constraints, link) || (source == vars[2] && lag == 0) {
+                    continue;
+                }
+                expected.push((source, Lag::from_raw(lag)));
+            }
+        }
+        for required in constraints.required.iter() {
+            if required.target == vars[2]
+                && required.target_lag == Lag::CONTEMPORANEOUS
+                && !expected.contains(&(required.source, required.source_lag))
+            {
+                expected.push((required.source, required.source_lag));
+            }
+        }
+        assert_eq!(constraints.candidate_sources(&vars, vars[2]), expected);
+
+        let empty = DiscoveryConstraints::default();
+        assert_eq!(empty.tier_of(vars[0]), None);
+        assert!(!empty.tier_forbids(vars[1], vars[0]));
+        assert!(!empty.is_forbidden(contemp_link(vars[1], vars[0])));
+        assert_eq!(
+            empty.candidate_sources(&vars[..1], vars[0]),
+            vec![(vars[0], empty.temporal.min_lag)]
+        );
     }
 }

@@ -1,4 +1,4 @@
-//! Deterministic screen/estimate splits from caller-declared data ownership (2.2 E4).
+//! Deterministic screen/estimate splits from caller-declared data ownership.
 //!
 //! A screen/estimate split is only honest when no unit of dependence contributes rows to
 //! both halves: a repeated entity, a cluster, or a dyad whose endpoint also appears in
@@ -20,7 +20,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::fmt::Write;
 use std::sync::Arc;
 
 use antecedent_core::CausalRng;
@@ -133,10 +132,7 @@ impl CandidateScreen {
             }
         }
         let digest = PayloadDigestWire::u32s("candidate_screen.units.v1", &distinct).digest;
-        let mut unit_digest = String::with_capacity(2 * digest.len());
-        for byte in digest {
-            let _ = write!(unit_digest, "{byte:02x}");
-        }
+        let unit_digest = antecedent_core::to_hex(&digest);
         let screen = Self {
             screen_id: Arc::from(format!("{screen_id};seed={seed:016x};units={unit_digest}")),
             procedure,

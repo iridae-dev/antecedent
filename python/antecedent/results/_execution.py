@@ -11,6 +11,8 @@ from math import isfinite
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 
 if TYPE_CHECKING:
+    from .._artifact_protocol import ExportedArtifact
+    from .._workflow import LoadedResult
     from ..estimation import PreparedAnalysis
     from ..msm_sensitivity import MsmResult
     from ..prediction import FittedEffectModel
@@ -381,11 +383,17 @@ class ResultAPI:
             )
         return refreshed
 
+    def artifact(self, **kwargs: Any) -> ExportedArtifact[LoadedResult]:
+        """Portable bytes, kind, independently retainable expectation, and export metadata."""
+        from .._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, **kwargs)
+
     def refute(
         self,
-        data: Mapping[str, Any] | Any,
-        suite: Any = "placebo",
+        data: Mapping[str, Any] | Any = None,
         *,
+        suite: Any = "placebo",
         seed: int | None = None,
         threads: int | None = None,
         cancel: Any | None = None,
@@ -404,7 +412,7 @@ class ResultAPI:
             )
         frozen = study._frozen(execution.snapshot())
         token = {} if cancel is None else {"cancel": cancel}
-        return frozen.refute(data, suite, seed=seed, threads=threads, **token)
+        return frozen.refute(data, suite=suite, seed=seed, threads=threads, **token)
 
     def _scalar_effect(self) -> float | None:
         """Historical scalar without the legacy-field warning."""
@@ -782,7 +790,13 @@ class ResultAPI:
             ),
             diagnostics=tuple(getattr(self, "diagnostics", ())),
         )
-        return as_inspection(self._with_portable_record(report))
+        return as_inspection(self._with_portable_record(report)).model_copy(
+            update={
+                "stage": "executed",
+                "family": type(self).__name__,
+                "operations": ("inspect", "export", "refute", "refresh"),
+            }
+        )
 
     def _with_portable_record(self, report: ReasoningSlots) -> ReasoningSlots:
         """Report the execution through the record its export carries.

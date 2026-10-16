@@ -1,4 +1,4 @@
-"""C3: composition bundles built on one language surface and consumed on the other.
+"""Composition bundles built on one language surface and consumed on the other.
 
 ``py_composition_bundle.*`` is written by ``generate_cross_surface_bundle_fixtures.py``
 and consumed by ``crates/antecedent-design/tests/cross_surface_bundle.rs``;
@@ -59,7 +59,7 @@ def _rust_bundle_bytes() -> bytes:
     return path.read_bytes()
 
 
-def test_c3_xsurface_rust_built_bundle_verifies_under_the_python_declared_identity() -> None:
+def test_xsurface_rust_built_bundle_verifies_under_the_python_declared_identity() -> None:
     expected = bundle_gen.build_bundle()
     consumed = cb.consume_bundle(_rust_bundle_bytes(), expected_identity=expected.identity)
     assert consumed.identity == expected.identity
@@ -73,7 +73,7 @@ def test_c3_xsurface_rust_built_bundle_verifies_under_the_python_declared_identi
     ]
 
 
-def test_c3_xsurface_rust_built_bundle_refuses_another_identity_and_changed_bytes() -> None:
+def test_xsurface_rust_built_bundle_refuses_another_identity_and_changed_bytes() -> None:
     data = _rust_bundle_bytes()
     identity = bundle_gen.build_bundle().identity
     with pytest.raises(cb.ExpectedIdentityMismatchRefusal) as wrong:
@@ -83,7 +83,7 @@ def test_c3_xsurface_rust_built_bundle_refuses_another_identity_and_changed_byte
         cb.consume_bundle(_flip_middle_byte(data), expected_identity=identity)
 
 
-def test_c3_xsurface_python_bundle_identity_equals_the_committed_fixture_constant() -> None:
+def test_xsurface_python_bundle_identity_equals_the_committed_fixture_constant() -> None:
     path = FIXTURES / bundle_gen.PY_IDENTITY
     if not path.is_file():
         pytest.skip(f"missing {path}; generate it with: {bundle_gen.PY_COMMAND}")
@@ -99,7 +99,7 @@ def test_c3_xsurface_python_bundle_identity_equals_the_committed_fixture_constan
     _assert_hand_derived_truth(consumed)
 
 
-def test_c3_xsurface_python_bundle_is_deterministic_and_order_invariant() -> None:
+def test_xsurface_python_bundle_is_deterministic_and_order_invariant() -> None:
     parts = bundle_gen.bundle_parts()
     forward = bundle_gen.build_bundle()
     reverse = cb.Bundle.builder()

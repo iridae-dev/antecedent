@@ -1,127 +1,193 @@
-# Narrative docs for Read the Docs / local `mkdocs serve`.
-# Python API: pdoc HTML merged into the RTD site at /python/ (see .readthedocs.yaml).
-# Rust API: docs.rs/antecedent.
 site_name: Antecedent
 site_description: Documentation for identification-first causal inference in Python and Rust
 site_url: https://antecedent.readthedocs.io/
 repo_url: https://github.com/iridae-dev/antecedent
 edit_uri: edit/main/docs/
-
 theme:
   name: material
+  custom_dir: docs-theme
   features:
-    - content.code.copy
-    - navigation.sections
-    - navigation.top
-    - navigation.footer
+  - content.code.copy
+  - navigation.sections
+  - navigation.top
+  - navigation.footer
+  - navigation.indexes
+  - navigation.tabs
+  - search.suggest
+  - search.highlight
   palette:
-    - scheme: default
-      primary: blue grey
-      toggle:
-        icon: material/brightness-7
-        name: Dark mode
-    - scheme: slate
-      primary: blue grey
-      toggle:
-        icon: material/brightness-4
-        name: Light mode
-
+  - scheme: default
+    primary: blue grey
+    toggle:
+      icon: material/brightness-7
+      name: Dark mode
+  - scheme: slate
+    primary: blue grey
+    toggle:
+      icon: material/brightness-4
+      name: Light mode
 markdown_extensions:
-  - admonition
-  - tables
-  - toc:
-      permalink: true
-  - pymdownx.superfences
-  - pymdownx.highlight
-
+- admonition
+- tables
+- toc:
+    permalink: true
+- pymdownx.superfences
+- pymdownx.highlight
 nav:
-  - Home: index.md
-  - Understand Antecedent:
-      - System model: system-model.md
-      - The causal contract: causal-contract.md
-      - A result is a claim: result-is-a-claim.md
-      - Refusal and partial knowledge: refusal-and-partial-knowledge.md
-      - Guarantees and support: guarantees.md
-  - Start here:
-      - Python quickstart: python-workflow.md
-      - Rust quickstart: rust-quickstart.md
-      - Examples: examples.md
-      - Supported analyses: supported-analyses.md
-  - Guides:
-      - Causal responses: causal-responses.md
-      - Local, distributional, and joint effects: local-distributional-joint.md
-      - Transport and interference: transport-interference.md
-      - Transport failures: guides/transport-failure.md
-      - Transport theorem scope: guides/transport-scope.md
-      - Finite-action inverse outcome: guides/inverse-outcome.md
-      - Matched case-control odds ratio: guides/matched-case-control.md
-      - Descriptive raw-versus-adjusted comparison: guides/descriptive-comparison.md
-      - Tier-aware overlap and E-value diagnostics: guides/tier-diagnostics.md
-      - Sparse ingest evaluation: guides/sparse-ingest-evaluation.md
-      - Penalized propensity for AIPW: guides/penalized-aipw.md
-      - Joint cells and derived treatments: guides/joint-cells.md
-      - Clustered DML and entity-owned screens: guides/clustered-dml.md
-      - Preflight diagnostics and cost: guides/preflight-diagnostics.md
-      - Configured batches and batch retarget: guides/batch-retarget.md
-      - Cross-fitted DML scores and retarget covariance: guides/dml-scores.md
-      - Transport names moved in 2.0: migrations/2.0-transport-day1.md
-      - Prior bank: priors.md
-      - Graph uncertainty: graph_uncertainty.md
+- Home: index.md
+- Start:
+  - Installation: installation.md
+  - Python quickstart: python-workflow.md
+  - Rust quickstart: rust-quickstart.md
+  - Examples: examples.md
+  - Supported analyses: supported-analyses.md
+- Tutorials:
+  - Notebook to system: guides/notebook-to-system.md
+  - Measurement to decision: tutorials/measurement-to-decision.md
+  - Bring your own data: guides/your-data.md
+  - Refusal and repair: guides/refusal-recipes.md
+  - Producer and consumer: guides/artifact-handoff.md
+- How-to guides:
+  - Estimation and diagnostics:
+    - Causal responses: causal-responses.md
+    - Local, distributional, and joint effects: local-distributional-joint.md
+    - What the transport and uncertainty routes do not do: user-facing-limits.md
+    - Matched case-control odds ratio: guides/matched-case-control.md
+    - Descriptive raw-versus-adjusted comparison: guides/descriptive-comparison.md
+    - Tier-aware overlap and E-value diagnostics: guides/tier-diagnostics.md
+    - Penalized propensity for AIPW: guides/penalized-aipw.md
+    - Joint cells and derived treatments: guides/joint-cells.md
+    - Clustered DML and entity-owned screens: guides/clustered-dml.md
+    - Preflight diagnostics and cost: guides/preflight-diagnostics.md
+    - Configured batches and batch retarget: guides/batch-retarget.md
+    - Cross-fitted DML scores and retarget covariance: guides/dml-scores.md
+  - Discovery and structural uncertainty:
+    - Prior bank: priors.md
+    - Graph uncertainty: graph_uncertainty.md
+    - Selective discovery: selective-discovery.md
+  - Transport:
+    - Transport and interference: transport-interference.md
+    - Transport failures: guides/transport-failure.md
+    - Transport theorem scope: guides/transport-scope.md
+    - Transported cohort decisions and measurement models: guides/transported-decisions-and-measurement.md
+    - Mechanism transport and transported synthesis: guides/mechanism-and-synthesis-transport.md
+    - Transported policy, adaptive trials and period shifts: guides/transported-policy-and-adaptive-source.md
+    - Discovered-structure transport: guides/discovered-structure-transport.md
+    - Provider-sourced transport: guides/provider-sourced-transport.md
+    - Assumption ranges and revalidation: guides/assumption-range-and-revalidation.md
+  - Decisions and composition:
+    - Inverse queries and decisions on composed and transported sources: guides/inverse-and-decision-reach.md
+    - Finite-SCM discretization: guides/finite-scm-discretization.md
+    - Composed uncertainty: guides/composed-uncertainty.md
+    - Decision-reliability derived uncertainty: guides/decision-reliability-uncertainty.md
+    - Adaptive procedure uncertainty: guides/adaptive-procedure-uncertainty.md
+    - Interface-contract adapters: guides/interface-contract-adapters.md
+    - Finite-action inverse outcome: guides/inverse-outcome.md
+    - The lifecycle: lifecycle.md
+    - Quantities: quantities.md
+    - External scientific objects: external-science.md
+    - Joint distributions: joint-distributions.md
+    - Decisions: decisions.md
+    - Decisions, design, repair and estimator breadth: decisions-breadth.md
+    - Design ranking: design-ranking.md
+    - Sensitivity and robustness: sensitivity-and-robustness.md
+    - Transport and counterfactuals: transport-counterfactuals.md
+    - Population, time and uncertainty: population-time-uncertainty.md
+    - Composition and bundles: composition.md
+    - Producer and consumer matrix: producer-consumer-matrix.md
+    - Prepared recalculation: recalculation-capabilities.md
+    - Evidence ledger: evidence-ledger.md
+    - Measurement models: measurement-models.md
+    - Scientific bridges: scientific-bridges.md
+    - Mechanism composition: mechanism-composition.md
+    - Predictive assessment: predictive-assessment.md
+    - Adaptive inference: adaptive-inference.md
+    - Sequential evaluation: sequential-evaluation.md
+    - Decision reliability: decision-reliability.md
+    - Composition verification: composition-verification.md
   - Design-family studies:
-      - Survival outcomes: survival-outcomes.md
-      - Staggered-adoption event study: quasi-event-study.md
-      - Fuzzy RD and regression kink: quasi-rd-kink.md
-      - Synthetic control: quasi-synthetic-control.md
-      - Synthetic DiD and augmented panel DiD: quasi-synthetic-augmentation.md
-      - Sequential g-formula: longitudinal-gformula.md
-      - Sequential doubly robust regimes: longitudinal-doubly-robust.md
-      - Continuous dose response: continuous-dose-response.md
-      - Doubly robust policy evaluation: doubly-robust-policy-evaluation.md
-      - DR-Learner pointwise CATE: dr-pointwise-cate.md
-      - Observational network exposure: observational-network-exposure.md
-      - Saturation interference: saturation-interference.md
-  - 2.3 guide:
-      - The 2.3 lifecycle: 2_3-lifecycle.md
-      - Quantities: 2_3-quantities.md
-      - External scientific objects: 2_3-external-science.md
-      - Joint distributions: 2_3-joint-distributions.md
-      - Decisions: 2_3-decisions.md
-      - Decisions, design, repair and estimator breadth: 2_3-decisions-breadth.md
-      - Design ranking: 2_3-design-ranking.md
-      - Sensitivity and robustness: 2_3-sensitivity-and-robustness.md
-      - Transport and counterfactuals: 2_3-transport-counterfactuals.md
-      - Population, time and uncertainty: 2_3-population-time-uncertainty.md
-      - Composition and bundles: 2_3-composition.md
-      - Producer and consumer matrix: 2_3-producer-consumer-matrix.md
-      - Prepared recalculation: 2_3-recalculation-capabilities.md
-  - Concepts:
-      - Capabilities: capabilities.md
-      - Observation contract: observation-contract.md
-      - Comparison: comparison.md
-      - Architecture: architecture.md
-  - Reference:
-      - Python API: python-api.md
-      - Python workflow options: python-options.md
-      - Support matrix: support-matrix.md
-      - Graphless support matrix: graphless-support-matrix.md
-      - Short-series thresholds: short-series-thresholds.md
-      - Artifacts: artifacts.md
-      - API naming: api_naming.md
-  - Evidence and development:
-      - Development: development.md
-      - Conformance: conformance/README.md
-      - Hot paths: hot_paths.md
-      - Practitioner acceptance: practitioner-acceptance.md
-      - Security review: security_review.md
-  - Release notes:
-      - "2.2.0": release-notes/v2.2.0.md
-      - "2.1.1": release-notes/v2.1.1.md
-      - "2.1.0": release-notes/v2.1.0.md
-      - "2.0.0": release-notes/v2.0.0.md
-
+    - Survival outcomes: survival-outcomes.md
+    - Staggered-adoption event study: quasi-event-study.md
+    - Fuzzy RD and regression kink: quasi-rd-kink.md
+    - Synthetic control: quasi-synthetic-control.md
+    - Synthetic DiD and augmented panel DiD: quasi-synthetic-augmentation.md
+    - Sequential g-formula: longitudinal-gformula.md
+    - Sequential doubly robust regimes: longitudinal-doubly-robust.md
+    - Continuous dose response: continuous-dose-response.md
+    - Doubly robust policy evaluation: doubly-robust-policy-evaluation.md
+    - DR-Learner pointwise CATE: dr-pointwise-cate.md
+    - Observational network exposure: observational-network-exposure.md
+    - Saturation interference: saturation-interference.md
+- Concepts:
+  - System model: system-model.md
+  - The causal contract: causal-contract.md
+  - A result is a claim: result-is-a-claim.md
+  - Refusal and partial knowledge: refusal-and-partial-knowledge.md
+  - Guarantees and support: guarantees.md
+  - Capabilities: capabilities.md
+  - Observation contract: observation-contract.md
+  - Comparison: comparison.md
+  - Architecture: architecture.md
+  - Glossary: glossary.md
+  - Observation queries: observation-queries.md
+  - Scientific interfaces: interface-contracts.md
+  - Joint uncertainty propagation: joint-law-propagation.md
+  - Provider callbacks: provider-callbacks.md
+  - Cross-world execution: cross-world-execution.md
+- Reference:
+  - Support lookup: support-lookup.md
+  - Python API: python-api.md
+  - Python workflow options: python-options.md
+  - Support matrix: support-matrix.md
+  - Graphless support matrix: graphless-support-matrix.md
+  - Short-series thresholds: short-series-thresholds.md
+  - Artifacts: artifacts.md
+  - API naming: api_naming.md
+  - Supported input bounds: supported-bounds.md
+  - DoWhy interoperability: interop_dowhy.md
+  - Sampled recovery: sampled-recovery-bca.md
+  - Sampled counterfactual transport: sampled-counterfactual-transport.md
+  - Composition reach: reach-composition.md
+  - Decision reach: reach-decisions.md
+  - Migration guides:
+    - Python 2.4 migration: migrations/2.4-python-ux.md
+    - Transport name migration: migrations/2.0-transport-day1.md
+    - Design ranking verification and overlap: migrations/design-ranking-verification-and-overlap.md
+    - Composite decision stage identity: migrations/composite-decision-stage-identity.md
+    - Decision and claim identity domains: migrations/decision-and-claim-identity-domains.md
+    - Design ranking fingerprints: migrations/design-ranking-fingerprints.md
+    - Recovery identity and rule spelling: migrations/recovery-identity-and-rule-spelling.md
+- Development:
+  - Development: development.md
+  - Test performance: guides/test-performance.md
+  - Conformance: conformance/README.md
+  - Hot paths: hot_paths.md
+  - Practitioner acceptance: practitioner-acceptance.md
+  - Security review: security_review.md
+  - Callback security: callback-security.md
+  - Technical derivations:
+    - Joint mechanism sensitivity: guides/joint-mechanism-sensitivity.md
+    - Exact transport: architecture/transport-exact.md
+    - Multi-source transport: architecture/transport-meta-grid.md
+    - Smoothed transport: architecture/smoothed-dose-response-transport.md
+    - Composition identities: architecture/composition-identities.md
+- Release notes:
+  - 2.4.0: release-notes/v2.4.0.md
+  - 2.3.0: release-notes/v2.3.0.md
+  - 2.2.0: release-notes/v2.2.0.md
+  - 2.1.1: release-notes/v2.1.1.md
+  - 2.1.0: release-notes/v2.1.0.md
+  - 2.0.0: release-notes/v2.0.0.md
 plugins:
-  - search
-
+- search
 docs_dir: docs
-exclude_docs: |
-  /README.md
+exclude_docs: '/README.md
+
+  '
+hooks:
+- scripts/docs_hooks.py
+extra_javascript:
+- assets/support-lookup.js
+
+extra_css:
+- assets/support-lookup.css

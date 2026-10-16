@@ -1,4 +1,4 @@
-"""Generalized finite inverse decision query (F7).
+"""Generalized finite inverse decision query.
 
 "Which of these declared actions satisfy these constraints?" over a finite, ordered
 action grid. Target-mean, target-quantile and probability-threshold constraints all
@@ -45,20 +45,25 @@ declarations and raises each refusal as :class:`InverseQueryRefusal`, a
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
+from ._columns import coerce_fields
 from ._native import InverseQueryArtifact as _NativeInverseQueryArtifact
 from ._native import inverse_query_baseline as _baseline
+from ._refusal import raise_refusal
+from ._validate import real
 from .decision import Contract
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim
-from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .joint_distribution import JointDistributionArtifact
+from .results.sources import MeanSource, adapt_mean_source, is_mean_producer
 
 if TYPE_CHECKING:
     from .program_claims import NativeClaim
+    from .scientific_bridge import BridgedClaim, ConsumedBridge
 
 Direction = Literal["at_least", "at_most"]
 Tail = Literal["lower", "upper"]
@@ -83,7 +88,7 @@ FEASIBILITY_STATUSES: tuple[str, ...] = (
 )
 
 
-class InverseQueryRefusal(CausalUnsupportedError):
+class InverseQueryRefusal(StructuredRefusal):
     """An inverse-query refusal carrying the structured Rust fields.
 
     ``reason_code`` is registered. ``detail`` is the namespaced ``family.slot``: the
@@ -100,17 +105,9 @@ class InverseQueryRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         offending = refusal.get("offending")
         text = str(refusal["detail"]) + (f": {offending}" if offending else "")
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        self.stage: str = refusal.get("stage", "")
-        self.detail: str = refusal["detail"]
-        self.offending: str | None = offending
+        super().__init__(refusal, text=text)
         self.expected: str | None = refusal.get("expected")
         self.supplied: str | None = refusal.get("supplied")
-
-
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise InverseQueryRefusal(json.loads(refusal))
 
 
 def _direction(value: str) -> Direction:
@@ -170,15 +167,18 @@ class Constraint:
         return f"P(U {side} {self.outcome_threshold:g}) {sign} {self.probability:g}"
 
 
-def _finite(name: str, value: float) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise CausalValueError(f"{name} must be a finite number", reason_code="invalid_argument")
-    return float(value)
+_finite = partial(
+    real,
+    finite=True,
+    type_error=CausalValueError,
+    type_message="{what} must be a finite number",
+    reason_code="invalid_argument",
+)
 
 
 def target_mean(target: float, *, direction: Direction = "at_least") -> Constraint:
     """``E[U_a]`` at least (or at most) ``target``; answerable from means when affine."""
-    return Constraint("target_mean", _direction(direction), target=_finite("target", target))
+    return Constraint("target_mean", _direction(direction), target=_finite(target, "target"))
 
 
 def target_quantile(p: float, target: float, *, direction: Direction = "at_least") -> Constraint:
@@ -189,8 +189,8 @@ def target_quantile(p: float, target: float, *, direction: Direction = "at_least
     return Constraint(
         "target_quantile",
         _direction(direction),
-        target=_finite("target", target),
-        p=_finite("p", p),
+        target=_finite(target, "target"),
+        p=_finite(p, "p"),
     )
 
 
@@ -211,65 +211,30 @@ def probability_threshold(
     return Constraint(
         "probability_threshold",
         _direction(direction),
-        outcome_threshold=_finite("outcome_threshold", outcome_threshold),
+        outcome_threshold=_finite(outcome_threshold, "outcome_threshold"),
         tail=tail,
-        probability=_finite("probability", probability),
+        probability=_finite(probability, "probability"),
     )
 
 
 # ------------------------------------------------------------------------ claims
 
 
-@dataclass(frozen=True, slots=True)
-class MeanClaim:
-    """A forward claim that supplies only the mean of each coordinate.
-
-    It answers an affine target mean and nothing else.
-    """
-
-    coordinates: tuple[ScientificQuantity, ...]
-    means: tuple[float, ...]
-    provider_id: str
-    snapshot_id: str
-    causal_contract_id: str
-    rng_id: str = "none:mean_grid"
-    _original_external: BoundExternalClaim | None = field(default=None, repr=False, compare=False)
-    _original_native: Any = field(default=None, repr=False, compare=False)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "coordinates", tuple(self.coordinates))
-        object.__setattr__(self, "means", tuple(float(m) for m in self.means))
-
-    @classmethod
-    def from_external(cls, claim: BoundExternalClaim) -> MeanClaim:
-        """The mean grid of a bound external response."""
-        identity = claim.identity_fields
-        return cls(
-            coordinates=tuple(claim.quantities),
-            means=tuple(float(v) for v in claim.values),
-            provider_id=str(identity["provider_id"]),
-            snapshot_id=str(identity["snapshot_id"]),
-            causal_contract_id=str(identity["causal_contract_id"]),
-            _original_external=claim,
-        )
-
-    def _wire(self) -> dict[str, Any]:
-        return {
-            "coordinates": [q._wire() for q in self.coordinates],
-            "means": list(self.means),
-            "provider_id": self.provider_id,
-            "snapshot_id": self.snapshot_id,
-            "causal_contract_id": self.causal_contract_id,
-            "rng_id": self.rng_id,
-        }
+# The canonical source is shared with decision consumers.
+MeanClaim = MeanSource
 
 
 if TYPE_CHECKING:
     ForwardClaim: TypeAlias = (
-        JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim
+        JointDistributionArtifact
+        | MeanClaim
+        | BoundExternalClaim
+        | NativeClaim
+        | BridgedClaim
+        | ConsumedBridge
     )
 else:
-    ForwardClaim = "JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim"
+    ForwardClaim = "JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim | BridgedClaim | ConsumedBridge"
 
 
 def _claim(claim: ForwardClaim) -> Any:
@@ -281,7 +246,10 @@ def _claim(claim: ForwardClaim) -> Any:
         return claim._native
     if isinstance(claim, BoundExternalClaim):
         return claim._native
-    if isinstance(claim, MeanClaim):
+    if is_mean_producer(claim):
+        claim = adapt_mean_source(claim)
+    if isinstance(claim, MeanSource):
+        claim._validated_original()
         if claim._original_native is not None:
             from . import _native
 
@@ -370,7 +338,7 @@ class IdentifiedSet:
     exhaustive: bool = False
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "members", tuple(self.members))
+        coerce_fields(self, members=tuple(self.members))
 
 
 # ------------------------------------------------------------------------ result
@@ -554,6 +522,21 @@ class InverseResult:
         """What the answer does and does not claim."""
         return str(self._body["scope_note"])
 
+    @property
+    def origin(self) -> Any:
+        """Where the point claim came from (:class:`antecedent.inverse_sources.ForwardOrigin`),
+        for an artifact sealed on a forward source; ``None`` otherwise.
+
+        The origin is bound into the artifact identity and re-derived on consume: a consumer
+        refuses an origin that does not describe the embedded claim.
+        """
+        raw = self._native.forward_origin_json
+        if raw is None:
+            return None
+        from .inverse_sources import ForwardOrigin
+
+        return ForwardOrigin._from_wire(json.loads(raw))
+
     def action(self, id: str) -> ActionReport:  # noqa: A002
         """The report of one action by id."""
         for report in self.actions:
@@ -632,7 +615,7 @@ class InverseResult:
         native, refusal = _NativeInverseQueryArtifact.consume(
             data, None if expected_identity is None else json.dumps(dict(expected_identity))
         )
-        _raise(refusal)
+        raise_refusal(refusal, InverseQueryRefusal)
         assert native is not None
         contract = Contract._from_wire(json.loads(native.contract_json))
         return cls(InverseQuery._from_wire(contract, json.loads(native.query_json)), native)
@@ -669,8 +652,8 @@ class InverseQuery:
     max_evaluations: int | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "grid", tuple(self.grid))
-        object.__setattr__(self, "constraints", tuple(self.constraints))
+        coerce_fields(self, grid=tuple(self.grid))
+        coerce_fields(self, constraints=tuple(self.constraints))
         if not isinstance(self.contract, Contract):
             raise CausalTypeError("contract must be a decision.Contract")
         if any(not isinstance(c, Constraint) for c in self.constraints):
@@ -743,7 +726,7 @@ class InverseQuery:
             members,
             None if scenarios is None else [s._tuple() for s in scenarios],
         )
-        _raise(refusal)
+        raise_refusal(refusal, InverseQueryRefusal)
         assert native is not None
         return InverseResult(self, native)
 
@@ -786,7 +769,7 @@ def finite_enumeration_baseline(
     direction: Direction = "at_least",
     tolerance: float = 0.0,
 ) -> dict[str, Feasibility]:
-    """The 2.2 finite-enumeration baseline: classify each enumerated action by its forward
+    """The finite-enumeration baseline: classify each enumerated action by its forward
     mean against ``target``.
 
     An action off the evaluated grid is ``unevaluated`` (never interpolated) and an
@@ -795,9 +778,9 @@ def finite_enumeration_baseline(
     """
     rows = [{"id": p.id, "value": p.value, "supported": p.supported} for p in points]
     text, refusal = _baseline(
-        json.dumps(rows), _finite("target", target), _direction(direction), float(tolerance)
+        json.dumps(rows), _finite(target, "target"), _direction(direction), float(tolerance)
     )
-    _raise(refusal)
+    raise_refusal(refusal, InverseQueryRefusal)
     assert text is not None
     return {action: status for action, status in json.loads(text)}
 

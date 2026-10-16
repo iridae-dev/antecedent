@@ -2,11 +2,19 @@
 
 library = "antecedent"
 
+# Minor lines that receive security fixes, newest first.
+# scripts/set_version.py rewrites this and the generated SECURITY.md table.
+supported_lines = ["2.4", "2.3", "2.2", "2.1", "2.0"]
+
+# Package version the current security-review scope covers.
+# scripts/set_version.py rewrites this and the generated scope block.
+reviewed_version = "2.4.0"
+
 [[capabilities]]
 id = "release.parity_closure"
 status = "done"
 evidence_kind = "process_attested"
-notes = "Shipped pinned baseline rows are done across inventories; no waivers other than the bit-identical replay waivers in calibration_waivers.toml; required 1.0 chapters closed. Enforced by scripts/gate_release.sh (parity honesty pass over every inventory, all_done for release.toml) and scripts/gate_parity_schema.sh; no unit test executes it."
+notes = "Shipped pinned baseline rows are done across inventories; no waivers other than the bit-identical replay waivers in calibration_waivers.toml; required chapters closed. Enforced by scripts/gate_release.sh (parity honesty pass over every inventory, all_done for release.toml) and scripts/gate_parity_schema.sh; no unit test executes it."
 
 [[capabilities]]
 id = "release.graph_dot_json"
@@ -19,10 +27,10 @@ notes = "DOT + JSON + GML + NetworkX DAG interchange in antecedent-io"
 [[capabilities]]
 id = "release.artifact_schema"
 status = "done"
-evidence_test = "crates/antecedent-io/src/migrate.rs"
+evidence_test = "crates/antecedent-io-core/src/migrate.rs"
 evidence_assertion = "migrate_0_2_to_0_5_preserves_sections"
 limitations = "Named test covers the 0.2 to 0.5 migration chain preserving section bytes; the 0.1, 0.3 and 0.4 paths, golden fixtures and validate_result_* bindings are covered by sibling tests."
-notes = "Format 0.5 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1, 0.2, 0.3, and 0.4; migrate registry + golden fixtures. 1.10 composition: validate_result_* in crates/antecedent-io/src/analysis_result_artifact.rs binds enclosing query, horizon, and mass. Parent evidence stays artifact-schema, not estimator truth."
+notes = "Format 0.5 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1, 0.2, 0.3, and 0.4; migrate registry + golden fixtures. Composition: validate_result_* in crates/antecedent-io-core/src/analysis_result_artifact/validate.rs binds enclosing query, horizon, and mass. Parent evidence stays artifact-schema, not estimator truth."
 
 [[capabilities]]
 id = "release.wheel_matrix"
@@ -51,7 +59,7 @@ notes = "unsafe/license/dependency review + cargo-deny. Enforced by scripts/gate
 [[capabilities]]
 id = "release.artifact_mmap_stream_skip"
 status = "done"
-evidence_test = "crates/antecedent-io/src/reader.rs"
+evidence_test = "crates/antecedent-io-core/src/reader.rs"
 evidence_assertion = "mmap_uncompressed_section"
 limitations = "Named test covers the mmap view; section skip is covered by open_seek_loads_meta_only, and Arrow Never-compress and posterior meta-only are not exercised by it."
 notes = "ArtifactReader/MappedArtifactReader skip+mmap; SectionBytes Arc; Arrow Never-compress; posterior meta-only"

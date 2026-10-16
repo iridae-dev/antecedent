@@ -71,10 +71,6 @@ pub enum RandomizedEstimand {
 /// receipt/CUPED/ANCOVA only occur with Bernoulli assignment), so this is a pure
 /// lookup, not the license decision itself.
 #[must_use]
-#[allow(
-    clippy::fn_params_excessive_bools,
-    reason = "each flag is an independent structural property of the executed query; together they select one exact license coordinate and are not a refactorable state object"
-)]
 pub fn randomized_graphless_coordinate(
     design: &RandomizationDesign,
     estimand: RandomizedEstimand,
@@ -288,7 +284,10 @@ impl RandomizedEffectQuery {
     /// with the declared estimand.
     // One match over every randomization design; each arm's alignment,
     // allocation, and probability checks are cohesive and share local state.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one validation per query field, in declaration order"
+    )]
     pub fn validate(&self) -> Result<(), QueryError> {
         if let RandomizationDesign::MultiArm { assignment, probabilities, arms } = &self.design {
             let n = assignment.len();

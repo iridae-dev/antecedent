@@ -55,6 +55,23 @@ pub struct BayesianBasisEffect {
     pub ate_mean: f64,
 }
 
+/// Observed columns [`BayesianBasisGComputation::fit`] regresses.
+#[derive(Debug, Clone, Copy)]
+pub struct BasisData<'a> {
+    /// Treatment column.
+    pub treatment: &'a [f64],
+    /// Outcome column.
+    pub outcome: &'a [f64],
+    /// Covariates, column-major (`covariates_colmajor[j * n_rows + row]`).
+    pub covariates_colmajor: &'a [f64],
+    /// Number of covariate columns.
+    pub n_covariates: usize,
+    /// Row ids; default `0..n_rows`.
+    pub row_ids: Option<&'a [u32]>,
+    /// Cross-fitting fold ids copied to the returned prediction.
+    pub fold_ids: Option<&'a [u16]>,
+}
+
 impl BayesianBasisGComputation {
     /// Fit a quadratic outcome basis and evaluate treatment at 0 and 1.
     ///
@@ -72,19 +89,15 @@ impl BayesianBasisGComputation {
     /// Returns a typed error for invalid dimensions/data, absent treatment
     /// variation, invalid shrinkage settings, or a target other than
     /// [`BasisTargetPopulation::AllObserved`].
-    #[allow(clippy::too_many_arguments)]
     pub fn fit(
         &self,
-        treatment: &[f64],
-        outcome: &[f64],
-        covariates_colmajor: &[f64],
-        n_covariates: usize,
-        row_ids: Option<&[u32]>,
-        fold_ids: Option<&[u16]>,
+        data: &BasisData<'_>,
         population: BasisTargetPopulation,
         spec: BayesianBasisSpec,
         ctx: &ExecutionContext,
     ) -> Result<BayesianBasisEffect, LearnError> {
+        let BasisData { treatment, outcome, covariates_colmajor, n_covariates, row_ids, fold_ids } =
+            *data;
         let n = validate_inputs(
             treatment,
             outcome,

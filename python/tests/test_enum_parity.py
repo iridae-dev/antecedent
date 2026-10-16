@@ -1,7 +1,7 @@
 """Mechanical Rust↔Python parity for the identifier and estimator wire-id mirrors.
 
 ``antecedent.ids.Identifier`` / ``Estimator`` are hand-written Python mirrors of the
-Rust ``IdentifierId`` / ``EstimatorId`` wire ids. Nothing stopped them drifting: 2.1
+Rust ``IdentifierId`` / ``EstimatorId`` wire ids. Nothing stopped them drifting: one release
 added 26 Rust estimator ids and only 4 reached ``ids.py``, so
 ``Estimator(result.estimate.estimator_id)`` raised on ids the result itself reported.
 This test derives the authoritative sets from the Rust source and fails if either
@@ -11,18 +11,12 @@ mirror is missing or has an extra id, so the two stay in lockstep by constructio
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from antecedent.ids import Estimator, Identifier
 
-_IDS_RS = (
-    Path(__file__).resolve().parents[2]
-    / "crates"
-    / "antecedent"
-    / "src"
-    / "strategy_table"
-    / "ids.rs"
-)
+from _repo_text import REPO_ROOT
+
+_IDS_RS = REPO_ROOT / "crates" / "antecedent" / "src" / "strategy_table" / "ids.rs"
 
 
 def _rust_wire_ids() -> tuple[set[str], set[str]]:

@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/bayesian/temporal_class_envelope`
 
-Two-completion `TemporalCpdag` pulse under the 1.4 class-envelope law.
+Two-completion `TemporalCpdag` pulse under the class-envelope law.
 
 Without a caller-supplied class prior the result is an identified set plus
 atom posteriors. Enumeration weights are not mixed. With

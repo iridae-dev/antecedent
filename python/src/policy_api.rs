@@ -5,6 +5,8 @@
 use numpy::{PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 
+use crate::detach_catch;
+
 /// One descending frozen-score uplift bin: index, uplift, cost, rows, interval.
 type UpliftBin = (usize, f64, f64, usize, Option<(f64, f64)>);
 /// One conditional contrast: group, action, effect, total and observed rows,
@@ -217,6 +219,7 @@ impl From<&antecedent::PolicyValueEstimate> for PolicyValueSection {
 ))]
 #[allow(clippy::too_many_arguments)]
 fn evaluate_binary_policy(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     actions: Vec<bool>,
@@ -230,88 +233,36 @@ fn evaluate_binary_policy(
     reference_capacity: Option<usize>,
     reference_budget: Option<f64>,
 ) -> PyResult<(f64, f64, f64, f64, f64, f64)> {
-    let y = outcome.as_array().iter().copied().collect::<Vec<_>>();
-    let p = propensity.as_array();
-    let n = y.len();
-    if n == 0 || assignment.len() != n || actions.len() != n {
-        return Err(crate::value_err(
-            "outcome, assignment, and policy actions must have equal non-zero length",
-        ));
-    }
-    if p.len() != 1 && p.len() != n {
-        return Err(crate::value_err(
-            "propensity must have one value or one value per evaluation row",
-        ));
-    }
-    let reference = reference.unwrap_or_else(|| vec![false; n]);
-    if reference.len() != n {
-        return Err(crate::value_err("reference policy length must match evaluation rows"));
-    }
-    let available = available.unwrap_or_else(|| vec![true; n]);
-    if available.len() != n {
-        return Err(crate::value_err("availability length must match evaluation rows"));
-    }
-    if costs.len() != 1 && costs.len() != n {
-        return Err(crate::value_err("costs must be scalar or one value per row"));
-    }
-    let reference_costs = reference_costs.unwrap_or_else(|| costs.clone());
-    if reference_costs.len() != 1 && reference_costs.len() != n {
-        return Err(crate::value_err("reference_costs must be scalar or one value per row"));
-    }
-    if reference_costs.iter().any(|c| !c.is_finite() || *c < 0.0) {
-        return Err(crate::value_err("reference costs must be finite and non-negative"));
-    }
-    if costs.iter().any(|c| !c.is_finite() || *c < 0.0) {
-        return Err(crate::value_err("treatment costs must be finite and non-negative"));
-    }
-    if [budget, reference_budget]
-        .into_iter()
-        .flatten()
-        .any(|value| !value.is_finite() || value < 0.0)
-    {
-        return Err(crate::value_err("budgets must be finite and non-negative"));
-    }
-    if y.iter().any(|value| !value.is_finite()) {
-        return Err(crate::value_err("outcomes must be finite"));
-    }
-    let cost = |i: usize, values: &[f64]| values[if values.len() == 1 { 0 } else { i }];
-    let probability = |i: usize| p[if p.len() == 1 { 0 } else { i }];
-    let policy_cost = |policy: &[bool], costs: &[f64]| -> f64 {
-        policy.iter().enumerate().map(|(i, treat)| f64::from(*treat) * cost(i, costs)).sum()
-    };
-    let policy_actions = actions.iter().filter(|&&treat| treat).count();
-    if actions.iter().enumerate().any(|(i, treat)| *treat && !available[i]) {
-        return Err(crate::value_err("policy treats a unit whose action is unavailable"));
-    }
-    if reference.iter().enumerate().any(|(i, treat)| *treat && !available[i]) {
-        return Err(crate::value_err("reference policy treats a unit whose action is unavailable"));
-    }
-    if capacity.is_some_and(|limit| policy_actions > limit) {
-        return Err(crate::value_err("policy exceeds the declared treatment capacity"));
-    }
-    let reference_actions = reference.iter().filter(|&&treat| treat).count();
-    if reference_capacity.is_some_and(|limit| reference_actions > limit) {
-        return Err(crate::value_err("reference policy exceeds the declared treatment capacity"));
-    }
-    let total_cost = policy_cost(&actions, &costs);
-    if budget.is_some_and(|limit| total_cost > limit) {
-        return Err(crate::value_err("policy exceeds the declared treatment budget"));
-    }
-    let reference_total_cost = policy_cost(&reference, &reference_costs);
-    if reference_budget.is_some_and(|limit| reference_total_cost > limit) {
-        return Err(crate::value_err("reference policy exceeds the declared treatment budget"));
-    }
-    let policy_value = ipw_value(&y, &assignment, &actions, &probability)?;
-    let reference_value = ipw_value(&y, &assignment, &reference, &probability)?;
-    let policy_net = policy_value - total_cost / n as f64;
-    let reference_net = reference_value - reference_total_cost / n as f64;
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
+    let fit = detach_catch(py, move || {
+        antecedent_estimate::policy_value::evaluate_binary_ipw_policy(
+            &outcome,
+            &antecedent_estimate::policy_value::BinaryIpwDesign {
+                assignment: &assignment,
+                actions: &actions,
+                propensity: &propensity,
+                reference: reference.as_deref(),
+                costs: &costs,
+                reference_costs: reference_costs.as_deref(),
+                available: available.as_deref(),
+            },
+            &antecedent_estimate::policy_value::BinaryPolicyLimits {
+                capacity,
+                budget,
+                reference_capacity,
+                reference_budget,
+            },
+        )
+        .map_err(crate::value_err)
+    })?;
     Ok((
-        policy_net,
-        reference_net,
-        policy_net - reference_net,
-        reference_net - policy_net,
-        policy_actions as f64 / n as f64,
-        total_cost,
+        fit.policy_net,
+        fit.reference_net,
+        fit.incremental_value,
+        fit.regret,
+        fit.treatment_rate,
+        fit.total_cost,
     ))
 }
 
@@ -323,6 +274,7 @@ fn evaluate_binary_policy(
 ))]
 #[allow(clippy::too_many_arguments)]
 fn evaluate_binary_policy_doubly_robust(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     actions: Vec<bool>,
@@ -370,18 +322,24 @@ fn evaluate_binary_policy_doubly_robust(
     if costs.iter().chain(&reference_costs).any(|cost| !cost.is_finite() || *cost < 0.0) {
         return Err(crate::value_err("policy costs must be finite and non-negative"));
     }
-    let scores = antecedent_estimate::policy_value::evaluate_policy_value_scores(
-        &y,
-        &assignment,
-        &actions,
-        p.as_slice().unwrap_or(&[]),
-        &mu0.to_vec(),
-        &mu1.to_vec(),
-        &reference,
-        &costs,
-        &reference_costs,
-    )
-    .map_err(crate::value_err)?;
+    let propensity = p.as_slice().map(<[f64]>::to_vec).unwrap_or_default();
+    let (mu0, mu1) = (mu0.to_vec(), mu1.to_vec());
+    let scores = detach_catch(py, move || {
+        antecedent_estimate::policy_value::evaluate_policy_value_scores(
+            &y,
+            &antecedent_estimate::policy_value::BinaryPolicyDesign {
+                assignment: &assignment,
+                actions: &actions,
+                propensity: &propensity,
+                reference: &reference,
+                costs: &costs,
+                reference_costs: &reference_costs,
+            },
+            &mu0,
+            &mu1,
+        )
+        .map_err(crate::value_err)
+    })?;
     let policy_value = scores.policy_value;
     let reference_value = scores.reference_value;
     let incremental = scores.incremental_value;
@@ -420,29 +378,6 @@ fn evaluate_binary_policy_doubly_robust(
     ))
 }
 
-fn ipw_value(
-    outcome: &[f64],
-    assignment: &[bool],
-    actions: &[bool],
-    propensity: &impl Fn(usize) -> f64,
-) -> PyResult<f64> {
-    let n = outcome.len();
-    let mut value = 0.0;
-    for i in 0..n {
-        let e = propensity(i);
-        if !e.is_finite() || e <= 0.0 || e >= 1.0 {
-            return Err(crate::value_err(
-                "assignment propensities must be finite and strictly between zero and one",
-            ));
-        }
-        if assignment[i] == actions[i] {
-            let action_probability = if actions[i] { e } else { 1.0 - e };
-            value += outcome[i] / action_probability;
-        }
-    }
-    Ok(value / n as f64)
-}
-
 /// Held-out multi-action policy value under known randomized action probabilities.
 #[pyfunction]
 #[pyo3(signature = (
@@ -452,6 +387,7 @@ fn ipw_value(
 ))]
 #[allow(clippy::too_many_arguments)]
 fn evaluate_multi_action_policy(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assigned: Vec<usize>,
     actions: Vec<usize>,
@@ -465,158 +401,65 @@ fn evaluate_multi_action_policy(
     budget: Option<f64>,
     reference_budget: Option<f64>,
 ) -> PyResult<(f64, f64, f64, f64, f64)> {
-    let y = outcome.as_array();
-    let p = probabilities.as_array();
-    let n = y.len();
-    let action_count = p.ncols();
-    if n == 0 || p.nrows() != n || assigned.len() != n || actions.len() != n {
-        return Err(crate::value_err(
-            "outcome, assignment, policy, and propensity rows must have equal non-zero length",
-        ));
-    }
-    if action_count < 2 || assigned.iter().chain(&actions).any(|&a| a >= action_count) {
-        return Err(crate::value_err("action index is outside the declared action set"));
-    }
-    if y.iter().any(|value| !value.is_finite()) {
-        return Err(crate::value_err("outcomes must be finite"));
-    }
-    for row in p.rows() {
-        let total = row.iter().sum::<f64>();
-        if row.iter().any(|v| !v.is_finite() || *v <= 0.0 || *v > 1.0) || (total - 1.0).abs() > 1e-8
-        {
-            return Err(crate::value_err(
-                "each action propensity must be positive and rows must sum to one",
-            ));
-        }
-    }
-    let reference = reference.unwrap_or_else(|| vec![0; n]);
-    if reference.len() != n || reference.iter().any(|&a| a >= action_count) {
-        return Err(crate::value_err("reference action indexes are invalid"));
-    }
-    let costs = costs.unwrap_or_else(|| vec![0.0; action_count]);
-    if costs.len() != action_count || costs.iter().any(|c| !c.is_finite() || *c < 0.0) {
-        return Err(crate::value_err(
-            "costs must contain one finite non-negative value per action",
-        ));
-    }
-    let reference_costs = reference_costs.unwrap_or_else(|| costs.clone());
-    if reference_costs.len() != action_count
-        || reference_costs.iter().any(|c| !c.is_finite() || *c < 0.0)
-    {
-        return Err(crate::value_err(
-            "reference_costs must contain one finite non-negative value per action",
-        ));
-    }
-    if [budget, reference_budget]
-        .into_iter()
-        .flatten()
-        .any(|value| !value.is_finite() || value < 0.0)
-    {
-        return Err(crate::value_err("budgets must be finite and non-negative"));
-    }
-    let available = available.unwrap_or_else(|| vec![vec![true; action_count]; n]);
-    if available.len() != n || available.iter().any(|row| row.len() != action_count) {
-        return Err(crate::value_err("availability must have one bool per row and action"));
-    }
-    let capacities = capacities.unwrap_or_else(|| vec![n; action_count]);
-    if capacities.len() != action_count {
-        return Err(crate::value_err("capacities must contain one limit per action"));
-    }
-    let reference_capacities = reference_capacities.unwrap_or_else(|| vec![n; action_count]);
-    if reference_capacities.len() != action_count {
-        return Err(crate::value_err("reference_capacities must contain one limit per action"));
-    }
-    let validate_policy = |policy: &[usize],
-                           limits: &[usize],
-                           policy_costs: &[f64],
-                           policy_budget: Option<f64>|
-     -> PyResult<(f64, usize)> {
-        let mut total_cost = 0.0;
-        let mut counts = vec![0usize; action_count];
-        for (i, &action) in policy.iter().enumerate() {
-            if !available[i][action] {
-                return Err(crate::value_err("policy selects an unavailable action"));
-            }
-            counts[action] += 1;
-            total_cost += policy_costs[action];
-        }
-        if counts.iter().zip(limits).any(|(count, limit)| count > limit) {
-            return Err(crate::value_err("policy exceeds an action capacity"));
-        }
-        if policy_budget.is_some_and(|limit| total_cost > limit) {
-            return Err(crate::value_err("policy exceeds the declared budget"));
-        }
-        Ok((total_cost, counts.iter().skip(1).sum()))
-    };
-    let (policy_cost, non_control) = validate_policy(&actions, &capacities, &costs, budget)?;
-    let (reference_cost, _) =
-        validate_policy(&reference, &reference_capacities, &reference_costs, reference_budget)?;
-    let value = |policy: &[usize]| -> PyResult<f64> {
-        let mut sum = 0.0;
-        for i in 0..n {
-            if assigned[i] == policy[i] {
-                sum += y[i] / p[[i, assigned[i]]];
-            }
-        }
-        Ok(sum / n as f64)
-    };
-    let policy_value = value(&actions)? - policy_cost / n as f64;
-    let reference_value = value(&reference)? - reference_cost / n as f64;
+    let probabilities = probabilities.as_array();
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let (probability_rows, action_count) = (probabilities.nrows(), probabilities.ncols());
+    let probabilities = probabilities.iter().copied().collect::<Vec<_>>();
+    let fit = detach_catch(py, move || {
+        antecedent_estimate::policy_value::evaluate_multi_action_ipw_policy(
+            &outcome,
+            &antecedent_estimate::policy_value::MultiActionIpwDesign {
+                assigned: &assigned,
+                actions: &actions,
+                probabilities: &probabilities,
+                probability_rows,
+                action_count,
+                reference: reference.as_deref(),
+                costs: costs.as_deref(),
+                reference_costs: reference_costs.as_deref(),
+                available: available.as_deref(),
+            },
+            &antecedent_estimate::policy_value::MultiActionLimits {
+                capacities: capacities.as_deref(),
+                reference_capacities: reference_capacities.as_deref(),
+                budget,
+                reference_budget,
+            },
+        )
+        .map_err(crate::value_err)
+    })?;
     Ok((
-        policy_value,
-        reference_value,
-        policy_value - reference_value,
-        non_control as f64 / n as f64,
-        policy_cost,
+        fit.policy_value,
+        fit.reference_value,
+        fit.incremental_value,
+        fit.non_control_rate,
+        fit.policy_cost,
     ))
 }
 
 /// Held-out uplift by precomputed score rank bins under known randomization.
 #[pyfunction]
 fn uplift_by_score(
+    py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
     assignment: Vec<bool>,
     score_bin: Vec<usize>,
     propensity: PyReadonlyArray1<'_, f64>,
     bin_count: usize,
 ) -> PyResult<Vec<(usize, f64, f64, usize)>> {
-    let y = outcome.as_array();
-    let p = propensity.as_array();
-    let n = y.len();
-    if n == 0
-        || bin_count == 0
-        || assignment.len() != n
-        || score_bin.len() != n
-        || (p.len() != 1 && p.len() != n)
-    {
-        return Err(crate::value_err("uplift arrays and non-zero bin count must align"));
-    }
-    let mut values = vec![Vec::<f64>::new(); bin_count];
-    for i in 0..n {
-        let pi = p[if p.len() == 1 { 0 } else { i }];
-        if !y[i].is_finite() || !pi.is_finite() || pi <= 0.0 || pi >= 1.0 {
-            return Err(crate::value_err("outcomes must be finite and propensities in (0, 1)"));
-        }
-        if score_bin[i] >= bin_count {
-            return Err(crate::value_err("score bin index is outside bin_count"));
-        }
-        let score = if assignment[i] { y[i] / pi } else { -y[i] / (1.0 - pi) };
-        values[score_bin[i]].push(score);
-    }
-    values
-        .into_iter()
-        .enumerate()
-        .map(|(index, group)| {
-            if group.is_empty() {
-                return Err(crate::value_err("every score bin must contain evaluation rows"));
-            }
-            let n_group = group.len();
-            let effect = group.iter().sum::<f64>() / n_group as f64;
-            let variance = group.iter().map(|v| (v - effect).powi(2)).sum::<f64>()
-                / ((n_group.saturating_sub(1).max(1)) as f64 * n_group as f64);
-            Ok((index, effect, variance.sqrt(), n_group))
-        })
-        .collect()
+    let outcome = outcome.as_array().iter().copied().collect::<Vec<_>>();
+    let propensity = propensity.as_array().iter().copied().collect::<Vec<_>>();
+    let bins = detach_catch(py, move || {
+        antecedent_estimate::policy_value::uplift_by_score_bin(
+            &outcome,
+            &assignment,
+            &score_bin,
+            &propensity,
+            bin_count,
+        )
+        .map_err(crate::value_err)
+    })?;
+    Ok(bins.into_iter().map(|bin| (bin.index, bin.effect, bin.standard_error, bin.rows)).collect())
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

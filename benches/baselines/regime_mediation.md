@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (regime_mediation); do not edit -->
 # regime / mediation baselines
 
 Established: 2026-09-07 (the first measurement date the note below states)
@@ -20,11 +21,10 @@ Criterion benches (run with `--test` in `gate_context.sh`):
 | mediation_stress_800 | ~20 ms / iter typical; asserted gate **40 ms** (2× headroom for `--test` noise) |
 
 Memory: multi-env sample plans must not clone sibling environment series
-(see `antecedent-data` `MultiEnvSamplePlan` unit test; J-PCMCI+ emits
-`jpcmci_plus.multi_env_plan` diagnostic). Soft latency budgets above are
+(J-PCMCI+ emits the `jpcmci_plus.multi_env_plan` diagnostic). Soft latency budgets above are
 asserted on a single timed iteration when Criterion runs with `--test`.
 
-## 1.2 Bayesian mediation reference
+## Bayesian mediation reference
 
 `bayesian_mediation_n800_draws512` fits independent Gaussian mediator/outcome
 posteriors on two prepared designs and composes direct, mediated, total and

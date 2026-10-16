@@ -1,4 +1,4 @@
-//! SE coverage calibration (measured locally by scripts/measure_calibration.sh).
+//! SE coverage calibration (measured locally by `scripts/measure_calibration.sh`).
 //!
 //! These tests are `#[ignore]` so every-PR `cargo test` stays fast. Run via
 //! `scripts/gate_calibration.sh`.
@@ -408,7 +408,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         let ui = standard_normal(&mut rng);
         // Logistic treatment so IPW propensity (logit) is correctly specified.
         let logit = 0.8 * zi;
-        let p = 1.0 / (1.0 + (-logit).exp());
+        let p = antecedent_kernels::sigmoid(logit);
         let ti = if uniform01(&mut rng) < p { 1.0 } else { 0.0 };
         let yi = TRUE_ATE * ti + 1.5 * zi + 0.5 * ui + 0.5 * standard_normal(&mut rng);
         t.push(ti);
@@ -433,7 +433,7 @@ fn linear_adjustment_analytic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert("linear_adjustment");
 }
@@ -457,7 +457,7 @@ fn linear_adjustment_hc1_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert("linear_adjustment_hc1");
 }
@@ -479,14 +479,14 @@ fn ipw_hajek_bootstrap_ci_coverage() {
         est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
     });
     for effect in &effects {
-        let Some(se_b) = effect.se_bootstrap else {
+        let Some(se_b) = effect.se_bootstrap() else {
             // Missing SE is a miss in the coverage rate, not a dropped replicate.
             if let Some((record, _)) = tally.record.as_mut() {
                 record.skip();
             }
             continue;
         };
-        tally.bind(grid_n(500), effect.bootstrap_replicates_ok);
+        tally.bind(grid_n(500), effect.uncertainty.bootstrap.replicates_ok);
         tally.record(effect.ate, se_b, TRUE_ATE);
     }
     tally.assert("ipw_hajek_bootstrap");
@@ -508,7 +508,7 @@ fn ipw_hajek_analytic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(grid_n(500), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     // Grid point 0 (n=250) measured 0.939 at 2000 replicates, 0.001 under the
     // precision floor. Points 1 and 2 pass the nominal band.
@@ -521,7 +521,7 @@ fn propensity_ipw_conformance_scm(n: usize, rng: &mut CausalRng) -> TabularData 
     let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
         let zi = standard_normal(rng);
-        let p = 1.0 / (1.0 + (-(-0.4 + 0.9 * zi)).exp());
+        let p = antecedent_kernels::sigmoid(-0.4 + 0.9 * zi);
         let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
         let noise = standard_normal(rng) * 0.4;
         z[i] = zi;
@@ -560,7 +560,7 @@ fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n, None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     // Grid point 0 measures 0.931 at 8000 replicates (mcse 0.0024, extending a 2000-rep
     // recheck's 0.930): stable, not noise (deviation from nominal holds in MCSE units
@@ -585,7 +585,7 @@ fn aipw_analytic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     // Grid point 0 measures 0.939 at 2000 replicates against the precision floor
     // 0.940 (1878/2000): a named boundary, not a band failure.
@@ -606,7 +606,7 @@ fn penalized_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         for column in &mut z {
             column[i] = standard_normal(&mut rng);
         }
-        let p = 1.0 / (1.0 + (-(0.8 * z[0][i] - 0.5 * z[1][i])).exp());
+        let p = antecedent_kernels::sigmoid(0.8 * z[0][i] - 0.5 * z[1][i]);
         t[i] = if uniform01(&mut rng) < p { 1.0 } else { 0.0 };
         y[i] = TRUE_ATE * t[i]
             + 1.5 * z[0][i]
@@ -670,16 +670,16 @@ fn penalized_aipw_coverage(
     for effect in &effects {
         if bootstrap_replicates == 0 {
             tally.bind(grid_n(base_n), None);
-            tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+            tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
         } else {
-            let Some(se_b) = effect.se_bootstrap else {
+            let Some(se_b) = effect.se_bootstrap() else {
                 // A withheld SE is a miss in the coverage rate, not a dropped replicate.
                 if let Some((record, _)) = tally.record.as_mut() {
                     record.skip();
                 }
                 continue;
             };
-            tally.bind(grid_n(base_n), effect.bootstrap_replicates_ok);
+            tally.bind(grid_n(base_n), effect.uncertainty.bootstrap.replicates_ok);
             tally.record(effect.ate, se_b, TRUE_ATE);
         }
     }
@@ -752,7 +752,7 @@ fn heterogeneous_binary_scm(n: usize, seed: u64, cluster_sd: f64) -> (TabularDat
         }
         g[i] = (i / 10) as u32;
         z[i] = standard_normal(&mut rng);
-        let p = 1.0 / (1.0 + (-0.8 * z[i]).exp());
+        let p = antecedent_kernels::sigmoid(0.8 * z[i]);
         t[i] = if uniform01(&mut rng) < p { 1.0 } else { 0.0 };
         y[i] = 2.0 * t[i] + t[i] * z[i] + z[i] + cluster_shock + 0.6 * standard_normal(&mut rng);
     }
@@ -764,7 +764,7 @@ fn heterogeneous_arm_mean_z(treated: bool) -> f64 {
     let (mut num, mut den) = (0.0, 0.0);
     for k in 0..18_000 {
         let z = -9.0 + f64::from(k) * 1e-3;
-        let p = 1.0 / (1.0 + (-0.8 * z).exp());
+        let p = antecedent_kernels::sigmoid(0.8 * z);
         let w = (-0.5 * z * z).exp() * if treated { p } else { 1.0 - p };
         num += w * z;
         den += w;
@@ -814,7 +814,7 @@ fn aipw_residualized_tally(
     });
     for effect in &effects {
         tally.bind(grid_n(600), None);
-        tally.record(effect.ate, effect.se_analytic, truth);
+        tally.record(effect.ate, effect.se_analytic(), truth);
     }
     let _ = label;
     tally
@@ -910,7 +910,7 @@ fn matching_homoskedastic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert("matching_ai");
 }
@@ -941,22 +941,36 @@ fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
 }
 
 fn wald_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, seed: u64) {
-    wald_coverage_on(test, label, se_kind, seed, "binary_iv_scm", binary_iv_scm, 0.05, false);
+    let design = WaldDesign {
+        dgp: "binary_iv_scm",
+        make: binary_iv_scm,
+        min_weak_share: 0.05,
+        boundary: false,
+    };
+    wald_coverage_on(test, label, se_kind, seed, &design);
+}
+
+/// The data-generating design a Wald-IV coverage cell draws from, and how it is gated.
+struct WaldDesign {
+    /// Name recorded for the DGP.
+    dgp: &'static str,
+    make: fn(usize, u64) -> (TabularData, IdentifiedEstimand),
+    /// Share of draws with a weak first stage the design must leave above this floor.
+    min_weak_share: f64,
+    /// A boundary cell records the measured coverage without gating it.
+    boundary: bool,
 }
 
 /// Anderson–Rubin coverage of the Wald estimator on the design `make` draws (`dgp` names it).
 /// A `boundary` cell records the measured coverage without gating it.
-#[allow(clippy::too_many_arguments)]
 fn wald_coverage_on(
     test: &'static str,
     label: &str,
     se_kind: AnalyticSeKind,
     seed: u64,
-    dgp: &'static str,
-    make: fn(usize, u64) -> (TabularData, IdentifiedEstimand),
-    min_weak_share: f64,
-    boundary: bool,
+    design: &WaldDesign,
 ) {
+    let WaldDesign { dgp, make, min_weak_share, boundary } = *design;
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
     let est = WaldIv { bootstrap_replicates: 0, se_kind, ..WaldIv::new() };
@@ -970,11 +984,11 @@ fn wald_coverage_on(
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
         assert!(
-            !effect.se_analytic.is_finite(),
+            !effect.se_analytic().is_finite(),
             "{label}: Wald SE must not be published (replicate {s})"
         );
-        assert!(effect.se_bootstrap.is_none(), "{label}: bootstrap SE must not be published");
-        let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
+        assert!(effect.se_bootstrap().is_none(), "{label}: bootstrap SE must not be published");
+        let diag = effect.diagnostics.first_stage.as_ref().expect("first-stage diagnostics");
         let weak = diag.f_statistic.is_finite() && diag.f_statistic < 10.0;
         let set = if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
             let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
@@ -989,13 +1003,15 @@ fn wald_coverage_on(
                 };
                 let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
                 let ar_true = antecedent_stats::anderson_rubin_statistic(
+                    &antecedent_stats::IvBlocks {
+                        nrows: prep.nrows,
+                        instruments_colmajor: &z,
+                        z_ncols: 1,
+                        exogenous_colmajor: &prep.exogenous_matrix,
+                        x_ncols: prep.x_ncols,
+                    },
                     &prep.outcome,
                     &prep.treatment,
-                    &z,
-                    prep.nrows,
-                    1,
-                    &prep.exogenous_matrix,
-                    prep.x_ncols,
                     TRUE_ATE,
                     &antecedent_stats::FaerBackend,
                     &mut ws,
@@ -1113,9 +1129,9 @@ fn two_sls_coverage(
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = TwoStageLeastSquaresWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        assert!(!effect.se_analytic.is_finite(), "{label}: Wald SE must not be published");
-        assert!(effect.se_bootstrap.is_none());
-        let diag = effect.first_stage_diagnostics.as_ref().expect("first-stage diagnostics");
+        assert!(!effect.se_analytic().is_finite(), "{label}: Wald SE must not be published");
+        assert!(effect.se_bootstrap().is_none());
+        let diag = effect.diagnostics.first_stage.as_ref().expect("first-stage diagnostics");
         let set = if matches!(se_kind, AnalyticSeKind::Homoskedastic) {
             let interval = diag.anderson_rubin.map(|(lo, hi, _)| (lo, hi));
             if interval.is_none()
@@ -1124,13 +1140,15 @@ fn two_sls_coverage(
                 let z_ncols = prep.z_ncols - 1;
                 let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
                 let ar_true = antecedent_stats::anderson_rubin_statistic(
+                    &antecedent_stats::IvBlocks {
+                        nrows: prep.nrows,
+                        instruments_colmajor: &prep.instruments_matrix[prep.nrows..],
+                        z_ncols,
+                        exogenous_colmajor: &prep.exogenous_matrix,
+                        x_ncols: prep.x_ncols,
+                    },
                     &prep.outcome,
                     &prep.treatment,
-                    &prep.instruments_matrix[prep.nrows..],
-                    prep.nrows,
-                    z_ncols,
-                    &prep.exogenous_matrix,
-                    prep.x_ncols,
                     TRUE_ATE,
                     &antecedent_stats::FaerBackend,
                     &mut ws,
@@ -1226,7 +1244,7 @@ fn frontdoor_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, 
     });
     for effect in &effects {
         tally.bind(grid_n(400), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert(label);
 }
@@ -1321,7 +1339,7 @@ fn frontdoor_functional_coverage(
         let data = frontdoor_functional_scm(grid_n(400), seed + s, discrete);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
-        let recorded = effect.assumptions.entries.iter().any(|r| match &r.assumption {
+        let recorded = effect.provenance.assumptions.entries.iter().any(|r| match &r.assumption {
             antecedent_core::Assumption::ParametricRestriction(p) => p.id.as_ref() == model,
             antecedent_core::Assumption::Custom { id, .. } => id.as_ref() == model,
             _ => false,
@@ -1331,7 +1349,7 @@ fn frontdoor_functional_coverage(
     });
     for effect in &effects {
         tally.bind(grid_n(400), None);
-        tally.record(effect.ate, effect.se_analytic, truth);
+        tally.record(effect.ate, effect.se_analytic(), truth);
     }
     tally.assert_boundary_at(label, measured);
 }
@@ -1425,7 +1443,7 @@ fn rd_sharp_analytic_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
     }
     tally.assert("rd_sharp_analytic");
 }
@@ -1484,7 +1502,7 @@ fn rd_sharp_hc1_curved_heterogeneous_probe() {
             est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
         });
         for effect in &effects {
-            probe.record(effect.ate, effect.se_analytic, CUTOFF_EFFECT);
+            probe.record(effect.ate, effect.se_analytic(), CUTOFF_EFFECT);
         }
         probe.report(&format!("rd_sharp_hc1_curved_heterogeneous_probe_h{bandwidth}"));
     }
@@ -1517,14 +1535,14 @@ fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     });
     for (effect, naive) in &fits {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
-        probe.record(naive.ate, naive.se_analytic, TRUE_ATE);
+        tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
+        probe.record(naive.ate, naive.se_analytic(), TRUE_ATE);
     }
     probe.report("rd_sharp_homoskedastic_se_heteroskedastic_probe");
     tally.assert("rd_sharp_hc1_heteroskedastic");
 }
 
-// ------------------------------------------ DML / DR / causal forest (R13)
+// ------------------------------------------ DML / DR / causal forest
 // Reported-level (0.95) coverage cells on the well-specified confounded SCM.
 // Each scores `ate ± Z95·se_analytic` through [`CoverageTally`], counts fit
 // failures as skips (misses, 1% cap), and [`CoverageTally::emit`]s a
@@ -1574,10 +1592,9 @@ fn score_learner_replicate(
                 unidentified_mass: 0.0,
             },
         );
-        let interval = (effect.se_analytic.is_finite() && effect.se_analytic > 0.0).then_some((
-            effect.ate - Z95 * effect.se_analytic,
-            effect.ate + Z95 * effect.se_analytic,
-        ));
+        let interval = (effect.se_analytic().is_finite() && effect.se_analytic() > 0.0).then_some(
+            (effect.ate - Z95 * effect.se_analytic(), effect.ate + Z95 * effect.se_analytic()),
+        );
         tally.record(interval, TRUE_ATE);
     } else {
         *skipped += 1;
@@ -1728,10 +1745,7 @@ fn wald_iv_weak_first_stage_adversarial_ci_coverage() {
         "wald_iv_weak_first_stage_adversarial",
         AnalyticSeKind::Homoskedastic,
         71,
-        "weak_iv_scm",
-        weak_iv_scm,
-        0.2,
-        true,
+        &WaldDesign { dgp: "weak_iv_scm", make: weak_iv_scm, min_weak_share: 0.2, boundary: true },
     );
 }
 
@@ -1758,7 +1772,7 @@ fn ipw_hajek_weak_overlap_adversarial_ci_coverage() {
         match effect {
             Ok(effect) => {
                 tally.bind(grid_n(500), None);
-                tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+                tally.record(effect.ate, effect.se_analytic(), TRUE_ATE);
             }
             Err(_) => tally.skip(),
         }
@@ -1791,14 +1805,13 @@ fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(10 * n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, CUTOFF_EFFECT);
+        tally.record(effect.ate, effect.se_analytic(), CUTOFF_EFFECT);
     }
     tally.emit_boundary("rd_sharp_hc1_curved_adversarial");
 }
 
 /// Matching with the homoskedastic SE on `make`'s design, scored against `truth` for
 /// `population`; recorded as a boundary, never gated.
-#[allow(clippy::too_many_arguments)]
 fn matching_coverage_on(
     test: &'static str,
     label: &str,
@@ -1825,7 +1838,7 @@ fn matching_coverage_on(
     });
     for effect in &effects {
         tally.bind(n_obs(), None);
-        tally.record(effect.ate, effect.se_analytic, truth);
+        tally.record(effect.ate, effect.se_analytic(), truth);
     }
     tally.emit_boundary(label);
 }
@@ -1941,12 +1954,12 @@ fn frontdoor_stacked_hc1_curved_mediator_ci_coverage() {
     });
     for effect in &effects {
         tally.bind(grid_n(400), None);
-        tally.record(effect.ate, effect.se_analytic, CURVED_TRUTH);
+        tally.record(effect.ate, effect.se_analytic(), CURVED_TRUTH);
     }
     tally.emit_boundary("frontdoor_stacked_hc1_curved_mediator");
 }
 
-// --------------------------------------------- precision-layer unit tests (R13)
+// --------------------------------------------- precision-layer unit tests
 
 /// A reported-level (0.95) rate below the precision floor fails the pass predicate.
 #[test]

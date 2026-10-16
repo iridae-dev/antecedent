@@ -1,4 +1,4 @@
-//! 2.3.0 A5: the transported static path-specific counterfactual (narrow class).
+//! The transported static path-specific counterfactual (narrow class).
 //!
 //! One cell is licensed: a source structural fit with **additive-noise** equations affine in
 //! the covariates, finite-support source and target covariate laws, and a selection diagram
@@ -32,7 +32,7 @@
 
 pub use antecedent_counterfactual::transported_path_specific::{
     AdditiveLinearScm, Affine, CovariateLaw, DeclaredAssumptions, EdgeAssignment, LinearMechanism,
-    NonRecoverableWitness, PathSpecificQuery, SelectionDiagram, SelectionNode,
+    NonRecoverableWitness, PathSpecificQuery, PathSpecificSelectionDiagram, SelectionNode,
     TransportedPathSpecificInput, TransportedPathSpecificRefusal, TransportedPathSpecificResult,
     evaluate_transported_path_specific,
 };

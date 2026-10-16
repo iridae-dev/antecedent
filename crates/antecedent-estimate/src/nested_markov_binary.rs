@@ -1,5 +1,5 @@
-//! Bounded binary nested-Markov likelihood pilot (2.3A A3, record
-//! `2.3A.X4.binary_nested_markov_pilot`).
+//! Bounded binary nested-Markov likelihood pilot (record
+//! `identify.binary_nested_markov`).
 //!
 //! An ordinary DAG factorization is **not** an ADMG likelihood: factorizing the
 //! selected graph below as `P(x1) P(x2|x1) P(x3|x2) P(x4|x3)` would ignore the
@@ -46,8 +46,8 @@
 //! The parameterization has 11 free parameters against 15 for the saturated
 //! model, so four equalities hold on every law of the model (positive `P`):
 //!
-//! * (E1) `X3` independent of `X1` given `X2`: `P(x3=0|x1=0,x2) = P(x3=0|x1=1,x2)`;
-//! * (E2) the Verma constraint: `sum_{x2} P(x2|x1) P(x4=0|x1,x2,x3)` does not
+//! * `X3` independent of `X1` given `X2`: `P(x3=0|x1=0,x2) = P(x3=0|x1=1,x2)`;
+//! * the Verma constraint: `sum_{x2} P(x2|x1) P(x4=0|x1,x2,x3)` does not
 //!   depend on `x1`, for each `x3`.
 //!
 //! [`constraint_residuals`] reports all four residuals. Data whose empirical law
@@ -94,23 +94,23 @@ use antecedent_core::ExecutionContext;
 /// Observed-variable limit of the pilot.
 pub const MAX_OBSERVED: usize = 6;
 /// Observed variables of the selected graph.
-pub const PILOT_OBSERVED: usize = 4;
+pub(crate) const PILOT_OBSERVED: usize = 4;
 /// Cells of the binary observational regime.
-pub const CELL_COUNT: usize = 16;
+pub(crate) const CELL_COUNT: usize = 16;
 /// Distance from 0 and 1 below which a fitted probability is a boundary fit.
-pub const BOUNDARY_TOLERANCE: f64 = 1e-9;
+pub(crate) const BOUNDARY_TOLERANCE: f64 = 1e-9;
 /// Default sweep bound.
-pub const DEFAULT_MAX_ITERATIONS: usize = 50_000;
+pub(crate) const DEFAULT_MAX_ITERATIONS: usize = 50_000;
 /// Largest sweep bound a caller may request.
 pub const MAX_ITERATIONS_CAP: usize = 1_000_000;
 /// Default convergence tolerance on the largest parameter change per sweep.
-pub const DEFAULT_TOLERANCE: f64 = 1e-11;
+pub(crate) const DEFAULT_TOLERANCE: f64 = 1e-11;
 /// Cell probabilities must sum to one within this.
-pub const NORMALIZATION_TOLERANCE: f64 = 1e-12;
+pub(crate) const NORMALIZATION_TOLERANCE: f64 = 1e-12;
 /// Detail of the refusal for anything outside the one selected pilot.
-pub const OUTSIDE_PILOT: &str = "nested_markov.outside_binary_pilot";
+pub(crate) const OUTSIDE_PILOT: &str = "nested_markov.outside_binary_pilot";
 /// Detail of the refusal of the public interval route.
-pub const ROUTE_FROZEN: &str = "nested_markov.route_frozen";
+pub(crate) const ROUTE_FROZEN: &str = "nested_markov.route_frozen";
 
 const FEASIBLE_TOLERANCE: f64 = 1e-12;
 const CONSTRAINT_TOLERANCE: f64 = 1e-9;
@@ -417,9 +417,9 @@ impl LawMarginals {
 /// The four equality-constraint residuals of a law.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ConstraintResiduals {
-    /// (E1) `P(x3=0|x1=0,x2) - P(x3=0|x1=1,x2)` for `x2 = 0, 1`.
+    /// `P(x3=0|x1=0,x2) - P(x3=0|x1=1,x2)` for `x2 = 0, 1`.
     pub x3_independent_of_x1: [f64; 2],
-    /// (E2) Verma: `R(0, x3) - R(1, x3)` for `x3 = 0, 1`.
+    /// Verma: `R(0, x3) - R(1, x3)` for `x3 = 0, 1`.
     pub verma: [f64; 2],
     /// Largest absolute residual.
     pub max_abs: f64,
@@ -453,7 +453,9 @@ pub fn constraint_residuals(
 ///
 /// # Errors
 /// `transport_support_failure` for a zero cell.
-pub fn parameters_from_law(law: &[f64; CELL_COUNT]) -> Result<NestedParameters, EstimationError> {
+pub(crate) fn parameters_from_law(
+    law: &[f64; CELL_COUNT],
+) -> Result<NestedParameters, EstimationError> {
     let m = LawMarginals::new(law)?;
     let a = (m.p12[0][0] + m.p12[0][1]) / (m.p12[0][0] + m.p12[0][1] + m.p12[1][0] + m.p12[1][1]);
     let mut c = [0.0; 2];
@@ -1009,7 +1011,7 @@ pub struct ContrastComparison {
 ///
 /// # Errors
 /// As [`plugin_means`].
-pub fn compare_target_contrast(
+pub(crate) fn compare_target_contrast(
     counts: &BinaryCells,
     fit: &NestedMarkovFit,
 ) -> Result<ContrastComparison, EstimationError> {

@@ -39,7 +39,7 @@ def members(obj):
         from pydantic import BaseModel
         if isinstance(obj, type) and issubclass(obj, BaseModel):
             names |= {n for n in obj.model_fields if not n.startswith("_")}
-    except Exception:
+    except ImportError:
         pass
     return sorted(names)
 
@@ -315,6 +315,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "ResponseJacobian",
         "SemiElasticity",
         "SustainedEffect",
+        "TemporalConditionalPulse",
+        "TemporalConditionalSustained",
         "TemporalMediationEffect",
         # Design queries: licensed cells run on analyze and retain a study
         "InterferenceQuery",
@@ -360,9 +362,14 @@ SNAPSHOT: dict[str, set[str]] = {
         "transport",
         "learners",
         "validation",
-        # Lazy 2.3 stage modules (`_LAZY_MODULES`): listed by ``dir``, imported on first access
+        # Lazy stage modules (`_LAZY_MODULES`): listed by ``dir``, imported on first access
         # (`joint_distribution` and `preflight` above are also in this family)
+        "adaptive_inference",
         "effect_constancy_review",
+        "decision_reliability",
+        "cross_world_execution",
+        "joint_law_propagation",
+        "evidence_ledger",
         "execution_attempt",
         "functional_source",
         "proposal_arrival",
@@ -375,22 +382,30 @@ SNAPSHOT: dict[str, set[str]] = {
         "source_evidence",
         "source_projection",
         "categorical_treatment",
+        "cohort_decision",
         "compact_export",
         "composition",
         "composition_bundle",
+        "composition_verification",
         "counterfactual_id",
         "cross_world",
         "decision_robust",
         "descriptive",
         "dose_grid",
+        "interface_contract",
         "inverse",
         "inverse_query",
         "latent_class",
+        "measurement_models",
+        "mechanism_composition",
         "mechanism_discrepancy",
         "msm_sensitivity",
         "nonlinear_mediation",
+        "observation_query",
+        "predictive_assessment",
         "program_claims",
         "proposals",
+        "provider_callbacks",
         "recalc",
         "recalc_adjusted",
         "recalc_capabilities",
@@ -400,13 +415,23 @@ SNAPSHOT: dict[str, set[str]] = {
         "repair",
         "scenario_decision",
         "scenario_invariance",
+        "scientific_bridge",
+        "selective_discovery",
         "sensitivity_decision",
+        "sequential_evaluation",
         "temporal",
         "temporal_counterfactual",
+        "tier_diagnostics",
         "transported_counterfactual",
+        "transported_constructors",
+        "transported_response",
+        "transport_handoff",
+        "inverse_sources",
+        "discretized_composition",
         "vector_treatment",
     },
     "AnalysisResult": {
+        "artifact",
         "fitted_model",
         # The five-line API (`ResultAPI`)
         "answer",
@@ -483,6 +508,10 @@ SNAPSHOT: dict[str, set[str]] = {
         "change_attribution",
     },
     "PreparedAnalysis": {
+        "identification",
+        "inspect_plan",
+        "last_result",
+        "reprepare",
         "replace_snapshot",
         # One-factor mechanism sensitivity on the retained fixed-graph plan
         "mechanism_sensitivity",
@@ -492,7 +521,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "refresh",
         "inspect",
         "preflight",
-        # Data-reading diagnostics, cost counts and the opt-in rank-drop plan (2.2 E1)
+        # Data-reading diagnostics, cost counts and the opt-in rank-drop plan
         "diagnose",
         "diagnose_fit",
         "plan_rank_drop",
@@ -523,6 +552,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "checked_temporal_response_info",
     },
     "LoadedResult": {
+        "decoded_artifact",
         "fitted_model",
         "acceptance",
         "answer",

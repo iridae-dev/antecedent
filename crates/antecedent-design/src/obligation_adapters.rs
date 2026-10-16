@@ -12,11 +12,14 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    EvidenceObligation, EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec,
+    ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope,
+    unresolved_assumption_obligations,
+};
 use antecedent_core::{
-    DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, EvidenceObligation,
-    EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec, FactorNeed,
-    ObligationProvenance, ObligationRecord, ObligationRegime, ObligationScope, RegimeKind,
-    SupportReport, SupportStatus, VariableId, unresolved_assumption_obligations,
+    DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, FactorNeed, RegimeKind,
+    SupportReport, SupportStatus, VariableId,
 };
 use antecedent_identify::{CatalogTransportResult, ClassicalTransportQuery};
 
@@ -87,7 +90,7 @@ pub fn factor_obligations(
 ///
 /// # Errors
 /// A query that names no outcome.
-pub fn transport_result_obligations(
+pub(crate) fn transport_result_obligations(
     result: &CatalogTransportResult,
     query: &ClassicalTransportQuery,
     catalog: &EvidenceCatalog,
@@ -127,7 +130,7 @@ pub fn transport_result_obligations(
 ///
 /// # Errors
 /// A factor that reads no variable.
-pub fn z_transport_obligations(
+pub(crate) fn z_transport_obligations(
     snapshot: &ZTransportFailureSnapshot,
     catalog: &EvidenceCatalog,
 ) -> Result<Vec<EvidenceObligation>, EvidenceObligationError> {

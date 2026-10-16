@@ -18,7 +18,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from . import _native
-from ._columns import resolved
+from ._columns import coerce_fields, hold_unresolved, resolved
 from .errors import CausalValueError
 
 HistoryPolicy: TypeAlias = Callable[[int, tuple[bool, ...], tuple[tuple[float, ...], ...]], bool]
@@ -71,12 +71,7 @@ class LongitudinalRegime:
     }
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column names unvalidated; resolve_columns rebuilds this
-            # query against the data at prepare, re-running the checks below.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must name a non-empty column")
@@ -243,41 +238,32 @@ class LongitudinalRegime:
             )
         if self.method == "marginal_structural_model" and np.count_nonzero(observed) <= periods + 1:
             raise CausalValueError("MSM requires more observed subjects than coefficients")
-        object.__setattr__(
-            self, "treatment_history", tuple(tuple(map(bool, row)) for row in history)
+        coerce_fields(self, treatment_history=tuple(tuple(map(bool, row)) for row in history))
+        coerce_fields(self, actions=tuple(tuple(map(bool, row)) for row in actions))
+        coerce_fields(
+            self, treatment_probabilities=tuple(tuple(map(float, row)) for row in probabilities)
         )
-        object.__setattr__(self, "actions", tuple(tuple(map(bool, row)) for row in actions))
-        object.__setattr__(
-            self, "treatment_probabilities", tuple(tuple(map(float, row)) for row in probabilities)
-        )
-        object.__setattr__(
-            self, "censoring_probabilities", tuple(tuple(map(float, row)) for row in censor)
-        )
-        object.__setattr__(self, "outcome_observed", tuple(map(bool, observed)))
-        object.__setattr__(self, "subject_ids", ids)
-        object.__setattr__(self, "fold_ids", folds)
+        coerce_fields(self, censoring_probabilities=tuple(tuple(map(float, row)) for row in censor))
+        coerce_fields(self, outcome_observed=tuple(map(bool, observed)))
+        coerce_fields(self, subject_ids=ids)
+        coerce_fields(self, fold_ids=folds)
         if predictions is not None:
-            object.__setattr__(
+            coerce_fields(
                 self,
-                "period_outcome_predictions",
-                tuple(tuple(map(float, row)) for row in predictions),
+                period_outcome_predictions=tuple(tuple(map(float, row)) for row in predictions),
             )
         if numerator is not None:
-            object.__setattr__(
-                self, "stabilizing_numerator_probabilities", tuple(map(float, numerator))
-            )
+            coerce_fields(self, stabilizing_numerator_probabilities=tuple(map(float, numerator)))
         if q is not None:
             # Q predictions only pass validation for sequential_dr, which also
             # requires the observation history and fold ownership set here.
             assert observation is not None
             assert self.prediction_fold_ids is not None
-            object.__setattr__(self, "q_predictions", tuple(tuple(map(float, row)) for row in q))
-            object.__setattr__(
-                self, "observation_history", tuple(tuple(map(bool, row)) for row in observation)
+            coerce_fields(self, q_predictions=tuple(tuple(map(float, row)) for row in q))
+            coerce_fields(
+                self, observation_history=tuple(tuple(map(bool, row)) for row in observation)
             )
-            object.__setattr__(
-                self, "prediction_fold_ids", tuple(resolved(self.prediction_fold_ids))
-            )
+            coerce_fields(self, prediction_fold_ids=tuple(resolved(self.prediction_fold_ids)))
 
     @property
     def periods(self) -> int:
@@ -767,7 +753,7 @@ def evaluate_sequential_gformula(
             p,
             censor,
             list(ids),
-            folds.tolist(),
+            folds,
             float(minimum_probability),
         )
     except ValueError as error:
@@ -941,8 +927,8 @@ def evaluate_sequential_doubly_robust(
                 p,
                 censor,
                 list(ids),
-                folds.tolist(),
-                prediction_folds.tolist(),
+                folds,
+                prediction_folds,
                 float(minimum_probability),
             )
         )

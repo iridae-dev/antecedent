@@ -38,7 +38,8 @@ def test_elasticity_interval_matches_retained_and_accepted_routes_and_artifact()
         artifact = antecedent.artifacts.loads(result.export())
         assert artifact.payload_kind == "analysis_result"
         assert (
-            artifact.payload["response"]["uncertainty"]["scalar"]["interpretation"] == "confidence"
+            artifact.to_dict()["payload"]["response"]["uncertainty"]["scalar"]["interpretation"]
+            == "confidence"
         )
 
     assert explicit.estimate == prepared.estimate == accepted.estimate

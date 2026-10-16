@@ -1,7 +1,7 @@
 //! Static data-generating processes measured by more than one calibration
 //! suite, and the structures they are measured on.
 //!
-//! The `v19_*_calibration` suites and the `v110_calibration_*` suites
+//! The mixture-interval calibration suites and the later calibration suites
 //! score the *same* laws at different levels and on
 //! different arms, so their coverage records are comparable only if the
 //! replicate data is literally the same. Copying a generator into the second
@@ -18,14 +18,17 @@
 
 // `t`, `y`, `z`, `m`, `c`, `u` are the variable names of the laws themselves,
 // the same ones the suites that used to carry these bodies allowed.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "each integration test binary includes this module and uses a subset of it"
+)]
 
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Pag};
 
 use super::calibration::gaussian;
 
-/// Stream tag of every uniform draw in this module: the tag the `v19` static
+/// Stream tag of every uniform draw in this module: the tag the static
 /// suite used, so folding these generators together changed no replicate.
 pub const STREAM_TAG: u64 = 0x0F0F_F0F0_1234_5678;
 
@@ -60,7 +63,7 @@ fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
 }
 
-/// `v19_static_calibration::misspecified_data` at `q = h = 0` (columns `t, y, z`):
+/// `static_calibration::misspecified_data` at `q = h = 0` (columns `t, y, z`):
 /// `z ~ N(0,1)`, `t ~ Bern(σ(−0.8 + z))`, `y = 2t + z + e`; ATE 2. The ordinary
 /// binary-treatment adjustment law both the facade's default Frequentist and
 /// default Bayesian `AverageEffect` records are measured on.
@@ -168,7 +171,7 @@ pub fn response_data(n: usize, seed: u64) -> TabularData {
 ///
 /// [`super::calibration::gaussian`] is Box–Muller through host `ln`/`sqrt`/`cos`.
 /// The LCG uniforms are identical across platforms; glibc and Apple libm are
-/// not. The pin in `v19_static_calibration` was taken on macOS. The two
+/// not. The pin in `static_calibration` was taken on macOS. The two
 /// gaussian laws (`counterfactual_data`, `response_data`) therefore have one
 /// known Linux image of that same n=64 / `0x19A0_0000` draw; mapping it back
 /// to the pin is that libm disagreement, not a law change. Any other hash

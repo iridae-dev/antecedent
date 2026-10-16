@@ -1,12 +1,5 @@
 //! Conditional censoring survival with a Cox model and Breslow ties.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-#![cfg_attr(
-    test,
-    allow(
-        clippy::float_cmp,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
 use crate::{StatsError, chol_solve, cholesky_spd};
 
 /// Executed censoring-model fit. No outcome-regression uncertainty is implied.
@@ -31,7 +24,6 @@ fn invalid(message: &'static str) -> StatsError {
 /// # Errors
 /// Invalid inputs, singular information, nonconvergence, or observed-row survival
 /// below `survival_floor`. No marginal-KM fallback or coefficient regularization.
-#[allow(clippy::too_many_lines)]
 #[allow(
     clippy::float_cmp,
     reason = "event indicators are validated as exactly 0.0 or 1.0 codes, so equality tests the coded value"

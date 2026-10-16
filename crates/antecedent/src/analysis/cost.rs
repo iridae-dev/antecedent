@@ -546,7 +546,7 @@ pub(crate) fn cost_of(inputs: &CostInputs, source: &ModelSource) -> CostEstimate
 fn inputs_of(study: &Study) -> CostInputs {
     let estimator = study
         .estimator_spec
-        .as_ref()
+        .as_deref()
         .map(crate::estimator_spec::EstimatorSpec::id)
         .or(study.estimator)
         .unwrap_or(DEFAULT_ESTIMATOR_ID);
@@ -557,8 +557,8 @@ fn inputs_of(study: &Study) -> CostInputs {
     let shared = study.shared_batch_design.as_deref();
     let default_spec = study.estimator.map(EstimatorSpec::Default);
     let (shape, declared_folds) =
-        study.estimator_spec.as_ref().or(default_spec.as_ref()).and_then(shape_of).unzip();
-    let cluster_labels = match study.estimator_spec.as_ref() {
+        study.estimator_spec.as_deref().or(default_spec.as_ref()).and_then(shape_of).unzip();
+    let cluster_labels = match study.estimator_spec.as_deref() {
         Some(EstimatorSpec::Aipw(aipw)) if aipw.cluster_dml.is_some() => aipw
             .cluster_ids
             .as_deref()

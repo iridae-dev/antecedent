@@ -2,12 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::unnecessary_wraps)]
 #![cfg_attr(
     test,
     allow(
         clippy::float_cmp,
-        clippy::cast_possible_truncation,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -90,7 +88,10 @@ pub fn gaussian_kl(mu0: f64, var0: f64, mu1: f64, var1: f64) -> Result<f64, Stat
     Ok(0.5 * (variance_term + standardized_shift * standardized_shift))
 }
 
-/// Mean and variance of a slice.
+/// Population mean and variance of a slice (`Σ(x − mean)² / n`, with `n` at least 1).
+///
+/// This is the second-moment pair the divergence statistics below consume. It is
+/// not the Bessel-corrected sample variance in [`crate::describe`].
 #[must_use]
 pub fn mean_var(xs: &[f64]) -> (f64, f64) {
     let n = xs.len().max(1) as f64;
@@ -100,23 +101,9 @@ pub fn mean_var(xs: &[f64]) -> (f64, f64) {
 }
 
 /// Unbiased sample standard deviation; `NaN` if fewer than 2 observations.
-#[must_use]
-pub fn sample_std(values: &[f64]) -> f64 {
-    let n = values.len() as f64;
-    if n < 2.0 {
-        return f64::NAN;
-    }
-    let mean = values.iter().sum::<f64>() / n;
-    let var = values
-        .iter()
-        .map(|v| {
-            let d = v - mean;
-            d * d
-        })
-        .sum::<f64>()
-        / (n - 1.0);
-    var.sqrt()
-}
+///
+/// Re-export of [`antecedent_kernels::sample_std`], the one owner.
+pub use antecedent_kernels::sample_std;
 
 /// Linear-interpolation empirical quantile (Hyndman–Fan type 7) of an ascending sample.
 ///
@@ -124,7 +111,8 @@ pub fn sample_std(values: &[f64]) -> f64 {
 /// the caller decides what an unavailable quantile means; no substitute value is
 /// invented and non-finite draws are never silently dropped.
 #[must_use]
-pub fn quantile_type7(sorted: &[f64], p: f64) -> Option<f64> {
+#[cfg(test)]
+pub(crate) fn quantile_type7(sorted: &[f64], p: f64) -> Option<f64> {
     if sorted.is_empty() || !p.is_finite() {
         return None;
     }
@@ -205,40 +193,24 @@ pub fn classifier_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), StatsEr
     let na = a.len() as f64;
     let nb = b.len() as f64;
     // Rank all observations; average ranks for ties.
-    let mut all: Vec<(f64, u8)> = Vec::with_capacity(a.len() + b.len());
-    all.extend(a.iter().copied().map(|v| (v, 0)));
-    all.extend(b.iter().copied().map(|v| (v, 1)));
-    all.sort_by(|x, y| x.0.partial_cmp(&y.0).expect("finite values are comparable"));
-    let mut ranks = vec![0.0; all.len()];
-    let mut i = 0;
-    while i < all.len() {
-        let mut j = i + 1;
-        while j < all.len() && all[j].0 == all[i].0 {
-            j += 1;
-        }
-        let avg = (i + j + 1) as f64 / 2.0; // 1-based average rank
-        for r in ranks.iter_mut().take(j).skip(i) {
-            *r = avg;
-        }
-        i = j;
-    }
-    let mut rank_sum_a = 0.0;
-    for (k, (_, lab)) in all.iter().enumerate() {
-        if *lab == 0 {
-            rank_sum_a += ranks[k];
-        }
-    }
+    let pooled: Vec<f64> = a.iter().chain(b).copied().collect();
+    let mut ranks = vec![0.0; pooled.len()];
+    antecedent_kernels::midranks_into(&pooled, &mut ranks)
+        .map_err(|_| StatsError::Shape { message: "rank buffer length mismatch" })?;
+    let rank_sum_a: f64 = ranks[..a.len()].iter().sum();
     let u_a = rank_sum_a - na * (na + 1.0) / 2.0;
     let auc = u_a / (na * nb);
     let stat = (auc - 0.5).abs();
     let mu = na * nb / 2.0;
     // Tie correction: Σ(t³ − t) over tied groups of size t.
     let n = na + nb;
+    let mut sorted = pooled;
+    sorted.sort_by(f64::total_cmp);
     let mut tie_sum = 0.0;
     let mut i = 0usize;
-    while i < all.len() {
+    while i < sorted.len() {
         let mut j = i + 1;
-        while j < all.len() && all[j].0 == all[i].0 {
+        while j < sorted.len() && sorted[j] == sorted[i] {
             j += 1;
         }
         let t = (j - i) as f64;
@@ -393,7 +365,10 @@ const MMD_TIE_TOLERANCE: f64 = 1e-12;
 /// # Errors
 ///
 /// Empty series, `split` at an endpoint, or non-positive residual variance.
-pub fn change_point_known_split(series: &[f64], split: usize) -> Result<(f64, f64), StatsError> {
+pub(crate) fn change_point_known_split(
+    series: &[f64],
+    split: usize,
+) -> Result<(f64, f64), StatsError> {
     if series.len() < 4 || split == 0 || split >= series.len() {
         return Err(StatsError::Shape {
             message: "change_point_known_split requires len≥4 and interior split",
@@ -436,7 +411,8 @@ pub fn change_point_two_sample(a: &[f64], b: &[f64]) -> Result<(f64, f64), Stats
 /// # Errors
 ///
 /// Series shorter than 4.
-pub fn change_point_scan(series: &[f64], rng_seed: u64) -> Result<(f64, f64), StatsError> {
+#[cfg(test)]
+pub(crate) fn change_point_scan(series: &[f64], rng_seed: u64) -> Result<(f64, f64), StatsError> {
     let r = change_point_scan_with_permutations(series, rng_seed, DEFAULT_MECHANISM_PERMUTATIONS)?;
     Ok((r.statistic, r.p_value))
 }
@@ -447,7 +423,8 @@ pub fn change_point_scan(series: &[f64], rng_seed: u64) -> Result<(f64, f64), St
 /// # Errors
 ///
 /// Series shorter than 4, or `n_permutations == 0`.
-pub fn change_point_scan_with_permutations(
+#[cfg(test)]
+pub(crate) fn change_point_scan_with_permutations(
     series: &[f64],
     rng_seed: u64,
     n_permutations: usize,
@@ -519,7 +496,7 @@ fn rbf_bandwidth_median_heuristic(a: &[f64], b: &[f64], rng: &mut CausalRng) -> 
             diffs.push((pooled[i] - pooled[j]).abs());
         }
     }
-    diffs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+    diffs.sort_by(f64::total_cmp);
     let median = diffs[diffs.len() / 2];
     if median > 0.0 { median } else { diffs.into_iter().find(|d| *d > 0.0).unwrap_or(1.0) }
 }
@@ -679,12 +656,12 @@ fn gaussian_segment_lr(left: &[f64], right: &[f64]) -> Result<(f64, f64), StatsE
 fn segment_order_seed(pooled: &[f64], n_left: usize) -> u64 {
     let mut idx: Vec<usize> = (0..pooled.len()).collect();
     idx.sort_by(|&i, &j| pooled[i].total_cmp(&pooled[j]).then(i.cmp(&j)));
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ (pooled.len() as u64) ^ ((n_left as u64) << 32);
+    let mut h = antecedent_core::Fnv1a64::new();
+    h.fold(pooled.len() as u64).fold(n_left as u64);
     for i in idx {
-        h ^= u64::from(i < n_left) + 1;
-        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        h.fold(u64::from(i < n_left) + 1);
     }
-    h
+    h.finish()
 }
 
 /// Max absolute CUSUM of demeaned `series` (interior points only).
@@ -987,17 +964,7 @@ mod tests {
         assert!(p < 0.01, "p={p}");
     }
 
-    fn lcg_noise(n: usize, seed: u64) -> Vec<f64> {
-        let mut s = seed;
-        (0..n)
-            .map(|_| {
-                s = s
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                ((s >> 33) as f64) / ((1u64 << 31) as f64) - 0.5
-            })
-            .collect()
-    }
+    use crate::test_util::centered_uniform as lcg_noise;
 
     #[test]
     fn kernel_two_sample_detects_variance_shift() {
@@ -1040,7 +1007,7 @@ mod tests {
                 exact_diffs.push((pooled[i] - pooled[j]).abs());
             }
         }
-        exact_diffs.sort_by(|x, y| x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal));
+        exact_diffs.sort_by(f64::total_cmp);
         let true_median = exact_diffs[exact_diffs.len() / 2];
         let expected_bandwidth = true_median;
 

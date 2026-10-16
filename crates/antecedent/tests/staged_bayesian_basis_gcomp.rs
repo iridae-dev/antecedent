@@ -3,9 +3,9 @@
 #![allow(clippy::float_cmp, reason = "plan pins compare exact literal constants")]
 
 use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, SlotAvailability,
-    VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
@@ -80,7 +80,11 @@ fn staged_ate_and_cate_keep_shared_draws_and_round_trip_posterior_artifact() {
     let (_study, prepared, result, data) = run(AverageEffectQuery::binary_ate(v(0), v(1)));
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.basis.gcomp"));
     assert_eq!(result.support_status, Some(antecedent::CellStatus::Licensed));
-    assert!((result.estimate.ate - 0.5).abs() < 0.08, "ATE={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08,
+        "ATE={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     let posterior = result.posterior.as_ref().expect("posterior");
     assert_eq!(posterior.draws.n_draws, 256);
     assert_eq!(posterior.draws.schema.quantities.len(), 401);
@@ -107,7 +111,8 @@ fn staged_ate_and_cate_keep_shared_draws_and_round_trip_posterior_artifact() {
     .unwrap();
     let (_, _, cate, _) = run(cate_query);
     assert_eq!(cate.logical_plan.estimator.as_deref(), Some("bayesian.basis.gcomp"));
-    let values = cate.estimate.cate.as_ref().expect("row CATE summary");
+    let values =
+        cate.estimate.as_effect().unwrap().heterogeneity.cate.as_ref().expect("row CATE summary");
     assert_eq!(values.len(), data.row_count());
     assert!((values[0] - (0.5 - 0.75)).abs() < 0.12, "low-z CATE={}", values[0]);
     assert!((values[1] - (0.5 + 0.75)).abs() < 0.12, "high-z CATE={}", values[1]);
@@ -154,10 +159,18 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
     }
 
     let result = prepared.estimate(&data, &context).unwrap();
-    assert!((result.estimate.ate - 0.5).abs() < 0.08, "ATE={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08,
+        "ATE={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     assert_eq!(result.posterior.as_ref().unwrap().draws.n_draws, 192);
     assert!(one_shot.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
-    assert!((one_shot.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    assert!(
+        (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
 
     let refreshed_treatment = data.float64_values(v(0)).unwrap();
     let refreshed_outcome =
@@ -171,7 +184,7 @@ fn bayesian_basis_ate_executes_from_the_retained_plan_and_refreshes() {
     .unwrap();
     let refreshed = prepared.refresh(shifted, &context).unwrap();
     assert_eq!(prepared.checked_bayesian_basis_ate_info().unwrap(), plan);
-    assert!((refreshed.estimate.ate - 0.5).abs() < 0.08);
+    assert!((refreshed.estimate.as_effect().unwrap().ate - 0.5).abs() < 0.08);
 
     let bytes = prepared
         .encode_contracted_result(&refreshed, "checked-bayesian-basis-ate", &context)
@@ -220,8 +233,13 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
     assert_eq!(retained_plan, &query);
     assert_eq!(prepared.support_status(), Some(antecedent::CellStatus::Licensed));
     let result = prepared.estimate(&data, &context).unwrap();
-    assert!((one_shot.estimate.ate - result.estimate.ate).abs() < 1e-12);
-    let cate = result.estimate.cate.as_ref().expect("CATE summary");
+    assert!(
+        (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
+    let cate =
+        result.estimate.as_effect().unwrap().heterogeneity.cate.as_ref().expect("CATE summary");
     assert!((cate[0] - (0.5 - 0.75)).abs() < 0.12);
     assert!((cate[1] - (0.5 + 0.75)).abs() < 0.12);
     let posterior = result.posterior.as_ref().expect("posterior");
@@ -250,7 +268,11 @@ fn bayesian_basis_cate_executes_from_the_retained_plan_and_refreshes() {
     ])
     .unwrap();
     let refreshed = prepared.refresh(shifted, &context).unwrap();
-    assert!((refreshed.estimate.ate - result.estimate.ate).abs() < 0.08);
+    assert!(
+        (refreshed.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 0.08
+    );
 
     let expanded = TabularData::from_f64_columns([
         ("t", t.as_slice()),

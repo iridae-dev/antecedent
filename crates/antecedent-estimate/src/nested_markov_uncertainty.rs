@@ -13,7 +13,7 @@
 
 mod internal {
     use antecedent_core::ExecutionContext;
-    use antecedent_stats::{chol_solve, cholesky_spd, special::normal_ppf};
+    use antecedent_stats::{cholesky_spd, special::normal_ppf};
 
     use crate::error::EstimationError;
     use crate::nested_markov_binary::{
@@ -22,7 +22,7 @@ mod internal {
     };
 
     /// Number of free parameters, ordered `a,c0,c1,q20,q21,q40,q41,g00,g01,g10,g11`.
-    pub const PARAMETER_COUNT: usize = 11;
+    pub(crate) const PARAMETER_COUNT: usize = 11;
 
     /// A regular-model approximation awaiting whole-method repeated-sampling calibration.
     #[derive(Clone, Debug, PartialEq)]
@@ -166,17 +166,7 @@ mod internal {
         let chol = cholesky_spd(information, PARAMETER_COUNT).ok_or_else(|| {
             refusal("nested_markov.fisher_singular_information", "expected information is not SPD")
         })?;
-        let mut covariance = vec![0.; PARAMETER_COUNT * PARAMETER_COUNT];
-        for j in 0..PARAMETER_COUNT {
-            let mut column = [0.; PARAMETER_COUNT];
-            column[j] = 1.;
-            let solved = chol_solve(&chol, PARAMETER_COUNT, &column).ok_or_else(|| {
-                refusal("nested_markov.fisher_singular_information", "information solve failed")
-            })?;
-            for i in 0..PARAMETER_COUNT {
-                covariance[i * PARAMETER_COUNT + j] = solved[i];
-            }
-        }
+        let covariance = antecedent_kernels::chol_inverse(&chol, PARAMETER_COUNT);
         let mut residual = 0.0_f64;
         for i in 0..PARAMETER_COUNT {
             for j in 0..PARAMETER_COUNT {
@@ -278,5 +268,5 @@ mod internal {
 }
 
 pub use internal::{
-    NestedFisherFunctional, NestedMarkovUncertainty, PARAMETER_COUNT, nested_markov_fisher_internal,
+    NestedFisherFunctional, NestedMarkovUncertainty, nested_markov_fisher_internal,
 };

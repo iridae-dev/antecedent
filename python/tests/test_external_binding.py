@@ -12,7 +12,12 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent import external
-from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from antecedent.errors import (
+    CausalSerializationError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from antecedent.extensibility import ProviderTrust
 
 GRID = [0.0, 1.0, 2.0]
@@ -362,3 +367,83 @@ def test_fresh_process_consumer_loads_only_under_its_own_identity(tmp_path: Path
         check=False,
     )
     assert done.returncode == 0, done.stderr
+
+
+def _column_spec(**kwargs):
+    """A contract with one row-level quantity: the effect of ``a`` per unit."""
+    ident = ac.identify(graph=EDGES, names=NAMES, query=ac.ResponseCurve("a", "y", grid=GRID))
+    quantity = dataclasses.replace(
+        external.response(ident, outcome_units="mmHg").quantities[1], functional_id="cate"
+    )
+    return external.response(
+        ident, outcome_units="mmHg", quantities=[quantity], contract_id="contract:cate", **kwargs
+    )
+
+
+def _column(**kwargs):
+    fields = {
+        "provider": _provider(object_id="cate"),
+        "values": np.linspace(0.0, 1.0, 12_000),
+        "assumptions": ("ignorability",),
+        "attested_by": "lab",
+    }
+    return external.ColumnResponse(**{**fields, **kwargs})
+
+
+def test_a_column_binds_one_quantity_and_is_covered_by_its_digest_not_carried():
+    spec = _column_spec(require_assumptions=("ignorability",))
+    column = _column(support=["supported"] * 11_000 + ["weak_overlap"] * 1_000)
+    claim = spec.bind(column)
+    assert isinstance(claim, external.BoundExternalColumn)
+    assert claim.rows == 12_000 and claim.dtype == "float64" and not claim.native
+    assert claim.trust is ProviderTrust.EXTERNALLY_ATTESTED
+    assert claim.support == ("weak_overlap",) and claim.support_status == "weak_overlap"
+    assert claim.support_counts == {"supported": 11_000, "weak_overlap": 1_000}
+    assert len(claim.quantities) == 1
+    assert claim.provenance_label == "external:lab/cate@v3#snap-9"
+    assert {"causal_contract", "external_provider", "claim"} <= claim.stages_behind()
+    assert claim.covers(column.values) and not claim.covers(column.values[::-1])
+    assert not claim.covers([1.0, 2.0]) and not claim.covers("not numbers")
+    with pytest.raises(CausalUnsupportedError, match="rows"):
+        _ = claim.values
+    summary = claim.to_dict()
+    assert summary["rows"] == 12_000 and "values" not in summary
+    exported = claim.export()
+    assert len(exported) < 16 * 1024
+    restored = spec.load(exported, expected_identity=claim.identity)
+    assert restored.identity == claim.identity and restored.covers(column.values)
+    # A column artifact is not a response grid, and a changed digest is another claim.
+    tampered = claim.identity_fields
+    tampered["claim"]["values_blake3"] = "0" * 64
+    with pytest.raises(CausalSerializationError, match="identity"):
+        spec.load(exported, expected_identity=tampered)
+
+
+def test_a_column_is_checked_like_a_response_and_never_supported_by_default():
+    spec = _column_spec(require_assumptions=("ignorability",))
+    unassessed = spec.bind(_column())
+    assert unassessed.support_counts == {"missing_evidence": 12_000}
+    assert unassessed.support_status == "missing_evidence"
+    # The same refusals as a grid: a missing declared assumption, a wrong coordinate.
+    with pytest.raises(CausalUnsupportedError) as missing:
+        spec.bind(_column(assumptions=()))
+    assert missing.value.reason_code == "external_binding_mismatch"
+    other_units = dataclasses.replace(spec.quantities[0], units="kPa")
+    with pytest.raises(CausalUnsupportedError) as units:
+        spec.bind(_column(quantities=(other_units,)))
+    assert units.value.reason_code == "quantity_semantics_mismatch"
+    wrong_length = _column(support=["supported"] * 5)
+    with pytest.raises(CausalUnsupportedError) as support:
+        spec.bind(wrong_length)
+    assert support.value.reason_code == "invalid_argument"
+    assert support.value.detail == "external_response_binding.column_support_length"
+    with pytest.raises(CausalValueError, match="finite"):
+        _column(values=[1.0, float("nan")])
+    with pytest.raises(CausalValueError, match="one-dimensional"):
+        _column(values=np.ones((3, 2)))
+    # A column answers one coordinate; a three-point grid contract refuses it.
+    with pytest.raises(CausalUnsupportedError) as grid:
+        _spec().bind(_column())
+    assert grid.value.detail == "external_response_binding.column_quantity"
+    assert grid.value.reason_code == "external_binding_mismatch"
+    assert (grid.value.expected, grid.value.supplied) == ("1", "3")

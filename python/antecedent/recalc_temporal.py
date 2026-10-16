@@ -14,9 +14,11 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal, cast
 
 from . import _native
+from ._columns import coerce_fields
 from ._measured_inference import MeasuredInference
+from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
-from .recalc import Decision, Law, RecalcPlan, RecalcReceipt, Utility, _raise, _seed
+from .recalc import Decision, Law, RecalcPlan, RecalcReceipt, Utility, _refusal_type, _seed
 from .recalc_static import _Session
 from .transport._candidate_data import detached, freeze
 
@@ -109,7 +111,7 @@ class TemporalResult:
 
 def _result(payload: tuple[str | None, bytes | None, str | None]) -> TemporalResult:
     result, artifact, error = payload
-    _raise(error)
+    raise_refusal(error, _refusal_type)
     if result is None or artifact is None:
         raise CausalSerializationError("temporal execution returned no result")
     wire = json.loads(result)
@@ -167,14 +169,14 @@ class TemporalSession(_Session):
             raise CausalTypeError("interval candidate requires original checked temporal session")
         native = getattr(self._handle, "interval_candidate", None)
         if native is None:
-            _raise(self._handle.dependent_interval())
+            raise_refusal(self._handle.dependent_interval(), _refusal_type)
             raise CausalSerializationError("closed interval route returned without a refusal")
         result, error = native(
             json.dumps(config._wire(), allow_nan=False),
             memory_limit_bytes=memory_limit_bytes,
             cancel=cancel,
         )
-        _raise(error)
+        raise_refusal(error, _refusal_type)
         return CheckedTemporalIntervalCandidate._from_native(result)
 
     def dependent_interval(
@@ -202,7 +204,7 @@ class TemporalSession(_Session):
             memory_limit_bytes=memory_limit_bytes,
             cancel=cancel,
         )
-        _raise(error)
+        raise_refusal(error, _refusal_type)
         return MeasuredInference._from_native(native)
 
 
@@ -219,7 +221,7 @@ def consume_temporal_result(
     native, result, receipt, error = _native.TemporalSessionHandle.consume(
         artifact, seed=_seed(seed), threads=threads
     )
-    _raise(error)
+    raise_refusal(error, _refusal_type)
     if native is None:
         raise CausalSerializationError("temporal replay returned no native state")
     session = TemporalSession.__new__(TemporalSession)
@@ -356,7 +358,7 @@ class CheckedTemporalIntervalIdentity:
         ):
             raise CausalValueError("panel_digest requires 16 lowercase hexadecimal digits")
         _interval_integer("producing_seed", self.producing_seed, 0, 2**64 - 1)
-        object.__setattr__(self, "functional", _interval_functional(self.functional))
+        coerce_fields(self, functional=_interval_functional(self.functional))
 
     def _wire(self) -> dict[str, Any]:
         wire = asdict(self)
@@ -432,8 +434,8 @@ class CheckedTemporalIntervalCandidate:
         ):
             raise CausalSerializationError("checked temporal interval identity and receipt differ")
         result = object.__new__(cls)
-        object.__setattr__(result, "_native", native)
-        object.__setattr__(result, "_body", freeze(body))
+        coerce_fields(result, _native=native)
+        coerce_fields(result, _body=freeze(body))
         return result
 
     @property
@@ -533,7 +535,7 @@ class CheckedTemporalIntervalCandidate:
             memory_limit_bytes=memory_limit_bytes,
             cancel=cancel,
         )
-        _raise(error)
+        raise_refusal(error, _refusal_type)
         return cls._from_native(native)
 
 

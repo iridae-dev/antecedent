@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -164,11 +163,18 @@ fn assert_prepared_reuse(
     expected: f64,
     tolerance: f64,
 ) {
-    assert!((click.estimate.ate - expected).abs() < tolerance);
-    assert!((fresh.estimate.ate - expected).abs() < tolerance);
-    assert!((refreshed.estimate.ate - expected).abs() < tolerance);
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
+    assert!((click.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((fresh.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((refreshed.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
+    assert!(
+        (refreshed.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     // The Bayesian class route executes its retained envelope from the one-shot
     // facade too; the frequentist one-shot still identifies inline.
@@ -270,9 +276,10 @@ fn cpdag_ate_envelope_numeric_pin() {
                 // Joint-IF SE of the frozen-weight mixture on shared rows, pinned
                 // against the independent numpy reference (reference.py).
                 assert!(
-                    (result.estimate.se_analytic - freq_se).abs() < freq_se_tol,
+                    (result.estimate.as_effect().unwrap().se_analytic() - freq_se).abs()
+                        < freq_se_tol,
                     "CPDAG envelope joint-IF SE {} vs reference {freq_se}",
-                    result.estimate.se_analytic
+                    result.estimate.as_effect().unwrap().se_analytic()
                 );
                 assert!(
                     !result
@@ -359,7 +366,7 @@ fn cpdag_effect_executes_from_retained_plan_after_builder_is_dropped() {
     drop(builder);
 
     let result = prepared.estimate(&data, &context).unwrap();
-    assert!((result.estimate.ate - expected).abs() < 1e-12);
+    assert!((result.estimate.as_effect().unwrap().ate - expected).abs() < 1e-12);
     assert!(result.diagnostics.iter().any(|item| { item.code.as_ref() == "exec.identify.cached" }));
     let artifact = prepared
         .encode_contracted_result(&result, "checked-static-class-effect", &context)

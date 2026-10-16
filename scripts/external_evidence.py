@@ -28,7 +28,8 @@ import sys
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from _repo import REPO_ROOT as ROOT
+
 LICENSED = ROOT / "parity/support_licensed.toml"
 ROUTES = ROOT / "parity/licensed_routes.toml"
 AXES = ROOT / "parity/support_axes.toml"
@@ -54,7 +55,7 @@ def component_rows() -> dict[str, list[dict]]:
     """`kind:id` -> the parity rows whose external oracle exercises it."""
     out: dict[str, list[dict]] = {}
     for path in _manifests():
-        for row in tomllib.loads(path.read_text()).get("capabilities", []):
+        for row in tomllib.loads(path.read_text(encoding="utf-8")).get("capabilities", []):
             for component in row.get("oracle_components") or []:
                 out.setdefault(str(component), []).append({**row, "_manifest": path.name})
     return out
@@ -63,7 +64,7 @@ def component_rows() -> dict[str, list[dict]]:
 def routes() -> dict[str, dict]:
     if not ROUTES.is_file():
         return {}
-    return {r["coordinate"]: r for r in tomllib.loads(ROUTES.read_text()).get("route", [])}
+    return {r["coordinate"]: r for r in tomllib.loads(ROUTES.read_text(encoding="utf-8")).get("route", [])}
 
 
 def cell_links(cell: dict, route: dict | None, components: dict[str, list[dict]]) -> dict:
@@ -97,7 +98,7 @@ def render(links: dict) -> str:
 
 
 def counts() -> dict[str, int]:
-    cells = tomllib.loads(LICENSED.read_text()).get("cell", [])
+    cells = tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", [])
     comps, rts = component_rows(), routes()
     out = {"cell_level": 0, "component_level_only": 0, "discovery_only": 0, "neither": 0}
     for cell in cells:
@@ -115,7 +116,7 @@ def counts() -> dict[str, int]:
 
 def check() -> list[str]:
     problems: list[str] = []
-    cells = tomllib.loads(LICENSED.read_text()).get("cell", [])
+    cells = tomllib.loads(LICENSED.read_text(encoding="utf-8")).get("cell", [])
     rts = routes()
     licensed = {coordinate(c) for c in cells}
     if not rts:
@@ -125,7 +126,7 @@ def check() -> list[str]:
     for stale in sorted(set(rts) - licensed):
         problems.append(f"parity/licensed_routes.toml routes {stale}, which is not licensed")
     ran = {kind: {r.get(kind) for r in rts.values()} for kind in ("identifier", "estimator")}
-    graph_classes = set(tomllib.loads(AXES.read_text()).get("graph_classes", []))
+    graph_classes = set(tomllib.loads(AXES.read_text(encoding="utf-8")).get("graph_classes", []))
     for component, rows in component_rows().items():
         kind, _, ident = component.partition(":")
         for row in rows:

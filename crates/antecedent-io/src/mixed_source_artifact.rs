@@ -1,4 +1,4 @@
-//! Independent point-result artifacts for mixed-source proof search (X9).
+//! Independent point-result artifacts for mixed-source proof search.
 //!
 //! Format version 1. A consumer trusts nothing in the artifact. It re-runs the
 //! bounded mixed-source decision on the stored graph, query and catalog under its
@@ -18,22 +18,19 @@ use crate::{
     IoError, admg_from_wire, admg_to_wire,
     exact_law_wire::ExactLawWire,
     expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire},
-    mz_transport_artifact::MzSourceWire,
     query_wire::ValueWire,
     transport_catalog_wire::EvidenceCatalogWire,
     wire::AdmgWire,
 };
 use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, IdentityDomain, InterventionAssignment, SearchLimits,
-    VariableId,
+    EvidenceCatalog, ExecutionContext, IdentityDomain, SearchLimits, VariableId,
 };
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
-    BoundMixedSourceFunctional, IdentificationError, MixedSourceDerivation,
-    MixedSourceDerivationRecord, MixedSourceQuery, ZTransportSourceSpec, bind_mixed_source_catalog,
+    BoundMixedSourceFunctional, MixedSourceDerivation, MixedSourceDerivationRecord,
+    bind_mixed_source_catalog,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
 pub const MIXED_SOURCE_ARTIFACT_VERSION: u32 = 1;
@@ -42,42 +39,8 @@ pub const MIXED_SOURCE_ARTIFACT_FEATURE: &str = "checked_mixed_source_point_v1";
 /// The only uncertainty claim of this route: exact laws, a point, no interval.
 pub const MIXED_SOURCE_POINT_ONLY: &str = "point_only";
 
-/// Why a mixed-source artifact was refused. Callers match the kind.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum MixedSourceArtifactError {
-    /// The feature marker, claim or result shape is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A stored limit or collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The re-run decision did not reproduce the stored derivation.
-    #[error("proof does not verify: {0}")]
-    ProofMismatch(IdentificationError),
-    /// The verified derivation does not bind to the stored catalog.
-    #[error("catalog binding failed: {0}")]
-    CatalogBinding(IdentificationError),
-    /// The stored source-named bindings differ from the re-derived ones.
-    #[error("source bindings do not match the checked binding")]
-    BindingMismatch,
-    /// A stored law is not a valid law or law set.
-    #[error("invalid law: {0}")]
-    LawInvalid(String),
-    /// A recomputed point differs from the stored point.
-    #[error("point result does not replay")]
-    PointMismatch,
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The data-identity digest does not match the stored snapshot identities.
-    #[error("data identity digest mismatch")]
-    DataIdentityMismatch,
-    /// The caller's variable names are not the names the artifact was built under.
-    #[error("variable names do not match the verified name mapping")]
-    NamesMismatch,
-}
-
+pub use antecedent_io_core::transport_errors::MixedSourceArtifactError;
+pub use antecedent_io_core::transport_query_wire::MixedSourceQueryWire;
 /// Bounds a consumer imposes on a replay. Nothing the artifact stores raises them.
 #[derive(Clone, Copy, Debug)]
 pub struct MixedSourceConsumeLimits {
@@ -108,74 +71,15 @@ impl Default for MixedSourceConsumeLimits {
     }
 }
 
-/// Portable canonical mixed-source query.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct MixedSourceQueryWire {
-    /// Outcomes.
-    pub outcomes: Vec<u32>,
-    /// Treatments.
-    pub treatments: Vec<u32>,
-    /// Target population.
-    pub target: String,
-    /// Declared sources of the theorem-scoped routes, in canonical order.
-    pub sources: Vec<MzSourceWire>,
-}
-
-impl MixedSourceQueryWire {
-    /// Encode a query in canonical form.
+impl MixedSourceConsumeLimits {
+    /// The exact-law replay bounds, as the shared checks read them.
     #[must_use]
-    pub fn from_query(query: &MixedSourceQuery) -> Self {
-        let query = query.canonical();
-        let raw = |v: &[VariableId]| v.iter().map(|v| v.raw()).collect::<Vec<_>>();
-        Self {
-            outcomes: raw(&query.outcomes),
-            treatments: raw(&query.treatments),
-            target: query.target.to_string(),
-            sources: query
-                .sources
-                .iter()
-                .map(|s| MzSourceWire {
-                    population: s.population.to_string(),
-                    controllable: raw(&s.controllable),
-                    experiment_assignment: s
-                        .experiment_assignment
-                        .iter()
-                        .map(|a| (a.variable.raw(), ValueWire::from_value(&a.value)))
-                        .collect(),
-                    selection_targets: raw(&s.selection_targets),
-                })
-                .collect(),
-        }
-    }
-
-    /// Decode. Validation happens when the query is decided.
-    #[must_use]
-    pub fn to_query(&self) -> MixedSourceQuery {
-        let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
-        MixedSourceQuery {
-            outcomes: ids(&self.outcomes).into(),
-            treatments: ids(&self.treatments).into(),
-            target: Arc::from(self.target.as_str()),
-            sources: self
-                .sources
-                .iter()
-                .map(|s| ZTransportSourceSpec {
-                    population: Arc::from(s.population.as_str()),
-                    controllable: ids(&s.controllable).into(),
-                    experiment_assignment: s
-                        .experiment_assignment
-                        .iter()
-                        .map(|(v, x)| InterventionAssignment {
-                            variable: VariableId::from_raw(*v),
-                            value: x.to_value(),
-                        })
-                        .collect::<Vec<_>>()
-                        .into(),
-                    selection_targets: ids(&s.selection_targets).into(),
-                })
-                .collect::<Vec<_>>()
-                .into(),
+    pub const fn replay(&self) -> crate::ConsumeLimits {
+        crate::ConsumeLimits {
+            evaluation: self.evaluation,
+            max_support_rows: self.max_support_rows,
+            max_laws: self.max_laws,
+            max_law_cells: self.max_law_cells,
         }
     }
 }
@@ -333,11 +237,10 @@ fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<Strin
         .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
         .collect::<Vec<_>>();
     snapshots.sort();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("mixed_source_data_v1", bindings, snapshots),
-    )?
-    .to_hex())
+    )
 }
 
 fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
@@ -368,11 +271,6 @@ fn request_wire(request: &Assignment) -> Vec<(u32, ValueWire)> {
 
 fn request_of(wire: &[(u32, ValueWire)]) -> Assignment {
     Assignment::from_pairs(wire.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())))
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
 }
 
 /// The checked premises and results an artifact is built from.
@@ -437,11 +335,7 @@ impl MixedSourceArtifactWire {
     /// # Errors
     /// The premises do not encode.
     pub fn expected_premises_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
-            IdentityDomain::TransportCertificate,
-            &self.premises_view(),
-        )?
-        .to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &self.premises_view())
     }
 
     /// The data-identity digest the stored snapshot ids should carry.
@@ -507,11 +401,13 @@ impl MixedSourceArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != MIXED_SOURCE_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == MIXED_SOURCE_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -521,32 +417,25 @@ impl MixedSourceArtifactWire {
         limits: &MixedSourceConsumeLimits,
     ) -> Result<(), MixedSourceArtifactError> {
         let exceeded = MixedSourceArtifactError::LimitsExceeded;
-        if self.search_operations > limits.search.operations {
-            return Err(exceeded("search operation limit"));
+        if let Some(what) =
+            crate::search_bounds(self.search_operations, self.search_depth, limits.search)
+        {
+            return Err(exceeded(what));
         }
-        if self.search_depth > limits.search.depth {
-            return Err(exceeded("search depth limit"));
-        }
-        if self.operation_limit > limits.evaluation.operations {
-            return Err(exceeded("operation limit"));
-        }
-        if self.depth_limit > limits.evaluation.depth {
-            return Err(exceeded("depth limit"));
-        }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(exceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(exceeded("law count"));
+        let replay = limits.replay();
+        if let Some(what) = replay.budget(
+            self.operation_limit,
+            self.depth_limit,
+            self.max_support_rows,
+            self.laws.len(),
+        ) {
+            return Err(exceeded(what));
         }
         if self.requests.len() > limits.max_requests {
             return Err(exceeded("request count"));
         }
-        if self.laws.iter().any(|law| {
-            law.probabilities.len() > limits.max_law_cells
-                || law.empirical_counts.as_ref().is_some_and(|c| c.len() > limits.max_law_cells)
-        }) {
-            return Err(exceeded("law cells"));
+        if let Some(what) = replay.law_cells(&self.laws, true) {
+            return Err(exceeded(what));
         }
         Ok(())
     }
@@ -564,13 +453,19 @@ impl MixedSourceArtifactWire {
     ) -> Result<ConsumedMixedSource, IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(MixedSourceArtifactError::PremisesMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || MixedSourceArtifactError::PremisesMismatch.into(),
+        )?;
         let catalog = wire.catalog.to_catalog()?;
-        if data_digest(&catalog, &wire.laws)? != wire.data_digest {
-            return Err(MixedSourceArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.data_digest,
+            data_digest(&catalog, &wire.laws),
+            std::convert::identity,
+            || MixedSourceArtifactError::DataIdentityMismatch.into(),
+        )?;
         let graph = admg_from_wire(&wire.graph)?;
         let query = wire.query.to_query();
         let arena = expr_arena_from_wire(&wire.expression)?;
@@ -614,14 +509,5 @@ impl MixedSourceArtifactWire {
             distributions.push(distribution);
         }
         Ok(ConsumedMixedSource { functional, data, requests, distributions, wire })
-    }
-
-    /// [`Self::consume_with_limits`] under the default consumer limits.
-    ///
-    /// # Errors
-    /// As [`Self::consume_with_limits`].
-    #[doc(hidden)]
-    pub fn consume(bytes: &[u8], ctx: &ExecutionContext) -> Result<ConsumedMixedSource, IoError> {
-        Self::consume_with_limits(bytes, MixedSourceConsumeLimits::default(), ctx)
     }
 }

@@ -25,6 +25,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .._columns import coerce_fields
 from .._native import (
     consume_transport_scenarios_artifact as _consume_transport_scenarios_artifact,
 )
@@ -32,6 +33,7 @@ from .._native import prepare_transport_scenarios_stage as _prepare_transport_sc
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..graph import Admg, Cpdag, Pag
 from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
+from ._temporal import _wire
 
 MAX_SCENARIOS = 64
 
@@ -41,12 +43,6 @@ def _coordinates(coordinates: Sequence[VariableCoordinate]) -> tuple[VariableCoo
     if any(not isinstance(c, VariableCoordinate) for c in coordinates):
         raise CausalTypeError("coordinates must be VariableCoordinate values")
     return coordinates
-
-
-def _wire(
-    coordinates: Sequence[VariableCoordinate],
-) -> list[tuple[str, str, int | None, str | None]]:
-    return [(c.name, c.domain, c.cardinality, c.unit) for c in coordinates]
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,14 +76,14 @@ class TransportScenario:
         selections = tuple(self.selections)
         if len(set(selections)) != len(selections):
             raise CausalValueError("scenario selections must be distinct")
-        object.__setattr__(self, "selections", selections)
+        coerce_fields(self, selections=selections)
         if self.weight is not None and (not math.isfinite(self.weight) or self.weight < 0):
             raise CausalValueError(
                 "scenarios.invalid_weights: scenario weight must be finite and non-negative",
                 reason_code="invalid_argument",
             )
         if self.coordinates is not None:
-            object.__setattr__(self, "coordinates", _coordinates(self.coordinates))
+            coerce_fields(self, coordinates=_coordinates(self.coordinates))
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,8 +128,8 @@ class TransportScenarioSet:
                 "summing to at most one",
                 reason_code="invalid_argument",
             )
-        object.__setattr__(self, "scenarios", scenarios)
-        object.__setattr__(self, "coordinates", _coordinates(self.coordinates))
+        coerce_fields(self, scenarios=scenarios)
+        coerce_fields(self, coordinates=_coordinates(self.coordinates))
 
 
 def prepare_transport_scenarios(

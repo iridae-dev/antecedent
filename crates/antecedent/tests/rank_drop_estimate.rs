@@ -91,6 +91,8 @@ fn hand_estimate(f: &Fixture, covariates: &[(&str, &Vec<f64>)], estimator: Estim
         .run(&ExecutionContext::for_tests(3))
         .unwrap()
         .estimate
+        .as_effect()
+        .unwrap()
         .ate
 }
 

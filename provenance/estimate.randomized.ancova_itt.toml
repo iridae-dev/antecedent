@@ -6,13 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Agnostic notes on regression adjustments to experimental data: Reexamining Freedman's critique", doi = "10.1214/13-AOAS661", sections = ["ordinary least squares of the outcome on assignment and pre-assignment covariates in a randomized experiment"] },
+ { title = "Agnostic notes on regression adjustments to experimental data: Reexamining Freedman's critique", doi = "10.1214/12-AOAS583", url = "https://arxiv.org/pdf/1208.2301", sections = ["Section 2.2: usual OLS-adjusted estimator ATE_adj", "Theorem 2: sandwich variance for ATE_adj under the Neyman model"] },
 ]
 
 implementation_deviations = [
  "The point is the assignment coefficient in a linear regression on assignment plus the caller-supplied pre-assignment covariates. The variance is the independent-row HC0 sandwich for that coefficient.",
  "The pointwise normal interval is published only for independent Bernoulli assignment, one or two covariates, a declared probability from 0.2 through 0.8, and the calibrated row and arm floors. Three or more covariates stay point-only.",
  "This is not a saturated regression and not the Neyman variance of the unadjusted difference in means.",
+ "No treatment-covariate interactions are fitted, so Lin's Theorem 1 and Corollary 1.1 on the precision of ATE_interact are not inherited. The paper's main design is complete randomization with fixed arm sizes; the implemented Bernoulli interval gate rests on the repository's separate calibration evidence, not direct application of that design's theorem.",
 ]
 
 upstream_implementations_observed = []

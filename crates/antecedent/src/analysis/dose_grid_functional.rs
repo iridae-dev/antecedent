@@ -1,4 +1,4 @@
-//! 2.3 B1 (X4): one complete response-grid row, a named functional of a randomized-dose
+//! One complete response-grid row, a named functional of a randomized-dose
 //! response curve with per-dose support, and its portable, independently consumable
 //! artifact.
 //!

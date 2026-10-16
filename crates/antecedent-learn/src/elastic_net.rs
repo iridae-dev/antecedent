@@ -7,17 +7,15 @@ use antecedent_stats::{
     LassoFit, LassoOptions, first_col_is_exact_ones, fit_lasso, fit_lasso_with_ones_column,
 };
 
-use crate::dense::{gather_physical, materialize_dense_colmajor, predict_linear};
+use crate::dense::{gather_physical, materialize_dense_colmajor};
 use crate::design::{DesignView, TargetView};
 use crate::error::LearnError;
-use crate::learner::{
-    FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
-};
+use crate::learner::{FittedPredictor, LearnerCapabilities, LearnerFactory, PredictionTask};
 use crate::spec::ElasticNetSpec;
 
 /// Elastic-net regression via coordinate descent.
 #[derive(Clone, Copy, Debug)]
-pub struct ElasticNetLearner {
+pub(crate) struct ElasticNetLearner {
     spec: ElasticNetSpec,
     max_iter: u32,
 }
@@ -36,21 +34,6 @@ impl ElasticNetLearner {
     const fn with_max_iter(mut self, max_iter: u32) -> Self {
         self.max_iter = max_iter;
         self
-    }
-
-    /// Elastic-net factory, or a typed refusal if `task` is not regression.
-    ///
-    /// # Errors
-    ///
-    /// [`LearnError::TaskMismatch`] when `task` is [`PredictionTask::BinaryProbability`].
-    pub fn for_task(task: PredictionTask, spec: ElasticNetSpec) -> Result<Self, LearnError> {
-        match task {
-            PredictionTask::Regression => Ok(Self::new(spec)),
-            PredictionTask::BinaryProbability => Err(LearnError::TaskMismatch {
-                requested: PredictionTask::BinaryProbability,
-                supported: PredictionTask::Regression,
-            }),
-        }
     }
 }
 
@@ -128,42 +111,13 @@ impl LearnerFactory for ElasticNetLearner {
         if coefficients.len() != ncols {
             return Err(LearnError::Shape { message: "elastic-net coefficient length != ncols" });
         }
-        Ok(Box::new(ElasticNetPredictor { coefficients }))
-    }
-}
-
-struct ElasticNetPredictor {
-    coefficients: Vec<f64>,
-}
-
-impl FittedPredictor for ElasticNetPredictor {
-    fn predict(
-        &self,
-        x: DesignView<'_>,
-        out: &mut [f64],
-        _ctx: &ExecutionContext,
-    ) -> Result<(), LearnError> {
-        predict_linear(&self.coefficients, x, out)
-    }
-
-    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
-        Ok(crate::PortablePredictor {
-            version: 1,
-            columns: self.coefficients.len(),
-            provenance: self.provenance(),
-            model: crate::PredictionMap::Linear {
-                coefficients: self.coefficients.clone(),
-                logistic: false,
-            },
-        })
-    }
-
-    fn provenance(&self) -> LearnerProvenance {
-        LearnerProvenance {
-            spec: "elastic_net".into(),
-            implementation: "coordinate_descent".into(),
-            version: "0.24".into(),
-        }
+        Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
+            coefficients,
+            false,
+            "elastic_net",
+            "coordinate_descent",
+            crate::learner::COORDINATE_DESCENT_VERSION,
+        )))
     }
 }
 
@@ -177,7 +131,6 @@ fn coefficients_with_ones_intercept(fit: LassoFit, ncols: usize) -> Vec<f64> {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use super::*;
 
@@ -209,6 +162,10 @@ mod tests {
 
         let fitted =
             ElasticNetLearner::new(spec).fit(view, TargetView::new(&y), None, &ctx).unwrap();
+        let provenance = fitted.provenance();
+        assert_eq!(provenance.implementation, "coordinate_descent");
+        assert_eq!(provenance.version, crate::learner::COORDINATE_DESCENT_VERSION);
+        assert_ne!(provenance.version, crate::learner::FAER_VERSION);
         let mut pred = vec![0.0; n];
         fitted.predict(view, &mut pred, &ctx).unwrap();
         for i in 0..n {

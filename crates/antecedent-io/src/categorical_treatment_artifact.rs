@@ -1,4 +1,4 @@
-//! B4 categorical-treatment artifact (`categorical_treatment_v1`).
+//! Categorical-treatment artifact (`categorical_treatment_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one dummy-coded categorical regime fit:
 //!
@@ -31,9 +31,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::io::Cursor;
-
-use antecedent_estimate::EstimationError;
+use antecedent_core::CanonicalWriter;
 use antecedent_estimate::categorical_treatment::{
     CATEGORICAL_INFERENCE_CLAIM, CATEGORICAL_OMNIBUS_NULL, CategoricalSummary,
     CategoricalTreatmentFit, CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelCount,
@@ -43,14 +41,12 @@ use antecedent_estimate::categorical_treatment::{
 use antecedent_estimate::vector_treatment::{DesignSummary, NamedColumn, VectorCovariance};
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
+use crate::artifact_codec::CanonicalSize;
+use crate::convert::to_cbor;
 use crate::vector_treatment_artifact::{
-    AdjustmentColumnRequest, Canon, CoefficientWire, VECTOR_TREATMENT_ADJUSTMENT_CAVEAT,
+    AdjustmentColumnRequest, CoefficientWire, VECTOR_TREATMENT_ADJUSTMENT_CAVEAT,
     VECTOR_TREATMENT_MAX_ADJUSTMENT, WaldWire, bytes_to_reals, reals_to_bytes,
 };
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
 /// The artifact major version this reader writes and accepts.
 pub const CATEGORICAL_TREATMENT_ARTIFACT_VERSION: u16 = 1;
@@ -69,95 +65,20 @@ pub const CATEGORICAL_INFERENCE_CAVEAT: &str = "every p-value is an asymptotic W
 /// Standing caveat of the monotonicity test.
 pub const CATEGORICAL_MONOTONICITY_CAVEAT: &str = "the monotonicity p-value is a conservative one-sided union-intersection (Bonferroni) bound; rejection is evidence against monotonicity in the declared direction, failing to reject does not prove it, and the test's Type I error and power are unmeasured";
 
-const ARTIFACT_KIND: &str = "categorical_treatment_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::CATEGORICAL_TREATMENT;
 const META_SECTION: &str = "categorical_treatment_meta";
 const NUMBERS_SECTION: &str = "categorical_treatment_numbers";
 const REPLAY_SUMMARY: &str = "summary";
 const REPLAY_ROWS: &str = "rows";
 
-/// Why a categorical-treatment artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum CategoricalTreatmentArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("categorical treatment artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported categorical treatment artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate or caveat that is not this format's.
-    #[error("unsupported categorical treatment semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("categorical treatment consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed categorical treatment artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("categorical_treatment.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored result differs from the recomputed one.
-    #[error("stored categorical treatment result does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("categorical treatment artifact does not encode: {0}")]
-    Encode(String),
-    /// The core fit refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl CategoricalTreatmentArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core refusal and for a changed identity field; absent for corruption,
-    /// unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "categorical_treatment.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for CategoricalTreatmentArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for CategoricalTreatmentArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why a categorical-treatment artifact was refused or could not be produced.
+    CategoricalTreatmentArtifactError,
+    "categorical treatment",
+    "categorical_treatment",
+    "result",
+    false
+);
 
 fn invalid_request(message: &str) -> CategoricalTreatmentArtifactError {
     CategoricalTreatmentArtifactError::Refused {
@@ -360,12 +281,14 @@ const fn direction_tag(direction: MonotonicityDirection) -> &'static str {
 }
 
 fn size(value: usize) -> u64 {
-    u64::try_from(value).unwrap_or(u64::MAX)
+    crate::width::lossless_u64(value)
 }
 
 impl CategoricalResultWire {
-    fn from_fit(fit: &CategoricalTreatmentFit) -> Self {
-        Self {
+    fn from_fit(fit: &CategoricalTreatmentFit) -> Result<Self, CategoricalTreatmentArtifactError> {
+        let degrees_of_freedom = u32::try_from(fit.omnibus.degrees_of_freedom)
+            .map_err(|_| CategoricalTreatmentArtifactError::LimitsExceeded("degrees of freedom"))?;
+        Ok(Self {
             reference: fit.reference.clone(),
             scale: scale_tag(fit.scale).to_owned(),
             level_order: fit.level_order.clone(),
@@ -415,8 +338,7 @@ impl CategoricalResultWire {
             family_size: size(fit.family_size),
             omnibus: WaldWire {
                 statistic: fit.omnibus.statistic,
-                degrees_of_freedom: u32::try_from(fit.omnibus.degrees_of_freedom)
-                    .unwrap_or(u32::MAX),
+                degrees_of_freedom,
                 p_value: fit.omnibus.p_value,
             },
             monotonicity: fit.monotonicity.as_ref().map(|m| MonotonicityWire {
@@ -440,7 +362,7 @@ impl CategoricalResultWire {
             }),
             covariance_kind: fit.covariance_kind.as_str().to_owned(),
             calibration: CATEGORICAL_TREATMENT_CALIBRATION.to_owned(),
-        }
+        })
     }
 }
 
@@ -512,11 +434,6 @@ pub struct CategoricalTreatmentReportWire {
     pub caveats: Vec<String>,
     /// Identity digests.
     pub identity: CategoricalTreatmentIdentity,
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
 }
 
 fn covariance_of(tag: &str) -> Result<VectorCovariance, CategoricalTreatmentArtifactError> {
@@ -657,14 +574,15 @@ impl Replay {
                             .map_err(|_| CategoricalTreatmentArtifactError::LimitsExceeded("rows"))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
+                let mut rest = numbers;
                 Ok(Self::Summary(CategoricalSummary {
                     counts,
                     design: DesignSummary {
                         n_rows: decl.n_rows,
                         first_treatment: 1 + decl.adjustment.len(),
-                        gram: numbers[..p * p].to_vec(),
-                        xty: numbers[p * p..p * p + p].to_vec(),
-                        rss: numbers[p * p + p],
+                        gram: crate::width::split_reals(&mut rest, p * p).to_vec(),
+                        xty: crate::width::split_reals(&mut rest, p).to_vec(),
+                        rss: crate::width::split_reals(&mut rest, 1)[0],
                     },
                 }))
             }
@@ -679,7 +597,15 @@ impl Replay {
                 if decl.n_rows.checked_mul(1 + a) != Some(numbers.len()) {
                     return Err(malformed("numbers section length"));
                 }
-                let mut columns = numbers.chunks_exact(decl.n_rows.max(1)).map(<[f64]>::to_vec);
+                let n = decl.n_rows;
+                // A zero row count is an empty payload, so there are no columns.
+                let mut columns = if n == 0 {
+                    Vec::new()
+                } else {
+                    let mut rest = numbers;
+                    crate::width::take_blocks(&mut rest, n, numbers.len() / n)
+                }
+                .into_iter();
                 let outcome = columns.next().unwrap_or_default();
                 Ok(Self::Rows {
                     outcome,
@@ -701,8 +627,8 @@ fn canonical_levels(spec: &CategoricalSpecWire) -> Vec<String> {
 }
 
 /// The canonical encoding of the stored result section.
-fn result_canon(result: &CategoricalResultWire) -> Canon {
-    let mut outcome = Canon::new("categorical_treatment_v1.result");
+fn result_canon(result: &CategoricalResultWire) -> CanonicalWriter {
+    let mut outcome = CanonicalWriter::new("categorical_treatment_v1.result");
     for c in &result.coefficients {
         outcome.text(&c.name);
         outcome.real(c.estimate);
@@ -745,11 +671,11 @@ fn identity_of(
     result: &CategoricalResultWire,
 ) -> CategoricalTreatmentIdentity {
     let spec = &decl.spec;
-    let mut snapshot = Canon::new("categorical_treatment_v1.snapshot");
+    let mut snapshot = CanonicalWriter::new("categorical_treatment_v1.snapshot");
     snapshot.text(&decl.row_snapshot);
     snapshot.size(decl.n_rows);
 
-    let mut adjustment = Canon::new("categorical_treatment_v1.adjustment_set");
+    let mut adjustment = CanonicalWriter::new("categorical_treatment_v1.adjustment_set");
     let mut sorted: Vec<&str> = decl.adjustment.iter().map(String::as_str).collect();
     sorted.sort_unstable();
     adjustment.size(sorted.len());
@@ -757,7 +683,7 @@ fn identity_of(
         adjustment.text(name);
     }
 
-    let mut scale = Canon::new("categorical_treatment_v1.level_scale");
+    let mut scale = CanonicalWriter::new("categorical_treatment_v1.level_scale");
     scale.text(&spec.scale);
     scale.text(&spec.reference);
     let levels = canonical_levels(spec);
@@ -766,7 +692,7 @@ fn identity_of(
         scale.text(level);
     }
 
-    let mut design = Canon::new("categorical_treatment_v1.design");
+    let mut design = CanonicalWriter::new("categorical_treatment_v1.design");
     design.text(replay.tag());
     design.size(decl.adjustment.len());
     for name in &decl.adjustment {
@@ -788,10 +714,10 @@ fn identity_of(
         design.real(*value);
     }
 
-    let mut covariance = Canon::new("categorical_treatment_v1.covariance");
+    let mut covariance = CanonicalWriter::new("categorical_treatment_v1.covariance");
     covariance.text(&spec.covariance);
 
-    let mut family = Canon::new("categorical_treatment_v1.family");
+    let mut family = CanonicalWriter::new("categorical_treatment_v1.family");
     family.word(spec.min_level_rows);
     family.size(spec.pairwise.len());
     for (from, to) in &spec.pairwise {
@@ -804,14 +730,14 @@ fn identity_of(
 
     let monotonicity_null =
         result.monotonicity.as_ref().map(|m| m.null.clone()).unwrap_or_default();
-    let snapshot_id = snapshot.finish();
-    let adjustment_set_id = adjustment.finish();
-    let level_scale_id = scale.finish();
-    let design_id = design.finish();
-    let covariance_id = covariance.finish();
-    let family_id = family.finish();
-    let result_id = outcome.finish();
-    let mut whole = Canon::new("categorical_treatment_v1.identity");
+    let snapshot_id = snapshot.finish_hex();
+    let adjustment_set_id = adjustment.finish_hex();
+    let level_scale_id = scale.finish_hex();
+    let design_id = design.finish_hex();
+    let covariance_id = covariance.finish_hex();
+    let family_id = family.finish_hex();
+    let result_id = outcome.finish_hex();
+    let mut whole = CanonicalWriter::new("categorical_treatment_v1.identity");
     for part in [
         snapshot_id.as_str(),
         adjustment_set_id.as_str(),
@@ -835,7 +761,7 @@ fn identity_of(
         omnibus_null: CATEGORICAL_OMNIBUS_NULL.to_owned(),
         monotonicity_null,
         result_id,
-        digest: whole.finish(),
+        digest: whole.finish_hex(),
     }
 }
 
@@ -917,7 +843,7 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, CategoricalTreatmen
             fit_categorical_treatment(&input, &spec)?
         }
     };
-    let result = CategoricalResultWire::from_fit(&fit);
+    let result = CategoricalResultWire::from_fit(&fit)?;
     let numbers = replay.numbers();
     let identity = identity_of(decl, replay, &numbers, &result);
     Ok(Computed { fit, result, identity, numbers })
@@ -930,42 +856,48 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, CategoricalTreatmen
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
     meta: &CategoricalTreatmentMeta,
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
-    let encode = |e: crate::IoError| CategoricalTreatmentArtifactError::Encode(e.to_string());
+    encode_parts_impl(meta, numbers, artifact_id)
+}
+
+fn encode_parts_impl(
+    meta: &CategoricalTreatmentMeta,
+    numbers: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
     if artifact_id.trim().is_empty() {
         return Err(CategoricalTreatmentArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(NUMBERS_SECTION, "application/octet-stream", numbers),
-            ],
-            provenance: ProvenanceWire { note: "categorical_treatment_wald_unmeasured".into() },
+    let meta_bytes = to_cbor(meta)
+        .map_err(|error| CategoricalTreatmentArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "categorical_treatment_wald_unmeasured",
+            max_bytes: MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(NUMBERS_SECTION, numbers.to_vec()),
+        &[
+            crate::OutSection {
+                id: META_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            crate::OutSection {
+                id: NUMBERS_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: numbers,
+            },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES {
-        return Err(CategoricalTreatmentArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+    )
+    .map_err(|error| crate::map_artifact_check!(error, CategoricalTreatmentArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -975,42 +907,37 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(CategoricalTreatmentMeta, Vec<u8>), CategoricalTreatmentArtifactError> {
-    if bytes.len() > MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES {
-        return Err(CategoricalTreatmentArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 2
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != NUMBERS_SECTION
-    {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
+    bytes: &[u8],
+) -> Result<(CategoricalTreatmentMeta, Vec<u8>), CategoricalTreatmentArtifactError> {
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES,
+        &[META_SECTION, NUMBERS_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, CategoricalTreatmentArtifactError))?;
+    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(CategoricalTreatmentArtifactError::Malformed(
             "unsupported container layout".into(),
         ));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    let limit = u64::try_from(MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES).unwrap_or(u64::MAX);
-    if declared.is_none_or(|total| total > limit) {
-        return Err(CategoricalTreatmentArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != CATEGORICAL_TREATMENT_ARTIFACT_VERSION {
-        return Err(CategoricalTreatmentArtifactError::UnsupportedVersion {
-            version: peek.version,
-        });
-    }
-    let meta: CategoricalTreatmentMeta = from_cbor(meta_section.as_bytes())?;
-    let numbers = reader.load_section(NUMBERS_SECTION)?;
-    Ok((meta, numbers.as_bytes().to_vec()))
+    };
+    let meta = crate::decode_with_version(&meta_bytes, |version| {
+        if version == CATEGORICAL_TREATMENT_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(CategoricalTreatmentArtifactError::UnsupportedVersion { version })
+        }
+    })?;
+    Ok((meta, payload))
 }
 
 fn standing_caveats() -> Vec<String> {
@@ -1147,7 +1074,7 @@ impl CategoricalTreatmentArtifact {
         &self,
         artifact_id: &str,
     ) -> Result<Vec<u8>, CategoricalTreatmentArtifactError> {
-        encode_parts(&self.meta, &reals_to_bytes(&self.numbers), artifact_id)
+        encode_parts_impl(&self.meta, &reals_to_bytes(&self.numbers), artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -1164,7 +1091,7 @@ impl CategoricalTreatmentArtifact {
         bytes: &[u8],
         expected: Option<&CategoricalTreatmentIdentity>,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
-        let (meta, raw) = decode_parts(bytes)?;
+        let (meta, raw) = decode_parts_impl(bytes)?;
         if meta.feature != CATEGORICAL_TREATMENT_ARTIFACT_FEATURE {
             return Err(CategoricalTreatmentArtifactError::UnsupportedSemantics("feature marker"));
         }
@@ -1209,5 +1136,109 @@ impl CategoricalTreatmentArtifact {
             }
         }
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
+    }
+}
+
+#[cfg(test)]
+mod number_section_tests {
+    use super::{
+        CategoricalResultWire, CategoricalSpecWire, CategoricalTreatmentIdentity,
+        CategoricalTreatmentMeta, Decl, REPLAY_ROWS, Replay,
+    };
+    use crate::vector_treatment_artifact::WaldWire;
+
+    fn spec() -> CategoricalSpecWire {
+        CategoricalSpecWire {
+            declared_levels: vec!["a".into(), "b".into()],
+            scale: "unordered".into(),
+            reference: "a".into(),
+            min_level_rows: 1,
+            pairwise: Vec::new(),
+            monotonicity: None,
+            covariance: "hc1".into(),
+        }
+    }
+
+    fn decl(n_rows: usize) -> Decl {
+        Decl { row_snapshot: String::new(), n_rows, adjustment: vec!["z".into()], spec: spec() }
+    }
+
+    fn meta(n_rows: u64, levels: Vec<String>) -> CategoricalTreatmentMeta {
+        CategoricalTreatmentMeta {
+            version: 1,
+            feature: String::new(),
+            null: String::new(),
+            monotonicity_null: None,
+            inference_claim: String::new(),
+            calibration: String::new(),
+            replay: REPLAY_ROWS.into(),
+            row_snapshot: String::new(),
+            n_rows,
+            adjustment: vec!["z".into()],
+            spec: spec(),
+            counts: Vec::new(),
+            row_levels: levels,
+            identity: CategoricalTreatmentIdentity {
+                snapshot_id: String::new(),
+                adjustment_set_id: String::new(),
+                level_scale_id: String::new(),
+                design_id: String::new(),
+                covariance_id: String::new(),
+                family_id: String::new(),
+                omnibus_null: String::new(),
+                monotonicity_null: String::new(),
+                result_id: String::new(),
+                digest: String::new(),
+            },
+            result: CategoricalResultWire {
+                reference: String::new(),
+                scale: String::new(),
+                level_order: Vec::new(),
+                counts: Vec::new(),
+                coefficients: Vec::new(),
+                covariance: Vec::new(),
+                level_contrasts: Vec::new(),
+                pairwise: Vec::new(),
+                family_size: 0,
+                omnibus: WaldWire { statistic: 0.0, degrees_of_freedom: 0, p_value: 0.0 },
+                monotonicity: None,
+                covariance_kind: String::new(),
+                calibration: String::new(),
+            },
+            caveats: Vec::new(),
+        }
+    }
+
+    fn bits(sample: &[f64]) -> Vec<u64> {
+        sample.iter().map(|value| value.to_bits()).collect()
+    }
+
+    #[test]
+    fn row_replay_round_trips_signed_zero_and_nan() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
+        let replay = Replay::Rows {
+            outcome: vec![-0.0, 1.0],
+            adjustment: vec![vec![nan, f64::MIN_POSITIVE]],
+            levels: vec!["a".into(), "b".into()],
+        };
+        let numbers = replay.numbers();
+        let bytes = crate::width::f64s_to_le_bytes(&numbers);
+        let direct: Vec<u8> = numbers.iter().flat_map(|value| value.to_le_bytes()).collect();
+        assert_eq!(bytes, direct);
+        let decoded = crate::width::f64s_from_le_bytes(&bytes);
+        let back =
+            Replay::from_parts(&decl(2), &meta(2, vec!["a".into(), "b".into()]), &decoded).unwrap();
+        assert_eq!(bits(&back.numbers()), bits(&numbers));
+        assert_eq!(crate::width::f64s_to_le_bytes(&back.numbers()), bytes);
+    }
+
+    #[test]
+    fn zero_row_replay_has_no_columns() {
+        let back = Replay::from_parts(&decl(0), &meta(0, Vec::new()), &[]).unwrap();
+        let Replay::Rows { outcome, adjustment, .. } = back else {
+            panic!("rows replay");
+        };
+        assert!(outcome.is_empty());
+        assert!(adjustment.is_empty());
     }
 }

@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -35,7 +27,6 @@ pub struct EnvironmentHoldoutReport {
 
 /// `(shared_frequency, jaccard)` of two link sets; `NaN` where the ratio has an empty
 /// denominator, so "nothing discovered" is never reported as full agreement.
-#[allow(clippy::cast_precision_loss)]
 fn agreement(train: &BTreeSet<LaggedLink>, holdout: &BTreeSet<LaggedLink>) -> (f64, f64) {
     let shared = train.intersection(holdout).count();
     let union = train.union(holdout).count();
@@ -111,7 +102,6 @@ fn subset_envs(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use antecedent_core::{
         CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,

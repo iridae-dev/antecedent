@@ -5,7 +5,7 @@
 # filtered `cargo test` line into a no-op that stays green forever. Every gate
 # line that filters or names a target runs through here instead:
 #
-#   bash scripts/counted_cargo.sh test -p antecedent-io --lib posterior
+#   bash scripts/counted_cargo.sh test -p antecedent-io-core --lib posterior
 #
 # Every `test result:` line is summed; the invocation must have passed at least
 # one test and failed none. `MIN_PASSED=N` raises the floor.

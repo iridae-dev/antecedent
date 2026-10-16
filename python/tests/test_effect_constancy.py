@@ -1,4 +1,4 @@
-"""F18 ``EffectConstancy`` (2.3A): the frozen acceptance numbers, typed refusals, permutation
+"""``EffectConstancy``: the frozen acceptance numbers, typed refusals, permutation
 invariance and the portable artifact through the Python facade.
 
 Every expected number is a closed form: Cochran's ``Q`` for independent partitions, the Wald
@@ -38,7 +38,7 @@ def run(parts, **kwargs):
     return effect_constancy(parts, **kwargs)
 
 
-def test_f18_frozen_acceptance_equal_effects_have_zero_statistic() -> None:
+def test_frozen_acceptance_equal_effects_have_zero_statistic() -> None:
     # Effects 1 and 1, variance 1/4 each, zero covariance.
     result = run([("p1", 1.0, 0.5), ("p2", 1.0, 0.5)])
     assert result.statistic == pytest.approx(0.0, abs=1e-12)
@@ -51,7 +51,7 @@ def test_f18_frozen_acceptance_equal_effects_have_zero_statistic() -> None:
     assert result.estimand == EFFECT
 
 
-def test_f18_frozen_acceptance_one_versus_two_has_statistic_two() -> None:
+def test_frozen_acceptance_one_versus_two_has_statistic_two() -> None:
     # Q = (2 - 1)^2 / (1/4 + 1/4) = 2 and sf = erfc(sqrt(2 / 2)) = erfc(1).
     result = run([("p1", 1.0, 0.5), ("p2", 2.0, 0.5)])
     assert result.statistic == pytest.approx(2.0, abs=1e-9)
@@ -69,7 +69,7 @@ def test_f18_frozen_acceptance_one_versus_two_has_statistic_two() -> None:
     assert not contrast.rejected
 
 
-def test_f18_calibration_is_unmeasured_and_non_rejection_is_not_proof() -> None:
+def test_calibration_is_unmeasured_and_non_rejection_is_not_proof() -> None:
     result = run([("p1", 1.0, 0.5), ("p2", 1.0, 0.5)])
     assert result.calibration == "unmeasured"
     assert result.inference_claim == "point_only"
@@ -79,7 +79,7 @@ def test_f18_calibration_is_unmeasured_and_non_rejection_is_not_proof() -> None:
     assert result.to_dict()["conclusion"] == "not_rejected"
 
 
-def test_f18_three_partitions_df_two_and_holm_by_hand() -> None:
+def test_three_partitions_df_two_and_holm_by_hand() -> None:
     # Effects 0, 1, 2, unit variance: pooled 1, Q = 1 + 0 + 1 = 2, df 2, p = exp(-1).
     result = run([("c", 2.0, 1.0), ("a", 0.0, 1.0), ("b", 1.0, 1.0)])
     assert [p.label for p in result.partitions] == ["a", "b", "c"]
@@ -105,7 +105,7 @@ def test_f18_three_partitions_df_two_and_holm_by_hand() -> None:
     assert not any(c.rejected for c in result.contrasts)
 
 
-def test_f18_reference_family_is_reported() -> None:
+def test_reference_family_is_reported() -> None:
     result = run([("a", 0.0, 1.0), ("b", 1.0, 1.0), ("c", 2.0, 1.0)], against="a")
     assert result.family == "against_reference"
     assert result.reference == "a"
@@ -115,7 +115,7 @@ def test_f18_reference_family_is_reported() -> None:
     assert result.contrasts[1].p_holm == pytest.approx(0.314_598_414_100_570_26, abs=1e-9)
 
 
-def test_f18_dependent_covariance_gives_wald_four() -> None:
+def test_dependent_covariance_gives_wald_four() -> None:
     # Estimates 1 and 2, variance 1/4 each, covariance 1/8: Var(e2 - e1) = 1/4, Wald = 4.
     parts = [("a", 1.0, 0.5), ("b", 2.0, 0.5)]
     dependent = run(parts, covariance=[[0.25, 0.125], [0.125, 0.25]])
@@ -133,7 +133,7 @@ def test_f18_dependent_covariance_gives_wald_four() -> None:
     assert diagonal.statistic == pytest.approx(independent.statistic, abs=1e-12)
 
 
-def test_f18_varying_effects_are_rejected() -> None:
+def test_varying_effects_are_rejected() -> None:
     result = run([("a", 0.0, 0.5), ("b", 5.0, 0.5)])
     assert result.statistic == pytest.approx(50.0, abs=1e-9)
     assert result.p_value < 1e-9
@@ -141,7 +141,7 @@ def test_f18_varying_effects_are_rejected() -> None:
     assert result.contrasts[0].rejected
 
 
-def test_f18_per_partition_table_carries_effects_and_derived_coordinates() -> None:
+def test_per_partition_table_carries_effects_and_derived_coordinates() -> None:
     result = run(
         [("2024q1", 0.3, 0.4), Partition("2024q2", 1.1, 0.6, coordinate="period:Q2-2024")],
         coordinate="period",
@@ -166,7 +166,7 @@ def test_f18_per_partition_table_carries_effects_and_derived_coordinates() -> No
     assert [p.label for p in mapped.partitions] == ["x", "y"]
 
 
-def test_f18_partition_permutation_gives_bit_identical_result() -> None:
+def test_partition_permutation_gives_bit_identical_result() -> None:
     parts = [("a", 0.3, 0.4), ("b", 1.1, 0.6), ("c", -0.2, 0.5)]
     forward = run(parts)
     reversed_ = run(list(reversed(parts)))
@@ -198,7 +198,7 @@ def test_f18_partition_permutation_gives_bit_identical_result() -> None:
         EffectEstimand("ate_difference", "outcome_units", "treat_vs_control", "other_population"),
     ],
 )
-def test_f18_partitions_that_change_the_estimand_refuse(changed: EffectEstimand) -> None:
+def test_partitions_that_change_the_estimand_refuse(changed: EffectEstimand) -> None:
     parts = [Partition("a", 1.0, 0.5), Partition("b", 1.0, 0.5, estimand=changed)]
     with pytest.raises(TemporalRefusal) as raised:
         effect_constancy(parts, estimand=EFFECT)
@@ -210,7 +210,7 @@ def test_f18_partitions_that_change_the_estimand_refuse(changed: EffectEstimand)
     assert_registered_refusal(error)
 
 
-def test_f18_unsupported_coordinate_and_duplicate_labels_refuse() -> None:
+def test_unsupported_coordinate_and_duplicate_labels_refuse() -> None:
     with pytest.raises(TemporalRefusal) as raised:
         run([Partition("a", 1.0, 0.5), Partition("b", 1.0, 0.5, support="unsupported")])
     assert raised.value.reason_code == "route_not_supported"
@@ -223,7 +223,7 @@ def test_f18_unsupported_coordinate_and_duplicate_labels_refuse() -> None:
     assert partial.partitions[1].support == "partial"
 
 
-def test_f18_invalid_numbers_refuse_with_exact_details() -> None:
+def test_invalid_numbers_refuse_with_exact_details() -> None:
     def detail(parts, **kwargs) -> tuple[str, str]:
         with pytest.raises(TemporalRefusal) as raised:
             run(parts, **kwargs)
@@ -263,14 +263,14 @@ def test_f18_invalid_numbers_refuse_with_exact_details() -> None:
         assert raised.value.detail == "effect_constancy.non_finite_estimate"
 
 
-def test_f18_a_missing_shared_estimand_is_never_assumed() -> None:
+def test_a_missing_shared_estimand_is_never_assumed() -> None:
     with pytest.raises(CausalValueError, match="estimand_missing"):
         effect_constancy([("a", 1.0, 0.5), ("b", 1.0, 0.5)])
     with pytest.raises(TypeError, match="partitions must be a sequence"):
         effect_constancy("ab")  # type: ignore[arg-type]
 
 
-def test_f18_artifact_round_trip_retains_identities_covariance_and_calibration() -> None:
+def test_artifact_round_trip_retains_identities_covariance_and_calibration() -> None:
     result = run([("a", 1.0, 0.5), ("b", 2.0, 0.5)], covariance=[[0.25, 0.125], [0.125, 0.25]])
     artifact = result.export()
     assert isinstance(artifact, bytes)
@@ -289,7 +289,7 @@ def test_f18_artifact_round_trip_retains_identities_covariance_and_calibration()
     assert consume_effect_constancy_artifact(artifact).identity == result.identity
 
 
-def test_f18_resealed_mutations_are_refused_against_the_retained_identity() -> None:
+def test_resealed_mutations_are_refused_against_the_retained_identity() -> None:
     base_parts = [("a", 1.0, 0.5), ("b", 2.0, 0.5)]
     covariance = [[0.25, 0.125], [0.125, 0.25]]
     original = run(base_parts, covariance=covariance)
@@ -328,7 +328,7 @@ def test_f18_resealed_mutations_are_refused_against_the_retained_identity() -> N
     refused(run([("a", 1.0, 0.5), ("b", 2.5, 0.5)], covariance=covariance), "evidence")
 
 
-def test_f18_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
+def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
     artifact = run([("a", 1.0, 0.5), ("b", 2.0, 0.5)]).export()
     corrupt = bytearray(artifact)
     corrupt[len(corrupt) // 2] ^= 0xFF

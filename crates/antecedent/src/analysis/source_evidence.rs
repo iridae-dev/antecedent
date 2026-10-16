@@ -1,6 +1,9 @@
 //! Original diagnostic evidence shared with native decision/inverse artifacts.
-use antecedent_core::{ExecutionContext, ResponseCoordinateLabels, reason_code};
-pub use antecedent_design::source_evidence::*;
+use antecedent_contract::ResponseCoordinateLabels;
+use antecedent_core::{ExecutionContext, reason_code};
+pub use antecedent_design::source_evidence::{
+    MAX_SOURCE_EVIDENCE_BYTES, SourceEvidence, SourceEvidenceError,
+};
 use std::sync::Arc;
 
 /// A read-only receipt issued only after actual original checked estimation and full comparison.

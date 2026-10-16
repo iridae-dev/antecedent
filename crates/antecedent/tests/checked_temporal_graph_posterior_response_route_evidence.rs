@@ -15,7 +15,7 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
 /// `defect_t = 0.9 pressure_{t-1}` on uniform white-noise pressure: the law of
@@ -26,7 +26,6 @@ fn dbn_series(n: usize, seed: u64) -> TimeSeriesData {
     let mut state = seed;
     for t in 0..n {
         state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        #[allow(clippy::cast_precision_loss)]
         let u = (state >> 33) as f64 / (1u64 << 31) as f64;
         pressure[t] = u * 2.0 - 1.0;
         if t > 0 {
@@ -62,9 +61,11 @@ fn dbn_posterior(pin: &serde_json::Value) -> GraphPosterior {
         vec![identified_c, unidentified_c],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, lagged)
@@ -115,9 +116,11 @@ fn class_posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         vec![contemporaneous],
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("temporal_class_posterior"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("temporal_class_posterior"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)

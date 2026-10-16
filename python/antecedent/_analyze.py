@@ -164,6 +164,11 @@ def analyze(
         or an ``antecedent.data`` frame (``EventFrame`` / ``PanelFrame`` /
         ``MultiEnvFrame``). The library does not take a Polars or pandas
         dependency on the way out; tabular results speak Arrow.
+        Arrow CDI / stream inputs may be borrowed without copying. Keep their
+        exported buffers unchanged while a data or prepared handle retains them,
+        including any writable NumPy aliases backing an Arrow array. Supply new
+        buffers and call ``result.refresh(new_data)`` to replace observations;
+        ordinary mappings of NumPy columns are copied during ingest.
         For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
         or a ``MultiEnvFrame``.
     query:
@@ -176,7 +181,7 @@ def analyze(
         (on a ``Dag`` or edge list; GCM parametric / ``gcm.fit``), and
         ``InterferenceQuery`` (with its network and realized assignment).
 
-        The specialized 2.1 families are on their stage modules and carry their
+        The specialized families are on their stage modules and carry their
         own design, so they take no ``graph=``:
 
         - ``experiment.RandomizedEffect`` / ``ComplierEffect`` / ``SwitchbackEffect``
@@ -189,7 +194,7 @@ def analyze(
         - ``survival.SurvivalOutcome`` / ``CompetingRisksOutcome``,
         - ``regimes.LongitudinalRegime``.
 
-        Transport: ``transport.Transport`` (the 2.0 compiler on an ``Admg``, with
+        Transport: ``transport.Transport`` (the compiler on an ``Admg``, with
         ``provider=`` / ``TransportInference`` / ``controls=``) and the licensed
         ``transport.advanced.TransportQuery`` trial-IPW cell.
         ``extensibility.ProviderQuery`` dispatches ``data`` and its request mapping

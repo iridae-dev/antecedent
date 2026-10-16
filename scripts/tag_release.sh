@@ -12,18 +12,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 read_workspace_version() {
-  python3 - <<'PY'
-import re
-from pathlib import Path
-text = Path("Cargo.toml").read_text()
-m = re.search(r"(?ms)^\[workspace\.package\]\n(.*?)(?=\n\[|\Z)", text)
-if not m:
-    raise SystemExit("Cargo.toml: [workspace.package] not found")
-vm = re.search(r'(?m)^version\s*=\s*"([^"]+)"', m.group(0))
-if not vm:
-    raise SystemExit("Cargo.toml: version missing under [workspace.package]")
-print(vm.group(1))
-PY
+  python3 "$ROOT/scripts/tag_release.py"
 }
 
 if [[ $# -ne 0 ]]; then

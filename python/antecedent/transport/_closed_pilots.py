@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from functools import partial
 from typing import Any, Literal, cast
 
 from .. import _native
@@ -19,6 +20,7 @@ from .._native import joint_bayesian_transport_closed as _joint_bayesian_transpo
 from .._native import (
     sampled_observation_recovery_closed as _sampled_observation_recovery_closed,
 )
+from .._validate import names
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..graph import Admg
 from ._impl import TransportIdentification, _non_negative
@@ -55,15 +57,14 @@ def _frozen(route: str, detail: str) -> CausalUnsupportedError:
     )
 
 
-def _names(name: str, values: Sequence[str]) -> list[str]:
-    if isinstance(values, str) or not isinstance(values, Sequence):
-        raise CausalTypeError(f"{name} must be a sequence of names")
-    names = list(values)
-    if any(not isinstance(item, str) or not item.strip() for item in names):
-        raise CausalValueError(f"{name} must hold non-empty names")
-    if len(set(names)) != len(names):
-        raise CausalValueError(f"{name} must not repeat a name")
-    return names
+_names = partial(
+    names,
+    sequence_message="{what} must be a sequence of names",
+    entry_error=CausalValueError,
+    entry_message="{what} must hold non-empty names",
+    duplicate_message="{what} must not repeat a name",
+    as_list=True,
+)
 
 
 def _has_bidirected_edge(graph: Admg) -> bool:
@@ -107,7 +108,7 @@ def joint_bayesian_transport(
         raise CausalTypeError("every source must be a mapping")
     if target is not None and not isinstance(target, (Mapping, JointTransportTarget)):
         raise CausalTypeError("target must be a mapping or None")
-    feature_names = _names("features", features)
+    feature_names = _names(features, "features")
     if graph is not None and not isinstance(graph, Admg):
         raise CausalTypeError("graph must be an Admg or None")
     if not isinstance(graph_class, str) or graph_class not in _GRAPH_CLASSES:
@@ -209,7 +210,7 @@ def _regime_table(
     fixed: list[int] | None = None
     if intervened is not None:
         fixed = []
-        for name in _names("intervened", intervened):
+        for name in _names(intervened, "intervened"):
             if name not in index:
                 raise CausalValueError(f"intervened variable {name!r} is not in the graph")
             fixed.append(index[name])

@@ -1,6 +1,6 @@
-//! Study planning over the X1 (mz) and X9 (mixed-source) catalogs (X6).
+//! Study planning over the mz-transport and mixed-source catalogs.
 //!
-//! A planner receives a failed X1 or X9 decision and a declared universe of at
+//! A planner receives a failed mz-transport or mixed-source decision and a declared universe of at
 //! most [`STUDY_PLAN_MAX_CANDIDATES`] candidate studies, each already compiled
 //! to a typed [`EvidenceCatalogDelta`] with an integer cost. It enumerates every
 //! feasible subset of at most [`STUDY_PLAN_MAX_SUBSET`] candidates in cost
@@ -11,8 +11,8 @@
 //!
 //! A subset is **sufficient** only when the re-run decision returns
 //! `Identified` and its derivation re-checks against the preview catalog (an mz
-//! derivation re-binds; an X9 derivation replays through the independent
-//! checker; an X9 named route is re-run on the shared budget and must bind),
+//! derivation re-binds; a mixed-source derivation replays through the independent
+//! checker; a mixed-source named route is re-run on the shared budget and must bind),
 //! and the formula cites at least one proposed regime. The plan claims no
 //! probability of success and no numeric result: a preview is never available
 //! evidence, and arrival re-identifies from the real catalog.
@@ -20,9 +20,9 @@
 //! What the plan does and does not claim:
 //!
 //! - "No sufficient subset" is `study_plan.none_certified` within this universe
-//!   and rule set, never an impossibility: X9 is sound but incomplete and X1's
+//!   and rule set, never an impossibility: the mixed-source search is sound but incomplete and the mz route's
 //!   obstruction decider is partial. The only theorem-limited refusal is a base
-//!   X1 decision that is a replayed checked obstruction, which concerns the
+//!   mz-transport decision that is a replayed checked obstruction, which concerns the
 //!   declared controllable sets, so no study inside them repairs it; a new
 //!   population or a wider controllable set is outside this universe.
 //! - Minimality is claimed only when every feasible subset strictly cheaper
@@ -31,7 +31,7 @@
 //!   candidates of this declared universe, under this search and rule set",
 //!   never "minimal sufficient evidence". A cheaper subset of four or more
 //!   candidates is never examined, and a cheaper subset the route refuses (for
-//!   example over the X9 usable-distribution bound) or leaves underivable keeps
+//!   example over the mixed-source usable-distribution bound) or leaves underivable keeps
 //!   the claim: it is only not sufficient under this search.
 //! - Supersets of a sufficient subset are not evaluated and are listed
 //!   `dominated`, for ranking only; sufficiency is not claimed monotone.
@@ -85,9 +85,9 @@ pub const STUDY_PLAN_DEFAULT_LIMITS: SearchLimits = SearchLimits { operations: 2
 /// Memory cap of the plan budget: the default and the maximum.
 pub const STUDY_PLAN_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 /// Largest declared cost of one candidate, so a subset's total never overflows.
-pub const STUDY_PLAN_MAX_COST_UNITS: u64 = u64::MAX / 4;
+pub(crate) const STUDY_PLAN_MAX_COST_UNITS: u64 = u64::MAX / 4;
 /// Version of the ranking key: cost units, sample budget, subset size, sorted ids.
-pub const STUDY_PLAN_RANKING: &str = "x6.ranking.v1";
+pub const STUDY_PLAN_RANKING: &str = "study_plan_ranking.v1";
 
 /// Candidates, regimes, subset size or limits beyond a declared bound.
 const BOUNDS_EXCEEDED: &str = "study_plan.bounds_exceeded";
@@ -97,7 +97,7 @@ const INVALID_CANDIDATE: &str = "study_plan.invalid_candidate";
 const INVALID_QUERY: &str = "study_plan.invalid_query";
 /// The base decision already identifies.
 const NO_FAILURE: &str = "study_plan.no_failure_to_repair";
-/// A replayed X1 obstruction over the declared controllable sets.
+/// A replayed mz-transport obstruction over the declared controllable sets.
 const THEOREM_LIMITED: &str = "study_plan.theorem_limited";
 /// No subset of the universe is sufficient; not an impossibility claim.
 const NONE_CERTIFIED: &str = "study_plan.none_certified";
@@ -169,9 +169,9 @@ impl StudyPlanRefusal {
 /// The failed route a plan repairs, with its frozen query.
 #[derive(Clone, Debug, PartialEq)]
 pub enum StudyPlanRoute {
-    /// The X1 multi-source limited-experiment route.
+    /// The mz-transport multi-source limited-experiment route.
     Mz(MzTransportQuery),
-    /// The X9 mixed-source proof search.
+    /// The mixed-source proof search.
     Mixed(MixedSourceQuery),
 }
 
@@ -438,24 +438,24 @@ pub struct StudyRepair {
     pub factors: Vec<StudyFactor>,
     /// The margin the proof actually reads from it: the union of its factors'
     /// variables and conditioning variables, or the whole declared margin when
-    /// the proof reads the regime only as an X9 input step (no factor of its
+    /// the proof reads the regime only as a mixed-source input step (no factor of its
     /// own). A smaller declared margin containing it is not verified unless
     /// declared as its own candidate.
     pub required_margin: Vec<VariableId>,
     /// The margin the candidate declared.
     pub declared_margin: Vec<VariableId>,
-    /// X9 proof steps (input steps) that cite it; empty on other routes.
+    /// mixed-source proof steps (input steps) that cite it; empty on other routes.
     pub proof_steps: Vec<usize>,
 }
 
 /// The checked derivation behind a proposal.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StudyProposalDerivation {
-    /// An X1 derivation (its record, including the plan-budget receipt).
+    /// A mz-transport derivation (its record, including the plan-budget receipt).
     Mz(Box<MzTransportDerivationRecord>),
-    /// An X9 rule-search derivation.
+    /// A mixed-source rule-search derivation.
     Mixed(Box<MixedSourceDerivationRecord>),
-    /// An X9 named route, re-run on the shared budget and bound.
+    /// A mixed-source named route, re-run on the shared budget and bound.
     Named {
         /// `target_first_sid`, `z_transport`, `mz_transport` or `meta_transport`.
         route: &'static str,
@@ -557,7 +557,7 @@ fn valid_id(id: &str) -> bool {
 
 /// Check a candidate universe against the bounds, the base catalog and the
 /// route's population semantics. Candidates are returned sorted by id.
-#[allow(clippy::too_many_lines)] // One linear pass over every declared candidate rule.
+#[allow(clippy::too_many_lines, reason = "One linear pass over every declared candidate rule")]
 fn validate_candidates(
     route: &StudyPlanRoute,
     catalog: &EvidenceCatalog,
@@ -755,7 +755,7 @@ fn preview_bytes(catalog: &EvidenceCatalog) -> u64 {
     regimes.saturating_mul(512).saturating_add(1024)
 }
 
-/// Plan the cheapest study additions that would make the failed X1 or X9
+/// Plan the cheapest study additions that would make the failed mz-transport or mixed-source
 /// decision identify.
 ///
 /// The base decision, every subset's entry (one operation at depth one with
@@ -771,7 +771,7 @@ fn preview_bytes(catalog: &EvidenceCatalog) -> u64 {
 /// A [`StudyPlanRefusal`]: `study_plan.bounds_exceeded` for a bound,
 /// `study_plan.invalid_candidate`, `study_plan.invalid_query` when the route
 /// refuses the base, `study_plan.no_failure_to_repair` when the base already
-/// identifies, `study_plan.theorem_limited` for a replayed X1 obstruction, and
+/// identifies, `study_plan.theorem_limited` for a replayed mz-transport obstruction, and
 /// `study_plan.budget` (with the receipt) when the budget stops the base
 /// decision.
 pub fn plan_study_additions(
@@ -798,7 +798,7 @@ struct PlanCaps {
     max_proposals: usize,
 }
 
-#[allow(clippy::too_many_lines)] // One pass: validate, freeze the base, then every subset.
+#[allow(clippy::too_many_lines, reason = "One pass: validate, freeze the base, then every subset")]
 fn plan_with_caps(
     graph: &Admg,
     route: &StudyPlanRoute,
@@ -953,7 +953,7 @@ fn plan_with_caps(
         }
         records.push(record(outcome));
         if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)] // At most 696 subsets.
+            #[allow(clippy::cast_precision_loss, reason = "At most 696 subsets")]
             progress.report((index + 1) as f64 / total as f64, "study planning");
         }
     }
@@ -1156,7 +1156,7 @@ struct Found {
     arena: CausalExprArena,
     root: ExprId,
     cited: Vec<RegimeId>,
-    /// `(proof step, regime)` of each X9 input step.
+    /// `(proof step, regime)` of each mixed-source input step.
     steps: Vec<(usize, RegimeId)>,
     derivation: StudyProposalDerivation,
     operations: usize,
@@ -1262,7 +1262,7 @@ fn decide_preview(
     }
 }
 
-/// Re-run the X9 named route that identified the preview on the shared budget
+/// Re-run the mixed-source named route that identified the preview on the shared budget
 /// and bind its derivation to the preview (`NamedRoute` carries no derivation).
 /// `None` when the re-run does not identify.
 fn rerun_named(
@@ -1507,7 +1507,7 @@ fn proposal(
             .map(|(step, _)| *step)
             .collect::<Vec<_>>();
         if factors.is_empty() {
-            // An X9 input step reads the whole declared joint.
+            // A mixed-source input step reads the whole declared joint.
             required.extend(regime.measured.iter().copied());
         }
         let mut intervened = regime.interventions.to_vec();
@@ -1726,9 +1726,7 @@ mod tests {
         pub(super) const Z2: u32 = 2;
         pub(super) const Y: u32 = 3;
 
-        fn v(i: u32) -> VariableId {
-            VariableId::from_raw(i)
-        }
+        use crate::test_support::v;
 
         pub(super) fn graph() -> Admg {
             let mut g = Admg::with_variables(4);

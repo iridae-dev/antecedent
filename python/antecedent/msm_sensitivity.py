@@ -1,4 +1,4 @@
-"""Marginal sensitivity model (MSM) bounds, tipping point and sensitivity artifact (2.3 B3).
+"""Marginal sensitivity model (MSM) bounds, tipping point and sensitivity artifact.
 
 The Tan (2006) / Zhao-Small-Bhattacharya (2019) marginal sensitivity model asks how far an
 inverse-propensity-weighted average treatment effect (ATE) could move if unmeasured
@@ -38,10 +38,17 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any
 
+import numpy as np
+
+from ._columns import coerce_fields
+from ._digest import canonical_digest
 from ._native import msm_sensitivity_artifact_run as _artifact_run
 from ._native import msm_sensitivity_run as _run
+from ._refusal import raise_refusal
+from ._validate import real
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .joint_distribution import ScientificQuantity
 from .sensitivity_decision import SensitivityAction, SensitivityArtifact
@@ -77,21 +84,13 @@ class MsmSensitivityRefusal(StructuredRefusal):
     """
 
 
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise MsmSensitivityRefusal(json.loads(refusal))
-
-
-def _number(name: str, value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise CausalTypeError(f"{name} must be a number")
-    return float(value)
+_real = partial(real, type_message="{what} must be a number")
 
 
 def _numbers(name: str, values: object) -> tuple[float, ...]:
     if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
         raise CausalTypeError(f"{name} must be a sequence of numbers")
-    return tuple(_number(name, value) for value in values)
+    return tuple(_real(value, name) for value in values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,8 +105,8 @@ class OutcomeLaw:
     probabilities: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "values", _numbers("values", self.values))
-        object.__setattr__(self, "probabilities", _numbers("probabilities", self.probabilities))
+        coerce_fields(self, values=_numbers("values", self.values))
+        coerce_fields(self, probabilities=_numbers("probabilities", self.probabilities))
 
     @classmethod
     def binary(cls, rate: float) -> OutcomeLaw:
@@ -117,10 +116,46 @@ class OutcomeLaw:
             CausalTypeError: ``rate`` is not a number.
             CausalValueError: ``rate`` is not a probability in ``[0, 1]``.
         """
-        rate = _number("rate", rate)
+        rate = _real(rate, "rate")
         if not (math.isfinite(rate) and 0.0 <= rate <= 1.0):
             raise CausalValueError(f"rate must be a probability in [0, 1], got {rate!r}")
         return cls((0.0, 1.0), (1.0 - rate, rate))
+
+
+def _column_values(column: Any) -> list[Any]:
+    """A column as a list, using the array's C ``tolist`` when it has one."""
+    if hasattr(column, "tolist"):
+        return list(column.tolist())
+    return list(column)
+
+
+def _as_law(value: Any) -> Any:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return OutcomeLaw.binary(float(value))
+    return value
+
+
+def _strata_from_columns(
+    cls: type,
+    columns: Mapping[str, list[Any]],
+    wanted: tuple[str, ...],
+) -> tuple[Any, ...]:
+    lengths = {len(values) for values in columns.values()}
+    if len(lengths) > 1:
+        raise CausalValueError(f"table columns differ in length: {sorted(lengths)}")
+    count = next(iter(lengths)) if lengths else 0
+    if count == 0:
+        raise CausalValueError("table has no rows")
+    available = sorted(columns)
+    series: list[list[Any]] = []
+    for name in wanted:
+        if name not in columns:
+            raise CausalValueError(f"table has no column {name!r}; columns: {available}")
+        series.append(columns[name])
+    return tuple(
+        cls(series[0][i], series[1][i], _as_law(series[2][i]), _as_law(series[3][i]))
+        for i in range(count)
+    )
 
 
 def _law(name: str, value: object) -> OutcomeLaw:
@@ -149,8 +184,8 @@ class MsmStratum:
     control: OutcomeLaw
 
     def __post_init__(self) -> None:
-        mass = _number("mass", self.mass)
-        propensity = _number("propensity", self.propensity)
+        mass = _real(self.mass, "mass")
+        propensity = _real(self.propensity, "propensity")
         if not (math.isfinite(propensity) and 0.0 <= propensity <= 1.0):
             raise CausalValueError(
                 f"propensity must be a probability in [0, 1] (strictly inside (0, 1) to be "
@@ -158,10 +193,10 @@ class MsmStratum:
             )
         if not (math.isfinite(mass) and 0.0 <= mass <= 1.0):
             raise CausalValueError(f"mass must be a population mass in [0, 1], got {mass!r}")
-        object.__setattr__(self, "mass", mass)
-        object.__setattr__(self, "propensity", propensity)
-        object.__setattr__(self, "treated", _law("treated", self.treated))
-        object.__setattr__(self, "control", _law("control", self.control))
+        coerce_fields(self, mass=mass)
+        coerce_fields(self, propensity=propensity)
+        coerce_fields(self, treated=_law("treated", self.treated))
+        coerce_fields(self, control=_law("control", self.control))
 
     @classmethod
     def table(
@@ -190,44 +225,48 @@ class MsmStratum:
             CausalValueError: a named column is missing, columns differ in length, or the
                 table is empty.
         """
+        wanted = (mass, propensity, treated, control)
+        if (
+            hasattr(table, "columns")
+            and hasattr(table, "__getitem__")
+            and not isinstance(table, Mapping)
+        ):
+            if len(table) == 0:
+                raise CausalValueError("table has no rows")
+            columns = {name: _column_values(table[name]) for name in table.columns}
+            return _strata_from_columns(cls, columns, wanted)
         if hasattr(table, "to_dict") and not isinstance(table, Mapping):
-            rows: list[Mapping[str, Any]] = list(table.to_dict("records"))
-        elif isinstance(table, Mapping):
+            rows = list(table.to_dict("records"))
+            if not rows:
+                raise CausalValueError("table has no rows")
+            columns = {str(key): [row[key] for row in rows] for key in rows[0]}
+            return _strata_from_columns(cls, columns, wanted)
+        if isinstance(table, Mapping):
             columns = {name: list(values) for name, values in table.items()}
-            lengths = {len(values) for values in columns.values()}
-            if len(lengths) > 1:
-                raise CausalValueError(f"table columns differ in length: {sorted(lengths)}")
-            count = lengths.pop() if lengths else 0
-            rows = [{name: values[i] for name, values in columns.items()} for i in range(count)]
-        elif isinstance(table, Sequence) and not isinstance(table, (str, bytes)):
+            return _strata_from_columns(cls, columns, wanted)
+        if isinstance(table, Sequence) and not isinstance(table, (str, bytes)):
             rows = list(table)
             if any(not isinstance(row, Mapping) for row in rows):
                 raise CausalTypeError("table rows must be mappings from column name to value")
-        else:
-            raise CausalTypeError(
-                "table must be a mapping of columns, a sequence of row mappings or a DataFrame"
+            if not rows:
+                raise CausalValueError("table has no rows")
+
+            def cell(row: Mapping[str, Any], name: str) -> Any:
+                if name not in row:
+                    raise CausalValueError(f"table has no column {name!r}; columns: {sorted(row)}")
+                return row[name]
+
+            return tuple(
+                cls(
+                    cell(row, mass),
+                    cell(row, propensity),
+                    _as_law(cell(row, treated)),
+                    _as_law(cell(row, control)),
+                )
+                for row in rows
             )
-        if not rows:
-            raise CausalValueError("table has no rows")
-
-        def cell(row: Mapping[str, Any], name: str) -> Any:
-            if name not in row:
-                raise CausalValueError(f"table has no column {name!r}; columns: {sorted(row)}")
-            return row[name]
-
-        def law(value: Any) -> Any:
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                return OutcomeLaw.binary(float(value))
-            return value
-
-        return tuple(
-            cls(
-                cell(row, mass),
-                cell(row, propensity),
-                law(cell(row, treated)),
-                law(cell(row, control)),
-            )
-            for row in rows
+        raise CausalTypeError(
+            "table must be a mapping of columns, a sequence of row mappings or a DataFrame"
         )
 
     def _wire(self) -> tuple[float, float, list[float], list[float], list[float], list[float]]:
@@ -379,7 +418,7 @@ class MsmResult:
         causal_contract_id: str,
         point_quantities: Sequence[tuple[ScientificQuantity, Sequence[float]]] = (),
     ) -> SensitivityArtifact:
-        """The F17 :class:`~antecedent.sensitivity_decision.SensitivityArtifact` of this result.
+        """The :class:`~antecedent.sensitivity_decision.SensitivityArtifact` of this result.
 
         The assumption coordinate is ``Lambda`` (scale ``odds_ratio_bound``, range
         ``[1, lambda_max]``); the one ranged surface quantity is ``effect`` with the sharp ATE
@@ -457,7 +496,7 @@ class MsmResult:
             causal_contract_id,
             _ARTIFACT_ID,
         )
-        _raise(refusal)
+        raise_refusal(refusal, MsmSensitivityRefusal)
         if data is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native artifact returned neither a result nor a refusal")
         return SensitivityArtifact.consume(data)
@@ -545,15 +584,15 @@ def msm_ate_sensitivity(
     declared = tuple(strata)
     if any(not isinstance(stratum, MsmStratum) for stratum in declared):
         raise CausalTypeError("every stratum must be an MsmStratum")
-    lambda_value = _number("lambda_max", lambda_max)
+    lambda_value = _real(lambda_max, "lambda_max")
     if isinstance(grid_points, bool) or not isinstance(grid_points, int):
         raise CausalTypeError("grid_points must be an integer")
     if grid_points < 0:
         raise CausalValueError("grid_points must be non-negative")
     threshold = (
-        None if decision_threshold is None else _number("decision_threshold", decision_threshold)
+        None if decision_threshold is None else _real(decision_threshold, "decision_threshold")
     )
-    tol = _number("tolerance", tolerance)
+    tol = _real(tolerance, "tolerance")
     if sampling_composition is not None and not isinstance(sampling_composition, str):
         raise CausalTypeError("sampling_composition must be a string or None")
     request = _Request(declared, lambda_value, grid_points, threshold, tol)
@@ -565,7 +604,7 @@ def msm_ate_sensitivity(
         tol,
         sampling_composition,
     )
-    _raise(refusal)
+    raise_refusal(refusal, MsmSensitivityRefusal)
     if text is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native MSM bounds returned neither a result nor a refusal")
     return _result(json.loads(text), request)
@@ -591,8 +630,6 @@ def from_analysis(
     certify that supplemental data equal its original snapshot. The new sample gets
     its own digest. Continuous covariates require explicitly declared finite strata.
     """
-    import hashlib
-
     from ._data import as_columns
     from .query import AverageEffect
     from .results import AnalysisResult
@@ -619,7 +656,7 @@ def from_analysis(
         or query.outcome != basis["outcome"]
         or query.control_level != basis["control"]
         or query.active_level != basis["active"]
-        or result.identification.adjustment_set != basis["adjustment"]
+        or tuple(result.identification.adjustment_set) != tuple(basis["adjustment"])
     ):
         raise CausalValueError("MSM query and adjustment must retain the original native source")
     names, columns = as_columns(data)
@@ -645,14 +682,8 @@ def from_analysis(
         raise CausalValueError("supplemental MSM sample must be nonempty and finite")
     from collections import Counter
 
-    sample_hash = hashlib.sha256()
-    # Stream exactly the canonical JSON [required_columns, ordered_rows] used by
-    # the original handoff, without retaining a second copy of the sample.
-    sample_hash.update(b"[")
-    sample_hash.update(json.dumps(required, sort_keys=True).encode())
-    sample_hash.update(b", [")
     groups: dict[tuple[float, ...], tuple[Counter[float], Counter[float]]] = {}
-    for index, row in enumerate(zip(*(table[name] for name in required), strict=True)):
+    for row in zip(*(table[name] for name in required), strict=True):
         if not all(math.isfinite(float(v)) for v in row):
             raise CausalValueError("supplemental MSM sample must be nonempty and finite")
         treatment, outcome, *covariates = row
@@ -673,10 +704,6 @@ def from_analysis(
                 "empirical MSM permits at most 256 distinct outcomes per arm/stratum"
             )
         counts[value] += 1
-        if index:
-            sample_hash.update(b", ")
-        sample_hash.update(json.dumps(row, sort_keys=True).encode())
-    sample_hash.update(b"]]")
 
     def empirical_law(counts: Counter[float]) -> OutcomeLaw:
         support = tuple(sorted(counts))
@@ -705,11 +732,16 @@ def from_analysis(
     )
     from dataclasses import replace
 
-    digest = sample_hash.hexdigest()
+    # The sample's identity is its content: the column names and every row's values, in
+    # order, by dtype, shape and bytes (finite, as checked above).
+    sample = np.column_stack([np.asarray(table[name], dtype=np.float64) for name in required])
+    digest = canonical_digest(
+        "antecedent.msm.empirical_sample.v2", {"columns": list(required), "rows": sample}
+    )
     return replace(
         calculated,
         input_basis="empirical_plugin",
-        sample_id=f"sha256:{digest}",
+        sample_id=f"blake3:{digest}",
         source_program_id=original["causal_contract_id"],
         interpretation="sharp bounds for the empirical distribution; population bounds estimated",
         uncertainty=MsmUncertainty(

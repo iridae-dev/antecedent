@@ -11,7 +11,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 // Dense ids originate as u32; nonnegative row indices and bounded replicate counts are intentional.
-#![allow(clippy::too_many_arguments, clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -32,7 +31,10 @@ use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, Time
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
-use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_stats::{
+    CompiledDesign, DenseLinearAlgebra, DesignColumnMap, DesignColumnRole, FaerBackend,
+    LeastSquaresFit, LeastSquaresWorkspace, StatsError,
+};
 
 use crate::serial_dependence::{DependenceScope, SerialDependence};
 use crate::{
@@ -42,6 +44,48 @@ use crate::{
 
 /// Stream salt of the root-mean shift draws, apart from every mechanism's own stream.
 const ROOT_MEAN_STREAM: u64 = 0x2007_3A11_C0DE_51DE;
+
+/// The observed series and the identified unfolded design every sequential estimator fits:
+/// the temporal graph, its dense-node indexer and the identified unfolded estimand.
+#[derive(Clone, Copy)]
+pub struct SequentialProblem<'a> {
+    /// The observed series.
+    pub data: &'a TimeSeriesData,
+    /// The temporal DAG the unfolded design comes from.
+    pub graph: &'a TemporalDag,
+    /// Dense-node to (variable, offset) indexer of the unfolded graph.
+    pub indexer: &'a TemporalIndexer,
+    /// The identified unfolded estimand.
+    pub estimand: &'a IdentifiedEstimand,
+}
+
+/// The outcome node and per-node overlays of a sequence level.
+///
+/// `O` is [`SequentialMechanismOverlay`] or the plain [`SequentialNodeOverlay`].
+#[derive(Clone, Copy)]
+pub struct SequenceTarget<'a, O = SequentialMechanismOverlay> {
+    /// Outcome template variable.
+    pub outcome: VariableId,
+    /// Absolute time offset of the outcome copy.
+    pub outcome_offset: i32,
+    /// The per-node overlays; no two may assign the same (variable, time).
+    pub overlays: &'a [O],
+}
+
+/// How a sequential estimate is made uncertain and what it is published with: the
+/// identification status and assumptions it carries, and whether a Frequentist block
+/// bootstrap or a Bayesian composition supplies the interval.
+#[derive(Clone)]
+pub struct SequentialInference<'a> {
+    /// Identification status; the design must be point identified.
+    pub status: IdentificationStatus,
+    /// Assumptions the identification requires, carried onto the estimate.
+    pub assumptions: AssumptionSet,
+    /// Frequentist circular-block bootstrap replicates (ignored when `bayesian` is set).
+    pub bootstrap_replicates: u32,
+    /// Bayesian composition of independent Gaussian mechanism posteriors, when requested.
+    pub bayesian: Option<&'a BayesianGComputationAte>,
+}
 
 /// One intervened unfolded node and the licensed overlay applied there.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -175,30 +219,12 @@ enum SequentialEval {
 /// ratio ([`crate::serial_dependence`]), so the composed interval is a
 /// generalized posterior with a serial-dependence correction.
 pub fn estimate_sustained_window(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
+    problem: &SequentialProblem<'_>,
     query: &TemporalEffectQuery,
-    status: IdentificationStatus,
-    assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
-    estimate_sustained_window_with_validation(
-        data,
-        graph,
-        indexer,
-        estimand,
-        query,
-        status,
-        assumptions,
-        bootstrap_replicates,
-        bayesian,
-        ctx,
-        None,
-    )
+    estimate_sustained_window_with_validation(problem, query, inference, ctx, None)
 }
 
 /// A fitted stationary mechanism, retained for predictive validation of the actual SEM.
@@ -214,19 +240,14 @@ pub struct SequentialBayesianMechanism {
 
 /// Fit a sustained policy and optionally retain its actual stationary Bayesian mechanisms.
 pub fn estimate_sustained_window_with_validation(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
+    problem: &SequentialProblem<'_>,
     query: &TemporalEffectQuery,
-    status: IdentificationStatus,
-    assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
     validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
-    let (overlays, delta) = sustained_contrast_overlays(query, estimand, status)?;
+    let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, inference.status)?;
+    let bayesian = inference.bayesian;
     if bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
         return Err(EstimationError::unsupported(
             "sequential Bayesian g-computation requires GaussianIdentity",
@@ -238,19 +259,16 @@ pub fn estimate_sustained_window_with_validation(
         ));
     }
     estimate_sequential(
-        data,
-        graph,
-        indexer,
-        estimand,
-        query.outcome,
-        query.outcome_offset(),
-        &overlays,
+        problem,
+        &SequenceTarget {
+            outcome: query.outcome,
+            outcome_offset: query.outcome_offset(),
+            overlays: &overlays,
+        },
         SequentialEval::Contrast { delta },
-        status,
-        assumptions,
-        bootstrap_replicates,
-        bayesian,
+        inference,
         ctx,
+        query.effect_modifiers.as_ref(),
         validation,
     )
 }
@@ -315,23 +333,21 @@ impl SequentialContrastDesign {
     ///
     /// The same refusals as [`estimate_sustained_window`], or lag-alignment failures.
     pub fn prepare(
-        data: &TimeSeriesData,
-        graph: &TemporalDag,
-        indexer: &TemporalIndexer,
-        estimand: &IdentifiedEstimand,
+        problem: &SequentialProblem<'_>,
         query: &TemporalEffectQuery,
         status: IdentificationStatus,
         ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
-        let (overlays, delta) = sustained_contrast_overlays(query, estimand, status)?;
+        let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, status)?;
         let setup = SequentialSetup::build(
-            data,
-            graph,
-            indexer,
-            query.outcome,
-            query.outcome_offset(),
-            &overlays,
+            problem,
+            &SequenceTarget {
+                outcome: query.outcome,
+                outcome_offset: query.outcome_offset(),
+                overlays: &overlays,
+            },
             SequentialEval::Contrast { delta },
+            query.effect_modifiers.as_ref(),
             ctx,
         )?;
         Ok(Self { setup })
@@ -397,7 +413,8 @@ impl SequentialContrastDesign {
     /// through the contrast gradient), for [`crate::temporal_block::effective_rows`].
     #[must_use]
     pub fn influence(&self) -> Option<Vec<f64>> {
-        self.setup.influence(&mut LeastSquaresWorkspace::default())
+        let full = self.setup.fit_full(&mut LeastSquaresWorkspace::default());
+        self.setup.influence_from(&self.setup.coefficients_of(&full).ok()?)
     }
 
     /// Every mechanism's OLS normal-equation scores on the aligned rows
@@ -405,7 +422,8 @@ impl SequentialContrastDesign {
     /// [`crate::temporal_block::dependence_block_length`].
     #[must_use]
     pub fn normal_equation_scores(&self) -> Vec<Vec<f64>> {
-        self.setup.normal_equation_scores()
+        let full = self.setup.fit_full(&mut LeastSquaresWorkspace::default());
+        self.setup.normal_equation_scores_of(&full)
     }
 
     /// Circular-block length of this contrast's Frequentist block-bootstrap
@@ -413,7 +431,13 @@ impl SequentialContrastDesign {
     /// interval resamples the same blocks.
     #[must_use]
     pub fn block_length(&self) -> usize {
-        self.setup.dependence_block_length(&mut LeastSquaresWorkspace::default())
+        let full = self.setup.fit_full(&mut LeastSquaresWorkspace::default());
+        let influence = self
+            .setup
+            .coefficients_of(&full)
+            .ok()
+            .and_then(|base| self.setup.influence_from(&base));
+        self.setup.dependence_block_length_with(influence.as_deref(), &full)
     }
 }
 
@@ -424,33 +448,21 @@ impl SequentialContrastDesign {
 ///
 /// Empty or duplicate overlays, unidentified estimand, or fit failures.
 pub fn estimate_sequence_overlays(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    outcome: VariableId,
-    outcome_offset: i32,
-    overlays: &[SequentialNodeOverlay],
-    status: IdentificationStatus,
-    assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    problem: &SequentialProblem<'_>,
+    target: &SequenceTarget<'_, SequentialNodeOverlay>,
+    inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
     let mechanisms =
-        overlays.iter().copied().map(SequentialMechanismOverlay::from).collect::<Vec<_>>();
+        target.overlays.iter().copied().map(SequentialMechanismOverlay::from).collect::<Vec<_>>();
     estimate_sequence_mechanisms(
-        data,
-        graph,
-        indexer,
-        estimand,
-        outcome,
-        outcome_offset,
-        &mechanisms,
-        status,
-        assumptions,
-        bootstrap_replicates,
-        bayesian,
+        problem,
+        &SequenceTarget {
+            outcome: target.outcome,
+            outcome_offset: target.outcome_offset,
+            overlays: &mechanisms,
+        },
+        inference,
         ctx,
     )
 }
@@ -461,19 +473,14 @@ pub fn estimate_sequence_overlays(
 /// # Errors
 /// Invalid parameters, duplicate coordinates, unidentified design, or fit failures.
 pub fn estimate_sequence_mechanisms(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    outcome: VariableId,
-    outcome_offset: i32,
-    overlays: &[SequentialMechanismOverlay],
-    status: IdentificationStatus,
-    mut assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    problem: &SequentialProblem<'_>,
+    target: &SequenceTarget<'_>,
+    mut inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
+    let overlays = target.overlays;
+    let (estimand, status, bayesian) = (problem.estimand, inference.status, inference.bayesian);
+    let assumptions = &mut inference.assumptions;
     if overlays.iter().any(|overlay| overlay.bounds.is_some()) {
         let restriction = SequentialMechanismOverlay::mean_target_assumption();
         if !assumptions.entries.contains(&restriction) {
@@ -514,22 +521,7 @@ pub fn estimate_sequence_mechanisms(
             "composed sequence HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
-    estimate_sequential(
-        data,
-        graph,
-        indexer,
-        estimand,
-        outcome,
-        outcome_offset,
-        overlays,
-        SequentialEval::Level,
-        status,
-        assumptions,
-        bootstrap_replicates,
-        bayesian,
-        ctx,
-        None,
-    )
+    estimate_sequential(problem, target, SequentialEval::Level, inference, ctx, &[], None)
 }
 
 /// RNG stream base for the sequential circular-block row bootstrap.
@@ -554,6 +546,18 @@ struct SequentialSetup {
     n: usize,
     max_lag: u32,
     eval: SequentialEval,
+    /// Named modifiers. Empty leaves every mechanism the parent regression it was.
+    modifiers: Vec<VariableId>,
+    /// Coefficient slots of `parent × modifier`, aligned with `parents`.
+    /// `interaction_at[node][parent]` is one slot per modifier, in modifier order.
+    interaction_at: Vec<Vec<Vec<usize>>>,
+    /// Modifier columns at each fitted node's lag, used to recompute `E[W]` on a row map.
+    node_modifier_values: Vec<Vec<Vec<f64>>>,
+}
+
+/// Full-sample OLS solves of a [`SequentialSetup`], one per fitted mechanism in fitting order.
+struct FullFit {
+    fits: Vec<(usize, Result<LeastSquaresFit, StatsError>)>,
 }
 
 impl SequentialSetup {
@@ -561,16 +565,21 @@ impl SequentialSetup {
         clippy::cast_possible_truncation,
         reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
     )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "resolve the unfolded graph, order the needed nodes, plan the lagged columns and gather the per-mechanism designs; every step reads the same node order"
+    )]
     fn build(
-        data: &TimeSeriesData,
-        graph: &TemporalDag,
-        indexer: &TemporalIndexer,
-        outcome: VariableId,
-        outcome_offset: i32,
-        overlays: &[SequentialMechanismOverlay],
+        problem: &SequentialProblem<'_>,
+        target: &SequenceTarget<'_>,
         eval: SequentialEval,
+        modifiers: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
+        let SequentialProblem { data, graph, indexer, .. } = *problem;
+        let SequenceTarget { outcome, outcome_offset, overlays } = *target;
+        let modifiers =
+            if matches!(eval, SequentialEval::Contrast { .. }) { modifiers } else { &[] };
         let unfolded =
             graph.unfold(indexer.clone()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
         let dag = &unfolded.dag;
@@ -642,7 +651,37 @@ impl SequentialSetup {
             column_of[i] = columns.len();
             columns.push(LaggedColumn { variable: key.variable, lag: Lag::from_raw(lag) });
         }
-        let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
+        let mut modifier_at: Vec<(VariableId, u32, usize)> = Vec::new();
+        if !modifiers.is_empty() {
+            for &i in &order {
+                let hard = overlay_at[i].is_some_and(|overlay| overlay.node.level.is_some());
+                let parent_ids: Vec<usize> = dag
+                    .parents(DenseNodeId::from_raw(i as u32))
+                    .iter()
+                    .map(|parent| parent.as_usize())
+                    .collect();
+                if hard || parent_ids.is_empty() || !parent_ids.iter().any(|&p| intervention[p]) {
+                    continue;
+                }
+                let key = indexer
+                    .key_of(i as u32)
+                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                let lag = u32::try_from(anchor - key.offset)
+                    .map_err(|_| EstimationError::unsupported("invalid unfolded time offset"))?;
+                max_lag = max_lag.max(lag);
+                for &modifier in modifiers {
+                    if modifier_at
+                        .iter()
+                        .any(|(variable, stored, _)| *variable == modifier && *stored == lag)
+                    {
+                        continue;
+                    }
+                    modifier_at.push((modifier, lag, columns.len()));
+                    columns.push(LaggedColumn { variable: modifier, lag: Lag::from_raw(lag) });
+                }
+            }
+        }
+        let plan = data.plan_lagged_sample(max_lag, Arc::from(columns.clone()))?;
         let mut workspace = LaggedSampleWorkspace::default();
         let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
         let n = sample.n;
@@ -654,16 +693,27 @@ impl SequentialSetup {
         let mut designs = vec![None; node_count];
         let mut parents = vec![Vec::new(); node_count];
         let mut free_columns = vec![None; node_count];
+        let mut interaction_at = vec![Vec::new(); node_count];
+        let mut node_modifier_values = vec![Vec::new(); node_count];
         for &i in &order {
             parents[i] =
                 dag.parents(DenseNodeId::from_raw(i as u32)).iter().map(|p| p.as_usize()).collect();
             // Stable coefficient positions across time copies, independent of dense
             // node order in the unfolding.
-            let child = indexer.key_of(i as u32).expect("unfolded node");
-            parents[i].sort_by_key(|&p| {
-                let parent = indexer.key_of(p as u32).expect("unfolded parent");
-                (parent.variable.raw(), child.offset - parent.offset)
-            });
+            let child =
+                indexer.key_of(i as u32).map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            let mut keyed = Vec::with_capacity(parents[i].len());
+            for &p in &parents[i] {
+                let parent = indexer
+                    .key_of(p as u32)
+                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                let lag = child.offset.checked_sub(parent.offset).ok_or_else(|| {
+                    EstimationError::unsupported("unfolded parent lag overflowed")
+                })?;
+                keyed.push((p, parent.variable, lag));
+            }
+            keyed.sort_by_key(|&(_, variable, lag)| (variable.raw(), lag));
+            parents[i] = keyed.iter().map(|(p, _, _)| *p).collect();
             let hard_intervention =
                 overlay_at[i].is_some_and(|overlay| overlay.node.level.is_some());
             if hard_intervention || parents[i].is_empty() {
@@ -676,12 +726,49 @@ impl SequentialSetup {
                 .skip(1)
                 .map(|&p| (VariableId::from_raw(p as u32), sample.column(column_of[p])))
                 .collect();
-            designs[i] = Some(CompiledDesign::linear_adjustment(
-                t,
-                &covs,
-                sample.column(column_of[i]),
-                &[],
-            )?);
+            let design =
+                CompiledDesign::linear_adjustment(t, &covs, sample.column(column_of[i]), &[])?;
+            let parent_values: Vec<&[f64]> =
+                parents[i].iter().map(|&p| sample.column(column_of[p])).collect();
+            let intervened: Vec<bool> = parents[i].iter().map(|&p| intervention[p]).collect();
+            let child_lag = columns[column_of[i]].lag.raw();
+            let modifier_values: Vec<Vec<f64>> = if intervened.iter().any(|flag| *flag) {
+                modifiers
+                    .iter()
+                    .map(|modifier| {
+                        let index = modifier_at
+                            .iter()
+                            .find(|(variable, lag, _)| variable == modifier && *lag == child_lag)
+                            .map(|(_, _, index)| *index)
+                            .ok_or_else(|| {
+                                EstimationError::unsupported(
+                                    "sustained modifier is missing from the aligned window",
+                                )
+                            })?;
+                        Ok(sample.column(index).to_vec())
+                    })
+                    .collect::<Result<Vec<_>, EstimationError>>()?
+            } else {
+                Vec::new()
+            };
+            let modifier_refs: Vec<&[f64]> = modifier_values.iter().map(Vec::as_slice).collect();
+            let parent_variables: Vec<VariableId> =
+                keyed.iter().map(|(_, variable, _)| *variable).collect();
+            let modifier_is_parent: Vec<bool> =
+                modifiers.iter().map(|modifier| parent_variables.contains(modifier)).collect();
+            let (design, slots) = extend_mechanism_design(
+                design,
+                &parent_values,
+                &intervened,
+                &modifier_refs,
+                modifiers,
+                &modifier_is_parent,
+            )?;
+            interaction_at[i] = slots;
+            if !modifier_values.is_empty() {
+                node_modifier_values[i] = modifier_values;
+            }
+            designs[i] = Some(design);
         }
         let mut factual = vec![0.0; node_count];
         for &i in &order {
@@ -701,10 +788,38 @@ impl SequentialSetup {
             n,
             max_lag,
             eval,
+            modifiers: modifiers.to_vec(),
+            interaction_at,
+            node_modifier_values,
         })
     }
 
-    fn propagate(&self, coefficients: &[Vec<f64>], factual: &[f64]) -> f64 {
+    fn modifier_mean(&self, node: usize, modifier: usize, rows: Option<&[usize]>) -> f64 {
+        let column = &self.node_modifier_values[node][modifier];
+        if let Some(rows) = rows.filter(|rows| !rows.is_empty()) {
+            rows.iter().map(|&row| column[row]).sum::<f64>() / rows.len() as f64
+        } else {
+            column.iter().sum::<f64>() / self.n as f64
+        }
+    }
+
+    /// Parent slope in the contrast. An intervened parent that names modifiers
+    /// contributes `β_p + Σ_m β_{p×W_m} E[W_m]`; the modifier's own level does not.
+    fn marginal_parent_slope(
+        &self,
+        coefficients: &[f64],
+        node: usize,
+        parent: usize,
+        rows: Option<&[usize]>,
+    ) -> f64 {
+        let mut slope = coefficients[parent + 1];
+        for (modifier, &slot) in self.interaction_at[node][parent].iter().enumerate() {
+            slope += coefficients[slot] * self.modifier_mean(node, modifier, rows);
+        }
+        slope
+    }
+
+    fn propagate(&self, coefficients: &[Vec<f64>], factual: &[f64], rows: Option<&[usize]>) -> f64 {
         match self.eval {
             SequentialEval::Contrast { delta } => {
                 let mut differences = vec![0.0; self.node_count];
@@ -715,7 +830,10 @@ impl SequentialSetup {
                         self.parents[i]
                             .iter()
                             .enumerate()
-                            .map(|(p, &node)| coefficients[i][p + 1] * differences[node])
+                            .map(|(p, &node)| {
+                                self.marginal_parent_slope(&coefficients[i], i, p, rows)
+                                    * differences[node]
+                            })
                             .sum()
                     };
                 }
@@ -779,6 +897,40 @@ impl SequentialSetup {
         Ok(coefficients)
     }
 
+    /// Every mechanism's OLS fit on all aligned rows, residuals included, in fitting order.
+    ///
+    /// One solve per mechanism serves the point value, the contrast influence and the
+    /// normal-equation scores of the block length: each of those reads the same fit, so
+    /// none refits.
+    fn fit_full(&self, ls_ws: &mut LeastSquaresWorkspace) -> FullFit {
+        let fits = self
+            .order
+            .iter()
+            .filter_map(|&i| {
+                let design = self.designs[i].as_ref()?;
+                let fit = FaerBackend.least_squares(
+                    &design.matrix,
+                    design.nrows,
+                    design.ncols,
+                    &design.outcome,
+                    ls_ws,
+                );
+                Some((i, fit))
+            })
+            .collect();
+        FullFit { fits }
+    }
+
+    /// Coefficients of every fitted mechanism by node, or the first failed solve.
+    fn coefficients_of(&self, full: &FullFit) -> Result<Vec<Vec<f64>>, EstimationError> {
+        let mut coefficients = vec![Vec::new(); self.node_count];
+        for (i, fit) in &full.fits {
+            let fit = fit.as_ref().map_err(|error| EstimationError::from(error.clone()))?;
+            coefficients[*i].clone_from(&fit.coefficients);
+        }
+        Ok(coefficients)
+    }
+
     /// Point value on all aligned rows, or refit on the row map `rows`. A `Level`
     /// refit also re-reads the factual means of mechanism-free nodes on `rows`.
     fn evaluate(
@@ -806,9 +958,9 @@ impl SequentialSetup {
                             rows.iter().map(|&r| column[r]).sum::<f64>() / rows.len() as f64;
                     }
                 }
-                self.propagate(&coefficients, &factual)
+                self.propagate(&coefficients, &factual, None)
             }
-            _ => self.propagate(&coefficients, &self.factual),
+            _ => self.propagate(&coefficients, &self.factual, rows),
         })
     }
 
@@ -823,8 +975,8 @@ impl SequentialSetup {
                 let mut down = base.to_vec();
                 up[i][k] += h;
                 down[i][k] -= h;
-                gradient[i][k] = (self.propagate(&up, &self.factual)
-                    - self.propagate(&down, &self.factual))
+                gradient[i][k] = (self.propagate(&up, &self.factual, None)
+                    - self.propagate(&down, &self.factual, None))
                     / (2.0 * h);
             }
         }
@@ -847,7 +999,8 @@ impl SequentialSetup {
                 let (mut up, mut down) = (self.factual.clone(), self.factual.clone());
                 up[i] += h;
                 down[i] -= h;
-                let slope = (self.propagate(base, &up) - self.propagate(base, &down)) / (2.0 * h);
+                let slope = (self.propagate(base, &up, None) - self.propagate(base, &down, None))
+                    / (2.0 * h);
                 (slope.is_finite() && slope != 0.0).then_some((i, slope))
             })
             .collect()
@@ -876,12 +1029,11 @@ impl SequentialSetup {
     /// over fitted mechanisms `i` with gradient `g_i`, plus, for a `Level`, the root-mean
     /// scores ([`Self::root_mean_scores`]). Both terms are `O_p(1)`: the influence feeds the
     /// block length and the kernel-bias factor as well as the effective-row count, so its
-    /// scale is not immaterial.
-    fn influence(&self, ls_ws: &mut LeastSquaresWorkspace) -> Option<Vec<f64>> {
-        let base = self.fit_ols(None, ls_ws, &mut Vec::new(), &mut Vec::new()).ok()?;
-        let gradient = self.gradient(&base);
+    /// scale is not immaterial. `base` holds the full-sample OLS coefficients by node.
+    fn influence_from(&self, base: &[Vec<f64>]) -> Option<Vec<f64>> {
+        let gradient = self.gradient(base);
         let n = self.n;
-        let mut score = self.root_mean_scores(&base).unwrap_or_else(|| vec![0.0; n]);
+        let mut score = self.root_mean_scores(base).unwrap_or_else(|| vec![0.0; n]);
         for &i in &self.order {
             let Some(design) = &self.designs[i] else {
                 continue;
@@ -902,57 +1054,130 @@ impl SequentialSetup {
         score.iter().all(|s| s.is_finite()).then_some(score)
     }
 
-    /// [`crate::temporal_block::normal_equation_scores`] of every fitted mechanism.
-    fn normal_equation_scores(&self) -> Vec<Vec<f64>> {
-        self.order
+    /// [`crate::temporal_block::normal_equation_scores_of_residuals`] of every mechanism
+    /// whose solve in `full` succeeded, from the residuals that solve holds.
+    fn normal_equation_scores_of(&self, full: &FullFit) -> Vec<Vec<f64>> {
+        full.fits
             .iter()
-            .filter_map(|&i| self.designs[i].as_ref())
-            .filter_map(|d| {
-                crate::temporal_block::normal_equation_scores(
-                    &d.matrix, d.nrows, d.ncols, &d.outcome,
-                )
+            .filter_map(|(i, fit)| {
+                let design = self.designs[*i].as_ref()?;
+                let fit = fit.as_ref().ok()?;
+                (design.nrows != 0 && design.ncols != 0).then(|| {
+                    crate::temporal_block::normal_equation_scores_of_residuals(
+                        &design.matrix,
+                        design.nrows,
+                        design.ncols,
+                        &fit.residuals,
+                    )
+                })
             })
             .flatten()
             .collect()
     }
 
-    /// [`crate::temporal_block::dependence_block_length`] of the unfolded span over
-    /// the contrast influence plus every mechanism's normal-equation scores.
-    fn dependence_block_length(&self, ls_ws: &mut LeastSquaresWorkspace) -> usize {
-        self.dependence_block_length_with(self.influence(ls_ws).as_deref())
-    }
-
-    /// [`Self::dependence_block_length`] with the contrast influence already computed.
-    fn dependence_block_length_with(&self, influence: Option<&[f64]>) -> usize {
-        let normal = self.normal_equation_scores();
+    /// [`crate::temporal_block::dependence_block_length`] of the unfolded span over the
+    /// contrast influence (already computed) plus every mechanism's normal-equation scores
+    /// from the shared full-sample fit.
+    fn dependence_block_length_with(&self, influence: Option<&[f64]>, full: &FullFit) -> usize {
+        let normal = self.normal_equation_scores_of(full);
         let scores: Vec<&[f64]> =
             influence.into_iter().chain(normal.iter().map(Vec::as_slice)).collect();
         crate::temporal_block::dependence_block_length(self.max_lag as usize + 1, self.n, &scores)
     }
 }
 
+/// Append modifier main effects and intervened-parent interactions.
+///
+/// Parent slopes stay in columns `1..=parents`. Each intervened parent then
+/// gains one `parent × modifier` column per modifier, after any modifier that
+/// is not already a parent.
+fn extend_mechanism_design(
+    design: CompiledDesign,
+    parent_values: &[&[f64]],
+    intervened: &[bool],
+    modifier_values: &[&[f64]],
+    modifier_ids: &[VariableId],
+    modifier_is_parent: &[bool],
+) -> Result<(CompiledDesign, Vec<Vec<usize>>), EstimationError> {
+    let mut slots = vec![Vec::new(); parent_values.len()];
+    if modifier_values.is_empty() || !intervened.iter().any(|flag| *flag) {
+        return Ok((design, slots));
+    }
+    let mut extras = Vec::new();
+    let mut roles = Vec::new();
+    for (values, (&id, &already)) in
+        modifier_values.iter().zip(modifier_ids.iter().zip(modifier_is_parent))
+    {
+        if !already {
+            extras.push((*values).to_vec());
+            roles.push(id);
+        }
+    }
+    let base = design.ncols;
+    let n_main = extras.len();
+    let mut products = 0usize;
+    for (modifier, values) in modifier_values.iter().enumerate() {
+        for (parent, (column, &is_intervened)) in parent_values.iter().zip(intervened).enumerate() {
+            if !is_intervened {
+                continue;
+            }
+            extras.push(column.iter().zip(*values).map(|(left, right)| left * right).collect());
+            roles.push(modifier_ids[modifier]);
+            slots[parent].push(base + n_main + products);
+            products += 1;
+        }
+    }
+    Ok((append_design_columns(design, &extras, &roles)?, slots))
+}
+
+fn append_design_columns(
+    mut design: CompiledDesign,
+    extras: &[Vec<f64>],
+    roles: &[VariableId],
+) -> Result<CompiledDesign, EstimationError> {
+    if extras.is_empty() {
+        return Ok(design);
+    }
+    let mut matrix = design.matrix.to_vec();
+    let mut column_roles = Vec::with_capacity(design.ncols);
+    for index in 0..design.ncols {
+        column_roles.push(
+            design
+                .columns
+                .role(index)
+                .ok_or_else(|| EstimationError::stats_msg("design column role is missing"))?,
+        );
+    }
+    for (extra, &role) in extras.iter().zip(roles) {
+        matrix.extend_from_slice(extra);
+        column_roles.push(DesignColumnRole::Covariate(role));
+    }
+    design.ncols = column_roles.len();
+    design.matrix = Arc::from(matrix);
+    design.columns = DesignColumnMap::from_roles(column_roles);
+    Ok(design)
+}
+
 #[allow(
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "point, replicate and Bayesian evaluation share the setup, block length and per-mechanism fits of one sequential estimate"
+)]
 fn estimate_sequential(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    outcome: VariableId,
-    outcome_offset: i32,
-    overlays: &[SequentialMechanismOverlay],
+    problem: &SequentialProblem<'_>,
+    target: &SequenceTarget<'_>,
     eval: SequentialEval,
-    status: IdentificationStatus,
-    assumptions: AssumptionSet,
-    bootstrap_replicates: u32,
-    bayesian: Option<&BayesianGComputationAte>,
+    inference: SequentialInference<'_>,
     ctx: &ExecutionContext,
+    modifiers: &[VariableId],
     mut validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
-    let setup =
-        SequentialSetup::build(data, graph, indexer, outcome, outcome_offset, overlays, eval, ctx)?;
+    let SequentialProblem { data, indexer, estimand, .. } = *problem;
+    let SequentialInference { status, assumptions, bootstrap_replicates, bayesian } = inference;
+    let setup = SequentialSetup::build(problem, target, eval, modifiers, ctx)?;
     let order = &setup.order;
     let parents = &setup.parents;
     let designs = &setup.designs;
@@ -965,22 +1190,29 @@ fn estimate_sequential(
         // copies). The value is linear in each coefficient, so central differences at the
         // OLS fit are exact up to rounding.
         let ols_base = setup.fit_ols(None, &mut ls_ws, &mut Vec::new(), &mut Vec::new()).ok();
-        let contrast_gradient = ols_base.as_ref().map(|base| {
-            let per_node = setup.gradient(base);
-            let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
-                std::collections::HashMap::new();
-            for &i in order {
-                if base[i].is_empty() {
-                    continue;
+        let contrast_gradient = match ols_base.as_ref() {
+            None => None,
+            Some(base) => {
+                let per_node = setup.gradient(base);
+                let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
+                    std::collections::HashMap::new();
+                for &i in order {
+                    if base[i].is_empty() {
+                        continue;
+                    }
+                    let variable = indexer
+                        .key_of(i as u32)
+                        .map_err(|e| EstimationError::data_msg(e.to_string()))?
+                        .variable;
+                    let entry =
+                        gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
+                    for k in 0..base[i].len().min(entry.len()) {
+                        entry[k] += per_node[i][k];
+                    }
                 }
-                let variable = indexer.key_of(i as u32).expect("unfolded node").variable;
-                let entry = gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
-                for k in 0..base[i].len().min(entry.len()) {
-                    entry[k] += per_node[i][k];
-                }
+                Some(gradients)
             }
-            gradients
-        });
+        };
         // A level also reads the sample means of its exogenous roots, held fixed in the
         // g-formula. Their sampling error is a first-order (delta-method) shift of the
         // level: the score of the root means combined by their gradient, whose long-run
@@ -995,27 +1227,43 @@ fn estimate_sequential(
         let mut count = usize::MAX;
         for &i in order {
             if designs[i].is_some() {
-                let child = indexer.key_of(i as u32).expect("unfolded node");
-                let parent_columns: Vec<_> = parents[i]
-                    .iter()
-                    .map(|&p| {
-                        let parent = indexer.key_of(p as u32).expect("unfolded parent");
-                        LaggedColumn {
-                            variable: parent.variable,
-                            lag: Lag::from_raw(
-                                u32::try_from(child.offset - parent.offset).expect("causal lag"),
-                            ),
-                        }
-                    })
-                    .collect();
-                if let Some((_, columns, owner)) =
-                    mechanisms.iter().find(|(v, _, _)| *v == child.variable)
-                {
-                    if columns != &parent_columns {
-                        return Err(EstimationError::unsupported(
-                            "stationary mechanism has inconsistent unfolded parents",
-                        ));
-                    }
+                let child = indexer
+                    .key_of(i as u32)
+                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                let mut parent_columns = Vec::with_capacity(parents[i].len());
+                for &p in &parents[i] {
+                    let parent = indexer
+                        .key_of(p as u32)
+                        .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                    let lag = child
+                        .offset
+                        .checked_sub(parent.offset)
+                        .ok_or_else(|| {
+                            EstimationError::unsupported("unfolded parent lag overflowed")
+                        })
+                        .and_then(|delta| {
+                            u32::try_from(delta).map_err(|_| {
+                                EstimationError::unsupported(
+                                    "causal lag is not a nonnegative offset",
+                                )
+                            })
+                        })?;
+                    parent_columns
+                        .push(LaggedColumn { variable: parent.variable, lag: Lag::from_raw(lag) });
+                }
+                if mechanisms.iter().any(|(variable, columns, _)| {
+                    *variable == child.variable && columns != &parent_columns
+                }) {
+                    return Err(EstimationError::unsupported(
+                        "stationary mechanism has inconsistent unfolded parents",
+                    ));
+                }
+                if let Some((_, _, owner)) = mechanisms.iter().find(|(variable, columns, owner)| {
+                    *variable == child.variable
+                        && columns == &parent_columns
+                        && designs[*owner].as_ref().map(|design| design.ncols)
+                            == designs[i].as_ref().map(|design| design.ncols)
+                }) {
                     mechanism_of[i] = *owner;
                     continue;
                 }
@@ -1024,6 +1272,13 @@ fn estimate_sequential(
                 // multiply the likelihood or create independent copies of beta.
                 let mut columns = parent_columns.clone();
                 columns.push(LaggedColumn { variable: child.variable, lag: Lag::CONTEMPORANEOUS });
+                let use_modifiers = setup.interaction_at[i].iter().any(|slots| !slots.is_empty());
+                if use_modifiers {
+                    for &modifier in &setup.modifiers {
+                        columns
+                            .push(LaggedColumn { variable: modifier, lag: Lag::CONTEMPORANEOUS });
+                    }
+                }
                 let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
                 let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
                 let mut workspace = LaggedSampleWorkspace::default();
@@ -1040,6 +1295,42 @@ fn estimate_sequential(
                     sample.column(parent_columns.len()),
                     &[],
                 )?;
+                let design = if use_modifiers {
+                    let parent_values: Vec<&[f64]> =
+                        (0..parent_columns.len()).map(|j| sample.column(j)).collect();
+                    let modifier_values: Vec<&[f64]> = setup
+                        .modifiers
+                        .iter()
+                        .enumerate()
+                        .map(|(m, _)| sample.column(parent_columns.len() + 1 + m))
+                        .collect();
+                    let intervened: Vec<bool> =
+                        parents[i].iter().map(|&parent| setup.intervention[parent]).collect();
+                    let modifier_is_parent: Vec<bool> = setup
+                        .modifiers
+                        .iter()
+                        .map(|modifier| {
+                            parent_columns.iter().any(|column| column.variable == *modifier)
+                        })
+                        .collect();
+                    let (design, slots) = extend_mechanism_design(
+                        design,
+                        &parent_values,
+                        &intervened,
+                        &modifier_values,
+                        &setup.modifiers,
+                        &modifier_is_parent,
+                    )?;
+                    if slots != setup.interaction_at[i] {
+                        return Err(EstimationError::unsupported(
+                            "sustained modifier columns do not match the unfolded design",
+                        ));
+                    }
+                    design
+                } else {
+                    design
+                };
+                let width = design.ncols;
                 let prep = PreparedBayesianProblem {
                     design,
                     method: estimand.method.clone(),
@@ -1059,14 +1350,13 @@ fn estimate_sequential(
                         let direction = contrast_gradient
                             .as_ref()
                             .and_then(|g| g.get(&child.variable).cloned())
+                            .filter(|direction| direction.len() == width)
                             .unwrap_or_else(|| {
                                 let intercept = match eval {
                                     SequentialEval::Contrast { .. } => 0.0,
                                     SequentialEval::Level => 1.0,
                                 };
-                                (0..=parent_columns.len())
-                                    .map(|k| if k == 0 { intercept } else { 1.0 })
-                                    .collect()
+                                (0..width).map(|k| if k == 0 { intercept } else { 1.0 }).collect()
                             });
                         SerialDependence::LongRunTempering(DependenceScope::Direction(Arc::from(
                             direction,
@@ -1098,7 +1388,9 @@ fn estimate_sequential(
             let Some(design) = &designs[i] else {
                 continue;
             };
-            let post = mechanism_posts[mechanism_of[i]].as_ref().expect("stationary fit");
+            let post = mechanism_posts[mechanism_of[i]].as_ref().ok_or_else(|| {
+                EstimationError::unsupported("stationary mechanism was not fitted")
+            })?;
             coefficient_columns[i] = (0..design.ncols)
                 .map(|index| {
                     post.draws
@@ -1122,14 +1414,16 @@ fn estimate_sequential(
         for draw in 0..count {
             for &i in order {
                 if designs[i].is_some() {
-                    let post = mechanism_posts[mechanism_of[i]].as_ref().expect("stationary fit");
+                    let post = mechanism_posts[mechanism_of[i]].as_ref().ok_or_else(|| {
+                        EstimationError::unsupported("stationary mechanism was not fitted")
+                    })?;
                     for (value, &column) in coefficients[i].iter_mut().zip(&coefficient_columns[i])
                     {
                         *value = post.draws.column(column)?[draw];
                     }
                 }
             }
-            let level = setup.propagate(&coefficients, &setup.factual);
+            let level = setup.propagate(&coefficients, &setup.factual, None);
             values.push(if root_mean_se > 0.0 {
                 level + root_mean_se * antecedent_kernels::standard_normal(&mut root_rng)
             } else {
@@ -1182,7 +1476,9 @@ fn estimate_sequential(
         );
         return Ok((effect, Some(posterior)));
     }
-    let point = setup.evaluate(None, &mut ls_ws)?;
+    let full = setup.fit_full(&mut ls_ws);
+    let coefficients = setup.coefficients_of(&full)?;
+    let point = setup.propagate(&coefficients, &setup.factual, None);
     // Circular blocks of consecutive lag-aligned rows (every row keeps its intact
     // unfolded window), every mechanism refit on the same rows, and the replicate
     // SD scaled by the circular-Bartlett fixed-b factor and the kernel-bias
@@ -1194,9 +1490,9 @@ fn estimate_sequential(
     // geometry without rebuilding the design. The lengthening refits every
     // mechanism for its scores and scans each; without replicates no interval
     // is published and the rule length is returned instead.
-    let influence = setup.influence(&mut ls_ws);
+    let influence = setup.influence_from(&coefficients);
     let block_length = if bootstrap_replicates > 0 {
-        setup.dependence_block_length_with(influence.as_deref())
+        setup.dependence_block_length_with(influence.as_deref(), &full)
     } else {
         antecedent_data::circular_block_length(setup.max_lag as usize + 1, setup.n)
     };
@@ -1215,18 +1511,20 @@ fn estimate_sequential(
     let mut effect = EffectEstimate::from_parts(
         point,
         f64::NAN,
-        se.se,
-        (bootstrap_replicates > 0).then_some(se.replicates_ok),
-        (bootstrap_replicates > 0).then_some(se.replicates_failed),
-        ctx.cancellation.is_cancelled(),
-        false,
+        crate::adjustment::BootstrapAccounting {
+            se: se.se,
+            replicates_ok: (bootstrap_replicates > 0).then_some(se.replicates_ok),
+            replicates_failed: (bootstrap_replicates > 0).then_some(se.replicates_failed),
+            cancelled: ctx.cancellation.is_cancelled(),
+            early_stopped: false,
+        },
         assumptions,
         OverlapPolicy::ExplicitOverride,
         None,
         None,
     );
-    effect.influence = influence.map(Arc::from);
-    effect.block_resampling =
+    effect.scores.influence = influence.map(Arc::from);
+    effect.uncertainty.block.resampling =
         Some(crate::adjustment::BlockResampling { block_length, rows: setup.n, kernel_bias });
     Ok((effect, None))
 }
@@ -1348,17 +1646,23 @@ mod tests {
         let estimand = id_res.result.estimands.first().cloned().expect("identified estimand");
         let bayes = BayesianGComputationAte::new();
         let (_, posterior) = estimate_sequence_mechanisms(
-            &data,
-            &graph,
-            &id_res.indexer,
-            &estimand,
-            VariableId::from_raw(1),
-            0,
-            &overlays,
-            IdentificationStatus::NonparametricallyIdentified,
-            AssumptionSet::new(),
-            0,
-            Some(&bayes),
+            &SequentialProblem {
+                data: &data,
+                graph: &graph,
+                indexer: &id_res.indexer,
+                estimand: &estimand,
+            },
+            &SequenceTarget {
+                outcome: VariableId::from_raw(1),
+                outcome_offset: 0,
+                overlays: &overlays,
+            },
+            SequentialInference {
+                status: IdentificationStatus::NonparametricallyIdentified,
+                assumptions: AssumptionSet::new(),
+                bootstrap_replicates: 0,
+                bayesian: Some(&bayes),
+            },
             &ExecutionContext::for_tests(5),
         )
         .unwrap();
@@ -1395,16 +1699,23 @@ mod tests {
                 TargetPopulation::AllObserved,
             )
             .unwrap();
+        let estimand = id_res.result.estimands.first().cloned().expect("identified estimand");
         let ctx = ExecutionContext::for_tests(5);
         let build = |eval| {
             SequentialSetup::build(
-                &data,
-                &graph,
-                &id_res.indexer,
-                VariableId::from_raw(1),
-                0,
-                &overlays,
+                &SequentialProblem {
+                    data: &data,
+                    graph: &graph,
+                    indexer: &id_res.indexer,
+                    estimand: &estimand,
+                },
+                &SequenceTarget {
+                    outcome: VariableId::from_raw(1),
+                    outcome_offset: 0,
+                    overlays: &overlays,
+                },
                 eval,
+                &[],
                 &ctx,
             )
             .unwrap()
@@ -1427,10 +1738,155 @@ mod tests {
         }
         assert!(scores.iter().sum::<f64>().abs() < 1e-9);
         // The level's influence carries the root term on top of the regression scores.
-        let influence = setup.influence(&mut ws).unwrap();
+        let influence = setup.influence_from(&base).unwrap();
         assert_eq!(influence.len(), scores.len());
         assert!(influence.iter().sum::<f64>().abs() < 1e-6, "influence is mean zero");
         let contrast = build(SequentialEval::Contrast { delta: 1.0 });
         assert!(contrast.root_mean_gradient(&base).is_empty());
+    }
+
+    /// The point value, influence and normal-equation scores read one full-sample fit; each is
+    /// bit-identical to the refit it replaces.
+    #[test]
+    fn shared_full_fit_reproduces_the_refits_bitwise() {
+        let (data, graph) = fixture();
+        let overlays = hard_overlays();
+        let schedule: Vec<(VariableId, i32, Option<f64>)> =
+            overlays.iter().map(|o| (o.node.variable, o.node.offset, o.node.level)).collect();
+        let id_res = antecedent_identify::TemporalBackdoorIdentifier::new()
+            .identify_temporal_schedule(
+                &graph,
+                VariableId::from_raw(1),
+                0,
+                &schedule,
+                None,
+                TargetPopulation::AllObserved,
+            )
+            .unwrap();
+        let estimand = id_res.result.estimands.first().cloned().expect("identified estimand");
+        let ctx = ExecutionContext::for_tests(5);
+        for eval in [SequentialEval::Contrast { delta: 1.0 }, SequentialEval::Level] {
+            let setup = SequentialSetup::build(
+                &SequentialProblem {
+                    data: &data,
+                    graph: &graph,
+                    indexer: &id_res.indexer,
+                    estimand: &estimand,
+                },
+                &SequenceTarget {
+                    outcome: VariableId::from_raw(1),
+                    outcome_offset: 0,
+                    overlays: &overlays,
+                },
+                eval,
+                &[],
+                &ctx,
+            )
+            .unwrap();
+            let mut ws = LeastSquaresWorkspace::default();
+            let full = setup.fit_full(&mut ws);
+            let coefficients = setup.coefficients_of(&full).unwrap();
+            let refit = setup.fit_ols(None, &mut ws, &mut Vec::new(), &mut Vec::new()).unwrap();
+            assert_eq!(coefficients, refit);
+            let point = setup.propagate(&coefficients, &setup.factual, None);
+            assert_eq!(point.to_bits(), setup.evaluate(None, &mut ws).unwrap().to_bits());
+            let refit_scores: Vec<Vec<f64>> = setup
+                .order
+                .iter()
+                .filter_map(|&i| setup.designs[i].as_ref())
+                .filter_map(|d| {
+                    crate::temporal_block::normal_equation_scores(
+                        &d.matrix, d.nrows, d.ncols, &d.outcome,
+                    )
+                })
+                .flatten()
+                .collect();
+            let shared_scores = setup.normal_equation_scores_of(&full);
+            assert!(!shared_scores.is_empty());
+            assert_eq!(shared_scores.len(), refit_scores.len());
+            for (shared, refit) in shared_scores.iter().zip(&refit_scores) {
+                assert!(shared.iter().zip(refit).all(|(a, b)| a.to_bits() == b.to_bits()));
+            }
+        }
+    }
+
+    /// Cost of the block-length path of one sequential estimate: the contrast influence plus
+    /// every mechanism's normal-equation scores, on a series long enough for the fits to matter.
+    #[test]
+    #[ignore = "timing harness: cargo test --release -p antecedent-estimate --lib timing_ -- --ignored --nocapture"]
+    fn timing_sequential_block_length_path() {
+        let n = 20_000usize;
+        let ctx = ExecutionContext::for_tests(11);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 3);
+        let mut draw = || 2.0 * rng.next_f64() - 1.0;
+        let z: Vec<f64> = (0..n).map(|_| draw()).collect();
+        let t: Vec<f64> = z.iter().map(|z| 0.5 * z + draw()).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|s| {
+                let at = |v: &[f64], lag: usize| s.checked_sub(lag).map_or(0.0, |i| v[i]);
+                1.0 + 2.0 * at(&t, 1) + 0.8 * at(&t, 2) + 0.5 * at(&z, 1) + 0.3 * draw()
+            })
+            .collect();
+        let data = TimeSeriesData::from_f64_columns(
+            [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+            1,
+        )
+        .unwrap();
+        let mut graph = TemporalDag::empty();
+        let id = VariableId::from_raw;
+        let mut edge = |from: u32, from_lag: u32, to: u32, to_lag: u32| {
+            let src = ensure_lagged(&mut graph, id(from), Lag::from_raw(from_lag)).unwrap();
+            let dst = ensure_lagged(&mut graph, id(to), Lag::from_raw(to_lag)).unwrap();
+            graph.insert_directed(src, dst).unwrap();
+        };
+        edge(2, 0, 0, 0);
+        edge(0, 1, 1, 0);
+        edge(0, 2, 1, 0);
+        edge(2, 1, 1, 0);
+        let overlays = hard_overlays();
+        let schedule: Vec<(VariableId, i32, Option<f64>)> =
+            overlays.iter().map(|o| (o.node.variable, o.node.offset, o.node.level)).collect();
+        let id_res = antecedent_identify::TemporalBackdoorIdentifier::new()
+            .identify_temporal_schedule(
+                &graph,
+                VariableId::from_raw(1),
+                0,
+                &schedule,
+                None,
+                TargetPopulation::AllObserved,
+            )
+            .unwrap();
+        let estimand = id_res.result.estimands.first().cloned().expect("identified estimand");
+        let setup = SequentialSetup::build(
+            &SequentialProblem {
+                data: &data,
+                graph: &graph,
+                indexer: &id_res.indexer,
+                estimand: &estimand,
+            },
+            &SequenceTarget {
+                outcome: VariableId::from_raw(1),
+                outcome_offset: 0,
+                overlays: &overlays,
+            },
+            SequentialEval::Contrast { delta: 1.0 },
+            &[],
+            &ctx,
+        )
+        .unwrap();
+        let mut ws = LeastSquaresWorkspace::default();
+        let reps = 20;
+        let start = std::time::Instant::now();
+        let mut checksum = 0usize;
+        for _ in 0..reps {
+            let full = setup.fit_full(&mut ws);
+            let base = setup.coefficients_of(&full).unwrap();
+            let influence = setup.influence_from(&base);
+            checksum += setup.dependence_block_length_with(influence.as_deref(), &full);
+        }
+        println!(
+            "sequential influence + block length n={n}: {:.3} ms/call (checksum {checksum})",
+            start.elapsed().as_secs_f64() * 1e3 / f64::from(reps)
+        );
     }
 }

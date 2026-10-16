@@ -6,27 +6,24 @@
 //! inference or provider-verification standing.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use antecedent_core::blake3_hex;
+
 use crate::decision_artifact::source_digest;
 use crate::design_ranking_artifact::{
     ConsumeExpectation, DecisionWire, DesignRankingArtifactWire, PriorWire,
     consume_wire as consume_ranking,
 };
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::convert::{from_cbor, to_cbor};
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionTrust,
     DrawAlignment,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use serde::{Deserialize, Serialize};
 
 /// Container kind for a finite rollout/study-update binding.
-pub const ROLLOUT_KIND: &str = "rollout_state_v1";
+pub(crate) const ROLLOUT_KIND: &str = "rollout_state_v1";
 /// Byte bound checked before decoding.
 pub const MAX_ROLLOUT_BYTES: usize = 32 * 1024 * 1024;
 const SECTION: &str = "state_binding.body";
@@ -155,7 +152,7 @@ impl RolloutArtifact {
             .quantities
             .iter()
             .cloned()
-            .map(antecedent_core::ScientificQuantity::try_from)
+            .map(antecedent_contract::ScientificQuantity::try_from)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| refused("rollout.source_evidence_mismatch"))?;
         evidence
@@ -187,7 +184,7 @@ impl RolloutArtifact {
             source_evidence: &self.source_evidence,
             digest: "",
         };
-        Ok(blake3::hash(&to_cbor(&body)?).to_hex().to_string())
+        Ok(blake3_hex(&to_cbor(&body)?))
     }
 
     fn check_bounds(&self) -> Result<(), IoError> {
@@ -205,7 +202,7 @@ impl RolloutArtifact {
         };
         if self.source_evidence.len() > crate::source_evidence::MAX_SOURCE_EVIDENCE_BYTES
             || self.source_artifact.len()
-                > antecedent_io::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES
+                > antecedent_io_core::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES
             || self.ranking_artifact.len()
                 > crate::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES
             || self.binding.decision.action_ids.len() > 65_536
@@ -322,8 +319,8 @@ impl RolloutArtifact {
     /// The finite state projection is bound to the original ordered ranking prior.
     /// # Errors
     /// Any original source/ranking refusal or invalid derivation chain.
-    pub fn provenance_chain(&self) -> Result<antecedent_core::ProvenanceChain, IoError> {
-        use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain};
+    pub fn provenance_chain(&self) -> Result<antecedent_contract::ProvenanceChain, IoError> {
+        use antecedent_contract::{CompositionLink, CompositionStage, ProvenanceChain};
         self.verify(&self.binding)?;
         let wire = DesignRankingArtifactWire::from_bytes(&self.ranking_artifact)
             .map_err(|_| refused("rollout.ranking_invalid"))?;
@@ -331,8 +328,7 @@ impl RolloutArtifact {
         let causal = format!("causal_contract:{}", self.binding.source.identity.causal_contract_id);
         let data = format!("snapshot:{}", self.binding.source.identity.snapshot_id);
         let law = format!("distribution:{}", self.binding.source_digest);
-        let state =
-            format!("state_projection:{}", blake3::hash(&to_cbor(&self.binding.state)?).to_hex());
+        let state = format!("state_projection:{}", blake3_hex(&to_cbor(&self.binding.state)?));
         let link = |id, stage, parents| CompositionLink {
             id,
             stage,
@@ -366,47 +362,47 @@ impl RolloutArtifact {
             return Err(refused("rollout.artifact_id_missing"));
         }
         let body = to_cbor(self)?;
-        let artifact = EncodedArtifact {
-            manifest: ArtifactManifest {
-                format_version: antecedent_io::migrate::STABLE_FORMAT,
-                minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-                artifact_kind: ArtifactKind::Other(ROLLOUT_KIND.into()),
-                library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-                artifact_id: artifact_id.into(),
-                sections: vec![section_descriptor(SECTION, "application/cbor", &body)],
-                provenance: ProvenanceWire {
-                    note: "finite source-state terminal decision binding".into(),
-                },
+        antecedent_io_core::encode_container(
+            &antecedent_io_core::ArtifactContainer {
+                kind: ROLLOUT_KIND,
+                note: "finite source-state terminal decision binding",
+                max_bytes: MAX_ROLLOUT_BYTES,
+                artifact_id,
+                library_version: env!("CARGO_PKG_VERSION"),
             },
-            sections: vec![SectionBytes::new(SECTION, body)],
-        };
-        let mut bytes = Vec::new();
-        artifact.write_to(&mut bytes)?;
-        if bytes.len() > MAX_ROLLOUT_BYTES {
-            return Err(IoError::TooLarge);
-        }
-        Ok(bytes)
+            &[antecedent_io_core::OutSection {
+                id: SECTION,
+                content_type: antecedent_io_core::CONTENT_CBOR,
+                bytes: &body,
+            }],
+        )
+        .map_err(|error| match error {
+            antecedent_io_core::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
+            antecedent_io_core::CodecError::MissingArtifactId => {
+                refused("rollout.artifact_id_missing")
+            }
+            other => other.into_io("rollout artifact"),
+        })
     }
 
     /// Decode a bounded container; scientific verification remains explicit.
     /// # Errors
     /// Corruption, wrong kind/version or byte limits refuse before replay.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, IoError> {
-        if bytes.len() > MAX_ROLLOUT_BYTES {
-            return Err(IoError::TooLarge);
-        }
-        let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-        if reader.manifest().artifact_kind != ArtifactKind::Other(ROLLOUT_KIND.into())
-            || reader.manifest().sections.len() != 1
-            || reader.manifest().sections[0].id != SECTION
-        {
+        let parts = antecedent_io_core::decode_container(
+            ROLLOUT_KIND,
+            MAX_ROLLOUT_BYTES,
+            &[SECTION],
+            bytes,
+        )
+        .map_err(|error| match error {
+            antecedent_io_core::CodecError::Layout => refused("rollout.artifact_kind_mismatch"),
+            other => other.into_io("rollout artifact"),
+        })?;
+        let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
             return Err(refused("rollout.artifact_kind_mismatch"));
-        }
-        if reader.manifest().sections[0].uncompressed_size > MAX_ROLLOUT_BYTES as u64 {
-            return Err(IoError::TooLarge);
-        }
-        let body = reader.load_section(SECTION)?;
-        let artifact: Self = from_cbor(body.as_bytes())?;
+        };
+        let artifact: Self = from_cbor(&body)?;
         artifact.check_bounds()?;
         Ok(artifact)
     }
@@ -416,7 +412,7 @@ impl RolloutArtifact {
 /// # Errors
 /// Wire encoding failure.
 pub fn decision_digest(decision: &DecisionWire) -> Result<String, IoError> {
-    Ok(blake3::hash(&to_cbor(decision)?).to_hex().to_string())
+    Ok(blake3_hex(&to_cbor(decision)?))
 }
 
 /// Independently consume source-backed finite rollout bytes.

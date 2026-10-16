@@ -20,7 +20,7 @@ use crate::workspace::GraphWorkspace;
 /// Static CPDAG over variables .
 ///
 /// Distinct from [`TemporalCpdag`]: accepts only [`NodeRef::Static`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cpdag {
     nodes: Vec<NodeRef>,
     adj: Vec<Vec<AdjEntry>>,
@@ -317,7 +317,7 @@ impl CpdagReview {
 
     fn resolve_var(&self, var: VariableId) -> Result<DenseNodeId, GraphError> {
         for i in 0..self.graph.node_count() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = DenseNodeId::from_index(i);
             if self.graph.variable_id(id) == Some(var) {
                 return Ok(id);
             }
@@ -327,7 +327,7 @@ impl CpdagReview {
 }
 
 /// Temporal CPDAG over lagged variable nodes .
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TemporalCpdag {
     nodes: Vec<NodeRef>,
     adj: Vec<Vec<AdjEntry>>,

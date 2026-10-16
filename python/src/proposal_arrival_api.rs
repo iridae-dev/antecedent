@@ -1,14 +1,14 @@
 //! Actual bounded proposal-arrival point estimation and raw-provider artifact replay.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err, value_err_code, with_reason_code};
 use antecedent::analysis::proposal_arrival::{ArrivalArtifact, ArrivalRequest, MAX_ARRIVAL_BYTES};
 use antecedent_core::{ExecutionContext, reason_code};
 use antecedent_io::IoError;
 use pyo3::prelude::*;
 fn failure(e: IoError) -> PyErr {
     match e {
-        IoError::Refused { code, message } => with_reason_code(value_err(message), code),
-        other => CausalSerializationError::new_err(other.to_string()),
+        IoError::Refused { code, message } => value_err_code(code, message),
+        other => crate::serialization_err(other.to_string()),
     }
 }
 fn invalid(e: serde_json::Error) -> PyErr {
@@ -19,7 +19,7 @@ fn invalid(e: serde_json::Error) -> PyErr {
 }
 fn report(a: &ArrivalArtifact) -> PyResult<String> {
     serde_json::to_string(&serde_json::json!({"identity":a.identity,"result":a.result}))
-        .map_err(|e| CausalSerializationError::new_err(e.to_string()))
+        .map_err(|e| crate::serialization_err(e.to_string()))
 }
 fn preserved_catalog(
     catalog: &Bound<'_, PyAny>,

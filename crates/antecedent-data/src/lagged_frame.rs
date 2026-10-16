@@ -7,14 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, Lag, VariableId};
@@ -530,7 +522,6 @@ fn gather_column_validity(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 mod tests {
     use antecedent_core::{Lag, VariableId};
 
@@ -538,7 +529,10 @@ mod tests {
     use crate::sample_policy::{MaskPolicy, MissingPolicy};
     use crate::testing::{float_series, float_series_with_gap, float_series_with_mask};
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact constants: the values compared are representable results, not measurements"
+    )]
     #[test]
     fn panel_frame_builds_every_lag_window_inside_its_unit() {
         // v0 = t within a unit, so a row's contemporaneous value exceeds its lag-1 value by

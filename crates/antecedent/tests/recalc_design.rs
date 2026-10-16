@@ -127,7 +127,8 @@ fn design_first_fits_match_iv_rd_frontdoor_structural_and_covariance_truth() {
                 .estimate
                 .as_effect()
                 .unwrap()
-                .first_stage_diagnostics
+                .diagnostics
+                .first_stage
                 .as_ref()
                 .unwrap();
             assert!(d.anderson_rubin.is_some_and(|(lo, hi, _)| lo.is_finite() && hi.is_finite()));

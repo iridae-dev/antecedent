@@ -36,13 +36,27 @@ pub enum TemporalCompletionGraph {
 }
 
 impl TemporalCompletionGraph {
-    /// Stable fingerprint of this completion's marked edges.
+    /// Stable fingerprint of this completion's marked edges: the low eight bytes of
+    /// [`Self::digest`], little-endian.
     ///
     /// Keys a caller-supplied class prior. Enumeration order is not a key.
     #[must_use]
     pub fn fingerprint(&self) -> u64 {
-        // Fixed FNV-1a encoding of semantic coordinates, independent of dense
-        // insertion order and Rust's unspecified DefaultHasher implementation.
+        let digest = self.digest();
+        let mut low = [0u8; 8];
+        low.copy_from_slice(&digest[..8]);
+        u64::from_le_bytes(low)
+    }
+
+    /// 32-byte BLAKE3 digest of this completion's marked edges, independent of dense
+    /// insertion order and of Rust's unspecified `DefaultHasher`.
+    ///
+    /// The stream is domain-separated (`antecedent.identify.temporal_completion_graph.v1`)
+    /// and encodes the semantic coordinates `(variable, lag)` of every vertex, so isolated
+    /// nodes count, and every edge with its endpoint and middle marks, endpoints ordered
+    /// canonically.
+    #[must_use]
+    pub fn digest(&self) -> [u8; 32] {
         let (kind, nodes, marked): (u64, _, Vec<_>) = match self {
             Self::Dag(graph) => (0, graph.nodes(), graph.edges().collect()),
             Self::Mag(graph) => (1, graph.nodes(), graph.edges()),
@@ -80,26 +94,21 @@ impl TemporalCompletionGraph {
             })
             .collect();
         edges.sort_unstable();
-        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-        let mut feed = |word: u64| {
-            for byte in word.to_le_bytes() {
-                hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
-            }
-        };
-        feed(1); // encoding version
-        feed(kind);
-        feed(vertices.len() as u64);
+        let mut stream = antecedent_core::CanonicalWriter::new(
+            "antecedent.identify.temporal_completion_graph.v1",
+        );
+        stream.word(kind);
+        stream.word(vertices.len() as u64);
         for (variable, lag) in vertices {
-            feed(variable);
-            feed(lag);
+            stream.word(variable).word(lag);
         }
-        feed(edges.len() as u64);
+        stream.word(edges.len() as u64);
         for (a, b, at_a, at_b, middle) in edges {
             for word in [a.0, a.1, b.0, b.1, at_a, at_b, middle] {
-                feed(word);
+                stream.word(word);
             }
         }
-        hash
+        stream.finish()
     }
 
     /// Whether this MAG completion has a bidirected edge (no DAG sequential factorization).
@@ -217,14 +226,15 @@ impl GeneralizedAdjustmentIdentifier {
         let mut cases = Vec::new();
         let mut unfolded = Vec::new();
         for completion in sampler.by_ref() {
-            let (result, finite) = crate::temporal_mag::identify(
+            let finite = completion.graph.unfold(indexer.clone())?;
+            let result = crate::temporal_mag::identify(
                 &completion.graph,
                 query,
-                &indexer,
+                &finite,
                 self.config.max_candidates,
                 self.config.max_examinations,
             )?;
-            unfolded.push(finite);
+            unfolded.push(finite.pag);
             cases.push(GraphIdentificationCase {
                 graph: TemporalCompletionGraph::Mag(completion.graph),
                 result,
@@ -368,6 +378,19 @@ mod tests {
         assert_eq!(build(false, 1, false), build(true, 1, false));
         assert_ne!(build(false, 1, false), build(false, 2, false));
         assert_ne!(build(false, 1, false), build(false, 1, true));
+    }
+
+    #[test]
+    fn digest_golden_vector_is_pinned() {
+        let mut graph = TemporalDag::empty();
+        let source = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let target = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(source, target).unwrap();
+        let completion = TemporalCompletionGraph::Dag(graph);
+        let hex = antecedent_core::to_hex(&completion.digest());
+        assert_eq!(hex, "87167be0773ad1c53a6da42994b4ec3699caf525b7c80f5003e178c551f587ce");
+        // The fingerprint is the digest's low eight bytes, little-endian.
+        assert_eq!(completion.fingerprint(), 0xc5d1_3a77_e07b_1687);
     }
 
     #[test]

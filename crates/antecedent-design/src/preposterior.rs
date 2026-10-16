@@ -47,15 +47,16 @@
 #![cfg_attr(
     test,
     allow(
-        clippy::cast_sign_loss,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
 
-use antecedent_core::CausalRng;
+use antecedent_core::{
+    CanonicalWriter, CausalRng, ExecutionContext, RngFactory, StreamDomain, mix64,
+};
 use antecedent_kernels::{norm_cdf, norm_pdf, norm_sf, standard_normal};
-use antecedent_stats::ln_gamma;
+use antecedent_stats::{Welford, ln_gamma};
 
 use crate::candidate::CandidateDesign;
 use crate::decision::{DecisionProblem, DecisionTable};
@@ -170,7 +171,7 @@ fn finite_state(state: f64) -> Result<f64, DesignError> {
 }
 
 impl DecisionSignal<f64> for GaussianMeanSignal {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "gaussian_mean"
     }
 
@@ -222,7 +223,7 @@ fn probability_state(state: f64) -> Result<f64, DesignError> {
 }
 
 impl DecisionSignal<f64> for BinomialSignal {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "binomial"
     }
 
@@ -510,15 +511,82 @@ impl<'a, O> PreposteriorAnalysis<'a, O> {
     /// replicate (sample a state from the draws, simulate the statistic, update the
     /// draws exactly, and return the regret reduction of the updated Bayes action).
     ///
+    /// The exactness probe is [`Self::evaluation`], which does not allocate the
+    /// likelihood tables. Monte Carlo replicates reuse `log_lik` and `weights`
+    /// through [`Self::draw_evsi_replicate`].
+    ///
     /// # Errors
     ///
     /// Signal failures.
     pub fn sample_evsi(&self, n: u64, rng: &mut CausalRng) -> Result<f64, DesignError> {
-        if let Some(exact) = self.exact_evsi(n)? {
-            return Ok(exact);
+        if self.evaluation(n) == ScoreEvaluation::Exact {
+            return self.exact_evsi(n)?.ok_or_else(|| {
+                DesignError::Numerical("exact EVSI evaluation produced no value".into())
+            });
         }
+        let mut log_lik = Vec::new();
+        let mut weights = Vec::new();
+        self.draw_evsi_replicate(n, rng, &mut log_lik, &mut weights)
+    }
+
+    /// Monte Carlo EVSI for `n` observations under an execution context.
+    ///
+    /// Replicate `r` draws from the stream [`evsi_replicate_rng`] keyed by
+    /// `(run seed, purpose, r)`: a function of the semantic coordinates only, shared by
+    /// every candidate (common random numbers, so tied candidates agree exactly) and
+    /// independent of how many replicates or candidates ran before it. Cancellation is checked before every
+    /// replicate, so the work between checks is one replicate.
+    ///
+    /// # Errors
+    ///
+    /// Cancellation, signal failures, or a call on a model whose EVSI is exact.
+    pub(crate) fn monte_carlo_evsi(
+        &self,
+        n: u64,
+        batches: u32,
+        batch_size: u32,
+        ctx: &ExecutionContext,
+    ) -> Result<EvsiMonteCarlo, DesignError> {
+        let mut acc = Welford::new();
+        let mut log_lik = Vec::new();
+        let mut weights = Vec::new();
+        let replicates = u64::from(batches) * u64::from(batch_size);
+        for replicate in 0..replicates {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DesignError::Cancelled);
+            }
+            let mut rng = evsi_replicate_rng(&ctx.rng, replicate);
+            acc.push(self.draw_evsi_replicate(n, &mut rng, &mut log_lik, &mut weights)?);
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(DesignError::Cancelled);
+        }
+        Ok(EvsiMonteCarlo {
+            mean: acc.mean(),
+            stderr: acc.stderr_of_mean(),
+            replicates: acc.count(),
+            stream_digest: evsi_stream_digest(ctx.rng.master_seed()),
+        })
+    }
+
+    /// One Monte Carlo EVSI replicate into caller-owned scratch. `log_lik` and
+    /// `weights` are resized to the prior and overwritten. Call only when
+    /// [`Self::evaluation`] is [`ScoreEvaluation::MonteCarlo`].
+    ///
+    /// # Errors
+    ///
+    /// Signal failures, or a call on a model whose EVSI is exact.
+    pub(crate) fn draw_evsi_replicate(
+        &self,
+        n: u64,
+        rng: &mut CausalRng,
+        log_lik: &mut Vec<f64>,
+        weights: &mut Vec<f64>,
+    ) -> Result<f64, DesignError> {
         let Model::Draws { states, gaps, n_admissible } = &self.model else {
-            unreachable!("the normal model is always exact");
+            return Err(DesignError::Config(
+                "draw_evsi_replicate is the Monte Carlo path; the normal model is exact".into(),
+            ));
         };
         let k = states.len();
         #[allow(
@@ -528,21 +596,57 @@ impl<'a, O> PreposteriorAnalysis<'a, O> {
         )]
         let truth = ((rng.next_f64() * k as f64) as usize).min(k - 1);
         let statistic = self.signal.sample_statistic(&states[truth], n, rng)?;
-        let mut log_lik = vec![0.0; k];
-        self.signal.log_likelihood(statistic, n, states, &mut log_lik)?;
-        let Some(max_ll) = finite_max(&log_lik)? else {
+        log_lik.clear();
+        log_lik.resize(k, 0.0);
+        self.signal.log_likelihood(statistic, n, states, log_lik)?;
+        let Some(max_ll) = finite_max(log_lik)? else {
             return Err(DesignError::Numerical(format!(
                 "signal `{}` assigns zero likelihood to its own draw",
                 self.signal.name()
             )));
         };
-        let mut weights: Vec<f64> = log_lik.iter().map(|ll| (ll - max_ll).exp()).collect();
-        let sum_w: f64 = weights.iter().sum();
-        for w in &mut weights {
+        weights.clear();
+        weights.resize(k, 0.0);
+        let mut sum_w = 0.0;
+        for (w, &ll) in weights.iter_mut().zip(log_lik.iter()) {
+            *w = (ll - max_ll).exp();
+            sum_w += *w;
+        }
+        for w in weights.iter_mut() {
             *w /= sum_w;
         }
-        Ok(best_gap(gaps, *n_admissible, &weights))
+        Ok(best_gap(gaps, *n_admissible, weights))
     }
+}
+
+/// Purpose word of the Monte Carlo EVSI replicate streams.
+const EVSI_REPLICATE_PURPOSE: u64 = 0x4556_5349_5250;
+
+/// Outcome of [`PreposteriorAnalysis::monte_carlo_evsi`].
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct EvsiMonteCarlo {
+    /// Mean of the replicates.
+    pub mean: f64,
+    /// Standard error of the mean.
+    pub stderr: f64,
+    /// Replicates drawn.
+    pub replicates: u64,
+    /// Digest of the stream coordinates `(run seed, purpose)`.
+    pub stream_digest: String,
+}
+
+/// Generator of one Monte Carlo EVSI replicate, keyed by the semantic coordinates
+/// `(purpose, replicate)` under the run seed; shared across candidates.
+pub(crate) fn evsi_replicate_rng(rng: &RngFactory, replicate: u64) -> CausalRng {
+    rng.stream_for(StreamDomain::Design, mix64(EVSI_REPLICATE_PURPOSE ^ replicate))
+}
+
+/// Typed length-delimited digest of the replicate-stream coordinates.
+fn evsi_stream_digest(run_seed: u64) -> String {
+    CanonicalWriter::new("antecedent.design.evsi_replicate_stream.v1")
+        .word(run_seed)
+        .word(EVSI_REPLICATE_PURPOSE)
+        .finish_hex()
 }
 
 /// Largest finite log-likelihood, `None` when every entry is `-inf`.
@@ -571,6 +675,10 @@ fn best_gap(gaps: &[f64], n_admissible: usize, weights: &[f64]) -> f64 {
 ///
 /// With `c_a ≤ 0` and a zero line present (the Bayes action), this is the expected
 /// regret reduction of learning the state's preposterior mean with spread `s`.
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 pub(crate) fn expected_max_affine(lines: &[(f64, f64)], s: f64) -> f64 {
     if !(s > 0.0) {
         return lines.iter().map(|&(c, _)| c).fold(f64::NEG_INFINITY, f64::max);

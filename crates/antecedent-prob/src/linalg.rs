@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 use antecedent_kernels::CholeskyError;
 
 use crate::error::ProbError;
@@ -52,48 +50,14 @@ pub fn invert_spd(a: &[f64], n: usize) -> Result<Vec<f64>, ProbError> {
 /// refactorization when the caller already holds one).
 #[must_use]
 pub fn invert_spd_from_chol(chol: &[f64], n: usize) -> Vec<f64> {
-    let mut inv = vec![0.0; n * n];
-    let mut eye_col = vec![0.0; n];
-    let mut y = vec![0.0; n];
-    for col in 0..n {
-        eye_col.fill(0.0);
-        eye_col[col] = 1.0;
-        for i in 0..n {
-            let mut acc = eye_col[i];
-            for j in 0..i {
-                acc -= chol[i * n + j] * y[j];
-            }
-            y[i] = acc / chol[i * n + i];
-        }
-        for i in (0..n).rev() {
-            let mut acc = y[i];
-            for j in (i + 1)..n {
-                acc -= chol[j * n + i] * inv[j * n + col];
-            }
-            inv[i * n + col] = acc / chol[i * n + i];
-        }
-    }
-    inv
+    antecedent_kernels::chol_inverse(chol, n)
 }
 
 /// Solve `L L' x = b` given a lower-triangular Cholesky factor; writes into `x`.
 ///
 /// `y` is forward-substitution scratch (length `n`).
 pub fn solve_chol_into(chol: &[f64], n: usize, b: &[f64], y: &mut [f64], x: &mut [f64]) {
-    for i in 0..n {
-        let mut acc = b[i];
-        for j in 0..i {
-            acc -= chol[i * n + j] * y[j];
-        }
-        y[i] = acc / chol[i * n + i];
-    }
-    for i in (0..n).rev() {
-        let mut acc = y[i];
-        for j in (i + 1)..n {
-            acc -= chol[j * n + i] * x[j];
-        }
-        x[i] = acc / chol[i * n + i];
-    }
+    antecedent_kernels::chol_solve_into(chol, n, b, y, x);
 }
 
 /// Solve `A x = b` for SPD `A` via Cholesky, using caller buffers for the factor and `y`.

@@ -4,7 +4,7 @@ Every transport stage and decision reports ``identification_status`` in the
 canonical spellings of :data:`IDENTIFICATION_STATUSES` (``identified``,
 ``proven_non_transportable``, ``missing_evidence``, ``not_certified``,
 ``budget_cancel``), which are the Rust ``TransportOutcomeKind`` names. The
-spellings bindings used before 2.2 stay where they are serialized or public — a
+binding-local spellings stay where they are serialized or public — a
 stage's ``outcome`` (``exhausted``, ``named_route``, ``combined_identified``), a
 scenario row's ``status`` (``structurally_unidentified``, ``unevaluated``) — and
 are deprecated: :func:`identification_status` reads each as its canonical

@@ -1,12 +1,12 @@
-//! Acceptance evidence for the frozen records F4 (decision contract), F5
-//! (decision functionals) and F6 (structural decision policy).
+//! Acceptance evidence for the decision contract, decision functionals and
+//! structural decision policy.
 //!
 //! Every expected number below is enumerated by hand from the frozen text of
-//! `parity/promotion_2_3.toml`, never read back from the code under test.
+//! `parity/promotion.toml`, never read back from the code under test.
 
 use std::path::{Path, PathBuf};
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, source_digest,
 };
@@ -22,33 +22,25 @@ use antecedent_design::decision_structural::{
     AtomEvidence, AtomStatus, StructuralAtom, StructuralError, StructuralVerdict,
     evaluate_structural,
 };
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::near_lt_1e12 as near;
 
 // ---------------------------------------------------------------------------
 // Shared builders
 // ---------------------------------------------------------------------------
 
+mod common;
+
 fn quantity(variable: &str, regime: &str, functional: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
         regime_id: regime.into(),
-        horizon: 0,
         functional_id: functional.into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(variable)
     }
-}
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
 }
 
 fn identity(columns: &[ScientificQuantity], alignment: DrawAlignment) -> DistributionIdentity {
@@ -153,9 +145,13 @@ fn run_fresh_consumer(test: &str, files: &[(String, Vec<u8>)]) {
     for (name, bytes) in files {
         std::fs::write(dir.join(name), bytes).unwrap();
     }
+    // The libtest name of this test carries the module path below the crate root, which a
+    // consolidated suite binary adds to every file's tests.
+    let module = module_path!().split_once("::").map_or("", |(_, rest)| rest);
+    let qualified = if module.is_empty() { test.to_owned() } else { format!("{module}::{test}") };
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg(test)
+        .arg(&qualified)
         .env(CONSUMER_DIR, &dir)
         .output()
         .unwrap();
@@ -171,10 +167,10 @@ fn run_fresh_consumer(test: &str, files: &[(String, Vec<u8>)]) {
 }
 
 // ---------------------------------------------------------------------------
-// F4: actions A and B, joint states (0,2) and (2,0), utility x*y for A, 1 for B
+// Decision contract: actions A and B, joint states (0,2) and (2,0), utility x*y for A, 1 for B
 // ---------------------------------------------------------------------------
 
-fn f4_columns() -> Vec<ScientificQuantity> {
+fn admissibility_columns() -> Vec<ScientificQuantity> {
     vec![
         quantity("x", "do(a=A)", "outcome"),
         quantity("y", "do(a=A)", "outcome"),
@@ -184,12 +180,12 @@ fn f4_columns() -> Vec<ScientificQuantity> {
 
 /// Rows `(x, y)` = `(0, 2)` and `(2, 0)`, equally weighted; `k` is an arbitrary
 /// 5 that B's constant utility ignores.
-fn f4_source() -> DistributionArtifact {
-    law(&f4_columns(), DrawAlignment::Joint, None, &[&[0.0, 2.0, 5.0], &[2.0, 0.0, 5.0]])
+fn admissibility_source() -> DistributionArtifact {
+    law(&admissibility_columns(), DrawAlignment::Joint, None, &[&[0.0, 2.0, 5.0], &[2.0, 0.0, 5.0]])
 }
 
-fn f4_contract(constraints: Vec<HardConstraint>) -> DecisionContract {
-    let c = f4_columns();
+fn admissibility_contract(constraints: Vec<HardConstraint>) -> DecisionContract {
+    let c = admissibility_columns();
     contract_of(
         vec![
             action(
@@ -214,8 +210,9 @@ fn f4_contract(constraints: Vec<HardConstraint>) -> DecisionContract {
 }
 
 #[test]
-fn f4_two_actions_nonlinear_utility_joint_rows_choose_b() {
-    let result = evaluate_contract(&f4_contract(vec![]), &f4_source()).unwrap();
+fn two_actions_nonlinear_utility_joint_rows_choose_b() {
+    let result =
+        evaluate_contract(&admissibility_contract(vec![]), &admissibility_source()).unwrap();
     // A: x*y = 0*2 = 0 and 2*0 = 0, so E[U_A] = 0. B: the constant 1.
     assert!(near(result.actions[0].expected_utility, 0.0));
     assert!(near(result.actions[1].expected_utility, 1.0));
@@ -235,11 +232,12 @@ fn f4_two_actions_nonlinear_utility_joint_rows_choose_b() {
 }
 
 #[test]
-fn f4_wrong_contract_hard_constraint_excludes_without_penalty_and_empty_set_is_explicit() {
+fn wrong_contract_hard_constraint_excludes_without_penalty_and_empty_set_is_explicit() {
     // A constraint on B (k = 5 is never <= 4) excludes B although B's expected
     // utility 1 beats A's 0: the exclusion is not a penalty and B's number stays.
-    let excluded_b = f4_contract(vec![constraint("k-cap", UtilityExpr::Input(0), 4.0, &["B"])]);
-    let result = evaluate_contract(&excluded_b, &f4_source()).unwrap();
+    let excluded_b =
+        admissibility_contract(vec![constraint("k-cap", UtilityExpr::Input(0), 4.0, &["B"])]);
+    let result = evaluate_contract(&excluded_b, &admissibility_source()).unwrap();
     let b = &result.actions[1];
     assert!(!b.admissible);
     assert_eq!(b.exclusions.len(), 1);
@@ -252,8 +250,9 @@ fn f4_wrong_contract_hard_constraint_excludes_without_penalty_and_empty_set_is_e
     assert_eq!(result.verdict, Verdict::UniquelyOptimal("A".into()));
 
     // y <= 1 holds in one of two equally likely rows, so it holds with 1/2 < 1.
-    let excluded_a = f4_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
-    let result = evaluate_contract(&excluded_a, &f4_source()).unwrap();
+    let excluded_a =
+        admissibility_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
+    let result = evaluate_contract(&excluded_a, &admissibility_source()).unwrap();
     assert!(!result.actions[0].admissible);
     assert!(near(result.actions[0].exclusions[0].probability, 0.5));
     assert!(near(result.actions[0].expected_utility, 0.0));
@@ -261,24 +260,25 @@ fn f4_wrong_contract_hard_constraint_excludes_without_penalty_and_empty_set_is_e
 
     // A bound nothing satisfies, applied to every action: no admissible action
     // is an explicit verdict, with no perfect-information value.
-    let none = f4_contract(vec![constraint("floor", UtilityExpr::Input(0), -100.0, &[])]);
-    let result = evaluate_contract(&none, &f4_source()).unwrap();
+    let none =
+        admissibility_contract(vec![constraint("floor", UtilityExpr::Input(0), -100.0, &[])]);
+    let result = evaluate_contract(&none, &admissibility_source()).unwrap();
     assert_eq!(result.verdict, Verdict::NoAdmissibleAction);
     assert!(result.evpi.is_none());
     assert!(result.actions.iter().all(|a| !a.admissible));
 }
 
-fn f4_cap() -> HardConstraint {
+fn cap() -> HardConstraint {
     // y <= 2 holds in both rows, so A stays admissible and the receipt is kept.
     constraint("y-cap", UtilityExpr::Input(1), 2.0, &["A"])
 }
 
 #[test]
-fn f4_artifact_fresh_process_consumer_recomputes_result_from_receipts() {
+fn artifact_fresh_process_consumer_recomputes_result_from_receipts() {
     if let Some(dir) = consumer_dir() {
         // The consumer re-declares the contract and the source identity from
         // constants; it trusts none of the producer's declarations.
-        let contract = f4_contract(vec![f4_cap()]);
+        let contract = admissibility_contract(vec![cap()]);
         let contract_id = contract.identity().unwrap();
         let contract_artifact =
             DecisionContractArtifact::from_bytes(&read(&dir, "contract.bin"), &contract_id)
@@ -286,7 +286,7 @@ fn f4_artifact_fresh_process_consumer_recomputes_result_from_receipts() {
         assert_eq!(contract_artifact.contract(), &contract);
         let source = DistributionArtifact::from_bytes(
             &read(&dir, "source.bin"),
-            &identity(&f4_columns(), DrawAlignment::Joint),
+            &identity(&admissibility_columns(), DrawAlignment::Joint),
         )
         .unwrap();
         let stored = DecisionResultArtifact::from_bytes(
@@ -304,12 +304,12 @@ fn f4_artifact_fresh_process_consumer_recomputes_result_from_receipts() {
         mark_consumed(&dir);
         return;
     }
-    let contract = f4_contract(vec![f4_cap()]);
-    let source = f4_source();
+    let contract = admissibility_contract(vec![cap()]);
+    let source = admissibility_source();
     let result =
         DecisionResultArtifact::new(evaluate_contract(&contract, &source).unwrap(), &source);
     run_fresh_consumer(
-        "f4_artifact_fresh_process_consumer_recomputes_result_from_receipts",
+        "artifact_fresh_process_consumer_recomputes_result_from_receipts",
         &[
             (
                 "contract.bin".to_owned(),
@@ -322,9 +322,9 @@ fn f4_artifact_fresh_process_consumer_recomputes_result_from_receipts() {
 }
 
 #[test]
-fn f4_artifact_refuses_a_stored_number_or_constraint_changed_under_the_same_identities() {
-    let contract = f4_contract(vec![f4_cap()]);
-    let source = f4_source();
+fn artifact_refuses_a_stored_number_or_constraint_changed_under_the_same_identities() {
+    let contract = admissibility_contract(vec![cap()]);
+    let source = admissibility_source();
     let result = evaluate_contract(&contract, &source).unwrap();
     let artifact = DecisionResultArtifact::new(result.clone(), &source);
     artifact.replay(&contract, &source).unwrap();
@@ -337,23 +337,24 @@ fn f4_artifact_refuses_a_stored_number_or_constraint_changed_under_the_same_iden
     assert!(DecisionResultArtifact::new(flipped, &source).replay(&contract, &source).is_err());
 
     // A different constraint is a different contract: the stored result is not its answer.
-    let tighter = f4_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
+    let tighter =
+        admissibility_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
     assert_ne!(tighter.identity().unwrap(), contract.identity().unwrap());
     assert!(artifact.replay(&tighter, &source).is_err());
 }
 
 // ---------------------------------------------------------------------------
-// F5: finite law, mass 1/4 at 0 and 3/4 at 2
+// Decision functionals: finite law, mass 1/4 at 0 and 3/4 at 2
 // ---------------------------------------------------------------------------
 
-fn f5_columns(functional: &str) -> Vec<ScientificQuantity> {
+fn functional_columns(functional: &str) -> Vec<ScientificQuantity> {
     vec![quantity("y", "do(a=A)", functional), quantity("k", "do(a=B)", functional)]
 }
 
 /// `P(Y = 0) = 1/4` and `P(Y = 2) = 3/4`, as raw weights 1 and 3.
-fn f5_source() -> DistributionArtifact {
+fn functional_source() -> DistributionArtifact {
     law(
-        &f5_columns("outcome"),
+        &functional_columns("outcome"),
         DrawAlignment::Joint,
         Some(vec![1.0, 3.0]),
         &[&[0.0, 1.0], &[2.0, 1.0]],
@@ -361,8 +362,8 @@ fn f5_source() -> DistributionArtifact {
 }
 
 /// `Y`, `Y * Y` (for the variance identity) and a reference action.
-fn f5_actions(functional: &str) -> Vec<DecisionAction> {
-    let c = f5_columns(functional);
+fn actions(functional: &str) -> Vec<DecisionAction> {
+    let c = functional_columns(functional);
     vec![
         action("Y", vec![c[0].clone()], UtilityExpr::Input(0)),
         action(
@@ -374,19 +375,22 @@ fn f5_actions(functional: &str) -> Vec<DecisionAction> {
     ]
 }
 
-fn f5_contract(criterion: DecisionCriterion) -> DecisionContract {
-    contract_of(f5_actions("outcome"), criterion, vec![], StructuralPolicy::ReportOnly)
+fn functional_contract(criterion: DecisionCriterion) -> DecisionContract {
+    contract_of(actions("outcome"), criterion, vec![], StructuralPolicy::ReportOnly)
 }
 
-fn f5_value(criterion: DecisionCriterion) -> f64 {
-    evaluate_contract(&f5_contract(criterion), &f5_source()).unwrap().actions[0].value
+fn value(criterion: DecisionCriterion) -> f64 {
+    evaluate_contract(&functional_contract(criterion), &functional_source()).unwrap().actions[0]
+        .value
 }
 
 #[test]
-fn f5_positive_expectation_and_variance_identity_on_the_finite_law() {
-    let result =
-        evaluate_contract(&f5_contract(DecisionCriterion::PosteriorExpectedUtility), &f5_source())
-            .unwrap();
+fn positive_expectation_and_variance_identity_on_the_finite_law() {
+    let result = evaluate_contract(
+        &functional_contract(DecisionCriterion::PosteriorExpectedUtility),
+        &functional_source(),
+    )
+    .unwrap();
     // E[Y] = 0 * 1/4 + 2 * 3/4 = 3/2 and E[Y^2] = 0 * 1/4 + 4 * 3/4 = 3.
     let mean = result.actions[0].expected_utility;
     let second_moment = result.actions[1].expected_utility;
@@ -399,45 +403,51 @@ fn f5_positive_expectation_and_variance_identity_on_the_finite_law() {
     assert!(near(result.actions[0].standard_error.unwrap(), 0.0));
 
     // The direct evaluators agree with the hand enumeration and the identity.
-    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let contract = functional_contract(DecisionCriterion::PosteriorExpectedUtility);
     let expectation =
-        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &f5_source()).unwrap();
+        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &functional_source())
+            .unwrap();
     assert!(near(expectation.value, 1.5));
     assert!(near(expectation.standard_error.unwrap(), 0.0));
     assert_eq!(expectation.source_mode.representation, SourceRepresentation::JointDraws);
-    let utility =
-        evaluate_functional(&contract, "Y", DecisionFunctional::ExpectedUtility, &f5_source())
-            .unwrap();
+    let utility = evaluate_functional(
+        &contract,
+        "Y",
+        DecisionFunctional::ExpectedUtility,
+        &functional_source(),
+    )
+    .unwrap();
     assert!(near(utility.value, 1.5));
     let variance =
-        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &f5_source()).unwrap();
+        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &functional_source())
+            .unwrap();
     assert!(near(variance.value, 0.75));
     assert!(near(variance.value, identity_variance));
     // E[Y^2] = 3 through the direct route as well.
     let squared =
-        evaluate_functional(&contract, "Y2", DecisionFunctional::Expectation, &f5_source())
+        evaluate_functional(&contract, "Y2", DecisionFunctional::Expectation, &functional_source())
             .unwrap();
     assert!(near(squared.value, 3.0));
 }
 
 #[test]
-fn f5_positive_threshold_probability_on_the_finite_law() {
+fn positive_threshold_probability_on_the_finite_law() {
     // The criterion is P(Y >= 1); the law has no mass at 1, so it equals
     // P(Y > 1) = P(Y = 2) = 3/4.
-    assert!(near(f5_value(DecisionCriterion::ThresholdProbability { threshold: 1.0 }), 0.75));
+    assert!(near(value(DecisionCriterion::ThresholdProbability { threshold: 1.0 }), 0.75));
     // Mass at 0 only: P(Y >= -1) = 1; nothing reaches 3: P(Y >= 3) = 0.
-    assert!(near(f5_value(DecisionCriterion::ThresholdProbability { threshold: -1.0 }), 1.0));
-    assert!(near(f5_value(DecisionCriterion::ThresholdProbability { threshold: 3.0 }), 0.0));
+    assert!(near(value(DecisionCriterion::ThresholdProbability { threshold: -1.0 }), 1.0));
+    assert!(near(value(DecisionCriterion::ThresholdProbability { threshold: 3.0 }), 0.0));
 
     // The direct functional: P(Y >= 1) = P(Y >= 1.5) = P(Y > 1) = 3/4 and
     // P(Y <= 1) = 1/4 (the law has no mass strictly between 0 and 2).
-    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let contract = functional_contract(DecisionCriterion::PosteriorExpectedUtility);
     let probability = |threshold: f64, tail: Tail| {
         evaluate_functional(
             &contract,
             "Y",
             DecisionFunctional::Probability { threshold, tail },
-            &f5_source(),
+            &functional_source(),
         )
         .unwrap()
         .value
@@ -452,21 +462,26 @@ fn f5_positive_threshold_probability_on_the_finite_law() {
 }
 
 #[test]
-fn f5_positive_quantile_is_the_left_inverse_of_the_cdf() {
+fn positive_quantile_is_the_left_inverse_of_the_cdf() {
     // F(0) = 1/4 and F(2) = 1, so F^-1(u) = inf{x : F(x) >= u} is 0 for u <= 1/4
     // and 2 above it.
-    assert!(near(f5_value(DecisionCriterion::Quantile { p: 0.5 }), 2.0));
-    assert!(near(f5_value(DecisionCriterion::Quantile { p: 0.25 }), 0.0));
-    assert!(near(f5_value(DecisionCriterion::Quantile { p: 0.26 }), 2.0));
-    assert!(near(f5_value(DecisionCriterion::Quantile { p: 0.999 }), 2.0));
+    assert!(near(value(DecisionCriterion::Quantile { p: 0.5 }), 2.0));
+    assert!(near(value(DecisionCriterion::Quantile { p: 0.25 }), 0.0));
+    assert!(near(value(DecisionCriterion::Quantile { p: 0.26 }), 2.0));
+    assert!(near(value(DecisionCriterion::Quantile { p: 0.999 }), 2.0));
 
     // The direct functional returns the same left inverse; at the atom boundary
     // F(0) = 1/4 reaches u = 1/4 exactly, so the quantile is exactly 0.
-    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let contract = functional_contract(DecisionCriterion::PosteriorExpectedUtility);
     let quantile = |p: f64| {
-        evaluate_functional(&contract, "Y", DecisionFunctional::Quantile { p }, &f5_source())
-            .unwrap()
-            .value
+        evaluate_functional(
+            &contract,
+            "Y",
+            DecisionFunctional::Quantile { p },
+            &functional_source(),
+        )
+        .unwrap()
+        .value
     };
     assert!(near(quantile(0.5), 2.0));
     assert_eq!(quantile(0.25).to_bits(), 0.0_f64.to_bits());
@@ -476,20 +491,20 @@ fn f5_positive_quantile_is_the_left_inverse_of_the_cdf() {
 }
 
 #[test]
-fn f5_positive_functionals_without_an_evaluator_state_only_their_source_requirements() {
+fn positive_functionals_without_an_evaluator_state_only_their_source_requirements() {
     use SourceRepresentation as S;
     let y = UtilityExpr::Input(0);
     let y_squared = UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(0));
 
     // The selected tail rule is the fractional-boundary tail mean: the lowest
     // (or highest) mass `p`, with the boundary atom split, divided by `p`.
-    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let contract = functional_contract(DecisionCriterion::PosteriorExpectedUtility);
     let tail_mean = |p: f64, tail: Tail| {
         evaluate_functional(
             &contract,
             "Y",
             DecisionFunctional::TailExpectation { p, tail },
-            &f5_source(),
+            &functional_source(),
         )
         .unwrap()
         .value
@@ -543,9 +558,9 @@ fn f5_positive_functionals_without_an_evaluator_state_only_their_source_requirem
 }
 
 #[test]
-fn f5_evaluate_functional_refuses_unknown_action_bad_parameters_and_marginals() {
-    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
-    let source = f5_source();
+fn evaluate_functional_refuses_unknown_action_bad_parameters_and_marginals() {
+    let contract = functional_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let source = functional_source();
     let error = evaluate_functional(&contract, "ghost", DecisionFunctional::Expectation, &source)
         .unwrap_err();
     assert_eq!(
@@ -565,7 +580,7 @@ fn f5_evaluate_functional_refuses_unknown_action_bad_parameters_and_marginals() 
         );
     }
     // Independent marginals cannot answer a functional of a joint utility.
-    let c = f5_columns("outcome");
+    let c = functional_columns("outcome");
     let rows: [&[f64]; 2] = [&[0.0, 1.0], &[2.0, 1.0]];
     let marginals = law(&c, DrawAlignment::IndependentMarginals, None, &rows);
     let error =
@@ -574,18 +589,20 @@ fn f5_evaluate_functional_refuses_unknown_action_bad_parameters_and_marginals() 
 }
 
 #[test]
-fn f5_exact_law_has_zero_standard_error_and_a_sample_does_not() {
-    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+fn exact_law_has_zero_standard_error_and_a_sample_does_not() {
+    let contract = functional_contract(DecisionCriterion::PosteriorExpectedUtility);
     let exact =
-        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &f5_source()).unwrap();
+        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &functional_source())
+            .unwrap();
     assert!(near(exact.standard_error.unwrap(), 0.0));
     let exact_variance =
-        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &f5_source()).unwrap();
+        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &functional_source())
+            .unwrap();
     assert!(near(exact_variance.standard_error.unwrap(), 0.0));
 
     // The same rows as a draw sample (calibration unmeasured), repeated so the
     // empirical law is the finite law: mass 1/4 at 0 and 3/4 at 2.
-    let columns = f5_columns("outcome");
+    let columns = functional_columns("outcome");
     let rows: [&[f64]; 4] = [&[0.0, 1.0], &[2.0, 1.0], &[2.0, 1.0], &[2.0, 1.0]];
     let sampled = DistributionArtifact::new(
         DistributionMetadata {
@@ -615,7 +632,7 @@ fn f5_exact_law_has_zero_standard_error_and_a_sample_does_not() {
 }
 
 fn mean_contract(criterion: DecisionCriterion) -> DecisionContract {
-    let c = f5_columns("mean");
+    let c = functional_columns("mean");
     contract_of(
         vec![
             action("Y", vec![c[0].clone()], UtilityExpr::Input(0)),
@@ -629,7 +646,7 @@ fn mean_contract(criterion: DecisionCriterion) -> DecisionContract {
 
 fn mean_source() -> MeanSource {
     MeanSource {
-        coordinates: f5_columns("mean"),
+        coordinates: functional_columns("mean"),
         // E[Y] = 3/2, as the finite law's mean; the reference mean is 1.
         means: vec![1.5, 1.0],
         provider_id: "lab".into(),
@@ -640,7 +657,7 @@ fn mean_source() -> MeanSource {
 }
 
 #[test]
-fn f5_negative_mean_only_source_cannot_answer_quantile_or_threshold_probability() {
+fn negative_mean_only_source_cannot_answer_quantile_or_threshold_probability() {
     // Control: the same mean source answers an expectation of an affine utility.
     let result = evaluate_contract_on_means(
         &mean_contract(DecisionCriterion::PosteriorExpectedUtility),
@@ -669,7 +686,7 @@ fn f5_negative_mean_only_source_cannot_answer_quantile_or_threshold_probability(
 }
 
 #[test]
-fn f5_negative_independent_marginals_cannot_answer_a_nonlinear_joint_utility() {
+fn negative_independent_marginals_cannot_answer_a_nonlinear_joint_utility() {
     let c = vec![
         quantity("y1", "do(a=A)", "outcome"),
         quantity("y2", "do(a=A)", "outcome"),
@@ -715,7 +732,7 @@ fn f5_negative_independent_marginals_cannot_answer_a_nonlinear_joint_utility() {
 }
 
 #[test]
-fn f5_artifact_fresh_process_consumer_retains_functional_convention_law_and_units() {
+fn artifact_fresh_process_consumer_retains_functional_convention_law_and_units() {
     let cases = [
         ("eu", DecisionCriterion::PosteriorExpectedUtility, 1.5),
         ("threshold", DecisionCriterion::ThresholdProbability { threshold: 1.0 }, 0.75),
@@ -724,14 +741,14 @@ fn f5_artifact_fresh_process_consumer_retains_functional_convention_law_and_unit
     if let Some(dir) = consumer_dir() {
         let source = DistributionArtifact::from_bytes(
             &read(&dir, "source.bin"),
-            &identity(&f5_columns("outcome"), DrawAlignment::Joint),
+            &identity(&functional_columns("outcome"), DrawAlignment::Joint),
         )
         .unwrap();
         // The input law is retained: the raw weights 1 and 3 are 1/4 and 3/4.
         assert_eq!(source.metadata().weights, Some(vec![1.0, 3.0]));
         assert_eq!(source.metadata().shape, [2, 2]);
         for (name, criterion, expected) in cases {
-            let contract = f5_contract(criterion);
+            let contract = functional_contract(criterion);
             let contract_id = contract.identity().unwrap();
             let contract_artifact = DecisionContractArtifact::from_bytes(
                 &read(&dir, &format!("{name}.contract.bin")),
@@ -754,11 +771,11 @@ fn f5_artifact_fresh_process_consumer_retains_functional_convention_law_and_unit
         mark_consumed(&dir);
         return;
     }
-    let source = f5_source();
+    let source = functional_source();
     let mut files = vec![("source.bin".to_owned(), source.to_bytes("s").unwrap())];
     let mut identities = Vec::new();
     for (name, criterion, _) in cases {
-        let contract = f5_contract(criterion);
+        let contract = functional_contract(criterion);
         identities.push(contract.identity().unwrap());
         let result =
             DecisionResultArtifact::new(evaluate_contract(&contract, &source).unwrap(), &source);
@@ -773,39 +790,39 @@ fn f5_artifact_fresh_process_consumer_retains_functional_convention_law_and_unit
     identities.dedup();
     assert_eq!(identities.len(), 3);
     run_fresh_consumer(
-        "f5_artifact_fresh_process_consumer_retains_functional_convention_law_and_units",
+        "artifact_fresh_process_consumer_retains_functional_convention_law_and_units",
         &files,
     );
 }
 
 // ---------------------------------------------------------------------------
-// F6: two structural atoms, utilities A = (2, -1) and B = (0, 1), no probabilities
+// Structural decision policy: two structural atoms, utilities A = (2, -1) and B = (0, 1), no probabilities
 // ---------------------------------------------------------------------------
 
-fn f6_columns() -> Vec<ScientificQuantity> {
+fn structural_columns() -> Vec<ScientificQuantity> {
     vec![quantity("a", "do(a=1)", "outcome"), quantity("b", "do(a=0)", "outcome")]
 }
 
 /// One structure's exact law: A's and B's payoffs in two equal rows.
-fn f6_law(a: f64, b: f64) -> Box<DistributionArtifact> {
-    Box::new(law(&f6_columns(), DrawAlignment::Joint, None, &[&[a, b], &[a, b]]))
+fn structural_law(a: f64, b: f64) -> Box<DistributionArtifact> {
+    Box::new(law(&structural_columns(), DrawAlignment::Joint, None, &[&[a, b], &[a, b]]))
 }
 
-fn f6_atom(id: &str, probability: Option<f64>, evidence: AtomEvidence) -> StructuralAtom {
+fn atom(id: &str, probability: Option<f64>, evidence: AtomEvidence) -> StructuralAtom {
     StructuralAtom { id: id.into(), probability, evidence }
 }
 
-fn f6_evaluated(id: &str, probability: Option<f64>, a: f64, b: f64) -> StructuralAtom {
-    f6_atom(id, probability, AtomEvidence::Evaluated(f6_law(a, b)))
+fn evaluated(id: &str, probability: Option<f64>, a: f64, b: f64) -> StructuralAtom {
+    atom(id, probability, AtomEvidence::Evaluated(structural_law(a, b)))
 }
 
 /// Atom `s1` has utilities `(A, B) = (2, 0)`, atom `s2` has `(-1, 1)`.
-fn f6_atoms() -> [StructuralAtom; 2] {
-    [f6_evaluated("s1", None, 2.0, 0.0), f6_evaluated("s2", None, -1.0, 1.0)]
+fn atoms() -> [StructuralAtom; 2] {
+    [evaluated("s1", None, 2.0, 0.0), evaluated("s2", None, -1.0, 1.0)]
 }
 
-fn f6_contract(criterion: DecisionCriterion, policy: StructuralPolicy) -> DecisionContract {
-    let c = f6_columns();
+fn structural_contract(criterion: DecisionCriterion, policy: StructuralPolicy) -> DecisionContract {
+    let c = structural_columns();
     contract_of(
         vec![
             action("A", vec![c[0].clone()], UtilityExpr::Input(0)),
@@ -818,13 +835,14 @@ fn f6_contract(criterion: DecisionCriterion, policy: StructuralPolicy) -> Decisi
 }
 
 #[test]
-fn f6_positive_maximin_chooses_b_with_worst_cases_zero_against_minus_one() {
+fn positive_maximin_chooses_b_with_worst_cases_zero_against_minus_one() {
     let policies = [
         (DecisionCriterion::PosteriorExpectedUtility, StructuralPolicy::Maximin),
         (DecisionCriterion::MaximinOverStructures, StructuralPolicy::ReportOnly),
     ];
     for (criterion, policy) in policies {
-        let result = evaluate_structural(&f6_contract(criterion, policy), &f6_atoms()).unwrap();
+        let result =
+            evaluate_structural(&structural_contract(criterion, policy), &atoms()).unwrap();
         assert_eq!(result.verdict, StructuralVerdict::WorstCaseChoice("B".into()));
         // A: (2, -1) has minimum -1; B: (0, 1) has minimum 0.
         assert_eq!(result.actions[0].per_atom, vec![Some(2.0), Some(-1.0)]);
@@ -838,10 +856,12 @@ fn f6_positive_maximin_chooses_b_with_worst_cases_zero_against_minus_one() {
 }
 
 #[test]
-fn f6_positive_report_only_shows_graph_dependence_and_no_weighted_winner() {
-    let contract =
-        f6_contract(DecisionCriterion::PosteriorExpectedUtility, StructuralPolicy::ReportOnly);
-    let result = evaluate_structural(&contract, &f6_atoms()).unwrap();
+fn positive_report_only_shows_graph_dependence_and_no_weighted_winner() {
+    let contract = structural_contract(
+        DecisionCriterion::PosteriorExpectedUtility,
+        StructuralPolicy::ReportOnly,
+    );
+    let result = evaluate_structural(&contract, &atoms()).unwrap();
     assert_eq!(result.verdict, StructuralVerdict::ReportOnly);
     assert!(result.actions.iter().all(|a| a.weighted_value.is_none()));
     assert!(result.actions.iter().all(|a| a.mass_where_best.is_none()));
@@ -856,11 +876,11 @@ fn f6_positive_report_only_shows_graph_dependence_and_no_weighted_winner() {
     assert_eq!(leader(1), Verdict::UniquelyOptimal("B".into()));
 
     // Requiring an invariant best action finds none.
-    let invariant = f6_contract(
+    let invariant = structural_contract(
         DecisionCriterion::PosteriorExpectedUtility,
         StructuralPolicy::RequireInvariantBestAction,
     );
-    let result = evaluate_structural(&invariant, &f6_atoms()).unwrap();
+    let result = evaluate_structural(&invariant, &atoms()).unwrap();
     assert_eq!(
         result.verdict,
         StructuralVerdict::NoInvariantBest(vec![
@@ -871,12 +891,12 @@ fn f6_positive_report_only_shows_graph_dependence_and_no_weighted_winner() {
 }
 
 #[test]
-fn f6_negative_bayes_over_structures_refuses_without_atom_probabilities() {
-    let bayes = f6_contract(
+fn negative_bayes_over_structures_refuses_without_atom_probabilities() {
+    let bayes = structural_contract(
         DecisionCriterion::PosteriorExpectedUtility,
         StructuralPolicy::BayesOverStructures,
     );
-    let error = evaluate_structural(&bayes, &f6_atoms()).unwrap_err();
+    let error = evaluate_structural(&bayes, &atoms()).unwrap_err();
     assert_eq!(error, StructuralError::ProbabilitiesRequired);
     assert_eq!(error.reason_code(), "decision_contract_unsatisfied");
     let refusal = error.to_refusal();
@@ -885,7 +905,7 @@ fn f6_negative_bayes_over_structures_refuses_without_atom_probabilities() {
     assert!(refusal.remedy.is_some());
 
     // Probabilities for some atoms only are not genuine probabilities either.
-    let partial = [f6_evaluated("s1", Some(0.5), 2.0, 0.0), f6_evaluated("s2", None, -1.0, 1.0)];
+    let partial = [evaluated("s1", Some(0.5), 2.0, 0.0), evaluated("s2", None, -1.0, 1.0)];
     assert_eq!(
         evaluate_structural(&bayes, &partial).unwrap_err(),
         StructuralError::InvalidProbabilities
@@ -893,13 +913,13 @@ fn f6_negative_bayes_over_structures_refuses_without_atom_probabilities() {
 }
 
 #[test]
-fn f6_negative_unevaluated_mass_is_reported_and_never_normalized_away() {
+fn negative_unevaluated_mass_is_reported_and_never_normalized_away() {
     let atoms = [
-        f6_evaluated("s1", Some(0.5), 2.0, 0.0),
-        f6_evaluated("s2", Some(0.25), -1.0, 1.0),
-        f6_atom("s3", Some(0.25), AtomEvidence::Unevaluated("budget".into())),
+        evaluated("s1", Some(0.5), 2.0, 0.0),
+        evaluated("s2", Some(0.25), -1.0, 1.0),
+        atom("s3", Some(0.25), AtomEvidence::Unevaluated("budget".into())),
     ];
-    let bayes = f6_contract(
+    let bayes = structural_contract(
         DecisionCriterion::PosteriorExpectedUtility,
         StructuralPolicy::BayesOverStructures,
     );
@@ -917,13 +937,13 @@ fn f6_negative_unevaluated_mass_is_reported_and_never_normalized_away() {
 
     // A worst case over structures needs every structure; it does not skip one.
     let maximin =
-        f6_contract(DecisionCriterion::PosteriorExpectedUtility, StructuralPolicy::Maximin);
+        structural_contract(DecisionCriterion::PosteriorExpectedUtility, StructuralPolicy::Maximin);
     let result = evaluate_structural(&maximin, &atoms).unwrap();
     assert!(matches!(result.verdict, StructuralVerdict::InsufficientScience(_)));
 }
 
 #[test]
-fn f6_contract_artifact_retains_the_declared_robustness_policy_only() {
+fn contract_artifact_retains_the_declared_robustness_policy_only() {
     // There is no artifact for a structural result yet: atom identities and
     // unidentified mass are not retained by any wire. The contract artifact
     // does retain the declared policy and criterion, which is all this asserts.
@@ -935,10 +955,10 @@ fn f6_contract_artifact_retains_the_declared_robustness_policy_only() {
     ];
     let mut identities = Vec::new();
     for (criterion, policy) in cases {
-        let contract = f6_contract(criterion, policy);
+        let contract = structural_contract(criterion, policy);
         let artifact = DecisionContractArtifact::new(contract.clone()).unwrap();
         let loaded = DecisionContractArtifact::from_bytes(
-            &artifact.to_bytes("f6").unwrap(),
+            &artifact.to_bytes("decision-acceptance").unwrap(),
             artifact.identity(),
         )
         .unwrap();

@@ -1,10 +1,11 @@
-//! Python bindings for the temporal extensions of the finite two-step sequence
-//! (2.3A, X5): the uncertain initial state and the new-period refresh (both point
+//! Python bindings for the temporal extensions of the finite two-step sequence:
+//! the uncertain initial state and the new-period refresh (both point
 //! only and licensed), and measured dependent intervals.
 //!
 //! Python builds the declarations; every identity, check and refusal rule is Rust's.
 //! A refusal comes back as structured JSON for the Python layer to raise as its own
 //! exception type.
+use crate::bridge::RefusalJson;
 use antecedent::{IntervalEstimand, TemporalInitialState, TemporalWindow};
 use antecedent_core::reason_code;
 use antecedent_estimate::temporal_dependent_interval::{
@@ -22,8 +23,6 @@ use antecedent_io::temporal_refresh_artifact::{ReceiptWire, WindowIdentityWire};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::BTreeSet;
-
-use crate::CausalSerializationError;
 
 const INITIAL_STATE_PREFIX: &[u8] = b"ANTECEDENT-TEMPORAL-INITIAL-STATE\x01";
 const REFRESH_PREFIX: &[u8] = b"ANTECEDENT-TEMPORAL-REFRESH\x01";
@@ -43,15 +42,7 @@ type WindowTuple =
 type Outcome<T> = PyResult<(Option<T>, Option<String>)>;
 
 fn refusal_json(code: &str, message: &str) -> String {
-    let (detail, text) = message.split_once(": ").unwrap_or(("", message));
-    serde_json::json!({
-        "code": code,
-        "stage": "temporal_extension",
-        "detail": detail,
-        "message": text,
-        "remedy": serde_json::Value::Null,
-    })
-    .to_string()
+    RefusalJson::from_coded_message(code, "temporal_extension", message).json()
 }
 
 /// A producer outcome: a refusal is structured, any other failure is invalid input.
@@ -69,7 +60,7 @@ fn consume<T>(result: Result<T, IoError>) -> Outcome<T> {
     match result {
         Ok(value) => Ok((Some(value), None)),
         Err(IoError::Refused { code, message }) => Ok((None, Some(refusal_json(code, &message)))),
-        Err(other) => Err(CausalSerializationError::new_err(other.to_string())),
+        Err(other) => Err(crate::serialization_err(other.to_string())),
     }
 }
 
@@ -207,7 +198,7 @@ fn frame(prefix: &[u8], raw: &[u8]) -> Vec<u8> {
 fn unframe<'a>(prefix: &[u8], bytes: &'a [u8], what: &str) -> PyResult<&'a [u8]> {
     bytes
         .strip_prefix(prefix)
-        .ok_or_else(|| CausalSerializationError::new_err(format!("invalid {what} artifact format")))
+        .ok_or_else(|| crate::serialization_err(format!("invalid {what} artifact format")))
 }
 
 /// A prepared target-marginal initial-state result and the window it is valid for.
@@ -225,8 +216,7 @@ impl NativeTemporalInitialState {
 
     /// The initial-state artifact, framed.
     fn export(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
-        let raw =
-            self.inner.export().map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+        let raw = self.inner.export().map_err(|e| crate::serialization_err(e.to_string()))?;
         Ok(PyBytes::new(py, &frame(INITIAL_STATE_PREFIX, &raw)).unbind())
     }
 
@@ -426,7 +416,7 @@ impl NativeTemporalIntervalCandidate {
         self.wire
             .export()
             .map(|b| PyBytes::new(py, &b))
-            .map_err(|e| CausalSerializationError::new_err(e.to_string()))
+            .map_err(|e| crate::serialization_err(e.to_string()))
     }
 }
 

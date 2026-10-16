@@ -1,4 +1,4 @@
-"""B4 compact runtime export through the Python facade.
+"""Compact runtime export through the Python facade.
 
 Hand values mirror the Rust core tests. Quadratic model ``y = 1 + 2 x - 0.5 x^2`` on ``x`` in
 ``[0, 10]`` with ``V = [[0.04, 0, -0.002], [0, 0.01, 0], [-0.002, 0, 0.0004]]``; one-hot model
@@ -67,7 +67,7 @@ def refused(export: CompactExport, query: dict) -> CompactExportRefusal:
     return error.value
 
 
-def test_b4_compact_quadratic_point_and_se_match_hand_values() -> None:
+def test_compact_quadratic_point_and_se_match_hand_values() -> None:
     export = quadratic()
     # x = 2: phi = (1, 2, 4); b'phi = 1 + 4 - 2 = 3; phi'V phi = 0.0704 = 0.0064 * 11.
     at_two = export.evaluate({"x": 2.0})
@@ -83,7 +83,7 @@ def test_b4_compact_quadratic_point_and_se_match_hand_values() -> None:
     assert at_ten.standard_error == pytest.approx(math.sqrt(4.64), abs=1e-9)
 
 
-def test_b4_compact_scope_states_point_and_model_based_se_only() -> None:
+def test_compact_scope_states_point_and_model_based_se_only() -> None:
     export = quadratic()
     result = export.evaluate({"x": 2.0})
     assert result.se_basis == "model_based_sqrt_phi_v_phi"
@@ -98,7 +98,7 @@ def test_b4_compact_scope_states_point_and_model_based_se_only() -> None:
     assert not any("interval" in field for field in PointEstimate.__slots__)
 
 
-def test_b4_compact_one_hot_terms_select_the_level_with_hand_values() -> None:
+def test_compact_one_hot_terms_select_the_level_with_hand_values() -> None:
     export = one_hot()
     b = export.evaluate({"x": 1.0, "g": "b"})  # phi = (1, 1, 1, 0); 0.04 + 0.01 + 0.09 + 0.02
     assert b.point == pytest.approx(3.5, abs=1e-12)
@@ -110,11 +110,13 @@ def test_b4_compact_one_hot_terms_select_the_level_with_hand_values() -> None:
     assert a.point == pytest.approx(3.0, abs=1e-12)
     assert a.standard_error == pytest.approx(math.sqrt(0.05), abs=1e-12)
     # Levels were canonicalised even though supplied as c, a, b.
-    group = next(i for i in export.body["inputs"] if i["quantity"]["variable_id"] == "g")
+    group = next(
+        i for i in export.to_dict()["body"]["inputs"] if i["quantity"]["variable_id"] == "g"
+    )
     assert group["support"] == {"levels": {"levels": ["a", "b", "c"]}}
 
 
-def test_b4_compact_out_of_support_queries_refuse_with_exact_details() -> None:
+def test_compact_out_of_support_queries_refuse_with_exact_details() -> None:
     export = one_hot()
     expected = [
         ({"x": 10.5, "g": "a"}, "compact_export.out_of_support", "x"),
@@ -138,7 +140,7 @@ def test_b4_compact_out_of_support_queries_refuse_with_exact_details() -> None:
         export.evaluate({"x": True, "g": "a"})
 
 
-def test_b4_compact_masked_region_refuses_even_inside_the_support() -> None:
+def test_compact_masked_region_refuses_even_inside_the_support() -> None:
     export = one_hot()
     for x in (8.0, 9.0, 10.0):
         error = refused(export, {"x": x, "g": "c"})
@@ -149,7 +151,7 @@ def test_b4_compact_masked_region_refuses_even_inside_the_support() -> None:
     export.evaluate({"x": 9.0, "g": "b"})
 
 
-def test_b4_compact_evaluate_many_returns_refusals_without_raising() -> None:
+def test_compact_evaluate_many_returns_refusals_without_raising() -> None:
     export = one_hot()
     answers = export.evaluate_many(
         [{"x": 1.0, "g": "b"}, {"x": 9.0, "g": "c"}, {"x": 11.0, "g": "a"}]
@@ -161,7 +163,7 @@ def test_b4_compact_evaluate_many_returns_refusals_without_raising() -> None:
     assert answers[2].detail == "compact_export.out_of_support"
 
 
-def test_b4_compact_verifier_round_trip_matches_the_producer() -> None:
+def test_compact_verifier_round_trip_matches_the_producer() -> None:
     export = one_hot()
     consumed = CompactExport.consume(export.export(), expected_identity=export.identity)
     assert consumed.identity == export.identity
@@ -172,7 +174,7 @@ def test_b4_compact_verifier_round_trip_matches_the_producer() -> None:
     assert refused(consumed, {"x": 11.0, "g": "a"}).detail == "compact_export.out_of_support"
 
 
-def test_b4_compact_wrong_expected_identity_is_refused() -> None:
+def test_compact_wrong_expected_identity_is_refused() -> None:
     export = quadratic()
     with pytest.raises(CompactExportRefusal) as wrong:
         CompactExport.consume(export.export(), expected_identity="deadbeef")
@@ -193,13 +195,15 @@ def test_b4_compact_wrong_expected_identity_is_refused() -> None:
     assert swapped.value.detail == "compact_export.identity_unexpected"
     # An export that evaluates under a swapped artifact keeps refusing: the retained identity
     # binds every evaluation.
-    forged = CompactExport(identity=export.identity, body=other.body, artifact=other.export())
+    forged = CompactExport(
+        identity=export.identity, body=other.body, _artifact_bytes=other.export()
+    )
     with pytest.raises(CompactExportRefusal) as evaluated:
         forged.evaluate({"x": 2.0})
     assert evaluated.value.detail == "compact_export.identity_unexpected"
 
 
-def test_b4_compact_corrupt_or_truncated_artifact_is_refused() -> None:
+def test_compact_corrupt_or_truncated_artifact_is_refused() -> None:
     export = quadratic()
     data = bytearray(export.export())
     data[len(data) // 2] ^= 0xFF
@@ -215,7 +219,7 @@ def test_b4_compact_corrupt_or_truncated_artifact_is_refused() -> None:
         CompactExport.consume("not bytes", expected_identity="x")  # type: ignore[arg-type]
 
 
-def test_b4_compact_malformed_specs_refuse_at_build() -> None:
+def test_compact_malformed_specs_refuse_at_build() -> None:
     def build(**overrides):
         spec = {
             "response": RESPONSE,
@@ -258,7 +262,7 @@ def test_b4_compact_malformed_specs_refuse_at_build() -> None:
         assert_registered_refusal(error.value)
 
 
-def test_b4_compact_input_validation_is_typed() -> None:
+def test_compact_input_validation_is_typed() -> None:
     with pytest.raises(CausalTypeError):
         CompactExport.build(
             response="y",  # type: ignore[arg-type]

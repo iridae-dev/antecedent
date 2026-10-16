@@ -1,7 +1,11 @@
-// Shared circular-block mixture SE for temporal class / DBN envelopes.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+// Shared circular-block mixture SE for temporal class / DBN envelopes.
 
-use super::*;
+use super::{
+    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
+    EstimationWorkspace, ExecutionContext, IdentificationStatus, IdentifiedEstimand, OverlapPolicy,
+    TemporalDag, TemporalEffectQuery, TemporalIndexer, TemporalLinearAdjustment, TimeSeriesData,
+};
 
 /// Shared circular-block SE for a frozen-weight temporal class / DBN mixture.
 pub struct SharedCircularBlockSe {
@@ -75,9 +79,10 @@ impl SharedCircularBlockSe {
 
 /// One atom of a frozen-weight temporal mixture, prepared once on the original
 /// series so the shared bootstrap can refit it on resampled lag-aligned rows.
-// A mixture holds a handful of atoms built once per run; boxing the linear
-// variant would only add an indirection to every replicate refit.
-#[allow(clippy::large_enum_variant)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a mixture holds a handful of atoms built once per run; boxing the linear variant would only add an indirection to every replicate refit"
+)]
 pub enum TemporalAtomDesign {
     /// Pulse / single-step Sustained: one lag-aligned adjustment regression.
     Linear {
@@ -152,7 +157,10 @@ impl TemporalAtomDesign {
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let design = antecedent_estimate::SequentialContrastDesign::prepare(
-            data, graph, indexer, estimand, query, status, ctx,
+            &antecedent_estimate::SequentialProblem { data, graph, indexer, estimand },
+            query,
+            status,
+            ctx,
         )
         .map_err(CausalError::from)?;
         let point = design.estimate().map_err(CausalError::from)?;
@@ -173,7 +181,7 @@ impl TemporalAtomDesign {
         match self {
             Self::Linear { point, .. } => {
                 let mut estimate = point.clone();
-                estimate.assumptions = assumptions;
+                estimate.provenance.assumptions = assumptions;
                 estimate
             }
             Self::Sequential { point, .. } => {
@@ -205,7 +213,7 @@ impl TemporalAtomDesign {
     /// Per-row influence of the atom's estimate on its own aligned rows.
     fn influence(&self) -> Option<&[f64]> {
         match self {
-            Self::Linear { point, .. } => point.influence.as_deref(),
+            Self::Linear { point, .. } => point.scores.influence.as_deref(),
             Self::Sequential { influence, .. } => influence.as_deref(),
         }
     }
@@ -287,10 +295,7 @@ pub fn shared_circular_block_mixture_se(
     let mut out = shared_circular_block_mixture_se_with_length(
         &designs,
         weights,
-        block_length,
-        kernel_bias,
-        replicates,
-        stream_base,
+        BlockBootstrapPlan { block_length, kernel_bias, replicates, stream_base },
         ctx,
         |atom, rows| atoms[atom].estimate_on_rows(rows, &mut workspace, &mut x_boot, &mut y_boot),
     );
@@ -347,22 +352,29 @@ pub fn circular_block_length(structural_span: usize, n: usize) -> usize {
     antecedent_data::circular_block_length(structural_span, n)
 }
 
+/// The block length, kernel-bias factor, replicate count and stream base of one
+/// shared circular-block bootstrap.
+#[derive(Clone, Copy)]
+pub struct BlockBootstrapPlan {
+    pub block_length: usize,
+    pub kernel_bias: f64,
+    pub replicates: u32,
+    pub stream_base: u64,
+}
+
 /// [`shared_circular_block_mixture_se`] over explicit aligned designs at an
 /// explicit block length and kernel-bias factor. Production reaches it through
 /// [`shared_circular_block_mixture_se`] at [`mixture_block_length`]; the
 /// block-length sensitivity check calls it directly at multiples of that
 /// length. `fit_atom(g, rows)` refits atom `g` on its design rows `rows`.
-#[allow(clippy::too_many_arguments)]
 pub fn shared_circular_block_mixture_se_with_length(
     designs: &[antecedent_estimate::AlignedRows],
     weights: &[f64],
-    block_length: usize,
-    kernel_bias: f64,
-    replicates: u32,
-    stream_base: u64,
+    plan: BlockBootstrapPlan,
     ctx: &ExecutionContext,
     mut fit_atom: impl FnMut(usize, &[usize]) -> Option<f64>,
 ) -> SharedCircularBlockSe {
+    let BlockBootstrapPlan { block_length, kernel_bias, replicates, stream_base } = plan;
     let total: f64 = weights.iter().sum();
     if replicates == 0 || designs.is_empty() || designs.len() != weights.len() || total <= 0.0 {
         return SharedCircularBlockSe::empty();

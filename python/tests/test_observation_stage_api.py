@@ -6,7 +6,6 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import observation
-from antecedent._native import analyze_observation_response
 from antecedent.errors import CausalEstimateError, CausalValueError
 from antecedent.query import DirectionalDerivative, ResponseCurve
 
@@ -84,33 +83,6 @@ def test_observation_stage_does_not_accept_complete_observation() -> None:
         observation.adjusted_outcome({}, query)
 
 
-def test_native_selected_outcome_response_is_point_only_with_explicit_warning() -> None:
-    treatment = np.linspace(0.0, 1.0, 80)
-    selected = np.asarray([float(i % 3 != 0) for i in range(80)])
-    outcome = np.where(selected == 1.0, 2.0 + 3.0 * treatment, np.nan)
-
-    result = analyze_observation_response(
-        ["a", "y", "r"],
-        [treatment, outcome, selected],
-        [("a", "y")],
-        "a",
-        "y",
-        [0.2, 0.8],
-        "selected",
-        "y",
-        observed="y",
-        indicator="r",
-        assumption_kind="outcome_independent_given",
-        assumption_variables=["a"],
-    )
-
-    assert result.uncertainty_kind == "none"
-    assert result.lower is None
-    assert result.upper is None
-    assert result.provenance_id == "estimate.response.observation_adjusted"
-    assert any("joint_uncertainty_unavailable" in warning for warning in result.warnings)
-
-
 def test_public_analyze_composes_selected_outcome_into_point_only_curve() -> None:
     treatment = np.linspace(0.0, 1.0, 100)
     selected = np.asarray([float(i % 3 != 0) for i in range(100)])
@@ -137,7 +109,7 @@ def test_public_analyze_composes_selected_outcome_into_point_only_curve() -> Non
     assert result.uncertainty.kind == "none"
     assert result.identification.status == "NonparametricallyIdentified"
     assert result.identification.method == "response.backdoor"
-    assert result.identification.adjustment_set == ["z"]
+    assert result.identification.adjustment_set == tuple(["z"])
     assert result.provenance["operation_id"] == "estimate.response.observation_adjusted"
     assert any("joint_uncertainty_unavailable" in warning for warning in result.support.warnings)
 

@@ -133,7 +133,7 @@ _READER = textwrap.dedent(
 
     found = {}
     for key in ("point_status", "grid", "scope", "id"):
-        found[key] = find(loaded.payload, key, []) + find(loaded.contract, key, [])
+        found[key] = find(loaded.to_dict()["payload"], key, []) + find(loaded.to_dict()["contract"], key, [])
     print(json.dumps({
         "kind": loaded.payload_kind,
         "names": list(loaded.variable_names),

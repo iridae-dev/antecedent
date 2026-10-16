@@ -1,4 +1,4 @@
-//! Planned nuisance-fit counts, derived from the declared configuration of a route (2.2 cost
+//! Planned nuisance-fit counts, derived from the declared configuration of a route (cost
 //! checks).
 //!
 //! A count here is read off the configuration the route executes: the penalty grid and inner

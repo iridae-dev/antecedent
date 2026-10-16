@@ -1,4 +1,4 @@
-"""Portable composed result: build, export and independently consume a bundle (C3).
+"""Portable composed result: build, export and independently consume a bundle.
 
 A bundle links the parts of a composed decision as a typed directed graph: the
 artifacts embedded from their bytes (a joint distribution, an external claim, a
@@ -61,6 +61,8 @@ from inspect import signature as _signature
 from typing import Any, Literal, TypeAlias
 
 from . import _native
+from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
@@ -270,14 +272,13 @@ _STAGE_TYPES: dict[str, type[CompositionBundleRefusal]] = {
 }
 
 
-def _refusal(wire: Mapping[str, Any]) -> CompositionBundleRefusal:
+def _refusal_type(wire: Mapping[str, Any]) -> type[CompositionBundleRefusal]:
     stage = str(wire["detail"]).rpartition(".")[2]
-    return _STAGE_TYPES.get(stage, CompositionBundleRefusal)(wire)
+    return _STAGE_TYPES.get(stage, CompositionBundleRefusal)
 
 
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise _refusal(json.loads(refusal))
+def _refusal(wire: Mapping[str, Any]) -> CompositionBundleRefusal:
+    return _refusal_type(wire)(wire)
 
 
 # ------------------------------------------------------------------ declarations
@@ -367,18 +368,34 @@ class SuppliedSources:
 
 
 def _bytes(data: object) -> bytes:
-    if isinstance(data, (bytes, bytearray, memoryview)):
-        return bytes(data)
+    from ._artifact_protocol import ExportedArtifact, container_bytes
+
+    if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact)):
+        return container_bytes(data)
+    from ._scientific import ScientificResult
+
+    if (
+        isinstance(data, ScientificResult)
+        and type(data).export is ScientificResult.export
+        and getattr(data, "_artifact_bytes", None) is None
+    ):
+        raise CausalTypeError(
+            "this scientific object has no portable artifact; export its owning session or selected record"
+        )
     export = getattr(data, "export", None)
     if callable(export):
         try:
             _signature(export).bind(artifact_id="composition-bundle-node")
-        except (TypeError, ValueError) as error:
-            raise CausalTypeError("artifact export must accept an artifact_id keyword") from error
-        exported = export(artifact_id="composition-bundle-node")
-        if isinstance(exported, bytes):
-            return exported
-    raise CausalTypeError("an artifact is its container bytes (or an object that exports them)")
+        except (TypeError, ValueError):
+            try:
+                _signature(export).bind()
+            except (TypeError, ValueError) as error:
+                raise CausalTypeError(
+                    "artifact export requires explicit query or record arguments; pass its bytes"
+                ) from error
+            return container_bytes(export())
+        return container_bytes(export(artifact_id="composition-bundle-node"))
+    raise CausalTypeError("an artifact is bytes, ExportedArtifact, or an exporting object")
 
 
 def _kind(kind: str, *, allow_auto: bool) -> str:
@@ -450,7 +467,7 @@ class BundleBuilder:
         added, refusal = self._native.add_artifact(
             _kind(kind, allow_auto=True), _bytes(data), node_id
         )
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if added is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native builder returned neither a node nor a refusal")
         self._ids.append(added)
@@ -489,7 +506,7 @@ class BundleBuilder:
             if inspected
             else None,
         )
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         self._ids.append(node_id)
         self._last = node_id
         return self
@@ -517,7 +534,7 @@ class BundleBuilder:
             EdgeDigestMismatchRefusal: the edge would make the graph malformed (a cycle).
         """
         self._require_nodes(upstream, dependent)
-        _raise(self._native.connect(upstream, dependent))
+        raise_refusal(self._native.connect(upstream, dependent), _refusal_type)
         return self
 
     def relate(self, left: str, right: str, relationship: Relationship) -> BundleBuilder:
@@ -536,7 +553,7 @@ class BundleBuilder:
             raise CausalValueError(f"`{relationship}` is not one of {RELATIONSHIPS}")
         self._require_nodes(left, right)
         added, refusal = self._native.relate(left, right, relationship)
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if added is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native builder returned neither a node nor a refusal")
         self._ids.append(added)
@@ -550,7 +567,7 @@ class BundleBuilder:
             CompositionBundleRefusal: the graph is malformed or exceeds a bound.
         """
         built, refusal = self._native.build()
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if built is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native builder returned neither a bundle nor a refusal")
         return Bundle(built)
@@ -615,7 +632,7 @@ class Bundle:
             CompositionBundleRefusal: the bundle exceeds a size or count bound.
         """
         data, refusal = self._native.export(artifact_id)
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         if data is None:  # pragma: no cover - the native contract
             raise CausalValueError("the native export returned neither a result nor a refusal")
         return data
@@ -680,8 +697,8 @@ class Failed:
 NodeStatus: TypeAlias = Verified | ReferenceUnresolved | Failed
 
 
-@dataclass(frozen=True)
-class ConsumedNode:
+@dataclass(repr=False, frozen=True)
+class ConsumedNode(ScientificResult):
     """One consumed node."""
 
     id: str
@@ -731,7 +748,7 @@ def _label(value: str | None) -> ClaimLabel | None:
     return None
 
 
-class ConsumedBundle:
+class ConsumedBundle(ScientificResult):
     """A consumed bundle: every node's status, with inspected results preserved."""
 
     def __init__(self, wire: Mapping[str, Any]) -> None:
@@ -945,7 +962,7 @@ def consume_bundle(
         wire, refusal = _native.consume_source_projection_bundle(
             bytes(data), expected_identity, None if supplied is None else supplied._json(), handles
         )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     if wire is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return ConsumedBundle(json.loads(wire))
@@ -976,7 +993,7 @@ def describe_artifact(kind: NodeKind | Literal["auto"], data: object) -> Artifac
     wire, refusal = _native.composition_describe_artifact(
         _kind(kind, allow_auto=True), _bytes(data)
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     if wire is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native describe returned neither a result nor a refusal")
     body = json.loads(wire)
@@ -1007,7 +1024,7 @@ def mean_decision(
     data, refusal = _native.composition_mean_decision(
         json.dumps(contract._wire()), _bytes(claim), artifact_id
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     if data is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native decision returned neither a result nor a refusal")
     return data

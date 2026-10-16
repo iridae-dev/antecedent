@@ -6,11 +6,12 @@
 //! = 3.75` and `EVPI = 0.75`. The mean fixture has `E[Y | do(a=0)] = 1` and
 //! `E[Y | do(a=1)] = 3` under the affine utility `2x - 1`, so `wait = 1`, `treat = 5`.
 
-use antecedent_core::{
+use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalScientificObject, ExternalTrustState,
-    LawProviderContract, ProviderObjectIdentity, QuantityRole, ScientificQuantity, SupportStatus,
+    LawProviderContract, ProviderObjectIdentity, QuantityRole, ScientificQuantity,
     VerificationProbe, VerificationProbeKind, verify_external_object,
 };
+use antecedent_core::SupportStatus;
 use antecedent_design::composition_boundary::{
     ActionStatus, AtomCombination, AtomPlan, BoundaryError, CalibrationStatus,
     CompositionOperation, CoordinateIssue, DecisionInput, DependenceRoute, EvidenceRelation,
@@ -25,11 +26,12 @@ use antecedent_design::decision_contract::{
 };
 use antecedent_design::decision_eval::{DecisionEvalError, MeanSource, Verdict};
 use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::near_lt_1e12 as near;
 
 fn q(regime: &str, functional: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -44,10 +46,6 @@ fn q(regime: &str, functional: &str) -> ScientificQuantity {
         conditioning: vec![],
         transform_id: "identity".into(),
     }
-}
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
 }
 
 /// Four equally weighted joint draws over `do(a=0)`, `do(a=1)`, `do(a=2)`.
@@ -239,7 +237,7 @@ const SUPPORTED_TWO: [SupportStatus; 2] = [SupportStatus::Supported, SupportStat
 // ---------------------------------------------------------------- trust carriage
 
 #[test]
-fn c1_boundary_metadata_only_native_label_is_refused_as_native() {
+fn boundary_metadata_only_native_label_is_refused_as_native() {
     let error = DecisionInput::from_distribution_artifact(
         "native",
         &labelled_native(),
@@ -266,7 +264,7 @@ fn c1_boundary_metadata_only_native_label_is_refused_as_native() {
 }
 
 #[test]
-fn c1_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() {
+fn boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() {
     let input = DecisionInput::from_distribution_artifact(
         "native",
         &labelled_native(),
@@ -303,7 +301,7 @@ fn c1_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() 
 }
 
 #[test]
-fn c1_boundary_exact_request_verification_needs_a_matching_receipt() {
+fn boundary_exact_request_verification_needs_a_matching_receipt() {
     let claimed = joint(
         "lab",
         "snap-x",
@@ -347,7 +345,7 @@ fn c1_boundary_exact_request_verification_needs_a_matching_receipt() {
 // ----------------------------------------------------------- per-action support
 
 #[test]
-fn c1_boundary_missing_coordinate_beside_supported_action_mean_source() {
+fn boundary_missing_coordinate_beside_supported_action_mean_source() {
     let input = mean_input("grid", "snap-x", &[("do(a=0)", 1.0), ("do(a=1)", 3.0)], &SUPPORTED_TWO);
     let decision =
         evaluate_with_support(&mean_contract(), &[input], &SupportPolicy::compare_supported())
@@ -383,7 +381,7 @@ fn c1_boundary_missing_coordinate_beside_supported_action_mean_source() {
 }
 
 #[test]
-fn c1_boundary_missing_coordinate_beside_supported_action_joint_source() {
+fn boundary_missing_coordinate_beside_supported_action_joint_source() {
     let native = DecisionInput::from_distribution_artifact(
         "native",
         &joint(
@@ -429,7 +427,7 @@ fn c1_boundary_missing_coordinate_beside_supported_action_joint_source() {
 }
 
 #[test]
-fn c1_boundary_missing_evidence_status_excludes_only_that_action() {
+fn boundary_missing_evidence_status_excludes_only_that_action() {
     let input = mean_input(
         "grid",
         "snap-x",
@@ -463,7 +461,7 @@ fn c1_boundary_missing_evidence_status_excludes_only_that_action() {
 }
 
 #[test]
-fn c1_boundary_weak_overlap_is_admitted_only_when_the_policy_allows_it() {
+fn boundary_weak_overlap_is_admitted_only_when_the_policy_allows_it() {
     let make = || {
         mean_input(
             "grid",
@@ -487,7 +485,7 @@ fn c1_boundary_weak_overlap_is_admitted_only_when_the_policy_allows_it() {
 }
 
 #[test]
-fn c1_boundary_all_actions_unsupported_is_a_state_not_an_error() {
+fn boundary_all_actions_unsupported_is_a_state_not_an_error() {
     let input = mean_input("grid", "snap-x", &[("do(a=9)", 7.0)], &[SupportStatus::Supported]);
     let decision = evaluate_with_support(
         &mean_contract(),
@@ -532,7 +530,7 @@ fn c1_boundary_all_actions_unsupported_is_a_state_not_an_error() {
 }
 
 #[test]
-fn c1_boundary_actions_answered_by_different_inputs_compare_by_value_only() {
+fn boundary_actions_answered_by_different_inputs_compare_by_value_only() {
     // `wait` is in the first source only, `treat` in the second only.
     let first = mean_input("first", "snap-1", &[("do(a=0)", 1.0)], &[SupportStatus::Supported]);
     let second = mean_input("second", "snap-2", &[("do(a=1)", 3.0)], &[SupportStatus::Supported]);
@@ -563,7 +561,7 @@ fn c1_boundary_actions_answered_by_different_inputs_compare_by_value_only() {
 // ------------------------------------------------ mean versus outcome law versus joint
 
 #[test]
-fn c1_boundary_a_probability_is_never_answered_from_a_mean() {
+fn boundary_a_probability_is_never_answered_from_a_mean() {
     let contract = contract(vec![
         action("wait", "do(a=0)", "mean", UtilityExpr::Input(0)),
         action("treat", "do(a=1)", "mean", UtilityExpr::Input(0)),
@@ -622,7 +620,7 @@ fn c1_boundary_a_probability_is_never_answered_from_a_mean() {
 }
 
 #[test]
-fn c1_boundary_an_aligned_joint_law_answers_the_probability_a_mean_cannot() {
+fn boundary_an_aligned_joint_law_answers_the_probability_a_mean_cannot() {
     let contract = contract(vec![
         action("wait", "do(a=0)", "outcome", UtilityExpr::Input(0)),
         action("treat", "do(a=1)", "outcome", UtilityExpr::Input(0)),
@@ -674,7 +672,7 @@ fn c1_boundary_an_aligned_joint_law_answers_the_probability_a_mean_cannot() {
 }
 
 #[test]
-fn c1_boundary_mean_sources_leave_nonlinear_and_outcome_law_actions_unevaluated() {
+fn boundary_mean_sources_leave_nonlinear_and_outcome_law_actions_unevaluated() {
     let grid = mean_input("grid", "snap-x", &[("do(a=0)", 1.0), ("do(a=1)", 3.0)], &SUPPORTED_TWO);
     let nonlinear = DecisionAction {
         id: "risky".into(),
@@ -747,7 +745,7 @@ fn contract_of_wait_and_law() -> DecisionContract {
 }
 
 #[test]
-fn c1_boundary_a_mean_source_cannot_supply_paired_draws() {
+fn boundary_a_mean_source_cannot_supply_paired_draws() {
     let error = check_paired_draws(
         &[
             joint_input("native", "engine", "snap-n", &native_record("engine", "snap-n")),
@@ -761,7 +759,7 @@ fn c1_boundary_a_mean_source_cannot_supply_paired_draws() {
 }
 
 #[test]
-fn c1_boundary_composition_rejects_duplicate_inputs_and_unequal_draw_counts() {
+fn boundary_composition_rejects_duplicate_inputs_and_unequal_draw_counts() {
     let first = joint_input("first", "engine", "snap-a", &attested());
     let duplicate = joint_input("first", "lab", "snap-b", &attested());
     let error = check_composition(
@@ -826,7 +824,7 @@ fn native_and_external_mean() -> [DecisionInput; 2] {
 }
 
 #[test]
-fn c1_boundary_shared_data_refuses_independent_pooling() {
+fn boundary_shared_data_refuses_independent_pooling() {
     let inputs = native_and_external_mean();
     let error = check_composition(
         &inputs,
@@ -849,7 +847,7 @@ fn c1_boundary_shared_data_refuses_independent_pooling() {
 }
 
 #[test]
-fn c1_boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_licensed() {
+fn boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_licensed() {
     let native = joint_input("native", "engine", "snap-n", &native_record("engine", "snap-n"));
     let external = joint_input("external", "lab", "snap-x", &attested());
     let pair = [native, external];
@@ -877,13 +875,14 @@ fn c1_boundary_shared_data_refuses_paired_draws_unless_a_joint_law_route_is_lice
         id: "cov-1".into(),
         source_input: "external".into(),
     };
-    let receipt =
-        check_paired_draws(&pair, &[shared_data("native", "external", Some(covariance))]).unwrap();
-    assert_eq!(receipt.routes, vec!["cov-1".to_owned()]);
+    // A covariance cannot pair draws row by row.
+    let error = check_paired_draws(&pair, &[shared_data("native", "external", Some(covariance))])
+        .unwrap_err();
+    assert!(matches!(error, BoundaryError::DependenceRouteNotLicensed { .. }));
 }
 
 #[test]
-fn c1_boundary_a_route_must_be_an_aligned_joint_law_of_the_pair() {
+fn boundary_a_route_must_be_an_aligned_joint_law_of_the_pair() {
     let inputs = native_and_external_mean();
     let on_mean = DependenceRoute {
         kind: RouteKind::Covariance,
@@ -933,7 +932,7 @@ fn c1_boundary_a_route_must_be_an_aligned_joint_law_of_the_pair() {
 }
 
 #[test]
-fn c1_boundary_declared_independence_is_overridden_by_a_shared_snapshot() {
+fn boundary_declared_independence_is_overridden_by_a_shared_snapshot() {
     let first =
         mean_input("first", "same-snapshot", &[("do(a=0)", 1.0)], &[SupportStatus::Supported]);
     let second =
@@ -954,7 +953,7 @@ fn c1_boundary_declared_independence_is_overridden_by_a_shared_snapshot() {
 }
 
 #[test]
-fn c1_boundary_unknown_dependence_is_never_independence() {
+fn boundary_unknown_dependence_is_never_independence() {
     let inputs = native_and_external_mean();
     let unknown = PairRelation {
         left: "native".into(),
@@ -988,7 +987,7 @@ fn c1_boundary_unknown_dependence_is_never_independence() {
 }
 
 #[test]
-fn c1_boundary_an_undeclared_operation_is_refused() {
+fn boundary_an_undeclared_operation_is_refused() {
     let inputs = native_and_external_mean();
     let independent = PairRelation {
         left: "native".into(),
@@ -1026,7 +1025,7 @@ fn c1_boundary_an_undeclared_operation_is_refused() {
 }
 
 #[test]
-fn c1_boundary_borrowing_pooling_transport_and_reuse_are_declared_separately() {
+fn boundary_borrowing_pooling_transport_and_reuse_are_declared_separately() {
     let inputs = native_and_external_mean();
     let relation = |relation: EvidenceRelation| {
         [PairRelation { left: "native".into(), right: "external".into(), relation, route: None }]
@@ -1084,7 +1083,7 @@ fn atom(id: &str, probability: Option<f64>) -> StructuralAtom {
 }
 
 #[test]
-fn c1_boundary_conflicting_atoms_never_become_a_silent_average() {
+fn boundary_conflicting_atoms_never_become_a_silent_average() {
     let atoms = [atom("graph-a", None), atom("graph-b", None)];
     let error = check_atom_combination(&atoms, AtomCombination::WeightedByDeclaredProbabilities)
         .unwrap_err();

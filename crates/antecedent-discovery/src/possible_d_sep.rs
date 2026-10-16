@@ -17,7 +17,7 @@ use crate::orientation::PagOps;
 /// Whether `mid` is a collider on the path through `left`–`mid`–`right`
 /// (arrow into `mid` from both sides).
 #[must_use]
-pub fn is_collider_on_path<G: PagOps>(
+pub(crate) fn is_collider_on_path<G: PagOps>(
     graph: &G,
     left: DenseNodeId,
     mid: DenseNodeId,
@@ -36,7 +36,7 @@ fn arrow_into<G: PagOps>(graph: &G, into: DenseNodeId, from: DenseNodeId) -> boo
 
 /// Whether the consecutive triple may appear on a Possible-D-Sep path.
 #[must_use]
-pub fn pds_triple_ok<G: PagOps>(
+pub(crate) fn pds_triple_ok<G: PagOps>(
     graph: &G,
     left: DenseNodeId,
     mid: DenseNodeId,

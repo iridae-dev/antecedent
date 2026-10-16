@@ -1,8 +1,8 @@
-//! F17: an assumption-sensitivity surface consumed by a `DecisionContract`.
+//! An assumption-sensitivity surface consumed by a `DecisionContract`.
 //!
 //! Every expected value is derived by hand from the declared surfaces:
 //!
-//! * frozen surface (record `2.3B.F17.sensitivity_decision_composition`): `gamma` in
+//! * frozen surface: `gamma` in
 //!   `{0, 1, 2}`, action A has utility `2 - gamma` (2, 1, 0) and action B has utility 1,
 //!   so A leads at 0, they tie at 1 and B leads at 2;
 //! * invariant surface: A is `5 - gamma` (5, 4, 3) against B = 1, so A leads everywhere;
@@ -11,9 +11,8 @@
 //! * no robust action: an effect whose range is `[-1, 2]` at every `gamma` against a status
 //!   quo of 0 (the best action depends on where the range sits), and three actions that
 //!   each lead at one of three points.
-#![allow(clippy::float_cmp, reason = "exact hand-derived grid values")]
 
-use antecedent_core::{QuantityRole, RegimeId, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_design::decision_contract::{DecisionCriterion, StructuralPolicy};
 use antecedent_design::decision_structural::StructuralVerdict;
 use antecedent_design::sensitivity_decision::{
@@ -23,12 +22,10 @@ use antecedent_design::sensitivity_decision::{
     SensitivityOutcome, SensitivityParts, SensitivityProvenance, SurfaceQuantity,
     UncertaintyRelationship, UtilityTerm, contract_from_artifact, evaluate_sensitivity_decision,
 };
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::sensitivity_artifact::{
-    AxisTipping, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
-    JointSensitivityLimits, JointSensitivityRange, JointSensitivityReceipt,
-    JointSensitivityUncertainty, TippingBracket, TippingStatus,
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
+use antecedent_io_core::sensitivity_artifact::{
+    JointFactorView, JointSensitivityView, SourceTipping,
 };
 
 fn scientific(name: &str, units: &str) -> ScientificQuantity {
@@ -97,7 +94,7 @@ fn parts(
         uncertainty: withheld(),
         provenance: SensitivityProvenance {
             source_kind: "supplied_surface".into(),
-            query_binding: "f17-test".into(),
+            query_binding: "sensitivity-test".into(),
             provider_snapshot: "snapshot-1".into(),
             source_regime: "regime:1".into(),
             method: "hand-derived surface".into(),
@@ -140,7 +137,7 @@ fn refusal(error: &IoError) -> (&'static str, &str) {
 }
 
 #[test]
-fn f17_invariant_action_across_the_whole_assumption_range() {
+fn invariant_action_across_the_whole_assumption_range() {
     // A = 5 - gamma = (5, 4, 3) beats B = 1 at every gamma.
     let artifact = SensitivityArtifact::new(parts(
         &[0.0, 1.0, 2.0],
@@ -160,7 +157,7 @@ fn f17_invariant_action_across_the_whole_assumption_range() {
 }
 
 #[test]
-fn f17_frozen_surface_switches_with_an_exact_tie_at_gamma_one() {
+fn frozen_surface_switches_with_an_exact_tie_at_gamma_one() {
     let artifact = SensitivityArtifact::new(frozen_parts()).unwrap();
     let result = evaluate(&artifact);
     let expected = DecisionSwitch {
@@ -188,7 +185,7 @@ fn f17_frozen_surface_switches_with_an_exact_tie_at_gamma_one() {
 }
 
 #[test]
-fn f17_tipping_coordinate_is_the_closed_form_crossing() {
+fn tipping_coordinate_is_the_closed_form_crossing() {
     // 1 - gamma changes sign between 0.5 (+0.5) and 1.5 (-0.5); linear, so gamma* = 1.
     let artifact = SensitivityArtifact::new(parts(
         &[0.0, 0.5, 1.5, 2.0],
@@ -208,7 +205,7 @@ fn f17_tipping_coordinate_is_the_closed_form_crossing() {
 }
 
 #[test]
-fn f17_no_robust_action_when_the_range_straddles_at_every_point() {
+fn no_robust_action_when_the_range_straddles_at_every_point() {
     // The effect lies in [-1, 2] at every gamma; the status quo is 0. At each gamma the
     // lower vertex favors B and the upper vertex favors A.
     let artifact = SensitivityArtifact::new(parts(
@@ -236,7 +233,7 @@ fn f17_no_robust_action_when_the_range_straddles_at_every_point() {
 }
 
 #[test]
-fn f17_alternating_leaders_give_no_robust_action() {
+fn alternating_leaders_give_no_robust_action() {
     // A, B and C each lead at exactly one of the three points: two switches.
     let artifact = SensitivityArtifact::new(parts(
         &[0.0, 1.0, 2.0],
@@ -261,7 +258,7 @@ fn f17_alternating_leaders_give_no_robust_action() {
 }
 
 #[test]
-fn f17_assumption_range_is_not_a_sampling_interval() {
+fn assumption_range_is_not_a_sampling_interval() {
     // The effect's assumption range is [0.5, 1.5], [0.4, 1.4], [0.3, 1.3] against a status
     // quo of 0, so A leads everywhere. The sampling interval [-2, 3] is far wider and, if
     // it were merged into the range, would flip the decision; it must not.
@@ -337,7 +334,7 @@ fn f17_assumption_range_is_not_a_sampling_interval() {
 }
 
 #[test]
-fn f17_unsupported_coordinate_refuses_and_a_subrange_avoids_it() {
+fn unsupported_coordinate_refuses_and_a_subrange_avoids_it() {
     let mut p = frozen_parts();
     p.support = vec![PointSupport::Supported, PointSupport::Unsupported, PointSupport::Supported];
     let artifact = SensitivityArtifact::new(p).unwrap();
@@ -365,7 +362,7 @@ fn f17_unsupported_coordinate_refuses_and_a_subrange_avoids_it() {
 }
 
 #[test]
-fn f17_unevaluated_point_leaves_the_decision_unresolved() {
+fn unevaluated_point_leaves_the_decision_unresolved() {
     let mut p = frozen_parts();
     p.support = vec![PointSupport::Supported, PointSupport::Unevaluated, PointSupport::Supported];
     let artifact = SensitivityArtifact::new(p).unwrap();
@@ -376,7 +373,7 @@ fn f17_unevaluated_point_leaves_the_decision_unresolved() {
 }
 
 #[test]
-fn f17_mixed_estimands_and_foreign_inputs_refuse() {
+fn mixed_estimands_and_foreign_inputs_refuse() {
     // A in dollars against B in quality-adjusted years cannot be compared.
     let mut unlike = frozen_parts();
     unlike.quantities = vec![
@@ -426,7 +423,7 @@ fn f17_mixed_estimands_and_foreign_inputs_refuse() {
 }
 
 #[test]
-fn f17_weights_are_declared_for_point_surfaces_and_never_inferred_from_ranges() {
+fn weights_are_declared_for_point_surfaces_and_never_inferred_from_ranges() {
     let artifact = SensitivityArtifact::new(frozen_parts()).unwrap();
     let bayes = contract_from_artifact(&artifact, StructuralPolicy::BayesOverStructures).unwrap();
 
@@ -470,7 +467,7 @@ fn f17_weights_are_declared_for_point_surfaces_and_never_inferred_from_ranges() 
 }
 
 #[test]
-fn f17_declaration_order_does_not_change_identity_or_decision() {
+fn declaration_order_does_not_change_identity_or_decision() {
     let base = SensitivityArtifact::new(frozen_parts()).unwrap();
     let mut shuffled = frozen_parts();
     shuffled.grid.reverse();
@@ -491,49 +488,35 @@ fn f17_declaration_order_does_not_change_identity_or_decision() {
 }
 
 fn joint_result(
-    factors: Vec<JointFactorBound>,
+    factors: Vec<JointFactorView>,
     (baseline, minimum, maximum): (f64, f64, f64),
-) -> JointMechanismSensitivityResult {
-    JointMechanismSensitivityResult {
+) -> JointSensitivityView {
+    JointSensitivityView {
+        inference_claim: "assumption_range".into(),
+        interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval".into(),
+        withheld_reason_code: "cell_not_licensed".into(),
+        withheld_detail: "joint_sensitivity.interval_withheld".into(),
         query_binding: "binding-1".into(),
         provider_snapshot: "snapshot-1".into(),
-        source_regime: RegimeId::from_raw(1),
-        factors,
+        source_regime: 1,
+        method: "closed-form product-polytope extrema".into(),
         decision_threshold: Some(0.25),
         baseline,
-        range: JointSensitivityRange {
-            minimum,
-            maximum,
-            minimizing_outcome_by_stratum: vec![],
-            maximizing_outcome_by_stratum: vec![],
-            minimizing_parent_level: None,
-            maximizing_parent_level: None,
-        },
-        axis_tipping: vec![AxisTipping {
-            factor: JointFactor::OutcomeKernel,
+        minimum,
+        maximum,
+        factors,
+        axis_tipping: vec![SourceTipping {
+            factor: "outcome_kernel".into(),
+            status: "bracketed".into(),
+            lower: Some(0.16),
+            upper: Some(0.17),
             analytic: Some(5.0 / 30.0),
-            status: TippingStatus::Bracketed,
-            bracket: Some(TippingBracket { lower: 0.16, upper: 0.17, iterations: 3 }),
         }],
-        frontier: vec![],
-        unresolved_detail: None,
-        receipt: JointSensitivityReceipt {
-            method: "closed-form product-polytope extrema",
-            fraction_box: [0.4, 0.0],
-            tolerance: 1e-9,
-            limits: JointSensitivityLimits::default(),
-            memory_limit_bytes: 0,
-            operations_consumed: 0,
-            depth_reached: 0,
-            live_state_bytes: 0,
-            stop: None,
-            explored: vec![],
-            unevaluated: vec![],
-        },
-        interpretation: "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval",
-        inference_claim: "assumption_range",
-        uncertainty: JointSensitivityUncertainty::withheld(),
     }
+}
+
+fn factor(name: &str, max_fraction: f64) -> JointFactorView {
+    JointFactorView { factor: name.into(), max_fraction }
 }
 
 fn adopt_against(status_quo: f64) -> Vec<ActionUtility> {
@@ -544,15 +527,12 @@ fn adopt_against(status_quo: f64) -> Vec<ActionUtility> {
 }
 
 #[test]
-fn f17_a_2_2_joint_sensitivity_result_feeds_a_decision_contract() {
+fn a_joint_sensitivity_result_feeds_a_decision_contract() {
     // One factor, contamination fraction up to 0.4; baseline 0.5; extrema -0.1 and 1.1.
     // The range is linear in the fraction: lower = 0.5 - 0.6 t, upper = 0.5 + 0.6 t with
     // t = fraction / 0.4, so at 0, 0.1, 0.2, 0.3, 0.4 it is 0.5, 0.35, 0.2, 0.05, -0.1 below
     // and 0.5, 0.65, 0.8, 0.95, 1.1 above.
-    let result = joint_result(
-        vec![JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.4 }],
-        (0.5, -0.1, 1.1),
-    );
+    let result = joint_result(vec![factor("outcome_kernel", 0.4)], (0.5, -0.1, 1.1));
     let effect = scientific("effect", "utils");
 
     // A status quo of -0.5 is below the whole range: adopting is invariant.
@@ -568,7 +548,7 @@ fn f17_a_2_2_joint_sensitivity_result_feeds_a_decision_contract() {
     for (actual, expected) in surface.upper.iter().zip([0.5, 0.65, 0.8, 0.95, 1.1]) {
         assert_close(*actual, expected);
     }
-    assert_eq!(artifact.provenance().source_kind, "joint_mechanism_sensitivity_2_2");
+    assert_eq!(artifact.provenance().source_kind, "joint_mechanism_sensitivity");
     assert_eq!(artifact.provenance().source_tipping[0].factor, "outcome_kernel");
     let decided = evaluate(&artifact);
     assert_eq!(decided.outcome, SensitivityOutcome::InvariantAction { action: "adopt".into() });
@@ -601,10 +581,7 @@ fn f17_a_2_2_joint_sensitivity_result_feeds_a_decision_contract() {
 
     // Two factors are exact only at the unperturbed point and the declared box.
     let joint = joint_result(
-        vec![
-            JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.3 },
-            JointFactorBound { factor: JointFactor::SharedParentMarginal, max_fraction: 0.2 },
-        ],
+        vec![factor("outcome_kernel", 0.3), factor("shared_parent_marginal", 0.2)],
         (1.0, 0.2, 1.8),
     );
     let artifact =

@@ -2,7 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExposureLevel, InterferenceFunctional, InterferenceQuery};
+use antecedent_core::{
+    EXPOSURE_LEVEL_TOLERANCE, ExposureLevel, InterferenceFunctional, InterferenceQuery,
+};
 use antecedent_data::{NetworkData, TableView};
 use antecedent_prob::{LaplaceWorkspace, sample_gaussian_mvn};
 use antecedent_stats::{
@@ -12,6 +14,15 @@ use antecedent_stats::{
 use std::collections::BTreeMap;
 
 use crate::EstimationError;
+
+/// Closed exposure match at [`EXPOSURE_LEVEL_TOLERANCE`] (`1e-12`).
+///
+/// Same predicate as interference-query validation and `randomization_mean`.
+#[must_use]
+pub(crate) fn exposure_levels_approx_eq(a: ExposureLevel, b: ExposureLevel) -> bool {
+    (a.own - b.own).abs() <= EXPOSURE_LEVEL_TOLERANCE
+        && (a.neighbors - b.neighbors).abs() <= EXPOSURE_LEVEL_TOLERANCE
+}
 
 /// Complete design-based estimate for an exposure contrast.
 #[derive(Clone, Debug, PartialEq)]
@@ -58,8 +69,10 @@ pub struct BayesianInterferenceEstimate {
 /// finite-network target is the mean potential-outcome contrast over these units.
 /// This is model based and does not inherit the design-based HT guarantee. The
 /// prior is independent `Normal(0, prior_sd²)` on all three coefficients, and the
-/// residual variance is fixed to one. A full-rank observed design and empirical
-/// support for both requested exposure levels are required.
+/// residual variance is fixed to one. Scaling the likelihood by a fitted σ² would
+/// reweight that prior and move the posterior mean, so σ² stays deferred.
+/// A full-rank observed design and empirical support for both requested exposure
+/// levels are required.
 pub fn estimate_interference_bayesian(
     query: &InterferenceQuery,
     data: &NetworkData,
@@ -94,9 +107,11 @@ pub fn estimate_interference_bayesian(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let observed = exposures(assignment, &incoming, &query.exposure)?;
+    // Strict, matching the previous support gate: equality at exactly one tolerance stays out.
     let level_supported = |level: ExposureLevel| {
         observed.iter().any(|e| {
-            (e.own - level.own).abs() < 1e-12 && (e.neighbors - level.neighbors).abs() < 1e-12
+            (e.own - level.own).abs() < EXPOSURE_LEVEL_TOLERANCE
+                && (e.neighbors - level.neighbors).abs() < EXPOSURE_LEVEL_TOLERANCE
         })
     };
     if !level_supported(from) || !level_supported(to) {
@@ -104,6 +119,7 @@ pub fn estimate_interference_bayesian(
             "Bayesian interference refuses an exposure level absent from the realized assignment",
         ));
     }
+    // Residual variance stays 1. Dividing the likelihood by a fitted σ² would move the mean.
     // X = [1, own treatment, treated-neighbor count], row-major for local algebra.
     let x: Vec<[f64; 3]> = observed.iter().map(|e| [1.0, e.own, e.neighbors]).collect();
     let mut precision = [[0.0; 3]; 3];
@@ -124,12 +140,12 @@ pub fn estimate_interference_bayesian(
     for (j, row) in observed_gram.iter_mut().enumerate() {
         row[j] -= prior_precision;
     }
-    if inverse_3(observed_gram).is_none() {
+    if crate::util::invert_fixed(&observed_gram).is_none() {
         return Err(EstimationError::unsupported(
             "observed interference exposure design is rank deficient",
         ));
     }
-    let covariance = inverse_3(precision)
+    let covariance = crate::util::invert_fixed(&precision)
         .ok_or_else(|| EstimationError::unsupported("posterior precision matrix is singular"))?;
     let mut mean = [0.0; 3];
     for (j, value) in mean.iter_mut().enumerate() {
@@ -163,38 +179,6 @@ pub fn estimate_interference_bayesian(
     let contrast_draws = (0..n_draws).map(|i| draws[i]).collect::<Vec<_>>();
     let mean = contrast_draws.iter().sum::<f64>() / n_draws as f64;
     Ok(BayesianInterferenceEstimate { contrast_draws, mean })
-}
-
-fn inverse_3(mut a: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
-    let mut inv = [[0.0; 3]; 3];
-    for (i, row) in inv.iter_mut().enumerate() {
-        row[i] = 1.0;
-    }
-    for col in 0..3 {
-        let pivot =
-            (col..3).max_by(|&lhs, &rhs| a[lhs][col].abs().total_cmp(&a[rhs][col].abs()))?;
-        if a[pivot][col].abs() < 1e-12 {
-            return None;
-        }
-        a.swap(col, pivot);
-        inv.swap(col, pivot);
-        let d = a[col][col];
-        for j in 0..3 {
-            a[col][j] /= d;
-            inv[col][j] /= d;
-        }
-        for row in 0..3 {
-            if row == col {
-                continue;
-            }
-            let f = a[row][col];
-            for j in 0..3 {
-                a[row][j] -= f * a[col][j];
-                inv[row][j] -= f * inv[col][j];
-            }
-        }
-    }
-    Some(inv)
 }
 
 /// Estimate a randomized exposure contrast on a fixed network.
@@ -273,7 +257,10 @@ pub fn estimate_cluster_interference_total(
 /// least eight independent clusters occur in each assignment arm. Thin-arm
 /// designs retain their point estimate but withhold interval inference.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the design, form cluster totals, then the contrast, variance and interval from the same totals"
+)]
 pub fn estimate_cluster_interference_total_with_inference(
     query: &InterferenceQuery,
     data: &NetworkData,
@@ -412,7 +399,8 @@ pub fn estimate_cluster_interference_total_with_inference(
 /// Require the calibrated pointwise cluster interval. This entry point
 /// explicitly refuses thin arms or degenerate between-cluster variation;
 /// callers needing a point estimate may use [`estimate_cluster_interference_total`].
-pub fn estimate_cluster_interference_total_pointwise(
+#[cfg(test)]
+pub(crate) fn estimate_cluster_interference_total_pointwise(
     query: &InterferenceQuery,
     data: &NetworkData,
     assignment: &[bool],
@@ -448,17 +436,6 @@ mod tests {
 
     use super::*;
 
-    struct XorShift(u64);
-
-    impl XorShift {
-        fn next(&mut self) -> u64 {
-            self.0 ^= self.0 << 13;
-            self.0 ^= self.0 >> 7;
-            self.0 ^= self.0 << 17;
-            self.0
-        }
-    }
-
     #[test]
     fn cluster_total_interval_covers_known_truth() {
         // Fixed finite population of cluster potential outcomes with a constant
@@ -484,13 +461,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let clusters = (0..K).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
-        let mut rng = XorShift(0x0BAD_C0DE_D15E_A5E1);
+        let mut rng = crate::splitmix::FixtureRng::new(0x0BAD_C0DE_D15E_A5E1);
         let mut covered = 0_usize;
         let mut supported = 0_usize;
         for _ in 0..REPLICATES {
             let mut order = (0..K).collect::<Vec<_>>();
             for i in (1..K).rev() {
-                let j = (rng.next() as usize) % (i + 1);
+                let j = (rng.next_u64() as usize) % (i + 1);
                 order.swap(i, j);
             }
             let mut treated_cluster = [false; K];

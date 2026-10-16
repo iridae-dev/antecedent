@@ -113,7 +113,7 @@ use crate::error::EstimationError;
 use crate::util::gram;
 
 /// Stable prefix of the inference-diagnostics note recording the tempering factor.
-pub const DEPENDENCE_NOTE_PREFIX: &str = "serial_dependence.long_run_tempering";
+pub(crate) const DEPENDENCE_NOTE_PREFIX: &str = "serial_dependence.long_run_tempering";
 
 /// Assumption id recorded on posteriors fitted under [`SerialDependence::LongRunTempering`].
 pub const DEPENDENCE_ASSUMPTION_ID: &str = "bayes.temporal.long_run_tempering";
@@ -207,7 +207,7 @@ impl DependenceScope {
 
 /// Estimated tempering factor for one design.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct TemperingFactor {
+pub(crate) struct TemperingFactor {
     /// Applied factor `κ̂` (rows weighted `1/κ̂`), after the floor and cap.
     pub kappa: f64,
     /// Combined factor before the floor / cap:
@@ -366,8 +366,11 @@ pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
 ///
 /// Rank-deficient design (the OLS residuals are undefined), a missing treatment
 /// column for [`DependenceScope::Treatment`], or a direction of the wrong length.
-#[allow(clippy::too_many_lines)]
-pub fn long_run_tempering_factor(
+#[allow(
+    clippy::too_many_lines,
+    reason = "build the candidate directions, factor each under the fitted residual model, then pick the driving combination; the stages share the fit and design"
+)]
+pub(crate) fn long_run_tempering_factor(
     design: &CompiledDesign,
     scope: &DependenceScope,
 ) -> Result<TemperingFactor, EstimationError> {
@@ -673,11 +676,13 @@ struct CachedFit {
 
 static FIT_CACHE: std::sync::Mutex<Vec<CachedFit>> = std::sync::Mutex::new(Vec::new());
 
-/// Content fingerprint of the fitted rows (verified by full comparison on a hit).
+/// In-memory content key of the fitted rows (verified by full comparison on a hit).
 fn design_hash(x: &[f64], y: &[f64]) -> u64 {
-    x.iter()
-        .chain(y)
-        .fold(0xcbf2_9ce4_8422_2325_u64, |h, v| (h ^ v.to_bits()).wrapping_mul(0x0100_0000_01b3))
+    let mut hash = antecedent_core::Fnv1a64::new();
+    for v in x.iter().chain(y) {
+        hash.fold(v.to_bits());
+    }
+    hash.finish()
 }
 
 /// The design-level fit of `design`, from the cache when the same rows were fitted
@@ -818,7 +823,14 @@ impl Whitener {
             }
             a[(k - 1) * q + k - 1] -= 1.0;
         }
-        if !solve_dense_in_place(&mut a, &mut rho, q) {
+        // `A` is neither symmetric nor positive definite (a Toeplitz-plus-Hankel system), so
+        // it is solved through the shared equilibrated inverse rather than a Cholesky.
+        let inverse = antecedent_stats::invert_square(&a[..q * q], q)?;
+        let rhs = rho;
+        for (k, r) in rho.iter_mut().enumerate().take(q) {
+            *r = (0..q).map(|j| inverse[k * q + j] * rhs[j]).sum();
+        }
+        if !rho[..q].iter().all(|v| v.is_finite()) {
             return None;
         }
         let gamma0 = 1.0 / (1.0 - phi[..q].iter().zip(&rho).map(|(f, r)| f * r).sum::<f64>());
@@ -984,60 +996,12 @@ fn cholesky_into(a: &[f64], l: &mut [f64], m: usize) -> bool {
     antecedent_kernels::cholesky_spd_into(a, m, l).is_ok()
 }
 
-/// Solve `L L' x = b` from a Cholesky factor.
+/// Solve `L L' x = b` from a Cholesky factor (the shared kernel substitutions).
 fn cholesky_solve(l: &[f64], b: &[f64], m: usize) -> Vec<f64> {
+    let mut y = vec![0.0; m];
     let mut x = vec![0.0; m];
-    cholesky_solve_into(l, b, &mut x, m);
+    antecedent_kernels::chol_solve_into(l, m, b, &mut y, &mut x);
     x
-}
-
-/// [`cholesky_solve`] into `x` (used as the forward-substitution scratch).
-fn cholesky_solve_into(l: &[f64], b: &[f64], x: &mut [f64], m: usize) {
-    for i in 0..m {
-        let s: f64 = (0..i).map(|k| l[i * m + k] * x[k]).sum();
-        x[i] = (b[i] - s) / l[i * m + i];
-    }
-    for i in (0..m).rev() {
-        let s: f64 = (i + 1..m).map(|k| l[k * m + i] * x[k]).sum();
-        x[i] = (x[i] - s) / l[i * m + i];
-    }
-}
-
-/// Gaussian elimination with partial pivoting for a small dense system, in
-/// place: `a` is destroyed and `b` receives the solution (`false` when singular
-/// or non-finite).
-fn solve_dense_in_place(a: &mut [f64], b: &mut [f64], m: usize) -> bool {
-    for col in 0..m {
-        let Some(pivot) = (col..m).max_by(|&i, &j| {
-            a[i * m + col]
-                .abs()
-                .partial_cmp(&a[j * m + col].abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        }) else {
-            return false;
-        };
-        if a[pivot * m + col].abs() < 1e-300 {
-            return false;
-        }
-        if pivot != col {
-            for k in 0..m {
-                a.swap(col * m + k, pivot * m + k);
-            }
-            b.swap(col, pivot);
-        }
-        for row in col + 1..m {
-            let f = a[row * m + col] / a[col * m + col];
-            for k in col..m {
-                a[row * m + k] -= f * a[col * m + k];
-            }
-            b[row] -= f * b[col];
-        }
-    }
-    for i in (0..m).rev() {
-        let s: f64 = (i + 1..m).map(|k| a[i * m + k] * b[k]).sum();
-        b[i] = (b[i] - s) / a[i * m + i];
-    }
-    b[..m].iter().all(|v| v.is_finite())
 }
 
 /// Lagged cross-products of the augmented design `A = [X | e]` (`e` the OLS
@@ -1067,7 +1031,8 @@ struct RemlKernel {
     /// `block(j, k)`.
     lagged: Vec<f64>,
     /// Per-evaluation scratch: the whitened Gram (`m × m`), its `p × p`
-    /// leading block, the factor, `X̃'ẽ` and `β̃`.
+    /// leading block, the factor, `X̃'ẽ`, `β̃` and the
+    /// forward-substitution scratch.
     scratch: std::cell::RefCell<Vec<f64>>,
 }
 
@@ -1115,7 +1080,7 @@ impl RemlKernel {
                 }
             }
         }
-        let scratch = std::cell::RefCell::new(vec![0.0; m * m + 2 * p * p + 2 * p]);
+        let scratch = std::cell::RefCell::new(vec![0.0; m * m + 2 * p * p + 3 * p]);
         Self { n, p, m, max_order: big_q, top, lagged, scratch }
     }
 
@@ -1192,7 +1157,8 @@ fn reml_log_likelihood(z: &[f64], kernel: &RemlKernel) -> f64 {
     let (g, rest) = scratch.split_at_mut(m * m);
     let (gxx, rest) = rest.split_at_mut(p * p);
     let (l, rest) = rest.split_at_mut(p * p);
-    let (xy, beta) = rest.split_at_mut(p);
+    let (xy, rest) = rest.split_at_mut(p);
+    let (beta, y) = rest.split_at_mut(p);
     kernel.whitened_gram(&w, g);
     for a in 0..p {
         gxx[a * p..(a + 1) * p].copy_from_slice(&g[a * m..a * m + p]);
@@ -1201,7 +1167,7 @@ fn reml_log_likelihood(z: &[f64], kernel: &RemlKernel) -> f64 {
     if !cholesky_into(gxx, l, p) {
         return f64::NEG_INFINITY;
     }
-    cholesky_solve_into(l, xy, beta, p);
+    antecedent_kernels::chol_solve_into(l, p, xy, &mut y[..p], beta);
     let rss = g[p * m + p] - beta.iter().zip(&*xy).map(|(b, v)| b * v).sum::<f64>();
     if rss <= 0.0 || rss.is_nan() {
         return f64::NEG_INFINITY;
@@ -1230,7 +1196,7 @@ fn nelder_mead(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
         simplex.push((v, fv));
     }
     let order = |s: &mut Vec<Vertex>| {
-        s.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        s.sort_by(|a, b| a.1.total_cmp(&b.1));
     };
     order(&mut simplex);
     for _ in 0..SIMPLEX_ITERATIONS_PER_DIM * dim {
@@ -1492,6 +1458,14 @@ fn long_run_variance_ratio(s: &[f64], bandwidth: usize) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn design_hash_is_the_word_at_a_time_fnv_over_the_row_bits() {
+        // Independent reference: h = (h ^ bits) * 0x100000001b3 from the FNV offset basis over
+        // the bit patterns of 1.0, 2.0 and -0.5 (Python).
+        assert_eq!(design_hash(&[1.0, 2.0], &[-0.5]), 0x2d1d_1218_6c0f_2fb7);
+        assert_eq!(design_hash(&[], &[]), 0xcbf2_9ce4_8422_2325);
+    }
+
     use super::*;
     use antecedent_core::{CausalRng, VariableId};
     use antecedent_kernels::standard_normal;
@@ -1801,6 +1775,30 @@ mod tests {
             picked_high += usize::from(f.residual_ar_order >= 2);
         }
         assert!(picked_high <= 4, "REML picked q >= 2 on {picked_high}/40 AR(1) designs");
+    }
+
+    #[test]
+    fn yule_walker_solution_matches_the_closed_form_autocorrelations() {
+        // AR(1): gamma0 = 1 / (1 - phi^2). AR(2): rho_1 = phi1 / (1 - phi2) and
+        // gamma0 = (1 - phi2) / ((1 + phi2)((1 - phi2)^2 - phi1^2)).
+        let ar1 = Whitener::new(&[0.6]).unwrap();
+        assert!((ar1.gamma0 - 1.0 / (1.0 - 0.36)).abs() < 1e-12, "{}", ar1.gamma0);
+        let (phi1, phi2) = (0.3, 0.5);
+        let ar2 = Whitener::new(&[phi1, phi2]).unwrap();
+        let expected = (1.0 - phi2) / ((1.0 + phi2) * ((1.0 - phi2).powi(2) - phi1 * phi1));
+        assert!((ar2.gamma0 - expected).abs() < 1e-12, "{} vs {expected}", ar2.gamma0);
+        // The 2x2 covariance block's off-diagonal is gamma0 * rho_1 with the closed form.
+        let rho1 = phi1 / (1.0 - phi2);
+        let l = &ar2.chol;
+        assert!((l[2] * l[0] - expected * rho1).abs() < 1e-12, "{}", l[2] * l[0]);
+    }
+
+    #[test]
+    fn a_unit_root_is_refused_rather_than_solved() {
+        // phi = 1 makes the Yule-Walker system singular; the shared equilibrated inverse
+        // refuses it where the former absolute 1e-300 pivot test would divide by noise.
+        assert!(Whitener::new(&[1.0]).is_none());
+        assert!(Whitener::new(&[1.0 - 1e-6]).is_some());
     }
 
     #[test]

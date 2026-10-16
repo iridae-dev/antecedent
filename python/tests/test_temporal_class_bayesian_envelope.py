@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import json
-import pathlib
 
 import antecedent
 import numpy as np
 import pytest
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 _PIN = load_json(_ROOT / "conformance" / "bayesian" / "temporal_class_envelope" / "expected.json")
 _TRANSFER = load_json(
     _ROOT / "conformance" / "bayesian" / "temporal_class_prior_transfer" / "expected.json"
@@ -163,7 +162,7 @@ def test_class_curve_executes_without_collapsing_graph(inference) -> None:
     assert result.envelope.weight_basis == "completion_enumeration"
     assert len(result.envelope.atom_keys) == 4
     decoded = artifacts.loads(prepared.export_artifact())
-    atoms = decoded.payload["structural_response"]["atoms"]
+    atoms = decoded.to_dict()["payload"]["structural_response"]["atoms"]
     assert len(atoms) == 4
     assert all(atom["response"] is not None for atom in atoms)
 
@@ -285,7 +284,7 @@ def test_temporal_class_identify_preserves_response_schedule() -> None:
     )
     identified = antecedent.identify(graph=_cpdag(), query=query)
     assert len(identified.completion_keys) == 2
-    assert "sequential" in json.dumps(identified.certificate)
+    assert "sequential" in json.dumps(identified.to_dict()["certificate"])
     # Sequence ends at -treatment_lag, preserving both preceding interventions.
     assert [node["offset"] for node in identified.certificate["treatments"]] == [-3, -2]
     assert identified.certificate["outcome"]["offset"] == 0
@@ -307,7 +306,7 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
     query = antecedent.TemporalMediationEffect("t", "m", "y", horizons=[1])
     identified = antecedent.identify(graph=graph, query=query)
     assert len(identified.completion_keys) == 1
-    assert "temporal_mediation" in json.dumps(identified.certificate)
+    assert "temporal_mediation" in json.dumps(identified.to_dict()["certificate"])
     assert identified.certificate["treatments"][0]["offset"] == -1
     assert identified.certificate["outcome"]["offset"] == 0
     prepared = antecedent.estimation.PreparedAnalysis.prepare(
@@ -320,13 +319,27 @@ def test_class_mediation_preserves_functional_and_atom_posterior() -> None:
         bootstrap=0,
     )
     result = prepared.estimate(data)
-    # 0388159c fixed execute_temporal_cpdag_mediation to track shared_design/designs_agree
-    # for Bayesian inference too (previously only the Frequentist arm updated that
-    # bookkeeping, so the post-loop match always fell to the '_' arm and published a NaN
-    # sentinel for the slice). With a single completion the shared-design condition holds
-    # trivially, so the canonical shared-design contrast is now a real, deterministic
-    # BayesianPointwise summary instead of NaN.
-    assert result.ate == pytest.approx(0.43924231380959483, abs=1e-9)
+    # With a single completion the shared-design condition holds trivially, so the
+    # canonical shared-design contrast is a real BayesianPointwise summary (not NaN).
+    # The 64-draw value below is a deterministic function of the hashed per-(horizon,
+    # mechanism) mediation stream derivation, not a numerical truth: any change to that
+    # derivation moves it by Monte Carlo scatter (sd ~7.6e-4 across seeds at 64 draws;
+    # the previous pin, 0.43924, and this one are each within one sd of the mean).
+    # Re-baseline it on such a change, and rely on the large-n_draws reference below
+    # for the estimand.
+    assert result.ate == pytest.approx(0.43824310512138803, abs=1e-9)
+    # Stream-independent reference: the 8192-draw posterior mean is ~0.43873 (0.43875 at
+    # 65536 draws), so the estimand is pinned loosely, independent of RNG streams.
+    large = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=graph,
+        query=query,
+        inference=antecedent.Bayesian(n_draws=8192, backend="conjugate"),
+        class_prior=antecedent.ClassPrior.from_ordered([1.0]),
+        refute=False,
+        bootstrap=0,
+    )
+    assert large.estimate(data).ate == pytest.approx(0.43875, abs=1e-3)
     payload = artifacts.loads(prepared.export_artifact()).payload
     atom = payload["structural_response"]["atoms"][0]
     assert atom["posterior_artifact"]

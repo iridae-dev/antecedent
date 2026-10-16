@@ -1,0 +1,459 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_attribution::AttributionError
+#[non_exhaustive] pub enum antecedent_attribution::DifferenceMeasure
+#[non_exhaustive] pub enum antecedent_attribution::MechanismChangeMethod
+impl core::clone::Clone for antecedent_attribution::AnomalyScores
+impl core::clone::Clone for antecedent_attribution::ArrowStrength
+impl core::clone::Clone for antecedent_attribution::AttributionError
+impl core::clone::Clone for antecedent_attribution::CacheStats
+impl core::clone::Clone for antecedent_attribution::ChangeAttribution
+impl core::clone::Clone for antecedent_attribution::ChangeAttributionResult
+impl core::clone::Clone for antecedent_attribution::ComponentContribution
+impl core::clone::Clone for antecedent_attribution::ComputeBudget
+impl core::clone::Clone for antecedent_attribution::DifferenceMeasure
+impl core::clone::Clone for antecedent_attribution::DistributionChangeOptions
+impl core::clone::Clone for antecedent_attribution::FeatureRelevance
+impl core::clone::Clone for antecedent_attribution::FeatureRelevanceOptions
+impl core::clone::Clone for antecedent_attribution::FitUncertainty
+impl core::clone::Clone for antecedent_attribution::InteractionTerm
+impl core::clone::Clone for antecedent_attribution::MechanismChangeDetection
+impl core::clone::Clone for antecedent_attribution::MechanismChangeMethod
+impl core::clone::Clone for antecedent_attribution::PathContribution
+impl core::clone::Clone for antecedent_attribution::PopulationDoContrast
+impl core::clone::Clone for antecedent_attribution::RobustChangeOptions
+impl core::clone::Clone for antecedent_attribution::RootCauseRank
+impl core::clone::Clone for antecedent_attribution::ShapleyEstimate
+impl core::clone::Clone for antecedent_attribution::StructureChangeOptions
+impl core::clone::Clone for antecedent_attribution::UnitChangeResult
+impl core::cmp::Eq for antecedent_attribution::AttributionError
+impl core::cmp::Eq for antecedent_attribution::DifferenceMeasure
+impl core::cmp::Eq for antecedent_attribution::MechanismChangeMethod
+impl core::cmp::PartialEq for antecedent_attribution::AnomalyScores
+impl core::cmp::PartialEq for antecedent_attribution::AttributionError
+impl core::cmp::PartialEq for antecedent_attribution::DifferenceMeasure
+impl core::cmp::PartialEq for antecedent_attribution::FitUncertainty
+impl core::cmp::PartialEq for antecedent_attribution::MechanismChangeMethod
+impl core::cmp::PartialEq for antecedent_attribution::PopulationDoContrast
+impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent_attribution::AttributionError
+impl core::convert::From<antecedent_counterfactual::error::CounterfactualError> for antecedent_attribution::AttributionError
+impl core::convert::From<antecedent_data::error::DataError> for antecedent_attribution::AttributionError
+impl core::convert::From<antecedent_graph::error::GraphError> for antecedent_attribution::AttributionError
+impl core::convert::From<antecedent_model::error::ModelError> for antecedent_attribution::AttributionError
+impl core::convert::From<antecedent_prob::error::ProbError> for antecedent_attribution::AttributionError
+impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_attribution::AttributionError
+impl core::default::Default for antecedent_attribution::CacheStats
+impl core::default::Default for antecedent_attribution::ChangeAttribution
+impl core::default::Default for antecedent_attribution::ComputeBudget
+impl core::default::Default for antecedent_attribution::DistributionChangeOptions
+impl core::default::Default for antecedent_attribution::RobustChangeOptions
+impl core::default::Default for antecedent_attribution::StructureChangeOptions
+impl core::error::Error for antecedent_attribution::AttributionError
+impl core::fmt::Debug for antecedent_attribution::AnomalyScores
+impl core::fmt::Debug for antecedent_attribution::ArrowStrength
+impl core::fmt::Debug for antecedent_attribution::AttributionError
+impl core::fmt::Debug for antecedent_attribution::CacheStats
+impl core::fmt::Debug for antecedent_attribution::ChangeAttribution
+impl core::fmt::Debug for antecedent_attribution::ChangeAttributionResult
+impl core::fmt::Debug for antecedent_attribution::ComponentContribution
+impl core::fmt::Debug for antecedent_attribution::ComputeBudget
+impl core::fmt::Debug for antecedent_attribution::DifferenceMeasure
+impl core::fmt::Debug for antecedent_attribution::DistributionChangeOptions
+impl core::fmt::Debug for antecedent_attribution::FeatureRelevance
+impl core::fmt::Debug for antecedent_attribution::FeatureRelevanceOptions
+impl core::fmt::Debug for antecedent_attribution::FitUncertainty
+impl core::fmt::Debug for antecedent_attribution::InteractionTerm
+impl core::fmt::Debug for antecedent_attribution::MechanismChangeDetection
+impl core::fmt::Debug for antecedent_attribution::MechanismChangeMethod
+impl core::fmt::Debug for antecedent_attribution::PathContribution
+impl core::fmt::Debug for antecedent_attribution::PopulationDoContrast
+impl core::fmt::Debug for antecedent_attribution::RobustChangeOptions
+impl core::fmt::Debug for antecedent_attribution::RootCauseRank
+impl core::fmt::Debug for antecedent_attribution::ShapleyEstimate
+impl core::fmt::Debug for antecedent_attribution::StructureChangeOptions
+impl core::fmt::Debug for antecedent_attribution::UnitChangeResult
+impl core::fmt::Display for antecedent_attribution::AttributionError
+impl core::hash::Hash for antecedent_attribution::DifferenceMeasure
+impl core::hash::Hash for antecedent_attribution::MechanismChangeMethod
+impl core::marker::Copy for antecedent_attribution::DifferenceMeasure
+impl core::marker::Copy for antecedent_attribution::FeatureRelevanceOptions
+impl core::marker::Copy for antecedent_attribution::MechanismChangeMethod
+impl core::marker::Copy for antecedent_attribution::PopulationDoContrast
+impl core::marker::Freeze for antecedent_attribution::AnomalyScores [auto]
+impl core::marker::Freeze for antecedent_attribution::ArrowStrength [auto]
+impl core::marker::Freeze for antecedent_attribution::AttributionError [auto]
+impl core::marker::Freeze for antecedent_attribution::CacheStats [auto]
+impl core::marker::Freeze for antecedent_attribution::ChangeAttribution [auto]
+impl core::marker::Freeze for antecedent_attribution::ChangeAttributionResult [auto]
+impl core::marker::Freeze for antecedent_attribution::ComponentContribution [auto]
+impl core::marker::Freeze for antecedent_attribution::ComputeBudget [auto]
+impl core::marker::Freeze for antecedent_attribution::DifferenceMeasure [auto]
+impl core::marker::Freeze for antecedent_attribution::DistributionChangeOptions [auto]
+impl core::marker::Freeze for antecedent_attribution::FeatureRelevance [auto]
+impl core::marker::Freeze for antecedent_attribution::FeatureRelevanceOptions [auto]
+impl core::marker::Freeze for antecedent_attribution::FitUncertainty [auto]
+impl core::marker::Freeze for antecedent_attribution::InteractionTerm [auto]
+impl core::marker::Freeze for antecedent_attribution::MechanismChangeDetection [auto]
+impl core::marker::Freeze for antecedent_attribution::MechanismChangeMethod [auto]
+impl core::marker::Freeze for antecedent_attribution::PathContribution [auto]
+impl core::marker::Freeze for antecedent_attribution::PopulationDoContrast [auto]
+impl core::marker::Freeze for antecedent_attribution::RobustChangeOptions [auto]
+impl core::marker::Freeze for antecedent_attribution::RootCauseRank [auto]
+impl core::marker::Freeze for antecedent_attribution::ShapleyEstimate [auto]
+impl core::marker::Freeze for antecedent_attribution::StructureChangeOptions [auto]
+impl core::marker::Freeze for antecedent_attribution::UnitChangeResult [auto]
+impl core::marker::Send for antecedent_attribution::AnomalyScores [auto]
+impl core::marker::Send for antecedent_attribution::ArrowStrength [auto]
+impl core::marker::Send for antecedent_attribution::AttributionError [auto]
+impl core::marker::Send for antecedent_attribution::CacheStats [auto]
+impl core::marker::Send for antecedent_attribution::ChangeAttribution [auto]
+impl core::marker::Send for antecedent_attribution::ChangeAttributionResult [auto]
+impl core::marker::Send for antecedent_attribution::ComponentContribution [auto]
+impl core::marker::Send for antecedent_attribution::ComputeBudget [auto]
+impl core::marker::Send for antecedent_attribution::DifferenceMeasure [auto]
+impl core::marker::Send for antecedent_attribution::DistributionChangeOptions [auto]
+impl core::marker::Send for antecedent_attribution::FeatureRelevance [auto]
+impl core::marker::Send for antecedent_attribution::FeatureRelevanceOptions [auto]
+impl core::marker::Send for antecedent_attribution::FitUncertainty [auto]
+impl core::marker::Send for antecedent_attribution::InteractionTerm [auto]
+impl core::marker::Send for antecedent_attribution::MechanismChangeDetection [auto]
+impl core::marker::Send for antecedent_attribution::MechanismChangeMethod [auto]
+impl core::marker::Send for antecedent_attribution::PathContribution [auto]
+impl core::marker::Send for antecedent_attribution::PopulationDoContrast [auto]
+impl core::marker::Send for antecedent_attribution::RobustChangeOptions [auto]
+impl core::marker::Send for antecedent_attribution::RootCauseRank [auto]
+impl core::marker::Send for antecedent_attribution::ShapleyEstimate [auto]
+impl core::marker::Send for antecedent_attribution::StructureChangeOptions [auto]
+impl core::marker::Send for antecedent_attribution::UnitChangeResult [auto]
+impl core::marker::StructuralPartialEq for antecedent_attribution::AnomalyScores
+impl core::marker::StructuralPartialEq for antecedent_attribution::AttributionError
+impl core::marker::StructuralPartialEq for antecedent_attribution::DifferenceMeasure
+impl core::marker::StructuralPartialEq for antecedent_attribution::FitUncertainty
+impl core::marker::StructuralPartialEq for antecedent_attribution::MechanismChangeMethod
+impl core::marker::StructuralPartialEq for antecedent_attribution::PopulationDoContrast
+impl core::marker::Sync for antecedent_attribution::AnomalyScores [auto]
+impl core::marker::Sync for antecedent_attribution::ArrowStrength [auto]
+impl core::marker::Sync for antecedent_attribution::AttributionError [auto]
+impl core::marker::Sync for antecedent_attribution::CacheStats [auto]
+impl core::marker::Sync for antecedent_attribution::ChangeAttribution [auto]
+impl core::marker::Sync for antecedent_attribution::ChangeAttributionResult [auto]
+impl core::marker::Sync for antecedent_attribution::ComponentContribution [auto]
+impl core::marker::Sync for antecedent_attribution::ComputeBudget [auto]
+impl core::marker::Sync for antecedent_attribution::DifferenceMeasure [auto]
+impl core::marker::Sync for antecedent_attribution::DistributionChangeOptions [auto]
+impl core::marker::Sync for antecedent_attribution::FeatureRelevance [auto]
+impl core::marker::Sync for antecedent_attribution::FeatureRelevanceOptions [auto]
+impl core::marker::Sync for antecedent_attribution::FitUncertainty [auto]
+impl core::marker::Sync for antecedent_attribution::InteractionTerm [auto]
+impl core::marker::Sync for antecedent_attribution::MechanismChangeDetection [auto]
+impl core::marker::Sync for antecedent_attribution::MechanismChangeMethod [auto]
+impl core::marker::Sync for antecedent_attribution::PathContribution [auto]
+impl core::marker::Sync for antecedent_attribution::PopulationDoContrast [auto]
+impl core::marker::Sync for antecedent_attribution::RobustChangeOptions [auto]
+impl core::marker::Sync for antecedent_attribution::RootCauseRank [auto]
+impl core::marker::Sync for antecedent_attribution::ShapleyEstimate [auto]
+impl core::marker::Sync for antecedent_attribution::StructureChangeOptions [auto]
+impl core::marker::Sync for antecedent_attribution::UnitChangeResult [auto]
+impl core::marker::Unpin for antecedent_attribution::AnomalyScores [auto]
+impl core::marker::Unpin for antecedent_attribution::ArrowStrength [auto]
+impl core::marker::Unpin for antecedent_attribution::AttributionError [auto]
+impl core::marker::Unpin for antecedent_attribution::CacheStats [auto]
+impl core::marker::Unpin for antecedent_attribution::ChangeAttribution [auto]
+impl core::marker::Unpin for antecedent_attribution::ChangeAttributionResult [auto]
+impl core::marker::Unpin for antecedent_attribution::ComponentContribution [auto]
+impl core::marker::Unpin for antecedent_attribution::ComputeBudget [auto]
+impl core::marker::Unpin for antecedent_attribution::DifferenceMeasure [auto]
+impl core::marker::Unpin for antecedent_attribution::DistributionChangeOptions [auto]
+impl core::marker::Unpin for antecedent_attribution::FeatureRelevance [auto]
+impl core::marker::Unpin for antecedent_attribution::FeatureRelevanceOptions [auto]
+impl core::marker::Unpin for antecedent_attribution::FitUncertainty [auto]
+impl core::marker::Unpin for antecedent_attribution::InteractionTerm [auto]
+impl core::marker::Unpin for antecedent_attribution::MechanismChangeDetection [auto]
+impl core::marker::Unpin for antecedent_attribution::MechanismChangeMethod [auto]
+impl core::marker::Unpin for antecedent_attribution::PathContribution [auto]
+impl core::marker::Unpin for antecedent_attribution::PopulationDoContrast [auto]
+impl core::marker::Unpin for antecedent_attribution::RobustChangeOptions [auto]
+impl core::marker::Unpin for antecedent_attribution::RootCauseRank [auto]
+impl core::marker::Unpin for antecedent_attribution::ShapleyEstimate [auto]
+impl core::marker::Unpin for antecedent_attribution::StructureChangeOptions [auto]
+impl core::marker::Unpin for antecedent_attribution::UnitChangeResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::AnomalyScores [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::ArrowStrength [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::AttributionError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::CacheStats [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::ChangeAttribution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::ChangeAttributionResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::ComponentContribution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::ComputeBudget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::DifferenceMeasure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::DistributionChangeOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::FeatureRelevance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::FeatureRelevanceOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::FitUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::InteractionTerm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::MechanismChangeDetection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::MechanismChangeMethod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::PathContribution [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::PopulationDoContrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::RobustChangeOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::RootCauseRank [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::ShapleyEstimate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::StructureChangeOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::UnitChangeResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::AnomalyScores [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::ArrowStrength [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::AttributionError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::CacheStats [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::ChangeAttribution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::ChangeAttributionResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::ComponentContribution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::ComputeBudget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::DifferenceMeasure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::DistributionChangeOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::FeatureRelevance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::FeatureRelevanceOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::FitUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::InteractionTerm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::MechanismChangeDetection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::MechanismChangeMethod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::PathContribution [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::PopulationDoContrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::RobustChangeOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::RootCauseRank [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::ShapleyEstimate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::StructureChangeOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::UnitChangeResult [auto]
+pub field antecedent_attribution::AnomalyScores::abs_contribution_sum: alloc::sync::Arc<[f64]>
+pub field antecedent_attribution::AnomalyScores::baseline_scores: alloc::sync::Arc<[f64]>
+pub field antecedent_attribution::AnomalyScores::noise_components: alloc::sync::Arc<[antecedent_core::ids::ComponentId]>
+pub field antecedent_attribution::AnomalyScores::noise_contributions: alloc::sync::Arc<[f64]>
+pub field antecedent_attribution::AnomalyScores::rows: alloc::sync::Arc<[usize]>
+pub field antecedent_attribution::AnomalyScores::scores: alloc::sync::Arc<[f64]>
+pub field antecedent_attribution::AnomalyScores::target: antecedent_core::ids::VariableId
+pub field antecedent_attribution::ArrowStrength::child: antecedent_core::ids::VariableId
+pub field antecedent_attribution::ArrowStrength::coefficient: f64
+pub field antecedent_attribution::ArrowStrength::parent: antecedent_core::ids::VariableId
+pub field antecedent_attribution::ArrowStrength::strength: f64
+pub field antecedent_attribution::CacheStats::bytes: u64
+pub field antecedent_attribution::CacheStats::entries: u64
+pub field antecedent_attribution::CacheStats::hits: u64
+pub field antecedent_attribution::CacheStats::misses: u64
+pub field antecedent_attribution::CacheStats::saturated: bool
+pub field antecedent_attribution::ChangeAttributionResult::budget: antecedent_attribution::ComputeBudget
+pub field antecedent_attribution::ChangeAttributionResult::cache_stats: antecedent_attribution::CacheStats
+pub field antecedent_attribution::ChangeAttributionResult::component_mc_stderr: core::option::Option<alloc::sync::Arc<[f64]>>
+pub field antecedent_attribution::ChangeAttributionResult::contributions: alloc::sync::Arc<[antecedent_attribution::ComponentContribution]>
+pub field antecedent_attribution::ChangeAttributionResult::fit_uncertainty: core::option::Option<antecedent_attribution::FitUncertainty>
+pub field antecedent_attribution::ChangeAttributionResult::graph_sensitivity: core::option::Option<alloc::sync::Arc<[f64]>>
+pub field antecedent_attribution::ChangeAttributionResult::interactions: alloc::sync::Arc<[antecedent_attribution::InteractionTerm]>
+pub field antecedent_attribution::ChangeAttributionResult::monte_carlo_stderr: core::option::Option<f64>
+pub field antecedent_attribution::ChangeAttributionResult::observed_change: core::option::Option<f64>
+pub field antecedent_attribution::ChangeAttributionResult::outcome: antecedent_core::ids::VariableId
+pub field antecedent_attribution::ChangeAttributionResult::path_breakdown: alloc::sync::Arc<[antecedent_attribution::PathContribution]>
+pub field antecedent_attribution::ChangeAttributionResult::total_change: f64
+pub field antecedent_attribution::ChangeAttributionResult::unidentified: alloc::sync::Arc<[antecedent_core::ids::ComponentId]>
+pub field antecedent_attribution::ComponentContribution::ci_high: core::option::Option<f64>
+pub field antecedent_attribution::ComponentContribution::ci_low: core::option::Option<f64>
+pub field antecedent_attribution::ComponentContribution::component: antecedent_core::ids::ComponentId
+pub field antecedent_attribution::ComponentContribution::contribution: f64
+pub field antecedent_attribution::ComponentContribution::stderr: core::option::Option<f64>
+pub field antecedent_attribution::ComputeBudget::evaluations: u64
+pub field antecedent_attribution::ComputeBudget::exact_coalitions: u64
+pub field antecedent_attribution::ComputeBudget::samples: u64
+pub field antecedent_attribution::DistributionChangeOptions::measure: antecedent_attribution::DifferenceMeasure
+pub field antecedent_attribution::DistributionChangeOptions::n_samples: usize
+pub field antecedent_attribution::DistributionChangeOptions::seed: u64
+pub field antecedent_attribution::FeatureRelevance::feature: antecedent_core::ids::VariableId
+pub field antecedent_attribution::FeatureRelevance::outcome: antecedent_core::ids::VariableId
+pub field antecedent_attribution::FeatureRelevance::score: f64
+pub field antecedent_attribution::FeatureRelevanceOptions::delta: f64
+pub field antecedent_attribution::FeatureRelevanceOptions::max_features: usize
+pub field antecedent_attribution::FeatureRelevanceOptions::n_samples: usize
+pub field antecedent_attribution::FitUncertainty::failures: u32
+pub field antecedent_attribution::FitUncertainty::level: f64
+pub field antecedent_attribution::FitUncertainty::lower: core::option::Option<alloc::sync::Arc<[f64]>>
+pub field antecedent_attribution::FitUncertainty::replicates: u32
+pub field antecedent_attribution::FitUncertainty::total_interval: core::option::Option<(f64, f64)>
+pub field antecedent_attribution::FitUncertainty::upper: core::option::Option<alloc::sync::Arc<[f64]>>
+pub field antecedent_attribution::InteractionTerm::a: antecedent_core::ids::ComponentId
+pub field antecedent_attribution::InteractionTerm::b: antecedent_core::ids::ComponentId
+pub field antecedent_attribution::InteractionTerm::value: f64
+pub field antecedent_attribution::MechanismChangeDetection::adjusted_p_value: core::option::Option<f64>
+pub field antecedent_attribution::MechanismChangeDetection::changed: bool
+pub field antecedent_attribution::MechanismChangeDetection::method: alloc::sync::Arc<str>
+pub field antecedent_attribution::MechanismChangeDetection::n_permutations: core::option::Option<usize>
+pub field antecedent_attribution::MechanismChangeDetection::p_value: f64
+pub field antecedent_attribution::MechanismChangeDetection::p_value_floor: core::option::Option<f64>
+pub field antecedent_attribution::MechanismChangeDetection::statistic: f64
+pub field antecedent_attribution::MechanismChangeDetection::variable: antecedent_core::ids::VariableId
+pub field antecedent_attribution::PathContribution::contribution: f64
+pub field antecedent_attribution::PathContribution::path: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_attribution::PopulationDoContrast::contrast: f64
+pub field antecedent_attribution::PopulationDoContrast::stderr: f64
+pub field antecedent_attribution::RobustChangeOptions::max_rows: usize
+pub field antecedent_attribution::RobustChangeOptions::n_samples: usize
+pub field antecedent_attribution::RobustChangeOptions::seed: u64
+pub field antecedent_attribution::RootCauseRank::component: antecedent_core::ids::ComponentId
+pub field antecedent_attribution::RootCauseRank::graph_std: core::option::Option<f64>
+pub field antecedent_attribution::RootCauseRank::score: f64
+pub field antecedent_attribution::ShapleyEstimate::budget: antecedent_attribution::ComputeBudget
+pub field antecedent_attribution::ShapleyEstimate::cache_stats: antecedent_attribution::CacheStats
+pub field antecedent_attribution::ShapleyEstimate::component_mc_stderr: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_attribution::ShapleyEstimate::interactions: alloc::vec::Vec<antecedent_attribution::InteractionTerm>
+pub field antecedent_attribution::ShapleyEstimate::monte_carlo_stderr: core::option::Option<f64>
+pub field antecedent_attribution::ShapleyEstimate::players: alloc::vec::Vec<antecedent_core::ids::ComponentId>
+pub field antecedent_attribution::ShapleyEstimate::values: alloc::vec::Vec<f64>
+pub field antecedent_attribution::StructureChangeOptions::measure: antecedent_attribution::DifferenceMeasure
+pub field antecedent_attribution::StructureChangeOptions::n_samples: usize
+pub field antecedent_attribution::StructureChangeOptions::seed: u64
+pub field antecedent_attribution::UnitChangeResult::budget: antecedent_attribution::ComputeBudget
+pub field antecedent_attribution::UnitChangeResult::cache_stats: antecedent_attribution::CacheStats
+pub field antecedent_attribution::UnitChangeResult::component_mc_stderr: core::option::Option<alloc::sync::Arc<[f64]>>
+pub field antecedent_attribution::UnitChangeResult::components: alloc::sync::Arc<[antecedent_core::ids::ComponentId]>
+pub field antecedent_attribution::UnitChangeResult::contributions: alloc::sync::Arc<[f64]>
+pub field antecedent_attribution::UnitChangeResult::mean_contributions: alloc::sync::Arc<[f64]>
+pub field antecedent_attribution::UnitChangeResult::monte_carlo_stderr: core::option::Option<f64>
+pub field antecedent_attribution::UnitChangeResult::outcome: antecedent_core::ids::VariableId
+pub field antecedent_attribution::UnitChangeResult::unit_rows: alloc::sync::Arc<[usize]>
+pub fn <antecedent_attribution::AttributionError>::const fn invalid_input(message: &'static str) -> Self
+pub fn <antecedent_attribution::AttributionError>::const fn missing_var(kind: &'static str, id: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_attribution::AttributionError>::const fn unsupported(message: &'static str) -> Self
+pub fn <antecedent_attribution::ChangeAttribution>::const fn components(self, components: antecedent_core::query::attribution::AttributionComponents) -> Self
+pub fn <antecedent_attribution::ChangeAttribution>::const fn outcome(self, outcome: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_attribution::ChangeAttribution>::const fn robust(self, robust: bool) -> Self
+pub fn <antecedent_attribution::ChangeAttribution>::const fn with_sampling(self, measure: antecedent_attribution::DifferenceMeasure, n_samples: usize, seed: u64) -> Self
+pub fn <antecedent_attribution::ChangeAttribution>::fn allocation(self, allocation: antecedent_core::query::attribution::AllocationMethod) -> Self
+pub fn <antecedent_attribution::ChangeAttribution>::fn baseline(self, baseline: antecedent_core::query::attribution::PopulationSelector) -> Self
+pub fn <antecedent_attribution::ChangeAttribution>::fn comparison(self, comparison: antecedent_core::query::attribution::PopulationSelector) -> Self
+pub fn <antecedent_attribution::ChangeAttribution>::fn new() -> Self
+pub fn <antecedent_attribution::ChangeAttribution>::fn run(self, model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+pub fn <antecedent_attribution::ChangeAttribution>::fn run_structure(self, baseline_model: &antecedent_model::compile::CompiledCausalModel, comparison_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+pub fn <antecedent_attribution::ChangeAttributionResult>::fn contribution_sum(&self) -> f64
+pub fn <antecedent_attribution::ChangeAttributionResult>::fn unexplained_change(&self) -> core::option::Option<f64>
+pub fn <antecedent_attribution::ShapleyEstimate>::fn into_contributions(self) -> alloc::vec::Vec<antecedent_attribution::ComponentContribution>
+pub fn antecedent_attribution::anomaly::arrow_strengths(model: &antecedent_model::compile::CompiledCausalModel) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::ArrowStrength>, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::anomaly::population_do_contrast(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, parent: antecedent_core::ids::VariableId, child: antecedent_core::ids::VariableId, delta: f64, max_units: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::PopulationDoContrast, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::anomaly::score_anomalies(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::AnomalyAttributionQuery) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::AnomalyScores>, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::anomaly::score_anomalies_with(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::AnomalyAttributionQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::AnomalyScores>, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::detect_mechanism_changes(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::MechanismChangeQuery, method: antecedent_attribution::MechanismChangeMethod, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::MechanismChangeDetection>, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::distribution_change(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::DistributionChangeOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::distribution_change::distribution_change_with_row_weights(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::DistributionChangeOptions, baseline_weights: &[f64], comparison_weights: &[f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::distribution_change_robust(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::RobustChangeOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::estimate_shapley<P: antecedent_attribution::CoalitionPayoff>(players: &[antecedent_core::ids::ComponentId], config: &antecedent_core::query::attribution::ShapleyConfig, payoff: &mut P, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ShapleyEstimate, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::feature_relevance(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, outcome: antecedent_core::ids::VariableId, features: &[antecedent_core::ids::VariableId], options: &antecedent_attribution::FeatureRelevanceOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::FeatureRelevance>, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::path::path_decompose(model: &antecedent_model::compile::CompiledCausalModel, sources: &[antecedent_core::ids::VariableId], outcome: antecedent_core::ids::VariableId, max_paths: usize, max_len: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::population::resolve_rows(data: &antecedent_data::dataset::TabularData, selector: &antecedent_core::query::attribution::PopulationSelector) -> core::result::Result<alloc::vec::Vec<usize>, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::root_cause::root_cause_rank(attribution: &antecedent_attribution::ChangeAttributionResult, graph_samples: core::option::Option<&antecedent_prob::graph_samples::WeightedGraphSamples>, contribution_draws: core::option::Option<&antecedent_prob::posterior::PosteriorDraws>, _ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::RootCauseRank>, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::structure_change(baseline_model: &antecedent_model::compile::CompiledCausalModel, comparison_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::StructureChangeOptions, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::unit_change(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::UnitChangeQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_attribution::UnitChangeResult, antecedent_attribution::AttributionError>
+pub mod antecedent_attribution::anomaly
+pub mod antecedent_attribution::builder
+pub mod antecedent_attribution::change_common
+pub mod antecedent_attribution::coalition
+pub mod antecedent_attribution::distribution_change
+pub mod antecedent_attribution::error
+pub mod antecedent_attribution::feature_relevance
+pub mod antecedent_attribution::mechanism_change
+pub mod antecedent_attribution::path
+pub mod antecedent_attribution::population
+pub mod antecedent_attribution::result
+pub mod antecedent_attribution::robust
+pub mod antecedent_attribution::root_cause
+pub mod antecedent_attribution::shapley
+pub mod antecedent_attribution::structure_change
+pub mod antecedent_attribution::unit_change
+pub struct antecedent_attribution::AnomalyScores
+pub struct antecedent_attribution::ArrowStrength
+pub struct antecedent_attribution::CacheStats
+pub struct antecedent_attribution::ChangeAttribution
+pub struct antecedent_attribution::ChangeAttribution has private fields
+pub struct antecedent_attribution::ChangeAttributionResult
+pub struct antecedent_attribution::ComponentContribution
+pub struct antecedent_attribution::ComputeBudget
+pub struct antecedent_attribution::DistributionChangeOptions
+pub struct antecedent_attribution::FeatureRelevance
+pub struct antecedent_attribution::FeatureRelevanceOptions
+pub struct antecedent_attribution::FitUncertainty
+pub struct antecedent_attribution::InteractionTerm
+pub struct antecedent_attribution::MechanismChangeDetection
+pub struct antecedent_attribution::PathContribution
+pub struct antecedent_attribution::PopulationDoContrast
+pub struct antecedent_attribution::RobustChangeOptions
+pub struct antecedent_attribution::RootCauseRank
+pub struct antecedent_attribution::ShapleyEstimate
+pub struct antecedent_attribution::StructureChangeOptions
+pub struct antecedent_attribution::UnitChangeResult
+pub trait antecedent_attribution::CoalitionPayoff
+pub trait fn fn antecedent_attribution::CoalitionPayoff::fork<'a>(self: &'a Self) -> core::option::Option<alloc::boxed::Box<dyn antecedent_attribution::CoalitionPayoff + core::marker::Send + 'a>> {default}
+pub trait fn fn antecedent_attribution::CoalitionPayoff::value(&mut self, mask: u64) -> core::result::Result<f64, antecedent_attribution::AttributionError>
+pub use antecedent_attribution::anomaly::AnomalyScores = antecedent_attribution::AnomalyScores
+pub use antecedent_attribution::anomaly::ArrowStrength = antecedent_attribution::ArrowStrength
+pub use antecedent_attribution::anomaly::PopulationDoContrast = antecedent_attribution::PopulationDoContrast
+pub use antecedent_attribution::arrow_strengths = antecedent_attribution::anomaly::arrow_strengths
+pub use antecedent_attribution::builder::ChangeAttribution = antecedent_attribution::ChangeAttribution
+pub use antecedent_attribution::change_common::DifferenceMeasure = antecedent_attribution::DifferenceMeasure
+pub use antecedent_attribution::distribution_change::DifferenceMeasure = antecedent_attribution::DifferenceMeasure
+pub use antecedent_attribution::distribution_change::DistributionChangeOptions = antecedent_attribution::DistributionChangeOptions
+pub use antecedent_attribution::distribution_change::distribution_change = antecedent_attribution::distribution_change
+pub use antecedent_attribution::distribution_change_with_row_weights = antecedent_attribution::distribution_change::distribution_change_with_row_weights
+pub use antecedent_attribution::error::AttributionError = antecedent_attribution::AttributionError
+pub use antecedent_attribution::feature_relevance::FeatureRelevanceOptions = antecedent_attribution::FeatureRelevanceOptions
+pub use antecedent_attribution::feature_relevance::feature_relevance = antecedent_attribution::feature_relevance
+pub use antecedent_attribution::mechanism_change::MechanismChangeMethod = antecedent_attribution::MechanismChangeMethod
+pub use antecedent_attribution::mechanism_change::detect_mechanism_changes = antecedent_attribution::detect_mechanism_changes
+pub use antecedent_attribution::path_decompose = antecedent_attribution::path::path_decompose
+pub use antecedent_attribution::population_do_contrast = antecedent_attribution::anomaly::population_do_contrast
+pub use antecedent_attribution::resolve_rows = antecedent_attribution::population::resolve_rows
+pub use antecedent_attribution::result::CacheStats = antecedent_attribution::CacheStats
+pub use antecedent_attribution::result::ChangeAttributionResult = antecedent_attribution::ChangeAttributionResult
+pub use antecedent_attribution::result::ComponentContribution = antecedent_attribution::ComponentContribution
+pub use antecedent_attribution::result::ComputeBudget = antecedent_attribution::ComputeBudget
+pub use antecedent_attribution::result::FeatureRelevance = antecedent_attribution::FeatureRelevance
+pub use antecedent_attribution::result::FitUncertainty = antecedent_attribution::FitUncertainty
+pub use antecedent_attribution::result::InteractionTerm = antecedent_attribution::InteractionTerm
+pub use antecedent_attribution::result::MechanismChangeDetection = antecedent_attribution::MechanismChangeDetection
+pub use antecedent_attribution::result::PathContribution = antecedent_attribution::PathContribution
+pub use antecedent_attribution::result::RootCauseRank = antecedent_attribution::RootCauseRank
+pub use antecedent_attribution::result::UnitChangeResult = antecedent_attribution::UnitChangeResult
+pub use antecedent_attribution::robust::RobustChangeOptions = antecedent_attribution::RobustChangeOptions
+pub use antecedent_attribution::robust::distribution_change_robust = antecedent_attribution::distribution_change_robust
+pub use antecedent_attribution::root_cause_rank = antecedent_attribution::root_cause::root_cause_rank
+pub use antecedent_attribution::score_anomalies = antecedent_attribution::anomaly::score_anomalies
+pub use antecedent_attribution::score_anomalies_with = antecedent_attribution::anomaly::score_anomalies_with
+pub use antecedent_attribution::shapley::CoalitionPayoff = antecedent_attribution::CoalitionPayoff
+pub use antecedent_attribution::shapley::ShapleyEstimate = antecedent_attribution::ShapleyEstimate
+pub use antecedent_attribution::shapley::estimate_shapley = antecedent_attribution::estimate_shapley
+pub use antecedent_attribution::structure_change::StructureChangeOptions = antecedent_attribution::StructureChangeOptions
+pub use antecedent_attribution::structure_change::structure_change = antecedent_attribution::structure_change
+pub use antecedent_attribution::unit_change::unit_change = antecedent_attribution::unit_change
+pub variant antecedent_attribution::AttributionError::Budget { message: alloc::string::String }
+pub variant antecedent_attribution::AttributionError::Cache { message: alloc::string::String }
+pub variant antecedent_attribution::AttributionError::Cancelled
+pub variant antecedent_attribution::AttributionError::Counterfactual(antecedent_counterfactual::error::CounterfactualError)
+pub variant antecedent_attribution::AttributionError::Data(antecedent_data::error::DataError)
+pub variant antecedent_attribution::AttributionError::ExactShapleyRejected { n_components: usize, max: usize }
+pub variant antecedent_attribution::AttributionError::Graph(antecedent_graph::error::GraphError)
+pub variant antecedent_attribution::AttributionError::InvalidInput { message: &'static str }
+pub variant antecedent_attribution::AttributionError::MechanismCoeffMismatch
+pub variant antecedent_attribution::AttributionError::Message(alloc::string::String)
+pub variant antecedent_attribution::AttributionError::MissingArtifact(&'static str)
+pub variant antecedent_attribution::AttributionError::MissingEdgeCoefficient
+pub variant antecedent_attribution::AttributionError::MissingVariable { kind: &'static str, id: antecedent_core::ids::VariableId }
+pub variant antecedent_attribution::AttributionError::Model(antecedent_model::error::ModelError)
+pub variant antecedent_attribution::AttributionError::NonLinearGaussianMechanism
+pub variant antecedent_attribution::AttributionError::PopulationOutOfRange { kind: &'static str, index: usize, limit: usize }
+pub variant antecedent_attribution::AttributionError::Prob(antecedent_prob::error::ProbError)
+pub variant antecedent_attribution::AttributionError::Query(antecedent_core::query::error::QueryError)
+pub variant antecedent_attribution::AttributionError::SizeLimit { kind: &'static str, requested: usize, max: usize }
+pub variant antecedent_attribution::AttributionError::Stats(antecedent_stats::error::StatsError)
+pub variant antecedent_attribution::AttributionError::UnknownPlayer
+pub variant antecedent_attribution::AttributionError::Unsupported { message: &'static str }
+pub variant antecedent_attribution::DifferenceMeasure::GaussianKl
+pub variant antecedent_attribution::DifferenceMeasure::MeanDiff
+pub variant antecedent_attribution::DifferenceMeasure::VarianceDiff
+pub variant antecedent_attribution::MechanismChangeMethod::ChangePoint
+pub variant antecedent_attribution::MechanismChangeMethod::ClassifierTwoSample
+pub variant antecedent_attribution::MechanismChangeMethod::KernelTwoSample
+pub variant antecedent_attribution::MechanismChangeMethod::LikelihoodRatio
+pub variant antecedent_attribution::MechanismChangeMethod::MeanDiff

@@ -1,4 +1,4 @@
-"""The 2.3 acceptance lifecycle: identify, bind a foreign result, decide, hand off.
+"""The acceptance lifecycle: identify, bind a foreign result, decide, hand off.
 
 Identify a response curve, derive what an external provider must supply, bind an
 attested provider's grid, inspect and export the claim, decide between two
@@ -256,4 +256,4 @@ def _as_outcome(quantity: ScientificQuantity) -> ScientificQuantity:
 
 
 # Not covered: the lifecycle's final step, "rank a study", because expected
-# value of sample information and design ranking (TODO B0.2) do not exist yet.
+# value of sample information and design ranking are not part of this lifecycle.

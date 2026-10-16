@@ -1,4 +1,4 @@
-"""Joint vector-treatment coefficients (B4).
+"""Joint vector-treatment coefficients.
 
 Several treatments are estimated *together* by one regression that shares ONE adjustment set
 and ONE row snapshot. The answer is a named coefficient vector, its **full** covariance
@@ -53,9 +53,9 @@ from typing import Any
 
 import numpy as np
 
-from ._b4_refusal import StructuredRefusal
 from ._native import consume_vector_treatment_artifact as _consume
 from ._native import evaluate_vector_treatment as _evaluate
+from ._refusal import StructuredRefusal
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [
@@ -471,9 +471,9 @@ def joint_effects(
         "contrasts": declared_contrasts,
     }
     report, artifact, refusal = _evaluate(
-        y.tolist(),
-        [v.tolist() for v in adjustment.values()],
-        [v.tolist() for _, v, _ in prepared],
+        y,
+        list(adjustment.values()),
+        [v for _, v, _ in prepared],
         json.dumps(declaration, allow_nan=False),
         _name(artifact_id, "artifact_id"),
     )

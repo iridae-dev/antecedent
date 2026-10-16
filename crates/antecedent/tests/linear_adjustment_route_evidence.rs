@@ -3,9 +3,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, StructureSource, Study};
-use antecedent_core::{ExecutionContext, SlotAvailability};
+use antecedent_contract::SlotAvailability;
+use antecedent_core::ExecutionContext;
 use antecedent_io::consume_analysis_result;
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use common::fixtures::confounded_scm;
@@ -69,14 +71,21 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
     let result = prepared.estimate(&data, &ctx).unwrap();
     // The fixture is generated from y = 2*t + z + noise and the graph supplies
     // the complete back-door adjustment set {z}; this is an independent truth.
-    assert!((result.estimate.ate - 2.0).abs() < 0.2, "{coordinate}: ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
+        "{coordinate}: ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
     assert!(
-        (refreshed.estimate.ate - 2.0).abs() < 0.2,
+        (refreshed.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2,
         "{coordinate}: refreshed ate={}",
-        refreshed.estimate.ate
+        refreshed.estimate.as_effect().unwrap().ate
     );
-    assert_eq!(result.estimate.ate.to_bits(), refreshed.estimate.ate.to_bits());
+    assert_eq!(
+        result.estimate.as_effect().unwrap().ate.to_bits(),
+        refreshed.estimate.as_effect().unwrap().ate.to_bits()
+    );
     assert!(
         prepared.checked_linear_adjustment().is_some(),
         "{coordinate} lost its checked lowering after refresh"

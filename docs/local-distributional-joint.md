@@ -1,6 +1,6 @@
 # Local targets, outcome distributions, and joint interventions
 
-Install Antecedent from PyPI with `python -m pip install antecedent`. See the [example setup](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/README.md#python-environment). Run the Python blocks below in order in one interpreter. They use NumPy and Antecedent, with no optional causal-learning package.
+Install Antecedent from PyPI with `python -m pip install antecedent`. See the [example setup](https://github.com/iridae-dev/antecedent/blob/v2.4.0/examples/README.md#python-environment). Run the Python blocks below in order in one interpreter. They use NumPy and Antecedent, with no optional causal-learning package.
 
 ## Prepare once, change the target population
 
@@ -212,5 +212,5 @@ certified; Unknown tiers do not. `continuous_cell` does not license a point
 intervention on a continuous mediator.
 
 See the [support matrix](support-matrix.md) for the current scope and per-cell
-evidence, and the [artifact guide](artifacts.md#package-15-payloads) for saved
+evidence, and the [artifact guide](artifacts.md#score-tables-and-distribution-payloads) for saved
 payload semantics.

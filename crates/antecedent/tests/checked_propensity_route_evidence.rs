@@ -118,10 +118,10 @@ fn propensity_estimators_retain_procedure_through_public_lifecycle() {
                     assert!(!result.refutations.is_empty());
                 }
                 if estimator == EstimatorId::PropensityWeighting {
-                    assert!(result.estimate.se_bootstrap.is_some());
+                    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_some());
                 } else {
-                    assert!(result.estimate.se_analytic.is_finite());
-                    assert!(result.estimate.se_bootstrap.is_none());
+                    assert!(result.estimate.as_effect().unwrap().se_analytic().is_finite());
+                    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_none());
                 }
 
                 let refreshed_data = make_data(4.0);

@@ -31,10 +31,6 @@ pub(crate) enum EvalOp {
     },
     Kernel {
         body: usize,
-        #[allow(dead_code)]
-        population: PopulationKeyId,
-        #[allow(dead_code)]
-        regime: Option<RegimeId>,
     },
     Product {
         children: Arc<[usize]>,
@@ -235,7 +231,7 @@ impl CompiledEvaluator {
                     provider.probability(&spec, env, ctx)
                 })
             }
-            EvalOp::Kernel { body, .. } => self.eval_slot(arena, provider, ctx, env, *body),
+            EvalOp::Kernel { body } => self.eval_slot(arena, provider, ctx, env, *body),
             EvalOp::Product { children } => {
                 let mut prod = 1.0;
                 for &c in children.iter() {
@@ -496,9 +492,9 @@ fn compile_rec(
             population,
             regime,
         },
-        ExprNode::Kernel { body, population, regime, .. } => {
+        ExprNode::Kernel { body, .. } => {
             let compiled = compile_rec(arena, body, ops, expr_to_slot)?;
-            EvalOp::Kernel { body: compiled, population, regime }
+            EvalOp::Kernel { body: compiled }
         }
         ExprNode::Product(list) => {
             let mut children = Vec::new();
@@ -544,7 +540,7 @@ fn compute_density_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[Var
     for op in ops {
         let mut vars: Vec<VariableId> = match op {
             EvalOp::Distribution { variables, .. } => arena.var_set(*variables).to_vec(),
-            EvalOp::Kernel { body, .. } => out[*body].to_vec(),
+            EvalOp::Kernel { body } => out[*body].to_vec(),
             EvalOp::Product { children } => {
                 children.iter().flat_map(|&c| out[c].iter().copied()).collect()
             }
@@ -585,7 +581,7 @@ fn compute_free_vars(ops: &[EvalOp], arena: &CausalExprArena) -> Vec<Arc<[Variab
                 vars.extend(bound.iter().filter(|a| a.is_symbolic()).map(|a| a.variable));
                 vars
             }
-            EvalOp::Kernel { body, .. } => out[*body].to_vec(),
+            EvalOp::Kernel { body } => out[*body].to_vec(),
             EvalOp::Product { children } => {
                 children.iter().flat_map(|&c| out[c].iter().copied()).collect()
             }
@@ -617,9 +613,7 @@ mod tests {
     use crate::{InterventionAssignment, OutcomeExprId, SimplifyError};
     use antecedent_core::Value;
 
-    fn v(id: u32) -> VariableId {
-        VariableId::from_raw(id)
-    }
+    use crate::test_variable as v;
 
     fn f(x: f64) -> Value {
         Value::f64(x)

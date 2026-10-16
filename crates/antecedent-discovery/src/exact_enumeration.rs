@@ -13,29 +13,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
-use std::collections::HashSet;
-
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_prob::kish_ess;
-use antecedent_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
+use antecedent_state::GraphScoreFamily;
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorEngine, GraphPrior, accumulate_marginals,
-    analytic_graph_diagnostics, mask_is_dag, n_directed_edges, normalize_log_weights, set_edge,
+    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorEngine, GraphPrior, SamplingSummary,
+    accumulate_marginals, analytic_graph_diagnostics, edge_bit, normalize_log_weights,
 };
-use crate::graph_score::{score_dag_mask, tabular_score_data};
+use crate::graph_score::{DagScorer, tabular_score_data};
 
 /// Exact enumeration engine for labeled DAGs on `n ≤ `[`EXACT_ENUM_MAX_NODES`] nodes.
 ///
@@ -66,16 +55,19 @@ impl ExactDagPosterior {
     /// # Errors
     ///
     /// Unsupported size, data/score failures, empty valid support, or memory budget.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
         variables: &[VariableId],
         prior: &GraphPrior,
         score_family: GraphScoreFamily,
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        let _ = workspace;
         prior.constraints.validate()?;
         let n = variables.len();
         if n == 0 {
@@ -89,11 +81,10 @@ impl ExactDagPosterior {
                  use order_mcmc, structure_mcmc, or ci_screened_posterior",
             ));
         }
-        if n_directed_edges(n) > 63 {
-            return Err(DiscoveryError::unsupported(
-                "exact DAG posterior adjacency exceeds 63 directed edges",
-            ));
-        }
+        crate::graph_posterior::ensure_directed_mask_fits(
+            n,
+            "exact DAG posterior adjacency exceeds 63 directed edges",
+        )?;
 
         let score_data = tabular_score_data(data, variables)?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
@@ -115,56 +106,21 @@ impl ExactDagPosterior {
         }
 
         let masks = enumerate_unique_dags(n);
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
-        let chunk = masks.len().div_ceil(threads).max(1);
-        let mut log_w = vec![f64::NEG_INFINITY; masks.len()];
+        let scorer = DagScorer::new(n, &score_data, score_family, prior, variables);
+        let scored = ctx.map_indexed(masks.len(), |index, inner| {
+            if inner.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
+            Ok(match scorer.score(masks[index]) {
+                Some(lw) => (lw, 0u64),
+                None => (f64::NEG_INFINITY, 1u64),
+            })
+        })?;
+        let mut log_w = Vec::with_capacity(scored.len());
         let mut rejected = 0u64;
-        let mut worker_panicked = false;
-
-        std::thread::scope(|scope| {
-            let mut handles = Vec::new();
-            for (chunk_id, start) in (0..masks.len()).step_by(chunk).enumerate() {
-                let end = (start + chunk).min(masks.len());
-                let masks_ref = &masks;
-                let score_ref = &score_data;
-                let vars_ref = variables;
-                handles.push(scope.spawn(move || {
-                    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-                        data_version: 1,
-                        family: score_family,
-                        var_fingerprint: n as u64,
-                        penalty_fingerprint: score_data.n_rows as u64,
-                    });
-                    let mut local_log = vec![f64::NEG_INFINITY; end - start];
-                    let mut local_rej = 0u64;
-                    for (k, &mask) in masks_ref[start..end].iter().enumerate() {
-                        if ctx.cancellation.is_cancelled() {
-                            break;
-                        }
-                        match score_dag_mask(mask, n, score_ref, &mut cache, prior, vars_ref) {
-                            Some(lw) => local_log[k] = lw,
-                            None => local_rej += 1,
-                        }
-                    }
-                    (chunk_id, start, local_log, local_rej)
-                }));
-            }
-            for h in handles {
-                let Ok((_id, start, local_log, local_rej)) = h.join() else {
-                    worker_panicked = true;
-                    continue;
-                };
-                rejected += local_rej;
-                for (i, lw) in local_log.into_iter().enumerate() {
-                    log_w[start + i] = lw;
-                }
-            }
-        });
-
-        if worker_panicked {
-            return Err(DiscoveryError::Unsupported {
-                message: "exact enumeration worker panicked",
-            });
+        for (lw, rej) in scored {
+            log_w.push(lw);
+            rejected += rej;
         }
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -192,7 +148,14 @@ impl ExactDagPosterior {
                  (e.g. a deterministic relation)"
             )));
         }
-        GraphPosterior::new(n, weights, kept_masks, edge, orient, ess, diagnostics, rejected)
+        GraphPosterior::new(
+            n,
+            weights,
+            kept_masks,
+            edge,
+            orient,
+            SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
+        )
     }
 }
 
@@ -210,49 +173,75 @@ impl GraphPosteriorEngine for ExactDagPosterior {
     }
 }
 
-/// Unique labeled DAGs on `n` nodes via topo-order × forward-edge subsets + dedup.
+/// Every labeled DAG on `n` nodes exactly once, as packed adjacency masks in ascending order.
+///
+/// Built by adding node `k` to each DAG on nodes `0..k`: choose its children `T`, then its
+/// parents from the nodes that are not `T` or a descendant of `T` (those would close a cycle).
+/// Removing the highest node maps each DAG back to a unique smaller one, so no deduplication
+/// is needed.
 pub(crate) fn enumerate_unique_dags(n: usize) -> Vec<u64> {
-    let mut seen = HashSet::new();
-    let mut order: Vec<usize> = (0..n).collect();
-    permute_and_collect(n, &mut order, 0, &mut seen);
-    let mut out: Vec<u64> = seen.into_iter().collect();
+    assert!(n <= MAX_ENUM_NODES, "DAG enumeration packs masks into u64");
+    let mut bit = [[0u64; MAX_ENUM_NODES]; MAX_ENUM_NODES];
+    for (from, row) in bit.iter_mut().enumerate().take(n) {
+        for (to, slot) in row.iter_mut().enumerate().take(n) {
+            if from != to {
+                *slot = 1u64 << edge_bit(n, from, to);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    grow_dags(n, 0, [0u8; MAX_ENUM_NODES], 0, &bit, &mut out);
     out.sort_unstable();
     out
 }
 
-fn permute_and_collect(n: usize, order: &mut [usize], k: usize, seen: &mut HashSet<u64>) {
+const MAX_ENUM_NODES: usize = 8;
+
+/// `descendants[v]` holds the strict descendants of `v` among the first `k` nodes.
+fn grow_dags(
+    n: usize,
+    k: usize,
+    descendants: [u8; MAX_ENUM_NODES],
+    mask: u64,
+    bit: &[[u64; MAX_ENUM_NODES]; MAX_ENUM_NODES],
+    out: &mut Vec<u64>,
+) {
     if k == n {
-        let n_fwd = n * (n.saturating_sub(1)) / 2;
-        let limit = 1u64 << n_fwd;
-        for edge_mask in 0..limit {
-            let mut adj = 0u64;
-            let mut bit = 0u32;
-            for a in 0..n {
-                for b in (a + 1)..n {
-                    if (edge_mask >> bit) & 1 == 1 {
-                        let from = order[a];
-                        let to = order[b];
-                        adj = set_edge(adj, n, from, to, true);
-                    }
-                    bit += 1;
-                }
-            }
-            debug_assert!(mask_is_dag(adj, n));
-            seen.insert(adj);
-        }
+        out.push(mask);
         return;
     }
-    for i in k..n {
-        order.swap(k, i);
-        permute_and_collect(n, order, k + 1, seen);
-        order.swap(k, i);
+    // `k < n <= 8`, so a node set over the first `k` nodes fits a byte.
+    let all = (1u8 << k) - 1;
+    for children in 0..=all {
+        let mut reach = children;
+        let mut with_children = mask;
+        for (v, &below) in descendants.iter().enumerate().take(k) {
+            if children & (1 << v) != 0 {
+                reach |= below;
+                with_children |= bit[k][v];
+            }
+        }
+        let free = !reach & all;
+        let mut parents = free;
+        loop {
+            let mut next = descendants;
+            let mut next_mask = with_children;
+            for u in 0..k {
+                if parents & (1 << u) != 0 {
+                    next_mask |= bit[u][k];
+                }
+                if parents & (1 << u) != 0 || descendants[u] & parents != 0 {
+                    next[u] |= reach | (1 << k);
+                }
+            }
+            next[k] = reach;
+            grow_dags(n, k + 1, next, next_mask, bit, out);
+            if parents == 0 {
+                break;
+            }
+            parents = (parents - 1) & free;
+        }
     }
-}
-
-/// Empty graph always included; also used by tests.
-#[allow(dead_code)]
-pub(crate) fn empty_mask() -> u64 {
-    0
 }
 
 #[cfg(test)]
@@ -271,20 +260,6 @@ mod tests {
     use crate::graph_posterior::{GraphPrior, edge_bit, has_edge, set_edge};
 
     fn chain_tabular(n_rows: usize, seed: u64) -> (TabularData, Vec<VariableId>) {
-        let mut b = CausalSchemaBuilder::new();
-        for name in ["a", "b", "c"] {
-            b.add_variable(
-                name,
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
         let mut rng = antecedent_core::CausalRng::from_seed(seed);
         let mut a = vec![0.0; n_rows];
         let mut bb = vec![0.0; n_rows];
@@ -294,22 +269,9 @@ mod tests {
             bb[i] = 1.5 * a[i] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
             c[i] = 1.2 * bb[i] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
         }
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(vars[0], Arc::from(a), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[1], Arc::from(bb), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[2], Arc::from(c), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        (TabularData::new(storage), vars)
+        let data = crate::test_tables::continuous_table(&["a", "b", "c"], vec![a, bb, c]);
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        (data, vars)
     }
 
     #[test]
@@ -318,6 +280,41 @@ mod tests {
         assert_eq!(enumerate_unique_dags(2).len(), 3);
         assert_eq!(enumerate_unique_dags(3).len(), 25);
         assert_eq!(enumerate_unique_dags(4).len(), 543);
+    }
+
+    #[test]
+    fn enumeration_is_the_sorted_set_of_acyclic_masks() {
+        assert_eq!(enumerate_unique_dags(0), vec![0]);
+        for n in 1..=4usize {
+            let bits = n * (n - 1);
+            let expected: Vec<u64> = (0..(1u64 << bits))
+                .filter(|&m| crate::graph_posterior::mask_is_dag(m, n))
+                .collect();
+            assert_eq!(enumerate_unique_dags(n), expected, "n={n}");
+        }
+        assert_eq!(enumerate_unique_dags(5).len(), 29_281);
+    }
+
+    #[test]
+    fn dag_scorer_matches_per_mask_scoring() {
+        let (data, vars) = chain_tabular(60, 3);
+        let n = 3;
+        let score_data = tabular_score_data(&data, &vars).unwrap();
+        let prior = GraphPrior::bernoulli_edges(0.3).unwrap().with_constraints(
+            crate::DiscoveryConstraints { max_parents: Some(1), ..Default::default() },
+        );
+        let scorer = DagScorer::new(n, &score_data, GraphScoreFamily::GaussianBic, &prior, &vars);
+        let mut cache =
+            antecedent_state::LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+                GraphScoreFamily::GaussianBic,
+                n,
+                score_data.n_rows,
+            ));
+        for mask in 0..(1u64 << (n * (n - 1))) {
+            let direct =
+                crate::graph_score::score_dag_mask(mask, n, &score_data, &mut cache, &prior, &vars);
+            assert_eq!(scorer.score(mask).map(f64::to_bits), direct.map(f64::to_bits));
+        }
     }
 
     #[test]
@@ -425,5 +422,108 @@ mod tests {
             )
             .unwrap_err();
         assert!(error.to_string().contains("n ≤ 6"));
+    }
+
+    /// `cargo test --profile bench -p antecedent-discovery --lib exact_enumeration::tests::timing -- --ignored --nocapture`
+    #[test]
+    #[ignore = "timing harness"]
+    fn timing_enumeration_and_scoring() {
+        use std::time::Instant;
+        let digest = |masks: &[u64]| {
+            masks
+                .iter()
+                .fold(0xcbf2_9ce4_8422_2325_u64, |h, &m| (h ^ m).wrapping_mul(0x0100_0000_01b3))
+        };
+        for n in [5usize, 6] {
+            let t = Instant::now();
+            let masks = enumerate_unique_dags(n);
+            println!(
+                "n={n} enumerate: {} dags, digest {:016x}, {:?}",
+                masks.len(),
+                digest(&masks),
+                t.elapsed()
+            );
+            let vars: Vec<_> = (0..u32::try_from(n).unwrap()).map(VariableId::from_raw).collect();
+            let prior = GraphPrior::bernoulli_edges(0.3).unwrap();
+            let t = Instant::now();
+            let mut acc = 0.0;
+            let mut dags = 0usize;
+            for &m in &masks {
+                if let Some(lp) = crate::graph_posterior::log_prior_mask(m, n, &prior, &vars) {
+                    acc += lp;
+                    dags += 1;
+                }
+            }
+            println!(
+                "n={n} log_prior_mask over all: {dags} valid, sum {acc:.6}, {:?}",
+                t.elapsed()
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "timing harness"]
+    fn timing_exact_run() {
+        use std::time::Instant;
+        for n in [5usize, 6] {
+            let mut b = CausalSchemaBuilder::new();
+            for i in 0..n {
+                b.add_variable(
+                    format!("v{i}"),
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::Context),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+            }
+            let schema = b.build().unwrap();
+            let vars: Vec<_> = (0..u32::try_from(n).unwrap()).map(VariableId::from_raw).collect();
+            let mut rng = antecedent_core::CausalRng::from_seed(11);
+            let rows = 300;
+            let mut cols_v: Vec<Vec<f64>> = vec![vec![0.0; rows]; n];
+            for r in 0..rows {
+                for c in 0..n {
+                    let prev = if c > 0 { 0.7 * cols_v[c - 1][r] } else { 0.0 };
+                    cols_v[c][r] = prev + rng.next_f64() - 0.5;
+                }
+            }
+            let cols: Vec<_> = cols_v
+                .into_iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    OwnedColumn::Float64(
+                        Float64Column::new(vars[i], Arc::from(v), ValidityBitmap::all_valid(rows))
+                            .unwrap(),
+                    )
+                })
+                .collect();
+            let data =
+                TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+            let ctx = ExecutionContext::production(1, 4);
+            let t = Instant::now();
+            let post = ExactDagPosterior::new()
+                .run(
+                    &data,
+                    &vars,
+                    &GraphPrior::bernoulli_edges(0.3).unwrap(),
+                    GraphScoreFamily::GaussianBic,
+                    &mut DiscoveryWorkspace::default(),
+                    &ctx,
+                )
+                .unwrap();
+            let dig = post.weights.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
+                (h ^ w.to_bits()).wrapping_mul(0x0100_0000_01b3)
+            });
+            let edig = post.edge_marginals.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, w| {
+                (h ^ w.to_bits()).wrapping_mul(0x0100_0000_01b3)
+            });
+            println!(
+                "n={n} run: {} graphs, weights {dig:016x}, edges {edig:016x}, {:?}",
+                post.weights.len(),
+                t.elapsed()
+            );
+        }
     }
 }

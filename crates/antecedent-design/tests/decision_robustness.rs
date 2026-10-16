@@ -1,7 +1,8 @@
 //! Admissibility rules and robustness states for decisions under structural
 //! uncertainty. Expected values are enumerated by hand in each test.
 
-use antecedent_core::{QuantityRole, ScientificQuantity, SupportStatus};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::SupportStatus;
 use antecedent_design::decision_contract::{
     ActionKind, AdmissibilityError, AdmissibilityRules, AdmissibleDecisionContract, DecisionAction,
     DecisionContract, DecisionCriterion, DeclaredExclusion, HardConstraint, StructuralPolicy,
@@ -14,25 +15,17 @@ use antecedent_design::decision_robustness::{
 use antecedent_design::decision_structural::{
     AtomEvidence, StructuralAtom, StructuralVerdict, evaluate_structural,
 };
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::near_lt_1e12 as near;
+
+mod common;
 
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 /// One structure's exact law: action A and B payoffs on two equally likely rows.
@@ -130,10 +123,6 @@ fn run(
     evaluate_robust(c, atoms, claims).unwrap().1
 }
 
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
-}
-
 fn leaders(pairs: &[(&str, Vec<&str>)]) -> Vec<(String, Vec<String>)> {
     pairs
         .iter()
@@ -142,7 +131,7 @@ fn leaders(pairs: &[(&str, Vec<&str>)]) -> Vec<(String, Vec<String>)> {
 }
 
 #[test]
-fn f6_robustness_invariant_best_is_structurally_robust() {
+fn robustness_invariant_best_is_structurally_robust() {
     let c = contract(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 6.0, 2.0)];
     let claims = profile(vec![("s1", AtomSupport::supported()), ("s2", AtomSupport::supported())]);
@@ -159,7 +148,7 @@ fn f6_robustness_invariant_best_is_structurally_robust() {
 }
 
 #[test]
-fn f6_robustness_graph_dependent_choice_lists_each_structures_leader() {
+fn robustness_graph_dependent_choice_lists_each_structures_leader() {
     let c = contract(StructuralPolicy::RequireInvariantBestAction, AdmissibilityRules::default());
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 1.0, 4.0)];
     let claims = profile(vec![]);
@@ -173,7 +162,7 @@ fn f6_robustness_graph_dependent_choice_lists_each_structures_leader() {
 }
 
 #[test]
-fn f6_robustness_support_robust_when_the_unsupported_structure_agrees() {
+fn robustness_support_robust_when_the_unsupported_structure_agrees() {
     let c = contract(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 6.0, 2.0)];
     let claims = profile(vec![
@@ -201,7 +190,7 @@ fn f6_robustness_support_robust_when_the_unsupported_structure_agrees() {
 }
 
 #[test]
-fn f6_robustness_support_dependent_when_ignoring_support_changes_the_choice() {
+fn robustness_support_dependent_when_ignoring_support_changes_the_choice() {
     let c = contract(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 1.0, 4.0)];
     let claims = profile(vec![
@@ -219,7 +208,7 @@ fn f6_robustness_support_dependent_when_ignoring_support_changes_the_choice() {
 }
 
 #[test]
-fn f6_robustness_per_input_support_removes_one_action_in_one_structure() {
+fn robustness_per_input_support_removes_one_action_in_one_structure() {
     let c = contract(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 1.0, 4.0)];
     let s2 = AtomSupport {
@@ -245,7 +234,7 @@ fn f6_robustness_per_input_support_removes_one_action_in_one_structure() {
 }
 
 #[test]
-fn f6_robustness_unsupported_extrapolation_when_no_structure_supports_an_action() {
+fn robustness_unsupported_extrapolation_when_no_structure_supports_an_action() {
     let c = contract(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 6.0, 2.0)];
     let claims = profile(vec![
@@ -262,7 +251,7 @@ fn f6_robustness_unsupported_extrapolation_when_no_structure_supports_an_action(
 }
 
 #[test]
-fn f6_robustness_insufficient_claims_when_a_structure_is_unresolved() {
+fn robustness_insufficient_claims_when_a_structure_is_unresolved() {
     let c = contract(StructuralPolicy::RequireInvariantBestAction, AdmissibilityRules::default());
     for unresolved in [AtomEvidence::Unidentified, AtomEvidence::Unevaluated("budget".into())] {
         let atoms = [evaluated("s1", None, 5.0, 3.0), atom("s2", None, unresolved)];
@@ -280,7 +269,7 @@ fn f6_robustness_insufficient_claims_when_a_structure_is_unresolved() {
 }
 
 #[test]
-fn f6_robustness_no_admissible_action_from_declared_exclusions_and_hard_constraints() {
+fn robustness_no_admissible_action_from_declared_exclusions_and_hard_constraints() {
     let both = AdmissibilityRules {
         declared_exclusions: vec![
             DeclaredExclusion { action_id: "A".into(), reason: "legal".into() },
@@ -316,7 +305,7 @@ fn f6_robustness_no_admissible_action_from_declared_exclusions_and_hard_constrai
 }
 
 #[test]
-fn f4_admissibility_declared_exclusion_and_hard_constraint_only_remove_actions() {
+fn admissibility_declared_exclusion_and_hard_constraint_only_remove_actions() {
     // A has the higher payoff in both structures but is declared inadmissible;
     // B wins, and A keeps its raw range rather than a penalized one.
     let rules = AdmissibilityRules {
@@ -361,7 +350,7 @@ fn f4_admissibility_declared_exclusion_and_hard_constraint_only_remove_actions()
 }
 
 #[test]
-fn f4_admissibility_uncertainty_requirement_is_enforced_by_kind() {
+fn admissibility_uncertainty_requirement_is_enforced_by_kind() {
     use UncertaintyKind as K;
     use UncertaintyRequirement as R;
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 6.0, 2.0)];
@@ -395,7 +384,7 @@ fn f4_admissibility_uncertainty_requirement_is_enforced_by_kind() {
 }
 
 #[test]
-fn f6_robustness_bayes_keeps_unresolved_and_unsupported_mass() {
+fn robustness_bayes_keeps_unresolved_and_unsupported_mass() {
     // A = 0.5*5 + 0.5*1 = 3.0 and B = 0.5*3 + 0.5*4 = 3.5.
     let atoms = [evaluated("s1", Some(0.5), 5.0, 3.0), evaluated("s2", Some(0.5), 1.0, 4.0)];
     let unruled = contract(StructuralPolicy::BayesOverStructures, AdmissibilityRules::default());
@@ -432,7 +421,7 @@ fn f6_robustness_bayes_keeps_unresolved_and_unsupported_mass() {
 }
 
 #[test]
-fn f6_robustness_worst_case_choice_changes_when_support_is_ignored() {
+fn robustness_worst_case_choice_changes_when_support_is_ignored() {
     // Worst case over {s1, s2}: A = min(5, 1) = 1 and B = min(3, 4) = 3, so B.
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 1.0, 4.0)];
     let unruled = contract(StructuralPolicy::Maximin, AdmissibilityRules::default());
@@ -456,7 +445,7 @@ fn f6_robustness_worst_case_choice_changes_when_support_is_ignored() {
 }
 
 #[test]
-fn f6_robustness_report_only_never_chooses() {
+fn robustness_report_only_never_chooses() {
     let c = contract(StructuralPolicy::ReportOnly, require_supported());
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 1.0, 4.0)];
     let result = run(&c, &atoms, &profile(vec![]));
@@ -465,7 +454,7 @@ fn f6_robustness_report_only_never_chooses() {
 }
 
 #[test]
-fn f6_robustness_refuses_a_foreign_result_and_an_unknown_profile_entry() {
+fn robustness_refuses_a_foreign_result_and_an_unknown_profile_entry() {
     let c = contract(StructuralPolicy::RequireInvariantBestAction, AdmissibilityRules::default());
     let atoms = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 6.0, 2.0)];
     let structural = evaluate_structural(&c.contract, &atoms).unwrap();
@@ -525,7 +514,7 @@ fn rich_rules() -> AdmissibilityRules {
 }
 
 #[test]
-fn f4_admissibility_identity_ignores_order_but_not_semantics() {
+fn admissibility_identity_ignores_order_but_not_semantics() {
     type Edit = Box<dyn Fn(&mut AdmissibleDecisionContract)>;
     let c = contract(StructuralPolicy::Maximin, rich_rules());
     let id = c.identity().unwrap();
@@ -585,7 +574,7 @@ fn f4_admissibility_identity_ignores_order_but_not_semantics() {
 }
 
 #[test]
-fn f4_admissibility_malformed_rules_refuse_with_registered_details() {
+fn admissibility_malformed_rules_refuse_with_registered_details() {
     let refuse = |edit: &dyn Fn(&mut AdmissibleDecisionContract)| {
         let mut c = contract(StructuralPolicy::Maximin, AdmissibilityRules::default());
         edit(&mut c);
@@ -625,7 +614,7 @@ fn f4_admissibility_malformed_rules_refuse_with_registered_details() {
 }
 
 #[test]
-fn f4_admissibility_support_status_orders_by_severity() {
+fn admissibility_support_status_orders_by_severity() {
     let rules = AdmissibilityRules {
         default_weakest_support: Some(SupportStatus::WeakOverlap),
         support_rules: vec![SupportRule {

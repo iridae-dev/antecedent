@@ -1,5 +1,5 @@
 //! Counterfactual identification on a bounded finite-discrete ADMG: the effect
-//! of treatment on the treated from the observational joint (2.2B, X8).
+//! of treatment on the treated from the observational joint.
 //!
 //! # What is licensed
 //!
@@ -14,7 +14,7 @@
 //! its own world sets it away from) has probability zero in every model and is
 //! returned as an exact zero, not refused. Every other shape is refused as
 //! outside the contract, and a world that routes edges (a path-specific query)
-//! is deferred to 2.3.
+//! is not supported by this route.
 //!
 //! # The algorithm
 //!
@@ -93,6 +93,7 @@ use antecedent_expr::{
     Assignment, CausalExprArena, DomainRef, EmpiricalTableProvider, EvalContext, ExactDiscreteLaw,
     ExprId, ExprNode, FactorSpec,
 };
+use antecedent_graph::algo::{components_by, implicit_closure};
 use antecedent_graph::{Admg, BitSet, DenseNodeId, GraphWorkspace};
 use serde::{Deserialize, Serialize};
 
@@ -187,7 +188,7 @@ impl CounterfactualIdRefusal {
     #[must_use]
     pub fn interval_requested() -> Self {
         Self::plain(
-            "estimator_inference_mismatch",
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
             "counterfactual_id.interval_requested",
             "the counterfactual identification cell is a point claim; no interval or posterior \
              is published"
@@ -197,7 +198,7 @@ impl CounterfactualIdRefusal {
 
     fn outside_contract(message: impl Into<String>) -> Self {
         Self::plain(
-            "route_not_supported",
+            antecedent_core::reason_code!("route_not_supported"),
             "counterfactual_id.query_outside_contract",
             message.into(),
         )
@@ -205,17 +206,17 @@ impl CounterfactualIdRefusal {
 
     fn path_specific() -> Self {
         Self::plain(
-            "route_not_supported",
+            antecedent_core::reason_code!("route_not_supported"),
             "counterfactual_id.path_specific_deferred",
             "a world routes edges: path-specific and recanting-district effects on ADMGs are \
-             deferred to 2.3"
+             outside this identification route"
                 .into(),
         )
     }
 
     fn conflict(obstruction: CounterfactualObstruction) -> Self {
         Self {
-            code: "route_not_supported",
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail: "counterfactual_id.conflicting_subscripts",
             message: obstruction.describe(),
             obstruction: Some(Box::new(obstruction)),
@@ -225,7 +226,7 @@ impl CounterfactualIdRefusal {
 
     fn hedge(obstruction: CounterfactualObstruction) -> Self {
         Self {
-            code: "route_not_supported",
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail: "counterfactual_id.counterfactual_hedge",
             message: obstruction.describe(),
             obstruction: Some(Box::new(obstruction)),
@@ -235,7 +236,7 @@ impl CounterfactualIdRefusal {
 
     fn budget(receipt: SearchReceipt) -> Self {
         Self {
-            code: "transport_budget_cancel",
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
             detail: "counterfactual_id.budget",
             message: format!(
                 "{} stopped the counterfactual identification search; this is not a \
@@ -251,11 +252,32 @@ impl CounterfactualIdRefusal {
 /// The graph and the variable levels a decision is made on, canonical: edges
 /// sorted and deduplicated, bidirected edges oriented `(low, high)`, levels as
 /// IEEE bits in the declared order (`-0.0` is `0.0`).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct CounterfactualIdProblem {
     levels: Vec<Vec<u64>>,
     directed: Vec<(u32, u32)>,
     bidirected: Vec<(u32, u32)>,
+    /// Kahn order of `directed`. Omitted from [`Eq`] and [`Hash`], which stay the
+    /// edge and level identity the canonical text already records.
+    topo: Vec<u32>,
+}
+
+impl PartialEq for CounterfactualIdProblem {
+    fn eq(&self, other: &Self) -> bool {
+        self.levels == other.levels
+            && self.directed == other.directed
+            && self.bidirected == other.bidirected
+    }
+}
+
+impl Eq for CounterfactualIdProblem {}
+
+impl std::hash::Hash for CounterfactualIdProblem {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.levels.hash(state);
+        self.directed.hash(state);
+        self.bidirected.hash(state);
+    }
 }
 
 impl CounterfactualIdProblem {
@@ -318,11 +340,11 @@ impl CounterfactualIdProblem {
             bidirected.iter().map(|&(a, b)| (a.min(b), a.max(b))).collect();
         bidirected.sort_unstable();
         bidirected.dedup();
-        let problem = Self { levels: canonical_levels, directed, bidirected };
-        if problem.topological_order().is_none() {
+        let Some(topo) = crate::cross_world::topological_order(canonical_levels.len(), &directed)
+        else {
             return Err(CounterfactualIdRefusal::graph("the directed edges contain a cycle"));
-        }
-        Ok(problem)
+        };
+        Ok(Self { levels: canonical_levels, directed, bidirected, topo })
     }
 
     /// The problem of an ADMG whose dense node `i` is the static variable `i`.
@@ -350,7 +372,7 @@ impl CounterfactualIdProblem {
         let mut directed = Vec::new();
         let mut bidirected = Vec::new();
         for i in 0..n {
-            let id = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
+            let id = DenseNodeId::from_index(i);
             directed.extend(admg.children(id).iter().map(|c| (id.raw(), c.raw())));
             bidirected.extend(admg.bidirected_neighbors(id).iter().map(|b| (id.raw(), b.raw())));
         }
@@ -415,8 +437,8 @@ impl CounterfactualIdProblem {
         self.directed.iter().filter(|e| e.1 == variable).map(|e| e.0).collect()
     }
 
-    fn topological_order(&self) -> Option<Vec<u32>> {
-        crate::cross_world::topological_order(self.levels.len(), &self.directed)
+    fn topological_order(&self) -> &[u32] {
+        &self.topo
     }
 
     fn confounded(&self, a: u32, b: u32) -> bool {
@@ -426,7 +448,12 @@ impl CounterfactualIdProblem {
     fn prepared(&self) -> Result<PreparedAdmg, IdentificationError> {
         let mut admg = Admg::empty();
         for i in 0..self.levels.len() {
-            admg.add_node(NodeRef::Static(VariableId::from_raw(u32::try_from(i).unwrap_or(0))))?;
+            let raw = u32::try_from(i).map_err(|_| {
+                IdentificationError::msg(
+                    "counterfactual graph has more nodes than a variable id can name",
+                )
+            })?;
+            admg.add_node(NodeRef::Static(VariableId::from_raw(raw)))?;
         }
         for &(a, b) in &self.directed {
             admg.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))?;
@@ -874,10 +901,16 @@ fn decide_under(
     let mut engine = Engine {
         problem,
         prepared,
-        parents: (0..problem.node_count())
-            .map(|v| problem.parents(u32::try_from(v).unwrap_or(0)))
-            .collect(),
-        topo: problem.topological_order().unwrap_or_default(),
+        parents: {
+            let mut parents = Vec::with_capacity(problem.node_count());
+            for v in 0..problem.node_count() {
+                let id = u32::try_from(v).map_err(|_| {
+                    CounterfactualIdRefusal::graph("variable index does not fit u32")
+                })?;
+                parents.push(problem.parents(id));
+            }
+            parents
+        },
         search,
         next_symbol: 0,
         retained_bytes: 0,
@@ -1101,43 +1134,21 @@ struct CgNode {
 struct Cg {
     nodes: Vec<CgNode>,
     bidirected: Vec<Vec<usize>>,
+    /// Bidirected components, computed once. [`Self::record`] clones this into the artifact.
+    districts: Vec<Vec<usize>>,
 }
 
 impl Cg {
-    fn districts(&self) -> Vec<Vec<usize>> {
-        let mut seen = vec![false; self.nodes.len()];
-        let mut out = Vec::new();
-        for start in 0..self.nodes.len() {
-            if seen[start] {
-                continue;
-            }
-            let mut district = Vec::new();
-            let mut stack = vec![start];
-            seen[start] = true;
-            while let Some(i) = stack.pop() {
-                district.push(i);
-                for &j in &self.bidirected[i] {
-                    if !seen[j] {
-                        seen[j] = true;
-                        stack.push(j);
-                    }
-                }
-            }
-            district.sort_unstable();
-            out.push(district);
-        }
-        out
+    /// Bidirected-connected components, each ascending, ordered by smallest member.
+    fn districts(&self) -> &[Vec<usize>] {
+        &self.districts
     }
 
+    /// Strict ancestors of `node` (the graph is acyclic).
     fn ancestors(&self, node: usize) -> BTreeSet<usize> {
-        let mut out = BTreeSet::new();
-        let mut stack = self.nodes[node].parents.clone();
-        while let Some(p) = stack.pop() {
-            if out.insert(p) {
-                stack.extend(self.nodes[p].parents.iter().copied());
-            }
-        }
-        out
+        implicit_closure(self.nodes[node].parents.iter().copied(), |&p| {
+            self.nodes[p].parents.iter().copied()
+        })
     }
 
     fn record(&self) -> CounterfactualGraphRecord {
@@ -1158,7 +1169,7 @@ impl Cg {
                 })
                 .collect(),
             bidirected,
-            districts: self.districts(),
+            districts: self.districts.clone(),
         }
     }
 }
@@ -1167,7 +1178,6 @@ struct Engine<'p, 'c> {
     problem: &'p CounterfactualIdProblem,
     prepared: PreparedAdmg,
     parents: Vec<Vec<u32>>,
-    topo: Vec<u32>,
     search: SharedSearch<'c>,
     next_symbol: u32,
     /// Live bytes of the finished terms (their arenas), charged with every step.
@@ -1222,9 +1232,8 @@ impl Engine<'_, '_> {
         if depth == 0 && self.first_graph.is_none() {
             self.first_graph = Some(cg.record());
         }
-        let districts = cg.districts();
-        if districts.len() > 1 {
-            return self.line_five(&cg, &districts, depth);
+        if cg.districts().len() > 1 {
+            return self.line_five(&cg, cg.districts(), depth);
         }
         self.single_district(&cg, depth)
     }
@@ -1501,7 +1510,8 @@ impl Engine<'_, '_> {
     fn make_cg(&mut self, event: &[Atom], depth: usize) -> Result<Option<Cg>, Halt> {
         // Disjoint borrows: the budget is charged while the graph's parents and
         // order are read, so neither is copied per call.
-        let Engine { problem, parents: graph_parents, topo, search, retained_bytes, .. } = self;
+        let Engine { problem, parents: graph_parents, search, retained_bytes, .. } = self;
+        let topo = problem.topological_order();
         let problem: &CounterfactualIdProblem = problem;
         let n = problem.node_count();
         let worlds: Vec<BTreeMap<u32, CfValue>> =
@@ -1511,7 +1521,9 @@ impl Engine<'_, '_> {
         let mut pw: Vec<(usize, u32)> = Vec::new();
         for (w, sub) in worlds.iter().enumerate() {
             for v in 0..n {
-                let v = u32::try_from(v).unwrap_or(0);
+                let Ok(v) = u32::try_from(v) else {
+                    return Err(Halt::Failure("variable index does not fit u32".into()));
+                };
                 if !sub.contains_key(&v) {
                     index.insert((w, v), pw.len());
                     pw.push((w, v));
@@ -1529,7 +1541,7 @@ impl Engine<'_, '_> {
         };
         // Union-find, merged in topological order.
         let mut root: Vec<usize> = (0..pw.len()).collect();
-        for &v in topo.iter() {
+        for &v in topo {
             let bytes = (pw.len() as u64).saturating_mul(64).saturating_add(event_bytes(event));
             search.charge(depth, retained_bytes.saturating_add(bytes)).map_err(Halt::Stop)?;
             let copies: Vec<usize> =
@@ -1563,7 +1575,11 @@ impl Engine<'_, '_> {
         let mut value_of: BTreeMap<usize, CfValue> = BTreeMap::new();
         let mut event_classes = BTreeSet::new();
         for atom in event {
-            let w = worlds.iter().position(|s| *s == atom.sub).unwrap_or(0);
+            let Some(w) = worlds.iter().position(|s| *s == atom.sub) else {
+                return Err(Halt::Failure(
+                    "an event world is missing from the submodel list".into(),
+                ));
+            };
             let Some(&node) = index.get(&(w, atom.var)) else {
                 return Err(Halt::Failure("an event on a variable its world sets".into()));
             };
@@ -1595,13 +1611,7 @@ impl Engine<'_, '_> {
             out.dedup();
             out
         };
-        let mut keep = BTreeSet::new();
-        let mut stack: Vec<usize> = event_classes.iter().copied().collect();
-        while let Some(c) = stack.pop() {
-            if keep.insert(c) {
-                stack.extend(class_parents(c));
-            }
-        }
+        let keep = implicit_closure(event_classes.iter().copied(), |&c| class_parents(c));
         // Canonical order: by variable, then representative world.
         let mut kept: Vec<usize> = keep.into_iter().collect();
         kept.sort_by_key(|&c| (pw[c].1, pw[c].0));
@@ -1659,34 +1669,23 @@ impl Engine<'_, '_> {
                 }
             }
         }
-        Ok(Some(Cg { nodes, bidirected }))
+        let districts = components_by(nodes.len(), |i| bidirected[i].iter().copied());
+        Ok(Some(Cg { nodes, bidirected, districts }))
     }
 }
 
 fn record_is_connected(graph: &CounterfactualGraphRecord) -> bool {
     let n = graph.nodes.len();
-    if n == 0 {
-        return false;
-    }
-    let mut seen = vec![false; n];
-    let mut stack = vec![0usize];
-    seen[0] = true;
-    while let Some(i) = stack.pop() {
-        for &(a, b) in &graph.bidirected {
-            let next = if a == i {
-                b
-            } else if b == i {
-                a
-            } else {
-                continue;
-            };
-            if next < n && !seen[next] {
-                seen[next] = true;
-                stack.push(next);
-            }
-        }
-    }
-    seen.into_iter().all(|s| s)
+    n != 0
+        && components_by(n, |i| {
+            graph.bidirected.iter().filter_map(move |&(a, b)| match (a == i, b == i) {
+                (true, _) => Some(b),
+                (_, true) => Some(a),
+                _ => None,
+            })
+        })
+        .len()
+            == 1
 }
 
 /// Union-find root with path halving.
@@ -1729,606 +1728,14 @@ const fn stop_error(stop: SearchStop) -> IdentificationError {
     }
 }
 
-/// The exact point of an identified derivation on one joint law.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CounterfactualIdPoint {
-    /// `P(given)`, the conditioning probability (`P(X = x')`).
-    pub conditioning_probability: f64,
-    /// `(outcome level, P(Y_x = level, X = x'))` in declared level order; empty
-    /// for an exact zero.
-    pub numerators: Vec<(f64, f64)>,
-    /// The requested probability `P(event | given)`.
-    pub probability: f64,
-    /// `E[Y_x | X = x']`; `None` for an exact zero.
-    pub counterfactual_mean: Option<f64>,
-    /// `E[Y | X = x']`; `None` for an exact zero.
-    pub observed_mean: Option<f64>,
-    /// `E[Y_x | X = x'] - E[Y | X = x']`; `None` for an exact zero.
-    pub effect: Option<f64>,
-}
-
-/// A joint law laid out in the problem's variable and level order.
+mod evaluation;
+pub use evaluation::CounterfactualIdPoint;
 #[doc(hidden)]
-#[derive(Clone, Debug)]
-pub struct DenseJoint {
-    /// Levels per variable (values).
-    pub levels: Vec<Vec<f64>>,
-    /// Row-major probabilities, last variable fastest.
-    pub probabilities: Vec<f64>,
-}
-
-impl DenseJoint {
-    /// Marginal table over `vars` (row-major in the given order, last fastest).
-    #[must_use]
-    pub(crate) fn marginal(&self, vars: &[usize]) -> Vec<f64> {
-        let cards: Vec<usize> = self.levels.iter().map(Vec::len).collect();
-        let size: usize = vars.iter().map(|&v| cards[v]).product();
-        let mut out = vec![0.0; size];
-        let mut index = vec![0usize; cards.len()];
-        for p in &self.probabilities {
-            let mut flat = 0usize;
-            for &v in vars {
-                flat = flat * cards[v] + index[v];
-            }
-            out[flat] += p;
-            for k in (0..cards.len()).rev() {
-                index[k] += 1;
-                if index[k] < cards[k] {
-                    break;
-                }
-                index[k] = 0;
-            }
-        }
-        out
-    }
-
-    /// Mass of the cells where `fixed` variables take the given level indices.
-    #[must_use]
-    pub(crate) fn mass(&self, fixed: &[(usize, usize)]) -> f64 {
-        let cards: Vec<usize> = self.levels.iter().map(Vec::len).collect();
-        let mut total = 0.0;
-        let mut index = vec![0usize; cards.len()];
-        for p in &self.probabilities {
-            if fixed.iter().all(|&(v, l)| index[v] == l) {
-                total += p;
-            }
-            for k in (0..cards.len()).rev() {
-                index[k] += 1;
-                if index[k] < cards[k] {
-                    break;
-                }
-                index[k] = 0;
-            }
-        }
-        total
-    }
-}
-
-/// Lay `law` out in `problem`'s variable and level order.
-///
-/// # Errors
-///
-/// `counterfactual_id.invalid_query` when the law's axes are not exactly the
-/// problem's variables with the problem's levels (in any order).
-#[doc(hidden)]
-pub fn dense_joint(
-    problem: &CounterfactualIdProblem,
-    law: &ExactDiscreteLaw,
-) -> Result<DenseJoint, CounterfactualIdRefusal> {
-    let n = problem.node_count();
-    let axes = law.axes();
-    if axes.len() != n || !law.interventions().is_empty() {
-        return Err(CounterfactualIdRefusal::invalid_query(format!(
-            "the law has {} axes (and {} interventions) for an observational problem of {n} \
-             variables",
-            axes.len(),
-            law.interventions().len()
-        )));
-    }
-    // axis_of[v] = axis index; level_map[v][law level index] = problem level index.
-    let mut axis_of = vec![usize::MAX; n];
-    let mut level_map = vec![Vec::new(); n];
-    for (a, axis) in axes.iter().enumerate() {
-        let v = axis.variable.raw() as usize;
-        if v >= n || axis_of[v] != usize::MAX {
-            return Err(CounterfactualIdRefusal::invalid_query(
-                "the law's axes are not the problem's variables",
-            ));
-        }
-        axis_of[v] = a;
-        let mut map = Vec::with_capacity(axis.values.len());
-        for value in axis.values.iter() {
-            let bits = value.as_f64().map(|x| (x + 0.0).to_bits());
-            let Some(index) =
-                bits.and_then(|b| problem.level_index(u32::try_from(v).unwrap_or(u32::MAX), b))
-            else {
-                return Err(CounterfactualIdRefusal::invalid_query(format!(
-                    "the law's levels of variable {v} are not the prepared levels"
-                )));
-            };
-            map.push(index);
-        }
-        if map.len() != problem.levels[v].len() {
-            return Err(CounterfactualIdRefusal::invalid_query(format!(
-                "the law's levels of variable {v} are not the prepared levels"
-            )));
-        }
-        level_map[v] = map;
-    }
-    let cards: Vec<usize> = (0..n).map(|v| problem.levels[v].len()).collect();
-    let mut probabilities = vec![0.0; cards.iter().product()];
-    let law_cards: Vec<usize> = axes.iter().map(|a| a.values.len()).collect();
-    let mut law_index = vec![0usize; axes.len()];
-    for &p in law.probabilities() {
-        let mut flat = 0usize;
-        for v in 0..n {
-            flat = flat * cards[v] + level_map[v][law_index[axis_of[v]]];
-        }
-        probabilities[flat] = p;
-        for k in (0..law_cards.len()).rev() {
-            law_index[k] += 1;
-            if law_index[k] < law_cards[k] {
-                break;
-            }
-            law_index[k] = 0;
-        }
-    }
-    Ok(DenseJoint { levels: (0..n).map(|v| problem.levels(v)).collect(), probabilities })
-}
-
-/// Evaluate `derivation` on `law`: each ID term through the existing compiled
-/// evaluator over factor tables built from the joint, composed by the
-/// functional's sums and products.
-///
-/// # Errors
-///
-/// `counterfactual_id.invalid_query` for a law that does not match the problem
-/// or a zero-probability conditioning event, `counterfactual_id.positivity_violation`
-/// when a conditional the functional evaluates is on a zero-mass event.
-#[doc(hidden)]
-pub fn evaluate_counterfactual_functional(
-    problem: &CounterfactualIdProblem,
-    derivation: &CounterfactualIdDerivation,
-    law: &ExactDiscreteLaw,
-    ctx: &ExecutionContext,
-) -> Result<CounterfactualIdPoint, CounterfactualIdRefusal> {
-    let joint = dense_joint(problem, law)?;
-    let given: Vec<(usize, usize)> = derivation
-        .given
-        .iter()
-        .map(|&(v, bits)| {
-            problem
-                .level_index(v, bits)
-                .map(|l| (v as usize, l))
-                .ok_or_else(|| CounterfactualIdRefusal::invalid_query("an unknown given level"))
-        })
-        .collect::<Result<_, _>>()?;
-    let conditioning = joint.mass(&given);
-    if conditioning <= 0.0 {
-        return Err(CounterfactualIdRefusal::invalid_query(
-            "the conditioning event has probability zero in the supplied law",
-        ));
-    }
-    let CounterfactualIdShape::EffectOnTreated { outcome, outcome_level, .. } = derivation.shape
-    else {
-        return Ok(CounterfactualIdPoint {
-            conditioning_probability: conditioning,
-            numerators: Vec::new(),
-            probability: 0.0,
-            counterfactual_mean: None,
-            observed_mean: None,
-            effect: None,
-        });
-    };
-    let mut evaluator = TermEvaluator::new(&joint);
-    let mut numerators = Vec::with_capacity(derivation.numerators.len());
-    for (bits, functional) in &derivation.numerators {
-        let mut symbols = HashMap::new();
-        let value = evaluator.functional(functional, &mut symbols, ctx)?;
-        numerators.push((f64::from_bits(*bits), value));
-    }
-    // A cheap check of the derivation on this law: the numerators over every
-    // level of Y are P(Y_x = y, X = x') for all y, so they sum to P(X = x').
-    let total: f64 = numerators.iter().map(|(_, p)| p).sum();
-    if !total.is_finite()
-        || (total - conditioning).abs() > NUMERATOR_SUM_TOLERANCE * (1.0 + conditioning)
-    {
-        return Err(CounterfactualIdRefusal::invalid_query(format!(
-            "the derivation failed its check on this law: the numerators sum to {total}, not \
-             P(X = x') = {conditioning}"
-        )));
-    }
-    let probability = numerators
-        .iter()
-        .find(|(level, _)| level.to_bits() == outcome_level.to_bits())
-        .map_or(f64::NAN, |(_, p)| p / conditioning);
-    let counterfactual_mean =
-        numerators.iter().map(|(level, p)| level * p).sum::<f64>() / conditioning;
-    let observed_mean = (0..joint.levels[outcome as usize].len())
-        .map(|l| {
-            let mut fixed = given.clone();
-            fixed.push((outcome as usize, l));
-            joint.levels[outcome as usize][l] * joint.mass(&fixed)
-        })
-        .sum::<f64>()
-        / conditioning;
-    if !probability.is_finite() || !counterfactual_mean.is_finite() {
-        return Err(CounterfactualIdRefusal::positivity(
-            "the functional is not finite on this law",
-        ));
-    }
-    Ok(CounterfactualIdPoint {
-        conditioning_probability: conditioning,
-        numerators,
-        probability,
-        counterfactual_mean: Some(counterfactual_mean),
-        observed_mean: Some(observed_mean),
-        effect: Some(counterfactual_mean - observed_mean),
-    })
-}
-
-/// Evaluates district terms through the compiled evaluator, one provider per
-/// term and null-event extension built from the joint.
-struct TermEvaluator<'j> {
-    joint: &'j DenseJoint,
-    /// Per term: the factor tables under every null-event extension (one when
-    /// the law has no zero-mass conditioning cell for the term), and the plan.
-    compiled: HashMap<usize, (Vec<EmpiricalTableProvider>, antecedent_expr::CompiledEvaluator)>,
-    polls: usize,
-}
-
-/// How a conditional on a zero-mass conditioning event is extended. The
-/// functional is accepted only where its value is the same under every
-/// extension tried (the uniform one and, for each `k` below the largest
-/// cardinality, all mass on level `k` of every conditioned variable); otherwise
-/// the law violates positivity for this functional. Every level is tried, so a
-/// value that depends on the extension of one undefined conditional of one
-/// variable is caught whatever its cardinality (the value is affine in that
-/// extension, and constant on every point mass only if constant). Agreement is
-/// a check, not a proof: the same extension is applied to every zero-mass
-/// cell, and a joint conditional of several variables gets only the diagonal
-/// point masses, so a dependence that only a different point mass per cell or
-/// an off-diagonal configuration reveals is not detected.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[doc(hidden)]
-pub enum NullExtension {
-    /// Every value of the conditioned variables equally likely.
-    Uniform,
-    /// All mass on level `k` of every conditioned variable (its last level
-    /// when it has `k` or fewer).
-    Level(usize),
-}
-
-impl NullExtension {
-    /// The extensions tried on a law whose variables have at most
-    /// `max_levels` levels.
-    fn all(max_levels: usize) -> Vec<Self> {
-        std::iter::once(Self::Uniform).chain((0..max_levels.max(1)).map(Self::Level)).collect()
-    }
-}
-
-/// Relative tolerance of the agreement between the null-event extensions.
-const EXTENSION_TOLERANCE: f64 = 1e-12;
-/// Relative tolerance of the check that the numerators sum to `P(X = x')`.
-const NUMERATOR_SUM_TOLERANCE: f64 = 1e-9;
-/// Largest negative rounding a consistency complement may show before the law
-/// is refused as incompatible with the graph.
-const COMPLEMENT_TOLERANCE: f64 = 1e-12;
-
-impl<'j> TermEvaluator<'j> {
-    fn new(joint: &'j DenseJoint) -> Self {
-        Self { joint, compiled: HashMap::new(), polls: 0 }
-    }
-
-    fn functional(
-        &mut self,
-        functional: &CounterfactualFunctional,
-        symbols: &mut HashMap<u32, usize>,
-        ctx: &ExecutionContext,
-    ) -> Result<f64, CounterfactualIdRefusal> {
-        match functional {
-            CounterfactualFunctional::One => Ok(1.0),
-            CounterfactualFunctional::Zero => Ok(0.0),
-            CounterfactualFunctional::Term(term) => self.term(term, symbols, ctx),
-            CounterfactualFunctional::ConsistencyComplement { interventional, observed } => {
-                let interventional = self.term(interventional, symbols, ctx)?;
-                let mut fixed = Vec::with_capacity(observed.len());
-                for &(variable, value) in observed {
-                    fixed.push((variable as usize, self.level_index(variable, value, symbols)?));
-                }
-                let value = interventional - self.joint.mass(&fixed);
-                if value < -COMPLEMENT_TOLERANCE * (1.0 + interventional.abs()) {
-                    return Err(CounterfactualIdRefusal::invalid_query(format!(
-                        "the law is not compatible with the graph: the consistency complement \
-                         P_x(y) - P(y, x) is {value}"
-                    )));
-                }
-                Ok(value.max(0.0))
-            }
-            CounterfactualFunctional::Sum { symbols: summed, factors } => {
-                let cards: Vec<usize> =
-                    summed.iter().map(|s| self.joint.levels[s.variable as usize].len()).collect();
-                let mut index = vec![0usize; summed.len()];
-                let mut total = 0.0;
-                loop {
-                    for (s, &l) in summed.iter().zip(&index) {
-                        symbols.insert(s.id, l);
-                    }
-                    let mut product = 1.0;
-                    for factor in factors {
-                        product *= self.functional(factor, symbols, ctx)?;
-                        if product == 0.0 {
-                            break;
-                        }
-                    }
-                    total += product;
-                    let mut k = summed.len();
-                    loop {
-                        if k == 0 {
-                            for s in summed {
-                                symbols.remove(&s.id);
-                            }
-                            return Ok(total);
-                        }
-                        k -= 1;
-                        index[k] += 1;
-                        if index[k] < cards[k] {
-                            break;
-                        }
-                        index[k] = 0;
-                    }
-                }
-            }
-        }
-    }
-
-    fn level_index(
-        &self,
-        variable: u32,
-        value: CfValue,
-        symbols: &HashMap<u32, usize>,
-    ) -> Result<usize, CounterfactualIdRefusal> {
-        let levels = &self.joint.levels[variable as usize];
-        match value {
-            CfValue::Level(bits) => levels.iter().position(|l| l.to_bits() == bits),
-            CfValue::Symbol(id) => symbols.get(&id).copied(),
-        }
-        .ok_or_else(|| {
-            CounterfactualIdRefusal::invalid_query("a functional level is not a level of the law")
-        })
-    }
-
-    fn level(
-        &self,
-        variable: u32,
-        value: CfValue,
-        symbols: &HashMap<u32, usize>,
-    ) -> Result<f64, CounterfactualIdRefusal> {
-        let index = self.level_index(variable, value, symbols)?;
-        Ok(self.joint.levels[variable as usize][index])
-    }
-
-    fn term(
-        &mut self,
-        term: &CfTerm,
-        symbols: &HashMap<u32, usize>,
-        ctx: &ExecutionContext,
-    ) -> Result<f64, CounterfactualIdRefusal> {
-        self.polls += 1;
-        if self.polls % 1024 == 0 && ctx.cancellation.is_cancelled() {
-            return Err(CounterfactualIdRefusal::budget(SearchReceipt {
-                stop: SearchStop::Cancelled,
-                operations_limit: 0,
-                depth_limit: 0,
-                memory_limit_bytes: None,
-                operations_consumed: None,
-                depth_reached: None,
-                explored: vec!["evaluation".into()],
-                unevaluated: Vec::new(),
-            }));
-        }
-        let key = std::ptr::from_ref(term) as usize;
-        let joint = self.joint;
-        if let std::collections::hash_map::Entry::Vacant(slot) = self.compiled.entry(key) {
-            let (uniform, touched_null) =
-                factor_provider(joint, &term.arena, term.expression, NullExtension::Uniform);
-            let mut providers = vec![uniform];
-            if touched_null {
-                let most = joint.levels.iter().map(Vec::len).max().unwrap_or(1);
-                providers.extend(
-                    NullExtension::all(most)
-                        .into_iter()
-                        .skip(1)
-                        .map(|fill| factor_provider(joint, &term.arena, term.expression, fill).0),
-                );
-            }
-            let compiled = term.arena.compile(term.expression).map_err(|e| {
-                CounterfactualIdRefusal::invalid_query(format!("the term does not compile: {e}"))
-            })?;
-            slot.insert((providers, compiled));
-        }
-        let mut env = Vec::new();
-        for &(v, value) in term.intervention.iter().chain(&term.event) {
-            env.push((VariableId::from_raw(v), Value::f64(self.level(v, value, symbols)?)));
-        }
-        let bound: BTreeSet<VariableId> = env.iter().map(|(v, _)| *v).collect();
-        let extra: Vec<VariableId> = term
-            .arena
-            .free_variables(term.expression)
-            .into_iter()
-            .filter(|v| !bound.contains(v))
-            .collect();
-        let (providers, compiled) = &self.compiled[&key];
-        // A variable the functional leaves free beyond the treatments and the
-        // event (ID line 3 then 7) does not change its value wherever the
-        // conditionals exist: the first level where the term is defined is used.
-        let cards: Vec<usize> =
-            extra.iter().map(|v| self.joint.levels[v.raw() as usize].len()).collect();
-        let mut index = vec![0usize; extra.len()];
-        let mut last_error = String::new();
-        loop {
-            let mut full = env.clone();
-            for (v, &l) in extra.iter().zip(&index) {
-                full.push((*v, Value::f64(self.joint.levels[v.raw() as usize][l])));
-            }
-            let assignment = Assignment::from_pairs(full);
-            let value = |provider: &EmpiricalTableProvider| {
-                compiled.evaluate_with(&term.arena, provider, &EvalContext::default(), &assignment)
-            };
-            let values: Result<Vec<f64>, _> = providers.iter().map(value).collect();
-            match values {
-                Ok(values) => {
-                    let first = values[0];
-                    if values.iter().all(|&b| {
-                        b.is_finite()
-                            && (first - b).abs()
-                                <= EXTENSION_TOLERANCE * (1.0 + first.abs().max(b.abs()))
-                    }) {
-                        return Ok(first);
-                    }
-                    "the value depends on how a conditional on a zero-mass event is extended"
-                        .clone_into(&mut last_error);
-                }
-                Err(e) => last_error = e.to_string(),
-            }
-            let mut k = extra.len();
-            loop {
-                if k == 0 {
-                    return Err(CounterfactualIdRefusal::positivity(format!(
-                        "a district term is undefined on this law: {last_error}"
-                    )));
-                }
-                k -= 1;
-                index[k] += 1;
-                if index[k] < cards[k] {
-                    break;
-                }
-                index[k] = 0;
-            }
-        }
-    }
-}
-
-/// Factor tables of every distribution the term's functional reads: the
-/// conditional of the joint on every conditioning assignment with positive
-/// mass, and `fill` on a zero-mass one. The flag says whether any zero-mass
-/// conditioning assignment was met (otherwise every fill gives these tables).
-fn factor_provider(
-    joint: &DenseJoint,
-    arena: &CausalExprArena,
-    root: ExprId,
-    fill: NullExtension,
-) -> (EmpiricalTableProvider, bool) {
-    let mut touched_null = false;
-    let mut provider = EmpiricalTableProvider::new();
-    for (v, levels) in joint.levels.iter().enumerate() {
-        provider.set_domain(
-            VariableId::from_raw(u32::try_from(v).unwrap_or(0)),
-            levels.iter().map(|x| Value::f64(*x)),
-        );
-    }
-    let mut seen = BTreeSet::new();
-    let mut stack = vec![root];
-    let mut visited = BTreeSet::new();
-    while let Some(id) = stack.pop() {
-        if !visited.insert(id.raw()) {
-            continue;
-        }
-        match arena.node(id) {
-            ExprNode::Distribution { variables, conditioned_on, .. } => {
-                let vars = arena.var_set(*variables).to_vec();
-                let cond = arena.var_set(*conditioned_on).to_vec();
-                if seen.insert((vars.clone(), cond.clone())) {
-                    touched_null |= insert_conditional(&mut provider, joint, &vars, &cond, fill);
-                }
-            }
-            ExprNode::Product(list) => stack.extend(arena.list(*list).iter().copied()),
-            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => stack.push(*expr),
-            ExprNode::Ratio { numerator, denominator } => {
-                stack.push(*numerator);
-                stack.push(*denominator);
-            }
-            ExprNode::Kernel { body, .. } => stack.push(*body),
-            ExprNode::Expectation { distribution, .. } => stack.push(*distribution),
-            ExprNode::Contrast { left, right, .. } => {
-                stack.push(*left);
-                stack.push(*right);
-            }
-        }
-    }
-    (provider, touched_null)
-}
-
-fn insert_conditional(
-    provider: &mut EmpiricalTableProvider,
-    joint: &DenseJoint,
-    vars: &[VariableId],
-    cond: &[VariableId],
-    fill: NullExtension,
-) -> bool {
-    let mut touched_null = false;
-    let all: Vec<usize> = vars.iter().chain(cond).map(|v| v.raw() as usize).collect();
-    let cond_dense: Vec<usize> = cond.iter().map(|v| v.raw() as usize).collect();
-    let joint_table = joint.marginal(&all);
-    let cond_table = joint.marginal(&cond_dense);
-    let cond_size = cond_table.len();
-    let spec = FactorSpec {
-        variables: vars,
-        conditioned_on: cond,
-        intervention: &[],
-        domain: DomainRef::Observational,
-        population: "",
-        regime: None,
-    };
-    let cards: Vec<usize> = all.iter().map(|&v| joint.levels[v].len()).collect();
-    let mut index = vec![0usize; all.len()];
-    for (flat, &numerator) in joint_table.iter().enumerate() {
-        // The conditioning variables are the trailing axes of `all`.
-        let denominator = cond_table[flat % cond_size.max(1)];
-        let value = if denominator > 0.0 {
-            numerator / denominator
-        } else {
-            touched_null = true;
-            match fill {
-                // One over the number of configurations of the conditioned variables.
-                NullExtension::Uniform => 1.0 / (joint_table.len() / cond_size.max(1)) as f64,
-                // All mass on level `k` (clamped to the last level) of each.
-                NullExtension::Level(k) => {
-                    if index[..vars.len()]
-                        .iter()
-                        .zip(&cards)
-                        .all(|(&l, &card)| l == k.min(card - 1))
-                    {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                }
-            }
-        };
-        {
-            let assignment = Assignment::from_pairs(all.iter().zip(&index).map(|(&v, &l)| {
-                (
-                    VariableId::from_raw(u32::try_from(v).unwrap_or(0)),
-                    Value::f64(joint.levels[v][l]),
-                )
-            }));
-            // The key is built from the spec's own variables, which are all bound.
-            let _ = provider.insert_probability(&spec, &assignment, value);
-        }
-        for k in (0..all.len()).rev() {
-            index[k] += 1;
-            if index[k] < cards[k] {
-                break;
-            }
-            index[k] = 0;
-        }
-    }
-    touched_null
-}
+pub use evaluation::evaluate_counterfactual_functional;
 
 #[cfg(test)]
 mod tests {
+    use super::evaluation::{DenseJoint, NullExtension, TermEvaluator, factor_provider};
     use super::*;
 
     fn engine<'p, 'c>(
@@ -2347,7 +1754,6 @@ mod tests {
             parents: (0..problem.node_count())
                 .map(|v| problem.parents(u32::try_from(v).unwrap()))
                 .collect(),
-            topo: problem.topological_order().unwrap(),
             search: SharedSearch::new(budget),
             next_symbol: 0,
             retained_bytes: 0,

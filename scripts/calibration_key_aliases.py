@@ -11,6 +11,8 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+from _repo import REPO_ROOT, read_text
+
 RECORD_ID = (
     "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95."
     "binary_missingness_whole_row_recovery_bca_l95"
@@ -19,6 +21,20 @@ MEASUREMENT_SHA = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 COLLECTION_SHA = "e4bc216c0f01bf913f373df721863e0730e0ed14"
 RECORD_SHA256 = "9302ebf37b4ce12679561198caf2c2cf0319b826e0cf3b37d08de53d5ccdffaa"
 FUNCTIONAL_SHA256 = "0067df569dc7b83db8c7f9b8a465e35ab298b4c750a25af619870026a0a0f33a"
+
+
+def archived_capture_branch() -> str:
+    """Branch named by the reviewed native receipt.
+
+    The receipt hash covers this field. It is the release branch at capture
+    time, not the live workspace package version: a later bump must not
+    invalidate the hashed evidence.
+    """
+    receipt = json.loads(read_text(REPO_ROOT / "parity/calibration_key_alias_native.json"))
+    branch = receipt.get("branch")
+    if not isinstance(branch, str) or not branch:
+        raise ValueError("reviewed native receipt has no capture branch")
+    return branch
 
 
 def canonical_digest(value: object) -> str:
@@ -33,6 +49,10 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
     if set(data) != {"version", "alias"} or data["version"] != 1:
         raise ValueError("unsupported calibration identity mapping schema")
     aliases = data["alias"]
+    if aliases == []:
+        # The original recovery record was re-measured under its current identity,
+        # so no mapping from the original spelling is needed.
+        return []
     if not isinstance(aliases, list) or len(aliases) != 1:
         raise ValueError("only the original BCa recovery identity mapping is permitted")
     row = aliases[0]
@@ -73,7 +93,34 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
         raise ValueError("identity mapping requires reviewed native construction and replay evidence")
     native = read_receipt(root, row["native_receipt"], row["native_receipt_sha256"])
     replay = read_receipt(root, row["replay_receipt"], row["replay_receipt_sha256"])
-    return [validate_evidence(root, original, native, replay)]
+    evidence = validate_evidence(root, original, native, replay)
+    return [evidence, *renamed_identities(evidence)]
+
+
+# Reviewed label renames of identity text that the measured record carries under
+# its original spelling. Each pair changes only the leading rule-version token of
+# the scientific derivation identity: the recovery rule was renamed from its
+# release-stream tag to a behavioral name, and the rule itself is unchanged.
+# Producers and consumers only know the current name; the measured record keeps
+# the original token as immutable evidence.
+IDENTITY_RENAMES = (
+    ("recovery_scientific.v1:x10.recovery.v1|",
+     "recovery_scientific.v1:binary_observation_recovery.v1|"),
+)
+
+
+def renamed_identities(alias: dict[str, str]) -> list[dict[str, str]]:
+    """Runtime spellings of one verified alias under the reviewed label renames.
+
+    The original record and the receipts are untouched; only the canonical
+    functional a current producer emits is added, exactly once per rename.
+    """
+    result = []
+    canonical = alias["canonical_functional"]
+    for old, new in IDENTITY_RENAMES:
+        if canonical.count(old) == 1:
+            result.append(alias | {"canonical_functional": canonical.replace(old, new, 1)})
+    return result
 
 
 MAX_RECEIPT_BYTES = 4 * 1024 * 1024
@@ -120,7 +167,8 @@ def validate_evidence(root: Path, original: dict, native: dict, replay: dict) ->
     if (native.get("version") != 1 or replay.get("version") != 1
             or not isinstance(source, str) or not re.fullmatch(r"[0-9a-f]{40}", source)
             or replay.get("source_sha") != source or replay.get("record_id") != RECORD_ID
-            or native.get("branch") != "2.3.0" or replay.get("branch") != "2.3.0"):
+            or native.get("branch") != archived_capture_branch()
+            or replay.get("branch") != archived_capture_branch()):
         raise ValueError("identity evidence must bind one real main-branch source commit")
     subprocess.run(["git", "merge-base", "--is-ancestor", source, "HEAD"],
                    cwd=root, check=True, capture_output=True)
@@ -189,12 +237,13 @@ def validate_evidence(root: Path, original: dict, native: dict, replay: dict) ->
 
 
 def clean_main_source(root: Path) -> str:
-    """Captures must execute on a clean primary 2.3.0 checkout, never a worktree."""
+    """Captures must execute on a clean checkout of the archived capture branch."""
     def git(*args: str) -> str:
         return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True,
                               text=True).stdout.strip()
-    if not (root / ".git").is_dir() or git("branch", "--show-current") != "2.3.0":
-        raise ValueError("capture requires the primary 2.3.0 branch checkout")
+    branch = archived_capture_branch()
+    if not (root / ".git").is_dir() or git("branch", "--show-current") != branch:
+        raise ValueError(f"capture requires the primary {branch} branch checkout")
     if git("status", "--porcelain"):
         raise ValueError("capture requires clean committed main source")
     return git("rev-parse", "HEAD")
@@ -208,7 +257,7 @@ def capture_native(root: Path) -> dict:
     ], cwd=root, check=True, capture_output=True, text=True)
     if clean_main_source(root) != source:
         raise ValueError("source changed during native construction capture")
-    return {"version": 1, "source_sha": source, "branch": "2.3.0", "log": result.stdout,
+    return {"version": 1, "source_sha": source, "branch": archived_capture_branch(), "log": result.stdout,
             "log_sha256": sha256(result.stdout), "proof": parse_native_log(result.stdout)}
 
 
@@ -229,7 +278,7 @@ def capture_replay(root: Path, path: Path) -> dict:
             logs[name] = {"text": text, "sha256": sha256(text)}
     if clean_main_source(root) != source:
         raise ValueError("source changed during raw replay capture")
-    return {"version": 1, "source_sha": source, "branch": "2.3.0", "record_id": RECORD_ID,
+    return {"version": 1, "source_sha": source, "branch": archived_capture_branch(), "record_id": RECORD_ID,
             "logs": logs, "raw_main_replay_record": payloads[RECORD_ID]}
 
 
@@ -239,7 +288,7 @@ def main() -> None:
     parser.add_argument("--input", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    root = Path(__file__).resolve().parents[1]
+    root = REPO_ROOT
     if args.action == "capture-native":
         receipt = capture_native(root)
     else:

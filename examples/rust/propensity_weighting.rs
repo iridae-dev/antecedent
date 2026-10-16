@@ -110,18 +110,22 @@ pub fn run() -> Result<(), CausalError> {
         .build()?
         .run(&ExecutionContext::for_tests(11))?;
 
-    let report = result.estimate.overlap_report.as_ref();
+    let report = result.estimate.as_effect().unwrap().diagnostics.overlap_report.as_ref();
     let ess = report.and_then(|r| r.ess);
     let pmin = report.map(|r| r.propensity_min);
     println!(
         "ATE={:.4} method={} estimator={} overlap_ess={:?} overlap_propensity_min={:?}",
-        result.estimate.ate,
+        result.estimate.as_effect().unwrap().ate,
         result.estimand.method,
         result.logical_plan.estimator.as_deref().unwrap_or("?"),
         ess,
         pmin,
     );
-    assert!((result.estimate.ate - 2.0).abs() < 0.35, "ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.35,
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("propensity.weighting"));
     assert!(ess.is_some());
     Ok(())

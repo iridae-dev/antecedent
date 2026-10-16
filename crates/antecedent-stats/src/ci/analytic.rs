@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_lossless)]
-
 use crate::special::{normal_ppf, student_t_sf};
 
 /// Two-sided analytic p-value for a partial correlation with residual `df`.
@@ -17,7 +15,7 @@ pub(crate) fn analytic_parcorr_pvalue(r: f64, df: f64) -> f64 {
 ///
 /// Returns `(lower, upper)` at the given two-sided `level` (e.g. 0.95).
 #[must_use]
-pub fn analytic_parcorr_ci(r: f64, df: f64, level: f64) -> (f64, f64) {
+pub(crate) fn analytic_parcorr_ci(r: f64, df: f64, level: f64) -> (f64, f64) {
     if df <= 0.0 || !(0.0..1.0).contains(&level) {
         return (f64::NAN, f64::NAN);
     }

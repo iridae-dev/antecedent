@@ -28,39 +28,20 @@ use antecedent_data::{
 use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Lpcmci, TemporalConstraints};
 use antecedent_graph::{DenseNodeId, NodeRef};
 
-/// Small deterministic LCG so the test doesn't depend on an external RNG crate (matches the
-/// hand-rolled-generator convention already used by other tests in this crate, e.g.
-/// `discovery_pc_parcorr.rs`).
-struct Lcg(u64);
-
-impl Lcg {
-    fn next_u64(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        self.0
-    }
-
-    /// Standard normal draw via Box-Muller, using the top bits of two LCG draws.
-    fn next_gaussian(&mut self) -> f64 {
-        let u1 = ((self.next_u64() >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-        let u2 = ((self.next_u64() >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-    }
-}
-
 /// Synthetic 3-variable process: `x0` is AR(1); `x1` depends on `x0` contemporaneously;
 /// `x2` depends on `x0` at lag 1. Enough structure to exercise both the ancestral (lagged)
 /// and non-ancestral (contemporaneous) removal phases, and enough non-trivial adjacency
 /// for repeated preliminary iterations to matter.
 fn generate_series(seed: u64, n: usize) -> (TimeSeriesData, Vec<VariableId>) {
-    let mut rng = Lcg(seed);
+    let mut rng = antecedent_core::CausalRng::from_seed(seed);
     let mut x0 = vec![0.0_f64; n];
     let mut x1 = vec![0.0_f64; n];
     let mut x2 = vec![0.0_f64; n];
     for t in 0..n {
         let prev0 = if t > 0 { x0[t - 1] } else { 0.0 };
-        x0[t] = 0.3 * prev0 + rng.next_gaussian();
-        x1[t] = 0.6 * x0[t] + 0.2 * rng.next_gaussian();
-        x2[t] = 0.5 * prev0 + rng.next_gaussian();
+        x0[t] = 0.3 * prev0 + antecedent_kernels::standard_normal(&mut rng);
+        x1[t] = 0.6 * x0[t] + 0.2 * antecedent_kernels::standard_normal(&mut rng);
+        x2[t] = 0.5 * prev0 + antecedent_kernels::standard_normal(&mut rng);
     }
 
     let mut builder = CausalSchemaBuilder::new();

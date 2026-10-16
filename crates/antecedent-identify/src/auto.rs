@@ -2,13 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::match_same_arms,
-    clippy::needless_pass_by_value,
-    clippy::too_many_lines,
-    clippy::unused_self
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -32,8 +25,28 @@ use crate::rd::{SharpRdConfig, SharpRdIdentifier};
 use crate::response::ResponseIdentifier;
 use crate::result::{
     DerivationTrace, EstimandClaim, IdentificationPerformanceRecord, IdentificationResult,
-    IdentificationStatus,
+    IdentificationResultParts, IdentificationStatus,
 };
+
+/// What the strategies tried by one [`AutoIdentifier::identify`] call accumulate.
+#[derive(Default)]
+struct AutoRun {
+    arena: CausalExprArena,
+    estimands: Vec<IdentifiedEstimand>,
+    derivation: DerivationTrace,
+    perf: IdentificationPerformanceRecord,
+    claims: Vec<EstimandClaim>,
+    hedge: Option<crate::hedge::HedgeCertificate>,
+    diagnostics: Vec<Diagnostic>,
+}
+
+/// The normalized average-effect query and the two hard levels its strategies contrast.
+#[derive(Clone, Copy)]
+struct AteContrast<'a> {
+    query: &'a AverageEffectQuery,
+    active: &'a Value,
+    control: &'a Value,
+}
 
 /// Prepared graph for [`AutoIdentifier`] (DAG + ADMG embed).
 #[derive(Clone, Debug)]
@@ -102,10 +115,11 @@ impl AutoIdentifier {
         graph: &Dag,
         assumptions: AssumptionSet,
     ) -> Result<PreparedAutoGraph, IdentificationError> {
-        Ok(PreparedAutoGraph {
-            dag: PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions.clone()),
-            admg: PreparedAdmg::from_dag_with_assumptions(graph, assumptions)?,
-        })
+        let dag = PreparedIdentificationGraph::wrap(graph, assumptions.clone());
+        // The ADMG is the prepared DAG's directed tables, not a second copy of
+        // `graph`. `from_dag` still validates that directed part.
+        let admg = PreparedAdmg::from_dag_with_assumptions(dag.dag(), assumptions)?;
+        Ok(PreparedAutoGraph { dag, admg })
     }
 
     /// Identify `query`, collecting every successful estimand into one arena.
@@ -113,22 +127,20 @@ impl AutoIdentifier {
     /// # Errors
     ///
     /// Unsupported query when the query type is not handled.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     pub fn identify(
         &self,
         prepared: &PreparedAutoGraph,
         query: &CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let mut derivation = DerivationTrace::default();
-        derivation
+        let mut acc = AutoRun::default();
+        acc.derivation
             .push("auto", "trying backdoor, efficient backdoor, frontdoor, IV, RD, and general ID");
-        let mut perf = IdentificationPerformanceRecord::default();
-        let mut hedge = None;
         let mut assumptions = prepared.dag.declared_assumptions().clone();
-        let mut arena = CausalExprArena::new();
-        let mut estimands = Vec::new();
-        let mut claims: Vec<EstimandClaim> = Vec::new();
-        let mut diagnostics = Vec::new();
 
         match query {
             CausalQuery::AverageEffect(q) => {
@@ -146,7 +158,7 @@ impl AutoIdentifier {
                     // scalar, so shipping the hard functional under an "identified" status
                     // would silently return the wrong number. Refuse instead of guessing.
                     if (scale - 1.0).abs() > 1e-9 {
-                        diagnostics.push(Diagnostic::new(
+                        acc.diagnostics.push(Diagnostic::new(
                             "auto.stochastic.bernoulli_scale_unsupported",
                             DiagnosticKind::Execution,
                             DiagnosticSeverity::Warning,
@@ -158,7 +170,7 @@ impl AutoIdentifier {
                                  were the requested stochastic effect"
                             ),
                         ));
-                        derivation.push(
+                        acc.derivation.push(
                             "auto.stochastic",
                             format!(
                                 "bernoulli mixture scale={scale}: not applied to any functional, refusing"
@@ -166,14 +178,14 @@ impl AutoIdentifier {
                         );
                         let mut out = IdentificationResult::not_identified(
                             query.clone(),
-                            derivation,
+                            acc.derivation,
                             assumptions,
-                            perf,
+                            acc.perf,
                         );
-                        out.diagnostics = diagnostics;
+                        out.diagnostics = acc.diagnostics;
                         return Ok(out);
                     }
-                    diagnostics.push(Diagnostic::new(
+                    acc.diagnostics.push(Diagnostic::new(
                         "auto.stochastic.bernoulli_scale",
                         DiagnosticKind::Execution,
                         DiagnosticSeverity::Info,
@@ -182,7 +194,7 @@ impl AutoIdentifier {
                              stochastic effect scale = {scale} (multiply hard ATE by scale)"
                         ),
                     ));
-                    derivation.push(
+                    acc.derivation.push(
                         "auto.stochastic",
                         format!("bernoulli mixture scale={scale} on hard unit contrast"),
                     );
@@ -198,32 +210,25 @@ impl AutoIdentifier {
                 );
                 let query_norm = CausalQuery::AverageEffect(q_norm.clone());
                 let q = &q_norm;
+                let contrast = AteContrast { query: q, active: &active, control: &control };
                 // A sharp RD design speaks for units at its cutoff; the graph strategies
                 // speak for the population the query names. They answer different
                 // questions, so which ones run is decided by the population asked for and
-                // their estimands are never listed side by side.
+                // their acc.estimands are never listed side by side.
                 if matches!(q.target_population, TargetPopulation::LocalAtCutoff { .. }) {
                     if let Some(cfg) = &self.rd {
-                        self.try_method(
+                        Self::try_method(
                             "rd.sharp",
                             || {
                                 SharpRdIdentifier::new(*cfg)
                                     .identify_on(prepared.dag.dag(), query_norm.clone())
                             },
-                            q,
-                            active,
-                            control,
-                            &mut arena,
-                            &mut estimands,
-                            &mut derivation,
-                            &mut perf,
+                            &contrast,
+                            &mut acc,
                             &assumptions,
-                            &mut claims,
-                            &mut hedge,
-                            &mut diagnostics,
                         );
                     } else {
-                        diagnostics.push(Diagnostic::new(
+                        acc.diagnostics.push(Diagnostic::new(
                             "auto.rd.missing_config",
                             DiagnosticKind::Execution,
                             DiagnosticSeverity::Warning,
@@ -231,72 +236,40 @@ impl AutoIdentifier {
                              (running variable, cutoff, bandwidth); none was supplied and none \
                              is inferred",
                         ));
-                        derivation
+                        acc.derivation
                             .push("auto.method", "rd.sharp: not applicable (missing RD config)");
                     }
                 } else {
-                    self.try_method(
+                    Self::try_method(
                         "backdoor.adjustment",
                         || self.backdoor.identify(&prepared.dag, &query_norm, workspace),
-                        q,
-                        active.clone(),
-                        control.clone(),
-                        &mut arena,
-                        &mut estimands,
-                        &mut derivation,
-                        &mut perf,
+                        &contrast,
+                        &mut acc,
                         &assumptions,
-                        &mut claims,
-                        &mut hedge,
-                        &mut diagnostics,
                     );
-                    self.try_method(
+                    Self::try_method(
                         "backdoor.efficient",
                         || self.efficient.identify(&prepared.dag, &query_norm, workspace),
-                        q,
-                        active.clone(),
-                        control.clone(),
-                        &mut arena,
-                        &mut estimands,
-                        &mut derivation,
-                        &mut perf,
+                        &contrast,
+                        &mut acc,
                         &assumptions,
-                        &mut claims,
-                        &mut hedge,
-                        &mut diagnostics,
                     );
-                    self.try_method(
+                    Self::try_method(
                         "frontdoor",
                         || self.frontdoor.identify(&prepared.dag, &query_norm, workspace),
-                        q,
-                        active.clone(),
-                        control.clone(),
-                        &mut arena,
-                        &mut estimands,
-                        &mut derivation,
-                        &mut perf,
+                        &contrast,
+                        &mut acc,
                         &assumptions,
-                        &mut claims,
-                        &mut hedge,
-                        &mut diagnostics,
                     );
-                    self.try_method(
+                    Self::try_method(
                         "iv",
                         || self.iv.identify(&prepared.dag, &query_norm, workspace),
-                        q,
-                        active.clone(),
-                        control.clone(),
-                        &mut arena,
-                        &mut estimands,
-                        &mut derivation,
-                        &mut perf,
+                        &contrast,
+                        &mut acc,
                         &assumptions,
-                        &mut claims,
-                        &mut hedge,
-                        &mut diagnostics,
                     );
                     if self.rd.is_some() {
-                        diagnostics.push(Diagnostic::new(
+                        acc.diagnostics.push(Diagnostic::new(
                             "auto.rd.local_estimand_not_requested",
                             DiagnosticKind::Scientific,
                             DiagnosticSeverity::Info,
@@ -304,34 +277,26 @@ impl AutoIdentifier {
                              its cutoff, not the requested population effect; ask for \
                              TargetPopulation::LocalAtCutoff to use it",
                         ));
-                        derivation.push(
+                        acc.derivation.push(
                             "auto.method",
                             "rd.sharp: not applicable (the query does not target the cutoff)",
                         );
                     } else {
-                        diagnostics.push(Diagnostic::new(
+                        acc.diagnostics.push(Diagnostic::new(
                             "auto.rd.missing_config",
                             DiagnosticKind::Execution,
                             DiagnosticSeverity::Info,
                             "sharp RD skipped: no running-variable / cutoff / bandwidth config on AutoIdentifier",
                         ));
-                        derivation
+                        acc.derivation
                             .push("auto.method", "rd.sharp: not applicable (missing RD config)");
                     }
-                    self.try_method(
+                    Self::try_method(
                         "general.id",
                         || self.general_id.identify(&prepared.admg, &query_norm, workspace),
-                        q,
-                        active,
-                        control,
-                        &mut arena,
-                        &mut estimands,
-                        &mut derivation,
-                        &mut perf,
+                        &contrast,
+                        &mut acc,
                         &assumptions,
-                        &mut claims,
-                        &mut hedge,
-                        &mut diagnostics,
                     );
                 }
             }
@@ -344,97 +309,97 @@ impl AutoIdentifier {
                 };
                 match run {
                     Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
-                        derivation.push(
+                        acc.derivation.push(
                             "auto.method",
                             format!("{method}: identified ({} estimand(s))", res.estimands.len()),
                         );
-                        arena = res.arena;
-                        estimands = res.estimands;
+                        acc.arena = res.arena;
+                        acc.estimands = res.estimands;
                         assumptions = res.required_assumptions;
-                        perf = res.performance;
-                        diagnostics.extend(res.diagnostics);
+                        acc.perf = res.performance;
+                        acc.diagnostics.extend(res.diagnostics);
                     }
                     Ok(res) => {
-                        derivation.push(
+                        acc.derivation.push(
                             "auto.method",
                             format!("{method}: not identified ({:?})", res.status),
                         );
-                        diagnostics.push(not_identified_diagnostic(method, method, &res));
-                        hedge = res.hedge;
-                        perf = res.performance;
-                        diagnostics.extend(res.diagnostics);
+                        acc.diagnostics.push(not_identified_diagnostic(method, method, &res));
+                        acc.hedge = res.hedge;
+                        acc.perf = res.performance;
+                        acc.diagnostics.extend(res.diagnostics);
                     }
                     Err(IdentificationError::UnsupportedQuery { message }) => {
-                        diagnostics.push(Diagnostic::new(
+                        acc.diagnostics.push(Diagnostic::new(
                             format!("auto.{method}.unsupported"),
                             DiagnosticKind::Execution,
                             DiagnosticSeverity::Warning,
                             format!("{method}: unsupported ({message})"),
                         ));
-                        derivation
+                        acc.derivation
                             .push("auto.method", format!("{method}: unsupported ({message})"));
                     }
                     Err(e) => {
-                        diagnostics.push(Diagnostic::new(
+                        acc.diagnostics.push(Diagnostic::new(
                             format!("auto.{method}.error"),
                             DiagnosticKind::Execution,
                             DiagnosticSeverity::Warning,
                             format!("{method}: error ({e})"),
                         ));
-                        derivation.push("auto.method", format!("{method}: error ({e})"));
+                        acc.derivation.push("auto.method", format!("{method}: error ({e})"));
                     }
                 }
             }
             CausalQuery::PathSpecific(_) => {
                 match self.path_specific.identify(&prepared.admg, query, workspace) {
                     Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
-                        derivation.push(
+                        acc.derivation.push(
                             "auto.method",
                             format!(
                                 "path_specific.natural: identified ({} estimand(s))",
                                 res.estimands.len()
                             ),
                         );
-                        arena = res.arena;
-                        estimands = res.estimands;
+                        acc.arena = res.arena;
+                        acc.estimands = res.estimands;
                         assumptions = res.required_assumptions;
-                        perf = res.performance;
-                        diagnostics.extend(res.diagnostics);
+                        acc.perf = res.performance;
+                        acc.diagnostics.extend(res.diagnostics);
                     }
                     Ok(res) => {
-                        derivation.push(
+                        acc.derivation.push(
                             "auto.method",
                             format!("path_specific.natural: not identified ({:?})", res.status),
                         );
-                        diagnostics.push(not_identified_diagnostic(
+                        acc.diagnostics.push(not_identified_diagnostic(
                             "path_specific",
                             "path_specific.natural",
                             &res,
                         ));
-                        hedge = res.hedge;
-                        perf = res.performance;
-                        diagnostics.extend(res.diagnostics);
+                        acc.hedge = res.hedge;
+                        acc.perf = res.performance;
+                        acc.diagnostics.extend(res.diagnostics);
                     }
                     Err(IdentificationError::UnsupportedQuery { message }) => {
-                        diagnostics.push(Diagnostic::new(
+                        acc.diagnostics.push(Diagnostic::new(
                             "auto.path_specific.unsupported",
                             DiagnosticKind::Execution,
                             DiagnosticSeverity::Warning,
                             format!("path_specific.natural: unsupported ({message})"),
                         ));
-                        derivation.push(
+                        acc.derivation.push(
                             "auto.method",
                             format!("path_specific.natural: unsupported ({message})"),
                         );
                     }
                     Err(e) => {
-                        diagnostics.push(Diagnostic::new(
+                        acc.diagnostics.push(Diagnostic::new(
                             "auto.path_specific.error",
                             DiagnosticKind::Execution,
                             DiagnosticSeverity::Warning,
                             format!("path_specific.natural: error ({e})"),
                         ));
-                        derivation
+                        acc.derivation
                             .push("auto.method", format!("path_specific.natural: error ({e})"));
                     }
                 }
@@ -443,25 +408,25 @@ impl AutoIdentifier {
                 let id = ResponseIdentifier { backdoor: self.backdoor.clone() };
                 match id.identify(&prepared.dag, query, workspace) {
                     Ok(res) if res.status == IdentificationStatus::NonparametricallyIdentified => {
-                        derivation.push(
+                        acc.derivation.push(
                             "auto.method",
                             format!(
                                 "response.backdoor: identified ({} pair(s))",
                                 res.estimands.len()
                             ),
                         );
-                        arena = res.arena;
-                        estimands = res.estimands;
+                        acc.arena = res.arena;
+                        acc.estimands = res.estimands;
                         assumptions = res.required_assumptions;
-                        perf = res.performance;
-                        diagnostics.extend(res.diagnostics);
+                        acc.perf = res.performance;
+                        acc.diagnostics.extend(res.diagnostics);
                     }
                     Ok(res) => {
-                        derivation.push(
+                        acc.derivation.push(
                             "auto.method",
                             format!("response.backdoor: not identified ({:?})", res.status),
                         );
-                        diagnostics.extend(res.diagnostics);
+                        acc.diagnostics.extend(res.diagnostics);
                     }
                     Err(e) => {
                         return Err(e);
@@ -475,19 +440,24 @@ impl AutoIdentifier {
             }
         }
 
-        if estimands.is_empty() {
-            let mut out =
-                IdentificationResult::not_identified(query.clone(), derivation, assumptions, perf);
-            out.hedge = hedge;
-            out.diagnostics = diagnostics;
+        if acc.estimands.is_empty() {
+            let mut out = IdentificationResult::not_identified(
+                query.clone(),
+                acc.derivation,
+                assumptions,
+                acc.perf,
+            );
+            out.hedge = acc.hedge;
+            out.diagnostics = acc.diagnostics;
             return Ok(out);
         }
 
         // The listing is nonparametric when any alternative is; each estimand's own status
         // and assumptions are its claim. The listing-level set is the union over the
         // alternatives, so it never understates what a listed estimand relies on.
-        let all_parametric = !claims.is_empty()
-            && claims
+        let all_parametric = !acc.claims.is_empty()
+            && acc
+                .claims
                 .iter()
                 .all(|c| c.status == IdentificationStatus::IdentifiedUnderParametricRestrictions);
         let status = if all_parametric {
@@ -495,42 +465,34 @@ impl AutoIdentifier {
         } else {
             IdentificationStatus::NonparametricallyIdentified
         };
-        for claim in &claims {
+        for claim in &acc.claims {
             assumptions.extend_unique(&claim.required_assumptions.entries);
         }
-        let mut out = IdentificationResult::from_parts(
+        let mut out = IdentificationResult::from_parts(IdentificationResultParts {
             status,
-            query.clone(),
-            estimands,
-            arena,
-            derivation,
-            assumptions,
-            Vec::new(),
-            perf,
-            None,
-        )
-        .with_estimand_claims(claims);
-        out.diagnostics = diagnostics;
+            query: query.clone(),
+            estimands: acc.estimands,
+            arena: acc.arena,
+            derivation: acc.derivation,
+            required_assumptions: assumptions,
+            diagnostics: Vec::new(),
+            performance: acc.perf,
+            hedge: None,
+        })
+        .with_estimand_claims(acc.claims);
+        out.diagnostics = acc.diagnostics;
         Ok(out)
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn try_method(
-        &self,
         name: &str,
         run: impl FnOnce() -> Result<IdentificationResult, IdentificationError>,
-        q: &AverageEffectQuery,
-        active: Value,
-        control: Value,
-        arena: &mut CausalExprArena,
-        estimands: &mut Vec<IdentifiedEstimand>,
-        derivation: &mut DerivationTrace,
-        perf: &mut IdentificationPerformanceRecord,
+        contrast: &AteContrast<'_>,
+        acc: &mut AutoRun,
         assumptions_declared: &AssumptionSet,
-        claims: &mut Vec<EstimandClaim>,
-        hedge: &mut Option<crate::hedge::HedgeCertificate>,
-        diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let AteContrast { query: q, active, control } = *contrast;
+        let AutoRun { arena, estimands, derivation, perf, claims, hedge, diagnostics } = acc;
         match run() {
             Ok(res)
                 if matches!(
@@ -554,7 +516,7 @@ impl AutoIdentifier {
                     EstimandClaim { status: own.status, required_assumptions: required }
                 };
                 for (index, e) in res.estimands.iter().enumerate() {
-                    if let Some(rebuilt) = rebuild_estimand(arena, e, q, &active, &control) {
+                    if let Some(rebuilt) = rebuild_estimand(arena, e, q, active, control) {
                         estimands.push(rebuilt);
                         claims.push(claim_of(index));
                     } else if name == "general.id" && arena.is_empty() {
@@ -656,6 +618,10 @@ fn set_value(intervention: &Intervention) -> Result<Value, IdentificationError> 
     crate::intervention_support::require_set_value(intervention, "auto ATE")
 }
 
+#[allow(
+    clippy::match_same_arms,
+    reason = "arms are kept separate so each documented case stays visible"
+)]
 fn rebuild_estimand(
     arena: &mut CausalExprArena,
     e: &IdentifiedEstimand,
@@ -1063,8 +1029,9 @@ mod tests {
     }
 
     #[test]
-    fn auto_reports_a_path_budget_exit_as_inconclusive() {
-        // 0=t, four fully connected layers of three, 13=y: 81 paths against a budget of 64.
+    fn auto_identifies_a_path_explosion_by_reachability() {
+        // 0=t, four fully connected layers of three, 13=y: 81 paths. The effect through
+        // node 1 is identified from the first hops; the path budget is not a refusal.
         let mut dag = Dag::with_variables(14);
         let layer = |k: u32| (1 + 3 * k)..(4 + 3 * k);
         for v in layer(0) {
@@ -1092,19 +1059,12 @@ mod tests {
         );
         let mut ws = IdentificationWorkspace::default();
         let res = auto.identify(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(
-            !res.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Scientific),
-            "a budget exit is not a scientific negative: {:?}",
+            res.diagnostics.iter().all(|d| d.code.as_ref() != "auto.path_specific.search_bounded"),
+            "{:?}",
             res.diagnostics
         );
-        let bounded = res
-            .diagnostics
-            .iter()
-            .find(|d| d.code.as_ref() == "auto.path_specific.search_bounded")
-            .expect("auto bounded-search diagnostic");
-        assert_eq!(bounded.kind, DiagnosticKind::Execution);
-        assert_eq!(bounded.severity, DiagnosticSeverity::Warning);
     }
 
     /// R -> T -> Y with R -> Y: a sharp design on R (variables: 0 = T, 1 = Y, 2 = R).
@@ -1246,7 +1206,6 @@ mod tests {
         clippy::float_cmp,
         clippy::map_unwrap_or,
         clippy::cast_possible_truncation,
-        clippy::cast_lossless,
         clippy::precedence,
         reason = "the fixture compares exact 0/1 binary values and casts a bit already masked to 0 or 1 into u8"
     )]

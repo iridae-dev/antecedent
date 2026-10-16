@@ -153,6 +153,10 @@ pub struct SharedMediationBlockSe {
 ///
 /// Returns `None` when the atoms share no series time or `weights` do not align.
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "window every atom's series, scan the block length, then bootstrap the mixture and probes; the stages share the windows and the family"
+)]
 pub fn shared_mediation_block_bootstrap(
     atoms: &[&PreparedTemporalMediation],
     weights: &[f64],
@@ -277,7 +281,6 @@ pub fn shared_mediation_block_bootstrap(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use std::sync::Arc;
 
@@ -365,8 +368,16 @@ mod tests {
         let (data, q, estimand) = series(240);
         let ctx = ExecutionContext::for_tests(11);
         let est = TemporalMediationEstimator::new();
-        let (single, block) =
-            est.estimate_with_block_bootstrap(&data, &estimand, &q, &[], 60, 0xABCD, &ctx).unwrap();
+        let (single, block) = est
+            .estimate_with_block_bootstrap(
+                &data,
+                &estimand,
+                &q,
+                &[],
+                crate::temporal_block::BlockBootstrap { replicates: 60, stream_base: 0xABCD },
+                &ctx,
+            )
+            .unwrap();
         let atom = est.prepare_shared(&data, &estimand, &q, &[], &ctx).unwrap();
         assert!((atom.estimate().effect.ate - single.effect.ate).abs() < 1e-15);
         for atoms in [vec![&atom], vec![&atom, &atom]] {
@@ -391,7 +402,7 @@ mod tests {
                 assert!(a > 0.0 && (a - b).abs() < 1e-12 * b.max(1.0), "{a} vs {b}");
             }
             assert_eq!(shared.requested, shared.block.mediated);
-            assert_eq!(single.effect.se_bootstrap, block.mediated);
+            assert_eq!(single.effect.se_bootstrap(), block.mediated);
         }
     }
 

@@ -1,4 +1,4 @@
-"""B0.1 (F9/F10/F13): evidence obligations, durable study candidates and the
+"""Evidence obligations, durable study candidates and the
 identification-repair facade through the Python surface.
 
 Two distinct contract families are repaired by their own theorem checkers: a
@@ -94,7 +94,7 @@ def trial(label, population, cost, *, measured=("y",), interventions=("x",), **f
 # ----------------------------------------------------------------- obligations
 
 
-def test_f9_failed_backdoor_contract_exposes_a_joint_law_obligation_with_its_proof_step():
+def test_failed_backdoor_contract_exposes_a_joint_law_obligation_with_its_proof_step():
     (obligation,) = repair.obligations(backdoor())
     assert obligation.kind == "provide_joint_law"
     assert set(obligation.variables) == {"t", "y", "z1", "z2"}
@@ -107,7 +107,7 @@ def test_f9_failed_backdoor_contract_exposes_a_joint_law_obligation_with_its_pro
     assert obligation.id.startswith("eo1:provide_joint_law:")
 
 
-def test_f9_failed_transport_contract_exposes_the_source_experiment_obligation():
+def test_failed_transport_contract_exposes_the_source_experiment_obligation():
     (obligation,) = repair.obligations(transport_contract())
     assert obligation.kind == "intervene"
     assert obligation.population == "source"
@@ -119,7 +119,7 @@ def test_f9_failed_transport_contract_exposes_the_source_experiment_obligation()
     assert "solver:" in obligation.reason
 
 
-def test_f9_obligations_accept_a_failed_identification():
+def test_obligations_accept_a_failed_identification():
     class Query:
         treatment = "t"
         outcome = "y"
@@ -138,7 +138,7 @@ def test_f9_obligations_accept_a_failed_identification():
         repair.obligations(object())
 
 
-def test_f9_assumption_obligations_are_never_satisfied_by_a_study():
+def test_assumption_obligations_are_never_satisfied_by_a_study():
     contract = backdoor(
         [repair.UnresolvedAssumption("assume:positivity", "positivity given the adjustment set")]
     )
@@ -158,7 +158,7 @@ def test_f9_assumption_obligations_are_never_satisfied_by_a_study():
 # --------------------------------------------------------------- study candidate
 
 
-def test_f10_candidate_needs_unit_and_cost_semantics():
+def test_candidate_needs_unit_and_cost_semantics():
     for field, value in (("unit", " "), ("cost_unit", ""), ("timing", ""), ("recruitment", "")):
         with pytest.raises(repair.StudyCandidateRefusal) as caught:
             observation("bad", ["t", "y"], 5, **{field: value})
@@ -171,7 +171,7 @@ def test_f10_candidate_needs_unit_and_cost_semantics():
         observation("free", ["t", "y"], 0)
 
 
-def test_f10_candidate_kinds_cluster_and_sample_increase_are_declared_not_conducted():
+def test_candidate_kinds_cluster_and_sample_increase_are_declared_not_conducted():
     experiment = trial("exp", "source", 3)
     assert experiment.kind == "experiment" and experiment.interventions == ("x",)
     rows = repair.StudyCandidate.sample_increase(
@@ -194,7 +194,7 @@ def test_f10_candidate_kinds_cluster_and_sample_increase_are_declared_not_conduc
     assert result.best is None
 
 
-def test_f10_candidate_observing_separate_regimes_cannot_claim_the_joint_factor():
+def test_candidate_observing_separate_regimes_cannot_claim_the_joint_factor():
     full = ["t", "y", "z1", "z2"]
     marginals = observation("marginals", full, 4, joint=False)
     liar = observation(
@@ -220,7 +220,7 @@ def test_f10_candidate_observing_separate_regimes_cannot_claim_the_joint_factor(
 # ------------------------------------------------------------------- repair
 
 
-def test_f9_failed_backdoor_contract_is_repaired_by_the_candidate_that_supplies_the_joint_law():
+def test_failed_backdoor_contract_is_repaired_by_the_candidate_that_supplies_the_joint_law():
     result = repair.repair(backdoor(), candidates())
     assert result.family == "backdoor"
     assert result.outcome == "repaired"
@@ -238,7 +238,7 @@ def test_f9_failed_backdoor_contract_is_repaired_by_the_candidate_that_supplies_
     assert result.sufficient == result.ranked
 
 
-def test_f9_separate_studies_cannot_meet_a_joint_regime_obligation():
+def test_separate_studies_cannot_meet_a_joint_regime_obligation():
     result = repair.repair(backdoor(), candidates()[:2])
     # Each confounder alone leaves the other back-door path open.
     assert result.classification("registry_z1") == "insufficient"
@@ -255,7 +255,7 @@ def test_f9_separate_studies_cannot_meet_a_joint_regime_obligation():
     assert result.detail == "identification_repair.wrong_contract"
 
 
-def test_f10_transport_family_is_repaired_by_the_source_experiment_only():
+def test_transport_family_is_repaired_by_the_source_experiment_only():
     contract = transport_contract()
     result = repair.repair(
         contract,
@@ -278,7 +278,7 @@ def test_f10_transport_family_is_repaired_by_the_source_experiment_only():
     assert result.receipt.dominated_skipped >= 2
 
 
-def test_f13_the_same_candidate_repairs_only_the_family_whose_theorem_it_satisfies():
+def test_the_same_candidate_repairs_only_the_family_whose_theorem_it_satisfies():
     cohort = candidates()[2]
     experiment = trial("source_trial", "source", 3)
     assert repair.repair(transport_contract(), [experiment]).outcome == "repaired"
@@ -292,7 +292,7 @@ def test_f13_the_same_candidate_repairs_only_the_family_whose_theorem_it_satisfi
     assert repair.repair(transport_contract(), [source_joint]).best is None
 
 
-def test_f13_objective_ranks_sufficient_subsets_and_cost_units_must_agree():
+def test_objective_ranks_sufficient_subsets_and_cost_units_must_agree():
     cheap = observation("cheap_wide", ["t", "y", "z1", "z2"], 20)
     dear = observation("dear_narrow", ["t", "y", "z1", "z2", "w1"], 30, sample_budget=10)
     by_cost = repair.repair(backdoor(), [cheap, dear], "minimize_cost")
@@ -319,7 +319,7 @@ def test_f13_objective_ranks_sufficient_subsets_and_cost_units_must_agree():
         repair.repair(backdoor(), [cheap], "minimize_regret")
 
 
-def test_f13_a_contract_that_already_identifies_is_not_a_repair_target():
+def test_a_contract_that_already_identifies_is_not_a_repair_target():
     with pytest.raises(repair.RepairRefusal) as caught:
         repair.BackdoorContract(
             graph=Dag.from_edges(["a", "b"], [("a", "b")]),
@@ -332,7 +332,7 @@ def test_f13_a_contract_that_already_identifies_is_not_a_repair_target():
     assert_registered_refusal(caught.value)
 
 
-def test_f13_budget_truncated_search_is_exhausted_never_impossible():
+def test_budget_truncated_search_is_exhausted_never_impossible():
     many = [
         observation("a", ["t", "y", "z1"], 5),
         observation("b", ["t", "y", "z2"], 5),
@@ -359,7 +359,7 @@ def test_f13_budget_truncated_search_is_exhausted_never_impossible():
     assert "impossible" not in (result.detail or "")
 
 
-def test_f13_subsets_beyond_the_declared_depth_are_not_examined_and_say_so():
+def test_subsets_beyond_the_declared_depth_are_not_examined_and_say_so():
     result = repair.repair(
         backdoor(),
         candidates()[:2],
@@ -370,7 +370,7 @@ def test_f13_subsets_beyond_the_declared_depth_are_not_examined_and_say_so():
     assert result.receipt.stop is None
 
 
-def test_f13_request_bounds_are_refusals():
+def test_request_bounds_are_refusals():
     many = [observation(f"n{k}", ["t", "y", "z1"], k + 1) for k in range(17)]
     with pytest.raises(repair.RepairRefusal) as caught:
         repair.repair(backdoor(), many)
@@ -384,7 +384,7 @@ def test_f13_request_bounds_are_refusals():
 # ------------------------------------------------------------------- artifact
 
 
-def test_f13_export_consume_round_trip_replays_the_report():
+def test_export_consume_round_trip_replays_the_report():
     for contract, studies in (
         (backdoor(), candidates()),
         (transport_contract(), [trial("source_trial", "source", 3)]),
@@ -399,7 +399,7 @@ def test_f13_export_consume_round_trip_replays_the_report():
         assert replayed.best == result.best
 
 
-def test_f13_truncated_search_survives_the_artifact_as_unevaluated():
+def test_truncated_search_survives_the_artifact_as_unevaluated():
     many = [observation(f"s{k}", ["t", "y", "w1"], k + 1) for k in range(4)]
     result = repair.repair(
         backdoor(), many, limits=repair.RepairLimits(max_operations=2, max_depth=2)
@@ -412,7 +412,7 @@ def test_f13_truncated_search_survives_the_artifact_as_unevaluated():
     )
 
 
-def test_f13_consumer_refuses_oversized_limits_and_malformed_bytes():
+def test_consumer_refuses_oversized_limits_and_malformed_bytes():
     data = repair.repair(backdoor(), candidates()).export()
     with pytest.raises(repair.RepairArtifactRefusal) as caught:
         repair.consume(data, max_operations=1)

@@ -1,0 +1,28 @@
+feature_id = "joint_law.composed_spread_and_exceedance"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Spread, interval candidates and exceedance decisions read at the composed coordinate of a
+# composition (draws or moments of the composition, not of its components). Closed-form
+# linear-combination moments and law of total variance are textbook; the Frechet/Makarov
+# envelopes are cited by joint_law.dependence_envelope. The coordinate-and-record matching of a
+# composed interval (ComposedCoordinate, CoverageRecord) is original engineering.
+papers = [
+  { title = "Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed (Makarov, Theory of Probability and its Applications 26(4):803-806, 1982)", doi = "10.1137/1126086", sections = ["bounds of P(X + Y <= t) over all couplings of fixed marginals (used for the sum envelope)"] },
+  { title = "Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["law of total variance for a mixture; delta-method propagation"] },
+]
+implementation_deviations = [
+  "Constructions (normal, draw-percentile, marginal candidates) are interval constructions, not coverage statements. Each carries calibration status unmeasured; the interval reading stays closed unless a measured record exists at the exact composed coordinate and construction, at the recorded nominal level.",
+  "A component interval's record is never a composed coordinate's. Rows are paired only when they are realizations of one joint law (a shared alignment identity); pairing marginal draws by index silently assumes independence and is refused.",
+  "The exceedance decision carries a Monte Carlo band; the band is numerical error, not statistical coverage.",
+  "A transported claim's uncertainty is three pieces (source sampling, target sampling, transport functional); naming some and omitting others is refused with the missing pieces listed.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-stats/src/joint_law.rs (module unit tests with hand-computed moments)",
+  "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
+  "crates/antecedent-contract/tests/interface_adapters.rs",
+]

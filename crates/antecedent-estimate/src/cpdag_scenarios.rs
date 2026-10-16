@@ -1,7 +1,7 @@
-//! Preparation and evaluation of the DAG completions of a supplied CPDAG (2.3A X2).
+//! Preparation and evaluation of the DAG completions of a supplied CPDAG.
 //!
 //! The identify layer enumerates the completions and decides each one through
-//! the 2.2 classical catalog route with evidence bound to that completion. This
+//! the classical catalog route with evidence bound to that completion. This
 //! layer compiles each identified completion once against the supplied exact
 //! laws through the existing supplied-scenario preparation
 //! ([`crate::transport_scenarios`]) and evaluates it. The report is that

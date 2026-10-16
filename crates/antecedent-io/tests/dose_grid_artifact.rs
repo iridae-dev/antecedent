@@ -1,4 +1,4 @@
-//! 2.3 B1 (X4): the dose-grid functional artifact through its recomputing consumer.
+//! The dose-grid functional artifact through its recomputing consumer.
 //!
 //! The oracle is the closed-form quadratic response `m(d) = 1 + 0.5 d + 0.25 d^2`,
 //! `m'(d) = 0.5 + 0.5 d` and `m(3) - m(1) = 3`; a Gaussian-kernel local quadratic
@@ -83,7 +83,7 @@ fn consume(bytes: &[u8]) -> Result<DoseGridArtifactWire, DoseGridArtifactError> 
 }
 
 #[test]
-fn b1_artifact_level_round_trips_and_matches_closed_form() {
+fn artifact_level_round_trips_and_matches_closed_form() {
     let sealed = seal("level", 0.0);
     let bytes = sealed.export().unwrap();
     let consumed = consume(&bytes).unwrap();
@@ -102,7 +102,7 @@ fn b1_artifact_level_round_trips_and_matches_closed_form() {
 }
 
 #[test]
-fn b1_artifact_derivative_and_contrast_replay_to_closed_form() {
+fn artifact_derivative_and_contrast_replay_to_closed_form() {
     let derivative = consume(&seal("derivative", 0.0).export().unwrap()).unwrap();
     let expected = [0.75, 1.0, 1.5, 2.25];
     for (point, truth) in derivative.result.derivatives.iter().zip(expected) {
@@ -122,7 +122,7 @@ fn b1_artifact_derivative_and_contrast_replay_to_closed_form() {
 }
 
 #[test]
-fn b1_artifact_records_support_unmeasured_calibration_and_closed_band() {
+fn artifact_records_support_unmeasured_calibration_and_closed_band() {
     let wire = seal("level", 0.1);
     assert_eq!(wire.result.support.len(), GRID.len());
     for (row, dose) in wire.result.support.iter().zip(GRID) {
@@ -145,7 +145,7 @@ fn b1_artifact_records_support_unmeasured_calibration_and_closed_band() {
 }
 
 #[test]
-fn b1_resealed_table_change_is_refused() {
+fn resealed_table_change_is_refused() {
     let mut wire = seal("level", 0.1);
     wire.request.outcome[100] += 0.5;
     let error = consume(&reseal(wire)).unwrap_err();
@@ -155,7 +155,7 @@ fn b1_resealed_table_change_is_refused() {
 }
 
 #[test]
-fn b1_resealed_premise_changes_are_refused() {
+fn resealed_premise_changes_are_refused() {
     let mut bandwidth = seal("level", 0.1);
     bandwidth.request.bandwidth = 0.5;
     assert_eq!(consume(&reseal(bandwidth)).unwrap_err(), DoseGridArtifactError::ResultMismatch);
@@ -172,7 +172,7 @@ fn b1_resealed_premise_changes_are_refused() {
 }
 
 #[test]
-fn b1_resealed_stored_value_changes_are_refused() {
+fn resealed_stored_value_changes_are_refused() {
     let mut value = seal("level", 0.1);
     value.result.levels[0].value += 1e-9;
     assert_eq!(consume(&reseal(value)).unwrap_err(), DoseGridArtifactError::ResultMismatch);
@@ -187,7 +187,7 @@ fn b1_resealed_stored_value_changes_are_refused() {
 }
 
 #[test]
-fn b1_unresealed_changes_hit_the_digests() {
+fn unresealed_changes_hit_the_digests() {
     let mut table_changed = seal("level", 0.1);
     table_changed.request.dose[3] += 0.001;
     assert_eq!(
@@ -203,7 +203,7 @@ fn b1_unresealed_changes_hit_the_digests() {
 }
 
 #[test]
-fn b1_seal_refuses_closed_unsupported_and_uncertified_requests() {
+fn seal_refuses_closed_unsupported_and_uncertified_requests() {
     let detail = |request: DoseGridRequestWire| match DoseGridArtifactWire::seal(request) {
         Err(error) => error.refusal(),
         Ok(_) => panic!("the request must be refused"),
@@ -240,7 +240,7 @@ fn b1_seal_refuses_closed_unsupported_and_uncertified_requests() {
 }
 
 #[test]
-fn b1_unknown_version_band_marker_and_shape_are_refused() {
+fn unknown_version_band_marker_and_shape_are_refused() {
     let mut future = seal("level", 0.1);
     future.version = DOSE_GRID_ARTIFACT_VERSION + 1;
     let bytes = future.export().unwrap();
@@ -277,7 +277,7 @@ fn b1_unknown_version_band_marker_and_shape_are_refused() {
 }
 
 #[test]
-fn b1_consumer_limits_bound_the_stored_table_and_grid() {
+fn consumer_limits_bound_the_stored_table_and_grid() {
     let bytes = seal("level", 0.1).export().unwrap();
     let rows = DoseGridConsumeLimits { max_rows: 10, max_grid: 1_024 };
     assert_eq!(
@@ -294,7 +294,7 @@ fn b1_consumer_limits_bound_the_stored_table_and_grid() {
 }
 
 #[test]
-fn b1_support_table_labels_every_dose_without_refusing() {
+fn support_table_labels_every_dose_without_refusing() {
     let (dose, _) = table(0.0);
     let labels = dose_support_table(&dose, &[-1.0, 2.0, 10.0], 0.4, 10.0).unwrap();
     let names: Vec<&str> = labels.iter().map(|row| row.label.as_str()).collect();
@@ -309,7 +309,7 @@ fn b1_support_table_labels_every_dose_without_refusing() {
 }
 
 #[test]
-fn b1_quadratic_mean_scope_replays_truth_across_fixed_bandwidths() {
+fn quadratic_mean_scope_replays_truth_across_fixed_bandwidths() {
     for kind in ["level", "derivative", "contrast"] {
         for bandwidth in [0.2, 0.4, 0.8] {
             let mut premise = request(kind, 0.0);
@@ -342,7 +342,7 @@ fn b1_quadratic_mean_scope_replays_truth_across_fixed_bandwidths() {
 }
 
 #[test]
-fn b1_quadratic_mean_premise_and_required_feature_cannot_be_silently_changed() {
+fn quadratic_mean_premise_and_required_feature_cannot_be_silently_changed() {
     let generic = seal("level", 0.1);
     let old_json = serde_json::to_value(&generic.request).unwrap();
     assert!(old_json.get("quadratic_mean").is_none());

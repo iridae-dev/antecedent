@@ -134,6 +134,10 @@ impl BetaHyperparameters {
     ///   Beta distribution has those moments — the comparison is exact, no
     ///   epsilon slack at the boundary).
     /// - The resulting `α` / `β` are non-finite (extreme inputs).
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn from_moments(mean: f64, variance: f64) -> Result<Self, ProbError> {
         if !(mean.is_finite() && mean > 0.0 && mean < 1.0) {
             return Err(ProbError::InvalidPrior {
@@ -178,6 +182,10 @@ impl BetaHyperparameters {
     /// - `ess` non-finite or negative.
     /// - The resulting `α` / `β` are non-finite or non-positive (`ess` large
     ///   enough to overflow).
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn from_mean_and_ess(mean: f64, ess: f64) -> Result<Self, ProbError> {
         if !(mean.is_finite() && mean > 0.0 && mean < 1.0) {
             return Err(ProbError::InvalidPrior {
@@ -248,6 +256,10 @@ impl GammaHyperparameters {
     /// - `variance` non-finite or non-positive.
     /// - The resulting `shape` / `rate` are non-finite or non-positive
     ///   (extreme inputs).
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn from_moments(mean: f64, variance: f64) -> Result<Self, ProbError> {
         if !mean.is_finite() || !(mean > 0.0) {
             return Err(ProbError::InvalidPrior {
@@ -285,6 +297,10 @@ impl GammaHyperparameters {
     /// - `ess` non-finite or negative.
     /// - The resulting `shape` / `rate` are non-finite or non-positive
     ///   (`ess` large enough to overflow).
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn from_mean_and_ess(mean: f64, ess: f64) -> Result<Self, ProbError> {
         if !mean.is_finite() || !(mean > 0.0) {
             return Err(ProbError::InvalidPrior {

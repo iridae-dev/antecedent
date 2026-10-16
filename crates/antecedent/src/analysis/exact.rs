@@ -2,10 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{PreparedStudy, StudyBuilder};
+use antecedent_contract::{
+    AssumptionSlot, IdentificationSlot, ObligationKind, ObligationRecord, ObligationScope,
+    ReasoningView, SlotAvailability, SupportSlot,
+};
 use antecedent_core::{
-    AssumptionSlot, AssumptionSource, AssumptionStatus, ExecutionContext, IdentificationSlot,
-    IdentificationStatus, IdentityDomain, NodeRef, ObligationKind, ObligationRecord,
-    ObligationScope, ReasoningView, SlotAvailability, SupportSlot, TheoremScope, VariableId,
+    AssumptionSource, AssumptionStatus, ExecutionContext, IdentificationStatus, IdentityDomain,
+    NodeRef, TheoremScope, VariableId,
 };
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData,
@@ -19,7 +22,10 @@ use antecedent_io::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use super::transport_common::{GraphFields, digest, err, rebind_snapshots, rebuild_checked_proof};
+use super::transport_common::{
+    GraphFields, assignments, digest, err, law_wires, ordered_laws, rebind_snapshots,
+    rebuild_checked_proof, requirements,
+};
 
 /// Distinct identity layers for a prepared exact-law study.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -96,50 +102,6 @@ pub struct ExactFactorRequirement {
     /// Required intervention coordinates.
     pub interventions: Vec<VariableId>,
 }
-fn requirements(functional: &BoundTransportFunctional) -> Vec<ExactFactorRequirement> {
-    use antecedent_expr::ExprNode;
-    let arena = functional.arena();
-    let mut pending = vec![functional.root()];
-    let mut seen = std::collections::BTreeSet::new();
-    let mut out = Vec::new();
-    while let Some(id) = pending.pop() {
-        if !seen.insert(id.raw()) {
-            continue;
-        }
-        match arena.node(id) {
-            ExprNode::Distribution {
-                variables,
-                conditioned_on,
-                intervention,
-                population,
-                regime,
-                ..
-            } => out.push(ExactFactorRequirement {
-                expression: id,
-                binding: antecedent_expr::LeafBinding {
-                    population: Arc::from(arena.population(*population)),
-                    regime: *regime,
-                },
-                variables: arena.var_set(*variables).to_vec(),
-                conditioned_on: arena.var_set(*conditioned_on).to_vec(),
-                interventions: arena.intervention_set(*intervention),
-            }),
-            ExprNode::Kernel { body, .. } => pending.push(*body),
-            ExprNode::Product(list) => pending.extend(arena.list(*list)),
-            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
-                pending.push(*expr)
-            }
-            ExprNode::Ratio { numerator, denominator } => {
-                pending.extend([*numerator, *denominator])
-            }
-            ExprNode::Expectation { distribution, .. } => pending.push(*distribution),
-            ExprNode::Contrast { left, right, .. } => pending.extend([*left, *right]),
-        }
-    }
-    out.sort_by_key(|factor| factor.expression.raw());
-    out
-}
-
 /// Metadata-only inspection of exact prepared authority.
 #[derive(Clone, Debug)]
 pub struct ExactStudyInspection {
@@ -187,21 +149,6 @@ impl StudyBuilder {
     }
 }
 
-fn law_wires(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    ordered_laws(data.laws().iter().map(ExactLawWire::from_law))
-}
-fn ordered_laws(laws: impl Iterator<Item = ExactLawWire>) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = laws
-        .map(|law| {
-            Ok((
-                antecedent_io::to_cbor(&(law.population.clone(), law.regime, &law.interventions))?,
-                law,
-            ))
-        })
-        .collect::<Result<Vec<_>, IoError>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
-}
 // Preserve the pre-T6 wire field order when checking historical identities.
 #[derive(Serialize)]
 struct LegacyLawIdentity<'a> {
@@ -259,12 +206,6 @@ fn shape(data: &ExactTransportData, legacy: bool) -> Result<String, IoError> {
     }
     law_digest(IdentityDomain::Observation, &laws, legacy)
 }
-fn assignments(request: &Assignment) -> Vec<(u32, ValueWire)> {
-    let mut values: Vec<_> =
-        request.entries().iter().map(|(v, x)| (v.raw(), ValueWire::from_value(x))).collect();
-    values.sort_by_key(|(v, _)| *v);
-    values
-}
 impl PreparedStudy<ExactPreparedState> {
     fn build(
         diagram: SelectionDiagram,
@@ -277,7 +218,6 @@ impl PreparedStudy<ExactPreparedState> {
         Self::build_with_identity(diagram, functional, data, request, limits, ctx, false)
     }
     // Identity encoding is retained independently of numerical execution settings.
-    #[allow(clippy::too_many_arguments)]
     fn build_with_identity(
         diagram: SelectionDiagram,
         functional: BoundTransportFunctional,
@@ -324,7 +264,6 @@ impl PreparedStudy<ExactPreparedState> {
     }
 
     // Only the facade calls this after graph verification and compilation against these inputs.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn from_checked_plan(
         diagram: SelectionDiagram,
         functional: BoundTransportFunctional,
@@ -621,8 +560,8 @@ impl PreparedStudy<ExactPreparedState> {
     /// Invalid retained identity (never manufactured from editable displays).
     pub fn preview_transform(
         &self,
-        intent: antecedent_core::TransformIntent,
-    ) -> Result<antecedent_core::TransformationReport, IoError> {
+        intent: antecedent_contract::TransformIntent,
+    ) -> Result<antecedent_contract::TransformationReport, IoError> {
         preview_transform_report(&self.state.identities, intent, "exact")
     }
     /// Metadata-only replacement preview: a different evidence shape requires preparation.
@@ -695,10 +634,11 @@ impl PreparedStudy<ExactPreparedState> {
 /// names the study kind in the refusal message (`"exact"` / `"statistical"`).
 pub(crate) fn preview_transform_report(
     ids: &ExactStudyIdentities,
-    intent: antecedent_core::TransformIntent,
+    intent: antecedent_contract::TransformIntent,
     handle: &str,
-) -> Result<antecedent_core::TransformationReport, IoError> {
-    use antecedent_core::{IdentityRef, SemanticDigest, TransformIntent, TransformationReport};
+) -> Result<antecedent_contract::TransformationReport, IoError> {
+    use antecedent_contract::{TransformIntent, TransformationReport};
+    use antecedent_core::{IdentityRef, SemanticDigest};
     let inputs = [
         (IdentityDomain::Target, &ids.target),
         (IdentityDomain::Identification, &ids.identification),
@@ -720,7 +660,7 @@ pub(crate) fn preview_transform_report(
     let report = TransformationReport::new(
         intent,
         inputs,
-        antecedent_core::intent_effects(intent).iter().cloned(),
+        antecedent_contract::intent_effects(intent).iter().cloned(),
         Vec::new(),
     );
     Ok(

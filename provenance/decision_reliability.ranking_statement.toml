@@ -1,0 +1,18 @@
+feature_id = "decision_reliability.ranking_statement"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: the best, top-k and better-than-baseline probabilities are indicator means of the supplied draws; there is no method to cite.
+papers = [
+]
+implementation_deviations = [
+  "Ranking probabilities are plain Monte Carlo frequencies (ties split equally, a baseline tie counts one half) with a sample-variance or batch-means standard error; they are statements under the supplied law over the candidates as supplied, uncalibrated, and say nothing about candidates the search did not retain.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/decision_reliability.rs",
+  "crates/antecedent/tests/decision_reliability_facade.rs",
+]

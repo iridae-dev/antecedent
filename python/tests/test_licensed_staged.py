@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import math
-import pathlib
 
 import antecedent
 import numpy as np
 import pytest
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
 
 def _confounded(n: int = 240, seed: int = 19):
@@ -172,7 +171,7 @@ _IR = antecedent.InterventionResponse(
 # `conformance/response/intervention_response/expected.json` (see comment above), so
 # unlike most fixtures in this file this coordinate has a real known-truth value to
 # compare against, not just self-consistency between `analyze()` and `PreparedAnalysis`.
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_REPO_ROOT = REPO_ROOT
 _IR_FIXTURE = load_json(
     _REPO_ROOT / "conformance" / "response" / "intervention_response" / "expected.json"
 )

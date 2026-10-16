@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from typing import Any, Self
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_serializer,
+    field_validator,
+    model_serializer,
+)
 from pydantic.config import ExtraValues
+
+from .._columns import coerce_fields
+from .._freeze import freeze, thaw
+
+InspectionStage = Literal["prepared", "executed", "declared", "consumed", "exported", "unavailable"]
 
 _HANDLE_ATTRS = ("_raw", "_prepared", "_execution")
 
@@ -18,7 +31,16 @@ class SlotModel(BaseModel):
     available: bool
     reason: str | None = None
     summary: str
-    payload: dict[str, Any] = Field(default_factory=dict)
+    payload: Mapping[str, Any] = Field(default_factory=dict)
+
+    @field_validator("payload")
+    @classmethod
+    def _freeze_payload(cls, value: Mapping[str, Any]) -> Mapping[str, Any]:
+        return freeze(value)
+
+    @field_serializer("payload")
+    def _serialize_payload(self, value: Mapping[str, Any]) -> Any:
+        return thaw(value)
 
 
 class InspectionReport(BaseModel):
@@ -41,12 +63,82 @@ class InspectionReport(BaseModel):
     execution_id: str | None = None
     score_reuse_id: str | None = None
     target_weights_id: str | None = None
-    contract: dict[str, Any] | None = None
+    contract: Mapping[str, Any] | None = None
     answer: Any = None
     calibration: Any = None
     diagnostics: tuple[str, ...] | list[str] = ()
-    target: dict[str, Any] | None = None
+    target: Mapping[str, Any] | None = None
     inference_binding: Any = None
+    stage: InspectionStage = "prepared"
+    family: str | None = None
+    details: Any = None
+    operations: tuple[str, ...] = ()
+
+    @field_validator(
+        "contract", "target", "details", "diagnostics", "inference_binding", "answer", "calibration"
+    )
+    @classmethod
+    def _freeze_details(cls, value: Any) -> Any:
+        return freeze(value)
+
+    @field_serializer("contract", "target", "details", "inference_binding", when_used="json")
+    def _json_details(self, value: Any) -> Any:
+        return thaw(value)
+
+    def model_copy(self, *, update: Mapping[str, Any] | None = None, deep: bool = False) -> Self:
+        result = super().model_copy(update=update, deep=deep)
+        for name in (
+            "contract",
+            "target",
+            "details",
+            "diagnostics",
+            "inference_binding",
+            "answer",
+            "calibration",
+        ):
+            object.__setattr__(result, name, freeze(getattr(result, name)))
+        return result
+
+    def __repr__(self) -> str:
+        return f"InspectionReport(stage={self.stage!r}, identification={self.identification.summary!r}, uncertainty={self.uncertainty.summary!r})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def _repr_html_(self) -> str:
+        from html import escape
+
+        rows = "".join(
+            f"<tr><th>{name}</th><td>{escape(slot.summary)}</td></tr>"
+            for name, slot in (
+                ("Identification", self.identification),
+                ("Support", self.support),
+                ("Uncertainty", self.uncertainty),
+                ("Assumptions", self.assumptions),
+            )
+        )
+        import json
+
+        values = self.answer
+        if values is None:
+            values = self.details
+        if hasattr(values, "to_dict"):
+            values = values.to_dict()
+        reading = (
+            json.dumps(thaw(values), ensure_ascii=False, default=str, indent=2)
+            if values is not None
+            else ""
+        )
+        # Keep notebook summaries small; detailed inspection retains the complete record.
+        if len(reading) > 1200:
+            reading = reading[:1200] + "… (full details in inspect().to_dict())"
+        detail = f"<pre>{escape(reading)}</pre>" if reading else ""
+        limitation = self.rendering_limitation()
+        warning = f"<p>{escape(limitation.replace('_', ' '))}</p>" if limitation else ""
+        operations = (
+            f"<p>Available: {escape(', '.join(self.operations))}</p>" if self.operations else ""
+        )
+        return f"<div><strong>{escape(self.family or 'Antecedent')} · {escape(self.stage)}</strong>{detail}<table>{rows}</table>{warning}{operations}</div>"
 
     @field_serializer("answer", "calibration", when_used="json")
     def _json_slot(self, value: Any) -> Any:
@@ -192,19 +284,37 @@ class ResultModel(BaseModel):
             )
 
     def model_post_init(self, __context: Any) -> None:
-        extra = dict(self.model_extra or {})
-        lifted = False
+        extra = dict(self.__pydantic_extra__ or {})
         for name in _HANDLE_ATTRS:
             if name in extra:
-                object.__setattr__(self, name, extra.pop(name))
-                lifted = True
-        if lifted:
-            object.__setattr__(self, "__pydantic_extra__", extra or None)
+                coerce_fields(self, **{name: extra.pop(name)})
+        for name in type(self).model_fields:
+            if not name.startswith("_"):
+                object.__setattr__(self, name, freeze(getattr(self, name)))
+        coerce_fields(
+            self, __pydantic_extra__={name: freeze(value) for name, value in extra.items()} or None
+        )
 
-    def to_dict(self) -> dict[str, Any]:
+    @property
+    def model_extra(self) -> Any:
+        from types import MappingProxyType
+
+        extra = self.__pydantic_extra__
+        return MappingProxyType(extra) if extra is not None else None
+
+    def model_copy(self, *, update: Mapping[str, Any] | None = None, deep: bool = False) -> Self:
+        result = super().model_copy(update=update, deep=deep)
+        result.model_post_init(None)
+        return result
+
+    @model_serializer(mode="plain")
+    def _serialize_result(self) -> dict[str, Any]:
         from ._slots import json_value
 
         return json_value(self)
+
+    def to_dict(self) -> dict[str, Any]:
+        return self._serialize_result()
 
 
 def copy_model(obj: Any, **updates: Any) -> Any:

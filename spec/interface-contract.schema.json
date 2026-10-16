@@ -1,0 +1,588 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "interface-contract.schema.json",
+  "title": "interface_contract_v1 metadata",
+  "description": "Wire layout of the metadata section (`interface_contract_meta`) of an `interface_contract_v1` artifact, as decoded from CBOR to the JSON data model. The identity rules are in canonicalization-and-identity.md. Ports are sorted by name; operations in canonical order; every set is sorted and distinct.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "feature",
+    "required_features",
+    "contract",
+    "contract_identity",
+    "identity"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "feature": {
+      "const": "interface_contract_v1"
+    },
+    "required_features": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096
+      },
+      "description": "Features a reader must understand. Version 1 defines none; a reader refuses any entry."
+    },
+    "contract": {
+      "$ref": "#/$defs/contract"
+    },
+    "contract_identity": {
+      "$ref": "#/$defs/digest"
+    },
+    "identity": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "bits": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "quantity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "variable_id",
+        "variable_name",
+        "role",
+        "units",
+        "population_id",
+        "regime_id",
+        "horizon",
+        "functional_id",
+        "conditioning",
+        "transform_id"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "variable_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "variable_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "role": {
+          "enum": [
+            "treatment",
+            "outcome",
+            "covariate",
+            "mediator",
+            "selection",
+            "utility"
+          ]
+        },
+        "units": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "population_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "regime_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "horizon": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "functional_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "conditioning": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "variable_id",
+              "value_id"
+            ],
+            "properties": {
+              "variable_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "value_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              }
+            }
+          }
+        },
+        "transform_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      }
+    },
+    "support": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "lower_bits",
+            "upper_bits",
+            "levels"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "real",
+                "non_negative",
+                "binary"
+              ]
+            },
+            "lower_bits": {
+              "type": "null"
+            },
+            "upper_bits": {
+              "type": "null"
+            },
+            "levels": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "lower_bits",
+            "upper_bits",
+            "levels"
+          ],
+          "properties": {
+            "kind": {
+              "const": "interval"
+            },
+            "lower_bits": {
+              "$ref": "#/$defs/bits"
+            },
+            "upper_bits": {
+              "$ref": "#/$defs/bits"
+            },
+            "levels": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "lower_bits",
+            "upper_bits",
+            "levels"
+          ],
+          "properties": {
+            "kind": {
+              "const": "categorical"
+            },
+            "lower_bits": {
+              "type": "null"
+            },
+            "upper_bits": {
+              "type": "null"
+            },
+            "levels": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          }
+        }
+      ]
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "point",
+          "mean",
+          "law",
+          "draws",
+          "joint_draws",
+          "covariance",
+          "interval",
+          "posterior"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "uncertainty": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "meaning",
+            "paradigm"
+          ],
+          "properties": {
+            "meaning": {
+              "enum": [
+                "parameter_posterior",
+                "causal_functional_posterior",
+                "posterior_predictive",
+                "interventional_predictive",
+                "estimator_sampling",
+                "bootstrap",
+                "empirical_outcome"
+              ]
+            },
+            "paradigm": {
+              "enum": [
+                "posterior",
+                "sampling",
+                "resampling",
+                "empirical"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "calibration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "record_id",
+            "input"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "none",
+                "point_only",
+                "unmeasured"
+              ]
+            },
+            "record_id": {
+              "type": "null"
+            },
+            "input": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "record_id",
+            "input"
+          ],
+          "properties": {
+            "status": {
+              "const": "measured"
+            },
+            "record_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "input": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "record_id",
+            "input"
+          ],
+          "properties": {
+            "status": {
+              "const": "inherited"
+            },
+            "record_id": {
+              "type": "null"
+            },
+            "input": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        }
+      ]
+    },
+    "evidence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "declared",
+            "sources"
+          ],
+          "properties": {
+            "declared": {
+              "const": false
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/digest"
+              },
+              "maxItems": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "declared",
+            "sources"
+          ],
+          "properties": {
+            "declared": {
+              "const": true
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/digest"
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      ]
+    },
+    "producedPort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "quantity",
+        "semantic_identity",
+        "support",
+        "operations",
+        "uncertainty",
+        "calibration",
+        "measurement_models",
+        "evidence",
+        "provenance"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "quantity": {
+          "$ref": "#/$defs/quantity"
+        },
+        "semantic_identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "support": {
+          "$ref": "#/$defs/support"
+        },
+        "operations": {
+          "$ref": "#/$defs/operations"
+        },
+        "uncertainty": {
+          "$ref": "#/$defs/uncertainty"
+        },
+        "calibration": {
+          "$ref": "#/$defs/calibration"
+        },
+        "measurement_models": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          },
+          "uniqueItems": true
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        },
+        "provenance": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "causal_contract",
+              "evidence",
+              "data",
+              "external_provider",
+              "distribution_artifact",
+              "transformation",
+              "decision_contract",
+              "sensitivity_input",
+              "study_ranking_provider",
+              "claim"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "consumedPort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "quantity",
+        "semantic_identity",
+        "support",
+        "operations",
+        "uncertainty",
+        "calibration",
+        "measurement_models",
+        "dependence",
+        "provenance"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "quantity": {
+          "$ref": "#/$defs/quantity"
+        },
+        "semantic_identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "support": {
+          "$ref": "#/$defs/support"
+        },
+        "operations": {
+          "$ref": "#/$defs/operations"
+        },
+        "uncertainty": {
+          "$ref": "#/$defs/uncertainty"
+        },
+        "calibration": {
+          "enum": [
+            "not_required",
+            "measured"
+          ]
+        },
+        "measurement_models": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          },
+          "uniqueItems": true
+        },
+        "dependence": {
+          "enum": [
+            "unconstrained",
+            "declared_evidence",
+            "disjoint_evidence"
+          ]
+        },
+        "provenance": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "causal_contract",
+              "evidence",
+              "data",
+              "external_provider",
+              "distribution_artifact",
+              "transformation",
+              "decision_contract",
+              "sensitivity_input",
+              "study_ranking_provider",
+              "claim"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component",
+        "produces",
+        "consumes"
+      ],
+      "properties": {
+        "component": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "produces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/producedPort"
+          },
+          "maxItems": 256
+        },
+        "consumes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/consumedPort"
+          },
+          "maxItems": 256
+        }
+      }
+    }
+  }
+}

@@ -10,13 +10,14 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
     RefuteSuite, StructureSource, Study,
 };
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
     CausalQuery, ExecutionContext, Intervention, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseValue, SlotAvailability, Value, VariableId,
+    ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_io::consume_analysis_result;
@@ -69,7 +70,7 @@ fn query_with_value(value: Value) -> ResponseQuery {
 }
 
 fn response_value(result: &antecedent::StudyResult) -> f64 {
-    match &result.response.as_ref().expect("response").estimate {
+    match &result.response().expect("response").estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
         other => panic!("expected point identified scalar, got {other:?}"),
     }
@@ -170,7 +171,7 @@ fn explicit_and_accepted_admg_scalar_response_is_sealed_for_both_inference_modes
                     // The frequentist general-ID scalar now publishes a normal
                     // interval from the front-door plug-in bootstrap SE, reported
                     // as `bootstrap_se`.
-                    match &result.response.as_ref().expect("response").uncertainty {
+                    match &result.response().expect("response").uncertainty {
                         antecedent_core::ResponseUncertainty::Scalar { interpretation, .. } => {
                             assert_eq!(
                                 *interpretation,
@@ -309,9 +310,11 @@ fn graph_posterior(graph: &Admg, include_unidentified_atom: bool) -> GraphPoster
         },
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("admg_graph_posterior_response_checked"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("admg_graph_posterior_response_checked"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Admg)

@@ -9,6 +9,213 @@
 use core::fmt;
 use std::sync::Arc;
 
+/// Lowercase hex encoding of `bytes` (two characters per byte).
+#[must_use]
+pub fn to_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        out.push(HEX[usize::from(b >> 4)] as char);
+        out.push(HEX[usize::from(b & 0x0f)] as char);
+    }
+    out
+}
+
+/// FNV-1a 64-bit offset basis.
+pub const FNV1A_64_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+/// FNV-1a 64-bit prime.
+pub const FNV1A_64_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+/// Streaming 64-bit FNV-1a for in-memory cache keys.
+///
+/// Not collision resistant and not a persisted identity: use
+/// [`CanonicalWriter`] for anything that is stored or compared across
+/// processes. [`Self::byte`]/[`Self::bytes`]/[`Self::word`] are standard
+/// FNV-1a (per-byte xor then multiply). [`Self::fold`] xors a whole `u64`
+/// before one multiply; it is cheaper and weaker, kept so an existing
+/// in-memory key keeps its value.
+#[derive(Clone, Copy, Debug)]
+pub struct Fnv1a64(u64);
+
+impl Default for Fnv1a64 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Fnv1a64 {
+    /// Start at the FNV offset basis.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self(FNV1A_64_OFFSET)
+    }
+
+    /// Fold one byte (xor, then multiply by the prime).
+    pub fn byte(&mut self, byte: u8) -> &mut Self {
+        self.0 ^= u64::from(byte);
+        self.0 = self.0.wrapping_mul(FNV1A_64_PRIME);
+        self
+    }
+
+    /// Fold bytes in order, per byte.
+    pub fn bytes(&mut self, bytes: &[u8]) -> &mut Self {
+        for &byte in bytes {
+            self.byte(byte);
+        }
+        self
+    }
+
+    /// Fold a `u64` as its eight little-endian bytes, per byte.
+    pub fn word(&mut self, word: u64) -> &mut Self {
+        self.bytes(&word.to_le_bytes())
+    }
+
+    /// Xor a whole `u64` in, then multiply once (word-at-a-time variant).
+    pub fn fold(&mut self, word: u64) -> &mut Self {
+        self.0 ^= word;
+        self.0 = self.0.wrapping_mul(FNV1A_64_PRIME);
+        self
+    }
+
+    /// The current 64-bit hash.
+    #[must_use]
+    pub const fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+/// Standard 64-bit FNV-1a of `bytes`.
+#[must_use]
+pub fn fnv1a_u64(bytes: &[u8]) -> u64 {
+    Fnv1a64::new().bytes(bytes).finish()
+}
+
+/// Streaming length-prefixed canonical writer hashed with BLAKE3.
+///
+/// Framing: every field is either a little-endian `u64` word or a `u64`
+/// little-endian length followed by raw bytes. [`Self::new`] writes the tag as
+/// [`Self::text`], so distinct tags separate distinct encodings. Reals enter as
+/// their IEEE-754 bit pattern, so `-0.0` and `0.0` differ and `NaN` payloads are
+/// preserved.
+///
+/// The byte stream is identical to the buffered `Canon` builders previously
+/// private to `antecedent-io`, so a digest computed by either agrees.
+#[derive(Clone, Debug)]
+pub struct CanonicalWriter {
+    hasher: blake3::Hasher,
+}
+
+impl CanonicalWriter {
+    /// Start a stream with a domain `tag` (written as length-prefixed text).
+    #[must_use]
+    pub fn new(tag: &str) -> Self {
+        let mut writer = Self { hasher: blake3::Hasher::new() };
+        writer.text(tag);
+        writer
+    }
+
+    /// One `u64` word, little-endian.
+    pub fn word(&mut self, word: u64) -> &mut Self {
+        self.hasher.update(&word.to_le_bytes());
+        self
+    }
+
+    /// Length-prefixed UTF-8 text.
+    pub fn text(&mut self, text: &str) -> &mut Self {
+        self.bytes(text.as_bytes())
+    }
+
+    /// A real as its `to_bits` word.
+    pub fn real(&mut self, value: f64) -> &mut Self {
+        self.word(value.to_bits())
+    }
+
+    /// Length-prefixed raw bytes.
+    pub fn bytes(&mut self, bytes: &[u8]) -> &mut Self {
+        self.word(bytes.len() as u64);
+        self.hasher.update(bytes);
+        self
+    }
+
+    /// A count-prefixed sequence of reals: the length as a word, then each `to_bits` word.
+    pub fn reals(&mut self, values: &[f64]) -> &mut Self {
+        self.word(values.len() as u64);
+        for &value in values {
+            self.real(value);
+        }
+        self
+    }
+
+    /// A count-prefixed sequence of texts: the length as a word, then each as [`Self::text`].
+    pub fn texts<S: AsRef<str>>(&mut self, values: &[S]) -> &mut Self {
+        self.word(values.len() as u64);
+        for value in values {
+            self.text(value.as_ref());
+        }
+        self
+    }
+
+    /// An optional text: a presence word (`0` or `1`), then the text when present.
+    pub fn opt_text(&mut self, value: Option<&str>) -> &mut Self {
+        match value {
+            Some(text) => self.word(1).text(text),
+            None => self.word(0),
+        }
+    }
+
+    /// An optional word: a presence word (`0` or `1`), then the value when present.
+    pub fn opt_word(&mut self, value: Option<u64>) -> &mut Self {
+        match value {
+            Some(word) => self.word(1).word(word),
+            None => self.word(0),
+        }
+    }
+
+    /// An optional real: a presence word (`0` or `1`), then its bit pattern when present.
+    pub fn opt_real(&mut self, value: Option<f64>) -> &mut Self {
+        match value {
+            Some(real) => self.word(1).real(real),
+            None => self.word(0),
+        }
+    }
+
+    /// The 32-byte BLAKE3 digest of everything written so far (non-consuming).
+    #[must_use]
+    pub fn finish(&self) -> [u8; 32] {
+        *self.hasher.finalize().as_bytes()
+    }
+
+    /// [`Self::finish`] as 64 lowercase hex characters.
+    #[must_use]
+    pub fn finish_hex(&self) -> String {
+        to_hex(&self.finish())
+    }
+
+    /// Digest of one opaque byte string (a stored artifact or CBOR body) under
+    /// the domain `tag`: [`Self::new`] then [`Self::bytes`].
+    #[must_use]
+    pub fn digest_bytes(tag: &str, bytes: &[u8]) -> [u8; 32] {
+        Self::new(tag).bytes(bytes).finish()
+    }
+
+    /// [`Self::digest_bytes`] as 64 lowercase hex characters.
+    #[must_use]
+    pub fn digest_bytes_hex(tag: &str, bytes: &[u8]) -> String {
+        to_hex(&Self::digest_bytes(tag, bytes))
+    }
+}
+
+/// Unframed BLAKE3 digest of `bytes` as 64 lowercase hex characters.
+///
+/// For content addressing of an opaque byte string (an artifact container, a
+/// CBOR body) where the digest must equal what `b3sum` reports. Anything built
+/// from several fields goes through [`CanonicalWriter`] instead, which frames
+/// and domain-separates them.
+#[must_use]
+pub fn blake3_hex(bytes: &[u8]) -> String {
+    blake3::hash(bytes).to_hex().to_string()
+}
+
 /// Identity encoding format. Bump only when the canonical payload changes.
 ///
 /// Version 2 canonicalizes graph edge order, replaces debug-rendered estimator
@@ -152,13 +359,7 @@ impl SemanticDigest {
     /// Lowercase hex encoding (64 characters).
     #[must_use]
     pub fn to_hex(&self) -> String {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let mut out = String::with_capacity(64);
-        for b in self.bytes {
-            out.push(HEX[(b >> 4) as usize] as char);
-            out.push(HEX[(b & 0x0f) as usize] as char);
-        }
-        out
+        to_hex(&self.bytes)
     }
 }
 
@@ -272,6 +473,21 @@ mod tests {
     }
 
     #[test]
+    fn one_shot_byte_digest_is_the_framed_tag_then_bytes() {
+        let mut stream = CanonicalWriter::new("test.tag");
+        stream.bytes(b"payload");
+        assert_eq!(CanonicalWriter::digest_bytes("test.tag", b"payload"), stream.finish());
+        assert_eq!(
+            CanonicalWriter::digest_bytes_hex("test.tag", b"payload"),
+            "4f754574b2b5f7d97cf0f17422e58bfd9a06e4a82f51522d5d372018766a4148"
+        );
+        assert_ne!(
+            CanonicalWriter::digest_bytes_hex("test.tag", b"payload"),
+            CanonicalWriter::digest_bytes_hex("test.tag2", b"payload")
+        );
+    }
+
+    #[test]
     fn digest_hex_is_stable_and_lowercase() {
         let mut bytes = [0u8; 32];
         bytes[0] = 0xab;
@@ -282,5 +498,63 @@ mod tests {
         assert!(hex.starts_with("ab"));
         assert!(hex.ends_with("cd"));
         assert!(hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)));
+    }
+
+    /// The old `antecedent-io` `Canon` buffered every field and hashed once; the
+    /// streaming writer must produce the same digest.
+    #[test]
+    fn fnv1a_matches_reference_vectors() {
+        assert_eq!(fnv1a_u64(b""), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(fnv1a_u64(b"a"), 0xaf63_dc4c_8601_ec8c);
+        assert_eq!(fnv1a_u64(b"foobar"), 0x8594_4171_f739_67e8);
+        let mut by_word = Fnv1a64::new();
+        by_word.word(0x0102_0304_0506_0708);
+        assert_eq!(by_word.finish(), fnv1a_u64(&0x0102_0304_0506_0708_u64.to_le_bytes()));
+        let mut folded = Fnv1a64::new();
+        folded.fold(7);
+        assert_eq!(folded.finish(), (FNV1A_64_OFFSET ^ 7).wrapping_mul(FNV1A_64_PRIME));
+    }
+
+    #[test]
+    fn canonical_writer_matches_buffered_canon_framing() {
+        fn word(buf: &mut Vec<u8>, w: u64) {
+            buf.extend_from_slice(&w.to_le_bytes());
+        }
+        fn text(buf: &mut Vec<u8>, t: &str) {
+            word(buf, t.len() as u64);
+            buf.extend_from_slice(t.as_bytes());
+        }
+        let mut old = Vec::new();
+        text(&mut old, "antecedent.test.canon");
+        word(&mut old, 42);
+        text(&mut old, "label");
+        word(&mut old, (-0.5_f64).to_bits());
+        text(&mut old, "");
+        let expected = blake3::hash(&old);
+
+        let mut writer = CanonicalWriter::new("antecedent.test.canon");
+        writer.word(42).text("label").real(-0.5).text("");
+        assert_eq!(writer.finish(), *expected.as_bytes());
+        assert_eq!(writer.finish_hex(), expected.to_hex().to_string());
+        assert_eq!(
+            writer.finish_hex(),
+            "77a467e6a59c1f6dca516663cb868433147eb4c625ddbdbe07207fdf3e6a11f5"
+        );
+
+        // Optional and sequence fields are word-framed and separate absent from empty.
+        let mut some = CanonicalWriter::new("t");
+        some.opt_text(Some("")).reals(&[1.0]).texts(&["a"]).opt_word(None).opt_real(Some(0.5));
+        let mut none = CanonicalWriter::new("t");
+        none.opt_text(None).reals(&[1.0]).texts(&["a"]).opt_word(None).opt_real(Some(0.5));
+        assert_ne!(some.finish(), none.finish());
+        assert_eq!(some.finish_hex().len(), 64);
+        assert_eq!(blake3_hex(b"abc"), blake3::hash(b"abc").to_hex().to_string());
+
+        // `bytes` is the same framing as `text` over the same octets.
+        let mut a = CanonicalWriter::new("t");
+        a.text("xy");
+        let mut b = CanonicalWriter::new("t");
+        b.bytes(b"xy");
+        assert_eq!(a.finish(), b.finish());
     }
 }

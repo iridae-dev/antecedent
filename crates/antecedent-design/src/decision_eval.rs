@@ -11,8 +11,8 @@
 //! inputs a single draw source does not carry; they refuse here rather than
 //! run a generic scorer.
 
-use antecedent_core::ScientificQuantity;
-use antecedent_io::distribution_artifact::{
+use antecedent_contract::ScientificQuantity;
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DrawAlignment,
 };
 
@@ -184,28 +184,61 @@ struct Table {
     weights: Vec<f64>,
 }
 
+/// Each source coordinate, parsed once. A wire that does not convert is skipped,
+/// matching the old per-lookup `try_from` filter.
+fn parsed_quantities(source: &DistributionArtifact) -> Vec<Option<ScientificQuantity>> {
+    source
+        .quantities()
+        .iter()
+        .map(|candidate| ScientificQuantity::try_from(candidate.clone()).ok())
+        .collect()
+}
+
 fn locate(
-    source: &DistributionArtifact,
+    parsed: &[Option<ScientificQuantity>],
     action: &str,
     position: usize,
     wanted: &ScientificQuantity,
 ) -> Result<usize, DecisionEvalError> {
-    let found = source.quantities().iter().position(|candidate| {
-        ScientificQuantity::try_from(candidate.clone())
-            .is_ok_and(|q| q.require_same_coordinate(wanted).is_ok())
-    });
-    found.ok_or_else(|| DecisionEvalError::QuantityNotFound {
-        action: action.to_owned(),
-        input: position,
-    })
+    parsed
+        .iter()
+        .position(|quantity| {
+            quantity
+                .as_ref()
+                .is_some_and(|quantity| quantity.require_same_coordinate(wanted).is_ok())
+        })
+        .ok_or_else(|| DecisionEvalError::QuantityNotFound {
+            action: action.to_owned(),
+            input: position,
+        })
 }
 
+/// Utilities of the contract's actions (or of action `only` alone) on `source`.
 fn build_table(
     contract: &DecisionContract,
     source: &DistributionArtifact,
+    only: Option<usize>,
+) -> Result<Table, DecisionEvalError> {
+    build_table_with(contract, source, only, &parsed_quantities(source))
+}
+
+fn build_table_with(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+    only: Option<usize>,
+    parsed: &[Option<ScientificQuantity>],
 ) -> Result<Table, DecisionEvalError> {
     let alignment = source.metadata().identity.alignment;
-    if alignment != DrawAlignment::Joint {
+    // The joint-law propagation rule decides whether the rows are paired.
+    let rule_alignment = match alignment {
+        DrawAlignment::Joint => antecedent_contract::InputAlignment::Aligned {
+            alignment_id: "declared_pairing".to_owned(),
+        },
+        DrawAlignment::IndependentMarginals => {
+            antecedent_contract::InputAlignment::IndependentMarginals
+        }
+    };
+    if antecedent_contract::check_rows_pairable(&rule_alignment).is_err() {
         return Err(DecisionEvalError::JointLawRequired {
             action: contract
                 .actions
@@ -218,15 +251,18 @@ fn build_table(
             },
         });
     }
-    let meaning = antecedent_core::DistributionMeaning::from(source.semantic());
+    let meaning = antecedent_contract::DistributionMeaning::from(source.semantic());
     let [n_draws, width] = source.shape();
     let draws = source.draws();
     let mask = source.metadata().supported.as_deref();
     let mut utilities = Vec::with_capacity(contract.actions.len());
-    for action in &contract.actions {
+    for (action_index, action) in contract.actions.iter().enumerate() {
+        if only.is_some_and(|index| index != action_index) {
+            continue;
+        }
         let mut columns = Vec::with_capacity(action.inputs.len());
         for (position, quantity) in action.inputs.iter().enumerate() {
-            let column = locate(source, &action.id, position, quantity)?;
+            let column = locate(parsed, &action.id, position, quantity)?;
             if mask.is_some_and(|m| !m[column]) {
                 return Err(DecisionEvalError::UnsupportedCoordinate {
                     action: action.id.clone(),
@@ -263,16 +299,25 @@ fn build_table(
     Ok(Table { utilities, weights: raw.into_iter().map(|w| w / total).collect() })
 }
 
-fn weighted_mean(values: &[f64], weights: &[f64]) -> f64 {
-    values.iter().zip(weights).filter(|(_, w)| **w > 0.0).map(|(v, w)| v * w).sum()
+/// Expectation `Σ wᵢ vᵢ` under already-normalised weights; zero-weight draws contribute
+/// nothing (the kernel reduction sanitises weights, utilities are validated finite).
+///
+/// # Errors
+///
+/// The kernel's length mismatch, carried as [`DecisionEvalError::Contract`] with the
+/// same `weighted_sum length mismatch` text.
+fn weighted_mean(values: &[f64], weights: &[f64]) -> Result<f64, DecisionEvalError> {
+    antecedent_kernels::scalar::weighted_sum(values, weights).map_err(|error| {
+        let message = match error {
+            antecedent_kernels::ViewError::InvalidShape { message } => message,
+            _ => "weighted_sum length mismatch",
+        };
+        DecisionEvalError::Contract(DecisionContractError::InvalidParameter(message))
+    })
 }
 
 fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
     values.iter().zip(weights).filter(|(_, w)| **w > 0.0).map(|(v, _)| *v).fold(0.0, f64::max)
-}
-
-fn effective_draws(weights: &[f64]) -> f64 {
-    1.0 / weights.iter().map(|w| w * w).sum::<f64>()
 }
 
 /// Evaluate `contract` on `source`.
@@ -281,8 +326,11 @@ fn effective_draws(weights: &[f64]) -> f64 {
 /// Refuses an invalid contract, non-joint draws, a missing or masked
 /// coordinate, a source meaning that cannot answer an outcome-law input, and
 /// criteria that need structure inputs.
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::float_cmp)] // Ties of the finite-law criterion values.
+#[allow(clippy::float_cmp, reason = "Ties of the finite-law criterion values")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
+)]
 pub fn evaluate_contract(
     contract: &DecisionContract,
     source: &DistributionArtifact,
@@ -296,7 +344,8 @@ pub fn evaluate_contract(
             "needs identified-set or structure inputs, not one draw source",
         ));
     }
-    let table = build_table(contract, source)?;
+    let parsed = parsed_quantities(source);
+    let table = build_table_with(contract, source, None, &parsed)?;
     let n = source.n_draws();
     // An exact finite law has no sampling error: its draws are the distribution.
     let exact = source.metadata().calibration == DistributionCalibration::Exact;
@@ -313,7 +362,7 @@ pub fn evaluate_contract(
                 .inputs
                 .iter()
                 .enumerate()
-                .map(|(p, q)| locate(source, &action.id, p, q))
+                .map(|(p, q)| locate(&parsed, &action.id, p, q))
                 .collect::<Result<_, _>>()?;
             let [_, width] = source.shape();
             let mut held = 0.0;
@@ -371,18 +420,23 @@ pub fn evaluate_contract(
         let utility = &table.utilities[index];
         let is_admissible = exclusions[index].is_empty();
         let regret = if is_admissible { regret_of(index) } else { Vec::new() };
-        let expected_utility = weighted_mean(utility, weights);
+        let expected_utility = weighted_mean(utility, weights)?;
         let (value, standard_error) = match contract.criterion {
             DecisionCriterion::PosteriorExpectedUtility
             | DecisionCriterion::PosteriorExpectedLoss => (expected_utility, exact.then_some(0.0)),
             DecisionCriterion::ThresholdProbability { threshold } => {
                 let indicator: Vec<f64> =
                     utility.iter().map(|u| f64::from(u32::from(*u >= threshold))).collect();
-                (weighted_mean(&indicator, weights), exact.then_some(0.0))
+                (weighted_mean(&indicator, weights)?, exact.then_some(0.0))
             }
-            DecisionCriterion::Quantile { p } => (left_inverse(utility, weights, p), None),
+            DecisionCriterion::Quantile { p } => (
+                left_inverse(utility, weights, p).ok_or_else(|| {
+                    DecisionEvalError::NonFiniteUtility { action: action.id.clone() }
+                })?,
+                None,
+            ),
             DecisionCriterion::ExpectedRegret if is_admissible => {
-                (weighted_mean(&regret, weights), exact.then_some(0.0))
+                (weighted_mean(&regret, weights)?, exact.then_some(0.0))
             }
             DecisionCriterion::Regret if is_admissible => {
                 (positive_mass_max(&regret, weights), None)
@@ -399,11 +453,15 @@ pub fn evaluate_contract(
         outcomes.push(ActionOutcome {
             id: action.id.clone(),
             admissible: is_admissible,
-            exclusions: exclusions[index].clone(),
+            exclusions: std::mem::take(&mut exclusions[index]),
             expected_utility,
             value,
             standard_error,
-            expected_regret: is_admissible.then(|| weighted_mean(&regret, weights)),
+            expected_regret: if is_admissible {
+                Some(weighted_mean(&regret, weights)?)
+            } else {
+                None
+            },
             max_regret: is_admissible.then(|| positive_mass_max(&regret, weights)),
         });
     }
@@ -441,14 +499,16 @@ pub fn evaluate_contract(
             }
         }
     };
-    let evpi = (!admissible.is_empty()).then(|| {
-        let perfect = weighted_mean(&best_per_draw, weights);
-        let best_mean = admissible
-            .iter()
-            .map(|a| sign * weighted_mean(&table.utilities[*a], weights))
-            .fold(f64::NEG_INFINITY, f64::max);
-        perfect - best_mean
-    });
+    let evpi = if admissible.is_empty() {
+        None
+    } else {
+        let perfect = weighted_mean(&best_per_draw, weights)?;
+        let mut best_mean = f64::NEG_INFINITY;
+        for action in &admissible {
+            best_mean = best_mean.max(sign * weighted_mean(&table.utilities[*action], weights)?);
+        }
+        Some(perfect - best_mean)
+    };
     if evpi.is_some_and(|value| !value.is_finite()) {
         return Err(DecisionEvalError::NonFiniteUtility {
             action: contract.actions[admissible[0]].id.clone(),
@@ -462,7 +522,7 @@ pub fn evaluate_contract(
         verdict,
         evpi,
         n_draws: n,
-        effective_draws: effective_draws(weights),
+        effective_draws: antecedent_kernels::kish_ess(weights),
         source: SourceReceipt {
             provider_id: identity_meta.provider_id.clone(),
             snapshot_id: identity_meta.snapshot_id.clone(),
@@ -499,8 +559,7 @@ pub struct FunctionalValue {
 const MASS_TOLERANCE: f64 = 8.0 * f64::EPSILON;
 
 /// Left inverse `inf { x : F(x) >= p }` of the weighted empirical CDF.
-#[allow(clippy::float_cmp)] // Zero-weight atoms are outside the law support.
-fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> f64 {
+fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> Option<f64> {
     let mut order: Vec<usize> = (0..values.len()).collect();
     order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
     let mut cumulative = 0.0;
@@ -510,10 +569,10 @@ fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> f64 {
         }
         cumulative += weights[index];
         if cumulative >= p || (cumulative - p).abs() <= MASS_TOLERANCE * cumulative.max(p) {
-            return values[index];
+            return Some(values[index]);
         }
     }
-    values[*order.iter().rev().find(|&&i| weights[i] > 0.0).expect("positive total weight")]
+    order.iter().rev().find(|&&i| weights[i] > 0.0).map(|&index| values[index])
 }
 
 /// Mean of the lowest or highest probability mass `p`, splitting the boundary
@@ -576,10 +635,25 @@ pub fn evaluate_functional(
     functional: DecisionFunctional,
     source: &DistributionArtifact,
 ) -> Result<FunctionalValue, DecisionEvalError> {
+    let index = resolve_action(contract, action_id)?;
+    check_functional(functional)?;
+    ActionLaw::from_table(index, build_table(contract, source, None)?, source)
+        .functional(contract, functional)
+}
+
+/// Validate `contract` and find `action_id` in it.
+fn resolve_action(
+    contract: &DecisionContract,
+    action_id: &str,
+) -> Result<usize, DecisionEvalError> {
     contract.validate().map_err(DecisionEvalError::Contract)?;
-    let index = contract.actions.iter().position(|a| a.id == action_id).ok_or_else(|| {
+    contract.actions.iter().position(|a| a.id == action_id).ok_or_else(|| {
         DecisionEvalError::Contract(DecisionContractError::UnknownAction(action_id.to_owned()))
-    })?;
+    })
+}
+
+/// Refuse a functional with an out-of-range level or a non-finite threshold.
+fn check_functional(functional: DecisionFunctional) -> Result<(), DecisionEvalError> {
     let level_ok = |p: f64| p.is_finite() && p > 0.0 && p < 1.0;
     let valid = match functional {
         DecisionFunctional::Expectation
@@ -590,55 +664,105 @@ pub fn evaluate_functional(
             level_ok(p)
         }
     };
-    if !valid {
-        return Err(DecisionEvalError::Contract(DecisionContractError::InvalidParameter(
-            "functional",
-        )));
+    if valid {
+        Ok(())
+    } else {
+        Err(DecisionEvalError::Contract(DecisionContractError::InvalidParameter("functional")))
     }
-    let table = build_table(contract, source)?;
-    let utility = &table.utilities[index];
-    let weights = &table.weights;
-    let exact = source.metadata().calibration == DistributionCalibration::Exact;
-    let source_mode = functional
-        .requirement(&contract.actions[index].utility)
-        .check(&[SourceRepresentation::JointDraws])
-        .map_err(DecisionEvalError::Contract)?;
-    let mean = weighted_mean(utility, weights);
-    let (value, sampled_error) = match functional {
-        DecisionFunctional::Expectation | DecisionFunctional::ExpectedUtility => {
-            (mean, exact.then_some(0.0))
+}
+
+/// One action's finite utility law on one source: the per-draw utilities and normalized
+/// weights that several functionals can be taken of without re-binding the draws.
+pub(crate) struct ActionLaw {
+    index: usize,
+    utility: Vec<f64>,
+    weights: Vec<f64>,
+    exact: bool,
+}
+
+impl ActionLaw {
+    fn from_table(index: usize, mut table: Table, source: &DistributionArtifact) -> Self {
+        let slot = if table.utilities.len() == 1 { 0 } else { index };
+        Self {
+            index,
+            utility: table.utilities.swap_remove(slot),
+            weights: table.weights,
+            exact: source.metadata().calibration == DistributionCalibration::Exact,
         }
-        DecisionFunctional::Variance => {
-            let variance: f64 = utility
-                .iter()
-                .zip(weights)
-                .filter(|(_, w)| **w > 0.0)
-                .map(|(v, w)| w * (v - mean) * (v - mean))
-                .sum();
-            (variance, None)
-        }
-        DecisionFunctional::Probability { threshold, tail } => {
-            let mass: f64 = utility
-                .iter()
-                .zip(weights)
-                .filter(|(v, _)| match tail {
-                    Tail::Lower => **v <= threshold,
-                    Tail::Upper => **v >= threshold,
-                })
-                .map(|(_, w)| w)
-                .sum();
-            (mass, None)
-        }
-        DecisionFunctional::Quantile { p } => (left_inverse(utility, weights, p), None),
-        DecisionFunctional::TailExpectation { p, tail } => {
-            (fractional_tail_mean(utility, weights, p, tail), None)
-        }
-    };
-    if !value.is_finite() {
-        return Err(DecisionEvalError::NonFiniteUtility { action: action_id.to_owned() });
     }
-    let standard_error = if exact { Some(0.0) } else { sampled_error };
-    Ok(FunctionalValue { value, standard_error, source_mode })
+
+    /// The law of `action_id`'s utility. Only that action's column is evaluated, so a
+    /// refusal belonging to another action of `contract` is not raised here.
+    ///
+    /// # Errors
+    /// The refusals [`evaluate_functional`] raises before the functional is taken.
+    pub(crate) fn of_action(
+        contract: &DecisionContract,
+        action_id: &str,
+        source: &DistributionArtifact,
+    ) -> Result<Self, DecisionEvalError> {
+        let index = resolve_action(contract, action_id)?;
+        Ok(Self::from_table(index, build_table(contract, source, Some(index))?, source))
+    }
+
+    /// `functional` of this law, as [`evaluate_functional`] defines it.
+    ///
+    /// # Errors
+    /// The functional's source requirement is unmet, or its value is not finite.
+    pub(crate) fn functional(
+        &self,
+        contract: &DecisionContract,
+        functional: DecisionFunctional,
+    ) -> Result<FunctionalValue, DecisionEvalError> {
+        let action = &contract.actions[self.index];
+        let utility = &self.utility;
+        let weights = &self.weights;
+        let source_mode = functional
+            .requirement(&action.utility)
+            .check(&[SourceRepresentation::JointDraws])
+            .map_err(DecisionEvalError::Contract)?;
+        let mean = weighted_mean(utility, weights)?;
+        let (value, sampled_error) = match functional {
+            DecisionFunctional::Expectation | DecisionFunctional::ExpectedUtility => {
+                (mean, self.exact.then_some(0.0))
+            }
+            DecisionFunctional::Variance => {
+                let variance: f64 = utility
+                    .iter()
+                    .zip(weights)
+                    .filter(|(_, w)| **w > 0.0)
+                    .map(|(v, w)| w * (v - mean) * (v - mean))
+                    .sum();
+                (variance, None)
+            }
+            DecisionFunctional::Probability { threshold, tail } => {
+                let mass: f64 = utility
+                    .iter()
+                    .zip(weights)
+                    .filter(|(v, _)| match tail {
+                        Tail::Lower => **v <= threshold,
+                        Tail::Upper => **v >= threshold,
+                    })
+                    .map(|(_, w)| w)
+                    .sum();
+                (mass, None)
+            }
+            DecisionFunctional::Quantile { p } => (
+                left_inverse(utility, weights, p).ok_or_else(|| {
+                    DecisionEvalError::NonFiniteUtility { action: action.id.clone() }
+                })?,
+                None,
+            ),
+            DecisionFunctional::TailExpectation { p, tail } => {
+                (fractional_tail_mean(utility, weights, p, tail), None)
+            }
+        };
+        if !value.is_finite() {
+            return Err(DecisionEvalError::NonFiniteUtility { action: action.id.clone() });
+        }
+        let standard_error = if self.exact { Some(0.0) } else { sampled_error };
+        Ok(FunctionalValue { value, standard_error, source_mode })
+    }
 }
 
 /// A source that supplies only one mean per coordinate, such as an external
@@ -676,7 +800,10 @@ fn mean_insufficient(needed: Vec<SourceRepresentation>) -> DecisionEvalError {
 /// expected loss, any hard constraint, a nonlinear utility, an unknown
 /// coordinate, an input whose functional is `outcome` (a mean grid is not an
 /// outcome law), and a non-finite utility.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one contract evaluated in order: bind, score each action, aggregate, assemble the record"
+)]
 pub fn evaluate_contract_on_means(
     contract: &DecisionContract,
     source: &MeanSource,
@@ -785,4 +912,110 @@ pub fn evaluate_contract_on_means(
             "no sampling error is claimed; indistinguishable means exactly equal values".into(),
         ],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_contract::QuantityRole;
+    use antecedent_io_core::distribution_artifact::{
+        DistributionIdentity, DistributionMetadata, DistributionProvenance, DistributionTrust,
+    };
+    use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+
+    use super::*;
+    use crate::decision_contract::{
+        ActionKind, DecisionAction, StructuralPolicy, Tail, UtilityExpr,
+    };
+
+    fn quantity(variable: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: variable.into(),
+            variable_name: variable.into(),
+            role: QuantityRole::Outcome,
+            units: "units".into(),
+            population_id: "target".into(),
+            regime_id: "do(a=1)".into(),
+            horizon: 0,
+            functional_id: "outcome".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    /// Two actions on a weighted, sampled five-draw law.
+    fn fixture() -> (DecisionContract, DistributionArtifact) {
+        let columns = [quantity("p"), quantity("q")];
+        let identity = DistributionIdentity::new(
+            DistributionMeaningWire::InterventionalPredictive,
+            &columns,
+            DrawAlignment::Joint,
+            DistributionProvenance {
+                source_id: "s".into(),
+                provider_id: "p".into(),
+                rng_id: "r".into(),
+                snapshot_id: "n".into(),
+                causal_contract_id: "c".into(),
+            },
+        )
+        .unwrap();
+        let draws = vec![1.0, 4.0, 3.0, 1.0, 2.0, 2.0, 0.5, 6.0, 3.0, 3.0];
+        let artifact = DistributionArtifact::new(
+            DistributionMetadata {
+                version: 1,
+                identity,
+                axes: ["draw".into(), "quantity".into()],
+                shape: [5, 2],
+                weights: Some(vec![1.0, 2.0, 0.0, 3.0, 4.0]),
+                supported: None,
+                calibration: DistributionCalibration::Unmeasured,
+                trust: DistributionTrust::Unverified,
+                legacy_posterior: None,
+                legacy_bindings: None,
+            },
+            draws,
+        )
+        .unwrap();
+        let action = |id: &str, column: usize| DecisionAction {
+            id: id.into(),
+            kind: ActionKind::Intervention,
+            inputs: vec![columns[column].clone()],
+            utility: UtilityExpr::Input(0),
+        };
+        let contract = DecisionContract {
+            actions: vec![action("a", 0), action("b", 1)],
+            utility_units: "units".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: vec![],
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::ReportOnly,
+        };
+        (contract, artifact)
+    }
+
+    /// A law built once answers every functional bit-for-bit as the one-shot engine does.
+    #[test]
+    fn action_law_matches_evaluate_functional_for_every_functional() {
+        let (contract, artifact) = fixture();
+        let functionals = [
+            DecisionFunctional::Expectation,
+            DecisionFunctional::ExpectedUtility,
+            DecisionFunctional::Variance,
+            DecisionFunctional::Probability { threshold: 2.0, tail: Tail::Lower },
+            DecisionFunctional::Probability { threshold: 2.0, tail: Tail::Upper },
+            DecisionFunctional::Quantile { p: 0.35 },
+            DecisionFunctional::TailExpectation { p: 0.4, tail: Tail::Lower },
+            DecisionFunctional::TailExpectation { p: 0.4, tail: Tail::Upper },
+        ];
+        for id in ["a", "b"] {
+            let law = ActionLaw::of_action(&contract, id, &artifact).unwrap();
+            for functional in functionals {
+                let once = evaluate_functional(&contract, id, functional, &artifact).unwrap();
+                let hoisted = law.functional(&contract, functional).unwrap();
+                assert_eq!(hoisted.value.to_bits(), once.value.to_bits(), "{id} {functional:?}");
+                assert_eq!(hoisted.standard_error, once.standard_error);
+                assert_eq!(hoisted.source_mode, once.source_mode);
+            }
+        }
+    }
 }

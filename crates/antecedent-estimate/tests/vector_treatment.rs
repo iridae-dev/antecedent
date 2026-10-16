@@ -1,4 +1,4 @@
-//! B4 joint vector-treatment coefficients: hand-derived OLS coefficients, the full covariance
+//! Joint vector-treatment coefficients: hand-derived OLS coefficients, the full covariance
 //! matrix `sigma^2 (X'X)^-1` (off-diagonals included), contrast variances `w' V w`, HC sandwiches
 //! written out row by row, a Frisch--Waugh closed-form check with an adjustment column, the
 //! joint Wald statistic, and the typed refusals. Calibration (coverage, Type I error, power) is
@@ -19,20 +19,20 @@ use antecedent_estimate::vector_treatment::{
 };
 use antecedent_kernels::erfc;
 
+#[path = "common/checks.rs"]
+mod checks;
+
 const X1: [f64; 6] = [1.0, 0.0, 1.0, 0.0, 0.0, 1.0];
 const X2: [f64; 6] = [1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
 const Y: [f64; 6] = [3.0, 2.0, 5.0, 1.0, 0.0, 4.0];
 const S: f64 = 3.25 / 36.0;
 
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-9, "{what}: {actual} vs {expected}");
+    checks::close_abs_1e9(actual, expected, what);
 }
 
 fn refusal(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 fn treatment(name: &str, values: &[f64]) -> TreatmentColumn {
@@ -65,7 +65,7 @@ fn options(covariance: VectorCovariance, contrasts: Vec<Contrast>) -> VectorTrea
 }
 
 #[test]
-fn b4_vector_coefficients_and_full_covariance_match_hand_algebra() {
+fn vector_coefficients_and_full_covariance_match_hand_algebra() {
     let fit = fit_vector_treatment(&base_input(), &options(VectorCovariance::ModelBased, vec![]))
         .unwrap();
     assert_eq!(fit.names, ["t1", "t2"]);
@@ -91,7 +91,7 @@ fn b4_vector_coefficients_and_full_covariance_match_hand_algebra() {
 }
 
 #[test]
-fn b4_vector_contrast_se_uses_the_off_diagonal_not_the_independent_sum() {
+fn vector_contrast_se_uses_the_off_diagonal_not_the_independent_sum() {
     let contrasts = vec![
         contrast("diff", &[("t1", 1.0), ("t2", -1.0)]),
         contrast("sum", &[("t1", 1.0), ("t2", 1.0)]),
@@ -129,7 +129,7 @@ fn b4_vector_contrast_se_uses_the_off_diagonal_not_the_independent_sum() {
 }
 
 #[test]
-fn b4_vector_contrast_family_gets_holm_adjustment() {
+fn vector_contrast_family_gets_holm_adjustment() {
     let contrasts = vec![
         contrast("diff", &[("t1", 1.0), ("t2", -1.0)]),
         contrast("sum", &[("t1", 1.0), ("t2", 1.0)]),
@@ -147,7 +147,7 @@ fn b4_vector_contrast_family_gets_holm_adjustment() {
 }
 
 #[test]
-fn b4_vector_joint_wald_matches_closed_form_quadratic() {
+fn vector_joint_wald_matches_closed_form_quadratic() {
     let fit = fit_vector_treatment(&base_input(), &options(VectorCovariance::ModelBased, vec![]))
         .unwrap();
     // V = s [[9,-3],[-3,9]], V^-1 = [[9,3],[3,9]] / (72 s); b = (2.75, 0.75).
@@ -161,7 +161,7 @@ fn b4_vector_joint_wald_matches_closed_form_quadratic() {
 }
 
 #[test]
-fn b4_vector_wald_test_over_declared_contrasts() {
+fn vector_wald_test_over_declared_contrasts() {
     let fit = fit_vector_treatment(&base_input(), &options(VectorCovariance::ModelBased, vec![]))
         .unwrap();
     let diff = contrast("diff", &[("t1", 1.0), ("t2", -1.0)]);
@@ -206,7 +206,7 @@ fn sandwich_block(weights: &[f64; 6]) -> [f64; 4] {
 }
 
 #[test]
-fn b4_vector_robust_sandwiches_match_row_by_row_algebra() {
+fn vector_robust_sandwiches_match_row_by_row_algebra() {
     let leverage = [5.0 / 12.0, 8.0 / 12.0, 5.0 / 12.0, 5.0 / 12.0, 5.0 / 12.0, 8.0 / 12.0];
     let hc0 = [1.0; 6];
     let hc1 = [2.0; 6]; // n / (n - p) = 6 / 3
@@ -246,7 +246,7 @@ fn residualize(v: &[f64], z: &[f64]) -> Vec<f64> {
 }
 
 #[test]
-fn b4_vector_adjustment_matches_frisch_waugh_closed_form() {
+fn vector_adjustment_matches_frisch_waugh_closed_form() {
     let z = [0.0, 1.0, 2.0, 0.0, 1.0, 2.0];
     let mut input = base_input();
     input.adjustment = vec![NamedColumn { name: "z".into(), values: z.to_vec() }];
@@ -274,7 +274,7 @@ fn b4_vector_adjustment_matches_frisch_waugh_closed_form() {
 }
 
 #[test]
-fn b4_vector_treatment_order_permutes_the_covariance_consistently() {
+fn vector_treatment_order_permutes_the_covariance_consistently() {
     let mut swapped = base_input();
     swapped.treatments.reverse();
     let contrasts = vec![contrast("diff", &[("t1", 1.0), ("t2", -1.0)])];
@@ -294,7 +294,7 @@ fn b4_vector_treatment_order_permutes_the_covariance_consistently() {
 }
 
 #[test]
-fn b4_vector_refuses_different_adjustment_sets() {
+fn vector_refuses_different_adjustment_sets() {
     let mut input = base_input();
     input.adjustment =
         vec![NamedColumn { name: "z".into(), values: vec![0.0, 1.0, 2.0, 0.0, 1.0, 3.0] }];
@@ -316,7 +316,7 @@ fn b4_vector_refuses_different_adjustment_sets() {
 }
 
 #[test]
-fn b4_vector_refuses_different_row_snapshots_and_row_counts() {
+fn vector_refuses_different_row_snapshots_and_row_counts() {
     let mut input = base_input();
     input.treatments[1].row_snapshot = "other".into();
     let (code, message) = refusal(
@@ -334,7 +334,7 @@ fn b4_vector_refuses_different_row_snapshots_and_row_counts() {
 }
 
 #[test]
-fn b4_vector_refuses_constant_collinear_and_rank_deficient_designs() {
+fn vector_refuses_constant_collinear_and_rank_deficient_designs() {
     let run = |input: &VectorTreatmentInput| {
         refusal(
             fit_vector_treatment(input, &options(VectorCovariance::ModelBased, vec![]))
@@ -366,7 +366,7 @@ fn b4_vector_refuses_constant_collinear_and_rank_deficient_designs() {
 }
 
 #[test]
-fn b4_vector_refuses_malformed_requests() {
+fn vector_refuses_malformed_requests() {
     let run = |input: &VectorTreatmentInput, contrasts: Vec<Contrast>| {
         refusal(
             fit_vector_treatment(input, &options(VectorCovariance::ModelBased, contrasts))

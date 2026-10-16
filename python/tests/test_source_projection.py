@@ -6,21 +6,21 @@ import json
 import subprocess
 import sys
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 from antecedent import decision, program_claims
 from antecedent.composition_bundle import Bundle, Failed, consume_bundle
 from antecedent.source_projection import SourceProjectionArtifact, consume_source_projection
 
+from _repo_text import REPO_ROOT
 from test_program_claims import _native_program, _native_view, _response, _spec
 
 
 def _truth():
     return json.loads(
-        (
-            Path(__file__).parents[2] / "conformance/composition/source_projection/expected.json"
-        ).read_text(encoding="utf-8")
+        (REPO_ROOT / "conformance/composition/source_projection/expected.json").read_text(
+            encoding="utf-8"
+        )
     )
 
 

@@ -22,6 +22,15 @@ statements in [DCO](DCO). A CLA is not required.
 
 CI rejects commits that lack a valid `Signed-off-by` line.
 
+## Public API changes
+
+The public surface of every published crate is snapshotted in
+`parity/public_api/<crate>.txt` and checked by `scripts/gate_public_api.sh`. A
+change that adds, removes or re-types a public item fails the gate until you
+regenerate the snapshots with `bash scripts/gate_public_api.sh --write` and
+commit the diff, so API changes are always visible in review. Prefer
+`pub(crate)` for items only the crate itself uses.
+
 ## Clean implementation
 
 This project is independently implemented from published papers, specifications,
@@ -49,4 +58,12 @@ In project docs, "port" means capability parity, not source translation.
 ## Toolchain
 
 - Rust **1.85**, edition **2024** (see `rust-toolchain.toml`).
-- Format with `cargo fmt`; lint with `cargo clippy -- -D warnings`.
+- Format with `cargo fmt --all` from the repo root, or `cargo fmt -p <crate>` for one crate. Do not invoke `rustfmt` directly and do not pass `--edition`: `rustfmt.toml` sets edition 2024, and `--edition` overrides it and rewrites imports. Format only crates you changed. Lint with `cargo clippy -- -D warnings`.
+
+For focused Rust edits, use `bash scripts/test.sh dev -p <crate> --test <target>`
+or `--lib`. Python-only edits can use `bash scripts/test.sh python-test` against
+the current native extension. Run optimized numerical tests with
+`bash scripts/test.sh`; use
+`bash scripts/test.sh all` for Rust tests, doctests, optional feature tests and
+the Python suite. See [test performance](docs/guides/test-performance.md) for
+focused runs, build settings and timing reports.

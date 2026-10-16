@@ -1,4 +1,4 @@
-//! Bounded DAG completions of a supplied CPDAG (2.3A X2).
+//! Bounded DAG completions of a supplied CPDAG.
 //!
 //! The expected completion sets come from an independent brute force: every
 //! orientation of the skeleton, filtered to the acyclic, v-structure-preserving
@@ -158,7 +158,7 @@ fn case_named(name: &str) -> Case {
 }
 
 #[test]
-fn x2_cpdag_enumerated_truth_sets() {
+fn cpdag_enumerated_truth_sets() {
     for case in cases() {
         let enumeration = enumerate(&case);
         let expected = oracle(&case);
@@ -269,7 +269,7 @@ fn refusal(error: CpdagScenarioError) -> (&'static str, &'static str) {
 }
 
 #[test]
-fn x2_cpdag_missing_evidence_refusals() {
+fn cpdag_missing_evidence_refusals() {
     let ctx = ExecutionContext::for_tests(1);
     // More than six nodes.
     let mut seven = Cpdag::with_variables(7);
@@ -382,7 +382,7 @@ fn assert_evidence_mismatch_refusals(a: &Arc<str>, b: &Arc<str>) {
 }
 
 #[test]
-fn x2_cpdag_permutation_identities() {
+fn cpdag_permutation_identities() {
     // Nodes added and edges inserted in a different order: dense ids change, the
     // variable ids and so the completion identities and order do not.
     for case in cases() {
@@ -456,7 +456,7 @@ fn run(case: &Case, limits: SearchLimits, ctx: &ExecutionContext) -> CpdagEnumer
 }
 
 #[test]
-fn x2_cpdag_budget_stop_enumeration() {
+fn cpdag_budget_stop_enumeration() {
     let case = six();
     let total = oracle(&case).len();
     assert_eq!(total, 18);
@@ -529,7 +529,7 @@ fn found_in(enumeration: &CpdagEnumeration, truth: &BTreeSet<Edges>) -> bool {
 }
 
 #[test]
-fn x2_cpdag_budget_stop_decisions() {
+fn cpdag_budget_stop_decisions() {
     // A budget that stops inside enumeration leaves every found completion
     // unevaluated and reports the unenumerated count separately.
     let case = six();

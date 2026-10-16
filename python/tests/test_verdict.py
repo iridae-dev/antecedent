@@ -9,7 +9,7 @@ import numpy as np
 from antecedent._native import identification_status_names
 from antecedent._verdict import VERDICTS, verdict_for
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
 SCHEMA = load_json(Path(__file__).resolve().parent / "fixtures" / "certificate_schema.json")
 
@@ -24,7 +24,7 @@ def _assert_schema(instance: dict) -> None:
 
 
 def test_verdict_table_is_exhaustive():
-    assert set(VERDICTS) == set(identification_status_names())
+    assert set(VERDICTS) == set(identification_status_names()) | {"DesignBased"}
 
 
 def test_statement_lines_nonempty_when_assumptions_exist():
@@ -70,11 +70,7 @@ def test_certificate_matches_schema():
         refute="none",
     )
     pin = load_json(
-        Path(__file__).resolve().parents[2]
-        / "conformance"
-        / "estimate"
-        / "temporal_class_envelope"
-        / "identified_pag.json"
+        REPO_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "identified_pag.json"
     )
     n = int(pin["n"])
     i = np.arange(n, dtype=float)
@@ -94,6 +90,6 @@ def test_certificate_matches_schema():
         refute="none",
     )
     for result in (dag, admg, cpdag, pag):
-        certificate = result.certificate
+        certificate = result.to_dict()["certificate"]
         assert isinstance(certificate, dict), type(result)
         _assert_schema(certificate)

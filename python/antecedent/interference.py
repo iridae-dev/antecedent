@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 import numpy as np
 
+from ._columns import hold_unresolved
 from ._data import as_columns
 from ._native import estimate_network_interference as _estimate_network_interference
 from ._native import (
@@ -266,12 +267,7 @@ class InterferenceQuery:
     _COLUMN_FIELDS = {"realized_assignment": "bool"}
 
     def __post_init__(self) -> None:
-        from ._columns import defer_columns
-
-        if defer_columns(self):
-            # Hold the caller's column name unvalidated; resolve_columns rebuilds this
-            # query against the data at prepare, re-running the checks below.
-            object.__setattr__(self, "_deferred_columns", True)
+        if hold_unresolved(self):
             return
         if self.probability_draws <= 0:
             raise CausalValueError("probability_draws must be positive")

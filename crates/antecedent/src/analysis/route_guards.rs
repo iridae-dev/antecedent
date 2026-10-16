@@ -14,12 +14,10 @@ use antecedent_identify::IdentificationEnvelope;
 
 use super::builder::{DataInput, RefuteSuite};
 use super::execute::Study;
-use crate::AcceptedGraph;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
-use crate::planner::PhysicalExecutionPlan;
-use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::support::StructureSource;
+use crate::{AcceptedGraph, GraphRef};
 
 impl Study {
     /// Structure was supplied explicitly or accepted from review, not
@@ -63,46 +61,38 @@ pub(crate) fn complete_mean_response(query: &ResponseQuery) -> bool {
         && mean_all_observed(&query.outcome_functional, &query.target_population)
 }
 
-/// How a plan-record name is compared against the name a route expects.
-#[derive(Clone, Copy)]
-pub(crate) enum PlanRecordMode<'a> {
-    /// The record must name exactly the expected id.
-    Exact,
-    /// A missing record name reads as this default before comparison.
-    OrDefault(&'a str),
-    /// A missing record name is accepted; a present one must match.
-    IfPresent,
-}
-
-fn plan_name_is(recorded: Option<&str>, expected: &str, mode: PlanRecordMode<'_>) -> bool {
-    match mode {
-        PlanRecordMode::Exact => recorded == Some(expected),
-        PlanRecordMode::OrDefault(default) => recorded.unwrap_or(default) == expected,
-        PlanRecordMode::IfPresent => recorded.is_none_or(|name| name == expected),
-    }
-}
-
-/// Whether the logical plan record names `identifier` and `estimator`, each
-/// compared under its own [`PlanRecordMode`].
-#[must_use]
-pub(crate) fn plan_record_is(
-    plan: &PhysicalExecutionPlan,
-    identifier: IdentifierId,
-    identifier_mode: PlanRecordMode<'_>,
-    estimator: EstimatorId,
-    estimator_mode: PlanRecordMode<'_>,
-) -> bool {
-    let record = &plan.logical.record;
-    plan_name_is(record.identifier.as_deref(), identifier.as_str(), identifier_mode)
-        && plan_name_is(record.estimator.as_deref(), estimator.as_str(), estimator_mode)
-}
-
 /// Whether two accepted graphs are the same class, version, and structure.
 #[must_use]
 pub(crate) fn same_accepted_graph(retained: &AcceptedGraph, current: &AcceptedGraph) -> bool {
     retained.class() == current.class()
         && retained.version() == current.version()
-        && format!("{retained:?}") == format!("{current:?}")
+        && retained.algorithm_id() == current.algorithm_id()
+        && retained.variable_names() == current.variable_names()
+        && match (retained.graph_ref(), current.graph_ref()) {
+            (GraphRef::Dag(a), GraphRef::Dag(b)) => a == b,
+            (GraphRef::Admg(a), GraphRef::Admg(b)) => a == b,
+            (GraphRef::Cpdag(a), GraphRef::Cpdag(b)) => a == b,
+            (GraphRef::Pag(a), GraphRef::Pag(b)) => a == b,
+            (GraphRef::TemporalDag(a), GraphRef::TemporalDag(b)) => a == b,
+            (GraphRef::TemporalCpdag(a), GraphRef::TemporalCpdag(b)) => a == b,
+            (GraphRef::TemporalPag(a), GraphRef::TemporalPag(b)) => a == b,
+            (GraphRef::TemporalAdmg(a), GraphRef::TemporalAdmg(b)) => same_temporal_admg(a, b),
+            (GraphRef::RandomizedTrial, GraphRef::RandomizedTrial) => true,
+            _ => false,
+        }
+}
+
+fn same_temporal_admg(
+    a: &antecedent_graph::TemporalAdmg,
+    b: &antecedent_graph::TemporalAdmg,
+) -> bool {
+    a.nodes() == b.nodes()
+        && (0..a.node_count()).all(|i| {
+            let id = antecedent_graph::DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
+            a.children(id) == b.children(id)
+                && a.parents(id) == b.parents(id)
+                && a.bidirected_neighbors(id) == b.bidirected_neighbors(id)
+        })
 }
 
 /// Completion count and identified / unidentified mass of an envelope.
@@ -134,4 +124,25 @@ pub(crate) fn series_input(retained: &DataInput, data: TimeSeriesData) -> DataIn
 #[must_use]
 pub(crate) fn compile_error(message: &str) -> CausalError {
     CausalError::Compile { message: message.into() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_accepted_graph;
+    use crate::AcceptedGraph;
+    use antecedent_graph::{Dag, DenseNodeId};
+
+    #[test]
+    fn same_accepted_graph_compares_edges() {
+        let mut left = Dag::with_variables(2);
+        left.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let mut right = Dag::with_variables(2);
+        right.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        assert!(same_accepted_graph(&AcceptedGraph::dag(left), &AcceptedGraph::dag(right)));
+        let mut reversed = Dag::with_variables(2);
+        reversed.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(0)).unwrap();
+        let mut again = Dag::with_variables(2);
+        again.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        assert!(!same_accepted_graph(&AcceptedGraph::dag(again), &AcceptedGraph::dag(reversed)));
+    }
 }

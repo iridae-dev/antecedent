@@ -7,14 +7,6 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
 
 use burn::backend::{Autodiff, NdArray};
 use burn::module::{AutodiffModule, Module};
@@ -56,46 +48,123 @@ struct DenseLayer {
     bias: Vec<f32>,
 }
 
+/// Failure of [`train`] or [`TrainedMlp::predict`].
+///
+/// Display text matches the strings this crate used to return as `Result<_, String>`.
+#[derive(Debug, Clone)]
+pub enum LearnBurnError {
+    /// No rows or no columns.
+    EmptyDesign,
+    /// Design length or target length does not match the declared shape.
+    ShapeMismatch,
+    /// Hidden width or epoch count is zero.
+    Architecture,
+    /// A design or target value is NaN or infinite.
+    NonFiniteInput,
+    /// A binary target is not exactly 0 or 1.
+    BinaryLabels,
+    /// Learning rate is non-finite or not positive.
+    LearningRate,
+    /// Another thread panicked while holding the training lock.
+    LockPoisoned,
+    /// Burn could not read the scalar loss.
+    Loss(String),
+    /// Training loss left the finite range.
+    Diverged(f32),
+    /// Fitted weights are NaN or infinite.
+    NonFiniteWeights,
+    /// Predict output or column count does not match the fit.
+    PredictShape,
+    /// Predict design buffer is shorter than `nrows * ncols`.
+    PredictBuffer,
+    /// Burn could not read a weight tensor.
+    Weight(String),
+    /// A linear layer has no bias.
+    MissingBias,
+    /// Burn could not read a bias tensor.
+    Bias(String),
+    /// Extracted weight or bias length does not match the layer.
+    WeightShape,
+}
+
+impl std::fmt::Display for LearnBurnError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EmptyDesign => f.write_str("neural_net needs a non-empty design"),
+            Self::ShapeMismatch => f.write_str("neural_net design / target shape mismatch"),
+            Self::Architecture => f.write_str("neural_net hidden and epochs must be ≥ 1"),
+            Self::NonFiniteInput => f.write_str("neural_net design and target must be finite"),
+            Self::BinaryLabels => f.write_str("neural_net binary target must be 0/1"),
+            Self::LearningRate => {
+                f.write_str("neural_net learning_rate must be finite and positive")
+            }
+            Self::LockPoisoned => f.write_str("neural_net training lock poisoned"),
+            Self::Loss(detail) => write!(f, "neural_net loss: {detail}"),
+            Self::Diverged(loss) => write!(f, "neural_net training diverged (loss {loss})"),
+            Self::NonFiniteWeights => f.write_str("neural_net produced non-finite weights"),
+            Self::PredictShape => f.write_str("neural_net predict shape mismatch"),
+            Self::PredictBuffer => f.write_str("neural_net predict buffer shorter than design"),
+            Self::Weight(detail) => write!(f, "neural_net weight: {detail}"),
+            Self::MissingBias => f.write_str("neural_net layer missing bias"),
+            Self::Bias(detail) => write!(f, "neural_net bias: {detail}"),
+            Self::WeightShape => f.write_str("neural_net extracted weight shape mismatch"),
+        }
+    }
+}
+
+impl std::error::Error for LearnBurnError {}
+
+/// Task, architecture and optimizer settings of [`train`].
+#[derive(Debug, Clone, Copy)]
+pub struct MlpSpec {
+    /// Binary-probability target (labels 0/1) rather than regression.
+    pub binary: bool,
+    /// Hidden units.
+    pub hidden: usize,
+    /// Training epochs.
+    pub epochs: usize,
+    /// Optimizer learning rate.
+    pub learning_rate: f64,
+    /// Initialization / stochastic-operation seed.
+    pub seed: u64,
+}
+
 /// Fit a small MLP on a column-major design.
 ///
 /// # Errors
 ///
 /// Shape mismatch, empty design, or a Burn backend failure.
-#[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
 pub fn train(
     x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
     y: &[f64],
-    binary: bool,
-    hidden: usize,
-    epochs: usize,
-    learning_rate: f64,
-    seed: u64,
-) -> Result<TrainedMlp, String> {
+    spec: &MlpSpec,
+) -> Result<TrainedMlp, LearnBurnError> {
+    let MlpSpec { binary, hidden, epochs, learning_rate, seed } = *spec;
     if nrows == 0 || ncols == 0 {
-        return Err("neural_net needs a non-empty design".into());
+        return Err(LearnBurnError::EmptyDesign);
     }
     if x_colmajor.len() < nrows.saturating_mul(ncols) || y.len() != nrows {
-        return Err("neural_net design / target shape mismatch".into());
+        return Err(LearnBurnError::ShapeMismatch);
     }
     if hidden == 0 || epochs == 0 {
-        return Err("neural_net hidden and epochs must be ≥ 1".into());
+        return Err(LearnBurnError::Architecture);
     }
     if x_colmajor[..nrows * ncols].iter().chain(y).any(|v| !v.is_finite()) {
-        return Err("neural_net design and target must be finite".into());
+        return Err(LearnBurnError::NonFiniteInput);
     }
     #[allow(clippy::float_cmp, reason = "a binary target is exactly the labels 0 and 1")]
     let not_a_label = |v: f64| v != 0.0 && v != 1.0;
     if binary && y.iter().any(|&v| not_a_label(v)) {
-        return Err("neural_net binary target must be 0/1".into());
+        return Err(LearnBurnError::BinaryLabels);
     }
     if !learning_rate.is_finite() || learning_rate <= 0.0 {
-        return Err("neural_net learning_rate must be finite and positive".into());
+        return Err(LearnBurnError::LearningRate);
     }
     // Burn's backend RNG is global. Hold the lock through training so concurrent
     // folds cannot reseed each other's initialization or stochastic operations.
-    let _guard = TRAIN_LOCK.lock().map_err(|_| "neural_net training lock poisoned")?;
+    let _guard = TRAIN_LOCK.lock().map_err(|_| LearnBurnError::LockPoisoned)?;
     InferBackend::seed(seed);
     let device = <InferBackend as Backend>::Device::default();
     // Standardize inputs and (for regression) the target before training. Raw f32 inputs
@@ -134,12 +203,12 @@ pub fn train(
             .clone()
             .into_data()
             .as_slice::<f32>()
-            .map_err(|e| format!("neural_net loss: {e:?}"))?
+            .map_err(|e| LearnBurnError::Loss(format!("{e:?}")))?
             .first()
             .copied()
             .unwrap_or(f32::NAN);
         if !loss_value.is_finite() {
-            return Err(format!("neural_net training diverged (loss {loss_value})"));
+            return Err(LearnBurnError::Diverged(loss_value));
         }
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &model);
@@ -161,7 +230,7 @@ pub fn train(
         .iter()
         .all(|l| l.weight.iter().chain(&l.bias).all(|v| v.is_finite()));
     if !all_finite {
-        return Err("neural_net produced non-finite weights".into());
+        return Err(LearnBurnError::NonFiniteWeights);
     }
     Ok(trained)
 }
@@ -178,24 +247,32 @@ impl TrainedMlp {
         nrows: usize,
         ncols: usize,
         out: &mut [f64],
-    ) -> Result<(), String> {
+    ) -> Result<(), LearnBurnError> {
         if ncols != self.ncols || out.len() != nrows {
-            return Err("neural_net predict shape mismatch".into());
+            return Err(LearnBurnError::PredictShape);
         }
         if x_colmajor.len() < nrows.saturating_mul(ncols) {
-            return Err("neural_net predict buffer shorter than design".into());
+            return Err(LearnBurnError::PredictBuffer);
         }
         if nrows == 0 {
             return Ok(());
         }
         let x_std = standardized(x_colmajor, nrows, ncols, &self.x_center, &self.x_scale);
         let x_rm = colmajor_to_rowmajor_f32(&x_std, nrows, ncols);
+        let mut h1 = vec![0.0f32; self.l1.dout];
+        let mut h2 = vec![0.0f32; self.l2.dout];
+        let mut ybuf = vec![0.0f32; self.out.dout];
         for r in 0..nrows {
             let row = &x_rm[r * ncols..(r + 1) * ncols];
-            let h1 = self.l1.forward_relu(row);
-            let h2 = self.l2.forward_relu(&h1);
-            let mut yhat = self.out.forward(&h2)[0];
+            self.l1.forward_into(row, &mut h1);
+            relu_inplace(&mut h1);
+            self.l2.forward_into(&h1, &mut h2);
+            relu_inplace(&mut h2);
+            self.out.forward_into(&h2, &mut ybuf);
+            let mut yhat = ybuf[0];
             if self.binary {
+                // Deliberately an f32 logistic: this optional provider has no antecedent
+                // dependency, and its clip (1e-6) is the f32 resolution of the network.
                 yhat = (1.0 / (1.0 + (-yhat).exp())).clamp(1e-6, 1.0 - 1e-6);
                 out[r] = f64::from(yhat);
             } else {
@@ -230,8 +307,12 @@ impl<B: Backend> Mlp<B> {
 }
 
 impl DenseLayer {
-    fn forward(&self, x: &[f32]) -> Vec<f32> {
-        let mut out = self.bias.clone();
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
+    fn forward_into(&self, x: &[f32], out: &mut [f32]) {
+        out[..self.dout].copy_from_slice(&self.bias);
         for i in 0..self.din {
             let xi = x[i];
             let row = &self.weight[i * self.dout..(i + 1) * self.dout];
@@ -239,19 +320,16 @@ impl DenseLayer {
                 out[o] += xi * row[o];
             }
         }
-        out
-    }
-
-    fn forward_relu(&self, x: &[f32]) -> Vec<f32> {
-        let mut out = self.forward(x);
-        for v in &mut out {
-            *v = v.max(0.0);
-        }
-        out
     }
 }
 
-fn extract_linear(layer: &Linear<InferBackend>) -> Result<DenseLayer, String> {
+fn relu_inplace(values: &mut [f32]) {
+    for v in values {
+        *v = v.max(0.0);
+    }
+}
+
+fn extract_linear(layer: &Linear<InferBackend>) -> Result<DenseLayer, LearnBurnError> {
     let weight = layer.weight.val();
     let dims = weight.dims();
     let din = dims[0];
@@ -259,17 +337,12 @@ fn extract_linear(layer: &Linear<InferBackend>) -> Result<DenseLayer, String> {
     let w = weight
         .into_data()
         .as_slice::<f32>()
-        .map_err(|e| format!("neural_net weight: {e:?}"))?
+        .map_err(|e| LearnBurnError::Weight(format!("{e:?}")))?
         .to_vec();
-    let bias = layer
-        .bias
-        .as_ref()
-        .ok_or_else(|| "neural_net layer missing bias".to_string())?
-        .val()
-        .into_data();
-    let b = bias.as_slice::<f32>().map_err(|e| format!("neural_net bias: {e:?}"))?.to_vec();
+    let bias = layer.bias.as_ref().ok_or(LearnBurnError::MissingBias)?.val().into_data();
+    let b = bias.as_slice::<f32>().map_err(|e| LearnBurnError::Bias(format!("{e:?}")))?.to_vec();
     if w.len() != din.saturating_mul(dout) || b.len() != dout {
-        return Err("neural_net extracted weight shape mismatch".into());
+        return Err(LearnBurnError::WeightShape);
     }
     Ok(DenseLayer { din, dout, weight: w, bias: b })
 }
@@ -364,7 +437,14 @@ mod tests {
     fn fits_a_line() {
         let n = 24usize;
         let (x, y) = line(n, 2.0, 0.5);
-        let model = train(&x, n, 2, &y, false, 8, 80, 0.05, 1).unwrap();
+        let model = train(
+            &x,
+            n,
+            2,
+            &y,
+            &MlpSpec { binary: false, hidden: 8, epochs: 80, learning_rate: 0.05, seed: 1 },
+        )
+        .unwrap();
         let mut out = vec![0.0; n];
         model.predict(&x, n, 2, &mut out).unwrap();
         assert!(out.iter().all(|v| v.is_finite()));
@@ -379,7 +459,14 @@ mod tests {
     fn large_scale_targets_are_fit_on_their_own_scale() {
         let n = 24usize;
         let (x, y) = line(n, 1.0e5, 5.0e4);
-        let model = train(&x, n, 2, &y, false, 8, 80, 0.05, 1).unwrap();
+        let model = train(
+            &x,
+            n,
+            2,
+            &y,
+            &MlpSpec { binary: false, hidden: 8, epochs: 80, learning_rate: 0.05, seed: 1 },
+        )
+        .unwrap();
         let mut out = vec![0.0; n];
         model.predict(&x, n, 2, &mut out).unwrap();
         let err = relative_mae(&out, &y);
@@ -391,12 +478,39 @@ mod tests {
         let n = 24usize;
         let (x, y) = line(n, 2.0, 0.5);
         // An absurd step size overflows the loss to inf/NaN within a few epochs.
-        assert!(train(&x, n, 2, &y, false, 8, 40, 1.0e30, 1).is_err());
+        assert!(
+            train(
+                &x,
+                n,
+                2,
+                &y,
+                &MlpSpec { binary: false, hidden: 8, epochs: 40, learning_rate: 1.0e30, seed: 1 }
+            )
+            .is_err()
+        );
         // Binary training on a non-0/1 target.
-        assert!(train(&x, n, 2, &y, true, 8, 5, 0.05, 1).is_err());
+        assert!(
+            train(
+                &x,
+                n,
+                2,
+                &y,
+                &MlpSpec { binary: true, hidden: 8, epochs: 5, learning_rate: 0.05, seed: 1 }
+            )
+            .is_err()
+        );
         // Non-finite design.
         let mut bad = x.clone();
         bad[n + 3] = f64::NAN;
-        assert!(train(&bad, n, 2, &y, false, 8, 5, 0.05, 1).is_err());
+        assert!(
+            train(
+                &bad,
+                n,
+                2,
+                &y,
+                &MlpSpec { binary: false, hidden: 8, epochs: 5, learning_rate: 0.05, seed: 1 }
+            )
+            .is_err()
+        );
     }
 }

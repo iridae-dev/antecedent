@@ -34,6 +34,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from .._columns import coerce_fields
 from .._measured_inference import MeasuredInference, _production_limits
 from .._native import (
     consume_temporal_initial_state_artifact as _consume_initial_state,
@@ -47,7 +48,8 @@ from .._native import (
 from .._native import (
     temporal_initial_state_prepare as _initial_state_prepare,
 )
-from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .._refusal import raise_refusal
+from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 MARGINALIZED_LABEL = "marginalized_initial_state"
 FIXED_LABEL = "fixed_initial_state"
@@ -59,7 +61,7 @@ _U32 = 2**32 - 1
 _U64 = 2**64 - 1
 
 
-class TemporalExtensionRefusal(CausalUnsupportedError):
+class TemporalExtensionRefusal(StructuredRefusal):
     """A temporal-extension refusal carrying the structured Rust fields.
 
     ``reason_code`` and ``remedy`` are inherited and the code is registered. ``detail`` is
@@ -72,19 +74,13 @@ class TemporalExtensionRefusal(CausalUnsupportedError):
         detail = str(refusal.get("detail") or "")
         message = str(refusal.get("message") or "")
         text = f"{detail}: {message}" if detail else message
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        self.stage: str = str(refusal.get("stage", ""))
-        self.detail: str = detail
-
-
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise TemporalExtensionRefusal(json.loads(refusal))
+        super().__init__({**refusal, "detail": detail}, text=text)
+        self.stage = str(refusal.get("stage", ""))
 
 
 def _consumed(payload: str | None, refusal: str | None) -> dict[str, Any]:
     """Decode a consumer's JSON payload, raising its typed refusal first."""
-    _raise(refusal)
+    raise_refusal(refusal, TemporalExtensionRefusal)
     if payload is None:
         raise CausalValueError(
             "the native consumer returned no payload", reason_code="invalid_argument"
@@ -131,7 +127,7 @@ class UnitHistories:
     histories: Sequence[SequenceHistory]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "histories", tuple(self.histories))
+        coerce_fields(self, histories=tuple(self.histories))
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,7 +143,7 @@ class TemporalUnitPanel:
 
     def __post_init__(self) -> None:
         if self.units is not None:
-            object.__setattr__(self, "units", tuple(self.units))
+            coerce_fields(self, units=tuple(self.units))
 
     @classmethod
     def from_rows(
@@ -201,10 +197,8 @@ class InitialStateLaw:
 
     def __post_init__(self) -> None:
         pairs = self.states.items() if isinstance(self.states, Mapping) else self.states
-        object.__setattr__(
-            self,
-            "states",
-            tuple((_index("state", level), float(mass)) for level, mass in pairs),
+        coerce_fields(
+            self, states=tuple((_index("state", level), float(mass)) for level, mass in pairs)
         )
 
     def _wire(self) -> tuple[str, str, list[tuple[int, float]]]:
@@ -232,7 +226,7 @@ class TemporalPremises:
     proof_id: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "time_order", tuple(self.time_order))
+        coerce_fields(self, time_order=tuple(self.time_order))
 
     def _wire(self) -> tuple[str, list[str], str, str, str, str]:
         return (
@@ -269,9 +263,9 @@ class TemporalWindow:
     def __post_init__(self) -> None:
         lag = self.lag_alignment
         pairs = lag.items() if isinstance(lag, Mapping) else lag
-        object.__setattr__(self, "lag_alignment", tuple((str(n), int(s)) for n, s in pairs))
-        object.__setattr__(self, "intervention_history", tuple(self.intervention_history))
-        object.__setattr__(self, "selection_targets", tuple(self.selection_targets))
+        coerce_fields(self, lag_alignment=tuple((str(n), int(s)) for n, s in pairs))
+        coerce_fields(self, intervention_history=tuple(self.intervention_history))
+        coerce_fields(self, selection_targets=tuple(self.selection_targets))
         if len(self.period) != 2:
             raise CausalValueError("period is a (start, end) pair", reason_code="invalid_argument")
 
@@ -403,7 +397,7 @@ class TemporalInitialStateResult:
     def export_refresh(self) -> bytes:
         """The artifact of the refresh that produced this result (framed bytes)."""
         data, refusal = self._native.export_refresh()
-        _raise(refusal)
+        raise_refusal(refusal, TemporalExtensionRefusal)
         return bytes(data)
 
 
@@ -442,7 +436,7 @@ def temporal_initial_state(
         premises._wire(),
         None if window is None else window._wire(),
     )
-    _raise(refusal)
+    raise_refusal(refusal, TemporalExtensionRefusal)
     return TemporalInitialStateResult._from(native)
 
 
@@ -509,7 +503,7 @@ def temporal_new_period_refresh(
     native, refusal = held._native.refresh(
         panel.snapshot_id, panel._wire(), window._wire(), bool(interval_existed)
     )
-    _raise(refusal)
+    raise_refusal(refusal, TemporalExtensionRefusal)
     refreshed = TemporalInitialStateResult._from(native)
     if refreshed.receipt is None or refreshed.previous_value is None:
         raise CausalValueError(
@@ -565,7 +559,8 @@ class TemporalIntervalCandidate:
         if row["calibration"] != "unmeasured":
             raise CausalValueError("temporal interval candidate must remain unmeasured")
         result = object.__new__(cls)
-        fields = dict(
+        coerce_fields(
+            result,
             point=row["point"],
             lower=row["lower"],
             upper=row["upper"],
@@ -580,8 +575,6 @@ class TemporalIntervalCandidate:
             replicate_digest=row["replicate_digest"],
             _native=native,
         )
-        for name, value in fields.items():
-            object.__setattr__(result, name, value)
         return result
 
     def export(self) -> bytes:
@@ -610,8 +603,7 @@ class TemporalIntervalCandidate:
         if not isinstance(artifact, bytes) or not isinstance(expected_identity, str):
             raise CausalTypeError("artifact must be bytes and expected_identity must be str")
         native, refusal = consumer(artifact, expected_identity)
-        if refusal is not None:
-            raise TemporalExtensionRefusal(json.loads(refusal))
+        raise_refusal(refusal, TemporalExtensionRefusal)
         return cls._from_native(native)
 
 
@@ -721,8 +713,7 @@ def _temporal_interval_entry(
             *arguments,
             **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
         )
-        if refusal is not None:
-            raise TemporalExtensionRefusal(json.loads(refusal))
+        raise_refusal(refusal, TemporalExtensionRefusal)
         return (
             MeasuredInference._from_native(native)
             if measured

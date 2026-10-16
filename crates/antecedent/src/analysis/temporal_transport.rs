@@ -5,12 +5,12 @@
 //! budget, and compiles it against supplied exact laws; estimation evaluates the
 //! retained plan and never re-identifies. The claim is exact and point-only:
 //! temporal sampling intervals, initial-state uncertainty and new-period refresh
-//! are 2.3A, so an interval request refuses. A same-window evidence refresh
+//! are not part of this route, so an interval request refuses. A same-window evidence refresh
 //! re-estimates under the same proof; a changed horizon, sequence or window is a
 //! new preparation.
 use super::StudyBuilder;
-use super::transport_common::estimate_err;
-use antecedent_core::{EvidenceCatalog, ExecutionContext, SearchLimits, Value};
+use super::transport_common::{EvidenceSearch, estimate_err};
+use antecedent_core::{EvidenceCatalog, ExecutionContext, Value};
 use antecedent_estimate::temporal_transport::{
     PreparedTemporalSequence, TemporalSequenceReport, prepare_temporal_sequence,
 };
@@ -31,6 +31,17 @@ pub struct PreparedTemporalTransport {
     catalog: EvidenceCatalog,
 }
 
+/// The intervention sequence and the source and target populations it is transported between.
+#[derive(Clone, Copy)]
+pub struct SequenceEndpoints<'a> {
+    /// Interventions applied at each step.
+    pub sequence: &'a [Value],
+    /// Source population.
+    pub source: &'a str,
+    /// Target population.
+    pub target: &'a str,
+}
+
 impl StudyBuilder {
     /// Decide the whole two-step sequence once as one longitudinal intervention
     /// and compile it against supplied exact laws.
@@ -46,18 +57,16 @@ impl StudyBuilder {
     /// nothing (with its own reason); a law outside the window or the declared
     /// domains; a reached history outside certified support
     /// (`temporal_transport.history_outside_support`); or provider failures.
-    #[allow(clippy::too_many_arguments)] // Every premise of the preparation, explicitly.
     pub fn temporal_transport_sequence(
         spec: &TemporalSequenceSpec,
-        sequence: &[Value],
-        source: &str,
-        target: &str,
-        catalog: EvidenceCatalog,
-        budget: SearchLimits,
+        endpoints: SequenceEndpoints<'_>,
+        search: EvidenceSearch,
         data: ExactTransportData,
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedTemporalTransport, IoError> {
+        let SequenceEndpoints { sequence, source, target } = endpoints;
+        let EvidenceSearch { catalog, budget } = search;
         let decision = decide_temporal_transport_sequence(
             spec, sequence, source, target, &catalog, budget, ctx,
         )
@@ -93,7 +102,7 @@ impl PreparedTemporalTransport {
     }
 
     /// An interval is not licensed: temporal sampling and initial-state
-    /// uncertainty are 2.3A. This always refuses with
+    /// uncertainty are not part of this route. This always refuses with
     /// `estimator_inference_mismatch`.
     ///
     /// # Errors

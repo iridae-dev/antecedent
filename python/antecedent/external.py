@@ -21,23 +21,33 @@ and provider-declared uncertainty is a declaration, not an Antecedent interval.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, replace
-from numbers import Complex, Real
-from typing import TYPE_CHECKING, Any
+from functools import partial
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
+from ._columns import coerce_fields
+from ._digest import canonical_digest
 from ._native import ExternalClaimArtifact as _NativeClaim
+from ._native import ExternalColumnClaimArtifact as _NativeColumnClaim
+from ._native import bind_external_column as _bind_external_column
 from ._native import bind_external_response as _bind_external_response
 from ._native import bind_external_to_program as _bind_external_to_program
-from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from ._validate import real
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .extensibility import ProviderTrust
-from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
+from .joint_distribution import (
+    DistributionIdentity,
+    DistributionMeaning,
+    DrawAlignment,
+    QuantityCondition,
+    ScientificQuantity,
+)
 
 if TYPE_CHECKING:
     from .program_claims import ProgramBinding
@@ -57,6 +67,12 @@ _SUPPORT_SEVERITY = (
     "outside_empirical_support",
     "missing_evidence",
 )
+# Durable identities. A domain names the digest scheme: v1 was SHA-256 over
+# ``json.dumps(..., sort_keys=True)``; v2 is Rust's canonical BLAKE3 stream. The
+# premises domain is the one Rust recomputes (``native_contract_identity``).
+_CONTRACT_PREMISES_DOMAIN = "antecedent.external.contract_premises.v2"
+_CONTRACT_COORDINATES_DOMAIN = "antecedent.external.contract_coordinates.v2"
+_GRAPH_DOMAIN = "antecedent.external.graph.v2"
 OBSERVATIONAL = "observational"
 #: Dose units a spec carries when the caller names none; units are never inferred, so a
 #: program that names real dose units refuses this one (``program_binding.dose_grid_changed``).
@@ -76,27 +92,24 @@ def _strings(what: str, values: object) -> tuple[str, ...]:
     return items
 
 
-def _real(what: str, value: object) -> float:
-    if isinstance(value, (bool, np.bool_)) or (
-        isinstance(value, Complex) and not isinstance(value, Real)
-    ):
-        raise CausalTypeError(f"{what} must be a real number, got {value!r}")
-    try:
-        return float(value)  # type: ignore[arg-type]
-    except OverflowError as error:
-        raise CausalValueError(f"{what} is too large for a real-valued response") from error
-    except (TypeError, ValueError) as error:
-        raise CausalTypeError(f"{what} must be a real number, got {value!r}") from error
+_real = partial(
+    real,
+    types=(object,),
+    type_message="{what} must be a real number, got {value!r}",
+    overflow_message="{what} is too large for a real-valued response",
+)
 
 
 @dataclass(frozen=True, slots=True)
 class ProviderObject:
     """One foreign provider object at an exact request.
 
-    ``capabilities`` names the operations the provider really supplies
-    (``sample``, ``cdf``, ``quantile``, ``log_probability``, ``mean``,
-    ``covariance``, ``conditional``, ``intervention``, ``posterior_predictive``).
-    ``sample`` or ``mean`` never stand in for ``cdf``.
+    ``capabilities`` names the operations the provider really supplies; the
+    vocabulary is :class:`~antecedent.extensibility.ProviderCapability`, and
+    ``sample`` or ``mean`` never stand in for ``cdf``. Prefer deriving the object
+    from a registered provider with
+    :meth:`~antecedent.extensibility.ProviderRegistry.provider_object` over
+    restating its identity and operations here.
     """
 
     provider_id: str
@@ -111,8 +124,32 @@ class ProviderObject:
         for name in ("provider_id", "object_id", "version", "snapshot", "request", "meaning"):
             if not isinstance(getattr(self, name), str):
                 raise CausalTypeError(f"ProviderObject.{name} must be a string")
-        object.__setattr__(
-            self, "capabilities", _strings("ProviderObject.capabilities", self.capabilities)
+        coerce_fields(self, capabilities=_strings("ProviderObject.capabilities", self.capabilities))
+
+    def distribution_identity(
+        self,
+        quantities: Sequence[ScientificQuantity],
+        *,
+        source_id: str,
+        rng_id: str,
+        causal_contract_id: str,
+        alignment: DrawAlignment = "joint",
+    ) -> DistributionIdentity:
+        """The identity of draws this object supplies, derived rather than restated.
+
+        The provider and snapshot are this object's; the semantic is its
+        ``meaning``. The study, random stream and checked contract are what a
+        provider object does not know, so the caller names them.
+        """
+        return DistributionIdentity(
+            semantic=self.meaning,
+            quantities=tuple(quantities),
+            alignment=alignment,
+            source_id=source_id,
+            provider_id=self.provider_id,
+            rng_id=rng_id,
+            snapshot_id=self.snapshot,
+            causal_contract_id=causal_contract_id,
         )
 
     def _wire(self) -> dict[str, Any]:
@@ -145,7 +182,7 @@ class VerificationProbe:
         if not isinstance(self.kind, str):
             raise CausalTypeError("VerificationProbe.kind must be a string")
         for name in ("observed", "expected", "tolerance"):
-            object.__setattr__(self, name, _real(f"VerificationProbe.{name}", getattr(self, name)))
+            coerce_fields(self, **{name: _real(getattr(self, name), f"VerificationProbe.{name}")})
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -187,21 +224,21 @@ class Response:
             entries = iter(self.values)
         except TypeError as error:
             raise CausalTypeError("Response.values must be an iterable of numbers") from error
-        values = tuple(_real("Response.values entry", v) for v in entries)
-        object.__setattr__(self, "values", values)
-        object.__setattr__(self, "evidence", _strings("Response.evidence", self.evidence))
-        object.__setattr__(self, "assumptions", _strings("Response.assumptions", self.assumptions))
+        values = tuple(_real(v, "Response.values entry") for v in entries)
+        coerce_fields(self, values=values)
+        coerce_fields(self, evidence=_strings("Response.evidence", self.evidence))
+        coerce_fields(self, assumptions=_strings("Response.assumptions", self.assumptions))
         try:
             probes = tuple(self.probes)
         except TypeError as error:
             raise CausalTypeError("Response.probes must be VerificationProbe values") from error
         if any(not isinstance(probe, VerificationProbe) for probe in probes):
             raise CausalTypeError("Response.probes must be VerificationProbe values")
-        object.__setattr__(self, "probes", probes)
+        coerce_fields(self, probes=probes)
         if self.attested_by is not None and not isinstance(self.attested_by, str):
             raise CausalTypeError("Response.attested_by must be a string or None")
         if self.support is not None:
-            object.__setattr__(self, "support", _strings("Response.support", self.support))
+            coerce_fields(self, support=_strings("Response.support", self.support))
         for name in ("uncertainty_method", "graph_id"):
             if getattr(self, name) is not None and not isinstance(getattr(self, name), str):
                 raise CausalTypeError(f"Response.{name} must be a string or None")
@@ -214,7 +251,68 @@ class Response:
                 ) from error
             if any(not isinstance(quantity, ScientificQuantity) for quantity in quantities):
                 raise CausalTypeError("Response.quantities must be ScientificQuantity values")
-            object.__setattr__(self, "quantities", quantities)
+            coerce_fields(self, quantities=quantities)
+
+
+@dataclass(frozen=True, slots=True)
+class ColumnResponse:
+    """A column of row-level values computed by a foreign provider.
+
+    One value per row under *one* scientific quantity, for results such as a
+    conditional effect per unit. A :class:`Response` names a coordinate per
+    value, which suits a dose curve and not thousands of rows; a column claim
+    keeps the provider's identity, lineage, trust and support and binds the
+    column by its digest instead of carrying or restating the rows.
+
+    ``support`` is one label for every row (a string) or one label per row;
+    absent means support was not assessed and is recorded as ``missing_evidence``.
+    ``quantities``, when given, holds exactly the one row-level quantity.
+    """
+
+    provider: ProviderObject
+    values: Sequence[float] | NDArray[np.float64]
+    evidence: tuple[str, ...] = ()
+    assumptions: tuple[str, ...] = ()
+    attested_by: str | None = None
+    probes: tuple[VerificationProbe, ...] = ()
+    uncertainty_method: str | None = None
+    support: str | tuple[str, ...] | None = None
+    quantities: tuple[ScientificQuantity, ...] | None = None
+    graph_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.provider, ProviderObject):
+            raise CausalTypeError("ColumnResponse.provider must be a ProviderObject")
+        if isinstance(self.values, (str, bytes)):
+            raise CausalTypeError("ColumnResponse.values must be an array of numbers, not a string")
+        try:
+            column = np.array(self.values, dtype=np.float64, copy=True)
+        except (TypeError, ValueError) as error:
+            raise CausalTypeError("ColumnResponse.values must be an array of numbers") from error
+        if column.ndim != 1:
+            raise CausalValueError("ColumnResponse.values must be one-dimensional")
+        if not np.isfinite(column).all():
+            raise CausalValueError("ColumnResponse.values must be finite")
+        column.flags.writeable = False
+        coerce_fields(self, values=column)
+        coerce_fields(self, evidence=_strings("ColumnResponse.evidence", self.evidence))
+        coerce_fields(self, assumptions=_strings("ColumnResponse.assumptions", self.assumptions))
+        probes = tuple(self.probes)
+        if any(not isinstance(probe, VerificationProbe) for probe in probes):
+            raise CausalTypeError("ColumnResponse.probes must be VerificationProbe values")
+        coerce_fields(self, probes=probes)
+        if self.attested_by is not None and not isinstance(self.attested_by, str):
+            raise CausalTypeError("ColumnResponse.attested_by must be a string or None")
+        for name in ("uncertainty_method", "graph_id"):
+            if getattr(self, name) is not None and not isinstance(getattr(self, name), str):
+                raise CausalTypeError(f"ColumnResponse.{name} must be a string or None")
+        if self.support is not None and not isinstance(self.support, str):
+            coerce_fields(self, support=_strings("ColumnResponse.support", self.support))
+        if self.quantities is not None:
+            quantities = tuple(self.quantities)
+            if any(not isinstance(quantity, ScientificQuantity) for quantity in quantities):
+                raise CausalTypeError("ColumnResponse.quantities must be ScientificQuantity values")
+            coerce_fields(self, quantities=quantities)
 
 
 @dataclass(frozen=True, slots=True)
@@ -381,8 +479,8 @@ class ExternalSpec:
         wire = self._contract_wire()
         if not with_coordinates:
             del wire["estimand"]
-        digest = hashlib.sha256(json.dumps(wire, sort_keys=True).encode()).hexdigest()
-        return f"contract:{digest}"
+        domain = _CONTRACT_COORDINATES_DOMAIN if with_coordinates else _CONTRACT_PREMISES_DOMAIN
+        return f"contract:{canonical_digest(domain, wire)}"
 
     def _require_request(self) -> ProgramRequest:
         """The identified dose-grid request, or the typed refusal for a spec with none."""
@@ -463,9 +561,13 @@ class ExternalSpec:
         )
 
     def bind(
-        self, response: Response, *, program: ProgramBinding | None = None
+        self, response: Response | ColumnResponse, *, program: ProgramBinding | None = None
     ) -> BoundExternalClaim:
         """Check ``response`` against this contract and bind it, or refuse.
+
+        A :class:`ColumnResponse` binds row-level values under the spec's one
+        coordinate and returns a :class:`BoundExternalColumn`; it cannot be bound
+        to a dose-grid program.
 
         With ``program=`` (an :class:`~antecedent.program_claims.ProgramBinding`) the
         spec is first checked against the identified program: a substituted
@@ -473,8 +575,12 @@ class ExternalSpec:
         units, an incompatible ``quantities`` override, or a declared identity that
         is not the program's refuses with ``program_binding.*`` before anything binds.
         """
+        if isinstance(response, ColumnResponse):
+            return self._bind_column(response, program)
         if not isinstance(response, Response):
-            raise CausalTypeError("ExternalSpec.bind expects an antecedent.external.Response")
+            raise CausalTypeError(
+                "ExternalSpec.bind expects an antecedent.external.Response or ColumnResponse"
+            )
         quantities = response.quantities if response.quantities is not None else self.quantities
         wire = {
             "provider": response.provider._wire(),
@@ -503,6 +609,51 @@ class ExternalSpec:
         if refusal is not None or native is None:
             raise _refusal_error(json.loads(refusal or "{}"))
         return BoundExternalClaim(native, self.statement)
+
+    def _bind_column(
+        self, column: ColumnResponse, program: ProgramBinding | None
+    ) -> BoundExternalColumn:
+        if program is not None:
+            raise ExternalRefusal(
+                {
+                    "code": "invalid_argument",
+                    "stage": "bind",
+                    "detail": "external_column.program_binding_unsupported",
+                    "offending": "program",
+                    "expected": "a response grid for a dose-grid program",
+                    "supplied": "a row-level column",
+                    "remedy": "bind a column to the spec alone; a dose-grid program is checked "
+                    "against a Response over its grid",
+                }
+            )
+        quantities = column.quantities if column.quantities is not None else self.quantities
+        support: dict[str, Any] | None
+        if column.support is None:
+            support = None
+        elif isinstance(column.support, str):
+            support = {"kind": "uniform", "labels": column.support}
+        else:
+            support = {"kind": "per_row", "labels": list(column.support)}
+        wire = {
+            "provider": column.provider._wire(),
+            "graph_id": column.graph_id or self.graph_id,
+            "quantities": [q._wire() for q in quantities],
+            "evidence_ids": list(column.evidence),
+            "assumption_ids": list(column.assumptions),
+            "attestor": column.attested_by,
+            "probes": [p._wire() for p in column.probes] if column.probes else None,
+            "uncertainty_method": column.uncertainty_method,
+            "support": support,
+        }
+        native, refusal = _bind_external_column(
+            json.dumps(self._contract_wire()),
+            json.dumps(wire),
+            np.ascontiguousarray(column.values, dtype=np.float64),
+            self.contract_id,
+        )
+        if refusal is not None or native is None:
+            raise _refusal_error(json.loads(refusal or "{}"))
+        return BoundExternalColumn(native, self.statement)
 
     def load(
         self, data: bytes, *, expected_identity: str | Mapping[str, Any]
@@ -534,6 +685,10 @@ class ExternalSpec:
             fields = dict(expected_identity)
         else:
             raise CausalTypeError("expected_identity must be an identity string or a mapping")
+        if "column" in fields and "claim" in fields:
+            return BoundExternalColumn(
+                _NativeColumnClaim.load(data, json.dumps(fields)), self.statement
+            )
         native = _NativeClaim.load(data, json.dumps(fields))
         return BoundExternalClaim(native, self.statement)
 
@@ -706,6 +861,122 @@ class BoundExternalClaim:
         )
 
 
+class BoundExternalColumn(BoundExternalClaim):
+    """A row-level column bound to an identified contract: a digest, not the rows.
+
+    It has the provider, lineage, trust, support label and provenance of a
+    :class:`BoundExternalClaim`, under one scientific quantity. The rows stay with
+    the caller; :meth:`covers` checks a column against the digest the claim was
+    bound to, so a changed row is a changed claim. :attr:`values` is unavailable
+    for the same reason, and :attr:`identity` adds the column's size, element type
+    and per-label row counts to the shared claim identity.
+    """
+
+    _native: _NativeColumnClaim  # type: ignore[assignment]
+
+    def __init__(self, native: _NativeColumnClaim, statement: str = "") -> None:
+        # Column claims expose the same metadata and provenance fields as a response
+        # claim, but intentionally have no response-level values_copy method.
+        # The base constructor only reads metadata_json and initializes shared state.
+        super().__init__(cast(_NativeClaim, native), statement)
+        meta = self._meta
+        self._column: dict[str, Any] = meta["identity"]["column"]
+        self._meta = {
+            "identity": meta["identity"]["claim"],
+            "native_estimation": meta["native_estimation"],
+        }
+
+    @property
+    def identity(self) -> str:
+        """Canonical JSON of :attr:`identity_fields`; pass it to :meth:`ExternalSpec.load`."""
+        return json.dumps(self.identity_fields, sort_keys=True)
+
+    @property
+    def identity_fields(self) -> dict[str, Any]:
+        """The claim identity (``claim``) and the column's facts (``column``)."""
+        return {"claim": deepcopy(self._meta["identity"]), "column": deepcopy(self._column)}
+
+    @property
+    def rows(self) -> int:
+        """Number of rows in the bound column."""
+        return int(self._column["rows"])
+
+    @property
+    def dtype(self) -> str:
+        """Element type of the bound column (always ``float64``)."""
+        return "float64" if self._column["dtype"] == "f64" else str(self._column["dtype"])
+
+    @property
+    def column_digest(self) -> str:
+        """Digest of the column's ordered values; the claim's value identity."""
+        return str(self._meta["identity"]["values_blake3"])
+
+    @property
+    def support_counts(self) -> dict[str, int]:
+        """Rows per support label, weakest label last; labels with no rows are absent."""
+        return {item["status"]: int(item["rows"]) for item in self._column["support"]}
+
+    @property
+    def values(self) -> NDArray[np.float64]:
+        raise CausalUnsupportedError(
+            "a column claim does not carry its rows; keep the column and check it with covers()"
+        )
+
+    @property
+    def source_evidence(self):
+        raise CausalUnsupportedError(
+            "a column claim is not a response grid and has no source evidence"
+        )
+
+    def covers(self, values: Sequence[float] | NDArray[np.float64]) -> bool:
+        """Whether ``values`` is exactly the column this claim was bound to."""
+        try:
+            column = np.ascontiguousarray(np.asarray(values, dtype=np.float64))
+        except (TypeError, ValueError):
+            return False
+        return column.ndim == 1 and bool(self._native.covers(column))
+
+    def explain(self) -> str:
+        text = (
+            f"{self.claim()} Provider trust: {self.trust.value}; natively estimated: "
+            f"{self.native}; identification: {self.identification}; worst support: "
+            f"{self.support_status} over {self.rows} row(s)."
+        )
+        if self.uncertainty_method is None:
+            return text + " No uncertainty was declared by the provider."
+        return text + (
+            f" Provider-declared uncertainty ({self.uncertainty_method}) is a declaration, "
+            "not an Antecedent interval."
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe summary: trust, support counts, lineage and identity (no rows)."""
+        return {
+            "statement": self.claim(),
+            "provenance_label": self.provenance_label,
+            "provider_trust": self.trust.value,
+            "native": self.native,
+            "identification": self.identification,
+            "support": list(self.support),
+            "support_status": self.support_status,
+            "support_counts": self.support_counts,
+            "rows": self.rows,
+            "column_digest": self.column_digest,
+            "uncertainty_method": self.uncertainty_method,
+            "lineage": [
+                {"id": link.id, "stage": link.stage, "parents": list(link.parents)}
+                for link in self.lineage
+            ],
+            "identity": self.identity,
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"<BoundExternalColumn {self.provenance_label} rows={self.rows} "
+            f"trust={self.trust.value} support={self.support_status}>"
+        )
+
+
 class ExternalRefusal(StructuredRefusal):
     """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
 
@@ -751,16 +1022,16 @@ def _graph_identity(identification: Any) -> str:
             "this graph type has no canonical identity here; pass graph_id= naming the "
             "graph the external provider used"
         )
-    canonical = json.dumps(
+    digest = canonical_digest(
+        _GRAPH_DOMAIN,
         {
             "edges": sorted([str(a), str(b)] for a, b in graph),
             "names": list(identification.names or ()),
             "identifier": identification.identifier or identification.method,
             "adjustment_set": sorted(identification.adjustment_set),
         },
-        sort_keys=True,
     )
-    return "graph:" + hashlib.sha256(canonical.encode()).hexdigest()[:32]
+    return "graph:" + digest[:32]
 
 
 def _query_quantities(
@@ -932,6 +1203,8 @@ def _derived_contract_id(spec: ExternalSpec, *, faithful: bool) -> str:
 
 __all__ = [
     "BoundExternalClaim",
+    "BoundExternalColumn",
+    "ColumnResponse",
     "ClaimInspection",
     "Equivalence",
     "ExternalRefusal",

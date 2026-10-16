@@ -5,7 +5,12 @@ use super::transport_interference_path::{
     TransportTrialInputs, refuse_transport_bayesian_priors, refuse_unestimable_transport,
     transport_primary_pair, transport_sid_identification,
 };
-use super::*;
+use super::{
+    Arc, CausalError, CausalQuery, DataInput, ExecutionContext, GraphClass, IdentificationResult,
+    IdentifiedEstimand, InferenceMode, PhysicalExecutionPlan, RefuteSuite, Study, StudyResult,
+    TableView, TabularData,
+};
+use crate::analysis::prepared::Inspect;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 use antecedent_identify::TransportIdentification;
 
@@ -34,7 +39,7 @@ pub(crate) struct CheckedTransportTrialOperation {
     procedure: TransportTrialProcedure,
     estimator: EstimatorId,
     inference: InferenceMode,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 /// Read-only target, proof shape, and procedure retained for a checked transport route.
@@ -65,7 +70,7 @@ impl CheckedTransportTrialOperation {
     #[inline(never)]
     pub(crate) fn checked(
         study: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Box<Self>>, CausalError> {
         let (CausalQuery::Transport(query), DataInput::Tabular(data)) = (&study.query, &study.data)
         else {
@@ -76,7 +81,7 @@ impl CheckedTransportTrialOperation {
         else {
             return Ok(None);
         };
-        if study.graph.class() != GraphClass::Admg
+        if !matches!(study.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg)
             || study.selection_diagram.is_none()
             || study.graph_posterior.is_some()
             || study.tiered.is_some()
@@ -91,7 +96,7 @@ impl CheckedTransportTrialOperation {
         {
             return Ok(None);
         }
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         refuse_unestimable_transport(transport)?;
         let (procedure, estimator) = match &study.inference {
             InferenceMode::Frequentist => {
@@ -106,9 +111,7 @@ impl CheckedTransportTrialOperation {
             }
         };
         if plan.logical.query != study.query
-            || plan.logical.record.identifier.as_deref()
-                != Some(IdentifierId::TransportSid.as_str())
-            || plan.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !plan.binding().names(IdentifierId::TransportSid, estimator)
         {
             return Err(CausalError::Compile {
                 message: "transport target, certified proof, or selected estimator differs from its checked plan".into(),
@@ -146,27 +149,6 @@ impl CheckedTransportTrialOperation {
             inference: study.inference.clone(),
             physical: plan.clone(),
         })))
-    }
-
-    pub(crate) fn info(&self) -> CheckedTransportTrialInfo {
-        let rule = match &self.transport {
-            TransportIdentification::Transportable { certificate, .. } => {
-                Arc::from(certificate.rule.as_ref())
-            }
-            TransportIdentification::NotCertified(_)
-            | TransportIdentification::MissingEvidence(_) => Arc::from("uncertified"),
-        };
-        CheckedTransportTrialInfo {
-            query: self.query.clone(),
-            identifier: IdentifierId::TransportSid,
-            estimator: self.estimator,
-            rule,
-            posterior_draws: match self.procedure {
-                TransportTrialProcedure::KnownProbabilityIpw => None,
-                TransportTrialProcedure::BayesianBootstrap { draws } => Some(draws),
-            },
-            plan_id: Arc::clone(&self.physical.record.plan_id),
-        }
     }
 
     /// Execute the retained transport contrast on `data` through the study's
@@ -211,5 +193,30 @@ impl CheckedTransportTrialOperation {
             },
             ctx,
         )
+    }
+}
+
+impl Inspect for CheckedTransportTrialOperation {
+    type Info = CheckedTransportTrialInfo;
+
+    fn info(&self) -> CheckedTransportTrialInfo {
+        let rule = match &self.transport {
+            TransportIdentification::Transportable { certificate, .. } => {
+                Arc::from(certificate.rule.as_ref())
+            }
+            TransportIdentification::NotCertified(_)
+            | TransportIdentification::MissingEvidence(_) => Arc::from("uncertified"),
+        };
+        CheckedTransportTrialInfo {
+            query: self.query.clone(),
+            identifier: IdentifierId::TransportSid,
+            estimator: self.estimator,
+            rule,
+            posterior_draws: match self.procedure {
+                TransportTrialProcedure::KnownProbabilityIpw => None,
+                TransportTrialProcedure::BayesianBootstrap { draws } => Some(draws),
+            },
+            plan_id: Arc::clone(&self.physical.record.plan_id),
+        }
     }
 }

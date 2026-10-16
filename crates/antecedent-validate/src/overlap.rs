@@ -64,7 +64,6 @@ impl OverlapRefuter {
     /// # Errors
     ///
     /// Data failures while building a diagnostic-only propensity fit.
-    #[allow(clippy::float_cmp)] // Exact 0/1 values distinguish the binary treatment contract.
     pub fn refute_with_propensity(
         &self,
         problem: &RefutationProblem<'_>,
@@ -73,7 +72,7 @@ impl OverlapRefuter {
         if let Some(report) = self.continuous_report(problem)? {
             return Ok(report);
         }
-        let (report, replicates) = if let Some(r) = &problem.original.overlap_report {
+        let (report, replicates) = if let Some(r) = &problem.original.diagnostics.overlap_report {
             (r.clone(), 0)
         } else {
             let fit = crate::common::diagnostic_overlap_report_with(
@@ -92,28 +91,25 @@ impl OverlapRefuter {
 
     /// The overlap failure a separated / non-converged diagnostic propensity fit stands for.
     fn separated_report(problem: &RefutationProblem<'_>, defect: &str) -> RefutationReport {
-        RefutationReport {
-            refuter: Arc::from("overlap.assessment"),
-            original_ate: problem.original.ate,
-            refuted_ate: problem.original.ate,
+        RefutationReport::builder("overlap.assessment")
+            .original_ate(problem.original.ate)
+            .refuted_ate(problem.original.ate)
             // Same polarity as the ESS report: the share of the sample without support.
-            comparison: 1.0,
-            informative: true,
-            passed: false,
-            failure_condition: Some(Arc::from(defect)),
-            replicates: 1,
-        }
+            .comparison(1.0)
+            .informative(true)
+            .passed(false)
+            .failure_condition(Some(Arc::from(defect)))
+            .replicates(1)
+            .build()
     }
 
-    #[allow(clippy::float_cmp)] // Binary treatment is exactly 0/1.
+    #[allow(clippy::float_cmp, reason = "Binary treatment is exactly 0/1")]
     pub(crate) fn continuous_report(
         &self,
         problem: &RefutationProblem<'_>,
     ) -> Result<Option<RefutationReport>, ValidationError> {
-        if problem.original.overlap_report.is_none() {
-            let mut ids = vec![problem.treatment(), problem.outcome()];
-            ids.extend_from_slice(&problem.estimand.adjustment_set);
-            ids.extend_from_slice(&problem.query.effect_modifiers);
+        if problem.original.diagnostics.overlap_report.is_none() {
+            let ids = problem.estimation_ids(true);
             let mask = problem.data.complete_case_mask(&ids)?;
             let treatment = problem.data.float64_masked(problem.treatment(), &mask)?;
             if treatment.iter().any(|&t| t != 0.0 && t != 1.0) {
@@ -131,18 +127,17 @@ impl OverlapRefuter {
     ) -> Result<RefutationReport, ValidationError> {
         let nrows = estimation_row_count(problem)? as f64;
         let Some(ess) = report.ess else {
-            return Ok(RefutationReport {
-                refuter: Arc::from("overlap.assessment"),
-                original_ate: problem.original.ate,
-                refuted_ate: problem.original.ate,
-                comparison: f64::NAN,
-                informative: false,
-                passed: false,
-                failure_condition: Some(Arc::from(
+            return Ok(RefutationReport::builder("overlap.assessment")
+                .original_ate(problem.original.ate)
+                .refuted_ate(problem.original.ate)
+                .comparison(f64::NAN)
+                .informative(false)
+                .passed(false)
+                .failure_condition(Some(Arc::from(
                     "overlap report has no weights; ESS is undefined",
-                )),
-                replicates,
-            });
+                )))
+                .replicates(replicates)
+                .build());
         };
         let ess_fraction = if nrows > 0.0 { ess / nrows } else { 0.0 };
         let bounds_ok =
@@ -150,14 +145,13 @@ impl OverlapRefuter {
         let ess_ok = ess_fraction >= self.min_ess_fraction;
         let passed = bounds_ok && ess_ok;
         let comparison = 1.0 - ess_fraction;
-        Ok(RefutationReport {
-            refuter: Arc::from("overlap.assessment"),
-            original_ate: problem.original.ate,
-            refuted_ate: problem.original.ate,
-            comparison,
-            informative: true,
-            passed,
-            failure_condition: if passed {
+        Ok(RefutationReport::builder("overlap.assessment")
+            .original_ate(problem.original.ate)
+            .refuted_ate(problem.original.ate)
+            .comparison(comparison)
+            .informative(true)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(format!(
@@ -165,9 +159,9 @@ impl OverlapRefuter {
                      min_ess_fraction={}",
                     report.propensity_min, report.propensity_max, self.eps, self.min_ess_fraction
                 )))
-            },
-            replicates,
-        })
+            })
+            .replicates(replicates)
+            .build())
     }
 
     /// Descriptive conditional support under a linear treatment-location model.
@@ -214,11 +208,8 @@ impl OverlapRefuter {
             treatment,
             &mut LeastSquaresWorkspace::default(),
         )?;
-        let means: Vec<f64> = (0..n)
-            .map(|r| {
-                fit.coefficients.iter().enumerate().map(|(c, beta)| beta * design[c * n + r]).sum()
-            })
-            .collect();
+        let mut means = vec![0.0; n];
+        crate::common::column_major_dot(&design, n, &fit.coefficients, &mut means);
         let mut residuals: Vec<_> =
             treatment.iter().zip(&means).map(|(t, mean)| t - mean).collect();
         residuals.sort_by(f64::total_cmp);
@@ -241,20 +232,115 @@ impl OverlapRefuter {
         let fraction = supported as f64 / n as f64;
         let passed = fraction >= self.min_ess_fraction;
         // Same polarity as binary overlap.assessment: comparison is unsupported mass.
-        Ok(RefutationReport::new(
-            "overlap.continuous_support", problem.original.ate, problem.original.ate,
-            1.0 - fraction, true, passed,
-            (!passed).then(|| Arc::from(format!(
-                "both doses lie inside the empirical conditional residual interval on only {fraction} of target rows (required {}); linear treatment-location support diagnostic",
-                self.min_ess_fraction,
-            ))), 1,
-        ))
+        Ok(RefutationReport::builder("overlap.continuous_support")
+            .original_ate(problem.original.ate)
+            .refuted_ate(problem.original.ate)
+            .comparison(1.0 - fraction)
+            .informative(true)
+            .passed(passed)
+            .failure_condition((!passed).then(|| {
+                Arc::from(format!(
+                    "both doses lie inside the empirical conditional residual interval on only {fraction} of target rows (required {}); linear treatment-location support diagnostic",
+                    self.min_ess_fraction,
+                ))
+            }))
+            .replicates(1)
+            .build())
     }
 }
 
 fn estimation_row_count(problem: &RefutationProblem<'_>) -> Result<usize, ValidationError> {
-    let mut ids = vec![problem.treatment(), problem.outcome()];
-    ids.extend_from_slice(&problem.estimand.adjustment_set);
+    let ids = problem.estimation_ids(true);
     let mask = problem.data.complete_case_mask(&ids).map_err(ValidationError::from)?;
     Ok(mask.iter().filter(|&&k| k).count())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint,
+        SmallRoleSet, ValueType, VariableId,
+    };
+    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
+    use antecedent_estimate::{EffectEstimate, OverlapPolicy};
+    use antecedent_expr::ExprId;
+    use antecedent_identify::IdentifiedEstimand;
+
+    use super::*;
+
+    /// A missing effect modifier used to stay in the ESS denominator. The diagnostic
+    /// propensity is fit on the modifier-complete rows, so `ess / n` counted rows the
+    /// estimate never used and reported half the effective-sample fraction.
+    #[test]
+    fn missing_modifier_does_not_inflate_the_ess_denominator() {
+        let n = 8usize;
+        let t: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();
+        let y: Vec<f64> = t.iter().map(|ti| 1.0 + 2.0 * ti).collect();
+        let modifier: Vec<f64> = (0..n).map(|i| i as f64).collect();
+        let mut builder = CausalSchemaBuilder::new();
+        for (name, role) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("w", RoleHint::Context),
+        ] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(role),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let valid = ValidityBitmap::all_valid(n);
+        let mut modifier_flags = vec![true; n];
+        modifier_flags[4..].fill(false);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(t), valid.clone()).unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(y), valid.clone()).unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(modifier),
+                    crate::common::validity_from_flags(&modifier_flags).unwrap(),
+                )
+                .unwrap(),
+            ),
+        ];
+        let data = antecedent_data::TabularData::new(
+            OwnedColumnarStorage::try_new(builder.build().unwrap(), cols, None, None).unwrap(),
+        );
+        let estimand =
+            IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from([]), ExprId::from_raw(0));
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_effect_modifiers([VariableId::from_raw(2)]);
+        let original =
+            EffectEstimate::new(2.0, 0.1, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("conditional.linear.adjustment"),
+            None,
+        );
+        let report = OverlapRefuter::new().refute(&problem).unwrap();
+        // Balanced intercept-only propensity on the 4 complete rows has ESS = 4.
+        // Dividing by all 8 rows reported comparison = 1 - 0.5 = 0.5.
+        assert!(
+            report.comparison < 0.05,
+            "ess fraction should use the 4 modifier-complete rows, comparison={}",
+            report.comparison
+        );
+        assert!(report.passed, "{report:?}");
+    }
 }

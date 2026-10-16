@@ -299,18 +299,13 @@ fn ci_hot_path_no_scratch_growth() {
     let ctx = ExecutionContext::for_tests(1);
     // Warm up capacities with the same query shape as the steady-state loop.
     let cond = [(VariableId::from_raw(0), Lag::from_raw(2))];
-    let _ = engine
-        .ci_statistic(
-            &frame,
-            VariableId::from_raw(0),
-            Lag::from_raw(1),
-            VariableId::from_raw(1),
-            Lag::CONTEMPORANEOUS,
-            &cond,
-            &mut ws,
-            &ctx,
-        )
-        .unwrap();
+    let link = LaggedLink {
+        source: VariableId::from_raw(0),
+        source_lag: Lag::from_raw(1),
+        target: VariableId::from_raw(1),
+        target_lag: Lag::CONTEMPORANEOUS,
+    };
+    let _ = engine.ci_statistic(&frame, link, &cond, &mut ws, &ctx).unwrap();
     let col_cap = ws.col_idxs.capacity();
     let z_cap = ws.z_flat.capacity();
     let ci_n = ws.ci.parcorr.capacity_n();
@@ -320,18 +315,7 @@ fn ci_hot_path_no_scratch_growth() {
     let design_ptr = ws.ci.parcorr.design.as_ptr();
     let design_cap = ws.ci.parcorr.design.capacity();
     for _ in 0..200 {
-        let _ = engine
-            .ci_statistic(
-                &frame,
-                VariableId::from_raw(0),
-                Lag::from_raw(1),
-                VariableId::from_raw(1),
-                Lag::CONTEMPORANEOUS,
-                &cond,
-                &mut ws,
-                &ctx,
-            )
-            .unwrap();
+        let _ = engine.ci_statistic(&frame, link, &cond, &mut ws, &ctx).unwrap();
         assert_eq!(ws.col_idxs.capacity(), col_cap);
         assert_eq!(ws.z_flat.capacity(), z_cap);
         assert_eq!(ws.ci.parcorr.capacity_n(), ci_n);

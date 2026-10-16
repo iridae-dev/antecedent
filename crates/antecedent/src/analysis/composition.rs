@@ -1,4 +1,4 @@
-//! C3 facade: build, export and independently consume a portable composed result.
+//! Composition facade: build, export and independently consume a portable composed result.
 //!
 //! A [`BundleBuilder`] collects the parts of a composed decision as nodes of a
 //! typed graph: artifacts embedded from their bytes (a distribution, an external
@@ -72,12 +72,6 @@ impl BundleBuilder {
     #[must_use]
     pub fn new() -> Self {
         Self { nodes: Vec::new(), dependencies: Vec::new(), limits: BundleLimits::default() }
-    }
-
-    /// An empty builder under explicit bounds.
-    #[must_use]
-    pub fn with_limits(limits: BundleLimits) -> Self {
-        Self { nodes: Vec::new(), dependencies: Vec::new(), limits }
     }
 
     /// The bounds the bundle is built and exported under.

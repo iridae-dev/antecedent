@@ -42,12 +42,11 @@ impl HedgeProblem {
         let admg = prepared.admg();
         let n = admg.node_count();
         let mut variables = Vec::with_capacity(n);
-        let mut directed = Vec::new();
+        let directed = admg.directed_edge_pairs_sorted();
         let mut bidirected = Vec::new();
         for i in 0..n {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = DenseNodeId::from_index(i);
             variables.push(prepared.dense_to_var(id)?);
-            directed.extend(admg.children(id).iter().map(|c| (id.raw(), c.raw())));
             bidirected.extend(
                 admg.bidirected_neighbors(id)
                     .iter()
@@ -55,10 +54,9 @@ impl HedgeProblem {
                     .map(|b| (id.raw(), b.raw())),
             );
         }
-        directed.sort_unstable();
         bidirected.sort_unstable();
         let vars_of = |set: &BitSet| -> Result<Arc<[VariableId]>, IdentificationError> {
-            set.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect()
+            set.iter().map(|d| prepared.dense_to_var(d)).collect()
         };
         Ok(Self {
             variables: variables.into(),
@@ -203,10 +201,10 @@ impl HedgeCertificate {
         if !f_prime.any() || !f_prime.is_subset_of(&f) {
             return fail("F' must be a non-empty subset of F");
         }
-        if !f.to_dense_ids().iter().any(|node| x.contains(*node)) {
+        if !f.iter().any(|node| x.contains(node)) {
             return fail("F does not meet the treatments");
         }
-        if f_prime.to_dense_ids().iter().any(|node| x.contains(*node)) {
+        if f_prime.iter().any(|node| x.contains(node)) {
             return fail("F' meets the treatments");
         }
         if !prepared.is_single_c_component(&f) || !prepared.is_single_c_component(&f_prime) {
@@ -215,7 +213,7 @@ impl HedgeCertificate {
         let mut ws = GraphWorkspace::default();
         let mut all = BitSet::with_len(n);
         for node in 0..n {
-            all.insert(DenseNodeId::from_raw(u32::try_from(node).expect("fit")));
+            all.insert(DenseNodeId::from_index(node));
         }
         let mut roots = prepared.ancestors_bar_x(&y, &all, &x, &mut ws);
         roots.intersect_with(&f_prime);

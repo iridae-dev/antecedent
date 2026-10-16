@@ -1,5 +1,5 @@
 //! Python binding for the descriptive raw-versus-adjusted comparison and the declared
-//! reporting-scale transform (2.2 E7).
+//! reporting-scale transform.
 use crate::transport_common::execution_context;
 use antecedent_estimate::{
     AdjustedEstimate, Availability, EstimationError, MeanPair, RawContrast, ReportingScale,

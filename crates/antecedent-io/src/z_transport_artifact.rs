@@ -18,17 +18,15 @@ use crate::{
     transport_catalog_wire::EvidenceCatalogWire,
     wire::AdmgWire,
 };
-use antecedent_core::{
-    ExecutionContext, IdentityDomain, InterventionAssignment, TransportOutcomeKind, VariableId,
-};
+use antecedent_core::{ExecutionContext, IdentityDomain, VariableId};
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData, FunctionalProgram,
     ProgramLimits,
 };
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    BoundZTransportFunctional, IdentificationError, SidLimits, ZTransportDerivation,
-    ZTransportDerivationRecord, ZTransportQuery, bind_z_transport_catalog,
+    BoundZTransportFunctional, ZTransportDerivation, ZTransportDerivationRecord,
+    bind_z_transport_catalog,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -40,88 +38,11 @@ pub const Z_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_z_transport_point_v2";
 /// The one interval status this point format reports.
 pub const Z_TRANSPORT_NO_INTERVAL: &str = "no_interval_reported";
 
-/// Why a z-transport artifact was refused by a consumer check. Callers match the
-/// kind; they never parse the message.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum ZTransportArtifactError {
-    /// The feature marker, interval status or result shape is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A limit the artifact recorded exceeds the consumer's, or a stored
-    /// collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored derivation does not verify against the stored graph and query.
-    #[error("proof does not verify: {0}")]
-    ProofMismatch(IdentificationError),
-    /// The verified derivation does not bind to the stored catalog.
-    #[error("catalog binding failed: {0}")]
-    CatalogBinding(IdentificationError),
-    /// A stored law is not a valid exact law or law set.
-    #[error("invalid law: {0}")]
-    LawInvalid(String),
-    /// The stored program does not match the checked proof and binding.
-    #[error("program mismatch: {0}")]
-    ProgramMismatch(&'static str),
-    /// The recomputed point differs from the stored point.
-    #[error("point result does not replay")]
-    PointMismatch,
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-}
-
-impl ZTransportArtifactError {
-    /// The stable transport outcome kind this refusal maps to.
-    #[must_use]
-    pub const fn transport_outcome_kind(&self) -> TransportOutcomeKind {
-        match self {
-            Self::ProofMismatch(error) | Self::CatalogBinding(error) => {
-                error.transport_outcome_kind()
-            }
-            Self::LimitsExceeded(_) => TransportOutcomeKind::BudgetCancel,
-            Self::UnsupportedSemantics(_)
-            | Self::LawInvalid(_)
-            | Self::ProgramMismatch(_)
-            | Self::PointMismatch
-            | Self::PremisesMismatch => TransportOutcomeKind::InvalidInput,
-        }
-    }
-}
-
+pub use antecedent_io_core::transport_errors::ZTransportArtifactError;
+pub use antecedent_io_core::transport_query_wire::ZTransportQueryWire;
 /// Bounds a consumer imposes on an artifact it replays. Nothing the artifact
 /// stores raises them.
-#[derive(Clone, Copy, Debug)]
-pub struct ZTransportConsumeLimits {
-    /// Exact-evaluation operation and depth limits of the replay.
-    pub evaluation: ExactEvaluationLimits,
-    /// Largest support the replayed laws may materialize.
-    pub max_support_rows: usize,
-    /// Most laws an artifact may carry.
-    pub max_laws: usize,
-    /// Most cells one stored law may carry.
-    pub max_law_cells: usize,
-}
-
-impl Default for ZTransportConsumeLimits {
-    fn default() -> Self {
-        Self {
-            evaluation: ExactEvaluationLimits::default(),
-            max_support_rows: 1_000_000,
-            max_laws: 256,
-            max_law_cells: 1_000_000,
-        }
-    }
-}
-
-impl ZTransportConsumeLimits {
-    /// The identification limits the replay verifies the proof under.
-    #[must_use]
-    pub const fn identification(&self) -> SidLimits {
-        SidLimits { steps: self.evaluation.operations, depth: self.evaluation.depth }
-    }
-}
+pub type ZTransportConsumeLimits = crate::ConsumeLimits;
 
 /// Versioned z-transport point execution, including every premise needed for replay.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -163,65 +84,6 @@ pub struct ZTransportArtifactWire {
     /// query, proof record and expression. Stable across re-encodings of the
     /// same premises, unlike a digest of the artifact bytes.
     pub premises_digest: String,
-}
-
-/// Portable graph/query coordinates and exact intervention values.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ZTransportQueryWire {
-    /// Outcomes.
-    pub outcomes: Vec<u32>,
-    /// Treatment variables.
-    pub treatments: Vec<u32>,
-    /// Controllable variables.
-    pub controllable: Vec<u32>,
-    /// Concrete experiment assignment.
-    pub experiment_assignment: Vec<(u32, ValueWire)>,
-    /// Source population.
-    pub source: String,
-    /// Target population.
-    pub target: String,
-}
-
-impl ZTransportQueryWire {
-    /// Encode a query.
-    #[must_use]
-    pub fn from_query(query: &ZTransportQuery) -> Self {
-        Self {
-            outcomes: query.outcomes.iter().map(|v| v.raw()).collect(),
-            treatments: query.treatments.iter().map(|v| v.raw()).collect(),
-            controllable: query.controllable.iter().map(|v| v.raw()).collect(),
-            experiment_assignment: query
-                .experiment_assignment
-                .iter()
-                .map(|a| (a.variable.raw(), ValueWire::from_value(&a.value)))
-                .collect(),
-            source: query.source.to_string(),
-            target: query.target.to_string(),
-        }
-    }
-
-    /// Decode a query. Validation happens against the diagram it is used with.
-    #[must_use]
-    pub fn to_query(&self) -> ZTransportQuery {
-        let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
-        ZTransportQuery {
-            outcomes: ids(&self.outcomes).into(),
-            treatments: ids(&self.treatments).into(),
-            controllable: ids(&self.controllable).into(),
-            experiment_assignment: self
-                .experiment_assignment
-                .iter()
-                .map(|(v, x)| InterventionAssignment {
-                    variable: VariableId::from_raw(*v),
-                    value: x.to_value(),
-                })
-                .collect::<Vec<_>>()
-                .into(),
-            source: Arc::from(self.source.as_str()),
-            target: Arc::from(self.target.as_str()),
-        }
-    }
 }
 
 /// Complete point distribution in canonical atom order.
@@ -296,11 +158,10 @@ fn premises_digest(
     graph.bidirected.sort_unstable();
     let mut selections = selections.to_vec();
     selections.sort_unstable();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("z_transport_point_v2", graph, selections, query, proof, expression),
-    )?
-    .to_hex())
+    )
 }
 
 /// Sort laws into a canonical order so the same evidence supplied in another
@@ -317,11 +178,6 @@ fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoErro
         .collect::<Result<Vec<_>, _>>()?;
     laws.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(laws.into_iter().map(|(_, law)| law).collect())
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
 }
 
 impl ZTransportArtifactWire {
@@ -402,11 +258,13 @@ impl ZTransportArtifactWire {
     /// [`IoError::UnsupportedVersion`] for another format version; a decoding
     /// failure otherwise.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != Z_TRANSPORT_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == Z_TRANSPORT_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -435,16 +293,18 @@ impl ZTransportArtifactWire {
     > {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        let expected = premises_digest(
-            &wire.graph,
-            &wire.selections,
-            &wire.query,
-            &wire.proof,
-            &wire.expression,
+        crate::require_digest(
+            &wire.premises_digest,
+            premises_digest(
+                &wire.graph,
+                &wire.selections,
+                &wire.query,
+                &wire.proof,
+                &wire.expression,
+            ),
+            std::convert::identity,
+            || ZTransportArtifactError::PremisesMismatch.into(),
         )?;
-        if expected != wire.premises_digest {
-            return Err(ZTransportArtifactError::PremisesMismatch.into());
-        }
         let graph = admg_from_wire(&wire.graph)?;
         let diagram = SelectionDiagram::try_new(
             graph,
@@ -499,23 +359,16 @@ impl ZTransportArtifactWire {
         &self,
         limits: &ZTransportConsumeLimits,
     ) -> Result<(), ZTransportArtifactError> {
-        if self.operation_limit > limits.evaluation.operations {
-            return Err(ZTransportArtifactError::LimitsExceeded("operation limit"));
+        if let Some(what) = limits.budget(
+            self.operation_limit,
+            self.depth_limit,
+            self.max_support_rows,
+            self.laws.len(),
+        ) {
+            return Err(ZTransportArtifactError::LimitsExceeded(what));
         }
-        if self.depth_limit > limits.evaluation.depth {
-            return Err(ZTransportArtifactError::LimitsExceeded("depth limit"));
-        }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(ZTransportArtifactError::LimitsExceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(ZTransportArtifactError::LimitsExceeded("law count"));
-        }
-        if self.laws.iter().any(|law| {
-            law.probabilities.len() > limits.max_law_cells
-                || law.empirical_counts.as_ref().is_some_and(|c| c.len() > limits.max_law_cells)
-        }) {
-            return Err(ZTransportArtifactError::LimitsExceeded("law cells"));
+        if let Some(what) = limits.law_cells(&self.laws, true) {
+            return Err(ZTransportArtifactError::LimitsExceeded(what));
         }
         Ok(())
     }

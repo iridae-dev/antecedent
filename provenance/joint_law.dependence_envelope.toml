@@ -1,0 +1,28 @@
+feature_id = "joint_law.dependence_envelope"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+
+papers = [
+  { title = "Estimates for the Distribution Function of a Sum of Two Random Variables When the Marginal Distributions are Fixed (Makarov, Theory of Probability and its Applications 26(4):803-806, 1982)", doi = "10.1137/1126086", sections = ["the sharp bounds of P(X+Y<t) over couplings of fixed marginals"] },
+  { title = "Random variables with maximum sums (Rueschendorf, Advances in Applied Probability 14(3):623-632, 1982)", doi = "10.2307/1426677", sections = ["sharp bounds of the distribution of a sum with fixed marginals"] },
+]
+
+implementation_deviations = [
+  "Frechet (1951, Annales de l'Universite de Lyon, Sect. A, Ser. 3, 14:53-77), Hoeffding (1940, Schriften des Mathematischen Instituts der Universitaet Berlin 5:181-233), Lorentz (1953, Amer. Math. Monthly 60:176-179) and Tchen (1980, Ann. Probab. 8:814-827) are cited by name only: no DOI could be verified for them here, so they are not listed as papers.",
+  "The extremes of E[g(X,Y)] for a supermodular or submodular g are attained at the comonotone and countermonotone couplings; here they are evaluated exactly on finite atoms (draws or weighted atoms), not for continuous marginals, and the sign structure is verified on the atom lattice before any bound is reported.",
+  "Makarov and Rueschendorf bounds are evaluated exactly on finite atoms at each atom's value, left limit and right limit; the stated sharpness for general marginals is checked here against permutation enumeration for equal-mass marginals and against closed forms for Bernoulli and uniform marginals.",
+  "A declared correlation range is applied to quantities linear in the correlation (endpoints exact) and the pooled estimate reuses the equicorrelated envelope of the evidence ledger; it is an assumption range.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-stats/src/joint_law.rs",
+  "crates/antecedent-contract/src/joint_law_rule.rs",
+  "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
+  "crates/antecedent/tests/joint_law_propagation_facade.rs",
+]

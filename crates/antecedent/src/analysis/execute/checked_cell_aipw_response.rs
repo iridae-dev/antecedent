@@ -1,7 +1,9 @@
 //! Sealed checked execution product for joint-cell AIPW responses on a static
-//! DAG or on a CoDetermined tier closure.
+//! DAG or on a `CoDetermined` tier closure.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::EstimandClaim;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -22,7 +24,7 @@ use crate::{CausalError, EstimatorId, IdentifierId, RefuteSuite};
 pub(crate) enum CellAipwStructure {
     /// A supplied or accepted static DAG.
     Dag(Dag),
-    /// A CoDetermined tier background and the ancestral ADMG it materializes.
+    /// A `CoDetermined` tier background and the ancestral ADMG it materializes.
     TierClosure { admg: Admg, background: TieredBackground },
 }
 
@@ -51,33 +53,48 @@ pub(crate) struct CheckedCellAipwResponseOperation {
     outcome: VariableId,
     treatments: Arc<[VariableId]>,
     requested_arm: u32,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
     identifier: IdentifierId,
     estimator: CellSaturatedAipw,
     validation: RefuteSuite,
     origin: DagResponseOrigin,
 }
 
+/// The frozen premises of [`CheckedCellAipwResponseOperation::checked`], carried together.
+#[derive(Clone, Copy)]
+pub(crate) struct CheckedCellAipwResponseOperationPremises<'a> {
+    pub(crate) structure: &'a CellAipwStructure,
+    pub(crate) query: &'a ResponseQuery,
+    pub(crate) cache: &'a Arc<crate::analysis::prepared::CachedStaticIdentification>,
+    pub(crate) identifier: IdentifierId,
+    pub(crate) estimator: EstimatorId,
+    pub(crate) fold_seed: u64,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) origin: DagResponseOrigin,
+}
+
 impl CheckedCellAipwResponseOperation {
     /// Validate and seal the licensed joint-cell response route on a static
-    /// DAG or a CoDetermined tier closure.
-    #[expect(
-        clippy::float_cmp,
-        reason = "joint binary intervention levels are exact discrete contract values"
+    /// DAG or a `CoDetermined` tier closure.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one sealing pass that refuses each unlicensed premise (query shape, interventions, identification, estimator, fold seed) before the operation is built from the same checked values"
     )]
     pub(crate) fn checked(
-        structure: &CellAipwStructure,
-        query: &ResponseQuery,
-        identification: &IdentificationResult,
-        estimand: &IdentifiedEstimand,
-        identifier: IdentifierId,
-        estimator: EstimatorId,
-        fold_seed: u64,
-        validation: RefuteSuite,
-        origin: DagResponseOrigin,
+        premises: CheckedCellAipwResponseOperationPremises<'_>,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let CheckedCellAipwResponseOperationPremises {
+            structure,
+            query,
+            cache,
+            identifier,
+            estimator,
+            fold_seed,
+            validation,
+            origin,
+        } = premises;
+        let (identification, estimand) = (&cache.identification, &cache.estimand);
+        query.validate()?;
         let ResponseFunctional::InterventionResponse { outcome, interventions } = &query.functional
         else {
             return Err(CausalError::Unsupported {
@@ -91,34 +108,8 @@ impl CheckedCellAipwResponseOperation {
                 message: "checked cell AIPW requires two or three joint binary interventions",
             });
         }
-        let mut treatments = Vec::with_capacity(interventions.len());
-        let mut requested_arm = 0_u32;
-        for (index, intervention) in interventions.iter().enumerate() {
-            let Intervention::Set { variable, value } = intervention else {
-                return Err(CausalError::Unsupported {
-                    message: "checked cell AIPW supports hard binary Set interventions only",
-                });
-            };
-            let Some(level) = value.as_f64() else {
-                return Err(CausalError::Unsupported {
-                    message: "checked cell AIPW requires numeric binary Set levels",
-                });
-            };
-            if level != 0.0 && level != 1.0 {
-                return Err(CausalError::Unsupported {
-                    message: "checked cell AIPW requires Set levels 0 or 1",
-                });
-            }
-            if treatments.contains(variable) {
-                return Err(CausalError::Unsupported {
-                    message: "checked cell AIPW requires distinct intervention coordinates",
-                });
-            }
-            requested_arm |= u32::from(level == 1.0) << index;
-            treatments.push(*variable);
-        }
-        let valid_suite =
-            matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full);
+        let (treatments, requested_arm) = joint_binary_interventions(interventions)?;
+        let valid_suite = validation.is_point();
         let (expected_identifier, structure_ok) = match structure {
             CellAipwStructure::Dag(graph) => (
                 IdentifierId::ResponseBackdoor,
@@ -140,14 +131,10 @@ impl CheckedCellAipwResponseOperation {
             || identification.query != CausalQuery::Response(query.clone())
             || identification.status != IdentificationStatus::NonparametricallyIdentified
             || identification.estimands.is_empty()
-            || identification.estimands.first().is_none_or(|candidate| {
-                candidate.method != estimand.method
-                    || candidate.adjustment_set != estimand.adjustment_set
-                    || candidate.instruments != estimand.instruments
-                    || candidate.mediators != estimand.mediators
-                    || candidate.functional != estimand.functional
-                    || candidate.rd_design != estimand.rd_design
-            })
+            || identification
+                .estimands
+                .first()
+                .is_none_or(|candidate| !candidate.same_full_claim(estimand))
             || estimand.method_kind().ok() != Some(EstimandMethod::BackdoorAdjustment)
             || identification
                 .estimands
@@ -175,7 +162,7 @@ impl CheckedCellAipwResponseOperation {
                 .estimands
                 .iter()
                 .zip(&identification.estimands)
-                .any(|(expected, supplied)| !same_estimand(expected, supplied))
+                .any(|(expected, supplied)| !expected.same_full_claim(supplied))
         {
             return Err(CausalError::Compile {
                 message: "cell AIPW identification does not replay on the retained DAG and query"
@@ -189,8 +176,7 @@ impl CheckedCellAipwResponseOperation {
             outcome: *outcome,
             treatments: treatments.into(),
             requested_arm,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
+            cache: Arc::clone(cache),
             identifier,
             estimator: CellSaturatedAipw::new().with_fold_seed(fold_seed),
             validation,
@@ -215,7 +201,7 @@ impl CheckedCellAipwResponseOperation {
     }
 
     pub(crate) fn target(&self) -> (&IdentificationResult, &IdentifiedEstimand) {
-        (&self.identification, &self.estimand)
+        (&self.cache.identification, &self.cache.estimand)
     }
 
     pub(crate) fn requested_arm(&self) -> u32 {
@@ -275,7 +261,7 @@ impl CheckedCellAipwResponseOperation {
         }
         let mut variables = self.treatments.to_vec();
         variables.push(self.outcome);
-        variables.extend(self.estimand.adjustment_set.iter().copied());
+        variables.extend(self.cache.estimand.adjustment_set.iter().copied());
         let mask = data.complete_case_mask(&variables).map_err(CausalError::from)?;
         if !mask.iter().any(|keep| *keep) {
             return Err(CausalError::Compile {
@@ -299,11 +285,13 @@ impl CheckedCellAipwResponseOperation {
         self.estimator
             .fit_scores(
                 data,
-                &self.treatments,
-                self.outcome,
-                &self.estimand.adjustment_set,
-                &self.query.outcome_functional,
-                None,
+                &antecedent_estimate::CellScoreSpec {
+                    treatments: &self.treatments,
+                    outcome: self.outcome,
+                    adjustment: &self.cache.estimand.adjustment_set,
+                    functional: &self.query.outcome_functional,
+                    continuous: None,
+                },
             )
             .map_err(CausalError::from)
     }
@@ -312,10 +300,7 @@ impl CheckedCellAipwResponseOperation {
 fn structure_signature(structure: &CellAipwStructure) -> StructureSignature {
     match structure {
         CellAipwStructure::Dag(graph) => {
-            let mut edges =
-                graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
-            edges.sort_unstable();
-            (graph.node_count(), edges.into(), Arc::from([]))
+            (graph.node_count(), graph.directed_edge_pairs_sorted().into(), Arc::from([]))
         }
         CellAipwStructure::TierClosure { admg, .. } => {
             let count = admg.node_count();
@@ -356,15 +341,6 @@ fn admg_contains(
         && !adjustment.contains(&outcome)
 }
 
-fn same_estimand(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> bool {
-    left.method == right.method
-        && left.adjustment_set == right.adjustment_set
-        && left.instruments == right.instruments
-        && left.mediators == right.mediators
-        && left.functional == right.functional
-        && left.rd_design == right.rd_design
-}
-
 fn graph_contains(
     graph: &Dag,
     outcome: VariableId,
@@ -389,8 +365,95 @@ fn graph_contains(
         && graph.edges().all(|edge| edge.at_a != antecedent_graph::Endpoint::Arrow)
 }
 
+/// Inspect the sealed joint-cell AIPW response route retained by preparation.
+#[derive(Clone, Debug)]
+pub struct CheckedCellAipwResponseInfo {
+    /// The complete intervention-response query.
+    pub query: antecedent_core::ResponseQuery,
+    /// The checked identifier selected at preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// The checked estimator selected at preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Refutation suite carried by the operation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Whether the graph was explicit or accepted.
+    pub origin: crate::analysis::execute::DagResponseOrigin,
+    /// Binary joint-cell index evaluated by this route.
+    pub requested_arm: u32,
+    /// Covariate roles retained for adjustment.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Tier interpretation when the cell was sealed on a tier closure rather
+    /// than a plain DAG.
+    pub within_tier: Option<antecedent_graph::WithinTier>,
+}
+
+impl Inspect for CheckedCellAipwResponseOperation {
+    type Info = CheckedCellAipwResponseInfo;
+
+    fn info(&self) -> CheckedCellAipwResponseInfo {
+        let (_, estimand) = self.target();
+        let (identifier, estimator) = self.procedure();
+        CheckedCellAipwResponseInfo {
+            query: self.query().clone(),
+            identifier,
+            estimator,
+            validation: self.validation(),
+            origin: self.origin(),
+            requested_arm: self.requested_arm(),
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            within_tier: self.within_tier(),
+        }
+    }
+}
+
+/// Treatment coordinates and the requested arm bitmask of a hard binary joint intervention.
+#[expect(
+    clippy::float_cmp,
+    reason = "joint binary intervention levels are exact discrete contract values"
+)]
+fn joint_binary_interventions(
+    interventions: &[Intervention],
+) -> Result<(Vec<VariableId>, u32), CausalError> {
+    let mut treatments = Vec::with_capacity(interventions.len());
+    let mut requested_arm = 0_u32;
+    for (index, intervention) in interventions.iter().enumerate() {
+        let Intervention::Set { variable, value } = intervention else {
+            return Err(CausalError::Unsupported {
+                message: "checked cell AIPW supports hard binary Set interventions only",
+            });
+        };
+        let Some(level) = value.as_f64() else {
+            return Err(CausalError::Unsupported {
+                message: "checked cell AIPW requires numeric binary Set levels",
+            });
+        };
+        if level != 0.0 && level != 1.0 {
+            return Err(CausalError::Unsupported {
+                message: "checked cell AIPW requires Set levels 0 or 1",
+            });
+        }
+        if treatments.contains(variable) {
+            return Err(CausalError::Unsupported {
+                message: "checked cell AIPW requires distinct intervention coordinates",
+            });
+        }
+        requested_arm |= u32::from(level == 1.0) << index;
+        treatments.push(*variable);
+    }
+    Ok((treatments, requested_arm))
+}
+
 #[cfg(test)]
 mod tests {
+    fn cached(
+        identification: &IdentificationResult,
+        estimand: &IdentifiedEstimand,
+    ) -> Arc<crate::analysis::prepared::CachedStaticIdentification> {
+        Arc::new(crate::analysis::prepared::CachedStaticIdentification {
+            identification: identification.clone(),
+            estimand: estimand.clone(),
+        })
+    }
     use super::*;
     use antecedent_core::{CausalQuery, Intervention, ResponseFunctional, Value};
     use antecedent_data::{TableView, TabularData};
@@ -450,18 +513,18 @@ mod tests {
     fn sealed_joint_cell_route_executes_known_truth_and_refreshes_same_target() {
         let (graph, query, data, identification) = fixture();
         let estimand = identification.estimands.first().unwrap().clone();
-        let operation = CheckedCellAipwResponseOperation::checked(
-            &CellAipwStructure::Dag(graph.clone()),
-            &query,
-            &identification,
-            &estimand,
-            IdentifierId::ResponseBackdoor,
-            EstimatorId::CellAipw,
-            817,
-            RefuteSuite::Full,
-            DagResponseOrigin::Accepted,
-        )
-        .unwrap();
+        let operation =
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                structure: &CellAipwStructure::Dag(graph.clone()),
+                query: &query,
+                cache: &cached(&identification, &estimand),
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 817,
+                validation: RefuteSuite::Full,
+                origin: DagResponseOrigin::Accepted,
+            })
+            .unwrap();
         assert_eq!(operation.origin(), DagResponseOrigin::Accepted);
         assert_eq!(operation.validation(), RefuteSuite::Full);
         assert_eq!(operation.procedure(), (IdentifierId::ResponseBackdoor, EstimatorId::CellAipw));
@@ -494,18 +557,18 @@ mod tests {
     fn sealed_joint_cell_route_refuses_a_changed_graph_and_bad_interventions() {
         let (graph, query, _, identification) = fixture();
         let estimand = identification.estimands.first().unwrap().clone();
-        let operation = CheckedCellAipwResponseOperation::checked(
-            &CellAipwStructure::Dag(graph.clone()),
-            &query,
-            &identification,
-            &estimand,
-            IdentifierId::ResponseBackdoor,
-            EstimatorId::CellAipw,
-            1,
-            RefuteSuite::None,
-            DagResponseOrigin::Explicit,
-        )
-        .unwrap();
+        let operation =
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                structure: &CellAipwStructure::Dag(graph.clone()),
+                query: &query,
+                cache: &cached(&identification, &estimand),
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 1,
+                validation: RefuteSuite::None,
+                origin: DagResponseOrigin::Explicit,
+            })
+            .unwrap();
         let mut wrong_graph = graph.clone();
         wrong_graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         assert!(!operation.matches_structure(&AcceptedGraph::from(wrong_graph), None));
@@ -536,18 +599,18 @@ mod tests {
             &CausalQuery::Response(bad_query.clone()),
         )
         .unwrap();
-        let err = CheckedCellAipwResponseOperation::checked(
-            &CellAipwStructure::Dag(graph.clone()),
-            &bad_query,
-            &bad_identification,
-            bad_identification.estimands.first().unwrap(),
-            IdentifierId::ResponseBackdoor,
-            EstimatorId::CellAipw,
-            1,
-            RefuteSuite::None,
-            DagResponseOrigin::Explicit,
-        )
-        .unwrap_err();
+        let err =
+            CheckedCellAipwResponseOperation::checked(CheckedCellAipwResponseOperationPremises {
+                structure: &CellAipwStructure::Dag(graph.clone()),
+                query: &bad_query,
+                cache: &cached(&bad_identification, bad_identification.estimands.first().unwrap()),
+                identifier: IdentifierId::ResponseBackdoor,
+                estimator: EstimatorId::CellAipw,
+                fold_seed: 1,
+                validation: RefuteSuite::None,
+                origin: DagResponseOrigin::Explicit,
+            })
+            .unwrap_err();
         assert!(err.to_string().contains("Set levels 0 or 1"));
     }
 }

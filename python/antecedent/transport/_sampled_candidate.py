@@ -9,6 +9,7 @@ from types import BuiltinFunctionType
 from typing import Any, Literal, cast
 
 from .. import _native
+from .._columns import coerce_fields
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ._candidate_data import detached, freeze
 
@@ -62,8 +63,8 @@ class SampledRecoveryCandidate:
         if decoded.get("calibration") != "unmeasured":
             raise CausalValueError("sampled recovery candidate must remain unmeasured")
         result = object.__new__(cls)
-        object.__setattr__(result, "_body", freeze(decoded))
-        object.__setattr__(result, "_artifact", bytes(artifact))
+        coerce_fields(result, _body=freeze(decoded))
+        coerce_fields(result, _artifact=bytes(artifact))
         return result
 
     @property

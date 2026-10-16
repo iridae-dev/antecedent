@@ -77,7 +77,9 @@ def test_graph_entropy_uses_original_channel_and_retains_heuristic_label() -> No
         entropy = -posterior * math.log(posterior) - (1 - posterior) * math.log(1 - posterior)
         assert c.score == pytest.approx(math.log(2) - entropy, abs=1e-13)
         assert c.implemented_functional == "heuristic_graph_channel_entropy"
-        assert c.evaluation == "monte_carlo"
+        # The channel entropy does not depend on the sampled observation, so the ranker
+        # scores it exactly and takes a single draw.
+        assert c.evaluation == "exact"
         assert not hasattr(c, "probability")
     native = _native.rank_designs(
         [1.0, 1.0],

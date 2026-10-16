@@ -1,0 +1,27 @@
+feature_id = "transport.cpdag_class_envelope"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Transport under graph uncertainty: the structural transport verdict of every member of a
+# discovered Markov equivalence class, side by side. The class membership characterization is
+# cited by transport.cpdag_completion; the per-member verdict is the existing structural
+# transport identifier. The envelope itself (status, formulas_agree, unresolved pairs) is
+# original reporting engineering.
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams and the structural transportability decision"] },
+  { title = "Equivalence and Synthesis of Causal Models (Verma and Pearl, UAI 1990; the DOI is the 2022 ACM reprint of the same paper)", doi = "10.1145/3501714.3501732", sections = ["Markov equivalence: same skeleton and same v-structures"] },
+]
+implementation_deviations = [
+  "No new theorem. A structural envelope is a statement about which members the implemented rules certify; it is not a point, interval or bound on an effect and carries no probability: members are not weighted and the true graph is not asserted to be among them except under the listed ENVELOPE_ASSUMPTIONS.",
+  "NotIdentifiedInEveryMember is the conservative not-certified reading, never a proof of non-transportability. Partial means the member bound stopped enumeration; the unexplored remainder is not certified empty.",
+  "Static CPDAGs under causal sufficiency only. A PAG's members are ancestral graphs whose directed edges are not causal-parent relations, so that route is refused (pag_members_not_causal_graphs). Selection targets are declared by the caller and never inferred from per-population discovery differences.",
+  "Enumeration is bounded (DEFAULT_ENVELOPE_MEMBER_BOUND); an unfinished search, conflicting orientation evidence, a selection target outside the structure, or a class too large is a typed refusal naming every unresolved pair.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-identify/tests/discovered_transport.rs",
+  "crates/antecedent-estimate/tests/cpdag_scenarios.rs",
+]

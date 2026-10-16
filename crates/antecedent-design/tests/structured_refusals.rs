@@ -1,4 +1,4 @@
-//! Acceptance evidence for record F25 (structured refusals).
+//! Acceptance evidence for structured refusals.
 //!
 //! A refusal is data: the stage that refused, the offending action or coordinate,
 //! expected versus supplied semantics, the missing capability and a remedy, under a
@@ -8,37 +8,27 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::{
+use antecedent_contract::{
     DistributionMeaning, ExternalCapability, ExternalCapabilityRequest, ExternalRefusal,
-    ExternalScientificObject, LawProviderContract, ProviderObjectIdentity, QuantityRole,
-    ScientificQuantity,
+    ExternalScientificObject, LawProviderContract, ProviderObjectIdentity, ScientificQuantity,
 };
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
     StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{DecisionEvalError, evaluate_contract};
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::external_binding_wire::{ContractWire, ResponseWire, bind_response};
-use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::external_binding_wire::{ContractWire, ResponseWire, bind_response};
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
 use serde_json::{Value, json};
 
+mod common;
+
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 fn action(id: &str, inputs: Vec<ScientificQuantity>, utility: UtilityExpr) -> DecisionAction {
@@ -102,11 +92,11 @@ fn pair(refusal: &ExternalRefusal) -> (String, String) {
     (refusal.code.to_owned(), refusal.detail.clone())
 }
 
-/// F25 frozen boundary: a decision requests a joint outcome utility from
+/// A decision requests a joint outcome utility from
 /// independent marginals at action A1; the refusal keeps the stage, the action, the
 /// reason, the supplied alignment and the remedy.
 #[test]
-fn f25_decision_refusal_carries_stage_action_reason_supplied_meaning_and_remedy() {
+fn decision_refusal_carries_stage_action_reason_supplied_meaning_and_remedy() {
     let error = evaluate_contract(&contract(), &independent_marginals()).unwrap_err();
     assert!(matches!(
         error,
@@ -160,10 +150,10 @@ fn wire_response(units: &str) -> ResponseWire {
     .unwrap()
 }
 
-/// F25 frozen boundary: wrong population, action, unit and capability each retain a
+/// Wrong population, action, unit and capability each retain a
 /// distinct, stable reason and detail, and each is a well-formed envelope.
 #[test]
-fn f25_wrong_population_action_unit_and_capability_stay_four_distinct_refusals() {
+fn wrong_population_action_unit_and_capability_stay_four_distinct_refusals() {
     let mut population = contract();
     population.actions[0].inputs[1].population_id = "other".into();
     let population = population.validate().unwrap_err().to_refusal();
@@ -242,9 +232,9 @@ fn f25_wrong_population_action_unit_and_capability_stay_four_distinct_refusals()
     }
 }
 
-/// F25: a refusal that is itself malformed is refused, with its own detail.
+/// A refusal that is itself malformed is refused, with its own detail.
 #[test]
-fn f25_malformed_refusal_envelopes_are_themselves_refused() {
+fn malformed_refusal_envelopes_are_themselves_refused() {
     let good = evaluate_contract(&contract(), &independent_marginals()).unwrap_err().to_refusal();
 
     let mut unregistered = good.clone();
@@ -274,7 +264,7 @@ fn f25_malformed_refusal_envelopes_are_themselves_refused() {
 /// A contract declared as JSON (the form every host language sends) refuses with the
 /// same typed code and detail a Rust caller gets, not a generic declaration error.
 #[test]
-fn f25_json_declared_contract_keeps_its_typed_refusal() {
+fn json_declared_contract_keeps_its_typed_refusal() {
     use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
     let good = contract_to_json(&contract()).unwrap();
     assert!(contract_from_json_refusal(&good).is_ok());

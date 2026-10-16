@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (temporal_response); do not edit -->
 # temporal response baselines
 
 Established: 2026-09-07 (the first measurement date the note below states)
@@ -54,11 +55,11 @@ and a design costs ~1–6 ms cold depending on the selected order and the
 simplex iteration count (the whole cold curve measured 18.7–21.7 ms across
 five runs, of which the six residual fits are most), which is what the 40 ms
 gate (2× headroom) protects. Warm, the curve measures ~1.7 ms and the n = 800
-response bench ~142 µs (1.5× its 1.2 reference below; with tempering
+response bench ~142 µs (1.5× its reference below; with tempering
 short-circuited it measures ~145 µs, so the warm tempering path is within
 noise).
 
-## 1.2 posterior and sustained-window reference
+## Posterior and sustained-window reference
 
 Measured locally on macOS 26.5.2 arm64, 2026-09-07, optimized Criterion build,
 10 samples, 1 s warm-up and 1 s measurement. Values are Criterion means and

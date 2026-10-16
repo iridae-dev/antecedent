@@ -5,20 +5,47 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[cfg(test)]
 use std::sync::Arc;
 
-use antecedent_core::{KernelPolicy, VariableId};
-use antecedent_data::{CategoryDomain, Contrast, ContrastMatrix, compile_contrast_matrix};
-use antecedent_stats::{
-    CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
-    RecordedContrast, StandardizationRecord, StatsError, standardize_columns,
-};
+#[cfg(test)]
+use antecedent_core::KernelPolicy;
+#[cfg(test)]
+use antecedent_core::VariableId;
+#[cfg(test)]
+use antecedent_data::CategoryDomain;
+#[cfg(test)]
+use antecedent_data::Contrast;
+#[cfg(test)]
+use antecedent_data::ContrastMatrix;
+#[cfg(test)]
+use antecedent_data::compile_contrast_matrix;
+#[cfg(test)]
+use antecedent_stats::CompiledDesign;
+#[cfg(test)]
+use antecedent_stats::ContrastCodingKind;
+#[cfg(test)]
+use antecedent_stats::DesignColumn;
+#[cfg(test)]
+use antecedent_stats::DesignColumnMap;
+#[cfg(test)]
+use antecedent_stats::DesignColumnRole;
+#[cfg(test)]
+use antecedent_stats::RecordedContrast;
+#[cfg(test)]
+use antecedent_stats::StandardizationRecord;
+#[cfg(test)]
+use antecedent_stats::StatsError;
+#[cfg(test)]
+use antecedent_stats::standardize_columns;
 
+#[cfg(test)]
 use crate::error::EstimationError;
 
 /// One covariate input for [`compile_adjustment_design`].
 #[derive(Clone, Debug)]
-pub enum CovariateSpec<'a> {
+#[cfg(test)]
+pub(crate) enum CovariateSpec<'a> {
     /// Continuous float column (already masked to analysis rows).
     Float {
         /// Variable id.
@@ -44,13 +71,14 @@ pub enum CovariateSpec<'a> {
 /// # Errors
 ///
 /// Shape mismatches, contrast compilation failure, or empty design.
-pub fn compile_adjustment_design(
+#[cfg(test)]
+pub(crate) fn compile_adjustment_design(
     treatment: &[f64],
     covariates: &[CovariateSpec<'_>],
     outcome: &[f64],
     row_selection: &[usize],
     standardize_float_covariates: bool,
-    policy: &KernelPolicy,
+    policy: KernelPolicy,
 ) -> Result<CompiledDesign, EstimationError> {
     let nrows = outcome.len();
     if nrows == 0 {
@@ -138,7 +166,7 @@ pub fn compile_adjustment_design(
     }
 
     let standardization = if standardize_float_covariates && !float_cov_col_idxs.is_empty() {
-        standardize_columns(&mut matrix, nrows, ncols, &float_cov_col_idxs, 1e-12, policy)
+        standardize_columns(&mut matrix, nrows, ncols, &float_cov_col_idxs, 1e-12, &policy)
             .map_err(EstimationError::from)?
     } else {
         StandardizationRecord::default()
@@ -159,6 +187,7 @@ pub fn compile_adjustment_design(
     })
 }
 
+#[cfg(test)]
 fn coding_kind(contrast: &Contrast) -> ContrastCodingKind {
     match contrast {
         Contrast::Treatment { reference } => {
@@ -172,6 +201,7 @@ fn coding_kind(contrast: &Contrast) -> ContrastCodingKind {
     }
 }
 
+#[cfg(test)]
 fn expand_contrast_columns(
     matrix_cols: &mut Vec<Vec<f64>>,
     columns: &mut Vec<DesignColumn>,
@@ -246,7 +276,7 @@ mod tests {
             &y,
             &[],
             false,
-            &KernelPolicy::default_policy(),
+            KernelPolicy::default_policy(),
         )
         .unwrap();
         assert_eq!(design.ncols, 3); // intercept, T, one treatment dummy
@@ -276,7 +306,7 @@ mod tests {
             &y,
             &[],
             true,
-            &KernelPolicy::default_policy(),
+            KernelPolicy::default_policy(),
         )
         .unwrap();
         assert_eq!(design.standardization.entries.len(), 1);

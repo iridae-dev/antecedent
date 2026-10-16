@@ -83,12 +83,27 @@ fn unknown_tiered_average_lifecycle_body() {
     assert_eq!(first.support_status.unwrap().as_str(), "licensed");
     assert_eq!(format!("{:?}", first.identification.status), "GraphDependent");
     assert!(
-        first.estimate.ate.is_nan(),
+        first.estimate.as_effect().unwrap().ate.is_nan(),
         "ambiguous scenarios must not be collapsed to a scalar ATE"
     );
-    let values = first.estimate.scenario_effects.as_ref().expect("scenario values");
-    let covariance = first.estimate.joint_covariance.as_ref().expect("shared joint covariance");
-    let bands = first.estimate.scenario_intervals.as_ref().expect("joint simultaneous intervals");
+    let values =
+        first.estimate.as_effect().unwrap().scenarios.effects.as_ref().expect("scenario values");
+    let covariance = first
+        .estimate
+        .as_effect()
+        .unwrap()
+        .joint
+        .covariance
+        .as_ref()
+        .expect("shared joint covariance");
+    let bands = first
+        .estimate
+        .as_effect()
+        .unwrap()
+        .scenarios
+        .intervals
+        .as_ref()
+        .expect("joint simultaneous intervals");
     let structure = first.structural_response.as_ref().expect("scenario mass receipt");
     let truths = [1.0, -1.0];
     assert_eq!(values.len(), 2);
@@ -106,9 +121,12 @@ fn unknown_tiered_average_lifecycle_body() {
 
     let refreshed_data = unknown_data(4_000, 23, 0.7);
     let refreshed = prepared.refresh(refreshed_data, &ctx).unwrap();
-    assert!(refreshed.estimate.ate.is_nan());
-    assert_eq!(refreshed.estimate.scenario_effects.as_ref().unwrap().len(), 2);
-    assert!(refreshed.estimate.joint_covariance.is_some());
+    assert!(refreshed.estimate.as_effect().unwrap().ate.is_nan());
+    assert_eq!(
+        refreshed.estimate.as_effect().unwrap().scenarios.effects.as_ref().unwrap().len(),
+        2
+    );
+    assert!(refreshed.estimate.as_effect().unwrap().joint.covariance.is_some());
 
     let artifact =
         prepared.encode_contracted_result(&refreshed, "unknown-tiered-average", &ctx).unwrap();

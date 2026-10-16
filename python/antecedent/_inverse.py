@@ -19,7 +19,7 @@ What a result is:
   action that was not enumerated, or that is off the evaluated grid, is
   unresolved, never excluded or interpolated.
 * A mean threshold is not a chance constraint ``P(Y^do(a) >= y) >= q``, and a
-  target quantile needs the interventional distribution (2.3B); an observational
+  target quantile needs the interventional distribution; an observational
   ``P(X | Y)`` is not an action. All three refuse with ``cell_not_licensed``.
 
 Missing-evidence study options (the study planner's output) and sensitivity
@@ -30,12 +30,13 @@ classification or the report identity.
 
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, Literal
 
 from . import _native
+from ._validate import real
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .query import ResponseCurve
 from .results.response import CausalResponseView
@@ -107,7 +108,7 @@ class ChanceConstraint:
 
 @dataclass(frozen=True, slots=True)
 class TargetQuantile:
-    """A target quantile of ``Y^do(a)``: always refused (``cell_not_licensed``, 2.3B)."""
+    """A target quantile of ``Y^do(a)``: always refused (``cell_not_licensed``)."""
 
     level: float
     threshold: float
@@ -283,10 +284,9 @@ class InverseOutcomeReport:
         )
 
 
-def _finite(name: str, value: float) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise CausalValueError(f"{name} must be a finite number")
-    return float(value)
+_finite = partial(
+    real, finite=True, type_error=CausalValueError, type_message="{what} must be a finite number"
+)
 
 
 def _forward(response: CausalResponseView) -> tuple[Any, ...]:
@@ -405,8 +405,8 @@ def _sensitivity(source: Mapping[str, Any]) -> SensitivityView:
         )
     bounds = source["assumption_range"]
     low, high = (
-        _finite("assumption_range minimum", bounds["minimum"]),
-        _finite("assumption_range maximum", bounds["maximum"]),
+        _finite(bounds["minimum"], "assumption_range minimum"),
+        _finite(bounds["maximum"], "assumption_range maximum"),
     )
     keep = (
         "estimand",
@@ -433,7 +433,7 @@ def _query_arguments(query: InverseQuery) -> dict[str, Any]:
             raise CausalValueError(f"direction must be one of {_DIRECTIONS}")
         return {
             "query_kind": "target_mean",
-            "threshold": _finite("threshold", query.threshold),
+            "threshold": _finite(query.threshold, "threshold"),
             "direction": query.direction,
         }
     if isinstance(query, ChanceConstraint):

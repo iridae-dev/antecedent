@@ -1,10 +1,10 @@
-//! Independent artifact of sampled observation recovery (2.3A A6, record
-//! `2.3A.X10.sampled_observation_recovery`), format version 2. Internal and non-routed:
+//! Independent artifact of sampled observation recovery
+//! (`recovery.sampled_observation`), format version 2. Internal and non-routed:
 //! the public interval route `antecedent.transport.sampled_observation_recovery` stays
 //! closed (`cell_not_licensed`, `sampled_recovery.route_frozen`) until the whole-method
 //! calibration is measured, so the interval stored here carries calibration `unmeasured`.
 //!
-//! Version 1 of the recovery artifact ([`crate::recovery_artifact`], 2.2 X10) is the
+//! Version 1 of the recovery artifact ([`crate::recovery_artifact`]) is the
 //! exact-law point artifact and is unchanged: this reader refuses its bytes by version,
 //! and the version-1 reader refuses these.
 //!
@@ -55,7 +55,7 @@ use antecedent_estimate::{
 use antecedent_graph::{Admg, NodeRef};
 use antecedent_identify::{
     RECOVERY_DEFAULT_LIMITS, RecoveredEffectQuery, RecoveryDerivation, RecoveryDerivationRecord,
-    RecoveryError, RecoveryLimits, verify_observation_recovery,
+    RecoveryError, RecoveryLimits, StoredRecovery, verify_observation_recovery,
 };
 use serde::{Deserialize, Serialize};
 
@@ -571,11 +571,6 @@ struct DataView<'a> {
     rows: &'a [SampledRowWire],
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// The checked premises and result a sampled-recovery artifact is built from.
 pub struct SampledRecoveryArtifactInput<'a> {
     /// The m-graph the derivation was decided on (static nodes `0..n`).
@@ -685,7 +680,7 @@ impl SampledRecoveryArtifactWire {
             variable_names: &self.variable_names,
             config: &self.receipt.config,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// The data-identity digest the stored snapshot bindings and rows should carry.
@@ -713,7 +708,7 @@ impl SampledRecoveryArtifactWire {
             snapshot_id: &self.snapshot_id,
             rows: &self.rows,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     fn validate_shape(&self) -> Result<(), SampledRecoveryArtifactError> {
@@ -775,17 +770,19 @@ impl SampledRecoveryArtifactWire {
         crate::to_cbor(self)
     }
 
-    /// Decode, refusing any other version (the 2.2 point artifact is version 1) before
+    /// Decode, refusing any other version (the point artifact is version 1) before
     /// the payload is interpreted.
     ///
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -796,11 +793,12 @@ impl SampledRecoveryArtifactWire {
     ) -> Result<(), SampledRecoveryArtifactError> {
         let exceeded = SampledRecoveryArtifactError::LimitsExceeded;
         let receipt = &self.derivation.receipt;
-        if receipt.operations_limit > limits.decision.search.operations {
-            return Err(exceeded("search operation limit"));
-        }
-        if receipt.depth_limit > limits.decision.search.depth {
-            return Err(exceeded("search depth limit"));
+        if let Some(what) = crate::search_bounds(
+            receipt.operations_limit,
+            receipt.depth_limit,
+            limits.decision.search,
+        ) {
+            return Err(exceeded(what));
         }
         if receipt.memory_bytes > limits.decision.memory_bytes {
             return Err(exceeded("search memory cap"));
@@ -849,12 +847,18 @@ impl SampledRecoveryArtifactWire {
     ) -> Result<ConsumedSampledRecovery, IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(SampledRecoveryArtifactError::PremisesMismatch.into());
-        }
-        if wire.expected_data_digest()? != wire.data_digest {
-            return Err(SampledRecoveryArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || SampledRecoveryArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            wire.expected_data_digest(),
+            std::convert::identity,
+            || SampledRecoveryArtifactError::DataIdentityMismatch.into(),
+        )?;
         if expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest) {
             return Err(SampledRecoveryArtifactError::ExpectationMismatch("premises").into());
         }
@@ -872,9 +876,11 @@ impl SampledRecoveryArtifactWire {
             &query,
             &catalog,
             Some(&effect),
-            &wire.derivation,
-            &arena,
-            Some(&effect_arena),
+            &StoredRecovery {
+                record: &wire.derivation,
+                arena: &arena,
+                effect_arena: Some(&effect_arena),
+            },
             limits.decision,
             ctx,
         )

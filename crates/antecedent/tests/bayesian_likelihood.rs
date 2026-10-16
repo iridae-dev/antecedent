@@ -17,6 +17,7 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId};
 use antecedent_prob::BayesLikelihood;
+use antecedent_test_support::sigmoid;
 
 const DISCLOSURE: &str = "estimate.bayesian.gaussian_likelihood_discrete_outcome";
 
@@ -36,10 +37,6 @@ fn uniforms(seed: u64) -> impl FnMut() -> f64 {
             state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         ((state >> 11) as f64 + 0.5) / (1u64 << 53) as f64
     }
-}
-
-fn sigmoid(x: f64) -> f64 {
-    1.0 / (1.0 + (-x).exp())
 }
 
 /// Columns `t, y, z`: `z ~ U(-1.5, 1.5)`, `t ~ Bern(σ(z))`, and an outcome
@@ -111,9 +108,9 @@ fn a_logit_likelihood_recovers_the_risk_difference_on_a_binary_outcome() {
     let (_, logit) = run_dag(table.clone(), bayes(BayesLikelihood::BernoulliLogit)).unwrap();
     let posterior = logit.posterior.as_ref().expect("posterior");
     assert!(
-        (logit.estimate.ate - truth).abs() < 0.05,
+        (logit.estimate.as_effect().unwrap().ate - truth).abs() < 0.05,
         "logit ATE {} vs in-sample risk difference {truth}",
-        logit.estimate.ate
+        logit.estimate.as_effect().unwrap().ate
     );
     assert!(
         format!("{:?}", posterior.assumptions).contains("Bernoulli logit outcome regression"),
@@ -122,7 +119,10 @@ fn a_logit_likelihood_recovers_the_risk_difference_on_a_binary_outcome() {
     assert_eq!(disclosed(&logit), None, "a Bernoulli fit is not disclosed as a misfit");
 
     let (_, gaussian) = run_dag(table, bayes(BayesLikelihood::GaussianIdentity)).unwrap();
-    assert_ne!(gaussian.estimate.ate.to_bits(), logit.estimate.ate.to_bits());
+    assert_ne!(
+        gaussian.estimate.as_effect().unwrap().ate.to_bits(),
+        logit.estimate.as_effect().unwrap().ate.to_bits()
+    );
     assert_eq!(disclosed(&gaussian).as_deref(), Some("binary"));
 }
 
@@ -165,7 +165,10 @@ fn a_poisson_likelihood_fits_a_count_outcome_and_gaussian_is_disclosed() {
         k
     });
     let (_, poisson) = run_dag(table.clone(), bayes(BayesLikelihood::PoissonLog)).unwrap();
-    assert!(poisson.estimate.ate.is_finite() && poisson.estimate.ate > 0.0);
+    assert!(
+        poisson.estimate.as_effect().unwrap().ate.is_finite()
+            && poisson.estimate.as_effect().unwrap().ate > 0.0
+    );
     assert_eq!(disclosed(&poisson), None);
     let (_, gaussian) = run_dag(table, bayes(BayesLikelihood::GaussianIdentity)).unwrap();
     assert_eq!(disclosed(&gaussian).as_deref(), Some("count"));
@@ -320,7 +323,7 @@ fn non_gaussian_response_levels_run_through_study_on_probability_scale() {
         .unwrap()
         .run(&ExecutionContext::for_tests(42))
         .unwrap();
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
     else {

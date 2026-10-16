@@ -12,7 +12,7 @@
 //! action histories are replayed against that **same** history (action), and the
 //! final outcome of each world is computed from it (prediction). The per-unit
 //! counterfactual final outcome is `Y_h(u)` and the estimand is the sample mean of
-//! `Y_plus - Y_minus`. The 2.2 static edge-intervention proof does not identify
+//! `Y_plus - Y_minus`. The static edge-intervention proof does not identify
 //! this quantity; drawing fresh noise per world would answer a different question
 //! (an interventional, not a counterfactual, one).
 //!
@@ -28,9 +28,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub mod staged;
+
 use std::collections::BTreeSet;
 
-use antecedent_core::{ExecutionContext, StructuredRefusal};
+use antecedent_contract::StructuredRefusal;
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use thiserror::Error;
 
 /// Maximum number of units.
@@ -312,46 +315,14 @@ fn unsupported(
     refuse(antecedent_core::reason_code!("route_not_supported"), detail, offending, witness)
 }
 
-/// A bit-reproducible 128-bit integrity digest (two FNV-1a lanes); not cryptographic.
-struct Digest {
-    a: u64,
-    b: u64,
-}
-
-impl Digest {
-    const PRIME: u64 = 0x0000_0100_0000_01b3;
-
-    fn new(tag: &str) -> Self {
-        let mut digest = Self { a: 0xcbf2_9ce4_8422_2325, b: 0x8422_2325_cbf2_9ce4 };
-        digest.text(tag);
-        digest
-    }
-
-    fn byte(&mut self, byte: u8) {
-        self.a = (self.a ^ u64::from(byte)).wrapping_mul(Self::PRIME);
-        self.b = (self.b ^ u64::from(byte ^ 0x5a)).wrapping_mul(Self::PRIME);
-    }
-
-    fn word(&mut self, word: u64) {
-        for byte in word.to_le_bytes() {
-            self.byte(byte);
-        }
-    }
-
-    fn text(&mut self, text: &str) {
-        self.word(text.len() as u64);
-        for byte in text.bytes() {
-            self.byte(byte);
-        }
-    }
-
-    fn real(&mut self, value: f64) {
-        self.word(value.to_bits());
-    }
-
-    fn hex(&self) -> String {
-        format!("{:016x}{:016x}", self.a, self.b)
-    }
+/// Domain-separated canonical stream for one receipt component.
+///
+/// Each component hashes under its own tag (`antecedent.counterfactual.temporal_cross_world.
+/// <component>.v1`), so a graph digest can never equal a fit or receipt digest over the
+/// same bytes. The digest is the 32-byte BLAKE3 of the length-prefixed stream, rendered as
+/// 64 lowercase hex characters.
+fn digest(component: &str) -> CanonicalWriter {
+    CanonicalWriter::new(&format!("antecedent.counterfactual.temporal_cross_world.{component}.v1"))
 }
 
 /// One unit's exogenous-draw digest.
@@ -398,21 +369,21 @@ pub struct SharedAbductionReceipt {
 
 impl SharedAbductionReceipt {
     fn exogenous_of(unit_draws: &[UnitDrawDigest]) -> String {
-        let mut d = Digest::new("temporal_cross_world.exogenous");
+        let mut d = digest("exogenous");
         d.word(unit_draws.len() as u64);
         for draw in unit_draws {
             d.text(draw.unit.as_str());
             d.text(draw.history.as_str());
             d.text(&draw.digest);
         }
-        d.hex()
+        d.finish_hex()
     }
 
     /// Recompute the overall digest and the exogenous digest from the retained
     /// components; bit-identical to [`Self::digest`] for an untampered receipt.
     #[must_use]
     pub fn recompute_digest(&self) -> String {
-        let mut d = Digest::new("temporal_cross_world.receipt");
+        let mut d = digest("receipt");
         d.text(self.snapshot.as_str());
         d.text(&self.graph_digest);
         d.text(&self.fit_digest);
@@ -423,8 +394,8 @@ impl SharedAbductionReceipt {
         d.word(self.n_units as u64);
         d.word(self.n_worlds as u64);
         d.word(self.horizon as u64);
-        d.byte(u8::from(self.shared_by_both_worlds));
-        d.hex()
+        d.word(u64::from(self.shared_by_both_worlds));
+        d.finish_hex()
     }
 
     /// Whether the retained digests recompute from the retained components.
@@ -665,18 +636,18 @@ fn check_inputs(
 }
 
 fn digest_graph(graph: &TemporalGraph) -> String {
-    let mut d = Digest::new("temporal_cross_world.graph");
+    let mut d = digest("graph");
     d.word(graph.horizon as u64);
-    d.byte(u8::from(graph.latent_confounding));
+    d.word(u64::from(graph.latent_confounding));
     for (p, c) in sorted_edges(graph) {
         d.word(p as u64);
         d.word(c as u64);
     }
-    d.hex()
+    d.finish_hex()
 }
 
 fn digest_fit(fit: &TemporalMechanismFit) -> String {
-    let mut d = Digest::new("temporal_cross_world.fit");
+    let mut d = digest("fit");
     d.text(&fit.fit_id);
     let mut mechs: Vec<&NodeMechanism> = fit.mechanisms.iter().collect();
     mechs.sort_by_key(|m| m.node.index());
@@ -691,17 +662,19 @@ fn digest_fit(fit: &TemporalMechanismFit) -> String {
         }
         match mech.noise_halfwidth {
             Some(h) => {
-                d.byte(1);
+                d.word(1);
                 d.real(h);
             }
-            None => d.byte(0),
+            None => {
+                d.word(0);
+            }
         }
     }
-    d.hex()
+    d.finish_hex()
 }
 
 fn digest_factual(factual: &[&FactualUnitHistory]) -> String {
-    let mut d = Digest::new("temporal_cross_world.factual");
+    let mut d = digest("factual");
     d.word(factual.len() as u64);
     for unit in factual {
         d.text(unit.unit.as_str());
@@ -712,11 +685,11 @@ fn digest_factual(factual: &[&FactualUnitHistory]) -> String {
             d.real(v);
         }
     }
-    d.hex()
+    d.finish_hex()
 }
 
 fn digest_history(history: &NamedActionHistory) -> String {
-    let mut d = Digest::new("temporal_cross_world.action_history");
+    let mut d = digest("action_history");
     d.text(&history.name);
     d.word(u64::from(history.times[0]));
     d.word(u64::from(history.times[1]));
@@ -727,18 +700,18 @@ fn digest_history(history: &NamedActionHistory) -> String {
     for unit in units {
         d.text(unit.as_str());
     }
-    d.hex()
+    d.finish_hex()
 }
 
 fn digest_draw(snapshot: &SnapshotId, unit: &FactualUnitHistory, noise: &[f64; 3]) -> String {
-    let mut d = Digest::new("temporal_cross_world.unit_draw");
+    let mut d = digest("unit_draw");
     d.text(snapshot.as_str());
     d.text(unit.unit.as_str());
     d.text(unit.history.as_str());
     for u in noise {
         d.real(*u);
     }
-    d.hex()
+    d.finish_hex()
 }
 
 /// Abduce one unit's exogenous history `[U_L0, U_L1, U_Y]` from its factual values.

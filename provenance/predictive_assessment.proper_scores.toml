@@ -1,0 +1,21 @@
+feature_id = "predictive_assessment.proper_scores"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Strictly Proper Scoring Rules, Prediction, and Estimation (Gneiting and Raftery, J. Am. Stat. Assoc. 102(477), 2007)", doi = "10.1198/016214506000001437", sections = ["Section 2: strictly proper scoring rules", "Section 4.2: the continuous ranked probability score, the Gaussian closed form (eq. 20) and the energy form", "Section 4.3: the energy score of a multivariate forecast"] },
+ { title = "Verification of Forecasts Expressed in Terms of Probability (Brier, Mon. Weather Rev. 78(1), 1950)", doi = "10.1175/1520-0493(1950)078<0001:VOFEIT>2.0.CO;2", sections = ["the Brier score of a probability forecast"] },
+ { title = "Scoring Rules for Continuous Probability Distributions (Matheson and Winkler, Manage. Sci. 22(10), 1976)", doi = "10.1287/mnsc.22.10.1087", sections = ["the continuous ranked probability score as an integral of squared distribution-function differences"] },
+ { title = "Fair Scores for Ensemble Forecasts (Ferro, Q. J. R. Meteorol. Soc. 140, 2014)", doi = "10.1002/qj.2270", sections = ["the fair CRPS estimator for exchangeable ensemble members"] },
+]
+implementation_deviations = [
+  "An empirical sample is scored as the empirical law of its draws (the V-statistic energy form, proper for that law); the fair estimator (Ferro 2014) is available on request and is not proper for the empirical law.",
+  "Sample CRPS is computed as the integral of the squared distribution-function difference (a sum of non-negative terms) rather than as the difference of two means, which can lose precision for long ensembles; the two forms are equal and tested equal.",
+  "The energy score uses the Euclidean norm with beta = 1 only, on finite or equally weighted joint laws, with O(m^2) pair cost under a declared work bound.",
+  "Provider-evaluated laws supply only a log density and cumulative values at the outcome; the log score is as trustworthy as the supplier, and no CRPS or Brier score is formed from them.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs"]

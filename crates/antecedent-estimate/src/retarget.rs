@@ -26,14 +26,14 @@ use crate::joint_if::{JointCovariance, monotone_decreasing};
 use crate::scores::{LinearContrast, ScoreSummary, ScoreTable};
 
 /// Minimum Kish `n_eff` per arm under target weights.
-pub const MIN_WEIGHTED_ARM_N_EFF: f64 = 10.0;
+pub(crate) const MIN_WEIGHTED_ARM_N_EFF: f64 = 10.0;
 
 /// Largest target-weighted share of rows whose raw held-out propensity lies outside the
 /// applied clip band `[clip, 1 − clip]` (default `DEFAULT_PROPENSITY_CLIP`) for weighted
 /// overlap to pass.
 /// Such rows are the ones whose inverse-probability weight a clipped fit changes by a factor
 /// of at least the clip's reciprocal; a target concentrated on them is not supported.
-pub const MAX_EXTREME_PROPENSITY_SHARE: f64 = 0.10;
+pub(crate) const MAX_EXTREME_PROPENSITY_SHARE: f64 = 0.10;
 
 /// The one weighted-overlap gate shared by the score-table and legacy supports: per-arm Kish
 /// counts, the raw propensity range (when propensities were supplied), and the target-weighted
@@ -443,7 +443,7 @@ pub fn retarget(
 
 /// Target-local support over every observed joint cell, using raw held-out propensities.
 #[must_use]
-pub fn score_weighted_support(table: &ScoreTable, weights: &[f64]) -> WeightedSupport {
+pub(crate) fn score_weighted_support(table: &ScoreTable, weights: &[f64]) -> WeightedSupport {
     let arms: std::collections::BTreeSet<_> = table.columns.iter().map(|c| c.arm).collect();
     let n_eff_by_arm: Vec<f64> = arms
         .iter()
@@ -562,7 +562,7 @@ fn rearrange_exceedance(
     let mut means = summary.means.to_vec();
     let mut changed = false;
     for grid in by_arm.values_mut() {
-        grid.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        grid.sort_by(|a, b| a.1.total_cmp(&b.1));
         let raw: Vec<f64> = grid.iter().map(|(j, _)| means[*j]).collect();
         let adj = monotone_decreasing(&raw);
         for (slot, value) in grid.iter().zip(adj) {

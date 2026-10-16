@@ -70,7 +70,7 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
                     None,
                     MeasurementSpec::default(),
                 )
-                .map_err(|e| DataError::Schema(e.to_string()))?;
+                .map_err(DataError::from)?;
             let (col, copied) = float64_owned_from_array(id, floats, n_rows)?;
             bytes_copied += copied;
             diagnostics.push(materialization_diagnostic(
@@ -105,7 +105,7 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
                     None,
                     MeasurementSpec::default(),
                 )
-                .map_err(|e| DataError::Schema(e.to_string()))?;
+                .map_err(DataError::from)?;
             let (col, copied) = fixed_vector_from_list(id, list, n_rows, dim)?;
             bytes_copied += copied;
             diagnostics.push(materialization_diagnostic(
@@ -119,7 +119,7 @@ pub fn tabular_from_record_batch(batch: &RecordBatch) -> Result<ArrowLoadResult,
         return Err(DataError::TypeMismatch { id, expected: "float64 or FixedSizeList<float64>" });
     }
 
-    let schema: CausalSchema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
+    let schema: CausalSchema = builder.build().map_err(DataError::from)?;
     let storage = OwnedColumnarStorage::try_new(schema, columns, None, None)?;
     Ok(ArrowLoadResult {
         data: TabularData::new(storage),
@@ -134,21 +134,32 @@ fn float64_owned_from_array(
     floats: &Float64Array,
     n_rows: usize,
 ) -> Result<(Float64Column, u64), DataError> {
-    let mut values = Vec::with_capacity(n_rows);
+    // One bulk copy of the value buffer straight into the shared slice; only a column that
+    // actually has nulls pays a per-row pass, to write NaN under each missing cell (so
+    // value-only readers never see an observation) and to build the bitmap.
     let mut validity_bytes = vec![0u8; n_rows.div_ceil(8)];
-    for row in 0..n_rows {
-        if floats.is_null(row) {
-            // Missing cells hold NaN so value-only readers never see an observation.
-            values.push(f64::NAN);
-        } else {
-            values.push(floats.value(row));
-            validity_bytes[row / 8] |= 1 << (row % 8);
+    let values: Arc<[f64]> = if floats.null_count() == 0 {
+        let (full, tail) = (n_rows / 8, n_rows % 8);
+        validity_bytes[..full].fill(0xFF);
+        if tail > 0 {
+            validity_bytes[full] = (1u8 << tail) - 1;
         }
-    }
+        Arc::from(&floats.values()[..])
+    } else {
+        let mut patched = floats.values().to_vec();
+        for row in 0..n_rows {
+            if floats.is_null(row) {
+                patched[row] = f64::NAN;
+            } else {
+                validity_bytes[row / 8] |= 1 << (row % 8);
+            }
+        }
+        Arc::from(patched)
+    };
     let copied = (values.len() * core::mem::size_of::<f64>() + validity_bytes.len()) as u64;
     let col = Float64Column::new(
         id,
-        F64Buffer::owned(Arc::from(values)),
+        F64Buffer::owned(values),
         ValidityBitmap::from_bytes(validity_bytes, n_rows)?,
     )?;
     Ok((col, copied))
@@ -176,7 +187,16 @@ fn fixed_vector_from_list(
             continue;
         }
         validity_bytes[row / 8] |= 1 << (row % 8);
-        flat.extend((start..start + dim).map(|idx| floats.value(idx)));
+        // `value` is logical; the buffer is addressed from the array offset.
+        let raw = floats.values();
+        let phys = floats.offset() + start;
+        let end = phys + dim;
+        if end > raw.len() {
+            return Err(DataError::InvalidArgument {
+                message: "FixedSizeList value buffer is shorter than its row width".into(),
+            });
+        }
+        flat.extend_from_slice(&raw[phys..end]);
     }
     let copied = (flat.len() * core::mem::size_of::<f64>() + validity_bytes.len()) as u64;
     let col = FixedVectorColumn::new(
@@ -225,7 +245,7 @@ pub fn tabular_from_arrow_c_columns(
                 None,
                 MeasurementSpec::default(),
             )
-            .map_err(|e| DataError::Schema(e.to_string()))?;
+            .map_err(DataError::from)?;
 
         let array = col.into_array()?;
         if let Some(n) = n_rows {
@@ -252,7 +272,7 @@ pub fn tabular_from_arrow_c_columns(
         owned_cols.push(owned);
     }
 
-    let schema: CausalSchema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
+    let schema: CausalSchema = builder.build().map_err(DataError::from)?;
     let storage = OwnedColumnarStorage::try_new(schema, owned_cols, None, None)?;
     Ok(ArrowLoadResult {
         data: TabularData::new(storage),
@@ -263,7 +283,7 @@ pub fn tabular_from_arrow_c_columns(
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp)] // values are copied bit-for-bit
+#[allow(clippy::float_cmp, reason = "values are copied bit-for-bit")]
 mod tests {
     use antecedent_core::VariableId;
     use arrow_array::Float64Array;

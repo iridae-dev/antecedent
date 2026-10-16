@@ -62,15 +62,12 @@ impl TemporalPagCompletionSampler {
                 message: "temporal MAG completion requires the non-conflict directed/bidirected family",
             });
         }
-        let inner = CompletionSampler::with_projection(
-            &pag.as_static_pag_for_alg(),
-            max_completions,
-            |candidate| {
-                refine(&pag, candidate)
-                    .and_then(|graph| graph.unfold(indexer.clone()).ok())
-                    .map(|unfolded| unfolded.pag)
-            },
-        )?;
+        let projected = pag.as_static_pag_for_alg()?;
+        let inner = CompletionSampler::with_projection(&projected, max_completions, |candidate| {
+            refine(&pag, candidate)
+                .and_then(|graph| graph.unfold(indexer.clone()).ok())
+                .map(|unfolded| unfolded.pag)
+        })?;
         Ok(Self { base: pag, inner, max_completions })
     }
     /// Maximum retained valid templates.

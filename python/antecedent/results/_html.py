@@ -22,11 +22,16 @@ notebook theme. Rendering never raises: any failure falls back to
 from __future__ import annotations
 
 import html
+import logging
+from collections.abc import Sequence
+from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 from .._verdict import describe_status, verdict_tone
 from ._format import fmt_float, fmt_pct, fmt_se
 from ._slots import describe_limitation
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..errors import ReviewRequired
@@ -147,7 +152,7 @@ def _refutation_table_html(validation: ValidationView) -> str:
     )
 
 
-def _adjustment_chips_html(adjustment_set: list[str]) -> str:
+def _adjustment_chips_html(adjustment_set: Sequence[str]) -> str:
     if not adjustment_set:
         return '<span class="antecedent-ar-muted">(none)</span>'
     chips = "".join(f'<span class="antecedent-ar-chip">{_esc(v)}</span>' for v in adjustment_set)
@@ -275,53 +280,61 @@ def _reasoning_slots_html(result: AnalysisResult) -> str:
     )
 
 
+def _guarded_repr_html(render):
+    """Notebook HTML. A display failure falls back to ``repr`` and is logged."""
+
+    @wraps(render)
+    def guarded(self: Any) -> str:
+        try:
+            return render(self)
+        except Exception:  # noqa: BLE001 — display must not break the notebook
+            _log.debug("notebook HTML display failed", exc_info=True)
+            return f"<pre>{_esc(repr(self))}</pre>"
+
+    return guarded
+
+
+@_guarded_repr_html
 def _analysis_result_repr_html(self: AnalysisResult) -> str:
-    try:
-        return _STYLE + _analysis_result_body(self)
-    except Exception:  # noqa: BLE001 — never break the notebook on display
-        return f"<pre>{_esc(repr(self))}</pre>"
+    return _STYLE + _analysis_result_body(self)
 
 
+@_guarded_repr_html
 def _validation_repr_html(self: ValidationView) -> str:
-    try:
-        return _STYLE + f'<div class="antecedent-ar-card">{_refutation_table_html(self)}</div>'
-    except Exception:  # noqa: BLE001 — never break the notebook on display
-        return f"<pre>{_esc(repr(self))}</pre>"
+    return _STYLE + f'<div class="antecedent-ar-card">{_refutation_table_html(self)}</div>'
 
 
+@_guarded_repr_html
 def _posterior_repr_html(self: PosteriorView) -> str:
-    try:
-        if self.limitation is not None:
-            message = (
-                f"Posterior mixture over {self.n_draws} draws; no point or interval for "
-                f"the claim: {describe_limitation(self.limitation)}"
-            )
-            callout = _unidentified_callout_html(self.unidentified_mass)
-            body = f'<div class="antecedent-ar-muted">{_esc(message)}</div>'
-            return f'{_STYLE}<div class="antecedent-ar-card">{callout}{body}</div>'
-        if self.effect_mean is None:
-            message = (
-                f"Posterior computed with {self.n_draws} draws; scalar effect unavailable."
-                if self.n_draws is not None
-                else "No posterior computed."
-            )
-            body = f'<div class="antecedent-ar-muted">{_esc(message)}</div>'
-            return f'{_STYLE}<div class="antecedent-ar-card">{body}</div>'
-        callout = _unidentified_callout_html(self.unidentified_mass)
-        row = (
-            '<div class="antecedent-ar-row">'
-            '<span class="antecedent-ar-label">Posterior</span>'
-            f'<span class="antecedent-ar-value">'
-            f"{_esc(fmt_float(self.effect_mean))} ± {_esc(fmt_float(self.effect_sd))}"
-            f"</span>"
-            f'<span class="antecedent-ar-sub">'
-            f"95% CI [{_esc(fmt_float(self.q025))}, {_esc(fmt_float(self.q975))}]"
-            f"</span>"
-            "</div>"
+    if self.limitation is not None:
+        message = (
+            f"Posterior mixture over {self.n_draws} draws; no point or interval for "
+            f"the claim: {describe_limitation(self.limitation)}"
         )
-        return f'{_STYLE}<div class="antecedent-ar-card">{callout}{row}</div>'
-    except Exception:  # noqa: BLE001 — never break the notebook on display
-        return f"<pre>{_esc(repr(self))}</pre>"
+        callout = _unidentified_callout_html(self.unidentified_mass)
+        body = f'<div class="antecedent-ar-muted">{_esc(message)}</div>'
+        return f'{_STYLE}<div class="antecedent-ar-card">{callout}{body}</div>'
+    if self.effect_mean is None:
+        message = (
+            f"Posterior computed with {self.n_draws} draws; scalar effect unavailable."
+            if self.n_draws is not None
+            else "No posterior computed."
+        )
+        body = f'<div class="antecedent-ar-muted">{_esc(message)}</div>'
+        return f'{_STYLE}<div class="antecedent-ar-card">{body}</div>'
+    callout = _unidentified_callout_html(self.unidentified_mass)
+    row = (
+        '<div class="antecedent-ar-row">'
+        '<span class="antecedent-ar-label">Posterior</span>'
+        f'<span class="antecedent-ar-value">'
+        f"{_esc(fmt_float(self.effect_mean))} ± {_esc(fmt_float(self.effect_sd))}"
+        f"</span>"
+        f'<span class="antecedent-ar-sub">'
+        f"95% CI [{_esc(fmt_float(self.q025))}, {_esc(fmt_float(self.q975))}]"
+        f"</span>"
+        "</div>"
+    )
+    return f'{_STYLE}<div class="antecedent-ar-card">{callout}{row}</div>'
 
 
 def _card(body: str) -> str:
@@ -345,123 +358,110 @@ def _identification_body(
     )
 
 
+@_guarded_repr_html
 def _identification_repr_html(self: Identification) -> str:
-    try:
-        return _card(
-            _identification_body(
-                self.status, self.method, list(self.adjustment_set), self.statement
-            )
-        )
-    except Exception:  # noqa: BLE001 — never break the notebook on display
-        return f"<pre>{_esc(repr(self))}</pre>"
+    return _card(
+        _identification_body(self.status, self.method, list(self.adjustment_set), self.statement)
+    )
 
 
+@_guarded_repr_html
 def _identification_view_repr_html(self: IdentificationView) -> str:
-    try:
-        from .._claim import identification_statement
+    from .._claim import identification_statement
 
-        statement = identification_statement(
-            "this query", self.status, self.method, self.adjustment_set
-        )
-        return _card(
-            _identification_body(self.status, self.method, list(self.adjustment_set), statement)
-        )
-    except Exception:  # noqa: BLE001 — never break the notebook on display
-        return f"<pre>{_esc(repr(self))}</pre>"
+    statement = identification_statement(
+        "this query", self.status, self.method, self.adjustment_set
+    )
+    return _card(
+        _identification_body(self.status, self.method, list(self.adjustment_set), statement)
+    )
 
 
+@_guarded_repr_html
 def _response_repr_html(self: CausalResponseView) -> str:
-    try:
-        ident = self.identification
-        banner_class = _BANNER_CLASS[verdict_tone(ident.status)]
-        limitation = self.rendering_limitation()
-        mass = None if self.envelope is None else self.envelope.unidentified_mass
-        callout = _unidentified_callout_html(mass)
-        if self.response is not None:
-            value = f"{len(self.response)} response points"
-        elif isinstance(self.estimate, (float, int)):
-            value = fmt_float(float(self.estimate))
-        else:
-            value = self.answer.kind
-        if limitation is not None:
-            value = (
-                f'<span class="antecedent-ar-muted">'
-                f"{_esc(self.answer.kind)}: {_esc(describe_limitation(limitation))}"
-                f"</span>"
-            )
-        chips = _adjustment_chips_html(list(ident.adjustment_set))
-        body = (
-            f'<div class="antecedent-ar-banner {banner_class}">'
-            f"<span>{_esc(describe_status(ident.status).capitalize())}</span>"
-            f'<span class="antecedent-ar-banner-method">via {_esc(ident.method)}</span>'
-            f"</div>"
-            f"{callout}"
-            f'<div class="antecedent-ar-row">'
-            f'<span class="antecedent-ar-label">Claim</span>'
-            f'<span class="antecedent-ar-value">{_esc(self.claim())}</span>'
-            f"</div>"
-            f'<div class="antecedent-ar-row">'
-            f'<span class="antecedent-ar-label">Response</span>'
-            f'<span class="antecedent-ar-value">{value}</span>'
-            f"</div>"
-            f'<div class="antecedent-ar-row">'
-            f'<span class="antecedent-ar-label">Adjustment set</span>{chips}'
-            f"</div>"
-            '<div class="antecedent-ar-row"><span class="antecedent-ar-label">Calibration</span>'
-            f"<span>{_esc(self.calibration.describe())}</span></div>"
+    ident = self.identification
+    banner_class = _BANNER_CLASS[verdict_tone(ident.status)]
+    limitation = self.rendering_limitation()
+    mass = None if self.envelope is None else self.envelope.unidentified_mass
+    callout = _unidentified_callout_html(mass)
+    if self.response is not None:
+        value = f"{len(self.response)} response points"
+    elif isinstance(self.estimate, (float, int)):
+        value = fmt_float(float(self.estimate))
+    else:
+        value = self.answer.kind
+    if limitation is not None:
+        value = (
+            f'<span class="antecedent-ar-muted">'
+            f"{_esc(self.answer.kind)}: {_esc(describe_limitation(limitation))}"
+            f"</span>"
         )
-        return _card(body)
-    except Exception:  # noqa: BLE001 — never break the notebook on display
-        return f"<pre>{_esc(repr(self))}</pre>"
+    chips = _adjustment_chips_html(list(ident.adjustment_set))
+    body = (
+        f'<div class="antecedent-ar-banner {banner_class}">'
+        f"<span>{_esc(describe_status(ident.status).capitalize())}</span>"
+        f'<span class="antecedent-ar-banner-method">via {_esc(ident.method)}</span>'
+        f"</div>"
+        f"{callout}"
+        f'<div class="antecedent-ar-row">'
+        f'<span class="antecedent-ar-label">Claim</span>'
+        f'<span class="antecedent-ar-value">{_esc(self.claim())}</span>'
+        f"</div>"
+        f'<div class="antecedent-ar-row">'
+        f'<span class="antecedent-ar-label">Response</span>'
+        f'<span class="antecedent-ar-value">{value}</span>'
+        f"</div>"
+        f'<div class="antecedent-ar-row">'
+        f'<span class="antecedent-ar-label">Adjustment set</span>{chips}'
+        f"</div>"
+        '<div class="antecedent-ar-row"><span class="antecedent-ar-label">Calibration</span>'
+        f"<span>{_esc(self.calibration.describe())}</span></div>"
+    )
+    return _card(body)
 
 
+@_guarded_repr_html
 def _graph_repr_html(self: Any) -> str:
-    try:
-        dot = self.to_dot() if hasattr(self, "to_dot") else repr(self)
-        nodes = list(self.nodes()) if hasattr(self, "nodes") else []
-        title = type(self).__name__
-        if nodes:
-            title = f"{title} ({len(nodes)} nodes)"
-        return _card(
-            f'<div class="antecedent-ar-row"><strong>{_esc(title)}</strong></div>'
-            f"<pre>{_esc(dot)}</pre>"
-        )
-    except Exception:  # noqa: BLE001 — never break the notebook on display
-        return f"<pre>{_esc(repr(self))}</pre>"
+    dot = self.to_dot() if hasattr(self, "to_dot") else repr(self)
+    nodes = list(self.nodes()) if hasattr(self, "nodes") else []
+    title = type(self).__name__
+    if nodes:
+        title = f"{title} ({len(nodes)} nodes)"
+    return _card(
+        f'<div class="antecedent-ar-row"><strong>{_esc(title)}</strong></div><pre>{_esc(dot)}</pre>'
+    )
 
 
+@_guarded_repr_html
 def _review_required_repr_html(self: ReviewRequired) -> str:
-    try:
-        from ..errors import next_action, pending_edges
+    from ..errors import next_action, pending_edges
 
-        edges = pending_edges(self)
-        chips = (
-            "".join(
-                f'<span class="antecedent-ar-chip">{_esc(edge.source)} → {_esc(edge.target)}</span>'
-                for edge in edges
-            )
-            or '<span class="antecedent-ar-muted">(none)</span>'
+    edges = pending_edges(self)
+    chips = (
+        "".join(
+            f'<span class="antecedent-ar-chip">{_esc(edge.source)} → {_esc(edge.target)}</span>'
+            for edge in edges
         )
-        nxt = getattr(self, "report", None)
-        nxt_text = nxt.next if nxt is not None and getattr(nxt, "next", None) else next_action(self)
-        hint = getattr(self, "hint", None) or ""
-        body = (
-            '<div class="antecedent-ar-banner ar-caution"><span>Review required</span></div>'
-            f'<div class="antecedent-ar-row">{_esc(self)}</div>'
-            f'<div class="antecedent-ar-row">'
-            f'<span class="antecedent-ar-label">Pending</span>'
-            f'<span class="antecedent-ar-chips">{chips}</span>'
-            f"</div>"
-            f'<div class="antecedent-ar-row">'
-            f'<span class="antecedent-ar-label">Next</span>'
-            f"<span>{_esc(nxt_text)}</span>"
-            f"</div>"
-        )
-        if hint:
-            body += f'<div class="antecedent-ar-callout">{_esc(hint)}</div>'
-        return _card(body)
-    except Exception:  # noqa: BLE001 — never break the notebook on display
-        return f"<pre>{_esc(repr(self))}</pre>"
+        or '<span class="antecedent-ar-muted">(none)</span>'
+    )
+    nxt = getattr(self, "report", None)
+    nxt_text = nxt.next if nxt is not None and getattr(nxt, "next", None) else next_action(self)
+    hint = getattr(self, "hint", None) or ""
+    body = (
+        '<div class="antecedent-ar-banner ar-caution"><span>Review required</span></div>'
+        f'<div class="antecedent-ar-row">{_esc(self)}</div>'
+        f'<div class="antecedent-ar-row">'
+        f'<span class="antecedent-ar-label">Pending</span>'
+        f'<span class="antecedent-ar-chips">{chips}</span>'
+        f"</div>"
+        f'<div class="antecedent-ar-row">'
+        f'<span class="antecedent-ar-label">Next</span>'
+        f"<span>{_esc(nxt_text)}</span>"
+        f"</div>"
+    )
+    if hint:
+        body += f'<div class="antecedent-ar-callout">{_esc(hint)}</div>'
+    return _card(body)
 
 
 def _attach() -> None:

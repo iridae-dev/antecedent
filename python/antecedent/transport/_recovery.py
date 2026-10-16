@@ -31,6 +31,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._columns import coerce_fields
 from .._native import (
     consume_observation_recovery_artifact as _consume_observation_recovery_artifact,
 )
@@ -76,8 +77,8 @@ class ObservationRecoveryQuery:
         fully = tuple(self.fully_observed)
         if any(not isinstance(name, str) or not name.strip() for name in fully):
             raise CausalValueError("fully_observed must be non-empty names")
-        object.__setattr__(self, "partially_observed", partially)
-        object.__setattr__(self, "fully_observed", fully)
+        coerce_fields(self, partially_observed=partially)
+        coerce_fields(self, fully_observed=fully)
 
 
 def identify_observation_recovery(

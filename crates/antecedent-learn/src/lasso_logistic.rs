@@ -19,19 +19,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 use antecedent_core::ExecutionContext;
+use antecedent_kernels::{sigmoid, softplus};
 use antecedent_stats::first_col_is_exact_ones;
 
-use crate::dense::{
-    gather_physical, materialize_dense_colmajor, predict_linear, require_binary_labels,
-};
+use crate::dense::{gather_physical, materialize_dense_colmajor, require_binary_labels};
 use crate::design::{DesignView, TargetView};
 use crate::error::LearnError;
-use crate::learner::{
-    FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
-};
+use crate::learner::{FittedPredictor, LearnerCapabilities, LearnerFactory, PredictionTask};
 
 /// Proximal-Newton outer iterations.
 const MAX_NEWTON: usize = 200;
@@ -74,15 +69,6 @@ impl LassoLogisticLearner {
     }
 }
 
-fn sigmoid(value: f64) -> f64 {
-    1.0 / (1.0 + (-value).exp())
-}
-
-/// `log(1 + exp(v))` without overflow.
-fn softplus(value: f64) -> f64 {
-    if value > 0.0 { value + (-value).exp().ln_1p() } else { value.exp().ln_1p() }
-}
-
 fn soft_threshold(value: f64, threshold: f64) -> f64 {
     value.signum() * (value.abs() - threshold).max(0.0)
 }
@@ -101,10 +87,6 @@ fn score(x: &[f64], n: usize, p: usize, y: &[f64], prob: &[f64]) -> Vec<f64> {
 }
 
 /// Largest violation of the exact objective's optimality conditions.
-#[allow(
-    clippy::float_cmp,
-    reason = "a coefficient is exactly zero when the soft threshold clamped it"
-)]
 fn kkt_violation(score: &[f64], beta: &[f64], lambda: f64, pen_start: usize) -> f64 {
     let mut worst = 0.0_f64;
     for (j, (&g, &b)) in score.iter().zip(beta).enumerate() {
@@ -120,21 +102,28 @@ fn kkt_violation(score: &[f64], beta: &[f64], lambda: f64, pen_start: usize) -> 
     worst
 }
 
-/// Minimize `0.5 sum w_i (r_i - x_i . delta)^2 + lambda sum |beta_j + delta_j|` over `delta`
-/// by cyclic coordinate descent; `resid` enters as `r` and is consumed as the running residual.
-#[allow(clippy::too_many_arguments)]
-fn coordinate_descent(
-    x: &[f64],
+/// The weighted quadratic subproblem one lasso descent minimizes: design, working weights,
+/// per-column curvature, current coefficients and penalty.
+#[derive(Clone, Copy)]
+struct DescentProblem<'a> {
+    x: &'a [f64],
     n: usize,
-    weights: &[f64],
-    resid: &mut [f64],
-    curvature: &[f64],
-    beta: &[f64],
-    delta: &mut [f64],
+    weights: &'a [f64],
+    curvature: &'a [f64],
+    beta: &'a [f64],
     lambda: f64,
     pen_start: usize,
+}
+
+/// Minimize `0.5 sum w_i (r_i - x_i . delta)^2 + lambda sum |beta_j + delta_j|` over `delta`
+/// by cyclic coordinate descent; `resid` enters as `r` and is consumed as the running residual.
+fn coordinate_descent(
+    problem: &DescentProblem<'_>,
+    resid: &mut [f64],
+    delta: &mut [f64],
     sweep_tolerance: f64,
 ) {
+    let DescentProblem { x, n, weights, curvature, beta, lambda, pen_start } = *problem;
     for _ in 0..MAX_SWEEPS {
         let mut largest = 0.0_f64;
         for j in 0..beta.len() {
@@ -209,15 +198,17 @@ fn solve(
         }
         delta.fill(0.0);
         coordinate_descent(
-            x,
-            n,
-            &weights,
+            &DescentProblem {
+                x,
+                n,
+                weights: &weights,
+                curvature: &curvature,
+                beta: &beta,
+                lambda,
+                pen_start,
+            },
             &mut resid,
-            &curvature,
-            &beta,
             &mut delta,
-            lambda,
-            pen_start,
             SWEEP_SHARE * tolerance,
         );
         x_delta.fill(0.0);
@@ -296,53 +287,19 @@ impl LearnerFactory for LassoLogisticLearner {
         }
         let intercept = first_col_is_exact_ones(&design, nrows);
         let coefficients = solve(&design, nrows, ncols, &gathered_y, self.lambda, intercept)?;
-        Ok(Box::new(LassoLogisticPredictor { coefficients }))
-    }
-}
-
-struct LassoLogisticPredictor {
-    coefficients: Vec<f64>,
-}
-
-impl FittedPredictor for LassoLogisticPredictor {
-    fn predict(
-        &self,
-        x: DesignView<'_>,
-        out: &mut [f64],
-        _ctx: &ExecutionContext,
-    ) -> Result<(), LearnError> {
-        predict_linear(&self.coefficients, x, out)?;
-        for slot in out.iter_mut() {
-            *slot = sigmoid(*slot).clamp(1e-9, 1.0 - 1e-9);
-        }
-        Ok(())
-    }
-
-    fn portable(&self) -> Result<crate::PortablePredictor, LearnError> {
-        Ok(crate::PortablePredictor {
-            version: 1,
-            columns: self.coefficients.len(),
-            provenance: self.provenance(),
-            model: crate::PredictionMap::Linear {
-                coefficients: self.coefficients.clone(),
-                logistic: true,
-            },
-        })
-    }
-
-    fn provenance(&self) -> LearnerProvenance {
-        LearnerProvenance {
-            spec: "lasso_logistic".into(),
-            implementation: "proximal_newton_coordinate_descent".into(),
-            version: "1".into(),
-        }
+        Ok(Box::new(crate::coefficient::CoefficientPredictor::new(
+            coefficients,
+            true,
+            "lasso_logistic",
+            "proximal_newton_coordinate_descent",
+            crate::learner::COORDINATE_DESCENT_VERSION,
+        )))
     }
 }
 
 #[cfg(test)]
 #[allow(
     clippy::float_cmp,
-    clippy::cast_possible_truncation,
     reason = "the tests build small synthetic designs and compare exact zeros of a thresholded fit"
 )]
 mod tests {
@@ -369,16 +326,14 @@ mod tests {
         }
     }
 
-    fn uniform(state: &mut u64) -> f64 {
-        *state =
-            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
-        ((*state >> 11) as f64) / ((1u64 << 53) as f64)
+    fn uniform(rng: &mut antecedent_core::CausalRng) -> f64 {
+        rng.next_f64()
     }
 
     /// `[1 | z_1 .. z_q]` with independent uniform-centered columns and a logistic response
     /// that depends on the first `active.len()` columns with the given coefficients.
     fn design(n: usize, q: usize, active: &[f64], seed: u64) -> (Vec<f64>, Vec<f64>) {
-        let mut state = seed;
+        let mut state = antecedent_core::CausalRng::from_seed(seed);
         let mut x = vec![1.0; n * (q + 1)];
         for j in 1..=q {
             for i in 0..n {
@@ -461,7 +416,7 @@ mod tests {
                 let g: f64 = (0..n)
                     .map(|i| {
                         let eta: f64 = (0..=q).map(|c| x[c * n + i] * beta[c]).sum();
-                        x[j * n + i] * (y[i] - 1.0 / (1.0 + (-eta).exp()))
+                        x[j * n + i] * (y[i] - sigmoid(eta))
                     })
                     .sum();
                 let violation = if j == 0 {

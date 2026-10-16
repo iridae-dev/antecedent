@@ -50,7 +50,7 @@ pub fn reduce_posterior_draws(
     let view = F64VectorView::contiguous(draws);
     match select_impl(policy) {
         KernelImpl::Scalar => reduce_scalar(view, op),
-        KernelImpl::PortableOptimized | KernelImpl::ArchSimd => reduce_portable(view, op),
+        KernelImpl::PortableOptimized => reduce_portable(view, op),
     }
 }
 
@@ -82,7 +82,6 @@ fn sample_sd(population_variance: f64, n: usize) -> Option<f64> {
 /// empty column, or a `p` outside `[0, 1]` yields NaN rather than a finite
 /// value read off an arbitrarily ordered array.
 #[must_use]
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // h ∈ [0, n − 1]
 pub fn quantile_type7_sorted(sorted: &[f64], p: f64) -> f64 {
     let n = sorted.len();
     if n == 0 || !(0.0..=1.0).contains(&p) || sorted[0].is_nan() || sorted[n - 1].is_nan() {
@@ -102,11 +101,18 @@ pub fn quantile_type7_sorted(sorted: &[f64], p: f64) -> f64 {
     sorted[lo] * (1.0 - w) + sorted[hi] * w
 }
 
+/// A posterior column is reduced without a mask, so the mask-length check cannot fail.
+fn unmasked<T>(result: Result<T, crate::view::ViewError>) -> T {
+    result.expect("posterior reduction passes no mask, so the length check cannot fail")
+}
+
 fn reduce_scalar(view: F64VectorView<'_>, op: PosteriorReduceOp) -> Option<f64> {
     match op {
-        PosteriorReduceOp::Mean => scalar::masked_mean(view, None),
-        PosteriorReduceOp::Variance => scalar::masked_variance(view, None),
-        PosteriorReduceOp::Std => sample_sd(scalar::masked_variance(view, None)?, view.len()),
+        PosteriorReduceOp::Mean => unmasked(scalar::masked_mean(view, None)),
+        PosteriorReduceOp::Variance => unmasked(scalar::masked_variance(view, None)),
+        PosteriorReduceOp::Std => {
+            sample_sd(unmasked(scalar::masked_variance(view, None))?, view.len())
+        }
         PosteriorReduceOp::Min | PosteriorReduceOp::Max => {
             unreachable!("extremes are reduced on the raw slice before dispatch")
         }
@@ -115,9 +121,11 @@ fn reduce_scalar(view: F64VectorView<'_>, op: PosteriorReduceOp) -> Option<f64> 
 
 fn reduce_portable(view: F64VectorView<'_>, op: PosteriorReduceOp) -> Option<f64> {
     match op {
-        PosteriorReduceOp::Mean => portable::masked_mean(view, None),
-        PosteriorReduceOp::Variance => portable::masked_variance(view, None),
-        PosteriorReduceOp::Std => sample_sd(portable::masked_variance(view, None)?, view.len()),
+        PosteriorReduceOp::Mean => unmasked(portable::masked_mean(view, None)),
+        PosteriorReduceOp::Variance => unmasked(portable::masked_variance(view, None)),
+        PosteriorReduceOp::Std => {
+            sample_sd(unmasked(portable::masked_variance(view, None))?, view.len())
+        }
         PosteriorReduceOp::Min | PosteriorReduceOp::Max => reduce_scalar(view, op),
     }
 }
@@ -161,7 +169,6 @@ mod tests {
         assert!((portable - 2.0_f64.sqrt()).abs() < 1e-12);
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

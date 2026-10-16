@@ -10,16 +10,16 @@ from __future__ import annotations
 import argparse
 import tomllib
 from collections import Counter
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 SOURCE = ROOT / "parity/support_licensed.toml"
 OUTPUT = ROOT / "parity/calibration_backlog.md"
 
 
 def reviewed_ceiling() -> int:
     """Use the existing reason-code ratchet as the single reviewed ceiling."""
-    codes = tomllib.loads((ROOT / "parity/reason_codes.toml").read_text())["code"]
+    codes = tomllib.loads((ROOT / "parity/reason_codes.toml").read_text(encoding="utf-8"))["code"]
     return next(
         int(code["max_uses"])
         for code in codes if code["id"] == "estimator_grid_not_measured"
@@ -27,7 +27,7 @@ def reviewed_ceiling() -> int:
 
 
 def render() -> tuple[str, int]:
-    cells = tomllib.loads(SOURCE.read_text())["cell"]
+    cells = tomllib.loads(SOURCE.read_text(encoding="utf-8"))["cell"]
     gaps = [
         cell for cell in cells
         if cell.get("calibration_reason") == "estimator_grid_not_measured"
@@ -67,10 +67,10 @@ def main() -> int:
             f"{count} unmeasured cells exceed reviewed ceiling {ceiling}"
         )
     if args.check:
-        if not OUTPUT.exists() or OUTPUT.read_text() != text:
+        if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != text:
             parser.error(f"{OUTPUT.relative_to(ROOT)} is stale")
     else:
-        OUTPUT.write_text(text)
+        OUTPUT.write_text(text, encoding="utf-8", newline="\n")
     print(f"Calibration backlog: {count} cells")
     return 0
 

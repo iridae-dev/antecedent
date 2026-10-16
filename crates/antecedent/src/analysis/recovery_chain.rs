@@ -1,7 +1,7 @@
-//! 2.3 B2 (X10 second row): ordered-response recovery of a two-variable binary
+//! Ordered-response recovery of a two-variable binary
 //! m-graph, and its portable, independently consumable artifact.
 //!
-//! The row is exactly the graphs the 2.2 observation-recovery route refuses because
+//! The row is exactly the graphs the observation-recovery route refuses because
 //! of one response chain `R_h -> R_t`. [`RecoveryChain::decide`] decides the graph:
 //! a checked plan, or a self-censoring edge with an exactly verified witness (two
 //! models that agree on the nine observed pattern cells and differ on the target).

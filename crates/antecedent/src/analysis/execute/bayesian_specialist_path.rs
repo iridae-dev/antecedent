@@ -2,9 +2,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
-use antecedent_estimate::bayesian_iv::fit_bayesian_iv_joint_fixed_loading;
-use antecedent_estimate::bayesian_rd::fit_bayesian_sharp_rd;
+use super::{
+    Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalPosterior, CausalQuery, Dag,
+    Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext,
+    IdentificationResult, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifierId, InferenceDiagnostics, InferenceMode, Instant, OverlapPolicy,
+    PhysicalExecutionPlan, SharpRdConfig, SharpRdIdentifier, Strategy, Study, StudyResult,
+    TabularData, elapsed_ns, identify_static_query, require_identified, select_estimand,
+};
+use antecedent_estimate::DrawSpec;
+use antecedent_estimate::bayesian_iv::{
+    IvSample, StageVariances, fit_bayesian_iv_joint_fixed_loading,
+};
+use antecedent_estimate::bayesian_rd::{RdSample, fit_bayesian_sharp_rd};
 use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 
 /// Model-scope checks shared by the ordinary and checked Bayesian IV routes.
@@ -16,9 +26,7 @@ pub(super) fn check_bayesian_iv_scope(
         return Err(CausalError::Compile{message:"iv.bayesian_joint_linear currently supports exactly one instrument and no exogenous adjustment covariates".into()});
     }
     if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
-        || config.prior.is_some()
-        || config.prior_artifact.is_some()
-        || config.external_compose.is_some()
+        || config.has_transfer()
     {
         return Err(CausalError::Compile{message:"iv.bayesian_joint_linear requires its built-in conjugate model; transferred and custom priors are not supported".into()});
     }
@@ -36,9 +44,7 @@ pub(super) fn check_bayesian_rd_scope(
         });
     }
     if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
-        || config.prior.is_some()
-        || config.prior_artifact.is_some()
-        || config.external_compose.is_some()
+        || config.has_transfer()
     {
         return Err(CausalError::Compile{message:"rd.bayesian_local_linear requires its built-in conjugate model; transferred and custom priors are not supported".into()});
     }
@@ -108,14 +114,10 @@ impl Study {
         let n = prep.nrows;
         let z: Vec<f64> = (0..n).map(|r| prep.instruments_matrix[n + r]).collect();
         let result = fit_bayesian_iv_joint_fixed_loading(
-            &z,
-            &prep.treatment,
-            &prep.outcome,
+            &IvSample { instrument: &z, treatment: &prep.treatment, outcome: &prep.outcome },
             config.prior_scale,
-            1.0,
-            1.0,
-            config.n_draws,
-            ctx.rng.master_seed(),
+            StageVariances { treatment: 1.0, outcome: 1.0 },
+            DrawSpec::new(config.n_draws, ctx.rng.master_seed()),
             10.0,
         )
         .map_err(CausalError::from)?;
@@ -144,30 +146,25 @@ impl Study {
             DiagnosticSeverity::Info,
             "joint linear Gaussian structural model; fixed unit disturbance loading and declared stage variances of 1.0; one instrument; no adjustment covariates",
         )];
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
-            estimate,
-            identifier_id: IdentifierId::Iv,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: diagnostics,
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand.clone(),
+                estimate,
+                Strategy::new(IdentifierId::Iv, estimator_id),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(diagnostics)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 posterior: Some(posterior),
                 n_draws: Some(u32::try_from(config.n_draws).unwrap_or(u32::MAX)),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 
     pub(super) fn execute_bayesian_rd(
@@ -228,14 +225,11 @@ impl Study {
         let y = data.float64_masked(query.outcome, &mask).map_err(CausalError::from)?;
         let r = data.float64_masked(rd.running_variable, &mask).map_err(CausalError::from)?;
         let result = fit_bayesian_sharp_rd(
-            &r,
-            &t,
-            &y,
+            &RdSample { running: &r, treatment: &t, outcome: &y },
             rd.cutoff,
             rd.bandwidth,
             config.prior_scale,
-            config.n_draws,
-            ctx.rng.master_seed(),
+            DrawSpec::new(config.n_draws, ctx.rng.master_seed()),
         )
         .map_err(CausalError::from)?;
         let mut posterior = effect_posterior(
@@ -265,30 +259,25 @@ impl Study {
                 rd.cutoff, rd.bandwidth
             ),
         )];
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification: identification.clone(),
-            estimand: estimand.clone(),
-            estimate,
-            identifier_id: IdentifierId::RdSharp,
-            estimator_id,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: diagnostics,
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification.clone(),
+                estimand.clone(),
+                estimate,
+                Strategy::new(IdentifierId::RdSharp, estimator_id),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .extra_diagnostics(diagnostics)
+            .wall_time_ns(elapsed_ns(started))
+            .extras(IdentifiedExecuteExtras {
                 posterior: Some(posterior),
                 n_draws: Some(u32::try_from(config.n_draws).unwrap_or(u32::MAX)),
                 ..Default::default()
-            },
-        }))
+            }),
+        ))
     }
 }
 

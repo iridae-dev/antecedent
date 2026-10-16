@@ -1,43 +1,39 @@
 //! Retained graphless conditional continuous-dose response execution.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalExprArena, CausalQuery, DerivationTrace, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphClass,
+    IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteFinish, IdentifierId, InferenceMode, OverlapPolicy, PhysicalExecutionPlan,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, finish_identified_execute_with_context,
+};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 
-#[derive(Clone)]
-pub(crate) struct CheckedContinuousDoseOperation {
-    query: antecedent_core::ContinuousDoseResponseQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-}
+pub(crate) type CheckedContinuousDoseOperation =
+    RandomizedTrialOperation<antecedent_core::ContinuousDoseResponseQuery, ()>;
 
-impl std::fmt::Debug for CheckedContinuousDoseOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedContinuousDoseOperation")
-            .field("query", &self.query)
-            .field("rows", &self.rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::ContinuousDoseResponseQuery {
+    const OPERATION: &'static str = "CheckedContinuousDoseOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "continuous-dose refresh requires prepared schema and row order";
 }
 
 impl CheckedContinuousDoseOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::ContinuousDoseResponse(query) = &study.query else {
             return Err(CausalError::Compile {
                 message: "continuous-dose operation requires ContinuousDoseResponseQuery".into(),
             });
         };
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -53,30 +49,20 @@ impl CheckedContinuousDoseOperation {
             });
         }
         for id in [query.outcome, query.dose, query.dose_density] {
-            data.schema()
-                .get(id)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            data.schema().get(id).map_err(CausalError::rejected)?;
         }
         if physical.logical.query != study.query
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::ContinuousDoseExchangeability.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::ContinuousDoseKernel.as_str())
+            || !physical.binding().names(
+                IdentifierId::ContinuousDoseExchangeability,
+                EstimatorId::ContinuousDoseKernel,
+            )
         {
             return Err(CausalError::Compile {
                 message: "continuous-dose design differs from compiled plan".into(),
             });
         }
         let (identification, estimand) = continuous_dose_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -84,16 +70,7 @@ impl CheckedContinuousDoseOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "continuous-dose refresh requires prepared schema and row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         let numeric = |id| match data.column(id).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice().to_vec()),
             _ => Err(CausalError::Unsupported {
@@ -119,8 +96,59 @@ impl CheckedContinuousDoseOperation {
             )
             .map_err(|message| CausalError::Compile { message })?
         };
-        let fixed_policy = self
-            .query
+        let fixed_policy = self.fixed_policy_value(&outcome, &dose, &density, &groups)?;
+        let licensed_fixed_policy = self.licenses_fixed_policy(fixed_policy.as_ref(), &groups);
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), EffectEstimate::new(
+                    0.0,
+                    f64::NAN,
+                    self.identification.required_assumptions.clone(),
+                    OverlapPolicy::ExplicitOverride,
+                ), Strategy::new(IdentifierId::ContinuousDoseExchangeability, EstimatorId::ContinuousDoseKernel), self.query.dose, self.query.outcome).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
+                    "estimate.policy.continuous_dose_support",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    if fixed_policy.is_some() {
+                        "fixed group-to-dose policy and reference estimate kernel-smoothed intervention values with paired independent-row variance; the result does not identify an exact-dose intervention"
+                    } else {
+                        "all baseline-group target cells met local support; density provenance is caller-declared; local SD is descriptive; no interval or continuous-dose policy value"
+                    },
+                )]),
+        );
+        result.estimate = crate::PrimaryEstimate::NotAnEffect;
+        result.payload = crate::result::ResultPayload::ContinuousDoseResponse(
+            crate::ContinuousDoseResponseEstimate {
+                points: points.into(),
+                bandwidth: self.query.bandwidth,
+                density_provenance: self.query.density_provenance.clone(),
+                uncertainty: Arc::from(match &fixed_policy {
+                    Some(value) if value.incremental_interval_95.is_some() => {
+                        "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals"
+                    }
+                    Some(_) => "fixed_group_kernel_smoothed_paired_variance_no_interval",
+                    None => "point_only_no_interval",
+                }),
+                fixed_policy,
+            },
+        );
+        if licensed_fixed_policy {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
+        result.treatment = None;
+        Ok(result)
+    }
+
+    /// Kernel-smoothed value of the declared fixed group-to-dose policy against its reference.
+    fn fixed_policy_value(
+        &self,
+        outcome: &[f64],
+        dose: &[f64],
+        density: &[f64],
+        groups: &[String],
+    ) -> Result<Option<antecedent_estimate::continuous_dose::DosePolicyValue>, CausalError> {
+        self.query
             .fixed_policy
             .as_ref()
             .map(|rule| {
@@ -135,22 +163,36 @@ impl CheckedContinuousDoseOperation {
                     .map(|(group, dose)| (group.to_string(), *dose))
                     .collect::<Vec<_>>();
                 antecedent_estimate::continuous_dose::fixed_dose_policy_value(
-                    &outcome,
-                    &dose,
-                    &groups,
-                    &density,
-                    &policy,
-                    &reference,
-                    self.query.bandwidth,
-                    self.query.min_local_support,
-                    self.query.density_provenance.as_ref() == "known",
+                    &antecedent_estimate::continuous_dose::DoseRows {
+                        outcome,
+                        dose,
+                        groups,
+                        density,
+                    },
+                    &antecedent_estimate::continuous_dose::DoseRules {
+                        policy: &policy,
+                        reference: &reference,
+                    },
+                    &antecedent_estimate::continuous_dose::DoseWindow {
+                        bandwidth: self.query.bandwidth,
+                        min_local_support: self.query.min_local_support,
+                        density_known: self.query.density_provenance.as_ref() == "known",
+                    },
                 )
                 .map_err(|message| CausalError::Compile { message })
             })
-            .transpose()?;
-        let licensed_fixed_policy = fixed_policy.as_ref().is_some_and(|value| {
+            .transpose()
+    }
+
+    /// Grants the graphless license when all three fixed-policy intervals publish on supported rows.
+    fn licenses_fixed_policy(
+        &self,
+        fixed_policy: Option<&antecedent_estimate::continuous_dose::DosePolicyValue>,
+        groups: &[String],
+    ) -> bool {
+        fixed_policy.is_some_and(|value| {
             let mut group_rows = std::collections::BTreeMap::<&str, usize>::new();
-            for group in &groups {
+            for group in groups {
                 *group_rows.entry(group.as_str()).or_default() += 1;
             }
             let intervals = [
@@ -184,64 +226,7 @@ impl CheckedContinuousDoseOperation {
                 },
             )
             .is_some()
-        });
-        let mut result = finish_identified_execute_with_context(
-            &self.result_context,
-            Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate: EffectEstimate::new(
-                    0.0,
-                    f64::NAN,
-                    self.identification.required_assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                ),
-                identifier_id: IdentifierId::ContinuousDoseExchangeability,
-                estimator_id: EstimatorId::ContinuousDoseKernel,
-                treatment: self.query.dose,
-                outcome: self.query.outcome,
-                identify_cached: true,
-                extra_diagnostics: vec![Diagnostic::new(
-                    "estimate.policy.continuous_dose_support",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    if fixed_policy.is_some() {
-                        "fixed group-to-dose policy and reference estimate kernel-smoothed intervention values with paired independent-row variance; the result does not identify an exact-dose intervention"
-                    } else {
-                        "all baseline-group target cells met local support; density provenance is caller-declared; local SD is descriptive; no interval or continuous-dose policy value"
-                    },
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
-        );
-        result.estimate = crate::PrimaryEstimate::NotAnEffect;
-        result.continuous_dose_response = Some(crate::ContinuousDoseResponseEstimate {
-            points: points.into(),
-            bandwidth: self.query.bandwidth,
-            density_provenance: self.query.density_provenance.clone(),
-            uncertainty: Arc::from(match &fixed_policy {
-                Some(value) if value.incremental_interval_95.is_some() => {
-                    "fixed_group_kernel_smoothed_paired_pointwise_95_normal_intervals"
-                }
-                Some(_) => "fixed_group_kernel_smoothed_paired_variance_no_interval",
-                None => "point_only_no_interval",
-            }),
-            fixed_policy,
-        });
-        if licensed_fixed_policy {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
-        }
-        result.treatment = None;
-        Ok(result)
+        })
     }
 }
 
@@ -249,7 +234,7 @@ impl Study {
     pub(super) fn execute_continuous_dose_response(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedContinuousDoseOperation::checked(self, data, physical)?.execute(data, ctx)

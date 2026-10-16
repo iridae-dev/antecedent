@@ -14,8 +14,10 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
+from .._columns import coerce_fields
+from .._study_lifecycle import replay_declaration, retain
 from .._transport_results import TransportGridPoint, TransportUncertainty
-from ..errors import CausalUnsupportedError, CausalValueError
+from ..errors import CausalCancelledError, CausalUnsupportedError, CausalValueError
 from ..graph import Admg
 from ._impl import (
     EmpiricalTable,
@@ -108,10 +110,10 @@ class RestrictedTransportIdentification:
         return _canonical_status(self.outcome)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "rules", tuple(self.rules))
-        object.__setattr__(self, "laws", tuple(self.laws))
-        object.__setattr__(self, "obstructions", tuple(self.obstructions))
-        object.__setattr__(self, "components", tuple(self.components))
+        coerce_fields(self, rules=tuple(self.rules))
+        coerce_fields(self, laws=tuple(self.laws))
+        coerce_fields(self, obstructions=tuple(self.obstructions))
+        coerce_fields(self, components=tuple(self.components))
 
 
 class RestrictedTransportExecution:
@@ -294,17 +296,16 @@ class _RestrictedNative:
         cancel = self.limits.cancel if cancel is None else cancel
         laws, catalog = self.rebuild(data)
         if catalog == self.catalog:
-            done = 0
-            try:
-                for prepared in self._prepared:
-                    prepared.refresh(laws, cancel=cancel)
-                    done += 1
-            except Exception:
-                # Restore the handles already rebound so a failed refresh leaves
-                # every world on the previous valid snapshot.
-                for prepared in self._prepared[:done]:
-                    prepared.refresh(self.laws, cancel=cancel)
-                raise
+            from .._rollback import refresh_all_or_restore
+
+            previous = self.laws
+            # A cancellation is a BaseException. except Exception would leave the
+            # worlds already rebound on ``laws`` and the rest on ``previous``.
+            refresh_all_or_restore(
+                self._prepared,
+                lambda prepared: prepared.refresh(laws, cancel=cancel),
+                lambda prepared: prepared.refresh(previous, cancel=cancel),
+            )
         else:
             self._prepared = self._prepare_all(catalog, laws, cancel=cancel)
         self.laws = laws
@@ -328,8 +329,28 @@ class _RestrictedNative:
         return self.last
 
     def refresh(self, data: Any, cancel: Any = None) -> RestrictedTransportExecution:
-        self.replace_snapshot(data, cancel=cancel)
-        return self.estimate(cancel=cancel)
+        from .._native import CancellationToken
+
+        cancel = self.limits.cancel if cancel is None else cancel
+        if isinstance(cancel, CancellationToken) and cancel.is_cancelled():
+            raise CausalCancelledError("cancelled before restricted transport refresh")
+        laws, catalog = self.rebuild(data)
+        candidate = self.freeze()
+        candidate.laws = laws
+        candidate.catalog = catalog
+        candidate.stage_snapshot = None
+        # Reuse the retained Rust stage/certificate and settings, preparing replacement
+        # handles separately so refusals or cancellation cannot invalidate the old claim.
+        candidate._prepared = self._prepare_all(catalog, laws, cancel=cancel)
+        result = candidate.estimate(cancel=cancel)
+        self._prepared = candidate._prepared
+        self.laws = laws
+        self.catalog = catalog
+        self.last = result
+        if self.stage_snapshot is not None:
+            self.stage_snapshot["catalog"] = catalog
+            self.stage_snapshot["bound"] = data
+        return result
 
     def export(self) -> bytes:
         """The last execution's artifacts, framed as one loadable transport view."""
@@ -563,7 +584,9 @@ def prepare_restricted(
         limits=limits,
         seed=(inference or TransportInference()).seed,
         rules=identified.rules,
-        rebuild=functools.partial(_rebuild, graph, query, source_name=identified.source),
+        rebuild=functools.partial(
+            _rebuild, graph, replay_declaration(retain(query)), source_name=identified.source
+        ),
     )
     prepared: PreparedAnalysis[Any] = PreparedAnalysis(native, kind="z_transport", query=query)
     prepared._transport_stage = stage_snapshot
@@ -576,12 +599,9 @@ def _rebuild(
     graph: Admg, query: Any, data: Any, source_name: str | None
 ) -> tuple[tuple[ExactDiscreteLaw, ...], EvidenceCatalog]:
     """Laws and the catalog they bind to, for a replacement snapshot."""
-    from ._day1 import _question_parts
-
-    treatments, outcomes = _question_parts(query.question)
     source = next(source for source in query.evidence.sources if source.identity == source_name)
-    bundle = _source_bundle(graph, query, data, source, outcomes, treatments)
-    return bundle["laws"], bundle["catalog"]
+    _empirical, laws, assignment = _laws_for_source(graph, query, data, source)
+    return laws, _catalog(graph, query, source, laws, assignment)
 
 
 def _source_bundle(

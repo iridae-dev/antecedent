@@ -16,8 +16,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
@@ -56,7 +54,8 @@ impl Default for FrontDoorSearchConfig {
 /// Diagnostic code of a front-door mediator search that was cut by `max_mediator_set_size`,
 /// the intermediate-pool bound, or `max_results`: a `NotIdentified` carrying it is a search
 /// bound, not a structural refusal.
-pub const FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.frontdoor.search_bounded";
+pub(crate) const FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
+    "identify.frontdoor.search_bounded";
 
 /// Front-door criterion identifier for static DAGs.
 #[derive(Clone, Debug, Default)]
@@ -91,7 +90,7 @@ impl FrontDoorIdentifier {
         graph: &Dag,
         assumptions: AssumptionSet,
     ) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        Ok(PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions))
+        Ok(PreparedIdentificationGraph::wrap(graph, assumptions))
     }
 
     /// Identify an average-effect query via the front-door criterion.
@@ -124,6 +123,10 @@ impl FrontDoorIdentifier {
         )
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn identify_ate(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -147,7 +150,7 @@ impl FrontDoorIdentifier {
 
         // Singletons excluding T,Y.
         for i in 0..dag.node_count() {
-            let v = DenseNodeId::from_raw(u32::try_from(i).expect("node id fits u32"));
+            let v = DenseNodeId::from_index(i);
             if v == t || v == y {
                 continue;
             }
@@ -171,7 +174,7 @@ impl FrontDoorIdentifier {
 
         // Non-empty subsets of all intermediates V\{T,Y} (non-child + mixed sets).
         let intermediates: Vec<DenseNodeId> = (0..dag.node_count())
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node id fits u32")))
+            .map(DenseNodeId::from_index)
             .filter(|&v| v != t && v != y)
             .collect();
         // Cap pool to avoid combinatorial blow-ups (same spirit as backdoor's >20 guard).

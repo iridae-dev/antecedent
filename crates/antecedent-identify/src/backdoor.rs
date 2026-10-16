@@ -7,12 +7,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::unnecessary_wraps)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -21,7 +19,7 @@ use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_expr::CausalExprArena;
-use antecedent_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId};
+use antecedent_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::error::IdentificationError;
 use crate::identifier::IdentificationWorkspace;
@@ -32,7 +30,7 @@ use crate::result::{
 /// Diagnostic code of a back-door search that spent `max_examinations` before it finished
 /// the subset enumeration. A valid set may still be returned; only the choice among sets is
 /// unfinished.
-pub const BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.backdoor.search_bounded";
+pub(crate) const BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.backdoor.search_bounded";
 
 /// Configuration for adjustment-set enumeration.
 #[derive(Clone, Debug)]
@@ -98,15 +96,124 @@ impl AdjustmentSearchConfig {
     }
 }
 
-/// Ranked adjustment set with optional measurement cost.
-#[derive(Clone, Debug)]
-pub struct RankedAdjustmentSet {
-    /// Adjustment variables.
-    pub variables: Arc<[VariableId]>,
-    /// Total measurement cost (sum of per-variable costs).
-    pub measurement_cost: f64,
-    /// Optional positivity / overlap score after a data check (`None` if not ranked).
-    pub positivity_score: Option<f64>,
+/// The adjustment instance both back-door searches start from.
+///
+/// History lag and measurement cost are dense in the DAG's node order, so the
+/// subset search does not scan the configuration lists per candidate or per
+/// comparison. The first listed lag or cost for a variable wins, matching
+/// [`AdjustmentSearchConfig::exceeds_history_lag`].
+pub(crate) struct AdjustmentProblem {
+    /// Treatment node.
+    pub(crate) t: DenseNodeId,
+    /// Outcome node.
+    pub(crate) y: DenseNodeId,
+    /// Configured exclusions, `T`, `Y`, and descendants of `T`.
+    pub(crate) forbidden: BitSet,
+    /// Nodes that are neither forbidden nor past the history-lag limit.
+    pub(crate) candidates: Vec<DenseNodeId>,
+    /// `G` with edges out of `T` removed.
+    pub(crate) mutilated: Dag,
+    /// Per-node measurement cost. A variable with no listed cost is `1.0`.
+    costs: Vec<f64>,
+    /// First listed history lag of each node. `None` means the variable is unrestricted.
+    lags: Vec<Option<u32>>,
+    /// Copied from the search config so lag checks do not re-read the arc.
+    max_history_lag: Option<u32>,
+}
+
+impl AdjustmentProblem {
+    /// Build the shared preamble.
+    ///
+    /// # Errors
+    ///
+    /// Unknown treatment, outcome, or forbidden variable.
+    pub(crate) fn new(
+        dag: &Dag,
+        treatment: VariableId,
+        outcome: VariableId,
+        config: &AdjustmentSearchConfig,
+        gws: &mut antecedent_graph::GraphWorkspace,
+    ) -> Result<Self, IdentificationError> {
+        let t = var_to_dense(treatment, dag)?;
+        let y = var_to_dense(outcome, dag)?;
+        let n = dag.node_count();
+        let mut forbidden = BitSet::with_len(n);
+        for &v in config.forbidden.iter() {
+            forbidden.insert(var_to_dense(v, dag)?);
+        }
+        forbidden.insert(t);
+        forbidden.insert(y);
+        let mut desc = BitSet::with_len(n);
+        dag.descendants_of(&[t], &mut desc, gws);
+        for id in DenseNodeId::all(n) {
+            if desc.contains(id) {
+                forbidden.insert(id);
+            }
+        }
+        let lags = dense_lags(dag, config);
+        let max_history_lag = config.max_history_lag;
+        // History lag is not applied. Efficient backdoor never consulted it;
+        // the backdoor search filters afterwards.
+        let candidates = DenseNodeId::all(n).filter(|id| !forbidden.contains(*id)).collect();
+        let mutilated = remove_outgoing(dag, t)?;
+        Ok(Self {
+            t,
+            y,
+            forbidden,
+            candidates,
+            mutilated,
+            costs: dense_costs(dag, config),
+            lags,
+            max_history_lag,
+        })
+    }
+
+    /// Whether `id`'s first listed lag is past the configured maximum.
+    pub(crate) fn exceeds_lag(&self, id: DenseNodeId) -> bool {
+        lag_exceeds(&self.lags, self.max_history_lag, id)
+    }
+
+    /// Sum of per-node measurement costs. An unlisted node costs `1.0`.
+    pub(crate) fn total_cost(&self, z: &[DenseNodeId]) -> f64 {
+        z.iter().map(|d| self.costs[d.as_usize()]).sum()
+    }
+}
+
+fn dense_lags(dag: &Dag, config: &AdjustmentSearchConfig) -> Vec<Option<u32>> {
+    let mut lags = vec![None; dag.node_count()];
+    let mut seen = vec![false; dag.node_count()];
+    for &(variable, lag) in config.history_lags.iter() {
+        let Ok(dense) = var_to_dense(variable, dag) else { continue };
+        let i = dense.as_usize();
+        if seen[i] {
+            continue;
+        }
+        seen[i] = true;
+        lags[i] = Some(lag);
+    }
+    lags
+}
+
+fn dense_costs(dag: &Dag, config: &AdjustmentSearchConfig) -> Vec<f64> {
+    let mut costs = vec![1.0; dag.node_count()];
+    let mut seen = vec![false; dag.node_count()];
+    for &(variable, cost) in config.measurement_costs.iter() {
+        let Ok(dense) = var_to_dense(variable, dag) else { continue };
+        let i = dense.as_usize();
+        if seen[i] {
+            continue;
+        }
+        seen[i] = true;
+        costs[i] = cost;
+    }
+    costs
+}
+
+fn lag_exceeds(lags: &[Option<u32>], max_history_lag: Option<u32>, id: DenseNodeId) -> bool {
+    let Some(max_lag) = max_history_lag else {
+        return false;
+    };
+    lags.get(id.as_usize()).and_then(|lag| *lag).is_some_and(|lag| lag > max_lag)
 }
 
 /// Prepared DAG for identification (cached ancestry helpers via workspaces).
@@ -128,6 +235,11 @@ impl PreparedIdentificationGraph {
     #[must_use]
     pub fn with_assumptions(dag: Dag, declared_assumptions: AssumptionSet) -> Self {
         Self { dag, declared_assumptions }
+    }
+
+    /// The prepared DAG the back-door, front-door, IV, and efficient searches share.
+    pub(crate) fn wrap(dag: &Dag, assumptions: AssumptionSet) -> Self {
+        Self::with_assumptions(dag.clone(), assumptions)
     }
 
     /// Borrow the DAG.
@@ -183,7 +295,7 @@ impl BackdoorIdentifier {
         graph: &Dag,
         assumptions: AssumptionSet,
     ) -> Result<PreparedIdentificationGraph, IdentificationError> {
-        Ok(PreparedIdentificationGraph::with_assumptions(graph.clone(), assumptions))
+        Ok(PreparedIdentificationGraph::wrap(graph, assumptions))
     }
 
     /// Identify an average-effect query via backdoor adjustment.
@@ -245,7 +357,10 @@ impl BackdoorIdentifier {
         )
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn identify_ate(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -254,35 +369,19 @@ impl BackdoorIdentifier {
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
         let dag = prepared.dag();
-        let t = var_to_dense(ate.treatment, dag)?;
-        let y = var_to_dense(ate.outcome, dag)?;
-        let mut forbidden = BitSet::with_len(dag.node_count());
-        for &v in self.config.forbidden.iter() {
-            forbidden.insert(var_to_dense(v, dag)?);
-        }
-        forbidden.insert(t);
-        forbidden.insert(y);
-
-        // Descendants of T cannot be in Z.
-        let mut desc = BitSet::with_len(dag.node_count());
-        dag.descendants_of(&[t], &mut desc, &mut workspace.graph);
-        for i in 0..dag.node_count() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-            if desc.contains(id) {
-                forbidden.insert(id);
-            }
-        }
-
-        // G underbar T: remove outgoing edges from T.
-        let mutilated = remove_outgoing(dag, t)?;
-
-        let mut candidates: Vec<DenseNodeId> = (0..dag.node_count())
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
-            .filter(|id| !forbidden.contains(*id))
-            .filter(|id| {
-                dense_to_var(*id, dag).map(|v| !self.config.exceeds_history_lag(v)).unwrap_or(true)
-            })
-            .collect();
+        let problem = AdjustmentProblem::new(
+            dag,
+            ate.treatment,
+            ate.outcome,
+            &self.config,
+            &mut workspace.graph,
+        )?;
+        let t = problem.t;
+        let y = problem.y;
+        let forbidden = &problem.forbidden;
+        let mutilated = &problem.mutilated;
+        let mut candidates = problem.candidates.clone();
+        candidates.retain(|id| !problem.exceeds_lag(*id));
 
         let mut derivation_notes: Vec<String> = Vec::new();
         let mut examined = 0u64;
@@ -294,9 +393,9 @@ impl BackdoorIdentifier {
         // Textor 2014), so one separation test decides existence and the subset search below
         // only chooses which valid sets to return.
         let constructive =
-            screen_ancestor_candidates(dag, t, y, &forbidden, &self.config, &mut workspace.graph);
+            screen_ancestor_candidates(dag, t, y, forbidden, &problem, true, &mut workspace.graph);
         examined += 1;
-        let exists = is_backdoor_adjustment(&mutilated, t, y, &constructive, &mut workspace.dsep)?;
+        let exists = is_backdoor_adjustment(mutilated, t, y, &constructive, &mut workspace.dsep)?;
 
         let cap = self.config.max_candidates;
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
@@ -320,8 +419,8 @@ impl BackdoorIdentifier {
                 let o_set =
                     crate::efficient::optimal_adjustment_set_pub(dag, t, y, &mut workspace.graph);
                 examined += 1;
-                if o_set.iter().all(|v| !forbidden.contains(*v))
-                    && is_backdoor_adjustment(&mutilated, t, y, &o_set, &mut workspace.dsep)?
+                if o_set.iter().all(|v| !forbidden.contains(*v) && !problem.exceeds_lag(*v))
+                    && is_backdoor_adjustment(mutilated, t, y, &o_set, &mut workspace.dsep)?
                 {
                     derivation_notes.push(format!(
                         "exact enumeration skipped ({} candidates > max_candidates={cap}); returned O-set",
@@ -355,24 +454,37 @@ impl BackdoorIdentifier {
                     if enum_err.is_some() {
                         return true;
                     }
-                    if self.config.minimal_only && valid.iter().any(|prev| is_subset(prev, z)) {
-                        return false;
-                    }
-                    if self.config.maximal_only
-                        && !self.config.minimal_only
-                        && valid.iter().any(|prev| is_subset(z, prev))
-                    {
+                    // A superset of a set already in hand is not d-separated again, but it still
+                    // spends the examination budget. Skipping it for free lets one minimal set
+                    // walk an exponential family (up to the candidate power set) that the cap
+                    // never sees.
+                    let skipped = (self.config.minimal_only
+                        && valid.iter().any(|prev| is_subset(prev, z)))
+                        || (self.config.maximal_only
+                            && !self.config.minimal_only
+                            && valid.iter().any(|prev| is_subset(z, prev)));
+                    if skipped {
+                        if !charge_examination(
+                            &mut examined,
+                            self.config.max_examinations,
+                            &mut budget_exhausted,
+                            &mut early_stop,
+                        ) {
+                            return true;
+                        }
                         return false;
                     }
                     // The ancestral set was tested above; do not spend a second test on it.
                     if z != constructive.as_slice() {
-                        if examined >= self.config.max_examinations {
-                            budget_exhausted = true;
-                            early_stop = true;
+                        if !charge_examination(
+                            &mut examined,
+                            self.config.max_examinations,
+                            &mut budget_exhausted,
+                            &mut early_stop,
+                        ) {
                             return true;
                         }
-                        examined += 1;
-                        match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
+                        match is_backdoor_adjustment(mutilated, t, y, z, &mut workspace.dsep) {
                             Ok(false) => return false,
                             Err(e) => {
                                 enum_err = Some(e);
@@ -416,8 +528,9 @@ impl BackdoorIdentifier {
         // Cost-weighted ordering (stable; lower total cost first).
         if !self.config.measurement_costs.is_empty() {
             valid.sort_by(|a, b| {
-                total_cost(a, dag, &self.config.measurement_costs)
-                    .partial_cmp(&total_cost(b, dag, &self.config.measurement_costs))
+                problem
+                    .total_cost(a)
+                    .partial_cmp(&problem.total_cost(b))
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
         }
@@ -509,6 +622,26 @@ fn is_subset(small: &[DenseNodeId], big: &[DenseNodeId]) -> bool {
     small.iter().all(|s| big.contains(s))
 }
 
+/// Charge one candidate against `max_examinations`.
+///
+/// Returns false, and marks the search bounded, when the cap is already spent. The candidate
+/// that hits the cap is refused rather than tested, so a search that lands exactly on the cap
+/// has examined every candidate it accepted.
+fn charge_examination(
+    examined: &mut u64,
+    max_examinations: u64,
+    budget_exhausted: &mut bool,
+    early_stop: &mut bool,
+) -> bool {
+    if *examined >= max_examinations {
+        *budget_exhausted = true;
+        *early_stop = true;
+        return false;
+    }
+    *examined += 1;
+    true
+}
+
 /// `An({T,Y}) \ forbidden`, minus variables past the history-lag limit.
 ///
 /// A sound screen for the subset search, and the constructive adjustment set: when any
@@ -518,30 +651,20 @@ pub(crate) fn screen_ancestor_candidates(
     t: DenseNodeId,
     y: DenseNodeId,
     forbidden: &BitSet,
-    config: &AdjustmentSearchConfig,
+    problem: &AdjustmentProblem,
+    respect_history_lag: bool,
     gws: &mut antecedent_graph::GraphWorkspace,
 ) -> Vec<DenseNodeId> {
     let mut an = BitSet::with_len(dag.node_count());
     dag.ancestors_of(&[t, y], &mut an, gws);
-    (0..dag.node_count())
-        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
-        .filter(|id| an.contains(*id) && !forbidden.contains(*id))
-        .filter(|id| dense_to_var(*id, dag).map(|v| !config.exceeds_history_lag(v)).unwrap_or(true))
+    DenseNodeId::all(dag.node_count())
+        .filter(|id| {
+            an.contains(*id)
+                && !forbidden.contains(*id)
+                && !(respect_history_lag && problem.exceeds_lag(*id))
+        })
         .collect()
 }
-
-fn total_cost(z: &[DenseNodeId], dag: &Dag, costs: &[(VariableId, f64)]) -> f64 {
-    z.iter()
-        .map(|d| {
-            let Ok(v) = dense_to_var(*d, dag) else {
-                return 1.0;
-            };
-            costs.iter().find(|(id, _)| *id == v).map_or(1.0, |(_, c)| *c)
-        })
-        .sum()
-}
-
-impl BackdoorIdentifier {}
 
 pub(crate) fn is_backdoor_adjustment(
     mutilated: &Dag,
@@ -562,31 +685,14 @@ pub(crate) fn remove_outgoing_set(
     dag: &Dag,
     nodes: &[DenseNodeId],
 ) -> Result<Dag, IdentificationError> {
-    let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::msg("n"))?;
-    let mut out = Dag::with_variables(n);
-    for e in dag.edges() {
-        let (from, to) = e.parent_child().expect("dag");
-        if nodes.contains(&from) {
-            continue;
-        }
-        out.insert_directed(from, to).map_err(IdentificationError::from)?;
-    }
-    Ok(out)
+    dag.copy_filtered(|from, _to| !nodes.contains(&from)).map_err(IdentificationError::from)
 }
 
 /// `G` with every node in `nodes` fully removed (both incoming and outgoing
 /// edges dropped; node ids and count preserved).
 pub(crate) fn remove_nodes(dag: &Dag, nodes: &[DenseNodeId]) -> Result<Dag, IdentificationError> {
-    let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::msg("n"))?;
-    let mut out = Dag::with_variables(n);
-    for e in dag.edges() {
-        let (from, to) = e.parent_child().expect("dag");
-        if nodes.contains(&from) || nodes.contains(&to) {
-            continue;
-        }
-        out.insert_directed(from, to).map_err(IdentificationError::from)?;
-    }
-    Ok(out)
+    dag.copy_filtered(|from, to| !nodes.contains(&from) && !nodes.contains(&to))
+        .map_err(IdentificationError::from)
 }
 
 pub(crate) fn var_to_dense(id: VariableId, dag: &Dag) -> Result<DenseNodeId, IdentificationError> {
@@ -863,6 +969,46 @@ mod tests {
     }
 
     #[test]
+    fn superset_skips_stop_at_the_examination_cap() {
+        // One backdoor chain T ← N1 ← … ← N30 → Y. Every singleton blocks it, so with
+        // `minimal_only` every larger subset is a superset. `max_results` stays above 30, so
+        // the search does not stop on the result cap; it used to walk the rest of the power
+        // set without charging those skips, and `max_examinations` never fired.
+        let n = 30u32;
+        let mut g = Dag::with_variables(n + 2);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        g.insert_directed(t, y).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(2), t).unwrap();
+        for i in 2..=n {
+            g.insert_directed(DenseNodeId::from_raw(i + 1), DenseNodeId::from_raw(i)).unwrap();
+        }
+        g.insert_directed(DenseNodeId::from_raw(n + 1), y).unwrap();
+
+        let mut id = BackdoorIdentifier::new();
+        let cap = 40u64;
+        id.config.max_examinations = cap;
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let res = id.identify(&prep, &q, &mut IdentificationWorkspace::default()).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.performance.candidates_examined, cap);
+        let sets: Vec<Vec<VariableId>> =
+            res.estimands.iter().map(|e| e.adjustment_set.iter().copied().collect()).collect();
+        assert_eq!(sets.len(), 30, "sets={sets:?}");
+        assert!(sets.iter().all(|s| s.len() == 1), "sets={sets:?}");
+        let bounded = res
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE)
+            .expect("the cap stops the skipped supersets");
+        assert_eq!(bounded.kind, antecedent_core::DiagnosticKind::Execution);
+    }
+
+    #[test]
     fn distribution_and_path_specific_are_unsupported() {
         use antecedent_core::{
             Intervention, InterventionalDistributionQuery, PathSpecificEffectQuery, Value,
@@ -1029,6 +1175,41 @@ mod tests {
         assert!(!z.contains(&VariableId::from_raw(3)));
     }
 
+    #[test]
+    fn history_lag_and_cost_keep_the_first_listed_value() {
+        // A later row for the same variable must not override the first, which is what
+        // `exceeds_history_lag` returns from `find`.
+        let mut g = Dag::with_variables(3);
+        let (t, y, z) =
+            (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+        g.insert_directed(z, t).unwrap();
+        g.insert_directed(z, y).unwrap();
+        g.insert_directed(t, y).unwrap();
+        let mut id = BackdoorIdentifier::new();
+        id.config.max_history_lag = Some(1);
+        id.config.history_lags =
+            Arc::from([(VariableId::from_raw(2), 0u32), (VariableId::from_raw(2), 9)]);
+        id.config.measurement_costs =
+            Arc::from([(VariableId::from_raw(2), 0.25), (VariableId::from_raw(2), 4.0)]);
+        assert!(!id.config.exceeds_history_lag(VariableId::from_raw(2)));
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let res = id.identify(&prep, &q, &mut IdentificationWorkspace::default()).unwrap();
+        assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+        let problem = AdjustmentProblem::new(
+            &g,
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &id.config,
+            &mut GraphWorkspace::default(),
+        )
+        .unwrap();
+        assert!((problem.total_cost(&[z]) - 0.25).abs() < 1e-12);
+    }
+
     /// One confounder Z plus `extra` isolated candidates (total candidates = 1+extra).
     /// Minimal valid Z is `{confounder}` at size 1 — safe with large candidate pools.
     fn one_confounder_many_candidates(extra: u32) -> Dag {
@@ -1154,21 +1335,15 @@ pub fn check_joint_adjustment(
                     message: "invalid joint adjustment roles".into(),
                 });
             }
-            let mut downstream = std::collections::BTreeSet::new();
-            let mut stack: Vec<_> =
-                treatments.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
-            while let Some(node) = stack.pop() {
-                for child in graph.children(node) {
-                    if downstream.insert(*child) {
-                        stack.push(*child);
-                    }
-                }
-            }
-            if adjustment.iter().any(|id| downstream.contains(&DenseNodeId::from_raw(id.raw()))) {
-                return Ok(None);
-            }
             let nodes: Vec<_> =
                 treatments.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
+            let mut downstream = BitSet::with_len(graph.node_count());
+            graph.descendants_of(&nodes, &mut downstream, &mut GraphWorkspace::default());
+            // Adjustment roles never include a treatment (checked above), so the
+            // reflexive descendant set decides exactly the strict-descendant test.
+            if adjustment.iter().any(|id| downstream.contains(DenseNodeId::from_raw(id.raw()))) {
+                return Ok(None);
+            }
             let mutilated = remove_outgoing_set(graph, &nodes)?;
             let z: Vec<_> = adjustment.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
             let mut ws = DSeparationWorkspace::default();

@@ -1,4 +1,4 @@
-//! 2.2B X10: exact evaluation of recovery formulas against enumerated SCM truth,
+//! Exact evaluation of recovery formulas against enumerated SCM truth,
 //! the downstream effect, the bounded-class sweep and the observed-law refusals.
 #![allow(clippy::cast_possible_truncation, reason = "test indices are small")]
 
@@ -8,11 +8,14 @@ mod support {
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, LawOrigin, Value};
+use antecedent_core::{ExecutionContext, LawOrigin, RegimeId, Value};
+use antecedent_estimate::posterior_mean::{
+    DirichletNamespace, PosteriorRequest, dirichlet_posterior_mean, dirichlet_supported_mean,
+};
 use antecedent_estimate::{evaluate_exact_recovery, evaluate_recovered_effect};
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
-    ExactTransportData, LawTolerance,
+    ExactEvaluationSpec, ExactTransportData, LawTolerance,
 };
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
@@ -219,13 +222,15 @@ fn the_recovered_law_feeds_a_backdoor_effect_equal_to_the_complete_data_effect()
             .unwrap()
             .with_world_bound_leaves(vec![model.complete_law().regime()]);
         let plan = ExactEvaluationPlan::compile(
-            identified.arena(),
-            identified.root(),
+            ExactEvaluationSpec {
+                arena: identified.arena(),
+                root: identified.root(),
+                outcomes: vec![v(1)].into(),
+                request: at_level(0, level as f64),
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             complete,
-            vec![v(1)],
-            at_level(0, level as f64),
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx(),
         )
         .unwrap();
@@ -587,4 +592,88 @@ fn every_graph_of_the_bounded_class_matches_truth_or_has_a_verified_witness() {
     assert!(totals.0 >= 2000, "{totals:?}");
     assert!(totals.1 >= 12000, "{totals:?}");
     assert_eq!(totals.2, 0, "listed gaps (witness unavailable): {totals:?}");
+}
+
+#[test]
+fn binary_posterior_mean_stays_at_the_enumerated_recovery() {
+    let model = MModel::new(1, 1, &[(1, 0)], &[vec![1]], 21).unwrap();
+    let derivation = derive(&model, None);
+    let observed = model.observed_law();
+    let free: Vec<f64> = observed.probabilities().iter().copied().filter(|p| *p > 0.0).collect();
+    let mean = dirichlet_posterior_mean(
+        &free,
+        PosteriorRequest::IndependentNormal { scale: 1e-8 },
+        DirichletNamespace::BinaryRecovery,
+    )
+    .unwrap();
+    let mut filled = Vec::with_capacity(observed.probabilities().len());
+    let mut cursor = 0;
+    for probability in observed.probabilities() {
+        if *probability > 0.0 {
+            filled.push(mean[cursor]);
+            cursor += 1;
+        } else {
+            filled.push(0.0);
+        }
+    }
+    let updated = ExactDiscreteLaw::try_new(
+        observed.population(),
+        RegimeId::from_raw(7),
+        observed.interventions().to_vec(),
+        observed.axes().to_vec(),
+        filled,
+        observed.snapshot_identity(),
+        LawTolerance::default(),
+    )
+    .unwrap();
+    let recovered = evaluate_exact_recovery(&derivation, &updated, &ctx()).unwrap();
+    let frequentist = evaluate_exact_recovery(&derivation, &observed, &ctx()).unwrap();
+    for (got, expected) in
+        recovered.law().probabilities().iter().zip(frequentist.law().probabilities())
+    {
+        assert!((got - expected).abs() < 1e-5, "{got} vs {expected}");
+    }
+}
+
+#[test]
+fn binary_posterior_refuses_an_external_power_prior() {
+    let error = dirichlet_posterior_mean(
+        &[0.5, 0.5],
+        PosteriorRequest::ExternalPower,
+        DirichletNamespace::BinaryRecovery,
+    )
+    .unwrap_err();
+    let antecedent_estimate::EstimationError::Refused { message, .. } = error else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("binary_recovery_posterior.external_power_prior"), "{message}");
+}
+
+#[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "a cell outside the observed support is assigned exactly zero, not a rounded value"
+)]
+fn binary_posterior_consumer_replays_the_pattern_mean() {
+    let model = MModel::new(1, 1, &[(1, 0)], &[vec![1]], 21).unwrap();
+    let observed = model.observed_law();
+    let produced = dirichlet_supported_mean(
+        observed.probabilities(),
+        PosteriorRequest::IndependentNormal { scale: 0.01 },
+        DirichletNamespace::BinaryRecovery,
+    )
+    .unwrap();
+    let positive: Vec<f64> =
+        observed.probabilities().iter().copied().filter(|p| *p > 0.0).collect();
+    let total = positive.iter().sum::<f64>() + positive.len() as f64 * 0.01;
+    let mut cursor = 0;
+    for (got, weight) in produced.iter().zip(observed.probabilities()) {
+        if *weight == 0.0 {
+            assert_eq!(*got, 0.0);
+        } else {
+            assert!((got - (weight + 0.01) / total).abs() < 1e-12);
+            cursor += 1;
+        }
+    }
+    assert_eq!(cursor, positive.len());
 }

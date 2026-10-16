@@ -87,6 +87,10 @@ impl EffectPrior {
     /// # Errors
     ///
     /// Invalid parameters.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn validate(self) -> Result<(), ProbError> {
         if !self.mean.is_finite() {
             return Err(ProbError::InvalidPrior { message: "effect prior mean must be finite" });
@@ -131,6 +135,10 @@ impl GaussianCoefficientPrior {
     /// # Errors
     ///
     /// Non-finite mean, non-positive / non-finite variance, or zero coefficients.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn shared(n_coef: usize, mean: f64, variance: f64) -> Result<Self, ProbError> {
         if n_coef == 0 {
             return Err(ProbError::InvalidPrior { message: "n_coef must be > 0" });
@@ -202,6 +210,10 @@ impl GaussianCoefficientPrior {
     /// # Errors
     ///
     /// Length mismatch, non-finite / non-positive absolute variances or `sigma2`.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn from_absolute_variance(
         mean: impl Into<Arc<[f64]>>,
         absolute_variance: impl Into<Arc<[f64]>>,
@@ -243,6 +255,10 @@ impl GaussianCoefficientPrior {
     /// # Errors
     ///
     /// Length mismatch, empty prior, non-finite mean, or non-positive / non-finite variance.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn validate(&self) -> Result<(), ProbError> {
         if self.mean.len() != self.variance.len() {
             return Err(ProbError::InvalidPrior { message: "mean and variance length mismatch" });
@@ -264,6 +280,10 @@ impl GaussianCoefficientPrior {
     }
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn validate_sigma2(sigma2: f64) -> Result<(), ProbError> {
     if !(sigma2 > 0.0) || !sigma2.is_finite() {
         return Err(ProbError::InvalidPrior {
@@ -294,6 +314,10 @@ impl InvGammaPrior {
     /// # Errors
     ///
     /// Non-positive or non-finite shape or scale.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn validate(self) -> Result<(), ProbError> {
         if !(self.shape > 0.0)
             || !(self.scale > 0.0)
@@ -390,6 +414,10 @@ impl CoefficientCorrelation {
     ///
     /// Wrong length, a non-positive or non-finite diagonal, or a covariance
     /// whose correlation is not a valid positive-definite correlation.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn from_covariance(covariance: &[f64], dim: usize) -> Result<Option<Self>, ProbError> {
         if dim == 0 || covariance.len() != dim.saturating_mul(dim) {
             return Err(ProbError::InvalidPrior {
@@ -480,6 +508,7 @@ impl CoefficientCorrelation {
 /// The diagonal arm reproduces the per-coefficient arithmetic the backends have
 /// always used, so diagonal priors fit bit-for-bit as before.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum CoefficientPrecision {
     /// `1 / variance[i]` per coefficient.
     Diagonal(Vec<f64>),
@@ -670,6 +699,10 @@ impl PriorSpec {
     /// # Errors
     ///
     /// Invalid parameters.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn validate(&self) -> Result<(), ProbError> {
         match self {
             Self::GaussianCoefficients(p) => p.validate(),
@@ -718,7 +751,11 @@ impl GaussianVarianceModel {
     ///
     /// # Errors
     ///
-    /// More than one residual specification, or invalid known / InvGamma params.
+    /// More than one residual specification, or invalid known / `InvGamma` params.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn from_prior_set(prior: &PriorSet) -> Result<Self, ProbError> {
         let mut known: Option<f64> = None;
         let mut inv_gamma: Option<InvGammaPrior> = None;
@@ -830,7 +867,7 @@ impl PriorSet {
     /// # Errors
     ///
     /// Invalid specs, missing contrast, more than one coefficient prior, or more
-    /// than one residual variance specification (known σ² and InvGamma cannot
+    /// than one residual variance specification (known σ² and `InvGamma` cannot
     /// both appear).
     pub fn validate(&self) -> Result<(), ProbError> {
         for s in &self.specs {
@@ -1036,7 +1073,7 @@ impl PriorSet {
 
 /// Restriction-id prefix of the absolute-coefficient-scale marker
 /// ([`PriorSet::mark_absolute_coefficient_scale`]).
-pub const ABSOLUTE_COEFFICIENT_SCALE_ID: &str = "absolute_coefficient_scale";
+pub(crate) const ABSOLUTE_COEFFICIENT_SCALE_ID: &str = "absolute_coefficient_scale";
 
 fn absolute_scale_indices(id: &str) -> Option<Vec<usize>> {
     let list = id.strip_prefix(ABSOLUTE_COEFFICIENT_SCALE_ID)?.strip_prefix(':')?;

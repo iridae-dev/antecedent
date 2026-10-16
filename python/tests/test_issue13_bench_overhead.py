@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import io
 from contextlib import redirect_stdout
-from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+from _repo_text import REPO_ROOT
+
+REPO = REPO_ROOT
 BENCH = REPO / "examples" / "python" / "bench_python_overhead.py"
 
 EXPECTED_COLUMNS = {

@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (staged_handle); do not edit -->
 # Prepared handle — 1.3.0
 
 Established: 2026-09-08 (the first measurement date the note below states)

@@ -25,9 +25,7 @@ fn f(x: f64) -> Value {
     Value::f64(x)
 }
 
-fn v(raw: u32) -> VariableId {
-    VariableId::from_raw(raw)
-}
+use crate::test_support::v;
 
 /// Classic confounding DAG: Z → T, Z → Y, T → Y. Backdoor set is `{Z}`.
 fn confounding_dag() -> Dag {

@@ -46,7 +46,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
@@ -74,16 +73,15 @@ use antecedent_stats::{
 use crate::adjustment::EffectEstimate;
 use crate::cluster_dml_aipw::ClusterDml;
 use crate::error::EstimationError;
-use crate::overlap::{IpwTarget, OverlapPolicy};
+use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::propensity::{
     PenalizedReport, PenalizedVarianceReport, PreparedPropensityProblem, PropensityModel,
     PropensityNuisance, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, clamp_scores,
     clip_of, crossfit_influence_se, default_propensity_overlap, fold_supports, gather, gather_into,
-    prepare_propensity_problem_with_registry, refuse, split_by_treatment, trim_of,
-    trim_retained_rows,
+    prepare_propensity_problem_with_registry, split_by_treatment, trim_of, trim_retained_rows,
 };
 use crate::se::AnalyticSeKind;
-use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
+use crate::util::{BootstrapSeResult, bootstrap_se, refuse, stats_err};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -512,13 +510,8 @@ impl AipwAte {
         identification: &IdentificationResult,
         estimand_index: usize,
     ) -> Result<CheckedAipwPreparation, EstimationError> {
-        let target = identification
-            .estimands
-            .get(estimand_index)
-            .ok_or_else(|| EstimationError::data_msg("selected estimand index is out of range"))?;
-        let claim = identification.claim(estimand_index).ok_or_else(|| {
-            EstimationError::data_msg("selected estimand has no identification claim")
-        })?;
+        let crate::prepare::CheckedSelection { estimand: target, claim } =
+            crate::prepare::CheckedSelection::resolve(identification, estimand_index)?;
         if claim.status != IdentificationStatus::NonparametricallyIdentified {
             return Err(EstimationError::data_msg(format!(
                 "checked AIPW requires a nonparametrically identified claim; got {}",
@@ -536,17 +529,11 @@ impl AipwAte {
                 message: "checked AIPW requires a back-door adjustment target without instrument or mediator roles",
             });
         }
-        let mut adjustment = target.adjustment_set.to_vec();
-        adjustment.sort_unstable();
-        adjustment.dedup();
-        if adjustment.len() != target.adjustment_set.len()
-            || adjustment.contains(&query.treatment)
-            || adjustment.contains(&query.outcome)
-        {
-            return Err(EstimationError::data_msg(
-                "checked AIPW adjustment roles must be unique and exclude treatment and outcome",
-            ));
-        }
+        crate::prepare::require_unique_roles(
+            &target.adjustment_set,
+            &[query.treatment, query.outcome],
+            "checked AIPW adjustment roles must be unique and exclude treatment and outcome",
+        )?;
         if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
             || query.target_population != TargetPopulation::AllObserved
         {
@@ -708,7 +695,7 @@ impl AipwAte {
     /// A penalized propensity (declared, or the destination of a fallback that ran) repeats the
     /// fold plan, the penalty (and lasso support) selection and every nuisance fit on each
     /// resample, and records the penalties each replicate selected in
-    /// [`EffectEstimate::penalized`]. When the point came from a fallback, the replicates run
+    /// [`crate::EstimateDiagnostics::penalized`]. When the point came from a fallback, the replicates run
     /// the destination (the claim is the destination's); when it came from the GLM, they run
     /// the GLM without the fallback, so a failing replicate is counted rather than replaced.
     ///
@@ -746,7 +733,10 @@ impl AipwAte {
         Ok(point.with_bootstrap(Some(boot)))
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one point fit in order: check the route, fit the propensity, trim, fit both outcome arms, then score and assemble; every stage reads the retained rows"
+    )]
     fn fit_point(
         &self,
         problem: &PreparedPropensityProblem,
@@ -816,7 +806,7 @@ impl AipwAte {
 
         let model = PropensityModel::fit(
             problem,
-            &self.backend,
+            self.backend,
             &mut workspace.propensity,
             &self.glm_options,
         )
@@ -860,26 +850,16 @@ impl AipwAte {
         )?;
         predict_colmajor(&design_used, nrows, ncols, &beta0, &mut workspace.mu0);
         predict_colmajor(&design_used, nrows, ncols, &beta1, &mut workspace.mu1);
-        let psi_target =
-            if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
-                TargetPopulation::AllObserved
-            } else {
-                problem.target_population.clone()
-            };
         aipw_psi(
             &t_used,
             &y_used,
             &e_used,
             &workspace.mu0,
             &workspace.mu1,
-            &psi_target,
+            &problem.target_population,
             &mut workspace.psi,
         )?;
-        let ate = if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
-            crate::joint_if::weighted_mean(&workspace.psi, problem.target_weights.as_deref())?
-        } else {
-            workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64
-        };
+        let ate = workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64;
         if matches!(
             problem.target_population,
             TargetPopulation::Treated | TargetPopulation::Untreated
@@ -960,9 +940,8 @@ impl AipwAte {
         weights: Option<&[f64]>,
         refuse_overlap: bool,
     ) -> Result<EffectEstimate, EstimationError> {
-        let seeded = Self::crossfit_problem(problem, ctx);
-        let problem = &seeded;
-        let (table, nuisance) = self.crossfit_table(problem, true, ctx)?;
+        let fold_seed = ctx.rng.master_seed();
+        let (table, nuisance) = self.crossfit_table(problem, true, ctx, Some(fold_seed))?;
         let crate::crossfit_aipw::NuisanceFit { selections, fallback } = nuisance;
         let n_folds = table.n_folds as usize;
         let report = PenalizedReport {
@@ -1007,18 +986,7 @@ impl AipwAte {
                 None,
             )?
         };
-        let e_hat =
-            table.columns.iter().position(|c| c.arm == 1 && c.threshold.is_none()).and_then(
-                |col| table.propensities.get(col * table.n_rows..(col + 1) * table.n_rows),
-            );
-        let overlap_report = e_hat.map(|scores| {
-            crate::propensity::propensity_overlap_report(
-                problem,
-                scores,
-                None,
-                IpwTarget::from_population(&problem.target_population).ok(),
-            )
-        });
+        let overlap_report = treated_arm_overlap_report(&table, problem);
         // Whole-cluster folds: the sandwich standard error of the same scores, under the declared
         // independence unit (`docs/guides/clustered-dml.md`).
         let cluster_se = match (self.cluster_dml, self.cluster_ids.as_deref()) {
@@ -1035,37 +1003,39 @@ impl AipwAte {
                 .with_joint_covariance(iid_se.then_some(summary.covariance))
                 .with_influence(Some(influence.into()))
                 .with_score_table(Some(table));
-        result.score_inference = iid_se.then_some(inference);
+        result.scores.inference = iid_se.then_some(inference);
         if penalized_route {
             // The penalized route publishes the same cross-fitted scores, influence values and
             // iid / robust SE as the unpenalized one (the interval rests on the remainder
             // condition of `docs/guides/penalized-aipw.md`) and records which nuisances it
             // selected, which fold selected them, and any fallback that replaced a failed fit.
-            result.crossfit_folds = Some(n_folds);
-            result.crossfit_seed = Some(problem.fold_seed);
-            result.learner_provenance = penalized_provenance;
+            result.crossfit.folds = Some(n_folds);
+            result.crossfit.seed = Some(fold_seed);
+            result.crossfit.learner_provenance = penalized_provenance;
         }
         if !report.is_empty() {
-            result.penalized = Some(Box::new(report));
+            result.diagnostics.penalized = Some(Box::new(report));
         }
         if self.cluster_dml.is_some() {
             // The cluster-DML route publishes the cluster-sandwich SE below; the iid
             // covariance and influence values of these scores are not a licensed sampling
             // distribution for it (see `docs/guides/clustered-dml.md`).
-            result.se_analytic = f64::NAN;
-            result.se_kind = None;
-            result.joint_covariance = None;
-            result.score_inference = None;
-            result.influence = None;
-            result.crossfit_folds = Some(n_folds);
-            result.crossfit_seed = Some(problem.fold_seed);
-            result.learner_provenance = selections.into_iter().map(|s| s.provenance).collect();
+            result.uncertainty.analytic.se = f64::NAN;
+            result.uncertainty.analytic.kind = None;
+            result.joint.covariance = None;
+            result.scores.inference = None;
+            result.scores.influence = None;
+            result.crossfit.folds = Some(n_folds);
+            result.crossfit.seed = Some(fold_seed);
+            result.crossfit.learner_provenance =
+                selections.into_iter().map(|s| s.provenance).collect();
             if let Some((se, df)) = cluster_se {
                 // The cluster sandwich replaces the iid standard error; the iid joint
                 // covariance and influence values stay withheld (wrong dependence).
-                result.se_analytic = se;
-                result.se_reference_df = Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
-                result.se_kind = Some(if self.cluster_ids_second.is_some() {
+                result.uncertainty.analytic.se = se;
+                result.uncertainty.analytic.reference_df =
+                    Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
+                result.uncertainty.analytic.kind = Some(if self.cluster_ids_second.is_some() {
                     AnalyticSeKind::Multiway
                 } else {
                     AnalyticSeKind::Cluster
@@ -1076,6 +1046,10 @@ impl AipwAte {
     }
 
     /// The recorded cross-fit seed must govern the fold plan, not only the learners.
+    ///
+    /// Production fits pass that seed into the score table. The tests still build the
+    /// seeded problem so a resample can be compared with the original.
+    #[cfg(test)]
     fn crossfit_problem(
         problem: &PreparedPropensityProblem,
         ctx: &ExecutionContext,
@@ -1094,17 +1068,21 @@ impl AipwAte {
         p: &PreparedPropensityProblem,
         share: bool,
         ctx: &ExecutionContext,
+        fold_seed: Option<u64>,
     ) -> Result<(crate::scores::ScoreTable, crate::crossfit_aipw::NuisanceFit), EstimationError>
     {
         crate::crossfit_aipw::build_binary_scores_in(
             p,
-            p.treatment_id,
-            &[None],
-            crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
-            &self.glm_options,
-            self.backend,
-            share,
-            Some(ctx),
+            &crate::crossfit_aipw::ScoreBuild {
+                treatment: p.treatment_id,
+                thresholds: &[None],
+                folds: crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
+                glm_options: &self.glm_options,
+                backend: self.backend,
+                share,
+                ctx: Some(ctx),
+                fold_seed,
+            },
         )
     }
 
@@ -1116,14 +1094,13 @@ impl AipwAte {
         ctx: &ExecutionContext,
         weights: Option<&[f64]>,
     ) -> Result<BootstrapSeResult, EstimationError> {
-        let seeded = Self::crossfit_problem(problem, ctx);
-        let problem = &seeded;
+        let fold_seed = ctx.rng.master_seed();
         bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
             let mut p = resampled_problem(problem, idx, weights);
             // The point is the GLM result: a replicate whose GLM fit fails is a failed
             // replicate, never silently a ridge fit.
             p.propensity = PropensityNuisance::default();
-            let Ok((t, _)) = self.crossfit_table(&p, false, ctx) else {
+            let Ok((t, _)) = self.crossfit_table(&p, false, ctx, Some(fold_seed)) else {
                 return Ok(None);
             };
             let ss = t.summarize(p.target_weights.as_deref())?;
@@ -1134,7 +1111,8 @@ impl AipwAte {
     /// The nuisance configuration a bootstrap replicate runs: the fallback destination when
     /// the point came from a fallback, the declared penalized propensity, or the plain GLM.
     fn replicate_nuisance(&self, point: &EffectEstimate) -> PropensityNuisance {
-        let fell_back = point.penalized.as_ref().is_some_and(|report| report.fallback.is_some());
+        let fell_back =
+            point.diagnostics.penalized.as_ref().is_some_and(|report| report.fallback.is_some());
         if fell_back {
             self.propensity.fallback_destination().unwrap_or_default()
         } else if self.propensity.is_penalized() {
@@ -1154,7 +1132,6 @@ impl AipwAte {
     /// record replays from the seed under any thread count. A replicate that fails softly
     /// (a fold missing an arm, a failed fit, a boundary propensity) is counted, never
     /// replaced; a cancelled one stops the loop and is reported as a stop.
-    #[allow(clippy::too_many_lines)]
     fn attach_penalized_bootstrap(
         &self,
         problem: &PreparedPropensityProblem,
@@ -1167,8 +1144,7 @@ impl AipwAte {
             Failed,
             Cancelled,
         }
-        let mut base = Self::crossfit_problem(problem, ctx);
-        base.propensity = nuisance;
+        let base = penalized_bootstrap_base(problem, ctx.rng.master_seed(), nuisance);
         let n = base.nrows;
         let n_rep = self.bootstrap_replicates as usize;
         let len = n.checked_mul(n_rep).ok_or_else(|| {
@@ -1195,7 +1171,7 @@ impl AipwAte {
                 let idx: Vec<usize> =
                     indexes[r * n..(r + 1) * n].iter().map(|&i| i as usize).collect();
                 let p = resampled_problem(&base, &idx, None);
-                Ok(match self.crossfit_table(&p, false, inner) {
+                Ok(match self.crossfit_table(&p, false, inner, None) {
                     Ok((table, fit)) => match table.summarize(None) {
                         Ok(summary) => {
                             let ate = summary.means[1] - summary.means[0];
@@ -1233,11 +1209,11 @@ impl AipwAte {
             }
         }
         let boot = crate::util::finalize_bootstrap_se_ex(&ates, attempted, cancelled, false);
-        let influence_se = match point.score_table.as_ref() {
+        let influence_se = match point.scores.table.as_ref() {
             Some(table) => crossfit_influence_se(table)?,
             None => f64::NAN,
         };
-        let mut report = point.penalized.as_deref().cloned().unwrap_or_default();
+        let mut report = point.diagnostics.penalized.as_deref().cloned().unwrap_or_default();
         report.variance = Some(PenalizedVarianceReport {
             uncertainty_kind: REFIT_BOOTSTRAP_UNCERTAINTY_KIND,
             refit_bootstrap_se: boot.se,
@@ -1249,21 +1225,21 @@ impl AipwAte {
             influence_se,
         });
         let mut estimate = point.with_bootstrap(Some(boot));
-        estimate.penalized = Some(Box::new(report));
+        estimate.diagnostics.penalized = Some(Box::new(report));
         Ok(estimate)
     }
 
     fn bootstrap_se(
         &self,
         problem: &PreparedPropensityProblem,
-        workspace: &mut AipwWorkspace,
+        _workspace: &mut AipwWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let clip = clip_of(problem.overlap);
         let trim = trim_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
-        let _ = workspace;
+        // Replicates own a cold workspace; parallel workers cannot share the caller's.
         crate::util::bootstrap_se_with_scratch(
             self.bootstrap_replicates,
             ctx,
@@ -1354,6 +1330,25 @@ impl AipwAte {
 
 /// Stream tag of the penalized refit bootstrap's resample plan.
 const PENALIZED_BOOTSTRAP_STREAM: u64 = 0xA1D7_0001;
+
+/// The problem a penalized refit bootstrap resamples.
+///
+/// The fold seed and replicate nuisance are written onto a clone only when they differ
+/// from `problem`. A problem that already carries both matches that clone, so it is reused.
+fn penalized_bootstrap_base(
+    problem: &PreparedPropensityProblem,
+    fold_seed: u64,
+    nuisance: PropensityNuisance,
+) -> std::borrow::Cow<'_, PreparedPropensityProblem> {
+    if problem.fold_seed == fold_seed && problem.propensity == nuisance {
+        std::borrow::Cow::Borrowed(problem)
+    } else {
+        let mut seeded = problem.clone();
+        seeded.fold_seed = fold_seed;
+        seeded.propensity = nuisance;
+        std::borrow::Cow::Owned(seeded)
+    }
+}
 
 /// The prepared problem restricted to the resampled rows `idx`. Copies of one original row
 /// keep that row's identity (and shared fold), so no unit is both in a training set and in
@@ -1659,6 +1654,24 @@ struct AipwNuisanceFit<'a> {
     ncols: usize,
 }
 
+/// Overlap report of the treated arm's cross-fitted propensities, when the table carries one.
+fn treated_arm_overlap_report(
+    table: &crate::scores::ScoreTable,
+    problem: &PreparedPropensityProblem,
+) -> Option<OverlapReport> {
+    let e_hat = table
+        .columns
+        .iter()
+        .position(|c| c.arm == 1 && c.threshold.is_none())
+        .and_then(|col| table.propensities.get(col * table.n_rows..(col + 1) * table.n_rows))?;
+    Some(crate::propensity::propensity_overlap_report(
+        problem,
+        e_hat,
+        None,
+        IpwTarget::from_population(&problem.target_population).ok(),
+    ))
+}
+
 #[cfg(test)]
 #[allow(
     clippy::many_single_char_names,
@@ -1704,7 +1717,7 @@ mod tests {
         for i in 0..n {
             let zi = standard_normal(&mut rng);
             let logit = -0.5 + zi;
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             z[i] = zi;
@@ -1869,11 +1882,15 @@ mod tests {
             .fit(&problem, &mut workspace, &ExecutionContext::for_tests(441), AssumptionSet::new())
             .unwrap();
         assert_eq!(sealed.ate.to_bits(), plain.ate.to_bits());
-        assert_eq!(sealed.se_analytic.to_bits(), plain.se_analytic.to_bits());
-        assert_eq!(sealed.se_bootstrap.map(f64::to_bits), plain.se_bootstrap.map(f64::to_bits));
-        assert!(sealed.score_table.is_none(), "the trimmed fit has no cross-fitted score table");
+        assert_eq!(sealed.se_analytic().to_bits(), plain.se_analytic().to_bits());
+        assert_eq!(sealed.se_bootstrap().map(f64::to_bits), plain.se_bootstrap().map(f64::to_bits));
+        assert!(sealed.scores.table.is_none(), "the trimmed fit has no cross-fitted score table");
         assert!(
-            sealed.overlap_report.as_ref().is_some_and(|report| report.excluded_fraction > 0.0)
+            sealed
+                .diagnostics
+                .overlap_report
+                .as_ref()
+                .is_some_and(|report| report.excluded_fraction > 0.0)
         );
 
         // An estimator whose policy differs from the receipt cannot execute it.
@@ -1900,12 +1917,15 @@ mod tests {
             let full = boot.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
             let point_only = AipwAte { bootstrap_replicates: 0, ..boot.clone() };
             let point = point_only.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-            assert!(point.se_bootstrap.is_none());
+            assert!(point.se_bootstrap().is_none());
             let attached = boot.attach_bootstrap(&prep, &mut ws, &ctx(), point).unwrap();
             assert_eq!(attached.ate.to_bits(), full.ate.to_bits());
-            assert!(full.se_bootstrap.is_some());
-            assert_eq!(attached.se_bootstrap, full.se_bootstrap);
-            assert_eq!(attached.bootstrap_replicates_ok, full.bootstrap_replicates_ok);
+            assert!(full.se_bootstrap().is_some());
+            assert_eq!(attached.se_bootstrap(), full.se_bootstrap());
+            assert_eq!(
+                attached.uncertainty.bootstrap.replicates_ok,
+                full.uncertainty.bootstrap.replicates_ok
+            );
         }
     }
 
@@ -1919,8 +1939,8 @@ mod tests {
         let mut ws = AipwWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "ate={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
-        assert!(effect.overlap_report.is_some());
+        assert!(effect.se_bootstrap().is_some());
+        assert!(effect.diagnostics.overlap_report.is_some());
     }
 
     #[test]
@@ -1961,7 +1981,7 @@ mod tests {
         for i in 0..n {
             let z = standard_normal(&mut rng);
             let logit = -0.5 + z;
-            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let pi_i = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             t[i] = ti;
@@ -2009,7 +2029,7 @@ mod tests {
         for i in 0..n {
             let z = standard_normal(&mut rng);
             let logit = -0.5 + z;
-            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let pi_i = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             t[i] = ti;
@@ -2042,7 +2062,7 @@ mod tests {
         for i in 0..n {
             let z = standard_normal(&mut rng);
             let logit = -0.5 + z;
-            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let pi_i = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             t[i] = ti;
@@ -2075,7 +2095,7 @@ mod tests {
         for i in 0..n {
             let z = standard_normal(&mut rng);
             let logit = -0.5 + z;
-            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let pi_i = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             t[i] = ti;
@@ -2113,7 +2133,7 @@ mod tests {
             let prep = est.prepare(&data, &estimand, &query).unwrap();
             let mut ws = AipwWorkspace::default();
             let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
-            assert!(fit.se_analytic.is_finite() && fit.se_analytic > 0.0, "kind={kind:?}");
+            assert!(fit.se_analytic().is_finite() && fit.se_analytic() > 0.0, "kind={kind:?}");
         }
     }
 
@@ -2143,7 +2163,7 @@ mod tests {
 
         assert!((raw.ate - 2.0).abs() > 1.0, "outlier should distort untrimmed ate={}", raw.ate);
         assert!((clean.ate - 2.0).abs() < 0.35, "trimmed ate={}", clean.ate);
-        let report = clean.overlap_report.as_ref().unwrap();
+        let report = clean.diagnostics.overlap_report.as_ref().unwrap();
         assert!(report.excluded_fraction > 0.0, "trim must report exclusions");
     }
 
@@ -2194,7 +2214,7 @@ mod tests {
         for i in 0..n {
             let zi = standard_normal(&mut rng);
             let logit = -0.5 + 0.3 * zi + 1.2 * (zi * zi - 1.0);
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             z[i] = zi;
             t[i] = ti;
@@ -2213,8 +2233,8 @@ mod tests {
         let fit = est.fit(&prep, &mut AipwWorkspace::default(), &ctx(), AssumptionSet::new());
         let fit = fit.unwrap();
         let jk = jackknife_se(&t, &y, &z, &est);
-        let rel = (fit.se_analytic - jk).abs() / jk;
-        assert!(rel < 0.15, "analytic {} vs jackknife {jk}", fit.se_analytic);
+        let rel = (fit.se_analytic() - jk).abs() / jk;
+        assert!(rel < 0.15, "analytic {} vs jackknife {jk}", fit.se_analytic());
     }
 
     #[test]
@@ -2238,8 +2258,8 @@ mod tests {
             let prep = est.prepare(&data, &estimand, &query).unwrap();
             let fit = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
             assert_eq!(fit.ate.to_bits(), iid.ate.to_bits(), "{:?}", est.se_kind);
-            assert!(fit.score_table.is_some());
-            assert!(fit.joint_covariance.is_none() && fit.score_inference.is_none());
+            assert!(fit.scores.table.is_some());
+            assert!(fit.joint.covariance.is_none() && fit.scores.inference.is_none());
         }
     }
 
@@ -2265,13 +2285,42 @@ mod tests {
             AipwAte::crossfit_problem(&est.prepare(&data, &estimand, &query).unwrap(), &ctx());
         let idx: Vec<usize> = (0..original.nrows).collect();
         let same = resampled_problem(&original, &idx, None);
-        let (a, fit_a) = est.crossfit_table(&original, false, &ctx()).unwrap();
-        let (b, fit_b) = est.crossfit_table(&same, false, &ctx()).unwrap();
+        let (a, fit_a) = est.crossfit_table(&original, false, &ctx(), None).unwrap();
+        let (b, fit_b) = est.crossfit_table(&same, false, &ctx(), None).unwrap();
         let bits = |t: &crate::scores::ScoreTable| -> Vec<u64> {
             t.scores.iter().map(|v| v.to_bits()).collect()
         };
         assert_eq!(bits(&a), bits(&b));
         assert_eq!(fit_a.selections, fit_b.selections);
+    }
+
+    /// The refit bootstrap clones only to install a different fold seed or propensity.
+    #[test]
+    fn penalized_bootstrap_base_clones_only_when_the_seed_or_propensity_differs() {
+        let (data, estimand) = confounded_scm(40, 3);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = ridge_estimator(&[0.5, 5.0], 2);
+        let problem = est.prepare(&data, &estimand, &query).unwrap();
+        let nuisance = est.propensity.clone();
+        assert_eq!(problem.fold_seed, 0);
+        assert_eq!(problem.propensity, nuisance);
+
+        let changed = super::penalized_bootstrap_base(&problem, 7, nuisance.clone());
+        assert!(matches!(changed, std::borrow::Cow::Owned(_)));
+        assert_eq!(changed.fold_seed, 7);
+        assert_eq!(changed.propensity, nuisance);
+
+        let mut seeded = problem.clone();
+        seeded.fold_seed = 7;
+        let same = super::penalized_bootstrap_base(&seeded, 7, nuisance);
+        assert!(matches!(same, std::borrow::Cow::Borrowed(_)));
+        assert!(std::ptr::eq(same.as_ref(), &seeded));
+
+        let swapped = super::penalized_bootstrap_base(&seeded, 7, PropensityNuisance::default());
+        assert!(matches!(swapped, std::borrow::Cow::Owned(_)));
+        assert_eq!(swapped.fold_seed, 7);
+        assert_eq!(swapped.propensity, PropensityNuisance::default());
     }
 
     /// The refit bootstrap's replicate selects every fold's penalty on the resample only.
@@ -2294,11 +2343,11 @@ mod tests {
         let n = original.nrows;
         let idx: Vec<usize> = (0..n).map(|k| (k * 7) % (n / 2)).collect();
         let replicate = resampled_problem(&original, &idx, None);
-        let (_, fit) = est.crossfit_table(&replicate, false, &ctx()).unwrap();
+        let (_, fit) = est.crossfit_table(&replicate, false, &ctx(), None).unwrap();
         assert_eq!(fit.selections.len(), 5);
 
         let arms: Vec<u32> = replicate.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
-        let folds = crate::learn_nuisance::crossfit_fold_plan(
+        let folds = crate::crossfit_plan::crossfit_fold_plan(
             &arms,
             &replicate.row_index,
             5,
@@ -2362,7 +2411,7 @@ mod tests {
             .collect::<Vec<_>>()
             .into();
         let replicate_b = resampled_problem(&rewritten, &idx, None);
-        let (_, fit_b) = est.crossfit_table(&replicate_b, false, &ctx()).unwrap();
+        let (_, fit_b) = est.crossfit_table(&replicate_b, false, &ctx(), None).unwrap();
         assert_eq!(fit_b.selections, fit.selections);
     }
 }

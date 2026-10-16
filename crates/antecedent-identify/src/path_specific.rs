@@ -1,13 +1,14 @@
 //! Path-restricted natural-effect identification (Avin, Shpitser & Pearl 2005).
 //!
-//! Enumerate directed paths π from treatment to outcome and refuse when a
-//! recanting witness exists. When every directed path is in π the
-//! path-specific effect is the total effect: surgically delete treatment
-//! out-edges not on any path and run general ID for the active/control
-//! contrast. When a complementary path exists, emit the edge g-formula
-//! (Shpitser 2013): the treatment enters each child's factor at the active
-//! level if that edge starts a path in π and at the control level otherwise,
-//! minus the all-control g-formula.
+//! Decide which treatment out-edges start a selected path and which start a
+//! complementary path by directed reachability, and refuse when a recanting
+//! witness exists. The edge assignment does not need the paths themselves.
+//! When every directed path is selected the path-specific effect is the total
+//! effect: surgically delete treatment out-edges that start no selected path
+//! and run general ID for the active/control contrast. When a complementary
+//! path exists, emit the edge g-formula (Shpitser 2013): the treatment enters
+//! each child's factor at the active level if that edge starts a selected path
+//! and at the control level otherwise, minus the all-control g-formula.
 //!
 //! # Recanting witness
 //!
@@ -47,7 +48,7 @@ use antecedent_expr::{
     CausalExprArena, ContrastOp, DerivationMeta, DomainRef, EstimandMethod, ExprId, ExprNode,
     IdentifiedEstimand, InterventionAssignment, OutcomeExprId,
 };
-use antecedent_graph::{Admg, Dag, DenseNodeId};
+use antecedent_graph::{Admg, BitSet, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::error::IdentificationError;
 use crate::id::IdIdentifier;
@@ -60,7 +61,8 @@ use crate::result::{
 /// Diagnostic code: path enumeration stopped at its budget before the recanting-witness
 /// check could run over the complete path set. The `NotIdentified` it accompanies is a
 /// search bound, not a statement about the graph.
-pub const SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.path_specific.search_bounded";
+#[cfg(test)]
+pub(crate) const SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.path_specific.search_bounded";
 
 /// Path-restricted natural-effect identifier.
 #[derive(Clone, Debug, Default)]
@@ -133,7 +135,10 @@ impl PathSpecificIdentifier {
         self.identify_path_specific(prepared, q, query.clone(), workspace)
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn identify_path_specific(
         &self,
         prepared: &PreparedAdmg,
@@ -151,67 +156,20 @@ impl PathSpecificIdentifier {
             q.path_nodes.iter().map(|&v| prepared.var_to_dense(v)).collect::<Result<_, _>>()?;
 
         let admg = prepared.admg();
-        // Enumerate on the directed skeleton (DAG view of directed edges).
-        let dag = admg_to_dag(admg)?;
-        let (raw_paths, paths_truncated) = dag
-            .directed_paths_with_budget(t, y, q.max_paths, q.max_len)
-            .map_err(IdentificationError::from)?;
-        perf.candidates_examined = perf.candidates_examined.saturating_add(raw_paths.len() as u64);
+        // Directed skeleton. Selected versus complementary paths are a reachability
+        // question on the treatment's children; the estimand only needs those first hops.
+        let dag = admg.directed_part().map_err(IdentificationError::from)?;
+        let hops = classify_first_hops(
+            &dag,
+            t,
+            y,
+            path_question(&query, &path_filter),
+            &mut workspace.graph,
+        )?;
+        perf.candidates_examined =
+            perf.candidates_examined.saturating_add(hops.children_reaching_outcome);
 
-        // The recanting-witness test below concludes "identifiable" from the *absence* of a
-        // witness. That inference is only valid over the complete path set: a witness sitting
-        // on a path the budget dropped would be missed, and the effect declared
-        // nonparametrically identified when Avin, Shpitser & Pearl (2005) say it is not. Fail closed.
-        if paths_truncated {
-            derivation.push(
-                "path_specific.truncated",
-                format!(
-                    "path enumeration hit its budget (max_paths={}, max_len={}); the recanting-witness \
-                     check cannot certify absence over an incomplete path set",
-                    q.max_paths, q.max_len
-                ),
-            );
-            let mut out = IdentificationResult::not_identified(
-                query,
-                derivation,
-                prepared.declared_assumptions().clone(),
-                perf,
-            );
-            out.diagnostics.push(crate::result::search_bounded_diagnostic(
-                SEARCH_BOUNDED_DIAGNOSTIC_CODE,
-                format!(
-                    "path enumeration stopped at max_paths={} / max_len={} before the path set \
-                     was complete; identifiability is undecided, not refuted — raise the budget",
-                    q.max_paths, q.max_len
-                ),
-            ));
-            return Ok(out);
-        }
-
-        // π and its complement come from one enumeration: re-running it would only repeat the
-        // same budgeted search, and the two sets must partition the *same* path set for the
-        // recanting check below to mean anything.
-        let (pi, complement_paths): (Vec<Vec<DenseNodeId>>, Vec<Vec<DenseNodeId>>) =
-            raw_paths.into_iter().partition(|path| {
-                if let CausalQuery::Mediation(m) = &query {
-                    use antecedent_core::MediationContrast;
-                    let mediated = path
-                        .iter()
-                        .skip(1)
-                        .take(path.len().saturating_sub(2))
-                        .any(|node| path_filter.contains(node));
-                    match m.contrast {
-                        MediationContrast::Total => true,
-                        MediationContrast::Direct | MediationContrast::NaturalDirect => !mediated,
-                        MediationContrast::Mediated | MediationContrast::NaturalIndirect => {
-                            mediated
-                        }
-                    }
-                } else {
-                    path_matches_filter(path, &path_filter)
-                }
-            });
-        if pi.is_empty() {
+        if hops.selected.is_empty() {
             derivation.push("path_specific.empty", "no directed paths match path_nodes filter");
             return Ok(IdentificationResult::not_identified(
                 query,
@@ -220,10 +178,12 @@ impl PathSpecificIdentifier {
                 perf,
             ));
         }
-        derivation
-            .push("path_specific.paths", format!("{} path(s) retained after filter", pi.len()));
+        derivation.push(
+            "path_specific.paths",
+            format!("{} treatment out-edge(s) start a selected path", hops.selected.len()),
+        );
 
-        if let Some(w) = recanting_witness(&pi, &complement_paths) {
+        if let Some(w) = recanting_witness(&hops.selected, &hops.complement) {
             derivation.push(
                 "path_specific.recanting",
                 format!(
@@ -241,13 +201,7 @@ impl PathSpecificIdentifier {
         }
         derivation.push("path_specific.recanting", "no recanting witness");
 
-        // Edges on π that leave the treatment.
-        let mut keep_out: HashSet<DenseNodeId> = HashSet::new();
-        for path in &pi {
-            if path.len() >= 2 && path[0] == t {
-                keep_out.insert(path[1]);
-            }
-        }
+        let keep_out: HashSet<DenseNodeId> = hops.selected.iter().copied().collect();
 
         // A complementary path means the contrast is not the total effect: the
         // treatment must reach the outcome at the active level along π and at the
@@ -255,14 +209,15 @@ impl PathSpecificIdentifier {
         // cannot express that (its factors condition on the treatment as a
         // predecessor, so one level would reach every factor), so use the edge
         // g-formula instead.
-        if !complement_paths.is_empty() {
+        if !hops.complement.is_empty() {
             let (arena, functional) = edge_g_formula(prepared, q, t, y, &keep_out)?;
             derivation.push(
                 "path_specific.edge_gformula",
                 format!(
-                    "{} complementary path(s): edge g-formula with the active level on {} \
-                     treatment out-edge(s) on π and the control level on the rest",
-                    complement_paths.len(),
+                    "complementary paths leave through {} treatment out-edge(s): edge g-formula \
+                     with the active level on {} treatment out-edge(s) on π and the control \
+                     level on the rest",
+                    hops.complement.len(),
                     keep_out.len()
                 ),
             );
@@ -319,33 +274,200 @@ impl PathSpecificIdentifier {
     }
 }
 
-fn path_matches_filter(path: &[DenseNodeId], filter: &HashSet<DenseNodeId>) -> bool {
-    if filter.is_empty() {
-        return true;
+/// Which directed paths from a treatment child to the outcome are selected.
+enum PathQuestion {
+    /// Every directed path.
+    All,
+    /// Paths whose intermediate nodes include every member of the set.
+    AllRequired(Vec<DenseNodeId>),
+    /// Paths that pass through none of the mediators.
+    Avoiding(Vec<DenseNodeId>),
+    /// Paths that pass through some mediator.
+    Through(Vec<DenseNodeId>),
+}
+
+/// Treatment children that start a selected path, and those that start a complementary path.
+struct FirstHops {
+    selected: Vec<DenseNodeId>,
+    complement: Vec<DenseNodeId>,
+    /// Treatment children that reach the outcome, the nodes the criterion inspects.
+    children_reaching_outcome: u64,
+}
+
+fn path_question(query: &CausalQuery, filter: &HashSet<DenseNodeId>) -> PathQuestion {
+    if let CausalQuery::Mediation(m) = query {
+        use antecedent_core::MediationContrast;
+        let mediators: Vec<DenseNodeId> = filter.iter().copied().collect();
+        return match m.contrast {
+            MediationContrast::Total => PathQuestion::All,
+            MediationContrast::Direct | MediationContrast::NaturalDirect => {
+                PathQuestion::Avoiding(mediators)
+            }
+            MediationContrast::Mediated | MediationContrast::NaturalIndirect => {
+                PathQuestion::Through(mediators)
+            }
+        };
     }
-    // Intermediates only (exclude endpoints).
-    let mid: HashSet<DenseNodeId> =
-        path.iter().copied().skip(1).take(path.len().saturating_sub(2)).collect();
-    filter.iter().all(|n| mid.contains(n))
+    if filter.is_empty() {
+        PathQuestion::All
+    } else {
+        let mut required: Vec<DenseNodeId> = filter.iter().copied().collect();
+        required.sort_unstable_by_key(|n| n.raw());
+        PathQuestion::AllRequired(required)
+    }
+}
+
+/// Classify each treatment child by whether a selected path and a complementary path leave
+/// through it.
+///
+/// In a DAG a set of nodes lies on one directed path exactly when reachability totally orders
+/// them, and a node lies on some `C → Y` path exactly when `C` reaches it and it reaches `Y`.
+/// Both are reachability questions. The edge g-formula and the surgical total effect bind one
+/// level per treatment out-edge, so they need this classification and not the path list.
+fn classify_first_hops(
+    dag: &Dag,
+    t: DenseNodeId,
+    y: DenseNodeId,
+    question: PathQuestion,
+    ws: &mut GraphWorkspace,
+) -> Result<FirstHops, IdentificationError> {
+    let mut an_y = BitSet::with_len(dag.node_count());
+    dag.ancestors_of(&[y], &mut an_y, ws);
+    let children: Vec<DenseNodeId> = dag.children(t).to_vec();
+    let mut selected = Vec::new();
+    let mut complement = Vec::new();
+    let mut children_reaching_outcome = 0u64;
+
+    match question {
+        PathQuestion::All => {
+            for &child in &children {
+                if an_y.contains(child) {
+                    children_reaching_outcome += 1;
+                    selected.push(child);
+                }
+            }
+        }
+        PathQuestion::AllRequired(required) => {
+            let mut open_without = Vec::with_capacity(required.len());
+            for &node in &required {
+                open_without.push(ancestors_avoiding(dag, y, &[node], ws)?);
+            }
+            for &child in &children {
+                if !an_y.contains(child) {
+                    continue;
+                }
+                children_reaching_outcome += 1;
+                if required_on_one_path(dag, child, &required, &an_y) {
+                    selected.push(child);
+                    let misses_one = required
+                        .iter()
+                        .enumerate()
+                        .any(|(i, node)| *node != child && open_without[i].contains(child));
+                    if misses_one {
+                        complement.push(child);
+                    }
+                } else {
+                    complement.push(child);
+                }
+            }
+        }
+        PathQuestion::Avoiding(mediators) => {
+            return classify_mediation(dag, y, &children, &mediators, &an_y, false, ws);
+        }
+        PathQuestion::Through(mediators) => {
+            return classify_mediation(dag, y, &children, &mediators, &an_y, true, ws);
+        }
+    }
+
+    Ok(FirstHops { selected, complement, children_reaching_outcome })
+}
+
+fn classify_mediation(
+    dag: &Dag,
+    y: DenseNodeId,
+    children: &[DenseNodeId],
+    mediators: &[DenseNodeId],
+    an_y: &BitSet,
+    want_mediated: bool,
+    ws: &mut GraphWorkspace,
+) -> Result<FirstHops, IdentificationError> {
+    let mut selected = Vec::new();
+    let mut complement = Vec::new();
+    let mut children_reaching_outcome = 0u64;
+    let open = ancestors_avoiding(dag, y, mediators, ws)?;
+    let mediator_set: HashSet<DenseNodeId> = mediators.iter().copied().collect();
+    for &child in children {
+        if !an_y.contains(child) {
+            continue;
+        }
+        children_reaching_outcome += 1;
+        let unmediated = !mediator_set.contains(&child) && open.contains(child);
+        let mediated = mediator_set.contains(&child)
+            || mediators.iter().any(|m| an_y.contains(*m) && dag.reaches(child, *m));
+        let (is_selected, is_complement) =
+            if want_mediated { (mediated, unmediated) } else { (unmediated, mediated) };
+        if is_selected {
+            selected.push(child);
+        }
+        if is_complement {
+            complement.push(child);
+        }
+    }
+    Ok(FirstHops { selected, complement, children_reaching_outcome })
+}
+
+/// Ancestors of `y`, including `y`, along directed paths that touch no node in `avoid`.
+fn ancestors_avoiding(
+    dag: &Dag,
+    y: DenseNodeId,
+    avoid: &[DenseNodeId],
+    ws: &mut GraphWorkspace,
+) -> Result<BitSet, IdentificationError> {
+    let filtered = dag.copy_filtered(|from, to| !avoid.contains(&from) && !avoid.contains(&to))?;
+    let mut an = BitSet::with_len(filtered.node_count());
+    filtered.ancestors_of(&[y], &mut an, ws);
+    Ok(an)
+}
+
+/// Whether some directed path from `start` to `Y` visits every node of `required`.
+///
+/// `an_y` is the ancestor set of `Y` in `dag` (so membership means "reaches `Y`").
+fn required_on_one_path(
+    dag: &Dag,
+    start: DenseNodeId,
+    required: &[DenseNodeId],
+    an_y: &BitSet,
+) -> bool {
+    if required.is_empty() {
+        return an_y.contains(start);
+    }
+    for &node in required {
+        if !an_y.contains(node) || !dag.reaches(start, node) {
+            return false;
+        }
+    }
+    for i in 0..required.len() {
+        for j in (i + 1)..required.len() {
+            let (a, b) = (required[i], required[j]);
+            if a != b && !dag.reaches(a, b) && !dag.reaches(b, a) {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 /// A recanting witness for π, if one exists: a child of the treatment that
 /// starts both a selected and a complementary directed path to the outcome.
 ///
-/// Every path begins at the treatment, so `path[1]` is the treatment child the
-/// path leaves through. By the argument in the module docs this is exactly the
-/// Avin–Shpitser–Pearl criterion over the complete path set; callers must fail
-/// closed on a truncated enumeration before relying on a `None`.
-fn recanting_witness(
-    pi: &[Vec<DenseNodeId>],
-    complement: &[Vec<DenseNodeId>],
-) -> Option<DenseNodeId> {
-    let selected_first_hops: HashSet<DenseNodeId> =
-        pi.iter().filter_map(|path| path.get(1).copied()).collect();
-    complement
+/// By the argument in the module docs this is exactly the Avin–Shpitser–Pearl
+/// criterion: the witness exists iff some child of `T` starts both kinds of path.
+fn recanting_witness(selected: &[DenseNodeId], complement: &[DenseNodeId]) -> Option<DenseNodeId> {
+    let complement: HashSet<DenseNodeId> = complement.iter().copied().collect();
+    selected
         .iter()
-        .filter_map(|path| path.get(1).copied())
-        .filter(|child| selected_first_hops.contains(child))
+        .copied()
+        .filter(|child| complement.contains(child))
         .min_by_key(|child| child.raw())
 }
 
@@ -379,17 +501,19 @@ fn edge_g_formula(
 ) -> Result<(CausalExprArena, ExprId), IdentificationError> {
     let admg = prepared.admg();
     // Ancestors of Y (Y included) reached without passing through T.
-    let mut v_star: HashSet<DenseNodeId> = HashSet::new();
-    let mut stack = vec![y];
-    while let Some(node) = stack.pop() {
-        if node == t || !v_star.insert(node) {
-            continue;
-        }
-        stack.extend(admg.parents(node).iter().copied());
-    }
+    let n = admg.node_count();
+    let (mut seeds, mut active) = (BitSet::with_len(n), BitSet::full(n));
+    seeds.insert(y);
+    active.remove(t);
+    let v_star = admg.ancestors_within(
+        &seeds,
+        &active,
+        None,
+        &mut antecedent_graph::GraphWorkspace::default(),
+    );
     // `P(v | pa(v))` is the district factor only when `v` is a singleton
     // district; latent confounding would need Shpitser's district formula.
-    if v_star.iter().any(|&v| !admg.bidirected_neighbors(v).is_empty()) {
+    if v_star.iter().any(|v| !admg.bidirected_neighbors(v).is_empty()) {
         return Err(IdentificationError::unsupported(
             "path-specific edge g-formula requires no bidirected edge on an ancestor of the \
              outcome other than the treatment (the district-level formula for latent confounding \
@@ -404,7 +528,7 @@ fn edge_g_formula(
     let mut arena = CausalExprArena::new();
     let empty_i = arena.empty_intervention_set();
     let order: Vec<DenseNodeId> =
-        prepared.topo().iter().copied().filter(|v| v_star.contains(v)).collect();
+        prepared.topo().iter().copied().filter(|&v| v_star.contains(v)).collect();
     let side = |edge_level: &dyn Fn(DenseNodeId) -> Value,
                 arena: &mut CausalExprArena|
      -> Result<ExprId, IdentificationError> {
@@ -415,7 +539,10 @@ fn edge_g_formula(
                 parents.iter().map(|&p| prepared.dense_to_var(p)).collect::<Result<_, _>>()?;
             let (intervention, domain) = if parents.contains(&t) {
                 let assignment = InterventionAssignment { variable: t_var, value: edge_level(vi) };
-                (arena.intern_intervention_assignments([assignment]), DomainRef::Interventional)
+                (
+                    crate::intervention_support::intern_assignments(arena, [assignment])?,
+                    DomainRef::Interventional,
+                )
             } else {
                 (empty_i, DomainRef::Observational)
             };
@@ -475,42 +602,13 @@ fn surgical_admg(
     treatment: DenseNodeId,
     keep_out: &HashSet<DenseNodeId>,
 ) -> Result<Admg, IdentificationError> {
-    let mut out = Admg::empty();
-    for node in admg.nodes() {
-        out.add_node(*node).map_err(IdentificationError::from)?;
-    }
-    for i in 0..admg.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-        for &to in admg.children(from) {
-            if from == treatment && !keep_out.contains(&to) {
-                continue;
-            }
-            out.insert_directed(from, to).map_err(IdentificationError::from)?;
-        }
-    }
-    // Bidirected edges unchanged.
-    for i in 0..admg.node_count() {
-        let a = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-        for &b in admg.bidirected_neighbors(a) {
-            if b.raw() < a.raw() {
-                continue;
-            }
-            out.insert_bidirected(a, b).map_err(IdentificationError::from)?;
-        }
-    }
-    Ok(out)
-}
-
-fn admg_to_dag(admg: &Admg) -> Result<Dag, IdentificationError> {
-    let n = u32::try_from(admg.node_count()).expect("fit");
-    let mut dag = Dag::with_variables(n);
-    for i in 0..admg.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-        for &to in admg.children(from) {
-            dag.insert_directed(from, to).map_err(IdentificationError::from)?;
-        }
-    }
-    Ok(dag)
+    admg.copy_filtered(
+        antecedent_graph::CopyLabels::Preserve,
+        |from, to| from != treatment || keep_out.contains(&to),
+        // Path surgery deletes directed treatment edges only. Bidirected edges stay.
+        |_a, _b| true,
+    )
+    .map_err(IdentificationError::from)
 }
 
 #[cfg(test)]
@@ -583,6 +681,11 @@ mod tests {
                 IdentificationStatus::NotIdentified,
                 "max_paths={max_paths} must not identify past a recanting witness"
             );
+            let detail = witness(&res).unwrap_or_default();
+            assert!(
+                detail.contains("dense=1"),
+                "max_paths={max_paths} must name the witness, not stop on a path budget: {detail}"
+            );
         }
 
         // The untruncated run must reach the recanting rule itself, not merely fail closed.
@@ -601,12 +704,13 @@ mod tests {
         );
     }
 
-    /// Four layers of three fully connected nodes give 3^4 = 81 directed t→y paths, more
-    /// than the default 64-path budget. The effect along the first-layer node is
-    /// identified (every path through it starts with a distinct first edge), so the
-    /// refusal is a budget exit and must be marked as one.
+    /// Four layers of three fully connected nodes give 3^4 = 81 directed t→y paths.
+    /// The effect along the first-layer node is identified: every selected path leaves
+    /// through that one child, and every other first-layer child starts only a
+    /// complementary path. Reachability answers that without enumerating the 81 paths,
+    /// including when `max_paths` / `max_len` could not hold them.
     #[test]
-    fn budget_exit_is_marked_as_a_bounded_search_not_a_scientific_negative() {
+    fn path_explosion_is_decided_by_reachability() {
         // 0=t, 1..=12 four layers of three, 13=y.
         let mut dag = Dag::with_variables(14);
         let layer = |k: u32| (1 + 3 * k)..(4 + 3 * k);
@@ -624,23 +728,22 @@ mod tests {
         for u in layer(3) {
             dag.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(13)).unwrap();
         }
-        let bounded = identify_on(&dag, &path_query(0, 13, &[1]));
-        assert_eq!(bounded.status, IdentificationStatus::NotIdentified);
-        let marker = bounded
-            .diagnostics
-            .iter()
-            .find(|d| d.code.as_ref() == SEARCH_BOUNDED_DIAGNOSTIC_CODE)
-            .expect("bounded-search diagnostic");
-        assert_eq!(marker.kind, antecedent_core::DiagnosticKind::Execution);
-
-        // With room for all 81 paths the same query is identified, so the refusal above
-        // was never a statement about the graph.
+        // Default max_paths is 64 and max_len 3 cannot hold a 6-node path. Both used to
+        // refuse. The edge assignment is active on node 1 and control on nodes 2 and 3.
         let q = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(13))
             .with_path_nodes([VariableId::from_raw(1)])
-            .with_max_paths(128);
-        let full = identify_on(&dag, &CausalQuery::PathSpecific(q));
-        assert_eq!(full.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != SEARCH_BOUNDED_DIAGNOSTIC_CODE));
+            .with_max_len(3);
+        let res = identify_on(&dag, &CausalQuery::PathSpecific(q));
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(
+            res.diagnostics.iter().all(|d| d.code.as_ref() != SEARCH_BOUNDED_DIAGNOSTIC_CODE),
+            "{:?}",
+            res.diagnostics
+        );
+        assert!(has_rule(&res, "path_specific.edge_gformula"));
+        let (left, right) = contrast_levels(&res);
+        assert_eq!(left, vec![(1, 1.0), (2, 0.0), (3, 0.0)]);
+        assert_eq!(right, vec![(1, 0.0), (2, 0.0), (3, 0.0)]);
     }
 
     fn has_rule(res: &IdentificationResult, rule: &str) -> bool {

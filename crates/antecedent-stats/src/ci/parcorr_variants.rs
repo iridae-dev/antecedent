@@ -2,25 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::needless_range_loop,
-    clippy::doc_markdown,
-    clippy::too_many_arguments,
-    clippy::trivially_copy_pass_by_ref
-)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::sanitize_weight;
 
 use super::block_shuffle::{block_row_permutation, query_stream_salt, residual_null_pvalue};
-use super::parcorr::{PartialCorrelation, block_shuffle_min_p};
+use super::parcorr::PartialCorrelation;
 use super::residualize::{ZDesign, residual_is_uninformative, weighted_pearson};
 use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
@@ -39,28 +25,14 @@ const BLOCK_PIVOT_MIN: f64 = 1e-6;
 /// may legitimately mean; anything smaller is a numerical failure, not perfect dependence.
 const PERFECT_DEPENDENCE_EIGEN: f64 = 1.0 - 1e-9;
 
-#[allow(clippy::float_cmp)] // Rank ties are exact equality, independent of measurement units.
+/// Midranks of a finite column (ties share the average rank), the shared kernel midrank owner
+/// behind a finiteness refusal.
 pub(crate) fn rank_column(col: &[f64], out: &mut [f64]) -> Result<(), StatsError> {
     if col.iter().any(|v| !v.is_finite()) {
         return Err(StatsError::Shape { message: "non-finite values in rank transform" });
     }
-    let n = col.len();
-    let mut idx: Vec<usize> = (0..n).collect();
-    idx.sort_by(|&i, &j| col[i].partial_cmp(&col[j]).unwrap_or(std::cmp::Ordering::Equal));
-    let mut i = 0usize;
-    while i < n {
-        let mut j = i;
-        while j + 1 < n && col[idx[j + 1]] == col[idx[i]] {
-            j += 1;
-        }
-        let first = (i + 1) as f64;
-        let last = (j + 1) as f64;
-        let avg_rank = (first + last) / 2.0;
-        for k in i..=j {
-            out[idx[k]] = avg_rank;
-        }
-        i = j + 1;
-    }
+    antecedent_kernels::midranks_into(col, out)
+        .map_err(|_| StatsError::Shape { message: "rank buffer length mismatch" })?;
     Ok(())
 }
 
@@ -83,14 +55,8 @@ pub(crate) fn normal_scores_column(col: &[f64], out: &mut [f64]) -> Result<(), S
 /// statistic applies: `n_eff = (Σw)² / Σw²`. Zero / non-finite / negative
 /// weights contribute nothing and cannot inflate df.
 fn kish_effective_n(weights: &[f64]) -> f64 {
-    let mut sum = 0.0;
-    let mut sum_sq = 0.0;
-    for &w in weights {
-        let w = sanitize_weight(w);
-        sum += w;
-        sum_sq += w * w;
-    }
-    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+    let clean: Vec<f64> = weights.iter().map(|&w| sanitize_weight(w)).collect();
+    antecedent_kernels::kish_ess(&clean)
 }
 
 /// Robust (nonparanormal) partial correlation: van der Waerden normal scores of each column,
@@ -134,8 +100,8 @@ impl ConditionalIndependenceTest for RobustPartialCorrelation {
         self.inner.test_batch(prepared, &req, workspace, ctx)
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 
@@ -213,7 +179,7 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
             let design = ZDesign::fit(request.columns, z, Some(weights), n)?;
             let ex = design.residuals(request.columns[q.x])?;
             let ey = design.residuals(request.columns[q.y])?;
-            let r = weighted_pearson(policy, &ex, &ey, weights)
+            let r = weighted_pearson(policy, &ex, &ey, weights)?
                 .ok_or(StatsError::Shape { message: "degenerate weighted correlation" })?;
             let df = kish_effective_n(weights) - 2.0 - (q.z_len as f64);
             let result = match request.significance {
@@ -259,8 +225,8 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
         Ok(CiBatchResult { results })
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 
@@ -299,10 +265,22 @@ impl ConditionalIndependenceTest for WeightedPartialCorrelation {
 /// observed correlation, so it stayed favourable under permutation. Measured Type I
 /// at nominal α = 0.05 was ≈0.34 at `px = py = 2` and ≈0.81 at `px = py = 3`, rising
 /// with `n`. It is now ≈0.05 across shapes; see `multivariate_block_calibration_gate`
-/// in `crate::ci::calibration` (internal calibration suite, run via gate_calibration.sh).
+/// in `crate::ci::calibration` (internal calibration suite, run via `gate_calibration.sh`).
 #[derive(Clone, Debug, Default)]
 pub struct MultivariatePartialCorrelation {
     inner: PartialCorrelation,
+}
+
+/// Column indexes of one multivariate block test: the `X` and `Y` blocks and the conditioning
+/// columns, all into the `columns` passed alongside.
+#[derive(Debug, Clone, Copy)]
+pub struct BlockTest<'a> {
+    /// Columns of the `X` block.
+    pub x_cols: &'a [usize],
+    /// Columns of the `Y` block.
+    pub y_cols: &'a [usize],
+    /// Conditioning columns.
+    pub z_flat: &'a [usize],
 }
 
 impl MultivariatePartialCorrelation {
@@ -322,13 +300,12 @@ impl MultivariatePartialCorrelation {
     pub fn test_blocks(
         &self,
         columns: &[&[f64]],
-        x_cols: &[usize],
-        y_cols: &[usize],
-        z_flat: &[usize],
+        blocks: &BlockTest<'_>,
         significance: SignificanceMethod,
         workspace: &mut CiWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<CiResult, StatsError> {
+        let BlockTest { x_cols, y_cols, z_flat } = *blocks;
         if x_cols.is_empty() || y_cols.is_empty() {
             return Err(StatsError::Shape { message: "empty X or Y block" });
         }
@@ -473,13 +450,13 @@ impl ConditionalIndependenceTest for MultivariatePartialCorrelation {
         self.inner.test_batch(prepared, request, workspace, ctx)
     }
 
-    fn min_attainable_p(&self, significance: SignificanceMethod) -> f64 {
-        block_shuffle_min_p(significance)
+    fn attainable_p(&self) -> super::types::AttainableP {
+        super::types::AttainableP::AnalyticOrBlockShuffle
     }
 }
 
 /// Residualize each column in `idxs` against the Z design (intercept + Z columns), through
-/// the shared [`ZDesign`] (centred and scaled, so offset-invariant like scalar ParCorr).
+/// the shared [`ZDesign`] (centred and scaled, so offset-invariant like scalar `ParCorr`).
 ///
 /// A column that is constant, or explained by Z to working precision, is refused: what remains
 /// of it is rounding residue whose scatter is still positive.
@@ -528,7 +505,6 @@ struct ResidualCanonical {
     leading_rho: f64,
 }
 
-#[allow(clippy::too_many_lines)]
 fn residual_canonical(
     rx: &[f64],
     ry: &[f64],
@@ -692,7 +668,7 @@ fn leading_psd_eigenvalue(gram: &[f64], k: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     #[test]
-    #[allow(clippy::float_cmp)] // Exact midranks are integer or half-integer values.
+    #[allow(clippy::float_cmp, reason = "Exact midranks are integer or half-integer values")]
     fn review_ranks_preserve_distinct_values_under_rescaling() {
         let mut ranks = [0.0; 4];
         rank_column(&[3e-20, 1e-20, 1e-20, 2e-20], &mut ranks).unwrap();
@@ -759,11 +735,11 @@ mod tests {
         let y = [2.0, 2.1, 2.2];
         let w = [1.0, 1.0, 1.0];
         let policy = KernelPolicy::default_policy();
-        let r1 = weighted_pearson(&policy, &x, &y, &w).expect("unit-scale correlation");
+        let r1 = weighted_pearson(&policy, &x, &y, &w).unwrap().expect("unit-scale correlation");
         let scale = 1e-4;
         let xs: Vec<f64> = x.iter().map(|v| v * scale).collect();
         let ys: Vec<f64> = y.iter().map(|v| v * scale).collect();
-        let r2 = weighted_pearson(&policy, &xs, &ys, &w).expect("small-scale correlation");
+        let r2 = weighted_pearson(&policy, &xs, &ys, &w).unwrap().expect("small-scale correlation");
         assert!((r1 - r2).abs() < 1e-12, "r1={r1} r2={r2}");
     }
 
@@ -937,7 +913,13 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(11);
         let out = MultivariatePartialCorrelation::new()
-            .test_blocks(&cols, &[0], &[1, 2], &[], SignificanceMethod::Analytic, &mut ws, &ctx)
+            .test_blocks(
+                &cols,
+                &BlockTest { x_cols: &[0], y_cols: &[1, 2], z_flat: &[] },
+                SignificanceMethod::Analytic,
+                &mut ws,
+                &ctx,
+            )
             .unwrap();
         assert!((out.statistic - canon.leading_rho).abs() < 1e-12);
     }
@@ -955,7 +937,13 @@ mod tests {
             .test_one(&cols, &[2], SignificanceMethod::Analytic, &mut ws, &ctx)
             .unwrap();
         let b = MultivariatePartialCorrelation::new()
-            .test_blocks(&cols, &[0], &[1], &[2], SignificanceMethod::Analytic, &mut ws, &ctx)
+            .test_blocks(
+                &cols,
+                &BlockTest { x_cols: &[0], y_cols: &[1], z_flat: &[2] },
+                SignificanceMethod::Analytic,
+                &mut ws,
+                &ctx,
+            )
             .unwrap();
         assert!((a.statistic - b.statistic).abs() < 1e-8);
     }
@@ -980,23 +968,19 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(4);
         let out = MultivariatePartialCorrelation::new()
-            .test_blocks(&cols, &[0, 1], &[2, 3], &[], SignificanceMethod::Analytic, &mut ws, &ctx)
+            .test_blocks(
+                &cols,
+                &BlockTest { x_cols: &[0, 1], y_cols: &[2, 3], z_flat: &[] },
+                SignificanceMethod::Analytic,
+                &mut ws,
+                &ctx,
+            )
             .unwrap();
         assert!(out.p_value < 1e-3, "p={}, r={}", out.p_value, out.statistic);
         assert!(out.statistic.abs() > 0.5);
     }
 
-    fn lcg_unit(n: usize, seed: u64) -> Vec<f64> {
-        let mut s = seed;
-        (0..n)
-            .map(|_| {
-                s = s
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                ((s >> 33) as f64) / ((1u64 << 31) as f64) - 0.5
-            })
-            .collect()
-    }
+    use crate::test_util::centered_uniform as lcg_unit;
 
     fn analytic_req<'a>(
         cols: &'a [&'a [f64]],
@@ -1052,9 +1036,7 @@ mod tests {
         let base_m = MultivariatePartialCorrelation::new()
             .test_blocks(
                 &base_cols4,
-                &[0, 1],
-                &[2],
-                &[3],
+                &BlockTest { x_cols: &[0, 1], y_cols: &[2], z_flat: &[3] },
                 SignificanceMethod::Analytic,
                 &mut ws,
                 &ctx,
@@ -1077,9 +1059,7 @@ mod tests {
             let mv = MultivariatePartialCorrelation::new()
                 .test_blocks(
                     &cols4,
-                    &[0, 1],
-                    &[2],
-                    &[3],
+                    &BlockTest { x_cols: &[0, 1], y_cols: &[2], z_flat: &[3] },
                     SignificanceMethod::Analytic,
                     &mut ws,
                     &ctx,
@@ -1195,9 +1175,36 @@ mod tests {
         let ctx = ExecutionContext::for_tests(5);
         let mv = MultivariatePartialCorrelation::new();
         let sig = SignificanceMethod::Analytic;
-        assert!(mv.test_blocks(&cols, &[0, 1], &[1, 2], &[], sig, &mut ws, &ctx).is_err());
-        assert!(mv.test_blocks(&cols, &[0, 1], &[2], &[1], sig, &mut ws, &ctx).is_err());
-        assert!(mv.test_blocks(&cols, &[0, 1], &[2], &[], sig, &mut ws, &ctx).is_ok());
+        assert!(
+            mv.test_blocks(
+                &cols,
+                &BlockTest { x_cols: &[0, 1], y_cols: &[1, 2], z_flat: &[] },
+                sig,
+                &mut ws,
+                &ctx
+            )
+            .is_err()
+        );
+        assert!(
+            mv.test_blocks(
+                &cols,
+                &BlockTest { x_cols: &[0, 1], y_cols: &[2], z_flat: &[1] },
+                sig,
+                &mut ws,
+                &ctx
+            )
+            .is_err()
+        );
+        assert!(
+            mv.test_blocks(
+                &cols,
+                &BlockTest { x_cols: &[0, 1], y_cols: &[2], z_flat: &[] },
+                sig,
+                &mut ws,
+                &ctx
+            )
+            .is_ok()
+        );
     }
 
     /// A rank-deficient block (x2 = 2 x1) is a degeneracy, judged relative to the block's own
@@ -1212,7 +1219,13 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(6);
         let err = MultivariatePartialCorrelation::new()
-            .test_blocks(&cols, &[0, 1], &[2], &[], SignificanceMethod::Analytic, &mut ws, &ctx)
+            .test_blocks(
+                &cols,
+                &BlockTest { x_cols: &[0, 1], y_cols: &[2], z_flat: &[] },
+                SignificanceMethod::Analytic,
+                &mut ws,
+                &ctx,
+            )
             .unwrap_err();
         assert!(matches!(err, StatsError::Shape { .. }), "{err:?}");
     }
@@ -1229,7 +1242,13 @@ mod tests {
         let mut ws = CiWorkspace::default();
         let ctx = ExecutionContext::for_tests(7);
         let out = MultivariatePartialCorrelation::new()
-            .test_blocks(&cols, &[0, 1], &[2, 3], &[], SignificanceMethod::Analytic, &mut ws, &ctx)
+            .test_blocks(
+                &cols,
+                &BlockTest { x_cols: &[0, 1], y_cols: &[2, 3], z_flat: &[] },
+                SignificanceMethod::Analytic,
+                &mut ws,
+                &ctx,
+            )
             .unwrap();
         assert!(out.p_value < 1e-12, "p={}", out.p_value);
         assert!((out.statistic - 1.0).abs() < 1e-6, "rho={}", out.statistic);

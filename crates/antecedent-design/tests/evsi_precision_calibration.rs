@@ -12,7 +12,8 @@
 mod calibration;
 use std::sync::Arc;
 
-use antecedent_core::{CancellationToken, ExecutionContext, QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
+use antecedent_core::{CancellationToken, ExecutionContext};
 use antecedent_design::design_ranking_artifact::{
     ConsumeExpectation, ReplayKind, SealInputs, consume, seal,
 };
@@ -20,7 +21,7 @@ use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiRequest, IntegrationMethod, StudyCostSpec,
     evaluate_evsi,
 };
-use antecedent_design::ranking::DesignRanking;
+use antecedent_design::ranking::RankingRecord;
 use antecedent_design::signal::{
     NativeBinomialSignal, NativeGaussianMeanSignal, SignalLimits, SignalProvider, SignalRequest,
 };
@@ -39,18 +40,15 @@ fn problem(intercept: f64) -> DecisionProblem<usize, f64> {
         vec![],
     )
 }
+mod common;
+
 fn quantity(name: &str) -> ScientificQuantity {
     ScientificQuantity {
         variable_id: format!("schema:{name}"),
-        variable_name: name.into(),
-        role: QuantityRole::Outcome,
         units: "dimensionless".into(),
         population_id: "declared_model".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(name)
     }
 }
 fn sampling(n: u64) -> CandidateDesign {
@@ -204,7 +202,7 @@ fn evsi_monte_carlo_score_error_and_net_value_precision() {
             assert!((row.evpi - 0.5).abs() < 1e-12);
             assert!((row.net_value.unwrap() - (row.evsi - cost)).abs() < 1e-12);
             let ranking =
-                DesignRanking::from_evsi(&report, &["fixed_declared_prior".into()]).unwrap();
+                RankingRecord::from_evsi(&report, &["fixed_declared_prior".into()]).unwrap();
             assert!((ranking.entries[0].evsi - row.evsi).abs() < 1e-12);
             let artifact = seal(&SealInputs {
                 problem: &model,
@@ -382,8 +380,8 @@ fn evsi_fixed_rank_selection_and_tie_precision() {
                 let other =
                     evaluate_evsi(&model, &prior, &reversed, &CancellationToken::new()).unwrap();
                 let a =
-                    DesignRanking::from_evsi(&report, &["fixed_declared_prior".into()]).unwrap();
-                let b = DesignRanking::from_evsi(&other, &["fixed_declared_prior".into()]).unwrap();
+                    RankingRecord::from_evsi(&report, &["fixed_declared_prior".into()]).unwrap();
+                let b = RankingRecord::from_evsi(&other, &["fixed_declared_prior".into()]).unwrap();
                 assert_eq!(a.identity(), b.identity());
             }
             let top = &report.candidates[0];

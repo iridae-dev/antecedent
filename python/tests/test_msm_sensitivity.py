@@ -1,7 +1,7 @@
-"""2.3 B3: marginal sensitivity model bounds, tipping point and the sensitivity artifact.
+"""Marginal sensitivity model bounds, tipping point and the sensitivity artifact.
 
 Hand-derived oracles mirror ``crates/antecedent-validate/tests/msm_sensitivity.rs`` and
-``crates/antecedent-design/tests/msm_sensitivity_decision.rs``.
+``crates/antecedent/tests/msm_sensitivity_decision.rs``.
 
 Two strata, binary outcome, exact inputs:
 
@@ -71,7 +71,7 @@ def _refusal(call, code: str, detail: str) -> msm.MsmSensitivityRefusal:
 # ------------------------------------------------------------------------- bounds
 
 
-def test_b3_msm_lambda_one_is_the_stratified_identified_value():
+def test_msm_lambda_one_is_the_stratified_identified_value():
     result = msm.msm_ate_sensitivity(_two_strata(), 3.0)
     assert result.identified == pytest.approx(0.3, abs=1e-12)
     first, last = result.grid[0], result.grid[-1]
@@ -84,7 +84,7 @@ def test_b3_msm_lambda_one_is_the_stratified_identified_value():
     assert result.tipping is None
 
 
-def test_b3_msm_sharp_bounds_at_lambda_two_match_the_hand_derivation():
+def test_msm_sharp_bounds_at_lambda_two_match_the_hand_derivation():
     result = msm.msm_ate_sensitivity(_two_strata(), 2.0, grid_points=2)
     assert result.lambdas == (1.0, 2.0)
     lower, upper = result.assumption_range(2.0)
@@ -93,7 +93,7 @@ def test_b3_msm_sharp_bounds_at_lambda_two_match_the_hand_derivation():
     assert result.grid[-1].bounds == (lower, upper)
 
 
-def test_b3_msm_three_atom_fractional_split_matches_the_hand_derivation():
+def test_msm_three_atom_fractional_split_matches_the_hand_derivation():
     result = msm.msm_ate_sensitivity(_three_atom(), 2.0, grid_points=2)
     assert result.identified == pytest.approx(0.0, abs=1e-12)
     lower, upper = result.assumption_range()
@@ -104,7 +104,7 @@ def test_b3_msm_three_atom_fractional_split_matches_the_hand_derivation():
     assert wider.assumption_range() == pytest.approx((-2.0 / 3.0, 2.0 / 3.0), abs=1e-12)
 
 
-def test_b3_msm_bounds_widen_with_lambda_and_contain_the_identified_value():
+def test_msm_bounds_widen_with_lambda_and_contain_the_identified_value():
     result = msm.msm_ate_sensitivity(_two_strata(), 8.0, grid_points=33)
     for before, after in zip(result.grid, result.grid[1:], strict=False):
         assert after.lambda_value > before.lambda_value
@@ -115,7 +115,7 @@ def test_b3_msm_bounds_widen_with_lambda_and_contain_the_identified_value():
         assert result.identified <= point.upper + 1e-12
 
 
-def test_b3_msm_is_invariant_to_stratum_order():
+def test_msm_is_invariant_to_stratum_order():
     forward = msm.msm_ate_sensitivity(_two_strata(), 4.0, decision_threshold=0.0)
     reversed_ = msm.msm_ate_sensitivity(list(reversed(_two_strata())), 4.0, decision_threshold=0.0)
     assert forward.identified == pytest.approx(reversed_.identified, abs=1e-12)
@@ -132,7 +132,7 @@ def test_b3_msm_is_invariant_to_stratum_order():
 # ------------------------------------------------------------------------ tipping
 
 
-def test_b3_msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form():
+def test_msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form():
     result = msm.msm_ate_sensitivity(_two_strata(), 4.0, decision_threshold=0.0, tolerance=1e-12)
     tipping = result.tipping
     assert tipping is not None
@@ -155,7 +155,7 @@ def test_b3_msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form():
     assert "lower bound reaches 0" in str(tipping)
 
 
-def test_b3_msm_upper_tipping_origin_and_unreached_statuses():
+def test_msm_upper_tipping_origin_and_unreached_statuses():
     # Identified 0.3 below 0.5: the upper bound rises to it.
     upper = msm.msm_ate_sensitivity(_two_strata(), 4.0, decision_threshold=0.5).tipping
     assert upper is not None
@@ -184,7 +184,7 @@ def test_b3_msm_upper_tipping_origin_and_unreached_statuses():
 # ------------------------------------------------------- uncertainty kinds, wording
 
 
-def test_b3_msm_keeps_the_sampling_interval_withheld_and_the_range_an_assumption_range():
+def test_msm_keeps_the_sampling_interval_withheld_and_the_range_an_assumption_range():
     result = msm.msm_ate_sensitivity(_two_strata(), 2.0, decision_threshold=0.0)
     assert result.inference_claim == "assumption_range"
     assert result.uncertainty.sampling_interval == "sampling interval: not reported"
@@ -199,7 +199,7 @@ def test_b3_msm_keeps_the_sampling_interval_withheld_and_the_range_an_assumption
     assert "Tipping point" in text
 
 
-def test_b3_msm_sampling_composition_request_refuses():
+def test_msm_sampling_composition_request_refuses():
     error = _refusal(
         lambda: msm.msm_ate_sensitivity(
             _two_strata(), 2.0, sampling_composition="percentile_bootstrap_of_bounds"
@@ -213,7 +213,7 @@ def test_b3_msm_sampling_composition_request_refuses():
 # ---------------------------------------------------------------------- refusals
 
 
-def test_b3_msm_refuses_lambda_below_one_and_an_empty_range():
+def test_msm_refuses_lambda_below_one_and_an_empty_range():
     for lambda_max in (0.9, 0.0, -1.0, math.nan):
         _refusal(
             lambda lambda_max=lambda_max: msm.msm_ate_sensitivity(_two_strata(), lambda_max),
@@ -232,7 +232,7 @@ def test_b3_msm_refuses_lambda_below_one_and_an_empty_range():
     )
 
 
-def test_b3_msm_refuses_propensities_on_the_boundary():
+def test_msm_refuses_propensities_on_the_boundary():
     for propensity in (-0.1, 1.2, math.nan):
         with pytest.raises(CausalValueError):
             _stratum(0.5, propensity, 0.5, 0.3)
@@ -245,7 +245,7 @@ def test_b3_msm_refuses_propensities_on_the_boundary():
         )
 
 
-def test_b3_msm_refuses_malformed_inputs():
+def test_msm_refuses_malformed_inputs():
     strata = _two_strata()
     bad_mass = [_stratum(0.6, 0.5, 0.8, 0.4), strata[1]]
     _refusal(
@@ -290,7 +290,7 @@ def test_b3_msm_refuses_malformed_inputs():
     )
 
 
-def test_b3_msm_validates_its_arguments_as_typed_errors():
+def test_msm_validates_its_arguments_as_typed_errors():
     with pytest.raises(CausalTypeError):
         msm.msm_ate_sensitivity("strata", 2.0)  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
@@ -305,7 +305,7 @@ def test_b3_msm_validates_its_arguments_as_typed_errors():
         msm.MsmStratum(0.5, 0.5, "law", msm.OutcomeLaw.binary(0.5))  # type: ignore[arg-type]
 
 
-# ------------------------------------------------------- the F17 sensitivity artifact
+# ------------------------------------------------------- the sensitivity artifact
 
 
 def _artifact(
@@ -334,7 +334,7 @@ def _treat_vs(lambda_max: float, grid_points: int, skip: float) -> sd.Sensitivit
     )
 
 
-def test_b3_msm_artifact_is_a_lambda_surface_with_withheld_sampling():
+def test_msm_artifact_is_a_lambda_surface_with_withheld_sampling():
     artifact = _treat_vs(2.0, 3, 0.0)
     coordinate = artifact.coordinate
     assert (coordinate.id, coordinate.scale) == ("msm_lambda", "odds_ratio_bound")
@@ -351,11 +351,11 @@ def test_b3_msm_artifact_is_a_lambda_surface_with_withheld_sampling():
     assert artifact.uncertainty.sampling.detail == "msm_sensitivity.interval_withheld"
     assert artifact.uncertainty.identified_bound is None
     assert "not a confidence interval" in artifact.uncertainty.assumption_range
-    assert artifact.provenance.source_kind == "msm_sensitivity_2_3"
+    assert artifact.provenance.source_kind == "marginal_sensitivity_model"
     assert artifact.provenance.causal_contract_id == "checked-contract"
 
 
-def test_b3_msm_decision_invariant_action():
+def test_msm_decision_invariant_action():
     artifact = _treat_vs(2.0, 3, 0.0)
     decided = sd.decide(artifact.contract(), artifact)
     assert decided.kind == "invariant_action"
@@ -369,7 +369,7 @@ def test_b3_msm_decision_invariant_action():
     assert artifact.outcome == decided.outcome
 
 
-def test_b3_msm_decision_assumption_dependent_switch():
+def test_msm_decision_assumption_dependent_switch():
     net = sd.quantity("ate") - sd.quantity("cost")
     artifact = _artifact(
         3.0,
@@ -390,7 +390,7 @@ def test_b3_msm_decision_assumption_dependent_switch():
     assert "changes from 'treat' to 'skip'" in decided.explain()
 
 
-def test_b3_msm_decision_no_robust_action():
+def test_msm_decision_no_robust_action():
     artifact = _treat_vs(3.0, 3, 0.2)
     decided = sd.decide(artifact.contract(), artifact)
     assert decided.kind == "no_robust_action"
@@ -399,7 +399,7 @@ def test_b3_msm_decision_no_robust_action():
     assert artifact.outcome == decided.outcome
 
 
-def test_b3_msm_decision_keeps_sampling_withheld_and_refuses_composition():
+def test_msm_decision_keeps_sampling_withheld_and_refuses_composition():
     artifact = _treat_vs(2.0, 3, 0.0)
     decided = sd.decide(artifact.contract(), artifact)
     assert decided.sampling.status == "withheld"
@@ -411,7 +411,7 @@ def test_b3_msm_decision_keeps_sampling_withheld_and_refuses_composition():
     assert caught.value.detail == "sensitivity_decision_composition.composition_not_licensed"
 
 
-def test_b3_msm_artifact_round_trips_and_refuses_a_foreign_identity():
+def test_msm_artifact_round_trips_and_refuses_a_foreign_identity():
     artifact = _treat_vs(2.0, 3, 0.0)
     consumed = sd.SensitivityArtifact.consume(
         artifact.export(), expected_identity=artifact.identity
@@ -423,7 +423,7 @@ def test_b3_msm_artifact_round_trips_and_refuses_a_foreign_identity():
         sd.SensitivityArtifact.consume(artifact.export(), expected_identity=other.identity)
 
 
-def test_b3_msm_artifact_refuses_a_malformed_surface_and_foreign_arguments():
+def test_msm_artifact_refuses_a_malformed_surface_and_foreign_arguments():
     result = msm.msm_ate_sensitivity(_two_strata(), 2.0, grid_points=3)
     actions = [
         sd.SensitivityAction("treat", sd.quantity("ate")),

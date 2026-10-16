@@ -1,4 +1,4 @@
-"""2.2B X3: joint mechanism deviations of the registered surrogate z formula (Python surface)."""
+"""Joint mechanism deviations of the registered surrogate z formula (Python surface)."""
 
 import json
 
@@ -111,7 +111,7 @@ def test_joint_sensitivity_executes_the_retained_plan_after_builder_disposal():
     assert [f["factor"] for f in joint["factors"]] == ["outcome_kernel", "shared_parent_marginal"]
     assert len(joint["frontier"]) == 9
     assert joint["receipt"]["stop"] is None
-    # The kernel axis is the 2.1 one-factor tipping point of the same stage.
+    # The kernel axis is the one-factor tipping point of the same stage.
     one_factor = prepared.mechanism_sensitivity(0.2, 0.45)
     kernel_only = transport.joint_mechanism_sensitivity(
         prepared, transport.JointDeviation({"outcome_kernel": 0.2}, decision_threshold=0.45)
@@ -170,12 +170,46 @@ def test_prepare_estimate_joint_sensitivity_export_and_independent_consume():
     assert "joint_sensitivity.consumer_limits" in str(caught.value)
 
 
-def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
-    prepared = prepared_stage()
-    with pytest.raises(CausalUnsupportedError) as caught:
-        transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION)
-    assert caught.value.reason_code == "cell_not_licensed"
-    assert "joint_sensitivity.interval_withheld" in str(caught.value)
+def counted_stage():
+    _graph, builder, catalog, laws = fixture()
+    base = laws[0]
+    n = 80
+    counts = [round(p * n) for p in base.probabilities]
+    counts[-1] += n - sum(counts)
+    total = sum(counts)
+    law = transport.ExactDiscreteLaw(
+        base.population,
+        base.regime,
+        base.axes,
+        tuple(c / total for c in counts),
+        base.snapshot_identity,
+        interventions=base.interventions,
+        empirical_counts=tuple(counts),
+    )
+    prepared = builder.prepare_exact(catalog, (law,), {"x": 1.0})
+    del builder
+    return prepared
+
+
+def test_the_endpoint_bootstrap_interval_replays():
+    prepared = counted_stage()
+    plan = json.loads(prepared.estimate())
+    assert plan["status"] == "available"
+    first = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=199)
+    second = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=199)
+    lower, upper, coverage_target = first
+    assert lower <= upper
+    assert coverage_target.startswith("one_sided:")
+    assert first == second
+    for kwargs in ({"replicates": 198}, {"replicates": 1}, {"replicates": 2001}, {"level": 0.9}):
+        with pytest.raises(CausalUnsupportedError) as caught:
+            transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, **kwargs)
+        assert caught.value.reason_code == "route_not_supported"
+        assert "joint_sensitivity.bounds_exceeded" in str(caught.value)
+    with pytest.raises(CausalUnsupportedError) as exact:
+        transport.joint_mechanism_sensitivity_interval(prepared_stage(), DEVIATION, replicates=199)
+    assert exact.value.reason_code == "transport_numerical_failure"
+    assert "exact_supplied_law_no_sampling_uncertainty" in str(exact.value)
 
 
 def test_out_of_scope_requests_refuse_with_reason_codes():

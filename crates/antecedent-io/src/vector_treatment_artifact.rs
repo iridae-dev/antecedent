@@ -1,4 +1,4 @@
-//! B4 joint vector-treatment artifact (`vector_treatment_v1`).
+//! Joint vector-treatment artifact (`vector_treatment_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one joint fit of `k >= 2` treatments that
 //! share ONE adjustment set and ONE row snapshot:
@@ -32,9 +32,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::BTreeSet;
-use std::io::Cursor;
 
-use antecedent_estimate::EstimationError;
+use antecedent_core::CanonicalWriter;
 use antecedent_estimate::vector_treatment::{
     Contrast, DesignSummary, NamedColumn, TreatmentColumn, VECTOR_TREATMENT_INFERENCE_CLAIM,
     VECTOR_TREATMENT_MAX_TREATMENTS, VECTOR_TREATMENT_NULL, VectorCovariance, VectorTreatmentFit,
@@ -43,10 +42,8 @@ use antecedent_estimate::vector_treatment::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::artifact_codec::CanonicalSize;
+use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const VECTOR_TREATMENT_ARTIFACT_VERSION: u16 = 1;
@@ -65,95 +62,20 @@ pub const VECTOR_TREATMENT_INFERENCE_CAVEAT: &str = "every p-value is an asympto
 /// Standing caveat: the adjustment set is the caller's.
 pub const VECTOR_TREATMENT_ADJUSTMENT_CAVEAT: &str = "the caller owns that the shared adjustment set is valid; the artifact certifies the arithmetic of one joint regression, not identification";
 
-const ARTIFACT_KIND: &str = "vector_treatment_v1";
+const ARTIFACT_KIND: &str = crate::artifact_kinds::VECTOR_TREATMENT;
 const META_SECTION: &str = "vector_treatment_meta";
 const NUMBERS_SECTION: &str = "vector_treatment_numbers";
 const REPLAY_SUMMARY: &str = "summary";
 const REPLAY_ROWS: &str = "rows";
 
-/// Why a vector-treatment artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum VectorTreatmentArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("vector treatment artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported vector treatment artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate or caveat that is not this format's.
-    #[error("unsupported vector treatment semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("vector treatment consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed vector treatment artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("vector_treatment.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored result differs from the recomputed one.
-    #[error("stored vector treatment result does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("vector treatment artifact does not encode: {0}")]
-    Encode(String),
-    /// The core fit refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl VectorTreatmentArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core refusal and for a changed identity field; absent for corruption,
-    /// unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "vector_treatment.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for VectorTreatmentArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for VectorTreatmentArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why a vector-treatment artifact was refused or could not be produced.
+    VectorTreatmentArtifactError,
+    "vector treatment",
+    "vector_treatment",
+    "result",
+    false
+);
 
 fn invalid_request(message: &str) -> VectorTreatmentArtifactError {
     VectorTreatmentArtifactError::Refused {
@@ -305,8 +227,10 @@ pub struct VectorResultWire {
 }
 
 impl VectorResultWire {
-    fn from_fit(fit: &VectorTreatmentFit) -> Self {
-        Self {
+    fn from_fit(fit: &VectorTreatmentFit) -> Result<Self, VectorTreatmentArtifactError> {
+        let degrees_of_freedom = u32::try_from(fit.joint_wald.degrees_of_freedom)
+            .map_err(|_| VectorTreatmentArtifactError::LimitsExceeded("degrees of freedom"))?;
+        Ok(Self {
             coefficients: fit
                 .coefficients
                 .iter()
@@ -334,14 +258,13 @@ impl VectorResultWire {
                 .collect(),
             joint_wald: WaldWire {
                 statistic: fit.joint_wald.statistic,
-                degrees_of_freedom: u32::try_from(fit.joint_wald.degrees_of_freedom)
-                    .unwrap_or(u32::MAX),
+                degrees_of_freedom,
                 p_value: fit.joint_wald.p_value,
             },
-            n_rows: u64::try_from(fit.n_rows).unwrap_or(u64::MAX),
-            residual_df: u64::try_from(fit.residual_df).unwrap_or(u64::MAX),
+            n_rows: crate::width::lossless_u64(fit.n_rows),
+            residual_df: crate::width::lossless_u64(fit.residual_df),
             residual_variance: fit.residual_variance,
-        }
+        })
     }
 }
 
@@ -415,11 +338,6 @@ pub struct VectorTreatmentReportWire {
     pub identity: VectorTreatmentIdentity,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
-}
-
 fn covariance_of(tag: &str) -> Result<VectorCovariance, VectorTreatmentArtifactError> {
     [
         VectorCovariance::ModelBased,
@@ -435,38 +353,6 @@ fn covariance_of(tag: &str) -> Result<VectorCovariance, VectorTreatmentArtifactE
 
 fn core_contrast(wire: &ContrastWire) -> Contrast {
     Contrast { name: wire.name.clone(), weights: wire.weights.clone() }
-}
-
-/// Length-prefixed canonical byte builder hashed with BLAKE3.
-pub(crate) struct Canon(Vec<u8>);
-
-impl Canon {
-    pub(crate) fn new(tag: &str) -> Self {
-        let mut canon = Self(Vec::new());
-        canon.text(tag);
-        canon
-    }
-
-    pub(crate) fn word(&mut self, word: u64) {
-        self.0.extend_from_slice(&word.to_le_bytes());
-    }
-
-    pub(crate) fn size(&mut self, value: usize) {
-        self.word(u64::try_from(value).unwrap_or(u64::MAX));
-    }
-
-    pub(crate) fn text(&mut self, text: &str) {
-        self.size(text.len());
-        self.0.extend_from_slice(text.as_bytes());
-    }
-
-    pub(crate) fn real(&mut self, value: f64) {
-        self.word(value.to_bits());
-    }
-
-    pub(crate) fn finish(&self) -> String {
-        blake3::hash(&self.0).to_hex().to_string()
-    }
 }
 
 /// The declaration shared by sealing and replay.
@@ -538,12 +424,13 @@ impl Replay {
                 if numbers.len() != p * p + p + 1 {
                     return Err(malformed("numbers section length"));
                 }
+                let mut rest = numbers;
                 Ok(Self::Summary(DesignSummary {
                     n_rows: decl.n_rows,
                     first_treatment: 1 + decl.adjustment.len(),
-                    gram: numbers[..p * p].to_vec(),
-                    xty: numbers[p * p..p * p + p].to_vec(),
-                    rss: numbers[p * p + p],
+                    gram: crate::width::split_reals(&mut rest, p * p).to_vec(),
+                    xty: crate::width::split_reals(&mut rest, p).to_vec(),
+                    rss: crate::width::split_reals(&mut rest, 1)[0],
                 }))
             }
             REPLAY_ROWS => {
@@ -554,7 +441,14 @@ impl Replay {
                     return Err(malformed("numbers section length"));
                 }
                 let n = decl.n_rows;
-                let mut columns = numbers.chunks_exact(n.max(1)).map(<[f64]>::to_vec);
+                // A zero row count is an empty payload, so there are no columns.
+                let mut columns = if n == 0 {
+                    Vec::new()
+                } else {
+                    let mut rest = numbers;
+                    crate::width::take_blocks(&mut rest, n, numbers.len() / n)
+                }
+                .into_iter();
                 let outcome = columns.next().unwrap_or_default();
                 let adjustment: Vec<Vec<f64>> =
                     columns.by_ref().take(decl.adjustment.len()).collect();
@@ -572,24 +466,24 @@ fn identity_of(
     numbers: &[f64],
     result: &VectorResultWire,
 ) -> VectorTreatmentIdentity {
-    let mut snapshot = Canon::new("vector_treatment_v1.snapshot");
+    let mut snapshot = CanonicalWriter::new("vector_treatment_v1.snapshot");
     snapshot.text(&decl.row_snapshot);
     snapshot.size(decl.n_rows);
 
-    let mut adjustment = Canon::new("vector_treatment_v1.adjustment_set");
+    let mut adjustment = CanonicalWriter::new("vector_treatment_v1.adjustment_set");
     let sorted: BTreeSet<&str> = decl.adjustment.iter().map(String::as_str).collect();
     adjustment.size(sorted.len());
     for name in sorted {
         adjustment.text(name);
     }
 
-    let mut treatment = Canon::new("vector_treatment_v1.treatments");
+    let mut treatment = CanonicalWriter::new("vector_treatment_v1.treatments");
     treatment.size(decl.treatments.len());
     for name in &decl.treatments {
         treatment.text(name);
     }
 
-    let mut design = Canon::new("vector_treatment_v1.design");
+    let mut design = CanonicalWriter::new("vector_treatment_v1.design");
     design.text(replay);
     design.size(decl.adjustment.len());
     for name in &decl.adjustment {
@@ -600,10 +494,10 @@ fn identity_of(
         design.real(*value);
     }
 
-    let mut covariance = Canon::new("vector_treatment_v1.covariance");
+    let mut covariance = CanonicalWriter::new("vector_treatment_v1.covariance");
     covariance.text(&decl.covariance);
 
-    let mut contrasts = Canon::new("vector_treatment_v1.contrasts");
+    let mut contrasts = CanonicalWriter::new("vector_treatment_v1.contrasts");
     contrasts.size(decl.contrasts.len());
     for contrast in &decl.contrasts {
         contrasts.text(&contrast.name);
@@ -616,7 +510,7 @@ fn identity_of(
         }
     }
 
-    let mut outcome = Canon::new("vector_treatment_v1.result");
+    let mut outcome = CanonicalWriter::new("vector_treatment_v1.result");
     for c in &result.coefficients {
         outcome.text(&c.name);
         outcome.real(c.estimate);
@@ -635,14 +529,14 @@ fn identity_of(
     outcome.real(result.joint_wald.p_value);
     outcome.real(result.residual_variance);
 
-    let snapshot_id = snapshot.finish();
-    let adjustment_set_id = adjustment.finish();
-    let treatment_id = treatment.finish();
-    let design_id = design.finish();
-    let covariance_id = covariance.finish();
-    let contrast_id = contrasts.finish();
-    let result_id = outcome.finish();
-    let mut whole = Canon::new("vector_treatment_v1.identity");
+    let snapshot_id = snapshot.finish_hex();
+    let adjustment_set_id = adjustment.finish_hex();
+    let treatment_id = treatment.finish_hex();
+    let design_id = design.finish_hex();
+    let covariance_id = covariance.finish_hex();
+    let contrast_id = contrasts.finish_hex();
+    let result_id = outcome.finish_hex();
+    let mut whole = CanonicalWriter::new("vector_treatment_v1.identity");
     for part in [
         snapshot_id.as_str(),
         adjustment_set_id.as_str(),
@@ -664,7 +558,7 @@ fn identity_of(
         contrast_id,
         null: VECTOR_TREATMENT_NULL.to_owned(),
         result_id,
-        digest: whole.finish(),
+        digest: whole.finish_hex(),
     }
 }
 
@@ -697,18 +591,11 @@ fn identity_diff(
 }
 
 pub(crate) fn reals_to_bytes(values: &[f64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_le_bytes()).collect()
+    crate::width::f64s_to_le_bytes(values)
 }
 
 pub(crate) fn bytes_to_reals(bytes: &[u8]) -> Vec<f64> {
-    bytes
-        .chunks_exact(8)
-        .map(|chunk| {
-            let mut word = [0_u8; 8];
-            word.copy_from_slice(chunk);
-            f64::from_le_bytes(word)
-        })
-        .collect()
+    crate::width::f64s_from_le_bytes(bytes)
 }
 
 struct Computed {
@@ -772,7 +659,7 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, VectorTreatmentArti
             fit_vector_treatment(&input, &options)?
         }
     };
-    let result = VectorResultWire::from_fit(&fit);
+    let result = VectorResultWire::from_fit(&fit)?;
     let numbers = replay.numbers();
     let identity = identity_of(decl, replay.tag(), &numbers, &result);
     Ok(Computed { fit, result, identity, numbers })
@@ -785,42 +672,48 @@ fn compute(decl: &Decl, replay: &Replay) -> Result<Computed, VectorTreatmentArti
 ///
 /// # Errors
 /// An empty id, an encoding failure or an oversized payload.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn encode_parts(
     meta: &VectorTreatmentMeta,
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
-    let encode = |e: crate::IoError| VectorTreatmentArtifactError::Encode(e.to_string());
+    encode_parts_impl(meta, numbers, artifact_id)
+}
+
+fn encode_parts_impl(
+    meta: &VectorTreatmentMeta,
+    numbers: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
     if artifact_id.trim().is_empty() {
         return Err(VectorTreatmentArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(NUMBERS_SECTION, "application/octet-stream", numbers),
-            ],
-            provenance: ProvenanceWire { note: "vector_treatment_wald_unmeasured".into() },
+    let meta_bytes =
+        to_cbor(meta).map_err(|error| VectorTreatmentArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "vector_treatment_wald_unmeasured",
+            max_bytes: MAX_VECTOR_TREATMENT_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(NUMBERS_SECTION, numbers.to_vec()),
+        &[
+            crate::OutSection {
+                id: META_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            crate::OutSection {
+                id: NUMBERS_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: numbers,
+            },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_VECTOR_TREATMENT_ARTIFACT_BYTES {
-        return Err(VectorTreatmentArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+    )
+    .map_err(|error| crate::map_artifact_check!(error, VectorTreatmentArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -830,38 +723,35 @@ pub fn encode_parts(
 ///
 /// # Errors
 /// Oversized, truncated, corrupt, differently laid out or other-version artifacts.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(VectorTreatmentMeta, Vec<u8>), VectorTreatmentArtifactError> {
-    if bytes.len() > MAX_VECTOR_TREATMENT_ARTIFACT_BYTES {
-        return Err(VectorTreatmentArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 2
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != NUMBERS_SECTION
-    {
+    decode_parts_impl(bytes)
+}
+
+fn decode_parts_impl(
+    bytes: &[u8],
+) -> Result<(VectorTreatmentMeta, Vec<u8>), VectorTreatmentArtifactError> {
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_VECTOR_TREATMENT_ARTIFACT_BYTES,
+        &[META_SECTION, NUMBERS_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, VectorTreatmentArtifactError))?;
+    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(VectorTreatmentArtifactError::Malformed("unsupported container layout".into()));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    let limit = u64::try_from(MAX_VECTOR_TREATMENT_ARTIFACT_BYTES).unwrap_or(u64::MAX);
-    if declared.is_none_or(|total| total > limit) {
-        return Err(VectorTreatmentArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != VECTOR_TREATMENT_ARTIFACT_VERSION {
-        return Err(VectorTreatmentArtifactError::UnsupportedVersion { version: peek.version });
-    }
-    let meta: VectorTreatmentMeta = from_cbor(meta_section.as_bytes())?;
-    let numbers = reader.load_section(NUMBERS_SECTION)?;
-    Ok((meta, numbers.as_bytes().to_vec()))
+    };
+    let meta = crate::decode_with_version(&meta_bytes, |version| {
+        if version == VECTOR_TREATMENT_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(VectorTreatmentArtifactError::UnsupportedVersion { version })
+        }
+    })?;
+    Ok((meta, payload))
 }
 
 fn standing_caveats() -> Vec<String> {
@@ -954,7 +844,7 @@ impl VectorTreatmentArtifact {
             covariance: decl.covariance.clone(),
             replay: replay.tag().to_owned(),
             row_snapshot: decl.row_snapshot.clone(),
-            n_rows: u64::try_from(decl.n_rows).unwrap_or(u64::MAX),
+            n_rows: crate::width::lossless_u64(decl.n_rows),
             adjustment: decl.adjustment.clone(),
             treatments: decl.treatments.clone(),
             contrasts: decl.contrasts.clone(),
@@ -1009,7 +899,7 @@ impl VectorTreatmentArtifact {
     /// # Errors
     /// An empty id, an encoding failure or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, VectorTreatmentArtifactError> {
-        encode_parts(&self.meta, &reals_to_bytes(&self.numbers), artifact_id)
+        encode_parts_impl(&self.meta, &reals_to_bytes(&self.numbers), artifact_id)
     }
 
     /// Consume an artifact by recomputation.
@@ -1027,7 +917,7 @@ impl VectorTreatmentArtifact {
         bytes: &[u8],
         expected: Option<&VectorTreatmentIdentity>,
     ) -> Result<Self, VectorTreatmentArtifactError> {
-        let (meta, raw) = decode_parts(bytes)?;
+        let (meta, raw) = decode_parts_impl(bytes)?;
         if meta.feature != VECTOR_TREATMENT_ARTIFACT_FEATURE {
             return Err(VectorTreatmentArtifactError::UnsupportedSemantics("feature marker"));
         }
@@ -1064,5 +954,54 @@ impl VectorTreatmentArtifact {
             }
         }
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
+    }
+}
+
+#[cfg(test)]
+mod number_section_tests {
+    use super::{Decl, REPLAY_ROWS, Replay};
+
+    fn decl(n_rows: usize) -> Decl {
+        Decl {
+            row_snapshot: String::new(),
+            n_rows,
+            adjustment: vec!["z".into()],
+            treatments: vec!["a".into()],
+            covariance: String::new(),
+            contrasts: Vec::new(),
+        }
+    }
+
+    fn bits(sample: &[f64]) -> Vec<u64> {
+        sample.iter().map(|value| value.to_bits()).collect()
+    }
+
+    #[test]
+    fn row_replay_round_trips_signed_zero_and_nan() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
+        let replay = Replay::Rows {
+            outcome: vec![-0.0, 1.0],
+            adjustment: vec![vec![nan, -1.5]],
+            treatments: vec![vec![0.0, f64::MIN_POSITIVE]],
+        };
+        let numbers = replay.numbers();
+        let bytes = crate::width::f64s_to_le_bytes(&numbers);
+        let direct: Vec<u8> = numbers.iter().flat_map(|value| value.to_le_bytes()).collect();
+        assert_eq!(bytes, direct);
+        let decoded = crate::width::f64s_from_le_bytes(&bytes);
+        let back = Replay::from_numbers(&decl(2), REPLAY_ROWS, &decoded).unwrap();
+        assert_eq!(bits(&back.numbers()), bits(&numbers));
+        assert_eq!(crate::width::f64s_to_le_bytes(&back.numbers()), bytes);
+    }
+
+    #[test]
+    fn zero_row_replay_has_no_columns() {
+        let back = Replay::from_numbers(&decl(0), REPLAY_ROWS, &[]).unwrap();
+        let Replay::Rows { outcome, adjustment, treatments } = back else {
+            panic!("rows replay");
+        };
+        assert!(outcome.is_empty());
+        assert!(adjustment.is_empty());
+        assert!(treatments.is_empty());
     }
 }

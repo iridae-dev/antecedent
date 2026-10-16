@@ -23,7 +23,6 @@ exactly one place. The two fixtures are enumerated, not simulated:
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import antecedent as ac
@@ -35,7 +34,9 @@ from antecedent.joint_distribution import (
     ScientificQuantity,
 )
 
-FIXTURE_DIR = Path(__file__).resolve().parents[2] / "conformance" / "cross_surface"
+from _repo_text import REPO_ROOT
+
+FIXTURE_DIR = REPO_ROOT / "conformance" / "cross_surface"
 GRID = [0.0, 1.0, 2.0]
 EDGES = [("x", "a"), ("x", "y"), ("a", "y")]
 NAMES = ["x", "a", "y"]

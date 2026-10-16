@@ -336,7 +336,7 @@ fn overlap_flags_near_deterministic_treatment_assignment() {
     let mut ws = EstimationWorkspace::default();
     let ctx = ExecutionContext::for_tests(17);
     let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-    assert!(original.overlap_report.is_none());
+    assert!(original.diagnostics.overlap_report.is_none());
 
     let problem = RefutationProblem::new(
         &data,
@@ -607,13 +607,13 @@ fn refit_effect_honors_caller_se_kind() {
         (home_effect.ate - hc1_effect.ate).abs() < 1e-9,
         "se_kind must not change the point estimate"
     );
-    assert!(home_effect.se_analytic.is_finite() && home_effect.se_analytic > 0.0);
-    assert!(hc1_effect.se_analytic.is_finite() && hc1_effect.se_analytic > 0.0);
+    assert!(home_effect.se_analytic().is_finite() && home_effect.se_analytic() > 0.0);
+    assert!(hc1_effect.se_analytic().is_finite() && hc1_effect.se_analytic() > 0.0);
     assert!(
-        (home_effect.se_analytic - hc1_effect.se_analytic).abs() > 1e-6,
+        (home_effect.se_analytic() - hc1_effect.se_analytic()).abs() > 1e-6,
         "expected caller-configured se_kind to change the refit SE: homoskedastic={} hc1={}",
-        home_effect.se_analytic,
-        hc1_effect.se_analytic,
+        home_effect.se_analytic(),
+        hc1_effect.se_analytic(),
     );
 
     // Regression guard on the plumbing change itself: a refuter whose `estimator` field is
@@ -662,7 +662,7 @@ fn ols_refuters_do_not_earn_a_pass_from_p_equals_one() {
     // refutation (p = 0) it later became.
     assert!(matches!(
         crate::common::replicate_p_value(&[0.1, f64::NAN, 0.2, 0.15], 0.0),
-        Err(ValidationError::Estimation(_))
+        Err(ValidationError::Refused { .. })
     ));
 
     let (data, estimand, _) = toy_confounded();
@@ -766,8 +766,8 @@ fn evalue_uses_the_residual_sd_of_the_outcome_regression() {
     let (mut original, _, _) = crate::test_support::linear_original(&data, &estimand, &query);
     assert!((original.ate - 2.0).abs() < 1e-9, "fixture must recover ATE 2, got {}", original.ate);
     // Point estimate only: a degenerate interval isolates the point-estimate conversion.
-    original.se_analytic = 0.0;
-    original.se_bootstrap = None;
+    original.uncertainty.analytic.se = 0.0;
+    original.uncertainty.bootstrap.se = None;
     let problem = RefutationProblem::new(
         &data,
         &estimand,
@@ -813,14 +813,14 @@ fn evalue_gates_on_the_confidence_limit_not_only_the_point_estimate() {
     };
     // A very imprecise estimate (se 2 against ATE 2): the 95% interval covers the null, so the
     // interval-limit E-value is 1 and the check fails although the point E-value is large.
-    original.se_analytic = 2.0;
-    original.se_bootstrap = None;
+    original.uncertainty.analytic.se = 2.0;
+    original.uncertainty.bootstrap.se = None;
     let wide = problem_with(&original);
     assert_eq!(wide.comparison, 1.0);
     assert!(!wide.passed);
     // se 0.5: the lower limit 2 - 1.96 * 0.5 = 1.02 does not cover the null; the E-value is that
     // limit's, smaller than the point estimate's.
-    original.se_analytic = 0.5;
+    original.uncertainty.analytic.se = 0.5;
     let narrow = problem_with(&original);
     let limit = 2.0 - 1.959_963_984_540_054 * 0.5;
     let expected = evalue_of_smd(limit / sigma);
@@ -831,7 +831,7 @@ fn evalue_gates_on_the_confidence_limit_not_only_the_point_estimate() {
     );
     assert!(narrow.comparison < evalue_of_smd(2.0 / sigma));
     // No usable standard error: the point E-value is reported but cannot support a pass.
-    original.se_analytic = f64::NAN;
+    original.uncertainty.analytic.se = f64::NAN;
     let unknown = problem_with(&original);
     assert!(!unknown.passed && !unknown.informative);
 }
@@ -876,8 +876,8 @@ fn evalue_of_a_binary_outcome_uses_the_arm_risk_ratio() {
     let query = crate::test_support::ate_query();
     let (mut original, _, _) = crate::test_support::linear_original(&data, &estimand, &query);
     original.ate = 0.10;
-    original.se_analytic = 0.0;
-    original.se_bootstrap = None;
+    original.uncertainty.analytic.se = 0.0;
+    original.uncertainty.bootstrap.se = None;
     let problem = RefutationProblem::new(
         &data,
         &estimand,
@@ -1188,7 +1188,10 @@ fn panel_slice_template_slices_appended_column() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 fn panel_refit_effect_round_trip_matches_copy_all() {
     let panel = PanelData::try_new(Arc::from([
         PanelUnit { unit_id: 0, series: lagged_xy_series(32, 0.1) },
@@ -1599,17 +1602,24 @@ fn assert_treatment_route(
 
 #[test]
 fn refutation_report_mixture_weighted_is_mass_weighted_and_fail_closed() {
-    let pass = RefutationReport::new("overlap.assessment", 2.0, 0.1, 0.2, true, true, None, 4);
-    let fail = RefutationReport::new(
-        "overlap.assessment",
-        2.0,
-        0.4,
-        0.8,
-        true,
-        false,
-        Some(Arc::from("bad overlap")),
-        2,
-    );
+    let pass = RefutationReport::builder("overlap.assessment")
+        .original_ate(2.0)
+        .refuted_ate(0.1)
+        .comparison(0.2)
+        .informative(true)
+        .passed(true)
+        .failure_condition(None)
+        .replicates(4)
+        .build();
+    let fail = RefutationReport::builder("overlap.assessment")
+        .original_ate(2.0)
+        .refuted_ate(0.4)
+        .comparison(0.8)
+        .informative(true)
+        .passed(false)
+        .failure_condition(Some(Arc::from("bad overlap")))
+        .replicates(2)
+        .build();
     let mixed = RefutationReport::mixture_weighted(&[(0.5, &pass), (0.3, &fail)]).unwrap();
     assert_eq!(mixed.refuter.as_ref(), "overlap.assessment");
     assert!((mixed.comparison - (0.5 * 0.2 + 0.3 * 0.8) / 0.8).abs() < 1e-12);
@@ -1623,28 +1633,35 @@ fn refutation_report_mixture_weighted_is_mass_weighted_and_fail_closed() {
 
 #[test]
 fn query_refutation_plan_mixes_mediation_atoms_fail_closed() {
-    let pass =
-        RefutationReport::new("mediation.placebo_mediator", 0.0, 0.01, 0.4, true, true, None, 20);
-    let fail = RefutationReport::new(
-        "mediation.placebo_mediator",
-        0.0,
-        0.2,
-        0.01,
-        true,
-        false,
-        Some(Arc::from("mediation contrast is inconsistent with the refuter target")),
-        20,
-    );
-    let rcc = RefutationReport::new(
-        "mediation.random_common_cause",
-        0.44,
-        0.45,
-        0.6,
-        true,
-        true,
-        None,
-        20,
-    );
+    let pass = RefutationReport::builder("mediation.placebo_mediator")
+        .original_ate(0.0)
+        .refuted_ate(0.01)
+        .comparison(0.4)
+        .informative(true)
+        .passed(true)
+        .failure_condition(None)
+        .replicates(20)
+        .build();
+    let fail = RefutationReport::builder("mediation.placebo_mediator")
+        .original_ate(0.0)
+        .refuted_ate(0.2)
+        .comparison(0.01)
+        .informative(true)
+        .passed(false)
+        .failure_condition(Some(Arc::from(
+            "mediation contrast is inconsistent with the refuter target",
+        )))
+        .replicates(20)
+        .build();
+    let rcc = RefutationReport::builder("mediation.random_common_cause")
+        .original_ate(0.44)
+        .refuted_ate(0.45)
+        .comparison(0.6)
+        .informative(true)
+        .passed(true)
+        .failure_condition(None)
+        .replicates(20)
+        .build();
     let mixed =
         QueryRefutationPlan::mix_weighted([(0.7, vec![pass, rcc.clone()]), (0.3, vec![fail, rcc])]);
     assert_eq!(mixed.len(), 2);
@@ -1848,7 +1865,7 @@ fn a_non_finite_refit_effect_is_an_error_in_every_replicate_refuter() {
     )
     .with_effect_refit(&refit);
     let is_operational_error = |result: Result<crate::RefutationReport, ValidationError>| {
-        matches!(result, Err(ValidationError::Estimation(_)))
+        matches!(result, Err(ValidationError::Refused { .. }))
     };
     assert!(is_operational_error(PlaceboTreatment::new().refute(&problem, &mut ws, &ctx)));
     assert!(is_operational_error(DummyOutcome::new().refute(&problem, &mut ws, &ctx)));
@@ -1982,6 +1999,12 @@ impl crate::common::EffectRefit for FixedBlockRefit {
                         assert_eq!(pair[1], (pair[0] + 1) % rows, "block shorter than {block}");
                     }
                 }
+                // The full-sample refit (the identity row map) is the interval's centre; put
+                // it far outside the replicate means (row-index averages near 31.5) so the
+                // refit falls outside its own bootstrap interval and the report fails.
+                if map.iter().copied().eq(0..rows) {
+                    return Some(1_000.0);
+                }
                 Some(map.iter().map(|&r| r as f64).sum::<f64>() / map.len() as f64)
             }),
         }))
@@ -2011,7 +2034,7 @@ fn composed_bootstrap_refute_uses_the_interval_block_length_and_reports_the_stan
         panel: None,
     };
     let ate_q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    // Far outside the replicate means (row-index averages near 31.5).
+    // The check centres on the full-sample refit, not on this published value.
     let original = antecedent_estimate::EffectEstimate::new(
         1_000.0,
         f64::NAN,
@@ -2035,4 +2058,49 @@ fn composed_bootstrap_refute_uses_the_interval_block_length_and_reports_the_stan
     assert!(!report.passed);
     let failure = report.failure_condition.expect("failing report");
     assert!(failure.contains("least-squares stand-in for the posterior mean"), "{failure}");
+}
+
+#[test]
+fn replicate_refuters_are_bit_identical_for_every_thread_count() {
+    use antecedent_core::{NonZeroThreadCount, Parallelism};
+
+    let (data, estimand, _) = toy_confounded_with_noise(0.3);
+    let mut est = LinearAdjustmentAte::new();
+    est.bootstrap_replicates = 0;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let prep = est.prepare(&data, &estimand, &query).unwrap();
+    let ctx = ExecutionContext::for_tests(17);
+    let original =
+        est.fit(&prep, &mut EstimationWorkspace::default(), &ctx, AssumptionSet::new()).unwrap();
+    let problem = RefutationProblem::new(&data, &estimand, &query, &original, None, None);
+
+    let run = |threads: u32| {
+        let mut ctx = ExecutionContext::for_tests(17);
+        ctx.parallelism = Parallelism::bounded(NonZeroThreadCount::new(threads).unwrap());
+        let mut ws = EstimationWorkspace::default();
+        let reports = [
+            RandomCommonCause { replicates: 24, ..RandomCommonCause::new() }
+                .refute(&problem, &mut ws, &ctx),
+            PlaceboTreatment { replicates: 24, ..PlaceboTreatment::new() }
+                .refute(&problem, &mut ws, &ctx),
+            PlaceboTreatment {
+                replicates: 24,
+                mode: PlaceboMode::Permute,
+                ..PlaceboTreatment::new()
+            }
+            .refute(&problem, &mut ws, &ctx),
+            DataSubsetRefuter { replicates: 24, ..DataSubsetRefuter::new() }
+                .refute(&problem, &mut ws, &ctx),
+            UnobservedCommonCause { replicates: 24, ..UnobservedCommonCause::new() }
+                .refute(&problem, &mut ws, &ctx),
+        ];
+        reports.map(|r| {
+            let r = r.unwrap();
+            (r.refuted_ate.to_bits(), r.comparison.to_bits(), r.passed, r.replicates)
+        })
+    };
+    let serial = run(1);
+    for threads in [2, 3, 4, 7] {
+        assert_eq!(serial, run(threads), "threads={threads}");
+    }
 }

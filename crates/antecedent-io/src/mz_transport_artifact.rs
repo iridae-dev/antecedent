@@ -36,16 +36,14 @@ use crate::{
     wire::AdmgWire,
 };
 use antecedent_core::{
-    EvidenceCatalog, ExecutionContext, IdentityDomain, InterventionAssignment, SearchLimits,
-    VariableId,
+    EvidenceCatalog, ExecutionContext, IdentityDomain, SearchLimits, VariableId,
 };
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
     BoundMzTransportFunctional, IdentificationError, MzTransportDerivation,
-    MzTransportDerivationRecord, MzTransportQuery, ZTransportSourceSpec, bind_mz_transport_catalog,
+    MzTransportDerivationRecord, bind_mz_transport_catalog,
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
 pub const MZ_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
@@ -65,69 +63,13 @@ pub const MZ_INTERVAL_NOT_LICENSED: &str = "cell_not_licensed";
 /// that carries an interval with `cell_not_licensed` and this detail.
 pub const MZ_INTERVAL_NOT_LICENSED_DETAIL: &str = "mz_transport.interval_withheld";
 
-/// Why an mz-transport artifact was refused. Callers match the kind.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum MzTransportArtifactError {
-    /// The feature marker or result shape is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A stored limit or collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The re-run decision did not reproduce the stored derivation.
-    #[error("proof does not verify: {0}")]
-    ProofMismatch(IdentificationError),
-    /// The verified derivation does not bind to the stored catalog.
-    #[error("catalog binding failed: {0}")]
-    CatalogBinding(IdentificationError),
-    /// The stored source-specific bindings differ from the re-derived ones.
-    #[error("source bindings do not match the checked binding")]
-    BindingMismatch,
-    /// A stored law is not a valid law or law set.
-    #[error("invalid law: {0}")]
-    LawInvalid(String),
-    /// A recomputed point differs from the stored point.
-    #[error("point result does not replay")]
-    PointMismatch,
-    /// A recomputed contrast differs from the stored contrast.
-    #[error("contrast does not replay")]
-    ContrastMismatch,
-    /// The stored interval bookkeeping contradicts the licensing decision or
-    /// does not recompute bit for bit from its seed and replicate spec.
-    #[error("uncertainty bookkeeping does not check: {0}")]
-    UncertaintyMismatch(&'static str),
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The data-identity digest does not match the stored snapshot identities.
-    #[error("data identity digest mismatch")]
-    DataIdentityMismatch,
-    /// The caller's variable names are not the names the artifact was built under.
-    #[error("variable names do not match the verified name mapping")]
-    NamesMismatch,
-}
-
-impl MzTransportArtifactError {
-    /// The frozen `(reason code, mz_transport.* detail)` pair of this failure, when
-    /// the X1 promotion record declares one: a proof or binding failure carries the
-    /// pair of the identification error it wraps. Other consumer checks are typed
-    /// kinds without a record row.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, &'static str)> {
-        match self {
-            Self::ProofMismatch(inner) | Self::CatalogBinding(inner) => {
-                antecedent_identify::mz_transport_refusal(inner)
-            }
-            _ => None,
-        }
-    }
-}
-
+pub use antecedent_io_core::transport_errors::MzTransportArtifactError;
+pub use antecedent_io_core::transport_query_wire::{MzSourceWire, MzTransportQueryWire};
 /// An mz-route identification error as the io error a caller sees: the record's
 /// `reason=<code>: <detail>: ...` refusal when the route owns it, else the
 /// generic conversion.
 #[must_use]
+// doc(hidden): the facade maps refusals through it.
 #[doc(hidden)]
 pub fn mz_identification_error(error: IdentificationError) -> IoError {
     match antecedent_identify::mz_transport_refusal(&error) {
@@ -176,129 +118,20 @@ impl Default for MzTransportConsumeLimits {
     }
 }
 
-/// One source of a stored query.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct MzSourceWire {
-    /// Source population.
-    pub population: String,
-    /// Declared controllable variables.
-    pub controllable: Vec<u32>,
-    /// Concrete experiment levels.
-    pub experiment_assignment: Vec<(u32, ValueWire)>,
-    /// Selection targets on this source's diagram.
-    pub selection_targets: Vec<u32>,
-}
-
-/// Portable canonical mz query.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct MzTransportQueryWire {
-    /// Outcomes.
-    pub outcomes: Vec<u32>,
-    /// Treatments.
-    pub treatments: Vec<u32>,
-    /// Target population.
-    pub target: String,
-    /// Sources in canonical order.
-    pub sources: Vec<MzSourceWire>,
-}
-
-impl MzTransportQueryWire {
-    /// Encode a query in canonical form.
+impl MzTransportConsumeLimits {
+    /// The exact-law replay bounds, as the shared checks read them.
     #[must_use]
-    pub fn from_query(query: &MzTransportQuery) -> Self {
-        let query = query.canonical();
-        let raw = |v: &[VariableId]| v.iter().map(|v| v.raw()).collect::<Vec<_>>();
-        Self {
-            outcomes: raw(&query.outcomes),
-            treatments: raw(&query.treatments),
-            target: query.target.to_string(),
-            sources: query
-                .sources
-                .iter()
-                .map(|s| MzSourceWire {
-                    population: s.population.to_string(),
-                    controllable: raw(&s.controllable),
-                    experiment_assignment: s
-                        .experiment_assignment
-                        .iter()
-                        .map(|a| (a.variable.raw(), ValueWire::from_value(&a.value)))
-                        .collect(),
-                    selection_targets: raw(&s.selection_targets),
-                })
-                .collect(),
-        }
-    }
-
-    /// Decode. Validation happens when the query is decided.
-    #[must_use]
-    pub fn to_query(&self) -> MzTransportQuery {
-        let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
-        MzTransportQuery {
-            outcomes: ids(&self.outcomes).into(),
-            treatments: ids(&self.treatments).into(),
-            target: Arc::from(self.target.as_str()),
-            sources: self
-                .sources
-                .iter()
-                .map(|s| ZTransportSourceSpec {
-                    population: Arc::from(s.population.as_str()),
-                    controllable: ids(&s.controllable).into(),
-                    experiment_assignment: s
-                        .experiment_assignment
-                        .iter()
-                        .map(|(v, x)| InterventionAssignment {
-                            variable: VariableId::from_raw(*v),
-                            value: x.to_value(),
-                        })
-                        .collect::<Vec<_>>()
-                        .into(),
-                    selection_targets: ids(&s.selection_targets).into(),
-                })
-                .collect::<Vec<_>>()
-                .into(),
+    pub const fn replay(&self) -> crate::ConsumeLimits {
+        crate::ConsumeLimits {
+            evaluation: self.evaluation,
+            max_support_rows: self.max_support_rows,
+            max_laws: self.max_laws,
+            max_law_cells: self.max_law_cells,
         }
     }
 }
 
-/// Point distribution in canonical atom order.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct MzTransportPointWire {
-    /// Outcome coordinates.
-    pub outcomes: Vec<u32>,
-    /// Complete outcome assignments.
-    pub atoms: Vec<Vec<ValueWire>>,
-    /// Point probabilities.
-    pub probabilities: Vec<f64>,
-}
-
-impl MzTransportPointWire {
-    /// Encode a distribution.
-    #[must_use]
-    pub fn from_distribution(distribution: &ExactDistribution) -> Self {
-        Self {
-            outcomes: distribution.outcomes.iter().map(|v| v.raw()).collect(),
-            atoms: distribution
-                .atoms
-                .iter()
-                .map(|atom| atom.iter().map(ValueWire::from_value).collect())
-                .collect(),
-            probabilities: distribution.probabilities.to_vec(),
-        }
-    }
-
-    /// Bit-exact replay; non-finite probabilities fail closed.
-    fn replays(&self, recomputed: &Self) -> bool {
-        self.outcomes == recomputed.outcomes
-            && self.atoms == recomputed.atoms
-            && self.probabilities.len() == recomputed.probabilities.len()
-            && self.probabilities.iter().zip(&recomputed.probabilities).all(|(stored, fresh)| {
-                stored.is_finite() && fresh.is_finite() && stored.to_bits() == fresh.to_bits()
-            })
-    }
-}
+pub use antecedent_io_core::transport_point_wire::MzTransportPointWire;
 
 /// Point contrast of one outcome mean: request `request` minus request 0.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
@@ -317,6 +150,7 @@ pub struct MzContrastWire {
 ///
 /// # Errors
 /// An outcome without a finite numeric mean.
+// doc(hidden): the facade derives contrasts with it.
 #[doc(hidden)]
 pub fn mz_point_contrasts(
     distributions: &[ExactDistribution],
@@ -331,7 +165,7 @@ pub fn mz_point_contrasts(
     for (k, distribution) in distributions.iter().enumerate().skip(1) {
         for outcome in base.outcomes.iter() {
             out.push(MzContrastWire {
-                request: u32::try_from(k).unwrap_or(u32::MAX),
+                request: u32::try_from(k).map_err(|_| IoError::TooLarge)?,
                 outcome: outcome.raw(),
                 estimate: mean(distribution, *outcome)? - mean(base, *outcome)?,
             });
@@ -583,11 +417,10 @@ fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<Strin
         .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
         .collect::<Vec<_>>();
     snapshots.sort();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("mz_transport_data_v2", bindings, snapshots),
-    )?
-    .to_hex())
+    )
 }
 
 fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
@@ -619,11 +452,6 @@ fn request_of(wire: &[(u32, ValueWire)]) -> Assignment {
 /// Bit-exact equality of two encodable values (floats compare by bits).
 fn same_bits<T: Serialize>(a: &T, b: &T) -> bool {
     matches!((crate::to_cbor(a), crate::to_cbor(b)), (Ok(a), Ok(b)) if a == b)
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
 }
 
 /// The checked premises and results an artifact is built from.
@@ -716,16 +544,13 @@ impl MzTransportArtifactWire {
         };
         wire.premises_digest = wire.expected_premises_digest()?;
         wire.validate_shape()?;
-        check_uncertainty(
-            input.functional,
-            input.data,
-            input.requests,
-            input.limits,
-            &wire.uncertainty,
-            &wire.results,
-            allow_interval,
-            ctx,
-        )?;
+        let problem = IntervalProblem {
+            functional: input.functional,
+            data: input.data,
+            requests: input.requests,
+            limits: input.limits,
+        };
+        check_uncertainty(&problem, &wire.uncertainty, &wire.results, allow_interval, ctx)?;
         Ok(wire)
     }
 
@@ -735,11 +560,7 @@ impl MzTransportArtifactWire {
     /// # Errors
     /// The premises do not encode.
     pub fn expected_premises_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
-            IdentityDomain::TransportCertificate,
-            &self.premises_view(),
-        )?
-        .to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &self.premises_view())
     }
 
     /// The data-identity digest the stored snapshot ids should carry.
@@ -802,11 +623,13 @@ impl MzTransportArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != MZ_TRANSPORT_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == MZ_TRANSPORT_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -817,11 +640,10 @@ impl MzTransportArtifactWire {
         ctx: &ExecutionContext,
     ) -> Result<(), MzTransportArtifactError> {
         let exceeded = MzTransportArtifactError::LimitsExceeded;
-        if self.search_operations > limits.search.operations {
-            return Err(exceeded("search operation limit"));
-        }
-        if self.search_depth > limits.search.depth {
-            return Err(exceeded("search depth limit"));
+        if let Some(what) =
+            crate::search_bounds(self.search_operations, self.search_depth, limits.search)
+        {
+            return Err(exceeded(what));
         }
         // The replay runs under the producer's stored memory cap, so the consumer's
         // own limit (its consume limits and the context's hard limit) must cover it.
@@ -834,17 +656,14 @@ impl MzTransportArtifactWire {
         if self.proof.search.memory_limit_bytes > memory_cap {
             return Err(exceeded("search memory limit"));
         }
-        if self.operation_limit > limits.evaluation.operations {
-            return Err(exceeded("operation limit"));
-        }
-        if self.depth_limit > limits.evaluation.depth {
-            return Err(exceeded("depth limit"));
-        }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(exceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(exceeded("law count"));
+        let replay = limits.replay();
+        if let Some(what) = replay.budget(
+            self.operation_limit,
+            self.depth_limit,
+            self.max_support_rows,
+            self.laws.len(),
+        ) {
+            return Err(exceeded(what));
         }
         if self.requests.len() > limits.max_requests {
             return Err(exceeded("request count"));
@@ -852,11 +671,8 @@ impl MzTransportArtifactWire {
         if self.uncertainty.replicates_requested > limits.max_bootstrap_replicates {
             return Err(exceeded("bootstrap replicates"));
         }
-        if self.laws.iter().any(|law| {
-            law.probabilities.len() > limits.max_law_cells
-                || law.empirical_counts.as_ref().is_some_and(|c| c.len() > limits.max_law_cells)
-        }) {
-            return Err(exceeded("law cells"));
+        if let Some(what) = replay.law_cells(&self.laws, true) {
+            return Err(exceeded(what));
         }
         Ok(())
     }
@@ -900,13 +716,19 @@ impl MzTransportArtifactWire {
     ) -> Result<ConsumedMzTransport, IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits, ctx)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(MzTransportArtifactError::PremisesMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || MzTransportArtifactError::PremisesMismatch.into(),
+        )?;
         let catalog = wire.catalog.to_catalog()?;
-        if data_digest(&catalog, &wire.laws)? != wire.data_digest {
-            return Err(MzTransportArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.data_digest,
+            data_digest(&catalog, &wire.laws),
+            std::convert::identity,
+            || MzTransportArtifactError::DataIdentityMismatch.into(),
+        )?;
         // The stored limits and the proof's search receipt are one fact.
         if wire.search_operations != wire.proof.search.operations_limit
             || wire.search_depth != wire.proof.search.depth_limit
@@ -964,16 +786,13 @@ impl MzTransportArtifactWire {
         }
         let producer_limits =
             ExactEvaluationLimits { operations: wire.operation_limit, depth: wire.depth_limit };
-        check_uncertainty(
-            &functional,
-            &data,
-            &requests,
-            producer_limits,
-            &wire.uncertainty,
-            &wire.results,
-            allow_interval,
-            ctx,
-        )?;
+        let problem = IntervalProblem {
+            functional: &functional,
+            data: &data,
+            requests: &requests,
+            limits: producer_limits,
+        };
+        check_uncertainty(&problem, &wire.uncertainty, &wire.results, allow_interval, ctx)?;
         Ok(ConsumedMzTransport { functional, data, requests, distributions, contrasts, wire })
     }
 
@@ -981,6 +800,7 @@ impl MzTransportArtifactWire {
     ///
     /// # Errors
     /// As [`Self::consume_with_limits`].
+    #[cfg(any(test, feature = "test-util"))]
     #[doc(hidden)]
     pub fn consume(bytes: &[u8], ctx: &ExecutionContext) -> Result<ConsumedMzTransport, IoError> {
         Self::consume_with_limits(bytes, MzTransportConsumeLimits::default(), ctx)
@@ -995,6 +815,7 @@ impl MzTransportArtifactWire {
 /// # Errors
 /// [`IoError::Refused`] with `cell_not_licensed` and detail
 /// [`MZ_INTERVAL_NOT_LICENSED_DETAIL`].
+// doc(hidden): the facade and the python bindings apply it after consuming.
 #[doc(hidden)]
 pub fn refuse_unlicensed_interval(uncertainty: &MzUncertaintyWire) -> Result<(), IoError> {
     if uncertainty.seed.is_some() || uncertainty.available() {
@@ -1014,6 +835,18 @@ fn derivation_limits(derivation: &MzTransportDerivation) -> SearchLimits {
     SearchLimits { operations: receipt.operations_limit, depth: receipt.depth_limit }
 }
 
+/// The functional, transport data and requests an interval is bookkept for.
+#[derive(Clone, Copy)]
+struct IntervalProblem<'a> {
+    functional: &'a BoundMzTransportFunctional,
+    data: &'a ExactTransportData,
+    // Read by the calibration-internal recompute. The public path refuses before that.
+    #[cfg_attr(not(feature = "calibration-internal"), allow(dead_code))]
+    requests: &'a [Assignment],
+    #[cfg_attr(not(feature = "calibration-internal"), allow(dead_code))]
+    limits: ExactEvaluationLimits,
+}
+
 /// Re-derive the interval bookkeeping and check the stored one against it.
 ///
 /// Exact laws are point-only. Counted laws without an estimator run carry the
@@ -1022,17 +855,14 @@ fn derivation_limits(derivation: &MzTransportDerivation) -> SearchLimits {
 /// estimator run carries its seed and replicate spec and must recompute bit
 /// for bit, but only when `allow_interval` (calibration and tests): otherwise
 /// any carried interval is refused before anything else is decided.
-#[allow(clippy::too_many_arguments)]
 fn check_uncertainty(
-    functional: &BoundMzTransportFunctional,
-    data: &ExactTransportData,
-    requests: &[Assignment],
-    limits: ExactEvaluationLimits,
+    problem: &IntervalProblem<'_>,
     stored: &MzUncertaintyWire,
     results: &[MzTransportPointWire],
     allow_interval: bool,
     ctx: &ExecutionContext,
 ) -> Result<(), IoError> {
+    let IntervalProblem { functional, data, .. } = *problem;
     if !allow_interval {
         refuse_unlicensed_interval(stored)?;
     }
@@ -1052,19 +882,15 @@ fn check_uncertainty(
             bad("closed interval route bookkeeping")
         };
     };
-    recompute_interval(functional, data, requests, limits, stored, seed, results, ctx)
+    recompute_interval(problem, stored, seed, results, ctx)
 }
 
 /// Recompute a stored internal estimator run bit for bit. Without the
 /// `calibration-internal` feature the estimator is not linked and the interval
 /// route stays refused.
 #[cfg(not(any(test, feature = "calibration-internal")))]
-#[allow(clippy::too_many_arguments)]
 fn recompute_interval(
-    _: &BoundMzTransportFunctional,
-    _: &ExactTransportData,
-    _: &[Assignment],
-    _: ExactEvaluationLimits,
+    _: &IntervalProblem<'_>,
     stored: &MzUncertaintyWire,
     _: u64,
     _: &[MzTransportPointWire],
@@ -1074,17 +900,14 @@ fn recompute_interval(
 }
 
 #[cfg(any(test, feature = "calibration-internal"))]
-#[allow(clippy::too_many_arguments)]
 fn recompute_interval(
-    functional: &BoundMzTransportFunctional,
-    data: &ExactTransportData,
-    requests: &[Assignment],
-    limits: ExactEvaluationLimits,
+    problem: &IntervalProblem<'_>,
     stored: &MzUncertaintyWire,
     seed: u64,
     results: &[MzTransportPointWire],
     ctx: &ExecutionContext,
 ) -> Result<(), IoError> {
+    let IntervalProblem { functional, data, requests, limits } = *problem;
     let bad = |what| Err(MzTransportArtifactError::UncertaintyMismatch(what).into());
     let (Some(coverage), true) = (
         stored.coverage_target,

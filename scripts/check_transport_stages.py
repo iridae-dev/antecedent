@@ -1,9 +1,9 @@
 """Validate the transport stage registry independently of the analyze axes."""
-
 import sys
+import tomllib
 from pathlib import Path
 
-import tomllib
+from _repo import REPO_ROOT as root
 from test_evidence import (
     checked_execution_body_problems,
     closure,
@@ -12,12 +12,11 @@ from test_evidence import (
 )
 from transport_replay_contract import shared_evidence_problems, source_replay_problems
 
-root = Path(__file__).resolve().parents[1]
 # An explicit registry path exists for gate self-tests; evidence still resolves in this tree.
 registry_path = (
     Path(sys.argv[1]) if len(sys.argv) > 1 else root / "parity/transport_stages.toml"
 )
-registry = tomllib.loads(registry_path.read_text())
+registry = tomllib.loads(registry_path.read_text(encoding="utf-8"))
 errors = []
 if registry.get("version") != 1 or registry.get("default") != "closed":
     errors.append("transport stages require version 1 and default=closed")
@@ -178,7 +177,7 @@ if not required.issubset(seen):
     errors.append("missing current public transport stage")
 coverage_ids = {
     row.get("id")
-    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text()).get(
+    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text(encoding="utf-8")).get(
         "record", []
     )
 }

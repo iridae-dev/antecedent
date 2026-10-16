@@ -5,13 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::field_reassign_with_default,
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::unreadable_literal,
-    clippy::zero_sized_map_values
-)]
 #![cfg_attr(
     test,
     allow(
@@ -27,10 +20,7 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Cpdag, CpdagReview, DenseNodeId};
-use antecedent_stats::{
-    CiPreparationPlan, ConditionalIndependence, ConfidenceMethod, FdrAdjustment,
-    PartialCorrelation, PreparedCiTest,
-};
+use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
@@ -45,7 +35,7 @@ use crate::result::{
     GraphEvidence, ScoredLink, discovery_assumptions,
 };
 use crate::static_skeleton::{
-    StaticSkeleton, StaticSkeletonInput, run_static_skeleton, skeleton_scored_links,
+    StaticSkeleton, StaticSkeletonInput, UndirectedAdj, run_static_skeleton, skeleton_scored_links,
     static_edge_evidence,
 };
 
@@ -68,15 +58,7 @@ pub struct Pc {
     pub fdr: Option<FdrAdjustment>,
 }
 
-impl std::fmt::Debug for Pc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Pc")
-            .field("constraints", &self.constraints)
-            .field("ci", &"<dyn ConditionalIndependence>")
-            .field("fdr", &self.fdr)
-            .finish()
-    }
-}
+crate::debug_with_ci!(Pc);
 
 impl Default for Pc {
     fn default() -> Self {
@@ -134,6 +116,10 @@ impl Pc {
     /// # Errors
     ///
     /// Data, CI, or orientation failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
@@ -142,41 +128,21 @@ impl Pc {
         ctx: &ExecutionContext,
     ) -> Result<StaticCpdagDiscoveryResult, DiscoveryError> {
         self.constraints.validate()?;
-        crate::ci::ensure_ci_decisions_meaningful(
-            &*self.ci,
-            self.constraints.significance,
-            self.constraints.alpha,
-            self.fdr.is_some(),
+        let (col_owned, var_index) = prepare_static_columns(
+            StaticColumnRequest {
+                ci: &*self.ci,
+                significance: self.constraints.significance,
+                alpha: self.constraints.alpha,
+                fdr: self.fdr.is_some(),
+                empty_variables: "PC requires at least one variable",
+                insufficient_rows: "insufficient rows for PC",
+            },
+            data,
+            variables,
+            workspace,
+            ctx,
         )?;
-        if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported {
-                message: "PC requires at least one variable",
-            });
-        }
-
-        let col_owned = collect_float_columns(data, variables)?;
         let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
-        let n = cols[0].len();
-        crate::ci::ensure_ci_fits_rows(&*self.ci, n)?;
-        if n < 3 {
-            return Err(DiscoveryError::stats_msg("insufficient rows for PC"));
-        }
-        for c in &cols {
-            if c.len() != n {
-                return Err(DiscoveryError::data_msg("column length mismatch"));
-            }
-        }
-
-        let var_index: HashMap<VariableId, usize> =
-            variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
-
-        let plan = CiPreparationPlan {
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
-        let prepared: PreparedCiTest =
-            self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
-        workspace.prepared_ci = Some(prepared);
 
         let alpha = self.constraints.alpha;
         let max_cond = self.constraints.max_cond_size;
@@ -221,7 +187,7 @@ impl Pc {
             scored.iter().map(|s| edge_key(s.link.source, s.link.target)).collect();
         // If FDR ran, drop edges that failed; if FDR off, keep skeleton as-is.
         if self.fdr.is_some() {
-            adj.retain(|k, ()| kept.contains(k));
+            adj.retain(|k| kept.contains(k));
         }
 
         // Build undirected CPDAG skeleton.
@@ -237,25 +203,14 @@ impl Pc {
             }
         }
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
-        for &(lo, hi) in adj.keys() {
+        for (lo, hi) in adj.edge_pairs() {
             let a = dense_of(VariableId::from_raw(lo))?;
             let b = dense_of(VariableId::from_raw(hi))?;
             cpdag.insert_undirected(a, b).map_err(DiscoveryError::from)?;
         }
 
-        // Orientation state from sepsets (dense ids).
         let mut state = OrientationState::default();
-        for ((sx, _, ty, _), sep) in &sepsets {
-            // Only store one direction with dense node ids.
-            if sx.raw() > ty.raw() {
-                continue;
-            }
-            let a = dense_of(*sx)?;
-            let b = dense_of(*ty)?;
-            let dense_sep: Vec<DenseNodeId> =
-                sep.iter().filter_map(|(v, _)| dense_of(*v).ok()).collect();
-            state.set_sepset(a, b, Arc::from(dense_sep));
-        }
+        load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
 
         let rules: [&dyn OrientationRule<antecedent_graph::Cpdag>; 5] =
             [&OrientCollider, &MeekR1, &MeekR2, &MeekR3, &MeekR4];
@@ -317,19 +272,107 @@ pub(crate) fn edge_key(a: VariableId, b: VariableId) -> (u32, u32) {
 /// unsorted traversal makes the resulting skeleton nondeterministic across runs on
 /// bit-identical input. Sorting fixes a canonical order; it does not change the
 /// algorithm's existing (documented) order-dependence, only makes it reproducible.
-pub(crate) fn sorted_edge_pairs(adj: &HashMap<(u32, u32), ()>) -> Vec<(VariableId, VariableId)> {
-    let mut edges: Vec<(VariableId, VariableId)> =
-        adj.keys().map(|&(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi))).collect();
+pub(crate) fn sorted_edge_pairs(adj: &UndirectedAdj) -> Vec<(VariableId, VariableId)> {
+    let mut edges: Vec<(VariableId, VariableId)> = adj
+        .edge_pairs()
+        .into_iter()
+        .map(|(lo, hi)| (VariableId::from_raw(lo), VariableId::from_raw(hi)))
+        .collect();
     edges.sort_unstable();
     edges
 }
 
 pub(crate) fn adjacent_vars(
     v: VariableId,
-    adj: &HashMap<(u32, u32), ()>,
+    adj: &UndirectedAdj,
     variables: &[VariableId],
 ) -> Vec<VariableId> {
-    variables.iter().copied().filter(|&u| u != v && adj.contains_key(&edge_key(v, u))).collect()
+    variables.iter().copied().filter(|&u| u != v && adj.contains(edge_key(v, u))).collect()
+}
+
+/// Column vectors with the corresponding original-variable index.
+pub(crate) type StaticColumns = (Vec<Arc<[f64]>>, HashMap<VariableId, usize>);
+
+/// What [`prepare_static_columns`] needs from the algorithm besides the table.
+#[derive(Clone, Copy)]
+pub(crate) struct StaticColumnRequest<'a> {
+    /// CI test to prepare.
+    pub ci: &'a (dyn antecedent_stats::ConditionalIndependence + Sync),
+    /// Significance method recorded on the prepared test.
+    pub significance: antecedent_stats::SignificanceMethod,
+    /// Level passed to the resolvability check.
+    pub alpha: f64,
+    /// Whether an FDR adjustment is configured.
+    pub fdr: bool,
+    /// Refusal when `variables` is empty.
+    pub empty_variables: &'static str,
+    /// Refusal when the table has fewer than three rows.
+    pub insufficient_rows: &'static str,
+}
+
+/// Column vectors, variable index, and a prepared CI test for a static algorithm.
+///
+/// The refusal strings stay `&'static str` so each algorithm keeps the [`DiscoveryError`]
+/// variant it already returned.
+///
+/// # Errors
+///
+/// Empty variable list, short or ragged columns, or a CI prepare failure.
+pub(crate) fn prepare_static_columns(
+    request: StaticColumnRequest<'_>,
+    data: &TabularData,
+    variables: &[VariableId],
+    workspace: &mut DiscoveryWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<StaticColumns, DiscoveryError> {
+    let StaticColumnRequest { ci, significance, alpha, fdr, empty_variables, insufficient_rows } =
+        request;
+    crate::ci::ensure_ci_decisions_meaningful(ci, significance, alpha, fdr)?;
+    if variables.is_empty() {
+        return Err(DiscoveryError::unsupported(empty_variables));
+    }
+    let owned = collect_float_columns(data, variables)?;
+    let n = owned.first().map_or(0, |c| c.len());
+    crate::ci::ensure_ci_fits_rows(ci, n)?;
+    if n < 3 {
+        return Err(DiscoveryError::stats_msg(insufficient_rows));
+    }
+    if owned.iter().any(|c| c.len() != n) {
+        return Err(DiscoveryError::data_msg("column length mismatch"));
+    }
+    let index = variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
+    let cols: Vec<&[f64]> = owned.iter().map(AsRef::as_ref).collect();
+    workspace.prepared_ci = Some(crate::ci::prepare_ci(ci, &cols, significance, ctx)?);
+    Ok((owned, index))
+}
+
+/// Store one direction of each separating set as dense node ids.
+/// A variable that is not in the graph is an error, not a silently shorter sepset.
+///
+/// # Errors
+///
+/// A separator variable that is not in the graph. Dropping it would orient from a shorter set.
+pub(crate) fn load_sepsets_into_state(
+    sepsets: &crate::result::PcSepsets,
+    dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
+    state: &mut OrientationState,
+) -> Result<(), DiscoveryError> {
+    for ((sx, _, ty, _), sep) in sepsets {
+        if sx.raw() > ty.raw() {
+            continue;
+        }
+        let a = dense_of(*sx)?;
+        let b = dense_of(*ty)?;
+        state.set_sepset(a, b, Arc::from(map_sepset(sep, dense_of)?));
+    }
+    Ok(())
+}
+
+pub(crate) fn map_sepset(
+    sep: &[(VariableId, Lag)],
+    dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
+) -> Result<Vec<DenseNodeId>, DiscoveryError> {
+    sep.iter().map(|(v, _)| dense_of(*v)).collect()
 }
 
 pub(crate) fn collect_float_columns(
@@ -353,44 +396,25 @@ mod tests {
         Assumption, CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint,
         SmallRoleSet, ValueType, VariableId,
     };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap};
     use antecedent_stats::{
-        CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, OracleCi, StatsError,
+        CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, OracleCi, PreparedCiTest, StatsError,
     };
+
+    use std::collections::HashMap;
 
     use super::*;
     use crate::result::LaggedLink;
+    use crate::test_tables::tabular_n;
 
-    fn tabular_n(ncols: usize, nrows: usize) -> TabularData {
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..ncols {
-            b.add_variable(
-                format!("v{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let owned: Vec<OwnedColumn> = (0..ncols)
-            .map(|i| {
-                OwnedColumn::Float64(
-                    Float64Column::new(
-                        VariableId::from_raw(i as u32),
-                        Arc::from(vec![0.0; nrows]),
-                        ValidityBitmap::all_valid(nrows),
-                    )
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        TabularData::new(storage)
+    #[test]
+    fn map_sepset_refuses_an_unknown_variable() {
+        let mut index = HashMap::new();
+        index.insert(VariableId::from_raw(0), 0usize);
+        let dense = |v| crate::pipeline::dense_of(&index, v);
+        let err =
+            map_sepset(&[(VariableId::from_raw(1), Lag::CONTEMPORANEOUS)], &dense).unwrap_err();
+        assert!(err.to_string().contains("unknown variable"), "{err}");
     }
 
     #[test]
@@ -587,42 +611,13 @@ mod tests {
     }
 
     fn independent_gaussians(ncols: usize, nrows: usize, seed: u64) -> TabularData {
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..ncols {
-            b.add_variable(
-                format!("v{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let mut state = seed;
-        let mut next_gauss = || {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-            let u1 = ((state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-            let u2 = ((state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-            (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-        };
-        let owned: Vec<OwnedColumn> = (0..ncols)
-            .map(|i| {
-                let vals: Vec<f64> = (0..nrows).map(|_| next_gauss()).collect();
-                OwnedColumn::Float64(
-                    Float64Column::new(
-                        VariableId::from_raw(i as u32),
-                        Arc::from(vals),
-                        ValidityBitmap::all_valid(nrows),
-                    )
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        TabularData::new(storage)
+        let mut rng = antecedent_core::CausalRng::from_seed(seed);
+        let mut next_gauss = || antecedent_kernels::standard_normal(&mut rng);
+        let columns: Vec<Vec<f64>> =
+            (0..ncols).map(|_| (0..nrows).map(|_| next_gauss()).collect()).collect();
+        let names: Vec<String> = (0..ncols).map(|i| format!("v{i}")).collect();
+        let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+        crate::test_tables::continuous_table(&refs, columns)
     }
 
     /// Under independent Gaussian noise, PC skeleton edge retention should track α.
@@ -639,12 +634,14 @@ mod tests {
         const N_SIM: u32 = 80;
         const ALPHA: f64 = 0.05;
         let n_pairs = (N_VARS * (N_VARS - 1)) / 2;
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.alpha = ALPHA;
-        constraints.max_cond_size = 2;
-        constraints.temporal = crate::TemporalConstraints {
-            max_lag: Lag::CONTEMPORANEOUS,
-            min_lag: Lag::CONTEMPORANEOUS,
+        let constraints = DiscoveryConstraints {
+            alpha: ALPHA,
+            max_cond_size: 2,
+            temporal: crate::TemporalConstraints {
+                max_lag: Lag::CONTEMPORANEOUS,
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
         };
         let pc = Pc::new().with_fdr(false).with_constraints(constraints);
         let vars: Vec<VariableId> = (0..N_VARS as u32).map(VariableId::from_raw).collect();
@@ -679,11 +676,11 @@ mod tests {
         );
     }
 
-    /// C1 regression: `sorted_edge_pairs` must return a canonical ascending order, not
+    /// Regression: `sorted_edge_pairs` must return a canonical ascending order, not
     /// raw `HashMap` iteration order.
     ///
     /// Builds the same 21-pair edge set (7-node complete graph) via two different
-    /// insertion histories (ascending vs. descending). Pre-fix (`adj.keys().collect()`
+    /// insertion histories (ascending vs. descending). Pre-fix (`adj.iter().collect()`
     /// with no sort), `HashMap` iteration order depends on the randomly-seeded hasher
     /// and, for `hashbrown`, on insertion/removal history too — there is a vanishingly
     /// small chance (~1-in-21!) either raw order already happens to be canonically
@@ -703,20 +700,21 @@ mod tests {
         }
         debug_assert!(expected.is_sorted());
 
-        let mut ascending: HashMap<(u32, u32), ()> = HashMap::new();
+        let vars: Vec<VariableId> = (0..n).map(VariableId::from_raw).collect();
+        let mut ascending = UndirectedAdj::from_variables(&vars);
         for &(a, b) in &expected {
-            ascending.insert(edge_key(a, b), ());
+            ascending.insert(edge_key(a, b));
         }
-        let mut descending: HashMap<(u32, u32), ()> = HashMap::new();
+        let mut descending = UndirectedAdj::from_variables(&vars);
         for &(a, b) in expected.iter().rev() {
-            descending.insert(edge_key(a, b), ());
+            descending.insert(edge_key(a, b));
         }
 
         assert_eq!(sorted_edge_pairs(&ascending), expected);
         assert_eq!(sorted_edge_pairs(&descending), expected);
     }
 
-    /// C1 end-to-end confirmation: two full `Pc::run()` calls on bit-identical input
+    /// End-to-end confirmation: two full `Pc::run()` calls on bit-identical input
     /// return a bit-identical skeleton.
     ///
     /// Caveat: this alone is not a reliable pre-fix regression test. Rust's default
@@ -740,14 +738,16 @@ mod tests {
         // collider-orientation bug (`orient_undirected requires an undirected
         // Tail–Tail edge`, from a stale `legs` snapshot in `apply_orient_collider`)
         // that is now fixed -- see `three_parent_collider_orients_all_legs` above --
-        // but this test keeps the disjoint layout since it targets the C1/C2
+        // but this test keeps the disjoint layout since it targets the
         // determinism fixes, not collider orientation.
         let oracle = OracleCi::new([(0usize, 1usize), (1, 2), (3, 4), (4, 5), (6, 7), (7, 8)]);
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.max_cond_size = 2;
-        constraints.temporal = crate::TemporalConstraints {
-            max_lag: Lag::CONTEMPORANEOUS,
-            min_lag: Lag::CONTEMPORANEOUS,
+        let constraints = DiscoveryConstraints {
+            max_cond_size: 2,
+            temporal: crate::TemporalConstraints {
+                max_lag: Lag::CONTEMPORANEOUS,
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
         };
         let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle)).with_constraints(constraints);
 
@@ -777,7 +777,7 @@ mod tests {
 
     /// Test double whose p-value depends on which conditioning set was queried, so we
     /// can verify a retained edge's reported p-value is the MAXIMUM over every tested
-    /// conditioning set at its winning depth (C2), not whichever was tested last.
+    /// conditioning set at its winning depth, not whichever was tested last.
     struct ZDependentCi;
 
     impl ZDependentCi {
@@ -833,12 +833,14 @@ mod tests {
         let data = tabular_n(4, 30);
         let vars: Vec<VariableId> = (0..4u32).map(VariableId::from_raw).collect();
 
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.alpha = 0.5;
-        constraints.max_cond_size = 1;
-        constraints.temporal = crate::TemporalConstraints {
-            max_lag: Lag::CONTEMPORANEOUS,
-            min_lag: Lag::CONTEMPORANEOUS,
+        let constraints = DiscoveryConstraints {
+            alpha: 0.5,
+            max_cond_size: 1,
+            temporal: crate::TemporalConstraints {
+                max_lag: Lag::CONTEMPORANEOUS,
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
         };
         let pc =
             Pc::new().with_fdr(false).with_ci(Arc::new(ZDependentCi)).with_constraints(constraints);
@@ -869,16 +871,18 @@ mod tests {
     fn required_edge_reports_no_test_evidence() {
         let data = tabular_n(3, 30);
         let vars: Vec<VariableId> = (0..3u32).map(VariableId::from_raw).collect();
-        let mut constraints = DiscoveryConstraints::default();
-        constraints.required = Arc::from([LaggedLink {
-            source: VariableId::from_raw(0),
-            source_lag: Lag::CONTEMPORANEOUS,
-            target: VariableId::from_raw(1),
-            target_lag: Lag::CONTEMPORANEOUS,
-        }]);
-        constraints.temporal = crate::TemporalConstraints {
-            max_lag: Lag::CONTEMPORANEOUS,
-            min_lag: Lag::CONTEMPORANEOUS,
+        let constraints = DiscoveryConstraints {
+            required: Arc::from([LaggedLink {
+                source: VariableId::from_raw(0),
+                source_lag: Lag::CONTEMPORANEOUS,
+                target: VariableId::from_raw(1),
+                target_lag: Lag::CONTEMPORANEOUS,
+            }]),
+            temporal: crate::TemporalConstraints {
+                max_lag: Lag::CONTEMPORANEOUS,
+                min_lag: Lag::CONTEMPORANEOUS,
+            },
+            ..DiscoveryConstraints::default()
         };
         let oracle = OracleCi::new([(1usize, 2usize)]);
         let pc = Pc::new().with_fdr(false).with_ci(Arc::new(oracle)).with_constraints(constraints);

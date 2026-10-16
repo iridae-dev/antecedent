@@ -23,14 +23,16 @@
 
 use std::collections::HashSet;
 
-use antecedent_core::{
+use antecedent_contract::{
     CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
-    SupportStatus,
 };
-use antecedent_io::convert::to_cbor;
-use antecedent_io::error::IoError;
-use antecedent_io::external_claim_artifact::{LineageLinkWire, wire_from_chain};
+use antecedent_core::{CanonicalWriter, SupportStatus};
+use antecedent_io_core::convert::to_cbor;
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::external_claim_artifact::{LineageLinkWire, wire_from_chain};
 use serde::{Deserialize, Serialize};
+
+use crate::signal::RefusalBuilder;
 
 use crate::decision_artifact::{
     ContractBody, MAX_DECISION_ARTIFACT_BYTES, body_from_contract, contract_from_body, decode,
@@ -49,7 +51,7 @@ use crate::decision_structural::{AtomEvidence, StructuralAtom};
 const ADMISSIBLE_KIND: &str = "admissible_decision_contract_v1";
 const ROBUST_KIND: &str = "robust_decision_result_v1";
 /// Most atoms, actions, shortfalls or receipts a decoded artifact may list.
-pub const MAX_ROBUST_ITEMS: usize = 65_536;
+pub(crate) const MAX_ROBUST_ITEMS: usize = 65_536;
 
 fn debug_error(error: impl std::fmt::Debug) -> IoError {
     IoError::Convert(format!("{error:?}"))
@@ -244,19 +246,22 @@ pub fn admissible_contract_from_json(json: &str) -> Result<AdmissibleDecisionCon
 /// # Errors
 /// A malformed or invalid declaration, as a structured refusal.
 // The refusal is the cold path of a once-per-declaration check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn admissible_contract_from_json_refusal(
     json: &str,
 ) -> Result<AdmissibleDecisionContract, ExternalRefusal> {
-    let malformed = |why: String| ExternalRefusal {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        stage: "declare",
-        detail: "decision_contract.invalid_declaration".to_owned(),
-        offending: Some(why),
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: Some("declare the contract and its rules with the documented fields"),
+    let malformed = |why: String| {
+        RefusalBuilder::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            "declare",
+            "decision_contract.invalid_declaration",
+        )
+        .offending(why)
+        .remedy("declare the contract and its rules with the documented fields")
+        .build()
     };
     if json.len() > MAX_DECISION_ARTIFACT_BYTES {
         return Err(malformed("declaration is too large".to_owned()));
@@ -288,17 +293,9 @@ pub fn bound_decision_identity(
     causal_target: &str,
     causal_identification: &str,
 ) -> String {
-    let mut hasher = blake3::Hasher::new();
-    for part in [
-        "antecedent.bound_decision_contract.v1",
-        decision_identity,
-        causal_target,
-        causal_identification,
-    ] {
-        hasher.update(&(part.len() as u64).to_le_bytes());
-        hasher.update(part.as_bytes());
-    }
-    hasher.finalize().to_hex().to_string()
+    let mut hasher = CanonicalWriter::new("antecedent.bound_decision_contract.v1");
+    hasher.text(decision_identity).text(causal_target).text(causal_identification);
+    hasher.finish_hex()
 }
 
 /// An admissible decision contract with its canonical identity.
@@ -662,6 +659,7 @@ enum VerdictWire {
     InsufficientClaims(String),
     NoAdmissibleAction,
     WorstCaseChoice(String),
+    Tied(Vec<String>),
     BayesChoice { action: String, evaluated_mass: f64 },
     ReportOnly,
 }
@@ -690,6 +688,7 @@ fn verdict_to_wire(verdict: &RobustVerdict) -> VerdictWire {
         RobustVerdict::InsufficientClaims(why) => VerdictWire::InsufficientClaims(why.clone()),
         RobustVerdict::NoAdmissibleAction => VerdictWire::NoAdmissibleAction,
         RobustVerdict::WorstCaseChoice(id) => VerdictWire::WorstCaseChoice(id.clone()),
+        RobustVerdict::Tied(ids) => VerdictWire::Tied(ids.clone()),
         RobustVerdict::BayesChoice { action, evaluated_mass } => {
             VerdictWire::BayesChoice { action: action.clone(), evaluated_mass: *evaluated_mass }
         }
@@ -709,6 +708,7 @@ fn verdict_from_wire(wire: VerdictWire) -> RobustVerdict {
         VerdictWire::InsufficientClaims(why) => RobustVerdict::InsufficientClaims(why),
         VerdictWire::NoAdmissibleAction => RobustVerdict::NoAdmissibleAction,
         VerdictWire::WorstCaseChoice(id) => RobustVerdict::WorstCaseChoice(id),
+        VerdictWire::Tied(ids) => RobustVerdict::Tied(ids),
         VerdictWire::BayesChoice { action, evaluated_mass } => {
             RobustVerdict::BayesChoice { action, evaluated_mass }
         }

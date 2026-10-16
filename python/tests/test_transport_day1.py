@@ -165,7 +165,7 @@ def test_identify_estimate_analyze_loop():
     result = ident.estimate(_statistical())
     assert isinstance(result, CausalResponseView)
     assert result.answer.kind == "response"
-    assert list(result.response.values) == [[0.5], [0.8]]
+    assert [list(row) for row in result.response.values] == [[0.5], [0.8]]
     again = analyze(_statistical(), graph=graph, query=query)
     assert again.answer.kind == result.answer.kind
     assert list(again.response.values) == list(result.response.values)
@@ -409,8 +409,8 @@ def test_provider_refused_on_ordinary_query():
         "identify",
     ],
 )
-def test_names_moved_in_2_0_point_at_advanced(name):
-    # The 1.11 spelling is gone, the 2.0 spelling exists, and the error says where.
+def test_names_moved_to_advanced_point_at_advanced(name):
+    # The old spelling is gone, the advanced spelling exists, and the error says where.
     with pytest.raises(AttributeError, match=f"transport.advanced.{name}"):
         getattr(transport, name)
     assert hasattr(transport.advanced, name)
@@ -746,7 +746,7 @@ def test_restricted_missing_evidence_is_named_in_variables_and_survives_export()
     ident = identify(graph=_surrogate_graph(), query=query)
     assert ident.status == "NotIdentified"
     assert ident.certificate["outcome"] == "missing_evidence"
-    assert "VariableId" not in json.dumps(ident.certificate)
+    assert "VariableId" not in json.dumps(ident.to_dict()["certificate"])
     assert ident.certificate["engine"]["missing"]["kind"] in {
         "unassigned_controllable",
         "cited_factor",

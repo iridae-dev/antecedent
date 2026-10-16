@@ -40,7 +40,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, VariableId, reason_code};
+use antecedent_core::{
+    CanonicalWriter, CausalRng, ExecutionContext, VariableId, reason_code, to_hex,
+};
 use antecedent_estimate::{
     JointCovariance, RefusalFields, ScoreTable, max_t_critical_with_df_polled,
     provenance_withholds_interval,
@@ -263,16 +265,8 @@ impl BatchScores {
     pub fn snapshot_id(&self) -> Result<Option<String>, BatchRetargetError> {
         Ok(self
             .common_rows()?
-            .map(|rows| hex(&PayloadDigestWire::u32s("batch.retarget_rows", &rows).digest)))
+            .map(|rows| to_hex(&PayloadDigestWire::u32s("batch.retarget_rows", &rows).digest)))
     }
-}
-
-fn hex(bytes: &[u8]) -> String {
-    use std::fmt::Write as _;
-    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut out, b| {
-        let _ = write!(out, "{b:02x}");
-        out
-    })
 }
 
 /// One declared retargeted claim.
@@ -778,45 +772,33 @@ fn family_id(
     source: ScoreSource,
     fingerprint: &str,
 ) -> String {
-    let mut bytes = b"antecedent.batch_retarget.v1\0".to_vec();
-    let push_str = |bytes: &mut Vec<u8>, s: &str| {
-        bytes.extend_from_slice(&(s.len() as u64).to_le_bytes());
-        bytes.extend_from_slice(s.as_bytes());
-    };
-    push_str(&mut bytes, snapshot.unwrap_or(""));
-    push_str(&mut bytes, source.as_str());
-    push_str(&mut bytes, fingerprint);
+    let mut stream = CanonicalWriter::new("antecedent.batch_retarget.family.v1");
+    stream.text(snapshot.unwrap_or("")).text(source.as_str()).text(fingerprint);
     let mut claims: Vec<&RetargetClaim> = request.claims.iter().collect();
     claims.sort_by(|a, b| a.name.cmp(&b.name));
-    bytes.extend_from_slice(&(claims.len() as u64).to_le_bytes());
+    stream.word(claims.len() as u64);
     for claim in claims {
-        push_str(&mut bytes, &claim.name);
-        bytes.extend_from_slice(&(claim.query_index as u64).to_le_bytes());
-        bytes.extend_from_slice(&(claim.weights.len() as u64).to_le_bytes());
-        for w in &claim.weights {
-            bytes.extend_from_slice(&w.to_bits().to_le_bytes());
-        }
+        stream.text(&claim.name).word(claim.query_index as u64).reals(&claim.weights);
         let mut parents: Vec<u32> = claim.depends_on.iter().map(|v| v.raw()).collect();
         parents.sort_unstable();
-        bytes.extend_from_slice(&(parents.len() as u64).to_le_bytes());
-        for p in parents {
-            bytes.extend_from_slice(&p.to_le_bytes());
+        stream.word(parents.len() as u64);
+        for parent in parents {
+            stream.word(u64::from(parent));
         }
     }
     let mut contrasts: Vec<&RetargetContrast> = request.contrasts.iter().collect();
     contrasts.sort_by(|a, b| a.name.cmp(&b.name));
-    bytes.extend_from_slice(&(contrasts.len() as u64).to_le_bytes());
+    stream.word(contrasts.len() as u64);
     for contrast in contrasts {
-        push_str(&mut bytes, &contrast.name);
+        stream.text(&contrast.name);
         let mut terms: Vec<&(String, f64)> = contrast.coefficients.iter().collect();
         terms.sort_by(|a, b| a.0.cmp(&b.0));
-        bytes.extend_from_slice(&(terms.len() as u64).to_le_bytes());
-        for (name, c) in terms {
-            push_str(&mut bytes, name);
-            bytes.extend_from_slice(&c.to_bits().to_le_bytes());
+        stream.word(terms.len() as u64);
+        for (name, coefficient) in terms {
+            stream.text(name).real(*coefficient);
         }
     }
-    hex(&PayloadDigestWire::bytes("batch.retarget_family", &bytes).digest)
+    stream.finish_hex()
 }
 
 /// Gram matrix `Σ_kl = Σ_r ξ_kr ξ_lr` of the weighted influence columns, column-major.
@@ -895,6 +877,54 @@ fn contrast_outcome(
     })
 }
 
+/// Joint covariance of the covariance-bearing members, in declared order, under the family's one cluster contract.
+fn family_covariance(
+    evaluated: &[Result<Evaluated, MemberFailure>],
+    request: &BatchRetargetRequest,
+) -> Result<Option<FamilyCovariance>, BatchRetargetError> {
+    let bearing: Vec<(usize, &[f64])> = evaluated
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| e.as_ref().ok().and_then(|e| e.influence.as_deref()).map(|x| (i, x)))
+        .collect();
+    Ok(if bearing.is_empty() {
+        None
+    } else {
+        let columns: Vec<&[f64]> = bearing.iter().map(|(_, x)| *x).collect();
+        // One estimator configuration governs the batch, so a cluster-DML family has one set
+        // of declared units: the covariance is then the cluster-summed one, never the iid Gram.
+        let units: Vec<Option<&super::prepared::ClusterUnits>> = bearing
+            .iter()
+            .map(|(i, _)| evaluated[*i].as_ref().ok().and_then(|e| e.cluster.as_ref()))
+            .collect();
+        let matrix = match units.first().copied().flatten() {
+            None if units.iter().all(Option::is_none) => gram(&columns)?,
+            Some(first)
+                if units.iter().all(|u| {
+                    u.is_some_and(|u| u.first == first.first && u.second == first.second)
+                }) =>
+            {
+                first
+                    .spec
+                    .influence_covariance(&columns, &first.first, first.second.as_deref())
+                    .map_err(|e| {
+                        not_supported("batch_retarget.covariance_unavailable", e.to_string())
+                    })?
+            }
+            _ => {
+                return Err(not_supported(
+                    "batch_retarget.covariance_unavailable",
+                    "the family mixes members with and without declared cluster units",
+                ));
+            }
+        };
+        Some(FamilyCovariance {
+            names: bearing.iter().map(|(i, _)| request.claims[*i].name.clone()).collect(),
+            matrix,
+        })
+    })
+}
+
 /// Retarget a declared family over `scores` (see [`super::PreparedBatch::retarget`]).
 pub(crate) fn retarget_family(
     plans: &[PreparedStudy],
@@ -943,48 +973,7 @@ pub(crate) fn retarget_family(
         );
     }
 
-    // Joint covariance of the covariance-bearing members, in declared order.
-    let bearing: Vec<(usize, &[f64])> = evaluated
-        .iter()
-        .enumerate()
-        .filter_map(|(i, e)| e.as_ref().ok().and_then(|e| e.influence.as_deref()).map(|x| (i, x)))
-        .collect();
-    let covariance = if bearing.is_empty() {
-        None
-    } else {
-        let columns: Vec<&[f64]> = bearing.iter().map(|(_, x)| *x).collect();
-        // One estimator configuration governs the batch, so a cluster-DML family has one set
-        // of declared units: the covariance is then the cluster-summed one, never the iid Gram.
-        let units: Vec<Option<&super::prepared::ClusterUnits>> = bearing
-            .iter()
-            .map(|(i, _)| evaluated[*i].as_ref().ok().and_then(|e| e.cluster.as_ref()))
-            .collect();
-        let matrix = match units.first().copied().flatten() {
-            None if units.iter().all(Option::is_none) => gram(&columns)?,
-            Some(first)
-                if units.iter().all(|u| {
-                    u.is_some_and(|u| u.first == first.first && u.second == first.second)
-                }) =>
-            {
-                first
-                    .spec
-                    .influence_covariance(&columns, &first.first, first.second.as_deref())
-                    .map_err(|e| {
-                        not_supported("batch_retarget.covariance_unavailable", e.to_string())
-                    })?
-            }
-            _ => {
-                return Err(not_supported(
-                    "batch_retarget.covariance_unavailable",
-                    "the family mixes members with and without declared cluster units",
-                ));
-            }
-        };
-        Some(FamilyCovariance {
-            names: bearing.iter().map(|(i, _)| request.claims[*i].name.clone()).collect(),
-            matrix,
-        })
-    };
+    let covariance = family_covariance(&evaluated, request)?;
 
     let claims: Vec<ClaimReport> = request
         .claims
@@ -1085,6 +1074,7 @@ fn correlation_of(family: &FamilyCovariance) -> Result<JointCovariance, BatchRet
 /// (`batch_retarget.covariance_unavailable`) when `correlation` is not a symmetric positive
 /// semidefinite matrix with a unit diagonal; `cancelled_no_claim`
 /// (`batch_retarget.cancelled`) when the context is cancelled before every draw is made.
+// doc(hidden): public evaluator named by the promotion record; hidden until it is documented.
 #[doc(hidden)]
 pub fn max_t_critical_value(
     correlation: &JointCovariance,
@@ -1186,6 +1176,7 @@ pub struct SimultaneousBand {
 /// # Errors
 ///
 /// As [`BatchRetargetReport::simultaneous_interval`].
+// doc(hidden): calibration harness entry for the closed family band.
 #[doc(hidden)]
 pub fn simultaneous_band_unpublished(
     report: &BatchRetargetReport,
@@ -1418,6 +1409,8 @@ mod tests {
         };
         let id = |r: &BatchRetargetRequest| family_id(r, Some("snap"), ScoreSource::Prepared, "f");
         let base = id(&request);
+        // Golden vector: the domain tag, field order and framing are part of the identity.
+        assert_eq!(base, "2cafc1326132141801f3c8d62c124e3d246313e48b47a0ae79adca774162c6d1");
         let mut permuted = request.clone();
         permuted.claims.reverse();
         permuted.contrasts[0].coefficients.reverse();

@@ -10,7 +10,8 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 CONF = ROOT / "conformance"
 OUT = ROOT / "docs" / "conformance"
 
@@ -92,7 +93,7 @@ def main() -> int:
         rel = fix.relative_to(CONF)
         slug = rel.as_posix().replace("/", "__")
         page = OUT / f"{slug}.md"
-        page.write_text(render_fixture(fix))
+        page.write_text(render_fixture(fix), encoding="utf-8", newline="\n")
         index_rows.append(f"- [`{rel.as_posix()}`]({slug}.md)")
 
     index = "\n".join(
@@ -106,7 +107,7 @@ def main() -> int:
             "",
         ]
     )
-    (OUT / "README.md").write_text(index)
+    (OUT / "README.md").write_text(index, encoding="utf-8", newline="\n")
     print(f"Wrote {len(index_rows)} fixture pages under {OUT.relative_to(ROOT)}")
     return 0
 

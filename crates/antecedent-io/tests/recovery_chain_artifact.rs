@@ -1,8 +1,8 @@
-//! 2.3 B2 (X10 second row): the ordered-response recovery artifact through its re-deciding
+//! The ordered-response recovery artifact through its re-deciding
 //! consumer.
 //!
 //! The truth is the enumerated binary SCM of `antecedent-estimate/tests/
-//! b2_recovery_chain_truth.rs`: `P(X1 = 1) = 0.37`, `P(X2 = 1 | X1) = (0.2, 0.7)`, head
+//! ordered_response_recovery_chain_truth.rs`: `P(X1 = 1) = 0.37`, `P(X2 = 1 | X1) = (0.2, 0.7)`, head
 //! response `P(R_h = 1) = 0.65`, tail response `P(R_t = 1 | R_h, X_h)` =
 //! `[[0.4, 0.55], [0.3, 0.8]]` (dependent) or `P(R_t = 1 | R_h) = (0.3, 0.8)` (independent).
 //! The nonrecoverable fixture adds the self-censoring edge `X2 -> R2`. A fresh consumer must
@@ -10,14 +10,13 @@
 //! including one resealed with recomputed digests.
 //!
 //! Role ids: `X1 = 0, X2 = 1, R1 = 2, R2 = 3, X*1 = 4, X*2 = 5` (also the dense node order).
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::{ChainPatternLaw, evaluate_chain_recovery};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail, ChainRecoveryQuery,
-    decide_chain_recovery, verify_chain_witness,
+    CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail,
+    ChainRecoveryQuery, decide_chain_recovery, verify_chain_witness,
 };
 use antecedent_io::IoError;
 use antecedent_io::recovery_chain_artifact::{
@@ -142,7 +141,7 @@ fn reseal(mut wire: RecoveryChainArtifactWire) -> Vec<u8> {
 }
 
 #[test]
-fn b2_artifact_recovered_round_trip_equals_enumerated_truth_for_every_chain_shape() {
+fn artifact_recovered_round_trip_equals_enumerated_truth_for_every_chain_shape() {
     for head in 0..2 {
         for dependent in [true, false] {
             let (wire, truth) = recovered_wire(head, dependent);
@@ -156,7 +155,7 @@ fn b2_artifact_recovered_round_trip_equals_enumerated_truth_for_every_chain_shap
                     assert!((got - expected).abs() < 1e-12, "({x1},{x2}): {got} vs {expected}");
                 }
             }
-            assert_eq!(recovered.rule_version(), "b2.recovery_chain.v1");
+            assert_eq!(recovered.rule_version(), "ordered_response_recovery_chain.v1");
             let plan = wire.plan.as_ref().unwrap();
             assert_eq!(plan.head, head);
             assert_eq!(plan.tail_depends_on_head_variable, dependent);
@@ -168,7 +167,7 @@ fn b2_artifact_recovered_round_trip_equals_enumerated_truth_for_every_chain_shap
 }
 
 #[test]
-fn b2_artifact_producer_refuses_a_mutated_checked_plan() {
+fn artifact_producer_refuses_a_mutated_checked_plan() {
     let graph = build(&edges(0, true, &[]));
     let ChainRecoveryDecision::Recovered(plan) =
         decide_chain_recovery(&graph, &query(), &ctx()).unwrap()
@@ -193,7 +192,7 @@ fn b2_artifact_producer_refuses_a_mutated_checked_plan() {
 }
 
 #[test]
-fn b2_artifact_nonrecoverable_carries_a_reverified_witness() {
+fn artifact_nonrecoverable_carries_a_reverified_witness() {
     let wire = nonrecoverable_wire();
     assert_eq!(wire.outcome, RECOVERY_CHAIN_NONRECOVERABLE);
     let consumed =
@@ -212,7 +211,7 @@ fn b2_artifact_nonrecoverable_carries_a_reverified_witness() {
 }
 
 #[test]
-fn b2_resealed_graph_changes_are_refused() {
+fn resealed_graph_changes_are_refused() {
     // Removing X1 -> R2 turns the dependent chain into an independent one: the stored plan
     // no longer equals the re-decided plan.
     let (mut dropped, _) = recovered_wire(0, true);
@@ -238,7 +237,7 @@ fn b2_resealed_graph_changes_are_refused() {
 }
 
 #[test]
-fn b2_resealed_query_change_is_refused() {
+fn resealed_query_change_is_refused() {
     // Declaring the axes in the opposite order re-decides a different head axis.
     let (mut swapped, _) = recovered_wire(0, true);
     swapped.query.first = (1, 3, 5);
@@ -250,7 +249,7 @@ fn b2_resealed_query_change_is_refused() {
 }
 
 #[test]
-fn b2_resealed_observed_and_recovered_cell_changes_are_refused() {
+fn resealed_observed_and_recovered_cell_changes_are_refused() {
     // A shifted observed cell (the cells still sum to one) no longer reproduces the stored law.
     let (mut observed, _) = recovered_wire(0, true);
     {
@@ -271,7 +270,7 @@ fn b2_resealed_observed_and_recovered_cell_changes_are_refused() {
     );
     // A tampered rule version.
     let (mut rule, _) = recovered_wire(1, true);
-    rule.recovered.as_mut().unwrap().rule_version = "b2.recovery_chain.v0".into();
+    rule.recovered.as_mut().unwrap().rule_version = "ordered_response_recovery_chain.v0".into();
     assert_eq!(
         RecoveryChainArtifactWire::consume_typed(&reseal(rule), &ctx()).unwrap_err(),
         RecoveryChainArtifactError::RecoveredMismatch
@@ -279,7 +278,55 @@ fn b2_resealed_observed_and_recovered_cell_changes_are_refused() {
 }
 
 #[test]
-fn b2_resealed_witness_changes_are_refused() {
+fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
+    let (sealed, truth) = recovered_wire(0, true);
+    assert_eq!(sealed.plan.as_ref().unwrap().rule_version, CHAIN_RECOVERY_RULE_VERSION);
+    assert_eq!(sealed.recovered.as_ref().unwrap().rule_version, CHAIN_RECOVERY_RULE_VERSION);
+    let bytes = sealed.export().unwrap();
+    let consumed = RecoveryChainArtifactWire::consume_typed(&bytes, &ctx()).unwrap();
+    // The consumer verified the digests of the bytes as carried, and reproduces the
+    // law the producer recovered for the same graph and observed law.
+    assert_eq!(consumed.wire.premises_digest, sealed.premises_digest);
+    assert_eq!(consumed.wire.data_digest, sealed.data_digest);
+    for (x1, row) in truth.iter().enumerate() {
+        for (x2, expected) in row.iter().enumerate() {
+            let got = consumed.recovered.as_ref().unwrap().cells()[x1][x2];
+            assert!((got - expected).abs() < 1e-12, "({x1},{x2}): {got} vs {expected}");
+        }
+    }
+    // Tampering is refused: unresealed edits hit the carried digests, resealed
+    // edits fail the replay, and no other version spelling is accepted.
+    let mut unresealed = sealed.clone();
+    unresealed.plan.as_mut().unwrap().rule_version =
+        CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert_eq!(
+        RecoveryChainArtifactWire::consume_typed(&unresealed.export().unwrap(), &ctx())
+            .unwrap_err(),
+        RecoveryChainArtifactError::PremisesMismatch
+    );
+    let mut cell = sealed.clone();
+    cell.recovered.as_mut().unwrap().cells[1][1] += 1e-12;
+    assert_eq!(
+        RecoveryChainArtifactWire::consume_typed(&reseal(cell), &ctx()).unwrap_err(),
+        RecoveryChainArtifactError::RecoveredMismatch
+    );
+    let mut plan = sealed.clone();
+    plan.plan.as_mut().unwrap().rule_version = CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert_eq!(
+        RecoveryChainArtifactWire::consume_typed(&reseal(plan), &ctx()).unwrap_err(),
+        RecoveryChainArtifactError::DecisionMismatch("plan")
+    );
+    let mut law = sealed;
+    law.recovered.as_mut().unwrap().rule_version =
+        CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert_eq!(
+        RecoveryChainArtifactWire::consume_typed(&reseal(law), &ctx()).unwrap_err(),
+        RecoveryChainArtifactError::RecoveredMismatch
+    );
+}
+
+#[test]
+fn resealed_witness_changes_are_refused() {
     let mut model = nonrecoverable_wire();
     model.witness.as_mut().unwrap().second[3].numerators[0] += 1;
     assert_eq!(
@@ -301,7 +348,7 @@ fn b2_resealed_witness_changes_are_refused() {
 }
 
 #[test]
-fn b2_unresealed_changes_hit_the_digests() {
+fn unresealed_changes_hit_the_digests() {
     let (mut graph, _) = recovered_wire(0, true);
     graph.graph.directed.retain(|e| *e != (0, 3));
     assert_eq!(
@@ -317,7 +364,7 @@ fn b2_unresealed_changes_hit_the_digests() {
 }
 
 #[test]
-fn b2_artifact_without_mass_in_a_required_cell_is_a_positivity_refusal() {
+fn artifact_without_mass_in_a_required_cell_is_a_positivity_refusal() {
     let (mut wire, _) = recovered_wire(0, true);
     {
         let law = wire.observed.as_mut().unwrap();
@@ -332,7 +379,7 @@ fn b2_artifact_without_mass_in_a_required_cell_is_a_positivity_refusal() {
 }
 
 #[test]
-fn b2_artifact_invalid_observed_law_is_refused() {
+fn artifact_invalid_observed_law_is_refused() {
     let (mut wire, _) = recovered_wire(0, true);
     wire.observed.as_mut().unwrap().neither += 0.5;
     let error = RecoveryChainArtifactWire::consume_typed(&reseal(wire), &ctx()).unwrap_err();
@@ -340,7 +387,7 @@ fn b2_artifact_invalid_observed_law_is_refused() {
 }
 
 #[test]
-fn b2_artifact_version_features_outcome_and_names_are_checked() {
+fn artifact_version_features_outcome_and_names_are_checked() {
     let (mut future, _) = recovered_wire(0, true);
     future.version = RECOVERY_CHAIN_ARTIFACT_VERSION + 1;
     let bytes = future.export().unwrap();
@@ -385,7 +432,7 @@ fn b2_artifact_version_features_outcome_and_names_are_checked() {
 }
 
 #[test]
-fn b2_artifact_graph_wire_round_trips_and_refuses_a_bidirected_graph() {
+fn artifact_graph_wire_round_trips_and_refuses_a_bidirected_graph() {
     let graph = build(&edges(0, true, &[]));
     let wire = ChainGraphWire::from_graph(&graph).unwrap();
     assert_eq!(wire.nodes, vec![0, 1, 2, 3, 4, 5]);
@@ -397,7 +444,7 @@ fn b2_artifact_graph_wire_round_trips_and_refuses_a_bidirected_graph() {
 }
 
 #[test]
-fn b2_artifact_refusals_map_to_io_errors_with_their_reason_codes() {
+fn artifact_refusals_map_to_io_errors_with_their_reason_codes() {
     let (mut wire, _) = recovered_wire(0, true);
     wire.graph.directed.push((2, 5));
     wire.graph.directed.sort_unstable();

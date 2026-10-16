@@ -1,6 +1,7 @@
 //! One shared dependency plan for an actual retained native response and attested callbacks.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::native_claims::{NativeDecisionSource, NativeResponseClaim, NativeResponseContext};
+use super::recalc_common::Fields;
 use super::recalc_external::{
     ExternalCallbackError, ExternalCallbackRequest, ExternalCallbackSession, ExternalMeanProvider,
 };
@@ -8,14 +9,15 @@ use super::recalc_receipt::{Counter, RecalcReceipt, RecalcRunError, ReceiptRecor
 use super::recalc_static::{
     StaticResponseRequest, StaticResponseSession, execute_static_response_with_receipt,
 };
+use antecedent_contract::{ExternalTrustState, ProgramBinding};
+use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::{
     Boundary, Branch, RecalcCapabilities, RecalcPlan, RequestSupport, RetargetSupport, Stage,
     StageIdentities, StageIdentity, StageStatus,
 };
-use antecedent_core::{ExecutionContext, ExternalTrustState, ProgramBinding};
 use antecedent_design::composition_boundary::{
     DecisionInput, NativeExecutionRecord, SupportPolicy, SupportedDecision, TrustEvidence,
-    TrustRequirement, evaluate_with_support,
+    TrustRequirement, UnsupportedActionPolicy, evaluate_with_support,
 };
 use antecedent_design::decision_contract::{DecisionContract, SourceRepresentation};
 use antecedent_design::decision_eval::MeanSource;
@@ -53,7 +55,7 @@ pub enum CompositeError {
         cause: ExternalCallbackError,
     },
     /// Original scientific binding or decision refusal.
-    Binding(Box<antecedent_core::ExternalRefusal>),
+    Binding(Box<antecedent_contract::ExternalRefusal>),
     /// Original shared dependency refusal.
     Refused(Box<RecalcPlan>),
     /// Actual receipt construction failure.
@@ -213,19 +215,34 @@ impl CompositeSession {
             }
         }
         let utility = ids.own(Stage::Utility);
+        let policy = Fields::new()
+            .text(match request.support_policy.unsupported {
+                UnsupportedActionPolicy::RequireAllActions => "require_all_actions",
+                UnsupportedActionPolicy::CompareSupported => "compare_supported",
+            })
+            .text(request.support_policy.weakest_support.as_str())
+            .into_bytes();
+        let order = Fields::new().texts(&request.input_order).into_bytes();
         ids.set(
             Stage::Utility,
             StageIdentity::of(
                 "composite.utility.v1",
+                &[utility.as_bytes(), identity.as_bytes(), policy.as_slice(), order.as_slice()],
+            ),
+        );
+        let terminal = terminal_fields(request);
+        ids.set(
+            Stage::Decision,
+            StageIdentity::of(
+                "composite.original_support_terminal.v2",
                 &[
-                    utility.as_bytes(),
                     identity.as_bytes(),
-                    format!("{:?}", request.support_policy).as_bytes(),
-                    format!("{:?}", request.input_order).as_bytes(),
+                    policy.as_slice(),
+                    order.as_slice(),
+                    terminal.into_bytes().as_slice(),
                 ],
             ),
         );
-        ids.set(Stage::Decision, StageIdentity::of("composite.original_support_terminal.v1", &[]));
         Ok((
             ids,
             RecalcCapabilities {
@@ -357,8 +374,7 @@ fn checked_native(
             != antecedent_io::external_binding_wire::native_contract_identity(
                 &program.graph_id,
                 result
-                    .response
-                    .as_ref()
+                    .response()
                     .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?
                     .identification_status
                     .as_str(),
@@ -383,8 +399,7 @@ fn checked_native(
     };
     NativeResponseClaim::from_response(
         result
-            .response
-            .as_ref()
+            .response()
             .ok_or(CompositeError::Request("composite_recalc.native_state_mismatch"))?,
         session
             .schema()
@@ -539,4 +554,31 @@ fn decision_bounded(contract: &DecisionContract) -> bool {
         }
     }
     true
+}
+
+fn terminal_fields(request: &CompositeRequest) -> Fields {
+    // The terminal decision is identified by everything its inputs were licensed under:
+    // the contract, the support policy and input order, the native program binding, and
+    // for every callback branch its provider, snapshot, program, seed, the trust
+    // requirement and attestation it enters under, and its (point-only) calibration. A
+    // change in any of them is a change of the decision, never a reuse.
+    let mut externals: Vec<&ExternalCallbackRequest> = request.externals.iter().collect();
+    externals.sort_by_key(|e| e.branch.index());
+    let mut terminal = Fields::new()
+        .text(&request.native_program.graph_id)
+        .text(&request.native_program.contract_id)
+        .text("native.trust:unrestricted")
+        .text("native.calibration:point_only");
+    for external in &externals {
+        let identity = &external.descriptor.identity;
+        terminal = terminal
+            .word(u64::from(external.branch.index()))
+            .text(&identity.provider_id)
+            .text(&identity.snapshot_id)
+            .text(&external.program.contract_id)
+            .word(external.seed)
+            .text("external.trust:unrestricted:externally_attested")
+            .text("external.calibration:point_only");
+    }
+    terminal
 }

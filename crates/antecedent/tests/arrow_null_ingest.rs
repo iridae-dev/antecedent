@@ -92,7 +92,7 @@ fn response_curve(data: TabularData) -> Vec<f64> {
         .unwrap()
         .run(&ExecutionContext::for_tests(50))
         .unwrap();
-    let response = result.response.as_ref().expect("response payload");
+    let response = result.response().expect("response payload");
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
     else {
@@ -112,6 +112,8 @@ fn ate(data: TabularData) -> f64 {
         .run(&ExecutionContext::for_tests(50))
         .unwrap()
         .estimate
+        .as_effect()
+        .unwrap()
         .ate
 }
 

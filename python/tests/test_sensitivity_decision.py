@@ -1,9 +1,9 @@
-"""F17: an assumption-sensitivity surface consumed by a decision contract.
+"""An assumption-sensitivity surface consumed by a decision contract.
 
 Every expected value is derived by hand from the declared surfaces; the fixtures mirror
 `crates/antecedent-design/tests/sensitivity_decision.rs`:
 
-* frozen surface (record ``2.3B.F17.sensitivity_decision_composition``): ``gamma`` in
+* frozen surface (record ``decision.sensitivity_composition``): ``gamma`` in
   ``{0, 1, 2}``; action A has utility ``2 - gamma`` (2, 1, 0) and action B has utility 1,
   so A leads at 0, they tie at 1 and B leads at 2;
 * invariant surface: A is ``5 - gamma`` (5, 4, 3) against B = 1, so A leads everywhere;
@@ -40,7 +40,7 @@ def _quantity(name: str, units: str = "utils") -> ScientificQuantity:
 def _provenance() -> sd.SurfaceProvenance:
     return sd.SurfaceProvenance(
         source_kind="supplied_surface",
-        query_binding="f17-test",
+        query_binding="sensitivity-test",
         provider_snapshot="snapshot-1",
         source_regime="regime:1",
         method="hand-derived surface",
@@ -82,7 +82,7 @@ def _frozen() -> sd.SensitivityArtifact:
     )
 
 
-def test_f17_frozen_surface_is_an_assumption_dependent_switch_with_its_tipping_coordinate():
+def test_frozen_surface_is_an_assumption_dependent_switch_with_its_tipping_coordinate():
     artifact = _frozen()
     result = sd.decide(artifact.contract(), artifact)
     assert result.kind == "assumption_dependent"
@@ -108,7 +108,7 @@ def test_f17_frozen_surface_is_an_assumption_dependent_switch_with_its_tipping_c
     assert "not a probability law" in result.interpretation
 
 
-def test_f17_invariant_action_across_the_whole_assumption_range():
+def test_invariant_action_across_the_whole_assumption_range():
     artifact = _artifact(
         [0.0, 1.0, 2.0],
         [_point("ua", [5.0, 4.0, 3.0]), _point("ub", [1.0, 1.0, 1.0])],
@@ -129,7 +129,7 @@ def test_f17_invariant_action_across_the_whole_assumption_range():
     assert sub.invariant_action == "A"
 
 
-def test_f17_tipping_coordinate_is_the_labelled_interpolated_crossing():
+def test_tipping_coordinate_is_the_labelled_interpolated_crossing():
     # Difference 1 - gamma is zero at gamma = 1, between the grid points 0.5 and 1.5.
     artifact = _artifact(
         [0.0, 0.5, 1.5, 2.0],
@@ -150,7 +150,7 @@ def test_f17_tipping_coordinate_is_the_labelled_interpolated_crossing():
     assert "interpolated crossing" in result.explain()
 
 
-def test_f17_no_robust_action_when_the_range_straddles_at_every_point():
+def test_no_robust_action_when_the_range_straddles_at_every_point():
     artifact = _artifact(
         [0.0, 1.0, 2.0],
         [
@@ -175,7 +175,7 @@ def test_f17_no_robust_action_when_the_range_straddles_at_every_point():
     assert result.structural_verdict["kind"] == "no_invariant_best"
 
 
-def test_f17_range_is_distinct_from_a_sampling_interval_and_never_composed():
+def test_range_is_distinct_from_a_sampling_interval_and_never_composed():
     def ranged(sampling: object = None) -> sd.SensitivityArtifact:
         return _artifact(
             [0.0, 1.0, 2.0],
@@ -252,7 +252,7 @@ def test_f17_range_is_distinct_from_a_sampling_interval_and_never_composed():
     assert weights.value.detail == "sensitivity_decision_composition.wrong_contract"
 
 
-def test_f17_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
+def test_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
     artifact = _artifact(
         [0.0, 1.0, 2.0],
         [_point("ua", [5.0, 4.0, 3.0]), _point("ub", [1.0, 1.0, 1.0])],
@@ -285,7 +285,7 @@ def test_f17_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
     assert result.outcome.unresolved_coordinate == 1.0
 
 
-def test_f17_mixed_estimands_and_foreign_inputs_refuse():
+def test_mixed_estimands_and_foreign_inputs_refuse():
     with pytest.raises(sd.SensitivityRefusal) as mixed:
         _artifact(
             [0.0, 1.0],
@@ -313,7 +313,7 @@ def test_f17_mixed_estimands_and_foreign_inputs_refuse():
         sd.decide("not a contract", artifact)  # type: ignore[arg-type]
 
 
-def test_f17_artifact_is_exported_consumed_and_refuses_a_resealed_mutation():
+def test_artifact_is_exported_consumed_and_refuses_a_resealed_mutation():
     artifact = _frozen()
     data = artifact.export()
     consumed = sd.SensitivityArtifact.consume(data, expected_identity=artifact.identity)
@@ -355,7 +355,7 @@ def test_f17_artifact_is_exported_consumed_and_refuses_a_resealed_mutation():
         sd.SensitivityArtifact.consume("not bytes")  # type: ignore[arg-type]
 
 
-# --- a 2.2 joint-sensitivity result feeds a decision contract ----------------------
+# --- a joint-sensitivity result feeds a decision contract ----------------------
 
 P_W = {0: 0.65, 1: 0.35}
 P_Y1 = {(0, 0): 0.2, (0, 1): 0.5, (1, 0): 0.3, (1, 1): 0.8}
@@ -416,7 +416,7 @@ def _prepared_stage() -> object:
     return builder.prepare_exact(catalog, (law,), {"x": 1.0})
 
 
-def test_f17_a_2_2_joint_sensitivity_result_feeds_a_decision_contract():
+def test_joint_sensitivity_result_feeds_a_decision_contract():
     stage = _prepared_stage()
     stage.estimate()  # type: ignore[attr-defined]
     deviation = transport.JointDeviation({"outcome_kernel": 0.2})
@@ -431,7 +431,7 @@ def test_f17_a_2_2_joint_sensitivity_result_feeds_a_decision_contract():
         ],
         causal_contract_id="checked-contract",
     )
-    # The surface is the exact 2.2 range scaled linearly in the contamination fraction.
+    # The surface is the exact range scaled linearly in the contamination fraction.
     baseline = 0.65 * 0.3 + 0.35 * 0.5
     delta = {w: P_Y1[(w, 1)] - P_Y1[(w, 0)] for w in (0, 1)}
     kernel = 0.2
@@ -447,10 +447,10 @@ def test_f17_a_2_2_joint_sensitivity_result_feeds_a_decision_contract():
     assert surface.upper[0] == pytest.approx(baseline, abs=1e-12)
     assert surface.lower[-1] == pytest.approx(lower, abs=1e-12)
     assert surface.upper[-1] == pytest.approx(upper, abs=1e-12)
-    # The 2.2 withheld sampling status is carried unchanged: still an assumption range.
+    # The withheld sampling status is carried unchanged: still an assumption range.
     assert isinstance(artifact.uncertainty.sampling, sd.SamplingWithheld)
     assert artifact.uncertainty.sampling.reason_code == "cell_not_licensed"
-    assert artifact.provenance.source_kind == "joint_mechanism_sensitivity_2_2"
+    assert artifact.provenance.source_kind == "joint_mechanism_sensitivity"
     # Adopting is best only if the effect clears 0.45. The unperturbed baseline (0.37) does
     # not, and the range's upper end (0.37 + 0.63 t) clears it for t > 0.127, so the best
     # action depends on where in the range the surface lies at fractions 0.15, 0.175, 0.2.

@@ -1,0 +1,39 @@
+feature_id = "counterfactual.transport_general"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The papers below are the theorem family and the lemmas the derivation steps are
+# instances of. None of them is reproduced as a procedure: the module is a sound,
+# bounded decision procedure of the same shape, and the record says exactly how it
+# departs. Proceedings and JMLR papers without a DOI that could be verified are
+# cited without one (never guessed).
+papers = [
+ { title = "Counterfactual Transportability: A Formal Approach", sections = ["Proceedings of the 39th International Conference on Machine Learning (PMLR 162, 2022): the definition of counterfactual transportability over selection diagrams and the decomposition of a counterfactual distribution into counterfactual factors that are either invariant (no selection node into the factor) or identified from target evidence (section numbers not independently verified)"] },
+ { title = "What Counterfactuals Can Be Tested", sections = ["UAI 2007: the counterfactual graph (make-cg): merging of counterfactual variables with equal parents, the consistency substitution, and the district factorization of the joint of the merged variables"] },
+ { title = "Complete Identification Methods for the Causal Hierarchy", sections = ["JMLR 9 (2008): ID* and IDC* for counterfactual conjunctions: the factorization by districts of the counterfactual graph and the reduction of a conditioning atom to an intervention when it is separated from the event"] },
+ { title = "A General Identification Condition for Causal Effects", sections = ["AAAI 2002: Lemma 1 (marginalizing a c-factor over a set closed under ancestors in the induced subgraph) and the c-component factorization of Q[C] as a product of conditionals in a topological order"] },
+ { title = "A General Algorithm for Deciding Transportability of Experimental Results", doi = "10.1515/jci-2012-0004", sections = ["Section 5: c-component decomposition and the selection-node rule that a c-factor with no selection node into it transports from a source to the target"] },
+]
+
+implementation_deviations = [
+ "Not the published algorithm. The paper's counterfactual transportability procedure is not transcribed. The module combines (1) the ID* counterfactual graph and district decomposition, (2) a closure of single-world c-factors Q[S] = P(S | do(V minus S)) under the Tian-Pearl marginalization and c-component extraction lemmas with the selection-node transfer rule, (3) the IDC* conditioning reduction, and (4) a consistency complement for two-level variables. Each step is sound under the stated model class; completeness is not claimed and is not inherited from any of the cited results.",
+ "Model class. Finite-discrete acyclic semi-Markovian models in which every latent term is read by a bidirected clique of the declared graph, independent across cliques (the induced-diagram class of ID*), and in which a selection target flags a variable whose structural mechanism may differ between a source and the target while the laws of the exogenous terms are shared. A district factor is transported only when no selection target lies in its variables; a selection node that would act through a shared latent law is not modelled. The class is weaker than selection diagrams in which S may flag a latent term, so some effects the S-node d-separation rule transports are not derived here.",
+ "Identification is complete for neither ID* from interventional laws nor the transport closure: a conjunction that needs a cross-world factor (a recanting witness, or two readings of one parent inside one district) is derived only through the two-level consistency complement, and an interventional factor is derived only by marginalization to ancestral sets and district extraction of a supplied or declared regime law. Failure to derive is `not_certified` unless a verified witness exists.",
+ "Non-transportability is claimed only through a replayable witness: two finite models (response-function mixtures over one bidirected clique with a fixed baseline for every other variable, binary support, populations that differ only by a constant mechanism at selected variables) that give identical laws for every regime of the declared evidence family and different values of the query, re-verified by exact rational enumeration. The witness search is a bounded heuristic over one clique at a time with three baselines; a query that is non-transportable only through a witness outside that family is reported not_certified, never an obstruction.",
+ "A conditional query is the ratio of two derived conjunctions. When the IDC* reduction applies the original conditioning mass is a positivity guard that is checked when it is derivable and otherwise recorded as unverified (the value then holds conditional on that mass being positive); an exact zero conditioning mass is a support failure, never an extended value.",
+ "Evaluation reads exact finite laws only. A factor is the conditional of a supplied regime law and is undefined where that law gives the conditioning event zero mass or supplies no law at a needed intervention level; an undefined factor is skipped only inside a summand another factor makes exactly zero. Counted or empirical laws are refused: sampled inference is a separate route and no interval or posterior is computed.",
+ "Bounds are search bounds, not theorem restrictions: at most 8 observed variables, 4 levels each, 6 worlds, 16 event atoms, 24 network nodes, 4 sources, 4 controllable variables per source and 64 catalog regimes.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-identify/tests/support/finite_scm_oracle.rs",
+ "crates/antecedent-identify/tests/support/counterfactual_transport_cases.rs",
+ "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs",
+ "crates/antecedent-estimate/tests/counterfactual_transport_execution.rs",
+ "crates/antecedent/tests/counterfactual_transport_lifecycle.rs",
+]

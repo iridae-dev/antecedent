@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the X8 fixed-population temporal counterfactual and the closed
+//! Bounded Python bridge for the fixed-population temporal counterfactual and the closed
 //! transported path-specific route.
 //!
 //! Python builds the declaration (graph, mechanism fit, factual unit histories, two named action
@@ -8,40 +8,32 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::temporal_counterfactual::{
     PopulationRole, RegimeFactorKey, TemporalCounterfactual, TemporalCounterfactualArtifactError,
     TemporalCounterfactualIdentity, TemporalCounterfactualRequestWire,
     TransportedCounterfactualPrerequisites, transported_path_specific,
 };
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use crate::{
-    CausalCancelledError, CausalSerializationError, detach_catch, py_execution_context, value_err,
-    with_reason_code,
+    CausalCancelledError, detach_catch, py_execution_context, value_err, with_reason_code,
 };
 
 /// Largest request / identity JSON accepted.
-const MAX_JSON_BYTES: usize = 128 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_SEALED_ARTIFACT_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
 
-fn refusal_json(error: &TemporalCounterfactualArtifactError) -> Option<String> {
-    let refusal = error.refusal()?;
-    Some(
-        serde_json::json!({
-            "code": refusal.code,
-            "stage": refusal.stage,
-            "detail": refusal.detail,
-            "offending": refusal.offending,
-            "expected": serde_json::Value::Null,
-            "supplied": serde_json::Value::Null,
-            "remedy": refusal.remedy,
-            "witness": refusal.witness,
-        })
-        .to_string(),
-    )
+fn refusal_json(error: &TemporalCounterfactualArtifactError) -> PyResult<Option<String>> {
+    let Some(refusal) = error.refusal() else {
+        return Ok(None);
+    };
+    Ok(Some(
+        serde_json::to_string(&refusal)
+            .map_err(|cause| crate::serialization_err(cause.to_string()))?,
+    ))
 }
 
 /// A non-refusal failure: cancellation, a bound, or a corrupt / other-version artifact.
@@ -54,15 +46,12 @@ fn failure(error: &TemporalCounterfactualArtifactError) -> PyErr {
             value_err(format!("temporal_counterfactual.limits_exceeded: {what}")),
             antecedent_core::reason_code!("invalid_argument"),
         ),
-        other => CausalSerializationError::new_err(other.to_string()),
+        other => crate::serialization_err(other.to_string()),
     }
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("temporal counterfactual declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "temporal counterfactual")
 }
 
 /// Evaluate both action histories against one abduced history per unit:
@@ -89,10 +78,10 @@ fn evaluate_temporal_counterfactual(
             Ok(done) => {
                 let bytes = done.export(&artifact_id).map_err(|e| failure(&e))?;
                 let report = serde_json::to_string(&done.report())
-                    .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
                 Ok((Some(report), Some(bytes), None))
             }
-            Err(error) => match refusal_json(&error) {
+            Err(error) => match refusal_json(&error)? {
                 Some(json) => Ok((None, None, Some(json))),
                 None => Err(failure(&error)),
             },
@@ -129,10 +118,10 @@ fn consume_temporal_counterfactual_artifact(
         match TemporalCounterfactual::consume(&artifact, expected.as_ref(), &ctx) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
-                    .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
                 Ok((Some(report), None))
             }
-            Err(error) => match refusal_json(&error) {
+            Err(error) => match refusal_json(&error)? {
                 Some(json) => Ok((None, Some(json))),
                 None => Err(failure(&error)),
             },

@@ -8,6 +8,7 @@ use antecedent_core::{
     VariableId,
 };
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The confounded static ATE study five suites run, in one owner.
@@ -30,10 +31,10 @@ fn prepared_refute_second_click_preserves_ate() {
 
     let first = prepared.estimate(&data, &ctx).unwrap();
     assert!(first.refutations.is_empty());
-    let ate = first.estimate.ate;
+    let ate = first.estimate.as_effect().unwrap().ate;
 
     let second = prepared.refute(&first, &data, RefuteSuite::PlaceboAndRcc, &ctx).unwrap();
-    assert!((second.estimate.ate - ate).abs() < 1e-15);
+    assert!((second.estimate.as_effect().unwrap().ate - ate).abs() < 1e-15);
     assert!(!second.refutations.is_empty());
     assert!(second.diagnostics.iter().any(|d| d.code.as_ref() == "exec.refute.second_click"));
 

@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -159,7 +158,7 @@ fn temporal_class_bayesian_pulse_without_prior_is_identified_set() {
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
     assert!(result.posterior.is_none());
-    assert!(!result.estimate.ate.is_finite());
+    assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
     let structural = result.structural_response.as_ref().expect("structural envelope");
     assert_eq!(
         structural.weight_basis,
@@ -230,9 +229,9 @@ fn temporal_class_bayesian_pulse_with_class_prior_mixes() {
                 .unwrap();
             assert!(result.posterior.is_some(), "{case}");
             assert!(
-                (result.estimate.ate - effect).abs() < tol,
+                (result.estimate.as_effect().unwrap().ate - effect).abs() < tol,
                 "{case}: mixed pulse effect {} vs known truth {effect}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             let structural = result.structural_response.as_ref().expect("structural envelope");
             assert_eq!(
@@ -262,7 +261,11 @@ fn temporal_class_bayesian_pulse_with_class_prior_mixes() {
         .unwrap();
     let click = prepared.estimate_series(&data, &ctx).unwrap();
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    assert!((click.estimate.ate - effect).abs() < tol, "prepared click {}", click.estimate.ate);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - effect).abs() < tol,
+        "prepared click {}",
+        click.estimate.as_effect().unwrap().ate
+    );
 }
 
 /// Every licensed Bayesian `TemporalCpdag` multi-step Sustained coordinate
@@ -295,14 +298,14 @@ fn temporal_class_multi_step_is_not_last_step_collapse() {
                 .run(&ExecutionContext::for_tests(3))
                 .unwrap();
             assert!(
-                (result.estimate.ate - last_step).abs() > 1.0,
+                (result.estimate.as_effect().unwrap().ate - last_step).abs() > 1.0,
                 "{case}: multi-step {} collapsed toward last-step {last_step}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             assert!(
-                (result.estimate.ate - full).abs() < tol,
+                (result.estimate.as_effect().unwrap().ate - full).abs() < tol,
                 "{case}: multi-step {} vs window {full}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             if suite == RefuteSuite::None {
                 assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
@@ -339,6 +342,10 @@ fn horizon_one_truth(kind: &str, adjustment: &[(usize, i32)]) -> (Vec<f64>, f64)
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal class bayesian response is identified set"
+)]
 fn temporal_class_bayesian_response_is_identified_set() {
     // Deterministic law with aperiodic wiggles: r → {z, t}, z → t, {t, z}@-1 → y.
     let n = 300;
@@ -541,7 +548,7 @@ fn temporal_pag_directed_bayesian_pulse_identifies() {
         .unwrap()
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     let structural = result.structural_response.as_ref().expect("pag envelope");
     assert!(structural.unidentified_mass.abs() < 1e-9);
 }
@@ -662,7 +669,7 @@ fn temporal_class_observation_does_not_reuse_complete_band() {
         .unwrap()
         .run(&ExecutionContext::for_tests(13))
         .unwrap();
-    let response = result.response.as_ref().expect("class observation response");
+    let response = result.response().expect("class observation response");
     assert!(matches!(response.uncertainty, antecedent_core::ResponseUncertainty::None));
     let carries_claim = |set: &AssumptionSet| {
         set.entries.iter().any(|record| {
@@ -985,7 +992,7 @@ fn validation_without_class_prior_uses_finite_atom_baselines() {
         .unwrap()
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
-    assert!(!result.estimate.ate.is_finite());
+    assert!(!result.estimate.as_effect().unwrap().ate.is_finite());
     assert!(!result.refutations.is_empty());
     assert!(result.refutations.iter().all(|report| report.original_ate.is_finite()));
     assert!(result.refutations.iter().all(|report| report.refuter.starts_with("completion.")));
@@ -1175,7 +1182,7 @@ fn frequentist_class_curve_replicates_ride_the_atoms() {
         .unwrap()
         .run(&ExecutionContext::for_tests(29))
         .unwrap();
-    let response = result.response.as_ref().expect("class curve");
+    let response = result.response().expect("class curve");
     assert!(matches!(response.uncertainty, ResponseUncertainty::None));
     let structural = result.structural_response.as_ref().unwrap();
     assert_eq!(structural.atoms.len(), 4);
@@ -1207,8 +1214,15 @@ fn frequentist_multi_step_class_mixture_declares_its_missing_se() {
         .unwrap();
     let full = pin["multi_step"]["full_window_effect"].as_f64().unwrap();
     let tol = pin["multi_step"]["absolute_tolerance"].as_f64().unwrap();
-    assert!((result.estimate.ate - full).abs() < tol, "{}", result.estimate.ate);
-    assert!(result.estimate.se_analytic.is_nan(), "two atoms share observations; no mixture SE");
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - full).abs() < tol,
+        "{}",
+        result.estimate.as_effect().unwrap().ate
+    );
+    assert!(
+        result.estimate.as_effect().unwrap().se_analytic().is_nan(),
+        "two atoms share observations; no mixture SE"
+    );
     assert!(
         result
             .diagnostics
@@ -1216,7 +1230,7 @@ fn frequentist_multi_step_class_mixture_declares_its_missing_se() {
             .any(|d| d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"),
         "the missing mixture SE must be declared, as on the Pulse envelope"
     );
-    assert!(!result.estimate.assumptions.entries.is_empty());
+    assert!(!result.estimate.as_effect().unwrap().provenance.assumptions.entries.is_empty());
 }
 
 fn oriented_dag() -> antecedent_graph::TemporalDag {
@@ -1446,7 +1460,7 @@ fn temporal_class_bayesian_pulse_mixes_with_unidentified_mass() {
     assert!(structural.unidentified_mass > 0.0, "{}", structural.unidentified_mass);
     assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() < 1e-9);
     assert!(result.posterior.is_some());
-    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     let mixed = result.posterior.as_ref().unwrap();
     assert!(mixed.unidentified_mass > 0.0, "unidentified mass must not be renormalized away");
     assert_eq!(
@@ -1457,7 +1471,7 @@ fn temporal_class_bayesian_pulse_mixes_with_unidentified_mass() {
 
 #[test]
 fn prepared_temporal_class_contract_binds_its_envelope() {
-    use antecedent_core::SlotAvailability;
+    use antecedent_contract::SlotAvailability;
 
     let data = series_from_law(400, false);
     let ctx = ExecutionContext::for_tests(7);
@@ -1670,6 +1684,10 @@ fn fit_oriented_pulse(n: usize, n_draws: usize, seed: u64) -> (antecedent::Study
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for mapped transfer onto temporal cpdag cells"
+)]
 fn mapped_transfer_onto_temporal_cpdag_cells() {
     let pin = transfer_pin();
     assert_eq!(
@@ -1777,7 +1795,7 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
         .unwrap()
         .run(&ExecutionContext::for_tests(seed.wrapping_add(2)))
         .unwrap();
-    assert!(curve.response.is_some());
+    assert!(curve.response().is_some());
     assert_ne!(curve.identification.status, IdentificationStatus::NotIdentified);
 
     let mapped = Study::series(series_xyw(n))
@@ -1844,7 +1862,7 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
                 result.certificate.as_ref().expect("certificate").graph_class,
                 antecedent::GraphClass::TemporalCpdag
             );
-            assert!(result.mediation.is_some() || result.mediation_grid.is_some());
+            assert!(result.mediation().is_some() || result.mediation_grid().is_some());
         }
         Err(error) => {
             assert!(
@@ -1921,9 +1939,9 @@ fn temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites() {
                 let case = format!("{label} accepted={accepted} {suite:?}");
                 assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{case}");
                 assert!(
-                    (result.estimate.ate - effect).abs() < tol,
+                    (result.estimate.as_effect().unwrap().ate - effect).abs() < tol,
                     "{case}: effect {} vs known truth {effect}",
-                    result.estimate.ate
+                    result.estimate.as_effect().unwrap().ate
                 );
                 let structural = result.structural_response.as_ref().expect("structural envelope");
                 assert!((structural.identified_mass - identified_mass).abs() < 1e-9, "{case}");

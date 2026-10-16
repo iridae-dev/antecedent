@@ -2,30 +2,27 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments)]
-
+use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::LaggedFrame;
 use antecedent_graph::DenseNodeId;
 
-use crate::engine::{DiscoveryWorkspace, PcmciEngine};
+use crate::engine::{CiMemo, CiProbe, DiscoveryWorkspace, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::orientation::OrientationState;
+use crate::result::LaggedLink;
 
 /// Refine `Z` to a weakly-minimal sepset of `X ⫫ Y | ·` relative to known ancestors `ancs`.
 ///
 /// Keeps the ancestor part of `Z` fixed and drops non-ancestors while independence
 /// holds (order-independent: among removable nodes that preserve independence, prefer
-/// larger |statistic|, recurse).
+/// larger |statistic|, recurse). `link` names the pair `X ⫫ Y` by its lagged endpoints.
 pub fn make_sepset_weakly_minimal(
     engine: &PcmciEngine,
     frame: &LaggedFrame,
-    x: VariableId,
-    x_lag: Lag,
-    y: VariableId,
-    y_lag: Lag,
+    link: LaggedLink,
     z: &[(VariableId, Lag)],
     ancs: &[(VariableId, Lag)],
     workspace: &mut DiscoveryWorkspace,
@@ -42,13 +39,23 @@ pub fn make_sepset_weakly_minimal(
         z.iter().copied().filter(|&(v, l)| !ancs_set.contains(&(v.raw(), l.raw()))).collect();
 
     let mut best_sepsets: Vec<(f64, Vec<(VariableId, Lag)>)> = Vec::new();
-    for &drop in &removable {
-        let z_a: Vec<_> = z.iter().copied().filter(|&p| p != drop).collect();
-        let (stat, p) = engine.ci_statistic(frame, x, x_lag, y, y_lag, &z_a, workspace, ctx)?;
-        if p > engine.constraints.alpha {
-            best_sepsets.push((stat.abs(), z_a));
-        }
-    }
+    let sets = removable
+        .iter()
+        .map(|&drop| Ok(z.iter().copied().filter(|&p| p != drop).collect::<Vec<_>>()));
+    let alpha = engine.constraints.alpha;
+    engine.scan_ci_sets(
+        CiProbe { frame, link },
+        sets,
+        &mut CiMemo::default(),
+        workspace,
+        ctx,
+        |z_a, stat, p| {
+            if p > alpha {
+                best_sepsets.push((stat.abs(), z_a));
+            }
+            ControlFlow::<()>::Continue(())
+        },
+    )?;
 
     if best_sepsets.is_empty() {
         return Ok(z.to_vec());
@@ -57,15 +64,13 @@ pub fn make_sepset_weakly_minimal(
     best_sepsets.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
     let top = best_sepsets[0].0;
     if let Some((_, cand)) = best_sepsets.iter().find(|(s, _)| (*s - top).abs() <= 1e-12) {
-        return make_sepset_weakly_minimal(
-            engine, frame, x, x_lag, y, y_lag, cand, ancs, workspace, ctx,
-        );
+        return make_sepset_weakly_minimal(engine, frame, link, cand, ancs, workspace, ctx);
     }
     Ok(z.to_vec())
 }
 
 /// Store a weakly-minimal sepset on [`OrientationState`].
-pub fn store_weakly_minimal_sepset(
+pub(crate) fn store_weakly_minimal_sepset(
     state: &mut OrientationState,
     a: DenseNodeId,
     b: DenseNodeId,

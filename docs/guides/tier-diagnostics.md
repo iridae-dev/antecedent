@@ -1,9 +1,9 @@
-# Tier-aware overlap and E-value diagnostics (2.2 E7)
+# Tier-aware overlap and E-value diagnostics
 
 `antecedent::tier_diagnostics(&result, &ctx)` reads an executed **tiered** average-effect result
 (`Study::tiered_background(..)`) and states which diagnostics that result's own design
-carries. It refits nothing and builds no graph. The record is `2.2E.E7.tier_diagnostics` in
-`parity/promotion_2_2.toml`; the claim is `point_only` (an E-value is a sensitivity
+carries. It refits nothing and builds no graph. The record is `estimate.tier_diagnostics` in
+`parity/promotion.toml`; the claim is `point_only` (an E-value is a sensitivity
 summary, not an inferential interval).
 
 ```rust
@@ -63,5 +63,7 @@ diagnostics: a cancelled read is never a partial set and never a verdict on the 
 
 ## Limits
 
-Rust-only surface; no Python wrapper. Nothing is recomputed from data: the diagnostics are a
+Python: `antecedent.tier_diagnostics.tier_diagnostics(result)` reads the same diagnostics off
+the most recent estimate of a tiered study and raises the same refusals as typed errors
+(`python/tests/test_tier_diagnostics.py`). Nothing is recomputed from data: the diagnostics are a
 view over the executed result, so they inherit its support status and its limits.

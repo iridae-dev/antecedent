@@ -1,6 +1,6 @@
 //! Independent point and analytic-interval artifacts for learned continuous-outcome trial transport.
 //!
-//! Format versions 1 (point) and 2 (analytic interval) of the 2.2A cell X4 artifact
+//! Format versions 1 (point) and 2 (analytic interval) of the artifact
 //! (separate from the `learned_trial` v1 wire, which stays consumable). A consumer
 //! never fits a learner or resamples. It
 //! re-derives the transport certificate from the stored graph and query and requires the
@@ -60,62 +60,7 @@ pub const LEARNED_CONTINUOUS_ARTIFACT_FEATURE: &str = "checked_learned_continuou
 pub const LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_FEATURE: &str =
     "checked_learned_continuous_analytic_interval_v2";
 
-/// Why a learned-continuous artifact was refused. Callers match the kind.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum LearnedContinuousArtifactError {
-    /// The feature marker or shape is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A stored size or bound exceeds the consumer's or the frozen cell's bound.
-    #[error("limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The request no longer validates against its stored graph, query and rows.
-    #[error("request does not validate: {0}")]
-    InvalidRequest(String),
-    /// The certificate re-derived from the stored graph and query is not the stored one.
-    #[error("certificate does not verify: {0}")]
-    ProofMismatch(String),
-    /// The stored fold assignment or scheme is not the recomputed one.
-    #[error("fold provenance does not match the stored rows")]
-    FoldMismatch,
-    /// The stored provider provenance does not cover every fitted nuisance, names a
-    /// learner other than the stored spec, or is inconsistent within a nuisance role.
-    #[error("provider provenance is incomplete or contradicts the learner specs")]
-    ProvenanceMismatch,
-    /// The recomputed point differs from the stored point.
-    #[error("point estimate does not replay")]
-    PointMismatch,
-    /// The analytic standard error or interval does not replay.
-    #[error("analytic interval does not replay")]
-    IntervalMismatch,
-    /// The recomputed held-out diagnostics differ from the stored ones.
-    #[error("nuisance diagnostics do not replay")]
-    DiagnosticsMismatch,
-    /// The recomputed membership or treatment overlap differs from the stored one.
-    #[error("overlap report does not replay")]
-    OverlapMismatch,
-    /// The stored membership predictions leave the declared overlap threshold.
-    #[error("membership overlap is below the declared threshold")]
-    OverlapRefused,
-    /// The stored interval status contradicts its format and request.
-    #[error("uncertainty bookkeeping does not check: {0}")]
-    UncertaintyMismatch(&'static str),
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The data digest does not match the stored rows.
-    #[error("data digest mismatch")]
-    DataIdentityMismatch,
-    /// The evidence digest does not match the stored result (point, nuisance predictions,
-    /// provenance, folds, diagnostics, overlap, interval status).
-    #[error("evidence digest mismatch")]
-    EvidenceMismatch,
-    /// The caller's variable names are not the names the artifact was built under.
-    #[error("variable names do not match the verified name mapping")]
-    NamesMismatch,
-}
-
+pub use antecedent_io_core::transport_errors::LearnedContinuousArtifactError;
 /// Bounds a consumer imposes on a replay. Nothing the artifact stores raises them.
 #[derive(Clone, Copy, Debug)]
 pub struct LearnedContinuousConsumeLimits {
@@ -263,11 +208,6 @@ struct EvidenceView<'a> {
     result: &'a LearnedContinuousEstimate,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// A verified replay: the wire plus the independently rebuilt identification.
 pub struct ConsumedLearnedContinuous {
     /// The decoded, verified artifact.
@@ -325,7 +265,7 @@ impl LearnedContinuousArtifactWire {
         let mut graph = self.graph.clone();
         graph.directed.sort_unstable();
         graph.bidirected.sort_unstable();
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &PremisesView {
                 tag: if self.version == LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION {
@@ -346,8 +286,7 @@ impl LearnedContinuousArtifactWire {
                 sampling: self.input.sampling,
                 variable_names: &self.variable_names,
             },
-        )?
-        .to_hex())
+        )
     }
 
     /// The data digest the stored rows hash to.
@@ -355,7 +294,7 @@ impl LearnedContinuousArtifactWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn expected_data_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &DataView {
                 tag: "learned_continuous_data_v1",
@@ -365,8 +304,7 @@ impl LearnedContinuousArtifactWire {
                 source: &self.input.source,
                 randomization: &self.input.randomization,
             },
-        )?
-        .to_hex())
+        )
     }
 
     /// The evidence digest the stored result hashes to: point, interval status,
@@ -376,7 +314,7 @@ impl LearnedContinuousArtifactWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &EvidenceView {
                 tag: if self.version == LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION {
@@ -386,8 +324,7 @@ impl LearnedContinuousArtifactWire {
                 },
                 result: &self.result,
             },
-        )?
-        .to_hex())
+        )
     }
 
     /// Scientific execution identity.
@@ -395,7 +332,7 @@ impl LearnedContinuousArtifactWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn identity(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(IdentityDomain::LearnedTrial, self)?.to_hex())
+        crate::digest_hex(IdentityDomain::LearnedTrial, self)
     }
 
     /// [`Refusal::NamesMismatch`] unless the stored source and target
@@ -439,13 +376,15 @@ impl LearnedContinuousArtifactWire {
     /// [`IoError::UnsupportedVersion`], or a decoding failure (an artifact carrying an
     /// interval field fails here).
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != LEARNED_CONTINUOUS_ARTIFACT_VERSION
-            && peek.version != LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION
-        {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        crate::from_cbor(bytes)
+        crate::decode_with_version(bytes, |version| {
+            if version == LEARNED_CONTINUOUS_ARTIFACT_VERSION
+                || version == LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION
+            {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })
     }
 
     /// Decode and independently verify without fitting or resampling.
@@ -527,6 +466,10 @@ impl LearnedContinuousArtifactWire {
     ///
     /// # Errors
     /// The first failing check, as a typed [`LearnedContinuousArtifactError`].
+    #[allow(
+        clippy::too_many_lines,
+        reason = "flat field-by-field wire check or conversion; the arms are independent and splitting would only scatter the list"
+    )]
     pub fn verify(
         &self,
         limits: LearnedContinuousConsumeLimits,
@@ -537,15 +480,24 @@ impl LearnedContinuousArtifactWire {
             return Err(IoError::UnsupportedVersion { version: self.version });
         }
         self.check_shape(&limits)?;
-        if self.premises_digest != self.expected_premises_digest()? {
-            return Err(Refusal::PremisesMismatch.into());
-        }
-        if self.data_digest != self.expected_data_digest()? {
-            return Err(Refusal::DataIdentityMismatch.into());
-        }
-        if self.evidence_digest != self.expected_evidence_digest()? {
-            return Err(Refusal::EvidenceMismatch.into());
-        }
+        crate::require_digest(
+            &self.premises_digest,
+            self.expected_premises_digest(),
+            std::convert::identity,
+            || Refusal::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &self.data_digest,
+            self.expected_data_digest(),
+            std::convert::identity,
+            || Refusal::DataIdentityMismatch.into(),
+        )?;
+        crate::require_digest(
+            &self.evidence_digest,
+            self.expected_evidence_digest(),
+            std::convert::identity,
+            || Refusal::EvidenceMismatch.into(),
+        )?;
         let graph = admg_from_wire(&self.graph)?;
         let diagram = antecedent_graph::SelectionDiagram::try_new(
             graph,
@@ -588,6 +540,19 @@ impl LearnedContinuousArtifactWire {
         )
         .map_err(|e| Refusal::InvalidRequest(e.to_string()))?;
         if replay.aipw != Some(r.estimate) || !r.estimate.is_finite() {
+            return Err(Refusal::PointMismatch.into());
+        }
+        let scores = antecedent_estimate::trial_aipw_row_scores(
+            &id,
+            &self.input.outcome,
+            &self.input.treatment,
+            &self.input.source,
+            &r.membership,
+            &self.input.randomization,
+            Some((&r.mu0, &r.mu1)),
+        )
+        .map_err(|e| Refusal::InvalidRequest(e.to_string()))?;
+        if scores != r.scores {
             return Err(Refusal::PointMismatch.into());
         }
         if replay.overlap != r.overlap {

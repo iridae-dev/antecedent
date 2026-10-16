@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 use antecedent_core::IdentifiedSet;
 
 use crate::error::IdentificationError;
@@ -65,7 +63,10 @@ pub fn binary_iv_ate_bounds(law: BinaryIvLaw) -> Result<IdentifiedSet<f64>, Iden
 /// same feasibility search used by [`binary_iv_ate_bounds`] finds at least one feasible vertex.
 /// This predicate shares that search rather than re-deriving it, so the two entry points cannot
 /// drift apart.
-pub fn binary_iv_inequality_satisfied(law: BinaryIvLaw) -> Result<bool, IdentificationError> {
+#[cfg(test)]
+pub(crate) fn binary_iv_inequality_satisfied(
+    law: BinaryIvLaw,
+) -> Result<bool, IdentificationError> {
     law.validate()?;
     Ok(feasible_ate_bounds(law).is_some())
 }
@@ -73,6 +74,10 @@ pub fn binary_iv_inequality_satisfied(law: BinaryIvLaw) -> Result<bool, Identifi
 /// Enumerate response-type basic feasible solutions and return the sharp `E[Y(1)-Y(0)]` range,
 /// or `None` if the observed law admits no feasible response-type distribution at all (i.e. the
 /// Balke–Pearl instrumental inequality is violated).
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn feasible_ate_bounds(law: BinaryIvLaw) -> Option<(f64, f64)> {
     let (a, b) = constraint_system(law);
     let objective: [f64; TYPES] = std::array::from_fn(|kind| {
@@ -152,6 +157,10 @@ fn cell_index(y: u8, d: u8) -> usize {
     usize::from(d) * 2 + usize::from(y)
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn matches_observed(q: &[f64; TYPES], law: BinaryIvLaw) -> bool {
     for z in 0..2 {
         let mut got = [0.0; 4];

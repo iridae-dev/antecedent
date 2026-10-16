@@ -1,4 +1,4 @@
-//! Per-scenario selection differences and invariances (2.3.0 A1 remainder).
+//! Per-scenario selection differences and invariances.
 //!
 //! Every scenario shares `z -> x`, `z -> y`, `x -> y` and `x <-> y` (so `z`
 //! confounds `x` and `y`, and a latent confounder joins `x` and `y`), with the
@@ -151,7 +151,7 @@ fn y_given_do_x(conditioned_on: &[u32]) -> SourceInvariance {
 }
 
 #[test]
-fn a1_invariance_standardize_relies_on_the_source_conditional_and_the_target_marginal() {
+fn scenario_invariance_standardize_relies_on_the_source_conditional_and_the_target_marginal() {
     let decision = decide(vec![scenario("standardize", &[Z])], true);
     let report = report(&decision, "standardize");
     assert_eq!(report.status(), "identified");
@@ -178,7 +178,7 @@ fn a1_invariance_standardize_relies_on_the_source_conditional_and_the_target_mar
 }
 
 #[test]
-fn a1_invariance_no_selection_relies_on_the_direct_source_experiment_alone() {
+fn scenario_invariance_no_selection_relies_on_the_direct_source_experiment_alone() {
     let decision = decide(vec![scenario("direct", &[])], true);
     let report = report(&decision, "direct");
     assert_eq!(report.status(), "identified");
@@ -190,7 +190,7 @@ fn a1_invariance_no_selection_relies_on_the_direct_source_experiment_alone() {
 }
 
 #[test]
-fn a1_invariance_selection_on_the_treatment_changes_the_difference_not_the_invariance() {
+fn scenario_invariance_selection_on_the_treatment_changes_the_difference_not_the_invariance() {
     let decision = decide(
         vec![scenario("direct", &[]), scenario("on_treatment", &[X]), scenario("on_z", &[Z])],
         true,
@@ -209,7 +209,7 @@ fn a1_invariance_selection_on_the_treatment_changes_the_difference_not_the_invar
 }
 
 #[test]
-fn a1_invariance_selection_on_the_outcome_gives_an_obstruction_and_no_invariance_list() {
+fn scenario_invariance_selection_on_the_outcome_gives_an_obstruction_and_no_invariance_list() {
     let decision = decide(vec![scenario("outcome_shift", &[Y])], true);
     let report = report(&decision, "outcome_shift");
     assert_eq!(report.status(), "structurally_unidentified");
@@ -225,7 +225,7 @@ fn a1_invariance_selection_on_the_outcome_gives_an_obstruction_and_no_invariance
 }
 
 #[test]
-fn a1_invariance_a_scenario_without_its_evidence_reports_no_invariances() {
+fn scenario_invariance_a_scenario_without_its_evidence_reports_no_invariances() {
     // Without the target law the standardization cannot bind: a derivation
     // exists but its evidence is missing, which is neither an invariance list
     // nor an obstruction.
@@ -245,7 +245,7 @@ fn a1_invariance_a_scenario_without_its_evidence_reports_no_invariances() {
 }
 
 #[test]
-fn a1_invariance_scenarios_with_different_answers_report_different_invariance_sets() {
+fn scenario_invariance_scenarios_with_different_answers_report_different_invariance_sets() {
     let decision = decide(vec![scenario("standardize", &[Z]), scenario("direct", &[])], true);
     let standardize = report(&decision, "standardize");
     let direct = report(&decision, "direct");
@@ -259,7 +259,7 @@ fn a1_invariance_scenarios_with_different_answers_report_different_invariance_se
 }
 
 #[test]
-fn a1_invariance_the_identity_ignores_edge_selection_and_scenario_order() {
+fn scenario_invariance_the_identity_ignores_edge_selection_and_scenario_order() {
     let forward =
         decide(vec![scenario_in_order("a", &[(Z, X), (Z, Y), (X, Y)], (X, Y), &[Z, X])], true);
     let reversed =

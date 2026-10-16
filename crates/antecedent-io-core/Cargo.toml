@@ -1,0 +1,51 @@
+[package]
+name = "antecedent-io-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Estimator-free artifact container, wire types, digests and codecs for the Antecedent engine; start with the `antecedent` crate"
+readme = "README.md"
+autotests = false
+
+[lints]
+workspace = true
+
+[features]
+# Hidden seams that seal and open artifact containers from raw parts, for the
+# tamper and resealed-edit tests. Not part of the supported API.
+test-util = []
+
+[dependencies]
+antecedent-core = { workspace = true }
+antecedent-contract = { workspace = true }
+antecedent-counterfactual = { workspace = true }
+antecedent-discovery = { workspace = true }
+antecedent-expr = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-identify = { workspace = true }
+antecedent-kernels = { workspace = true }
+antecedent-learn = { workspace = true }
+antecedent-model = { workspace = true }
+antecedent-prob = { workspace = true }
+antecedent-stats = { workspace = true }
+blake3 = { workspace = true }
+ciborium = { workspace = true }
+memmap2 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+zstd = { workspace = true }
+
+[dev-dependencies]
+antecedent-test-support = { workspace = true }
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

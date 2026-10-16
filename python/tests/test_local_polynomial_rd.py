@@ -82,7 +82,10 @@ def test_retained_local_ratio_uses_main_analyze_flow_with_calibrated_interval(ki
                 )
                 running.append(score)
                 treatment.append(dose)
-                noise = (-0.02, -0.01, 0.01, 0.02)[replicate] if kink else 0.0
+                # Zero-sum within each running-variable value, so orthogonal to every local
+                # polynomial in x: the jump stays exact while the residual variance is positive.
+                # A noise-free exact fit would leave the sandwich variance at rounding noise.
+                noise = (-0.02, -0.01, 0.01, 0.02)[replicate]
                 outcome.append(1.0 + 2.0 * score + 0.5 * score**2 + 3.0 * dose + noise)
     rows = {"x": running, "t": treatment, "y": outcome}
     query = (RegressionKink if kink else FuzzyRegressionDiscontinuity)("y", "t", "x", 0.0, 1.0)

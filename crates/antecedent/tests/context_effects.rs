@@ -7,7 +7,6 @@
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -29,7 +28,7 @@ use antecedent_discovery::{
     TemporalConstraints,
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
-use serde_json::Value as JsonValue;
+use antecedent_test_support::load_expected_json;
 
 fn fixture_dir(name: &str) -> PathBuf {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance");
@@ -41,11 +40,6 @@ fn fixture_dir(name: &str) -> PathBuf {
         }
     }
     root.join("context").join(name)
-}
-
-fn load_expected(name: &str) -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir(name).join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
 }
 
 fn toy_env(n: usize, seed: f64) -> TimeSeriesData {
@@ -133,7 +127,7 @@ fn two_regime_toy(n: usize) -> TimeSeriesData {
 
 #[test]
 fn jpcmci_plus_two_env_pin() {
-    let expected = load_expected("jpcmci_plus_two_env");
+    let expected = load_expected_json(&fixture_dir("jpcmci_plus_two_env"));
     let multi =
         MultiEnvironmentData::try_new(Arc::from([toy_env(160, 0.0), toy_env(160, 1.0)])).unwrap();
     assert!(multi.env_count() >= expected["min_envs"].as_u64().unwrap() as usize);
@@ -175,7 +169,7 @@ fn jpcmci_plus_two_env_pin() {
 
 #[test]
 fn jpcmci_plus_space_dummy_mv_pin() {
-    let expected = load_expected("jpcmci_plus_two_env_space_dummy_mv");
+    let expected = load_expected_json(&fixture_dir("jpcmci_plus_two_env_space_dummy_mv"));
     let multi = MultiEnvironmentData::try_new(Arc::from([
         toy_env(180, 0.0),
         toy_env(180, 1.0),
@@ -232,7 +226,7 @@ fn jpcmci_plus_space_dummy_mv_pin() {
 
 #[test]
 fn rpcmci_two_regime_pin() {
-    let expected = load_expected("rpcmci_two_regime");
+    let expected = load_expected_json(&fixture_dir("rpcmci_two_regime"));
     // Distinct dynamics per half so caller-supplied labels are meaningful; keep
     // alternating off (product contract: explicit regime labels).
     let data = two_regime_toy(200);
@@ -261,7 +255,7 @@ fn rpcmci_two_regime_pin() {
 
 #[test]
 fn temporal_mediation_numeric_pin() {
-    let expected = load_expected("temporal_mediation");
+    let expected = load_expected_json(&fixture_dir("temporal_mediation"));
     let mediated_min = expected["mediated_min"].as_f64().unwrap();
     let decomp_tol = expected["decomposition_tol"].as_f64().unwrap();
     let n = 300usize;
@@ -329,7 +323,7 @@ fn temporal_mediation_numeric_pin() {
 
 #[test]
 fn conditional_effect_pin() {
-    let expected = load_expected("conditional_effect");
+    let expected = load_expected_json(&fixture_dir("conditional_effect"));
     let ate_target = expected["ate_target"].as_f64().unwrap();
     let ate_tol = expected["ate_tol"].as_f64().unwrap();
     let n = 200usize;
@@ -385,7 +379,7 @@ fn conditional_effect_pin() {
 
 #[test]
 fn prediction_smoke_pin() {
-    let expected = load_expected("prediction_smoke");
+    let expected = load_expected_json(&fixture_dir("prediction_smoke"));
     let target = expected["mean_prediction_target"].as_f64().unwrap();
     let tol = expected["tol"].as_f64().unwrap();
     let n = 80usize;

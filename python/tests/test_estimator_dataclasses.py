@@ -3,7 +3,7 @@
 Covers: every dataclass's all-defaults `_wire()` is empty and its estimator id
 itself raises, since there is no meaningful all-defaults RD config); `estimator_id` matches
 the Rust wire id from `antecedent.ids.Estimator`; `_wire()` round-trips through the real
-`antecedent.analyze(...)` / `antecedent._native.analyze_ate` and matches a hand-written dict
+`antecedent.analyze(...)` / the native prepared handle and matches a hand-written dict
 exactly; and every `__post_init__` validation rule raises with a message naming the offending
 field.
 """
@@ -11,7 +11,6 @@ field.
 from __future__ import annotations
 
 import antecedent
-import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError
 from antecedent.estimators import (
@@ -33,27 +32,9 @@ from antecedent.estimators import (
 )
 from antecedent.ids import Estimator
 
+from _scm import public_scm as _public_scm
+
 # --- fixtures -----------------------------------------------------------------------------
-
-
-def _confounded_data(seed: int = 7, n: int = 400):
-    """Simple confounded SCM: z -> t -> y, z -> y. Complete cases, no missing data."""
-    rng = np.random.default_rng(seed)
-    z = rng.normal(size=n)
-    t = (z + rng.normal(size=n) * 0.5 > 0).astype(np.float64)
-    y = 2.0 * t + 1.0 * z + rng.normal(size=n) * 0.5
-    names = ["z", "t", "y"]
-    columns = [z, t, y]
-    edges = [("z", "t"), ("z", "y"), ("t", "y")]
-    return names, columns, edges
-
-
-def _public_scm(seed: int = 9, n: int = 400):
-    rng = np.random.default_rng(seed)
-    z = rng.normal(size=n)
-    t = (0.7 * z + rng.normal(size=n) * 0.5 > 0).astype(float)
-    y = 1.5 * t + z + rng.normal(size=n) * 0.4
-    return {"z": z, "t": t, "y": y}, [("z", "t"), ("z", "y"), ("t", "y")]
 
 
 # --- all-defaults _wire() is a strict no-op ------------------------------------------------
@@ -85,7 +66,7 @@ def test_default_wire_is_empty_and_estimator_id_matches_rust(instance, expected_
     assert instance.estimator_id == str(expected_id)
 
 
-# --- real round-trips through analyze() / analyze_ate --------------------------------------
+# --- real round-trips through analyze() and the native handle -------------------------------
 
 
 def test_linear_adjustment_wire_round_trips_through_public_analyze():

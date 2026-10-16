@@ -1,7 +1,39 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
-#[path = "checked_temporal_response.rs"]
+use super::completion_fit_memo::{CompletionFitMemo, MediationFitKey, ResponseFitKey};
+use super::temporal_effect_core::FitFinishMeta;
+use super::{
+    Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianValidation,
+    CausalError, CausalExprArena, CausalPosterior, CausalQuery, CausalResponse, ClassAtomOutcome,
+    DerivationMeta, Diagnostic, DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate,
+    EnvelopeAtomFit, EnvelopeOptions, EnvelopeRefutation, EnvelopeRefuteAtom, EstimandMethod,
+    EstimationWorkspace, EstimatorId, ExecuteRun, ExecutionContext, ExprNode, GraphClass,
+    GraphEffectDraws, GraphIdentFlag, IdentificationBasis, IdentificationEnvelope,
+    IdentificationResult, IdentificationStatus, IdentifiedClaim, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
+    InferenceDiagnostics, InferenceMode, Instant, Intervention, MediationRoute,
+    ObservationMechanismEstimator, ObservationSpec, OutcomeExprId, OverlapPolicy,
+    PhysicalExecutionPlan, PriorSet, RefuteSuite, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SEQUENCE_LINEAR_SEM, Strategy, StudyResult,
+    TableView, TabularData, TemporalBackdoorIdentifier, TemporalDag, TemporalEffectQuery,
+    TemporalIndexer, TemporalLinearAdjustment, TemporalMediationEstimate,
+    TemporalMediationEstimator, TemporalMediationIdentifier, TemporalRefutation,
+    TemporalResponseEstimator, TimeSeriesData, TupleObservationTarget, TupleReplicates,
+    TupleSurface, ValidationSink, VariableId, WeightedGraphSamples, aggregate_effect_envelope,
+    bayesian_gcomp, bayesian_temporal_gcomp, completion_fit_seed, effect_from_posterior,
+    elapsed_ns, envelope_to_identification_result_for, identification_status_ok_for_case,
+    identified_set_interval_diagnostics, identify_cached_diagnostic,
+    identify_temporal_cpdag_configured, identify_temporal_pag_configured, mediation_block_stream,
+    mediation_mechanism_seed, merge_posterior_notes, nan_effect, posterior_identified_set_interval,
+    posterior_note_diagnostics, provenance_ids, push_conflict_diagnostics, push_unique_diagnostic,
+    report_identify_compute, require_identified, resolve_bayesian_prior_with_conflict,
+    resolve_envelope_prior_anchor, response_functional_is_derivative,
+    run_envelope_bayesian_full_validation, same_fit_inputs, same_fitted_problem, select_estimand,
+    sequential_linear_sem_assumption, short_series_warning, temporal_refuter_average,
+    tuple_block_observation_replicates, with_conflict_summary,
+};
+use crate::planner::RouteDefaults;
+#[path = "temporal_response_execution.rs"]
 pub(super) mod checked_temporal_response;
 // The identification crate owns the observation-assumption id and text table;
 // the temporal path records the same assumptions from the same body.
@@ -17,32 +49,9 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
-        let mut slices = Vec::with_capacity(query.horizons.len());
-        let mut primary = None;
-        let mut primary_envelope = None;
-        let mut refutations = Vec::new();
-        let mut aggregate_graph_dependent = false;
-        let mut structural_atoms = Vec::new();
-        let mut full_mass_scope = true;
-        let mut truncated_atoms = 0;
+        let inputs = CpdagMediationInputs { data, query, estimator: &estimator, ctx };
+        let mut run = CpdagMediationRun::new(query.horizons.len());
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
-        let mut class_block_replicates_ok: Option<u32> = None;
-        let single_horizon = query.horizons.len() == 1;
-        // The contrast the completions share, when the shared-design branch
-        // below fires: at one horizon it is the result's scalar estimate.
-        // The Bayesian arm also keeps the composed posterior that contrast
-        // was taken from, so the reported interval is its quantile.
-        let mut class_shared_contrast: Option<TemporalMediationEstimate> = None;
-        let mut class_shared_posterior: Option<antecedent_estimate::CausalPosterior> = None;
-        let mut class_shared_horizons = 0usize;
-        let mut class_block_cancelled = false;
-        let mut diagnostics = vec![Diagnostic::new(
-            "estimate.temporal_mediation.class_identified_set",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "completion-specific mediation effects are returned as per-horizon identified \
-             sets; completion enumeration is not averaged",
-        )];
         for (horizon_index, &horizon) in query.horizons.iter().enumerate() {
             let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
             witness.horizon_steps = horizon;
@@ -50,452 +59,553 @@ impl super::Study {
                 self.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &witness)?;
             let envelope = &bundle.envelope.envelope;
             let hit_cap = envelope.truncated_completions > 0;
-            full_mass_scope &= !hit_cap;
-            truncated_atoms += envelope.truncated_completions;
-            aggregate_graph_dependent |= hit_cap;
+            run.full_mass_scope &= !hit_cap;
+            run.truncated_atoms += envelope.truncated_completions;
+            run.aggregate_graph_dependent |= hit_cap;
             let weights = class_weights.for_envelope(&bundle.envelope)?;
-            let completion_count = envelope.cases.len();
-            let mut effects = Vec::new();
-            let mut local_diagnostics = Vec::new();
-            // Completions (frequentist or Bayesian) that all fit the same mediation
-            // design (same estimand, same S(h)) estimate one contrast; that design is
-            // kept for the class interval below.
-            let mut shared_design: Option<(
-                IdentifiedEstimand,
-                Arc<[antecedent_data::LaggedColumn]>,
-            )> = None;
-            let mut shared_status: Option<IdentificationStatus> = None;
-            let mut designs_agree = true;
+            let mut horizon_state = CpdagHorizonState::new(hit_cap, envelope.cases.len());
             for (completion_idx, (case, indexer)) in
                 envelope.cases.iter().zip(&bundle.envelope.indexers).enumerate()
             {
-                let identification = &case.result;
-                structural_atoms.push(crate::result::StructuralResponseAtom {
-                    graph_key: ((horizon_index as u64) << 32) | completion_idx as u64,
-                    weight: weights[completion_idx],
-                    status: identification.status,
-                    value: None,
-                    posterior: None,
-                    response: None,
-                });
-                if !identification_status_ok_for_case(identification.status) {
-                    aggregate_graph_dependent = true;
-                    continue;
-                }
-                let estimand = select_estimand(identification, EstimatorId::TemporalMediation)?;
-                let mut horizon_query = query.clone();
-                horizon_query.horizons = Arc::from([horizon]);
-                let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
-                let adjustment: Arc<[antecedent_data::LaggedColumn]> = estimand
-                    .adjustment_set
-                    .iter()
-                    .filter_map(|dense| {
-                        let key = indexer.key_of(dense.raw()).ok()?;
-                        lagged_column_relative_to_outcome(key, outcome_offset)
-                    })
-                    .collect::<Vec<_>>()
-                    .into();
-                // Tracked for both inference modes: whether every completion at this
-                // horizon fits the same mediation design (same estimand, same S(h)).
-                // When it does, the class's identified set collapses to one contrast,
-                // which the post-loop branch below recomputes canonically instead of
-                // reusing whichever completion happened to run last.
-                match shared_design.as_ref() {
-                    None => {
-                        shared_design = Some((estimand.clone(), adjustment.clone()));
-                        shared_status = Some(identification.status);
-                    }
-                    Some((first, first_adjustment)) => {
-                        designs_agree &= first.adjustment_set == estimand.adjustment_set
-                            && first_adjustment.as_ref() == adjustment.as_ref();
-                    }
-                }
-                let frequentist_estimate = match &self.inference {
-                    InferenceMode::Bayesian(cfg) => {
-                        let bayes = bayesian_gcomp(cfg, ctx);
-                        let preparations =
-                            antecedent_estimate::bayesian_mediation::prepare_temporal_mediation_adjusted(
-                                data,
-                                &estimand,
-                                &horizon_query,
-                                &adjustment,
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?;
-                        let mechanisms = preparations
-                            .iter()
-                            .enumerate()
-                            .map(|(index, prep)| {
-                                let mut mechanism = bayes.clone();
-                                mechanism.seed = mechanism.seed.wrapping_add(if index == 0 {
-                                    0
-                                } else {
-                                    0xBA71
-                                });
-                                let (prior, conflict) =
-                                    resolve_envelope_prior_anchor(cfg, prep, ctx)?;
-                                if let Some(summary) = conflict.as_ref() {
-                                    push_conflict_diagnostics(&mut diagnostics, summary);
-                                }
-                                mechanism.prior = prior;
-                                mechanism
-                                    .fit(
-                                        prep,
-                                        identification.status,
-                                        &mut BayesianGCompWorkspace::default(),
-                                        ctx,
-                                    )
-                                    .map_err(CausalError::from)
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let composed =
-                            antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
-                                &mechanisms[0],
-                                &mechanisms[1],
-                                &horizon_query,
-                                identification.status,
-                            )
-                            .map_err(CausalError::from)?;
-                        let mean = composed.summaries.mean.first().copied().unwrap_or(f64::NAN);
-                        effects.push(mean);
-                        structural_atoms.last_mut().expect("mediation atom").posterior =
-                            Some(composed.clone());
-                        Some(antecedent_estimate::TemporalMediationEstimate {
-                            effect: effect_from_posterior(&composed)?,
-                            total: None,
-                            direct: None,
-                            mediated: None,
-                        })
-                    }
-                    InferenceMode::Frequentist => {
-                        let estimate = estimator
-                            .estimate_with_adjustment(
-                                data,
-                                &estimand,
-                                &horizon_query,
-                                &adjustment,
-                                &[],
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?;
-                        effects.push(estimate.effect.ate);
-                        Some(estimate)
-                    }
-                };
-                if let Some(estimate) = frequentist_estimate.as_ref() {
-                    if self.refute != RefuteSuite::None {
-                        let mut reports =
-                            antecedent_validate::mediation::refute_temporal_mediation_adjusted(
-                                data,
-                                &estimand,
-                                &horizon_query,
-                                estimate,
-                                self.refute == RefuteSuite::Full,
-                                &adjustment,
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?;
-                        for report in &mut reports {
-                            report.refuter = Arc::from(format!(
-                                "horizon.{horizon}.completion.{completion_idx}.{}",
-                                report.refuter
-                            ));
-                        }
-                        refutations.extend(reports);
-                    }
-                }
-                structural_atoms.last_mut().expect("mediation atom").value =
-                    effects.last().copied().map(ResponseValue::Scalar);
-                if primary.is_none() {
-                    primary = Some((identification.clone(), estimand));
-                    primary_envelope = Some(bundle.envelope.clone());
-                }
-            }
-            if effects.is_empty() {
-                return Err(CausalError::Compile {
-                    message: format!(
-                        "TemporalCpdag mediation has no identified completion at horizon {horizon}"
-                    ),
-                });
-            }
-            let lower = effects.iter().copied().fold(f64::INFINITY, f64::min);
-            let upper = effects.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-            local_diagnostics.push(Diagnostic::new(
-                "identify.temporal_mediation.cpdag_envelope",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "horizon={horizon}, identified_completions={}, examined_completions={}, \
-                     capped={hit_cap}",
-                    effects.len(),
-                    completion_count
-                ),
-            ));
-            let every_completion_identified = effects.len() == completion_count && !hit_cap;
-            // Every completion identified and fitting the one shared design:
-            // the identified set is a single contrast, so the design's own
-            // circular-block SE (the TemporalDag route's construction, same
-            // stream) is the class interval. Otherwise the set stays unbanded.
-            let (slice_estimate, slice_uncertainty) = match shared_design.as_ref() {
-                Some((shared_estimand, shared_adjustment))
-                    if designs_agree
-                        && every_completion_identified
-                        // One shared design fits every completion, so their
-                        // contrasts are the same number, bit for bit.
-                        && lower.total_cmp(&upper) == std::cmp::Ordering::Equal =>
-                {
-                    let mut qh = query.clone();
-                    qh.horizons = Arc::from([horizon]);
-                    match &self.inference {
-                        InferenceMode::Frequentist => {
-                            let (mediation, block) = estimator
-                                .estimate_with_block_bootstrap(
-                                    data,
-                                    shared_estimand,
-                                    &qh,
-                                    shared_adjustment,
-                                    self.bootstrap_replicates,
-                                    MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(horizon) << 32),
-                                    ctx,
-                                )
-                                .map_err(CausalError::from)?;
-                            class_block_replicates_ok = Some(
-                                class_block_replicates_ok.map_or(block.replicates_ok, |ok: u32| {
-                                    ok.min(block.replicates_ok)
-                                }),
-                            );
-                            class_block_cancelled |= mediation.effect.bootstrap_cancelled;
-                            class_shared_horizons += 1;
-                            if single_horizon {
-                                class_shared_contrast = Some(mediation.clone());
-                            }
-                            local_diagnostics.extend(temporal_dependence_se_diagnostics(
-                                antecedent_estimate::CircularBlockFamily::Mediation,
-                                block.block_length,
-                                block.rows,
-                                block.kernel_bias,
-                                block.effective_rows,
-                                block.replicates_attempted > 0,
-                                &format!(
-                                    "horizon {horizon}: every completion fits the same mediation \
-                                     design, so the completion identified set is one contrast; \
-                                     one shared circular-block replicate of consecutive \
-                                     lag-aligned rows refits all three mechanism regressions, \
-                                     {}/{} replicates",
-                                    block.replicates_ok, block.replicates_attempted,
-                                ),
-                            ));
-                            let uncertainty = if block.replicates_attempted > 0 {
-                                antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-                                    requested: mediation.effect.se_bootstrap,
-                                    block,
-                                }
-                            } else {
-                                antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-                                    standard_error: None,
-                                }
-                            };
-                            (mediation, uncertainty)
-                        }
-                        InferenceMode::Bayesian(cfg) => {
-                            // Every completion fits the same design, so the class's
-                            // identified set is one contrast: recompute it canonically
-                            // from the shared design (mirrors the Frequentist branch
-                            // above) rather than reusing whichever completion's
-                            // composed posterior happened to run last.
-                            let bayes = bayesian_gcomp(cfg, ctx);
-                            let status = shared_status
-                                .unwrap_or(IdentificationStatus::NonparametricallyIdentified);
-                            let preparations = antecedent_estimate::bayesian_mediation::prepare_temporal_mediation_adjusted(
-                                data,
-                                shared_estimand,
-                                &qh,
-                                shared_adjustment,
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?;
-                            let mechanisms =
-                                preparations
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(index, prep)| {
-                                        let mut mechanism = bayes.clone();
-                                        mechanism.seed = mechanism
-                                            .seed
-                                            .wrapping_add(if index == 0 { 0 } else { 0xBA71 });
-                                        let (prior, conflict) =
-                                            resolve_envelope_prior_anchor(cfg, prep, ctx)?;
-                                        if let Some(summary) = conflict.as_ref() {
-                                            push_conflict_diagnostics(&mut diagnostics, summary);
-                                        }
-                                        mechanism.prior = prior;
-                                        mechanism
-                                            .fit(
-                                                prep,
-                                                status,
-                                                &mut BayesianGCompWorkspace::default(),
-                                                ctx,
-                                            )
-                                            .map_err(CausalError::from)
-                                    })
-                                    .collect::<Result<Vec<_>, _>>()?;
-                            let composed =
-                                antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
-                                    &mechanisms[0],
-                                    &mechanisms[1],
-                                    &qh,
-                                    status,
-                                )
-                                .map_err(CausalError::from)?;
-                            let mediation = TemporalMediationEstimate {
-                                effect: effect_from_posterior(&composed)?,
-                                total: None,
-                                direct: None,
-                                mediated: None,
-                            };
-                            class_shared_horizons += 1;
-                            if single_horizon {
-                                class_shared_contrast = Some(mediation.clone());
-                                class_shared_posterior = Some(composed.clone());
-                            }
-                            let summary =
-                                |index: usize| antecedent_estimate::MediationPosteriorSummary {
-                                    mean: composed.summaries.mean[index],
-                                    standard_deviation: composed.summaries.sd[index],
-                                    q025: composed.summaries.q025[index],
-                                    q975: composed.summaries.q975[index],
-                                };
-                            let uncertainty =
-                                antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
-                                    requested: summary(0),
-                                    total: summary(1),
-                                    direct: summary(2),
-                                    mediated: summary(3),
-                                    n_draws: composed.draws.n_draws,
-                                    backend: Arc::clone(&composed.diagnostics.backend_id),
-                                };
-                            (mediation, uncertainty)
-                        }
-                    }
-                }
-                _ => (
-                    TemporalMediationEstimate {
-                        effect: nan_effect(),
-                        total: None,
-                        direct: None,
-                        mediated: None,
+                self.cpdag_mediation_completion(
+                    &inputs,
+                    &mut run,
+                    &mut horizon_state,
+                    CpdagCompletionSite {
+                        horizon,
+                        horizon_index,
+                        completion_idx,
+                        weight: weights[completion_idx],
+                        identification: &case.result,
+                        indexer,
+                        envelope: &bundle.envelope,
                     },
-                    antecedent_estimate::TemporalMediationUncertainty::Unavailable,
+                )?;
+            }
+            self.cpdag_mediation_horizon_slice(&inputs, &mut run, horizon_state, horizon)?;
+        }
+        self.finish_cpdag_mediation(physical, query, run, started)
+    }
+
+    /// Fits, refutes and records one CPDAG completion's mediation effect at a
+    /// horizon, folding it into the horizon's shared-design bookkeeping.
+    fn cpdag_mediation_completion(
+        &self,
+        inputs: &CpdagMediationInputs<'_>,
+        run: &mut CpdagMediationRun,
+        horizon_state: &mut CpdagHorizonState,
+        site: CpdagCompletionSite<'_>,
+    ) -> Result<(), CausalError> {
+        let CpdagMediationInputs { data, query, .. } = *inputs;
+        let CpdagCompletionSite {
+            horizon,
+            horizon_index,
+            completion_idx,
+            weight,
+            identification,
+            indexer,
+            envelope,
+        } = site;
+        run.structural_atoms.push(bare_class_atom(
+            class_completion_key(horizon_index, completion_idx),
+            weight,
+            identification.status,
+        ));
+        if !identification_status_ok_for_case(identification.status) {
+            run.aggregate_graph_dependent = true;
+            return Ok(());
+        }
+        let estimand = select_estimand(identification, EstimatorId::TemporalMediation)?;
+        let mut horizon_query = query.clone();
+        horizon_query.horizons = Arc::from([horizon]);
+        let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
+        let adjustment: Arc<[antecedent_data::LaggedColumn]> = estimand
+            .adjustment_set
+            .iter()
+            .filter_map(|dense| {
+                let key = indexer.key_of(dense.raw()).ok()?;
+                lagged_column_relative_to_outcome(key, outcome_offset)
+            })
+            .collect::<Vec<_>>()
+            .into();
+        // Tracked for both inference modes: whether every completion at this
+        // horizon fits the same mediation design (same estimand, same S(h)).
+        // When it does, the class's identified set collapses to one contrast,
+        // which the post-loop branch below recomputes canonically instead of
+        // reusing whichever completion happened to run last.
+        match horizon_state.shared_design.as_ref() {
+            None => {
+                horizon_state.shared_design = Some((estimand.clone(), adjustment.clone()));
+                horizon_state.shared_status = Some(identification.status);
+            }
+            Some((first, first_adjustment)) => {
+                horizon_state.designs_agree &= first.adjustment_set == estimand.adjustment_set
+                    && first_adjustment.as_ref() == adjustment.as_ref();
+            }
+        }
+        let input = ClassMediationInput {
+            data,
+            estimand: &estimand,
+            query: &horizon_query,
+            adjustment: &adjustment,
+            status: identification.status,
+        };
+        let estimate =
+            self.cpdag_completion_estimate(inputs, run, horizon_state, input, horizon)?;
+        self.cpdag_completion_refutations(
+            inputs,
+            run,
+            horizon_state,
+            (input, &estimate),
+            (horizon, completion_idx),
+        )?;
+        last_mediation_atom(run)?.value =
+            horizon_state.effects.last().copied().map(ResponseValue::Scalar);
+        if run.primary.is_none() {
+            run.primary = Some((identification.clone(), estimand));
+            run.primary_envelope = Some(envelope.clone());
+        }
+        Ok(())
+    }
+
+    /// One CPDAG completion's mediation estimate under the study's inference
+    /// mode; records its effect (and, Bayesian, its posterior) on the sweep.
+    fn cpdag_completion_estimate(
+        &self,
+        inputs: &CpdagMediationInputs<'_>,
+        run: &mut CpdagMediationRun,
+        horizon_state: &mut CpdagHorizonState,
+        input: ClassMediationInput<'_>,
+        horizon: u32,
+    ) -> Result<TemporalMediationEstimate, CausalError> {
+        match &self.inference {
+            InferenceMode::Bayesian(cfg) => {
+                let (composed, conflicts) = fit_class_bayesian_mediation(
+                    &mut horizon_state.bayesian_fits,
+                    cfg,
+                    input,
+                    horizon,
+                    inputs.ctx,
+                )?;
+                for summary in &conflicts {
+                    push_conflict_diagnostics(&mut run.diagnostics, summary);
+                }
+                let mean = composed.summaries.mean.first().copied().unwrap_or(f64::NAN);
+                horizon_state.effects.push(mean);
+                last_mediation_atom(run)?.posterior = Some(composed.clone());
+                Ok(antecedent_estimate::TemporalMediationEstimate {
+                    effect: effect_from_posterior(&composed)?,
+                    total: None,
+                    direct: None,
+                    mediated: None,
+                })
+            }
+            InferenceMode::Frequentist => {
+                let estimate = fit_class_frequentist_mediation(
+                    &mut horizon_state.point_fits,
+                    inputs.estimator,
+                    input,
+                    inputs.ctx,
+                )?;
+                horizon_state.effects.push(estimate.effect.ate);
+                Ok(estimate)
+            }
+        }
+    }
+
+    /// The refutation reports of one CPDAG completion's estimate, labelled by
+    /// horizon and completion, when the study refutes.
+    fn cpdag_completion_refutations(
+        &self,
+        inputs: &CpdagMediationInputs<'_>,
+        run: &mut CpdagMediationRun,
+        horizon_state: &mut CpdagHorizonState,
+        (input, estimate): (ClassMediationInput<'_>, &TemporalMediationEstimate),
+        (horizon, completion_idx): (u32, usize),
+    ) -> Result<(), CausalError> {
+        if self.refute == RefuteSuite::None {
+            return Ok(());
+        }
+        let mut reports = refute_class_mediation(
+            &mut horizon_state.refute_fits,
+            input,
+            estimate,
+            self.refute == RefuteSuite::Full,
+            inputs.ctx,
+        )?;
+        for report in &mut reports {
+            report.refuter = Arc::from(format!(
+                "horizon.{horizon}.completion.{completion_idx}.{}",
+                report.refuter
+            ));
+        }
+        run.refutations.extend(reports);
+        Ok(())
+    }
+
+    /// Closes one CPDAG mediation horizon: the identified-set bounds, the
+    /// shared-design class contrast when it applies, and the horizon's slice.
+    fn cpdag_mediation_horizon_slice(
+        &self,
+        inputs: &CpdagMediationInputs<'_>,
+        run: &mut CpdagMediationRun,
+        mut horizon_state: CpdagHorizonState,
+        horizon: u32,
+    ) -> Result<(), CausalError> {
+        if horizon_state.effects.is_empty() {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "TemporalCpdag mediation has no identified completion at horizon {horizon}"
                 ),
-            };
-            slices.push(antecedent_estimate::TemporalMediationSlice {
-                horizon,
-                identification_status: if every_completion_identified {
-                    IdentificationStatus::PartiallyIdentified
-                } else {
-                    IdentificationStatus::GraphDependent
-                },
-                method: Arc::from("temporal_mediation.cpdag_completion_envelope"),
-                adjustment: Arc::from([]),
-                estimate: slice_estimate,
-                uncertainty: slice_uncertainty,
-                identified_set: Some(antecedent_estimate::TemporalMediationIdentifiedSet {
-                    lower,
-                    upper,
-                }),
-                diagnostics: local_diagnostics,
             });
         }
-        // One horizon whose completions all fit the same mediation design: the
-        // identified set is that single contrast, so it is the result's scalar
-        // estimate. Frequentist reports the design's circular-block SE; Bayesian
-        // reports the composed posterior's quantile. The identified set stays
-        // beside it; each states its own calibration.
-        let (scalar_estimate, scalar_mediation) = if let Some(contrast) = class_shared_contrast {
-            let interval = if class_shared_posterior.is_some() {
-                "its posterior quantile is the reported interval"
+        let (lower, upper) = horizon_state.bounds();
+        let mut local_diagnostics = vec![Diagnostic::new(
+            "identify.temporal_mediation.cpdag_envelope",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "horizon={horizon}, identified_completions={}, examined_completions={}, \
+                 capped={}",
+                horizon_state.effects.len(),
+                horizon_state.completion_count,
+                horizon_state.hit_cap
+            ),
+        )];
+        let every_completion_identified = horizon_state.every_completion_identified();
+        let (slice_estimate, slice_uncertainty) = self.cpdag_class_slice_estimate(
+            inputs,
+            run,
+            &mut horizon_state,
+            horizon,
+            &mut local_diagnostics,
+        )?;
+        run.slices.push(antecedent_estimate::TemporalMediationSlice {
+            horizon,
+            identification_status: if every_completion_identified {
+                IdentificationStatus::PartiallyIdentified
             } else {
-                "its circular-block SE is the reported interval"
-            };
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal_mediation.class_shared_design_scalar",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "every completion is identified and fits the same mediation design, so the \
-                     completion identified set is one contrast; that contrast is the scalar \
-                     estimate and {interval}, beside the identified set"
-                ),
-            ));
-            (
-                contrast
-                    .effect
-                    .clone()
-                    .with_block_family(antecedent_estimate::CircularBlockFamily::Mediation),
-                Some(contrast),
-            )
-        } else {
-            if class_shared_horizons > 0 {
-                diagnostics.push(Diagnostic::new(
-                    "estimate.temporal_mediation.multi_horizon",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "all requested horizons are retained in mediation_grid; the scalar estimate \
-                     and scalar mediation fields are intentionally absent because no horizon is \
-                     authoritative",
-                ));
+                IdentificationStatus::GraphDependent
+            },
+            method: Arc::from("temporal_mediation.cpdag_completion_envelope"),
+            adjustment: Arc::from([]),
+            estimate: slice_estimate,
+            uncertainty: slice_uncertainty,
+            identified_set: Some(antecedent_estimate::TemporalMediationIdentifiedSet {
+                lower,
+                upper,
+            }),
+            diagnostics: local_diagnostics,
+        });
+        Ok(())
+    }
+
+    /// Every completion identified and fitting the one shared design: the
+    /// identified set is a single contrast, so the design's own circular-block
+    /// SE (the `TemporalDag` route's construction, same stream) is the class
+    /// interval. Otherwise the set stays unbanded.
+    fn cpdag_class_slice_estimate(
+        &self,
+        inputs: &CpdagMediationInputs<'_>,
+        run: &mut CpdagMediationRun,
+        horizon_state: &mut CpdagHorizonState,
+        horizon: u32,
+        local_diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<
+        (TemporalMediationEstimate, antecedent_estimate::TemporalMediationUncertainty),
+        CausalError,
+    > {
+        let (lower, upper) = horizon_state.bounds();
+        let every_completion_identified = horizon_state.every_completion_identified();
+        let shared_design = horizon_state.shared_design.take();
+        match shared_design.as_ref() {
+            Some((shared_estimand, shared_adjustment))
+                if horizon_state.designs_agree
+                    && every_completion_identified
+                    // One shared design fits every completion, so their
+                    // contrasts are the same number, bit for bit.
+                    && lower.total_cmp(&upper) == std::cmp::Ordering::Equal =>
+            {
+                let shared = (shared_estimand, shared_adjustment);
+                match &self.inference {
+                    InferenceMode::Frequentist => self.cpdag_shared_design_frequentist(
+                        inputs,
+                        run,
+                        shared,
+                        horizon,
+                        local_diagnostics,
+                    ),
+                    InferenceMode::Bayesian(cfg) => Self::cpdag_shared_design_bayesian(
+                        inputs,
+                        run,
+                        horizon_state,
+                        cfg,
+                        shared,
+                        horizon,
+                    ),
+                }
             }
-            (nan_effect(), None)
+            _ => Ok((
+                TemporalMediationEstimate {
+                    effect: nan_effect(),
+                    total: None,
+                    direct: None,
+                    mediated: None,
+                },
+                antecedent_estimate::TemporalMediationUncertainty::Unavailable,
+            )),
+        }
+    }
+
+    /// The shared mediation design's class contrast under the circular-block
+    /// bootstrap, recorded as the sweep's shared contrast at a single horizon.
+    fn cpdag_shared_design_frequentist(
+        &self,
+        inputs: &CpdagMediationInputs<'_>,
+        run: &mut CpdagMediationRun,
+        (shared_estimand, shared_adjustment): (
+            &IdentifiedEstimand,
+            &Arc<[antecedent_data::LaggedColumn]>,
+        ),
+        horizon: u32,
+        local_diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<
+        (TemporalMediationEstimate, antecedent_estimate::TemporalMediationUncertainty),
+        CausalError,
+    > {
+        let mut qh = inputs.query.clone();
+        qh.horizons = Arc::from([horizon]);
+        let (mediation, block) = inputs
+            .estimator
+            .estimate_with_block_bootstrap(
+                inputs.data,
+                shared_estimand,
+                &qh,
+                shared_adjustment,
+                antecedent_estimate::BlockBootstrap {
+                    replicates: self.bootstrap_replicates,
+                    stream_base: mediation_block_stream(MediationRoute::Temporal, horizon),
+                },
+                inputs.ctx,
+            )
+            .map_err(CausalError::from)?;
+        run.block_replicates_ok = Some(
+            run.block_replicates_ok
+                .map_or(block.replicates_ok, |ok: u32| ok.min(block.replicates_ok)),
+        );
+        run.block_cancelled |= mediation.effect.uncertainty.bootstrap.cancelled;
+        run.shared_horizons += 1;
+        if inputs.query.horizons.len() == 1 {
+            run.shared_contrast = Some(mediation.clone());
+        }
+        local_diagnostics.extend(temporal_dependence_se_diagnostics(
+            antecedent_estimate::CircularBlockFamily::Mediation,
+            block.block_length,
+            block.rows,
+            block.kernel_bias,
+            block.effective_rows,
+            block.replicates_attempted > 0,
+            &format!(
+                "horizon {horizon}: every completion fits the same mediation \
+                 design, so the completion identified set is one contrast; \
+                 one shared circular-block replicate of consecutive \
+                 lag-aligned rows refits all three mechanism regressions, \
+                 {}/{} replicates",
+                block.replicates_ok, block.replicates_attempted,
+            ),
+        ));
+        let uncertainty = if block.replicates_attempted > 0 {
+            antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                requested: mediation.effect.se_bootstrap(),
+                block,
+            }
+        } else {
+            antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                standard_error: None,
+            }
         };
-        let (mut identification, estimand) = primary.ok_or_else(|| CausalError::Compile {
-            message: "TemporalCpdag mediation missing primary completion".into(),
-        })?;
-        identification.status = if aggregate_graph_dependent {
+        Ok((mediation, uncertainty))
+    }
+
+    /// Every completion fits the same design, so the class's identified set is
+    /// one contrast: recompute it canonically from the shared design (mirrors
+    /// the frequentist branch) rather than reusing whichever completion's
+    /// composed posterior happened to run last.
+    fn cpdag_shared_design_bayesian(
+        inputs: &CpdagMediationInputs<'_>,
+        run: &mut CpdagMediationRun,
+        horizon_state: &mut CpdagHorizonState,
+        cfg: &BayesianConfig,
+        (shared_estimand, shared_adjustment): (
+            &IdentifiedEstimand,
+            &Arc<[antecedent_data::LaggedColumn]>,
+        ),
+        horizon: u32,
+    ) -> Result<
+        (TemporalMediationEstimate, antecedent_estimate::TemporalMediationUncertainty),
+        CausalError,
+    > {
+        let mut qh = inputs.query.clone();
+        qh.horizons = Arc::from([horizon]);
+        let status = horizon_state
+            .shared_status
+            .unwrap_or(IdentificationStatus::NonparametricallyIdentified);
+        let (composed, conflicts) = fit_class_bayesian_mediation(
+            &mut horizon_state.bayesian_fits,
+            cfg,
+            ClassMediationInput {
+                data: inputs.data,
+                estimand: shared_estimand,
+                query: &qh,
+                adjustment: shared_adjustment,
+                status,
+            },
+            horizon,
+            inputs.ctx,
+        )?;
+        for summary in &conflicts {
+            push_conflict_diagnostics(&mut run.diagnostics, summary);
+        }
+        let mediation = TemporalMediationEstimate {
+            effect: effect_from_posterior(&composed)?,
+            total: None,
+            direct: None,
+            mediated: None,
+        };
+        run.shared_horizons += 1;
+        if inputs.query.horizons.len() == 1 {
+            run.shared_contrast = Some(mediation.clone());
+            run.shared_posterior = Some(composed.clone());
+        }
+        let summary = |index: usize| antecedent_estimate::MediationPosteriorSummary {
+            mean: composed.summaries.mean[index],
+            standard_deviation: composed.summaries.sd[index],
+            q025: composed.summaries.q025[index],
+            q975: composed.summaries.q975[index],
+        };
+        let uncertainty = antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+            requested: summary(0),
+            total: summary(1),
+            direct: summary(2),
+            mediated: summary(3),
+            n_draws: composed.draws.n_draws,
+            backend: Arc::clone(&composed.diagnostics.backend_id),
+        };
+        Ok((mediation, uncertainty))
+    }
+
+    /// The CPDAG mediation sweep's result: scalar contrast, response envelope,
+    /// structural mixture and the identified-execute finish.
+    fn finish_cpdag_mediation(
+        &self,
+        physical: &PhysicalExecutionPlan,
+        query: &antecedent_core::MediationQuery,
+        mut run: CpdagMediationRun,
+        started: Instant,
+    ) -> Result<StudyResult, CausalError> {
+        let (scalar_estimate, scalar_mediation) = run.scalar_contrast();
+        let (mut identification, estimand) =
+            run.primary.take().ok_or_else(|| CausalError::Compile {
+                message: "TemporalCpdag mediation missing primary completion".into(),
+            })?;
+        identification.status = if run.aggregate_graph_dependent {
             IdentificationStatus::GraphDependent
         } else {
             IdentificationStatus::PartiallyIdentified
         };
         let grid = antecedent_estimate::TemporalMediationGrid {
-            slices: Arc::from(slices),
+            slices: Arc::from(std::mem::take(&mut run.slices)),
             joint_posterior: false,
         };
+        let structural = self.cpdag_structural_mixture(&mut run, &grid, query)?;
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                scalar_estimate,
+                Strategy::new(
+                    IdentifierId::GeneralizedAdjustment,
+                    if self.inference.is_bayesian() {
+                        EstimatorId::BayesianTemporalMediation
+                    } else {
+                        EstimatorId::TemporalMediation
+                    },
+                ),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(self.temporal_class_cache_covers(&query.horizons))
+            .extra_diagnostics(run.diagnostics)
+            .refutations(run.refutations)
+            .mediation(scalar_mediation)
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(run.block_replicates_ok)
+            .cancelled(run.block_cancelled)
+            .extras(IdentifiedExecuteExtras {
+                certificate: run.primary_envelope.map(|envelope| {
+                    crate::Identification::TemporalEnvelope {
+                        envelope: Arc::unwrap_or_clone(envelope),
+                        strategy: IdentifierId::GeneralizedAdjustment,
+                        structure_version: self.graph.version(),
+                    }
+                }),
+                mediation_grid: Some(grid),
+                structural_response: Some(structural),
+                n_draws: run
+                    .shared_posterior
+                    .as_ref()
+                    .and_then(|posterior| u32::try_from(posterior.draws.n_draws).ok()),
+                posterior: run.shared_posterior,
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// The structural mixture over the sweep's completion atoms, with the
+    /// per-horizon identified-set bounds as its response envelope.
+    fn cpdag_structural_mixture(
+        &self,
+        run: &mut CpdagMediationRun,
+        grid: &antecedent_estimate::TemporalMediationGrid,
+        query: &antecedent_core::MediationQuery,
+    ) -> Result<crate::result::StructuralResponseMixture, CausalError> {
+        let bounds = grid
+            .slices
+            .iter()
+            .map(|slice| slice.identified_set.as_ref().map(|set| (set.lower, set.upper)))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| CausalError::Compile {
+                message: "CPDAG mediation grid is missing a per-horizon identified set".into(),
+            })?;
         let response_envelope = antecedent_core::ResponseEnvelope {
             grid: query.horizons.iter().map(|h| f64::from(*h)).collect::<Vec<_>>().into(),
             dimension: 1,
-            lower: grid
-                .slices
-                .iter()
-                .map(|slice| slice.identified_set.as_ref().expect("set").lower)
-                .collect::<Vec<_>>()
-                .into(),
-            upper: grid
-                .slices
-                .iter()
-                .map(|slice| slice.identified_set.as_ref().expect("set").upper)
-                .collect::<Vec<_>>()
-                .into(),
+            lower: bounds.iter().map(|&(lower, _)| lower).collect::<Vec<_>>().into(),
+            upper: bounds.iter().map(|&(_, upper)| upper).collect::<Vec<_>>().into(),
         };
         let conditional = self.class_prior.as_ref().and_then(|_| {
             temporal_class_response_mean(
-                &structural_atoms,
+                &run.structural_atoms,
                 &response_envelope,
                 query.horizons.len(),
-                full_mass_scope,
+                run.full_mass_scope,
             )
         });
-        let identified_mass = structural_atoms
+        let identified_mass = run
+            .structural_atoms
             .iter()
             .filter(|atom| atom.value.is_some())
             .map(|atom| atom.weight)
             .sum::<f64>()
             / query.horizons.len() as f64;
-        let structural = crate::result::StructuralResponseMixture {
+        Ok(crate::result::StructuralResponseMixture {
             weight_basis: if self.class_prior.is_some() {
                 crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
             } else {
                 crate::result::StructuralWeightBasis::CompletionEnumeration
             },
-            atoms: structural_atoms,
+            atoms: std::mem::take(&mut run.structural_atoms),
             identified_mass,
             unidentified_mass: (1.0 - identified_mass).max(0.0),
             unevaluable_mass: 0.0,
@@ -503,48 +613,9 @@ impl super::Study {
             identified_set: Some(response_envelope),
             identified_set_interval: None,
             conditional_on_identified: conditional,
-            full_mass_scope,
-            truncated_atoms,
-        };
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate: scalar_estimate,
-            identifier_id: IdentifierId::GeneralizedAdjustment,
-            estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                EstimatorId::BayesianTemporalMediation
-            } else {
-                EstimatorId::TemporalMediation
-            },
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached: self.temporal_class_cache_covers(&query.horizons),
-            extra_diagnostics: diagnostics,
-            refutations,
-            distribution: None,
-            mediation: scalar_mediation,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: class_block_replicates_ok,
-            cancelled: class_block_cancelled,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: primary_envelope.map(|envelope| {
-                    crate::Identification::TemporalEnvelope {
-                        envelope,
-                        strategy: IdentifierId::GeneralizedAdjustment,
-                        structure_version: self.graph.version(),
-                    }
-                }),
-                mediation_grid: Some(grid),
-                structural_response: Some(structural),
-                n_draws: class_shared_posterior
-                    .as_ref()
-                    .and_then(|posterior| u32::try_from(posterior.draws.n_draws).ok()),
-                posterior: class_shared_posterior,
-                ..Default::default()
-            },
-        }))
+            full_mass_scope: run.full_mass_scope,
+            truncated_atoms: run.truncated_atoms,
+        })
     }
 
     pub(crate) fn mediation_adjustment(
@@ -591,412 +662,88 @@ impl super::Study {
         checked_bayesian: Option<&crate::analysis::CheckedBayesianTemporalEffectOperation>,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let (identification, estimand, indexer, identify_cached) = if let Some(operation) =
-            checked_bayesian
-        {
-            let target = operation.target();
-            if !target.matches_graph(graph)
-                || !target.matches_query(&CausalQuery::TemporalEffect(query.clone()))
-            {
-                return Err(CausalError::Compile {
+        let (identification, estimand, indexer, identify_cached) =
+            if let Some(operation) = checked_bayesian {
+                let target = operation.target();
+                if !target.matches_graph(graph)
+                    || !target.matches_query(&CausalQuery::TemporalEffect(query.clone()))
+                {
+                    return Err(CausalError::Compile {
                     message:
                         "checked Bayesian temporal target differs from the prepared graph or query"
                             .into(),
                 });
-            }
-            (
-                target.identification().clone(),
-                target.estimand().clone(),
-                target.indexer().clone(),
-                true,
-            )
-        } else if let Some(cache) = self.temporal_identification_cache.as_deref() {
-            let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
-                message: format!(
-                    "prepared temporal identification missing horizon {}",
-                    query.horizon_steps
-                ),
-            })?;
-            (entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true)
-        } else {
-            let id_res = TemporalBackdoorIdentifier::new()
-                .with_parent_adjustment_fallback()
-                .identify_temporal(graph, query)
-                .map_err(CausalError::from)?;
-            let estimand = select_estimand(
-                &id_res.result,
-                if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
-                {
-                    EstimatorId::TemporalSequentialGcomp
-                } else {
-                    EstimatorId::TemporalLinearAdjustment
-                },
-            )?;
-            (id_res.result, estimand, id_res.indexer, false)
-        };
-        require_identified(&identification)?;
-        if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
-        {
-            if self.split.is_some() {
-                return Err(CausalError::Unsupported {
-                    message: "multi-step sustained g-computation currently requires no discovery-estimation split",
-                });
-            }
-            let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
-                if cfg.prior.is_some()
-                    || cfg.prior_artifact.is_some()
-                    || cfg.external_compose.is_some()
-                {
-                    return Err(CausalError::Unsupported {
-                        message: "multi-step sustained inference requires isotropic per-mechanism priors",
-                    });
                 }
-                Some(bayesian_gcomp(cfg, ctx))
-            } else {
-                None
-            };
-            let mut assumptions = identification.required_assumptions.clone();
-            assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from("linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared circular-block row bootstrap whose replicate SD carries the circular-Bartlett fixed-b correction for the block length, Bayesian intervals share each stationary mechanism posterior across time copies, fitting its unique complete observed rows once"),
-                }),
-                source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("temporal.sequential.gcomp") },
-                scope: antecedent_core::AssumptionScope::Estimation, status: antecedent_core::AssumptionStatus::Declared,
-            });
-            let mut mechanisms = Vec::new();
-            let (estimate, mut posterior) =
-                antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                    data,
-                    graph,
-                    &indexer,
-                    &estimand,
-                    query,
-                    identification.status,
-                    assumptions,
-                    self.bootstrap_replicates,
-                    bayes.as_ref(),
-                    ctx,
-                    Some(&mut mechanisms),
-                )
-                .map_err(CausalError::from)?;
-            let atom = super::sequential_validation::SequentialValidationAtom {
-                weight: 1.0,
-                graph: graph.clone(),
-                indexer: indexer.clone(),
-                estimand: estimand.clone(),
-                status: identification.status,
-                estimate: estimate.clone(),
-                mechanisms,
-            };
-            let (refutations, mut diagnostics, predictive_checks) =
-                super::sequential_validation::validate_sequential(
-                    data,
-                    query,
-                    &[atom],
-                    self.refute,
-                    &self.custom_validators,
-                    bayes.as_ref(),
-                    posterior.as_mut(),
-                    estimate.ate,
-                    ctx,
-                    super::super::latency::predictive_check_sims(self.latency_mode),
-                )?;
-            let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
-            let cancelled = estimate.bootstrap_cancelled;
-            // The validation diagnostics are the prebuilt list, so estimator
-            // provenance joins them (extra_diagnostics are not merged into it).
-            diagnostics.push(Diagnostic::new("estimate.temporal.sustained_window", DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                "the contrast propagates through all intervened times in topological order; no one-node collapse; no analytic SE is asserted for the frequentist sequential fit"));
-            if bayes.is_none() {
-                diagnostics.extend(sequential_dependence_se_diagnostics(
-                    &estimate,
-                    self.bootstrap_replicates,
-                ));
-            }
-            let estimate = if bayes.is_none() {
-                estimate.with_block_family(antecedent_estimate::CircularBlockFamily::Sequential)
-            } else {
-                estimate
-            };
-            return Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-                physical,
-                identification,
-                estimand,
-                estimate,
-                identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-                estimator_id: EstimatorId::TemporalSequentialGcomp,
-                treatment: query.treatment,
-                outcome: query.outcome,
-                identify_cached,
-                extra_diagnostics: Vec::new(),
-                refutations,
-                distribution: None,
-                mediation: None,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok,
-                cancelled,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras {
-                    posterior,
-                    diagnostics: Some(diagnostics),
-                    predictive_checks,
-                    ..Default::default()
-                },
-            }));
-        }
-
-        let mut estimator = TemporalLinearAdjustment::new();
-        estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
-        estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
-        let prep = estimator
-            .prepare(data, &estimand, query, &indexer, self.split.as_ref(), &ctx.kernel_policy)
-            .map_err(CausalError::from)?;
-
-        // Bayesian fits keep the estimator (with the resolved prior in force) and the
-        // lag-named, serial-dependence-tempered design so every check reuses both.
-        let mut bayes_fit: Option<(BayesianTemporalGcomp, PreparedBayesianProblem)> = None;
-        let mut dependence_se = None;
-        let (estimate, posterior, estimate_artifact, estimate_op) = match &self.inference {
-            InferenceMode::Bayesian(cfg) => {
-                if let Some(operation) = checked_bayesian {
-                    let fit =
-                        crate::analysis::checked_bayesian_temporal_effect::fit_temporal_dag_effect(
-                            operation,
-                            data,
-                            self.split.as_ref(),
-                            ctx,
-                        )?;
-                    let estimate = fit.estimate.clone();
-                    let posterior = fit.posterior.clone();
-                    bayes_fit = Some((fit.estimator, fit.prepared));
-                    (
-                        estimate,
-                        Some(posterior),
-                        "estimate.bayesian_temporal_gcomp",
-                        "estimate.bayesian.temporal.gcomp",
-                    )
-                } else {
-                    let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
-                    let names = antecedent_estimate::temporal_coefficient_names(
-                        data, &estimand, query, &indexer,
-                    )
-                    .map_err(CausalError::from)?;
-                    let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
-                        .map_err(CausalError::from)?;
-                    let (resolved_prior, conflict_summary) =
-                        resolve_bayesian_prior_with_conflict(cfg, &bprep, Some(ctx))?;
-                    bayes.inner.prior = resolved_prior;
-                    let mut ws = BayesianGCompWorkspace::default();
-                    let mut posterior = bayes
-                        .fit(&bprep, identification.status, &mut ws, ctx)
-                        .map_err(CausalError::from)?;
-                    if let Some(summary) = conflict_summary {
-                        posterior = with_conflict_summary(posterior, summary);
-                    }
-                    let estimate = effect_from_posterior(&posterior)?;
-                    bayes_fit = Some((bayes, bprep));
-                    (
-                        estimate,
-                        Some(posterior),
-                        "estimate.bayesian_temporal_gcomp",
-                        "estimate.bayesian.temporal.gcomp",
-                    )
-                }
-            }
-            InferenceMode::Frequentist => {
-                // One series: lagged rows are serially dependent, so the only SE is a
-                // fixed-b-scaled circular-block bootstrap over consecutive lag-aligned
-                // rows, never the iid OLS / iid row-bootstrap pair of the static estimator.
-                let (estimate, info) = estimator
-                    .fit_dependence_honest(
-                        &prep,
-                        &indexer,
-                        ctx,
-                        identification.required_assumptions.clone(),
-                    )
-                    .map_err(CausalError::from)?;
-                dependence_se = Some(info);
                 (
-                    estimate
-                        .with_block_family(antecedent_estimate::CircularBlockFamily::SingleWindow),
-                    None,
-                    "estimate.temporal_linear_adjustment",
-                    "estimate.temporal.linear.adjustment",
+                    target.identification().clone(),
+                    target.estimand().clone(),
+                    target.indexer().clone(),
+                    true,
                 )
-            }
-        };
-        let estimate = estimate.with_n_obs(u64::try_from(prep.design.nrows).unwrap_or(u64::MAX));
-
-        let mut diagnostics = Vec::new();
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        if let Some(info) = dependence_se.as_ref() {
-            diagnostics.extend(temporal_dependence_se_diagnostics(
-                antecedent_estimate::CircularBlockFamily::SingleWindow,
-                info.block_length,
-                info.rows,
-                info.kernel_bias,
-                info.effective_rows,
-                info.replicates_attempted > 0,
-                &format!(
-                    "se_bootstrap refits the lag-aligned design on circular blocks of \
-                     consecutive rows ({}/{} replicates); se_analytic is NaN: the iid OLS SE \
-                     ignores serial dependence and no HAC SE is calibrated for this cell{}",
-                    estimate.bootstrap_replicates_ok.unwrap_or(0),
-                    info.replicates_attempted,
-                    if info.replicates_attempted == 0 {
-                        "; request bootstrap_replicates > 0 for an interval"
-                    } else {
-                        ""
-                    },
-                ),
-            ));
-        }
-        let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
-        let bootstrap_cancelled = estimate.bootstrap_cancelled;
-        if physical
-            .logical
-            .record
-            .discovery_algorithm
-            .as_deref()
-            .is_some_and(|a| a.contains("pag_completed_to_dag") || a.contains("completed_to_dag"))
-        {
-            diagnostics.push(Diagnostic::new(
-                "temporal.pag.completed_to_dag",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "TemporalPag completed to TemporalDag before temporal.backdoor \
-                 (completion path; not class-aware temporal PAG identification)",
-            ));
-        }
-        let tabular = TabularData::new(data.storage().clone());
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
-        let mut refute_ws = EstimationWorkspace::default();
-        let temporal_ctx = TemporalRefitContext {
-            indexer: &indexer,
-            temporal_query: query,
-            split: self.split.as_ref(),
-            kernel_policy: &ctx.kernel_policy,
-            time_index: Some(data.time_index()),
-            panel: None,
-        };
-        let (mut refutations, na_diagnostics) = run_refuters(
-            &tabular,
-            &estimand,
-            &ate_q,
-            &estimate,
-            &mut refute_ws,
-            None,
-            ctx,
-            self.refute,
-            if posterior.is_some() {
-                EstimatorId::BayesianTemporalGcomp.as_str()
+            } else if let Some(cache) = self.temporal_identification_cache.as_deref() {
+                let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
+                    message: format!(
+                        "prepared temporal identification missing horizon {}",
+                        query.horizon_steps
+                    ),
+                })?;
+                (entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true)
             } else {
-                EstimatorId::TemporalLinearAdjustment.as_str()
-            },
-            &self.custom_validators,
-            Some(temporal_ctx),
-        )?;
-        diagnostics.extend(na_diagnostics);
-
-        // Bayesian temporal: prior/posterior PPC + prior sensitivity on Full (mirror static).
-        // Both run against the resolved prior in force and the fitted (tempered) design.
-        let mut posterior = posterior;
-        let mut predictive_checks = Vec::new();
-        if !matches!(self.refute, RefuteSuite::None) {
-            if let (Some((bayes, bprep)), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref()) {
-                const PPC_ALPHA: f64 = 0.05;
-                let sims = super::super::latency::predictive_check_sims(self.latency_mode);
-                let prior_rep = PriorPredictiveCheck::for_estimator(&bayes.inner, ctx)
-                    .with_n_sims(sims)
-                    .check_with_prior(bprep, &bayes.inner.prior_in_force(bprep.design.ncols), ctx)
+                let id_res = TemporalBackdoorIdentifier::new()
+                    .with_parent_adjustment_fallback()
+                    .identify_temporal(graph, query)
                     .map_err(CausalError::from)?;
-                refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
-                predictive_checks.push(prior_rep);
-
-                // `full` adds the lag-1 residual-autocorrelation discrepancy (C-4).
-                let post_check =
-                    PosteriorPredictiveCheck::for_estimator(&bayes.inner, ctx).with_n_sims(sims);
-                let post_rep = if matches!(self.refute, RefuteSuite::Full) {
-                    post_check.check_temporal(bprep, post, ctx.rng.master_seed())
-                } else {
-                    post_check.check(bprep, post)
-                }
-                .map_err(CausalError::from)?;
-                refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
-                predictive_checks.push(post_rep);
-
-                if matches!(self.refute, RefuteSuite::Full) {
-                    let InferenceMode::Bayesian(cfg) = &self.inference else { unreachable!() };
-                    let mut ws = BayesianGCompWorkspace::default();
-                    let (summary, sens) = evaluate_bayesian_prior_sensitivity(
-                        cfg,
-                        &bayes.inner,
-                        bprep,
-                        identification.status,
-                        post,
-                        &mut ws,
-                        ctx,
-                    )?;
-                    refutations.push(sens.to_report(&summary, estimate.ate));
-                    posterior = Some(with_prior_sensitivity(post.clone(), summary));
-                }
-            }
-        }
-
-        if let Some(cs) = posterior.as_ref().and_then(|p| p.conflict_summary.as_ref()) {
-            push_conflict_diagnostics(&mut diagnostics, cs);
-        }
-
-        let certificate = crate::Identification::Point {
-            result: identification.clone(),
-            temporal_indexer: Some(indexer.clone()),
-            strategy: IdentifierId::TemporalBackdoorUnfolded,
-            structure_version: self.graph.version(),
-        };
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+                let estimand = select_estimand(
+                    &id_res.result,
+                    if query.is_multi_step_sustained() {
+                        EstimatorId::TemporalSequentialGcomp
+                    } else {
+                        EstimatorId::TemporalLinearAdjustment
+                    },
+                )?;
+                (id_res.result, estimand, id_res.indexer, false)
+            };
+        let fit = super::temporal_effect_core::fit_temporal_effect(
+            &super::temporal_effect_core::TemporalEffectInputs {
+                data,
+                graph,
+                query,
+                identification: &identification,
+                estimand: &estimand,
+                indexer: &indexer,
+                inference: &self.inference,
+                checked_bayesian,
+                bootstrap_replicates: self.bootstrap_replicates,
+                refute: self.refute,
+                custom_validators: &self.custom_validators,
+                split: self.split.as_ref(),
+                latency_mode: self.latency_mode,
+                completed_to_dag: super::temporal_effect_core::plan_completed_to_dag(physical),
+            },
+            ctx,
+        )?;
+        let point_only = fit.point_only;
+        let args = fit.finish_args(
             physical,
             identification,
             estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: if posterior.is_some() {
-                EstimatorId::BayesianTemporalGcomp
-            } else {
-                EstimatorId::TemporalLinearAdjustment
+            &indexer,
+            query,
+            FitFinishMeta {
+                identify_cached,
+                structure_version: self.graph.version(),
+                wall_time_ns: elapsed_ns(started),
             },
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok,
-            cancelled: bootstrap_cancelled,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: Some(certificate),
-                identify_provenance: Some(provenance_ids(
-                    "identify.temporal_backdoor",
-                    "identify.temporal.backdoor.unfolded",
-                )),
-                estimate_provenance: Some(provenance_ids(estimate_artifact, estimate_op)),
-                posterior,
-                diagnostics: Some(diagnostics),
-                predictive_checks,
-                ..Default::default()
-            },
-        }))
+        );
+        Ok(super::temporal_effect_core::seal_point_only(
+            point_only,
+            self.finish_identified_execute(args),
+        ))
     }
 
-    /// Panel temporal effect: identify on the shared graph, estimate on stacked units
-    /// with [`AnalyticSeKind::PanelClusterHac`] and per-unit `cluster_ids`.
-    ///
-    /// Bayesian mode fits [`BayesianTemporalGcomp`] on the stacked lag-aligned design
-    /// (no hierarchical unit random effects; cluster-HAC is frequentist-only).
+    /// Temporal natural mediation on a resolved `TemporalDag`: identify per horizon, then fit
+    /// the mechanism product (frequentist) or compose per-mechanism posteriors (Bayesian,
+    /// isotropic mechanism priors only).
     pub(super) fn execute_temporal_mediation(
         &self,
         data: &TimeSeriesData,
@@ -1005,225 +752,20 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if let InferenceMode::Bayesian(cfg) = &self.inference {
-            return self.execute_bayesian_mediation(data, graph, query, physical, cfg, ctx);
-        }
+        use super::temporal_mediation_core::{
+            MediationInference, TemporalMediationInputs, fit_temporal_mediation,
+            require_isotropic_mediation_prior,
+        };
         let started = Instant::now();
-        let (cache, identify_cached) =
-            if let Some(cache) = self.temporal_identification_cache.clone() {
-                (cache, true)
-            } else {
-                report_identify_compute(ctx);
-                (
-                    Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons(
-                        graph,
-                        query,
-                        EstimatorId::TemporalMediation,
-                    )?),
-                    false,
-                )
-            };
-        let clicks = mediation_horizon_clicks(&cache, query, |horizon| {
-            self.mediation_adjustment(graph, query, horizon)
-        })?;
-        let mut extra_diagnostics = Vec::new();
-        if mediation_horizon_z_differs(&clicks) {
-            extra_diagnostics.push(Diagnostic::new(
-                "identify.temporal_mediation.horizon_dependent",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "adjustment sets differ across requested horizons; each contrast uses S(h) = I(h) \
-                 plus mediator-outcome confounders identified for that horizon, not a shared \
-                 max-horizon set",
-            ));
-        }
-        let est = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
-        let single_horizon = clicks.len() == 1;
-        let mut slices = Vec::with_capacity(clicks.len());
-        let mut refutations = Vec::new();
-        let mut block_replicates_ok: Option<u32> = None;
-        let mut block_cancelled = false;
-        for click in &clicks {
-            require_identified(&click.identification)?;
-            let mut qh = query.clone();
-            qh.horizons = Arc::from([click.horizon]);
-            // iid analytic SEs stay NaN for every contrast; one shared circular-block
-            // bootstrap over lag-aligned rows supplies Total/Direct/Mediated SEs.
-            let (mediation, block) = est
-                .estimate_with_block_bootstrap(
-                    data,
-                    &click.estimand,
-                    &qh,
-                    &click.adjustment,
-                    self.bootstrap_replicates,
-                    MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(click.horizon) << 32),
-                    ctx,
-                )
-                .map_err(CausalError::from)?;
-            block_replicates_ok = Some(
-                block_replicates_ok
-                    .map_or(block.replicates_ok, |ok: u32| ok.min(block.replicates_ok)),
-            );
-            block_cancelled |= mediation.effect.bootstrap_cancelled;
-            let horizon_label =
-                if single_horizon { String::new() } else { format!("horizon {}: ", click.horizon) };
-            extra_diagnostics.extend(temporal_dependence_se_diagnostics(
-                antecedent_estimate::CircularBlockFamily::Mediation,
-                block.block_length,
-                block.rows,
-                block.kernel_bias,
-                block.effective_rows,
-                block.replicates_attempted > 0,
-                &format!(
-                    "{horizon_label}iid analytic SEs are NaN for Total, Direct and Mediated; one \
-                     shared circular-block replicate of consecutive lag-aligned rows refits all \
-                     three mechanism regressions, {}/{} replicates",
-                    block.replicates_ok, block.replicates_attempted,
-                ),
-            ));
-            if self.refute != RefuteSuite::None {
-                let mut reports =
-                    antecedent_validate::mediation::refute_temporal_mediation_adjusted(
-                        data,
-                        &click.estimand,
-                        &qh,
-                        &mediation,
-                        self.refute == RefuteSuite::Full,
-                        &click.adjustment,
-                        ctx,
-                    )
-                    .map_err(CausalError::from)?;
-                for report in &mut reports {
-                    if !single_horizon {
-                        report.refuter =
-                            Arc::from(format!("horizon.{}.{}", click.horizon, report.refuter));
-                    }
-                }
-                refutations.extend(reports);
+        let inference = match &self.inference {
+            InferenceMode::Frequentist => {
+                MediationInference::Frequentist { bootstrap_replicates: self.bootstrap_replicates }
             }
-            let uncertainty = if block.replicates_attempted > 0 {
-                antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-                    requested: mediation.effect.se_bootstrap,
-                    block,
-                }
-            } else {
-                antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-                    standard_error: mediation
-                        .effect
-                        .se_analytic
-                        .is_finite()
-                        .then_some(mediation.effect.se_analytic),
-                }
-            };
-            slices.push(antecedent_estimate::TemporalMediationSlice {
-                horizon: click.horizon,
-                identification_status: click.identification.status,
-                method: Arc::clone(&click.estimand.method),
-                adjustment: mediation_click_adjustment_keys(click),
-                estimate: mediation,
-                uncertainty,
-                identified_set: None,
-                diagnostics: click.identification.diagnostics.clone(),
-            });
-        }
-        let first = slices.first().ok_or_else(|| CausalError::Compile {
-            message: "temporal mediation requires at least one horizon".into(),
-        })?;
-        let estimate = if single_horizon {
-            first
-                .estimate
-                .effect
-                .clone()
-                .with_block_family(antecedent_estimate::CircularBlockFamily::Mediation)
-        } else {
-            extra_diagnostics.push(Diagnostic::new(
-                "estimate.temporal_mediation.multi_horizon",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "all requested horizons are retained in mediation_grid; the scalar estimate and \
-                 scalar mediation fields are intentionally absent because no horizon is \
-                 authoritative",
-            ));
-            nan_effect()
+            InferenceMode::Bayesian(config) => {
+                require_isotropic_mediation_prior(config)?;
+                MediationInference::Bayesian(config)
+            }
         };
-        let mediation = single_horizon.then(|| first.estimate.clone());
-        let click = &clicks[0];
-        let mut identification = click.identification.clone();
-        if !single_horizon {
-            identification.status = most_conservative_identification_status(
-                slices.iter().map(|slice| slice.identification_status),
-            );
-            extra_diagnostics.push(Diagnostic::new(
-                "identify.temporal_mediation.multi_horizon_status",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "parent identification.status is the most conservative requested-horizon \
-                 status; mediation_grid is authoritative per horizon",
-            ));
-        }
-        let mediation_grid = antecedent_estimate::TemporalMediationGrid {
-            slices: Arc::from(slices),
-            joint_posterior: false,
-        };
-        let certificate = single_horizon.then(|| crate::Identification::Point {
-            result: click.identification.clone(),
-            temporal_indexer: Some(click.indexer.clone()),
-            strategy: IdentifierId::Frontdoor,
-            structure_version: self.graph.version(),
-        });
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand: click.estimand.clone(),
-            estimate,
-            identifier_id: IdentifierId::Frontdoor,
-            estimator_id: EstimatorId::TemporalMediation,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics,
-            refutations,
-            distribution: None,
-            mediation,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: block_replicates_ok.filter(|_| self.bootstrap_replicates > 0),
-            cancelled: block_cancelled,
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate,
-                mediation_grid: Some(mediation_grid),
-                identify_provenance: Some(provenance_ids(
-                    "identify.temporal_mediation",
-                    "identify.temporal_mediation",
-                )),
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.temporal_mediation",
-                    "estimate.temporal_mediation",
-                )),
-                ..Default::default()
-            },
-        }))
-    }
-
-    fn execute_bayesian_mediation(
-        &self,
-        data: &TimeSeriesData,
-        graph: &TemporalDag,
-        query: &antecedent_core::MediationQuery,
-        physical: &PhysicalExecutionPlan,
-        cfg: &BayesianConfig,
-        ctx: &ExecutionContext,
-    ) -> Result<StudyResult, CausalError> {
-        use antecedent_estimate::bayesian_mediation::{
-            compose_temporal_mediation, prepare_temporal_mediation_adjusted,
-            require_gaussian_mediation,
-        };
-        let started = Instant::now();
-        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-            return Err(CausalError::Unsupported {
-                message: "Bayesian mediation currently supports isotropic mechanism priors; a shared coefficient prior cannot be assigned to both mechanisms",
-            });
-        }
         let (cache, identify_cached) =
             if let Some(cache) = self.temporal_identification_cache.clone() {
                 (cache, true)
@@ -1233,7 +775,7 @@ impl super::Study {
                     Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons(
                         graph,
                         query,
-                        EstimatorId::BayesianTemporalMediation,
+                        inference.estimator_id(),
                     )?),
                     false,
                 )
@@ -1241,237 +783,24 @@ impl super::Study {
         let clicks = mediation_horizon_clicks(&cache, query, |horizon| {
             self.mediation_adjustment(graph, query, horizon)
         })?;
-        if clicks.is_empty() {
-            return Err(CausalError::Compile {
-                message: "temporal mediation requires at least one horizon".into(),
-            });
-        }
-        let mut extra_diagnostics = Vec::new();
-        if mediation_horizon_z_differs(&clicks) {
-            extra_diagnostics.push(Diagnostic::new(
-                "identify.temporal_mediation.horizon_dependent",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "adjustment sets differ across requested horizons; each contrast uses S(h) = I(h) \
-                 plus mediator-outcome confounders identified for that horizon, not a shared \
-                 max-horizon set",
-            ));
-        }
-        let estimator = bayesian_gcomp(cfg, ctx);
-        require_gaussian_mediation(&estimator).map_err(CausalError::from)?;
-        let single_horizon = clicks.len() == 1;
-        let mut slices = Vec::with_capacity(clicks.len());
-        let mut refutations = Vec::new();
-        let mut predictive_checks = Vec::new();
-        let mut first_posterior = None;
-        for click in &clicks {
-            require_identified(&click.identification)?;
-            let mut qh = query.clone();
-            qh.horizons = Arc::from([click.horizon]);
-            let preparations = prepare_temporal_mediation_adjusted(
+        let fit = fit_temporal_mediation(
+            &TemporalMediationInputs {
                 data,
-                &click.estimand,
-                &qh,
-                &click.adjustment,
-                ctx,
-            )
-            .map_err(CausalError::from)?;
-            let fit = |scale: f64| -> Result<Vec<CausalPosterior>, CausalError> {
-                preparations
-                    .iter()
-                    .enumerate()
-                    .map(|(i, prep)| {
-                        let mut est = estimator.clone();
-                        est.prior_scale = scale;
-                        est.seed = est.seed.wrapping_add(if i == 0 { 0 } else { 0xBA71_u64 });
-                        est.fit(
-                            prep,
-                            click.identification.status,
-                            &mut BayesianGCompWorkspace::default(),
-                            ctx,
-                        )
-                        .map_err(CausalError::from)
-                    })
-                    .collect()
-            };
-            let mechanisms = fit(cfg.prior_scale)?;
-            let mut posterior = compose_temporal_mediation(
-                &mechanisms[0],
-                &mechanisms[1],
-                &qh,
-                click.identification.status,
-            )
-            .map_err(CausalError::from)?;
-            let horizon_estimate = effect_from_posterior(&posterior)?;
-            let mediation = TemporalMediationEstimate {
-                effect: horizon_estimate.clone(),
-                total: Some(posterior.summaries.mean[1]),
-                direct: Some(posterior.summaries.mean[2]),
-                mediated: Some(posterior.summaries.mean[3]),
-            };
-            if self.refute != RefuteSuite::None {
-                let mut reports =
-                    antecedent_validate::mediation::refute_temporal_mediation_adjusted(
-                        data,
-                        &click.estimand,
-                        &qh,
-                        &mediation,
-                        self.refute == RefuteSuite::Full,
-                        &click.adjustment,
-                        ctx,
-                    )
-                    .map_err(CausalError::from)?;
-                for report in &mut reports {
-                    if !single_horizon {
-                        report.refuter =
-                            Arc::from(format!("horizon.{}.{}", click.horizon, report.refuter));
-                    }
-                }
-                refutations.extend(reports);
-
-                for (i, (prep, post)) in preparations.iter().zip(&mechanisms).enumerate() {
-                    // Mediation refuses prior transfer, so the isotropic mechanism
-                    // prior is the prior in force.
-                    let prior = estimator.prior_in_force(prep.design.ncols);
-                    let prior_rep = PriorPredictiveCheck::for_estimator(&estimator, ctx)
-                        .check_with_prior(prep, &prior, ctx)
-                        .map_err(CausalError::from)?;
-                    let post_rep = PosteriorPredictiveCheck::for_estimator(&estimator, ctx)
-                        .check(prep, post)
-                        .map_err(CausalError::from)?;
-                    for report in [prior_rep, post_rep] {
-                        let mut r = report.to_refutation_report(horizon_estimate.ate, 0.05);
-                        r.refuter = if single_horizon {
-                            Arc::from(format!("mediation.mechanism_{i}.{}", r.refuter))
-                        } else {
-                            Arc::from(format!(
-                                "horizon.{}.mediation.mechanism_{i}.{}",
-                                click.horizon, r.refuter
-                            ))
-                        };
-                        refutations.push(r);
-                        predictive_checks.push(report);
-                    }
-                }
-            }
-            if self.refute == RefuteSuite::Full {
-                let sensitivity = antecedent_validate::PriorSensitivity::standard_grid();
-                let mut means = Vec::new();
-                let mut sds = Vec::new();
-                for &scale in sensitivity.scales.iter() {
-                    let posts = fit(scale)?;
-                    let post = compose_temporal_mediation(
-                        &posts[0],
-                        &posts[1],
-                        &qh,
-                        click.identification.status,
-                    )
-                    .map_err(CausalError::from)?;
-                    means.push(post.summaries.mean[0]);
-                    sds.push(post.summaries.sd[0]);
-                }
-                let summary = antecedent_prob::PriorSensitivitySummary {
-                    family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
-                    prior_scales: sensitivity.scales.clone(),
-                    alphas: Arc::from([]),
-                    variance_multipliers: Arc::from([]),
-                    effect_means: Arc::from(means),
-                    effect_sds: Arc::from(sds),
-                };
-                let mut report = sensitivity.to_report(&summary, horizon_estimate.ate);
-                if !single_horizon {
-                    report.refuter =
-                        Arc::from(format!("horizon.{}.{}", click.horizon, report.refuter));
-                }
-                refutations.push(report);
-                posterior = with_prior_sensitivity(posterior, summary);
-            }
-            let summary = |index: usize| antecedent_estimate::MediationPosteriorSummary {
-                mean: posterior.summaries.mean[index],
-                standard_deviation: posterior.summaries.sd[index],
-                q025: posterior.summaries.q025[index],
-                q975: posterior.summaries.q975[index],
-            };
-            slices.push(antecedent_estimate::TemporalMediationSlice {
-                horizon: click.horizon,
-                identification_status: click.identification.status,
-                method: Arc::clone(&click.estimand.method),
-                adjustment: mediation_click_adjustment_keys(click),
-                estimate: mediation,
-                uncertainty: antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
-                    requested: summary(0),
-                    total: summary(1),
-                    direct: summary(2),
-                    mediated: summary(3),
-                    n_draws: posterior.draws.n_draws,
-                    backend: Arc::clone(&posterior.diagnostics.backend_id),
-                },
-                identified_set: None,
-                diagnostics: click.identification.diagnostics.clone(),
-            });
-            if first_posterior.is_none() {
-                first_posterior = Some(posterior);
-            }
-        }
-        let first = slices.first().ok_or_else(|| CausalError::Compile {
-            message: "temporal mediation requires at least one horizon".into(),
-        })?;
-        let estimate = if single_horizon {
-            first.estimate.effect.clone()
-        } else {
-            extra_diagnostics.push(Diagnostic::new(
-                "estimate.temporal_mediation.multi_horizon",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "each horizon retains an independent pointwise posterior summary in \
-                 mediation_grid; no scalar or joint cross-horizon posterior is asserted",
-            ));
-            nan_effect()
-        };
-        let mediation = single_horizon.then(|| first.estimate.clone());
-        let posterior = single_horizon.then(|| first_posterior.clone()).flatten();
-        let click = &clicks[0];
-        let mut identification = click.identification.clone();
-        if !single_horizon {
-            identification.status = most_conservative_identification_status(
-                slices.iter().map(|slice| slice.identification_status),
-            );
-            extra_diagnostics.push(Diagnostic::new(
-                "identify.temporal_mediation.multi_horizon_status",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "parent identification.status is the most conservative requested-horizon \
-                 status; mediation_grid is authoritative per horizon",
-            ));
-        }
-        let mediation_grid = antecedent_estimate::TemporalMediationGrid {
-            slices: Arc::from(slices),
-            joint_posterior: false,
-        };
-        let estimand = click.estimand.clone();
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical, identification: identification.clone(), estimand, estimate,
-            identifier_id: IdentifierId::Frontdoor, estimator_id: EstimatorId::BayesianTemporalMediation,
-            treatment: query.treatment, outcome: query.outcome, identify_cached,
-            extra_diagnostics: {
-                extra_diagnostics.push(Diagnostic::new("estimate.mediation.bayesian", DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                    "independent Gaussian mediator and outcome mechanisms; total = direct + mediated for every posterior draw; natural effects use the linear no-interaction alias"));
-                extra_diagnostics
+                query,
+                horizons: &clicks,
+                inference,
+                validation: self.refute,
             },
-            refutations, distribution: None, mediation,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None, cancelled: false, early_stopped: false,
-            extras: IdentifiedExecuteExtras { posterior, predictive_checks,
-                mediation_grid: Some(mediation_grid),
-                certificate: single_horizon.then(|| crate::Identification::Point {
-                    result: identification.clone(),
-                    temporal_indexer: Some(click.indexer.clone()),
-                    strategy: IdentifierId::Frontdoor,
-                    structure_version: self.graph.version(),
-                }),
-                identify_provenance: Some(provenance_ids("identify.temporal_mediation", "identify.temporal_mediation")),
-                ..Default::default() },
-        }))
+            ctx,
+        )?;
+        let args = fit.finish_args(
+            physical,
+            query,
+            identify_cached,
+            self.graph.version(),
+            elapsed_ns(started),
+        );
+        Ok(self.finish_identified_execute(args))
     }
 
     pub(super) fn execute_temporal_response(
@@ -1490,19 +819,124 @@ impl super::Study {
         };
         enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        // Every mechanism-overlay estimator (the observed-data Bayesian path and the
-        // frequentist/complete-data sequential g-formula path alike) reads only each
-        // horizon's identification status and adjustment set (identifiability is
-        // level-free); neither reads the schedule contrast's active level, since both
-        // simulate the query's own per-step intervention values directly off the
-        // unfolded SEM (or `overlays`, for the sequential engine) rather than off the
-        // certificate's literal. A per-node varying-dose schedule that the general-ID
-        // single-literal contrast cannot express (see `resolve_schedule_active_level`)
-        // is therefore still identifiable here: strip the levels before certifying so a
-        // genuine per-node dose schedule is not refused for a contrast neither
-        // consumption path reads.
-        let observed_bayes = matches!(self.inference, InferenceMode::Bayesian(_))
-            && query.observation != ObservationSpec::Complete;
+        let observed_bayes =
+            self.inference.is_bayesian() && query.observation != ObservationSpec::Complete;
+        let (cache, identify_cached) =
+            self.temporal_response_identification(graph, query, temporal, (treatment, outcome))?;
+        let aligned = identified_horizon_entries(&cache, temporal)?;
+        let first = aligned[0];
+        let (aggregate_status, mut aggregate_assumptions) =
+            aggregate_temporal_horizon_evidence(aligned.iter().map(|entry| &entry.identification))?;
+        let mut identification = first.identification.clone();
+        identification.status = aggregate_status;
+        identification.required_assumptions = aggregate_assumptions.clone();
+        let estimand = first.estimand.clone();
+        let run = ExecuteRun { physical, ctx, started, identify_cached };
+        if super::response_functional_is_derivative(&query.functional) {
+            let indexer = &first.indexer;
+            return self.execute_temporal_derivative_response(
+                DerivativeResponseInputs { data, query, temporal, indexer, treatment, outcome },
+                IdentifiedClaim { identification, estimand },
+                run,
+            );
+        }
+        let identifications: Vec<_> =
+            aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
+
+        query.require_licensed_temporal_observation()?;
+        let observation = self.prepare_temporal_response_observation(
+            &ResponseObservationInput {
+                data,
+                graph,
+                query,
+                outcome,
+                aligned: &aligned,
+                observed_bayes,
+            },
+            &mut identification,
+            &mut aggregate_assumptions,
+        )?;
+        let source_data = data;
+        let data = observation.series.as_ref().unwrap_or(data);
+
+        if let Some(overlays) = antecedent_estimate::plan_from_response_query(query)
+            .map_err(CausalError::from)?
+            .and_then(|plan| plan.mechanism_overlays())
+            .filter(|_| !observed_bayes)
+        {
+            return self.execute_temporal_sequence_response(
+                SequenceResponseInputs {
+                    data,
+                    source_data,
+                    graph,
+                    query,
+                    temporal,
+                    overlays: &overlays,
+                    aligned: &aligned,
+                    observation_adjusted: observation.adjusted.as_ref(),
+                },
+                IdentifiedClaim { identification, estimand },
+                (treatment, outcome),
+                IdentificationBasis {
+                    status: aggregate_status,
+                    assumptions: &aggregate_assumptions,
+                },
+                run,
+            );
+        }
+
+        let estimated = self.estimate_temporal_response(
+            &TemporalResponseEstimation {
+                data,
+                source_data,
+                graph,
+                query,
+                working_query: &observation.working_query,
+                temporal,
+                aligned: &aligned,
+                identifications: &identifications,
+                status: aggregate_status,
+                assumptions: &aggregate_assumptions,
+                observation_adjusted: observation.adjusted.as_ref(),
+                observed_bayes,
+                treatment,
+                outcome,
+            },
+            ctx,
+        )?;
+        Ok(self.finish_temporal_response(
+            data,
+            &aligned,
+            IdentifiedClaim { identification, estimand },
+            estimated,
+            (treatment, outcome),
+            run,
+        ))
+    }
+
+    /// The prepared identification cache of a temporal response, computing it
+    /// from the graph when the study carries none.
+    ///
+    /// Every mechanism-overlay estimator (the observed-data Bayesian path and
+    /// the frequentist/complete-data sequential g-formula path alike) reads
+    /// only each horizon's identification status and adjustment set
+    /// (identifiability is level-free); neither reads the schedule contrast's
+    /// active level, since both simulate the query's own per-step intervention
+    /// values directly off the unfolded SEM (or `overlays`, for the sequential
+    /// engine) rather than off the certificate's literal. A per-node
+    /// varying-dose schedule that the general-ID single-literal contrast
+    /// cannot express (see `resolve_schedule_active_level`) is therefore still
+    /// identifiable here: strip the levels before certifying so a genuine
+    /// per-node dose schedule is not refused for a contrast neither
+    /// consumption path reads.
+    fn temporal_response_identification(
+        &self,
+        graph: &TemporalDag,
+        query: &ResponseQuery,
+        temporal: &antecedent_core::TemporalResponseSpec,
+        (treatment, outcome): (VariableId, VariableId),
+    ) -> Result<(Arc<crate::analysis::prepared::CachedTemporalIdentification>, bool), CausalError>
+    {
         let schedule = match antecedent_estimate::plan_from_response_query(query) {
             Ok(Some(plan)) if plan.mechanism_overlays().is_some() => {
                 let mut nodes = plan.identification_schedule(temporal);
@@ -1514,49 +948,118 @@ impl super::Study {
             Ok(_) => None,
             Err(error) => return Err(CausalError::from(error)),
         };
-        let (cache, identify_cached) =
-            if let Some(cache) = self.temporal_identification_cache.clone() {
-                (cache, true)
-            } else {
-                (
-                    Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
-                        graph,
+        Ok(if let Some(cache) = self.temporal_identification_cache.clone() {
+            (cache, true)
+        } else {
+            (
+                Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
+                    graph,
+                    EstimatorId::temporal_response_for(&self.inference),
+                    &crate::analysis::prepared::TemporalResponseIdentificationRequest {
                         treatment,
                         outcome,
                         temporal,
-                        &query.target_population,
-                        if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                            EstimatorId::TemporalResponseBayesian
-                        } else {
-                            EstimatorId::TemporalResponseGcomp
-                        },
-                        schedule.as_deref(),
-                        crate::analysis::prepared::single_step_dose(query)?,
-                    )?),
-                    false,
-                )
-            };
-        let mut aligned = Vec::with_capacity(temporal.horizons.len());
-        for &horizon in temporal.horizons.iter() {
-            let entry = cache.get(horizon).ok_or_else(|| CausalError::Compile {
-                message: format!("temporal identification missing horizon {horizon}"),
-            })?;
-            require_identified(&entry.identification)?;
-            aligned.push(entry);
-        }
-        let first = aligned[0];
-        let (aggregate_status, mut aggregate_assumptions) =
-            aggregate_temporal_horizon_evidence(aligned.iter().map(|entry| &entry.identification))?;
-        let mut identification = first.identification.clone();
-        identification.status = aggregate_status;
-        identification.required_assumptions = aggregate_assumptions.clone();
-        let estimand = first.estimand.clone();
-        let identifications: Vec<_> =
-            aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
+                        target_population: &query.target_population,
+                        schedule: schedule.as_deref(),
+                        dose: crate::analysis::prepared::single_step_dose(query)?,
+                    },
+                )?),
+                false,
+            )
+        })
+    }
 
-        query
-            .require_licensed_temporal_observation()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    /// A temporal derivative response: the local slope of the linear unfolded
+    /// fit at the one requested horizon, published without an interval.
+    fn execute_temporal_derivative_response(
+        &self,
+        inputs: DerivativeResponseInputs<'_>,
+        claim: IdentifiedClaim,
+        run: ExecuteRun<'_>,
+    ) -> Result<StudyResult, CausalError> {
+        let DerivativeResponseInputs { data, query, temporal, indexer, treatment, outcome } =
+            inputs;
+        let IdentifiedClaim { identification, estimand } = claim;
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        if temporal.horizons.len() != 1 {
+            return Err(CausalError::Unsupported {
+                message: "a temporal derivative is the local slope at one horizon",
+            });
+        }
+        let prior_scale = match &self.inference {
+            InferenceMode::Bayesian(cfg) => {
+                if cfg.has_transfer() {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                    });
+                }
+                Some(cfg.prior_scale)
+            }
+            InferenceMode::Frequentist => None,
+        };
+        let probe = unit_contrast_query(
+            temporal,
+            (treatment, outcome),
+            temporal.horizons[0],
+            query.target_population.clone(),
+        );
+        let response = temporal_linear_derivative_response(
+            data,
+            query,
+            &estimand,
+            indexer,
+            &identification,
+            DerivativeSpec {
+                treatment_offset: probe.try_treatment_offset()?,
+                outcome_offset: probe.outcome_offset(),
+                policy: &ctx.kernel_policy,
+                prior_scale,
+            },
+        )?;
+        let scalar = super::response_path::response_scalar_summary(&response).0;
+        let estimator_id = EstimatorId::temporal_response_for(&self.inference);
+        let estimate = EffectEstimate::new(
+            scalar,
+            f64::NAN,
+            identification.required_assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(IdentifierId::TemporalBackdoorUnfolded, estimator_id),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .wall_time_ns(elapsed_ns(started)),
+        );
+        result.payload = crate::result::ResultPayload::Response(response);
+        result.interval = None;
+        result.posterior = None;
+        result.diagnostics.push(Diagnostic::new(
+            "estimate.temporal.linear_derivative",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            "published value is the slope of the linear unfolded temporal fit; no interval is published",
+        ));
+        Ok(result)
+    }
+
+    /// Licenses the response's observation spec and, for a non-Bayesian
+    /// observed series, adjusts the series and the working query; records the
+    /// observation assumptions on both assumption sets.
+    fn prepare_temporal_response_observation(
+        &self,
+        input: &ResponseObservationInput<'_>,
+        identification: &mut IdentificationResult,
+        aggregate_assumptions: &mut antecedent_core::AssumptionSet,
+    ) -> Result<ResponseObservation, CausalError> {
+        let ResponseObservationInput { data, graph, query, outcome, aligned, observed_bayes } =
+            *input;
         let mut working_query = query.clone();
         let mut observation_adjusted = None;
         let series_owned = if query.observation == ObservationSpec::Complete {
@@ -1571,7 +1074,7 @@ impl super::Study {
                 query,
                 &mut identification.required_assumptions,
             );
-            append_temporal_observation_assumptions(query, &mut aggregate_assumptions);
+            append_temporal_observation_assumptions(query, aggregate_assumptions);
             None
         } else {
             if self.observation_delayed_entry.is_some() {
@@ -1579,9 +1082,9 @@ impl super::Study {
                     message: "delayed entry is not licensed for temporal observation",
                 });
             }
-            let adjustment = contemporaneous_adjustment_variables(&aligned);
+            let adjustment = contemporaneous_adjustment_variables(aligned);
             let outcome_regressors =
-                temporal_observation_outcome_regressors(query, graph, outcome, &aligned)?;
+                temporal_observation_outcome_regressors(query, graph, outcome, aligned)?;
             let (series, adjusted) = ObservationMechanismEstimator::new(self.observation_options)
                 .adjust_temporal_series(data, query, &adjustment, &outcome_regressors)
                 .map_err(CausalError::from)?;
@@ -1589,42 +1092,43 @@ impl super::Study {
                 query,
                 &mut identification.required_assumptions,
             );
-            append_temporal_observation_assumptions(query, &mut aggregate_assumptions);
+            append_temporal_observation_assumptions(query, aggregate_assumptions);
             working_query.observation = ObservationSpec::Complete;
             working_query.observation_assumptions = Arc::from([]);
             observation_adjusted = Some(adjusted);
             Some(series)
         };
-        let source_data = data;
-        let data = series_owned.as_ref().unwrap_or(data);
+        Ok(ResponseObservation {
+            series: series_owned,
+            adjusted: observation_adjusted,
+            working_query,
+        })
+    }
 
-        if let Some(overlays) = antecedent_estimate::plan_from_response_query(query)
-            .map_err(CausalError::from)?
-            .and_then(|plan| plan.mechanism_overlays())
-            .filter(|_| !observed_bayes)
-        {
-            return self.execute_temporal_sequence_response(
-                data,
-                source_data,
-                graph,
-                query,
-                temporal,
-                &overlays,
-                &aligned,
-                identification,
-                estimand,
-                treatment,
-                outcome,
-                aggregate_status,
-                aggregate_assumptions.clone(),
-                identify_cached,
-                physical,
-                started,
-                ctx,
-                observation_adjusted.as_ref(),
-            );
-        }
-
+    /// Estimates the temporal response surface (observed-Bayes, Bayesian or
+    /// frequentist g-formula), applies the observation adjustment and its
+    /// bootstrap band, and restores each horizon's own identification status.
+    fn estimate_temporal_response(
+        &self,
+        input: &TemporalResponseEstimation<'_>,
+        ctx: &ExecutionContext,
+    ) -> Result<EstimatedTemporalResponse, CausalError> {
+        let TemporalResponseEstimation {
+            data,
+            source_data,
+            graph,
+            query,
+            working_query,
+            temporal,
+            aligned,
+            identifications,
+            status: aggregate_status,
+            assumptions: aggregate_assumptions,
+            observation_adjusted,
+            observed_bayes,
+            treatment,
+            outcome,
+        } = *input;
         // Surface SEs follow the Study bootstrap / replicate contract so Pulse,
         // single-step Sustained, and the dose × horizon surface report comparable
         // uncertainty. Replicates = 0 keeps the analytic OLS linear-functional SE.
@@ -1634,52 +1138,47 @@ impl super::Study {
         let mut conflict_summary = None;
         let mut observed_posterior = None;
         let mut response = if observed_bayes {
-            let InferenceMode::Bayesian(cfg) = &self.inference else {unreachable!()};
-            if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+            let InferenceMode::Bayesian(cfg) = &self.inference else {
+                return Err(CausalError::Unsupported {
+                    message: "an observed Bayesian temporal response requires Bayesian inference",
+                });
+            };
+            if cfg.has_transferred_source() {
                 return Err(CausalError::Unsupported {message: "observed temporal mechanisms need independent per-mechanism priors; a transferred response coefficient prior has no such mapping"});
             }
-            let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(
-                data, graph, &identifications, query, aggregate_status,
-                aggregate_assumptions.clone(), &bayesian_gcomp(cfg, ctx), ctx,
-            ).map_err(CausalError::from)?;
+            let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(data, graph, antecedent_estimate::TemporalIdentification { horizons: identifications, status: aggregate_status, assumptions: aggregate_assumptions.clone() }, query, &bayesian_gcomp(cfg, ctx), ctx).map_err(CausalError::from)?;
             observed_posterior = Some(posterior);
             Ok(response)
         } else if let InferenceMode::Bayesian(cfg) = &self.inference {
             let mut bayes = bayesian_gcomp(cfg, ctx);
             let (resolved, conflict) = resolve_temporal_response_prior(
-                cfg, data, temporal, &aligned, treatment, outcome, ctx,
+                cfg, data, temporal, aligned, treatment, outcome, ctx,
             )?;
             bayes.prior = resolved;
             conflict_summary = conflict;
-            estimator.estimate_bayesian(
-                data,
-                &identifications,
-                &working_query,
-                aggregate_status,
-                aggregate_assumptions.clone(),
-                &bayes,
-                ctx,
-            )
+            estimator.estimate_bayesian(data, antecedent_estimate::TemporalIdentification { horizons: identifications, status: aggregate_status, assumptions: aggregate_assumptions.clone() }, working_query, &bayes, ctx)
         } else {
             estimator.estimate(
                 data,
-                &identifications,
-                &working_query,
+                identifications,
+                working_query,
                 aggregate_status,
                 aggregate_assumptions.clone(),
                 ctx,
             )
         }
         .map_err(CausalError::from)?;
-        if let Some(adjusted) = observation_adjusted.as_ref() {
+        if let Some(adjusted) = observation_adjusted {
             apply_temporal_observation_result(&mut response, adjusted);
             if self.bootstrap_replicates > 0 {
                 if let Some(bootstrap) = bootstrap_observation_adjusted_temporal_response(
                     source_data,
                     query,
-                    &aligned,
-                    self.observation_options,
-                    self.bootstrap_replicates,
+                    aligned,
+                    ObservationBootstrap {
+                        options: self.observation_options,
+                        replicates: self.bootstrap_replicates,
+                    },
                     ctx,
                 )? {
                     apply_observation_bootstrap(
@@ -1695,11 +1194,27 @@ impl super::Study {
         // has the richer per-horizon records, so retain their actual statuses
         // instead of repeating the first/aggregate label across the surface.
         if let Some(per_horizon) = response.horizon_identification.as_mut() {
-            for (record, entry) in Arc::make_mut(per_horizon).iter_mut().zip(&aligned) {
+            for (record, entry) in Arc::make_mut(per_horizon).iter_mut().zip(aligned) {
                 record.status = entry.identification.status;
             }
         }
+        Ok(EstimatedTemporalResponse { response, conflict_summary, observed_posterior })
+    }
 
+    /// Assembles the temporal response result from the estimated surface.
+    fn finish_temporal_response(
+        &self,
+        data: &TimeSeriesData,
+        aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+        claim: IdentifiedClaim,
+        estimated: EstimatedTemporalResponse,
+        (treatment, outcome): (VariableId, VariableId),
+        run: ExecuteRun<'_>,
+    ) -> StudyResult {
+        let IdentifiedClaim { identification, estimand } = claim;
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
+        let EstimatedTemporalResponse { response, conflict_summary, observed_posterior } =
+            estimated;
         let (scalar, standard_error) = super::response_path::response_scalar_summary(&response);
         let estimate = EffectEstimate::new(
             scalar,
@@ -1707,68 +1222,29 @@ impl super::Study {
             response.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         )
-        .with_n_obs(lag_aligned_analysis_rows(data, &aligned));
-        let mut diagnostics = Vec::new();
-        for entry in &aligned {
-            diagnostics.extend(entry.identification.diagnostics.iter().cloned());
-        }
-        if horizon_adjustment_sets_differ(&aligned) {
-            diagnostics.push(Diagnostic::new(
-                "identify.temporal_response.horizon_dependent",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "adjustment sets differ across requested horizons; each cell uses I(h) \
-                 identified for that horizon, not a shared max-horizon set",
-            ));
-        }
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        if let Some(summary) = conflict_summary.as_ref() {
-            push_conflict_diagnostics(&mut diagnostics, summary);
-        }
-        diagnostics.push(Diagnostic::new(
-            "refute.temporal_response.skipped",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "scalar ATE refuters are not applicable to a function-valued temporal response",
-        ));
-        if !scalar.is_finite() {
-            diagnostics.push(Diagnostic::new(
-                "estimate.response.no_scalar_summary",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "this response is function-valued; the scalar effect summary is not applicable \
-                 and the result is carried by the response payload",
-            ));
-        }
-        for warning in &response.support.warnings {
-            diagnostics.push(warning.clone());
-        }
-
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                EstimatorId::TemporalResponseBayesian
-            } else {
-                EstimatorId::TemporalResponseGcomp
-            },
-            treatment,
-            outcome,
-            identify_cached: false,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        .with_n_obs(lag_aligned_analysis_rows(data, aligned));
+        let diagnostics = temporal_response_diagnostics(
+            aligned,
+            &response,
+            conflict_summary.as_ref(),
+            identify_cached,
+        );
+        self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    EstimatorId::temporal_response_for(&self.inference),
+                ),
+                treatment,
+                outcome,
+            )
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "identify.temporal_backdoor",
                     "identify.temporal.backdoor.unfolded",
@@ -1782,39 +1258,30 @@ impl super::Study {
                 posterior: observed_posterior,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        )
     }
 
     fn execute_temporal_sequence_response(
         &self,
-        data: &TimeSeriesData,
-        source_data: &TimeSeriesData,
-        graph: &TemporalDag,
-        query: &ResponseQuery,
-        temporal: &antecedent_core::TemporalResponseSpec,
-        overlays: &[antecedent_estimate::SequentialMechanismOverlay],
-        aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
-        identification: IdentificationResult,
-        estimand: IdentifiedEstimand,
-        treatment: VariableId,
-        outcome: VariableId,
-        aggregate_status: IdentificationStatus,
-        mut assumptions: antecedent_core::AssumptionSet,
-        identify_cached: bool,
-        physical: &PhysicalExecutionPlan,
-        started: Instant,
-        ctx: &ExecutionContext,
-        observation_adjusted: Option<&antecedent_estimate::ObservationAdjustedOutcome>,
+        inputs: SequenceResponseInputs<'_>,
+        claim: IdentifiedClaim,
+        (treatment, outcome): (VariableId, VariableId),
+        basis: IdentificationBasis<'_>,
+        run: ExecuteRun<'_>,
     ) -> Result<StudyResult, CausalError> {
+        let SequenceResponseInputs { temporal, overlays, observation_adjusted, .. } = inputs;
+        let IdentifiedClaim { identification, estimand } = claim;
+        let IdentificationBasis { status: aggregate_status, assumptions } = basis;
+        let mut assumptions = assumptions.clone();
+        let ExecuteRun { ctx, .. } = run;
         if self.split.is_some() {
             return Err(CausalError::Unsupported {
                 message: "multi-step Sequence overlays require no discovery-estimation split",
             });
         }
         let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
-            {
+            if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "multi-step Sequence inference requires isotropic per-mechanism priors",
                 });
@@ -1823,164 +1290,33 @@ impl super::Study {
         } else {
             None
         };
-        assumptions.push(antecedent_core::AssumptionRecord {
-            assumption: antecedent_core::Assumption::ParametricRestriction(
-                antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"),
-                    description: Arc::from(
-                        "linear additive mechanisms on the identified unfolded DAG; each Sequence \
-                         step transforms deterministic propagated means: fixed level, mean + shift, \
-                         factor * mean, or clip(mean + shift, lower, upper); clipping is not \
-                         integration over stochastic realizations; no last-step collapse",
-                    ),
-                },
-            ),
-            source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                algorithm: Arc::from("temporal.sequential.gcomp"),
-            },
-            scope: antecedent_core::AssumptionScope::Estimation,
-            status: antecedent_core::AssumptionStatus::Declared,
-        });
+        assumptions.push(sequential_linear_sem_assumption(SEQUENCE_LINEAR_SEM));
         if overlays.iter().any(|overlay| overlay.bounds.is_some()) {
             assumptions
                 .push(antecedent_estimate::SequentialMechanismOverlay::mean_target_assumption());
         }
-        let mut mean = Vec::with_capacity(temporal.horizons.len());
-        let mut lower = Vec::with_capacity(temporal.horizons.len());
-        let mut upper = Vec::with_capacity(temporal.horizons.len());
-        let mut horizons = Vec::with_capacity(temporal.horizons.len());
-        let mut last_posterior = None;
-        // Every horizon's posterior notes are kept (not just the scalar artifact's),
-        // so a `tempering_capped` / `tempering_inestimable` disclosure raised at an
-        // earlier horizon still reaches the result even when only the last horizon's
-        // posterior is attached as the scalar summary.
-        let mut horizon_posteriors: Vec<CausalPosterior> =
-            Vec::with_capacity(temporal.horizons.len());
-        let attach_scalar_posterior = temporal.horizons.len() == 1;
-        let mut uncertainty_complete = true;
-        let mut bootstrap_cancelled = false;
-        let z = antecedent_stats::NORMAL_Q975;
-        for (horizon_steps, entry) in temporal.horizons.iter().copied().zip(aligned.iter()) {
-            require_identified(&entry.identification)?;
-            let outcome_offset = i32::try_from(horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX);
-            let (effect, posterior) = antecedent_estimate::estimate_sequence_mechanisms(
-                data,
-                graph,
-                &entry.indexer,
-                &entry.estimand,
-                outcome,
-                outcome_offset,
-                overlays,
-                entry.identification.status,
-                assumptions.clone(),
-                // Frequentist bands: the joint tuple bootstrap below.
-                0,
-                bayes.as_ref(),
-                ctx,
-            )
-            .map_err(CausalError::from)?;
-            bootstrap_cancelled |= effect.bootstrap_cancelled;
-            let (point, lo, hi) = if let Some(post) = posterior.as_ref() {
-                (post.summaries.mean[0], post.summaries.q025[0], post.summaries.q975[0])
-            } else {
-                let se = effect.se_bootstrap.unwrap_or(effect.se_analytic);
-                (effect.ate, effect.ate - z * se, effect.ate + z * se)
-            };
-            if let Some(post) = posterior.as_ref() {
-                horizon_posteriors.push(post.clone());
-            }
-            if attach_scalar_posterior {
-                last_posterior = posterior;
-            }
-            mean.push(point);
-            uncertainty_complete &= lo.is_finite() && hi.is_finite();
-            lower.push(lo);
-            upper.push(hi);
-            horizons.push(antecedent_core::HorizonIdentification {
-                horizon: horizon_steps,
-                status: entry.identification.status,
-                method: Arc::clone(&entry.estimand.method),
-                adjustment: Arc::from(named_adjustment_keys(entry)),
-            });
-        }
-        let first_horizon = f64::from(temporal.horizons.first().copied().unwrap_or(1));
-        let last_horizon = f64::from(temporal.horizons.last().copied().unwrap_or(1));
-        let mut support = antecedent_core::SupportReport {
-            // Joint longitudinal support is not established by univariate
-            // ranges. Until a sequential-positivity diagnostic exists, do not
-            // label an arbitrary overlay schedule empirically supported.
-            status: antecedent_core::SupportStatus::Extrapolative,
-            query_region: antecedent_core::SupportRegion {
-                minima: Arc::from([first_horizon]),
-                maxima: Arc::from([last_horizon]),
-            },
-            diagnostics: vec![antecedent_core::SupportDiagnostic {
-                id: Arc::from("response.temporal.sequence_overlay"),
-                values: Arc::from(
-                    overlays
-                        .iter()
-                        .flat_map(|overlay| {
-                            [
-                                f64::from(overlay.node.variable.raw()),
-                                f64::from(overlay.node.offset),
-                                if overlay.node.level.is_some() { 1.0 } else { 0.0 },
-                                overlay.node.level.unwrap_or(0.0),
-                                overlay.node.shift,
-                                overlay.multiplier,
-                                if overlay.bounds.is_some() { 1.0 } else { 0.0 },
-                                overlay.bounds.map_or(0.0, |bounds| bounds.0),
-                                overlay.bounds.map_or(0.0, |bounds| bounds.1),
-                            ]
-                        })
-                        .collect::<Vec<_>>(),
-                ),
-                detail: Arc::from(
-                    "sequential Sequence overlays as \
-                     [variable, offset, is_fixed_level, level_or_zero, shift, multiplier, \
-                     has_bounds, lower_or_zero, upper_or_zero, …]; \
-                     transforms apply to deterministic propagated means, not stochastic draws",
-                ),
-                scope: antecedent_core::DiagnosticScope::Global,
-            }],
-            warnings: vec![Diagnostic::new(
-                "response.temporal.sequence_joint_support_unassessed",
-                DiagnosticKind::Support,
-                DiagnosticSeverity::Warning,
-                "joint longitudinal positivity for the requested Sequence overlay is not \
-                 estimated; support is conservatively marked extrapolative",
-            )],
-            point_status: Some(Arc::from(vec![
-                antecedent_core::SupportStatus::Extrapolative;
-                temporal.horizons.len()
-            ])),
-        };
-        antecedent_estimate::publish_simultaneous_band(
-            &mut support,
-            Err(antecedent_estimate::EstimationError::unsupported(
-                "Sequence overlays publish a simultaneous band only from the Frequentist joint \
-                 tuple bootstrap (request bootstrap replicates); Bayesian Sequence overlays are \
-                 sampled one horizon at a time, so there is no joint draw surface",
-            )),
-            "",
-        );
-        if !uncertainty_complete {
-            support.warnings.push(Diagnostic::new(
-                "response.temporal.sequence_uncertainty_unavailable",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                "a complete pointwise Sequence band was unavailable; uncertainty is omitted \
-                 rather than represented by non-finite endpoints",
-            ));
-        }
+        let surface =
+            estimate_sequence_horizons(&inputs, outcome, bayes.as_ref(), &assumptions, ctx)?;
+        let support = sequence_overlay_support(overlays, temporal, surface.uncertainty_complete);
+        let SequenceHorizonSurface {
+            mean,
+            lower,
+            upper,
+            horizons,
+            uncertainty_complete,
+            last_posterior,
+            horizon_posteriors,
+            bootstrap_cancelled,
+        } = surface;
         let mut response = CausalResponse {
-            estimand: query.functional.clone(),
+            estimand: inputs.query.functional.clone(),
             identification_status: aggregate_status,
             estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
                 grid: Arc::from(
                     temporal.horizons.iter().map(|&h| f64::from(h)).collect::<Vec<_>>(),
                 ),
                 dimension: 1,
-                mean: Arc::from(mean.clone()),
+                mean: Arc::from(mean),
             }),
             uncertainty: if uncertainty_complete {
                 ResponseUncertainty::PointwiseBand {
@@ -2010,28 +1346,77 @@ impl super::Study {
         // Frequentist bands come from one joint tuple bootstrap of the whole Sequence
         // surface (observation nuisance refit per replicate when the query carries one).
         if bayes.is_none() && self.bootstrap_replicates > 0 {
-            let band = bootstrap_sequence_response(
-                source_data,
-                query,
-                graph,
-                overlays,
-                outcome,
-                aligned,
-                self.observation_options,
-                self.bootstrap_replicates,
-                ctx,
-            )?;
-            apply_tuple_bootstrap_band(
-                &mut response,
-                &band,
-                self.bootstrap_replicates,
-                if observation_adjusted.is_some() {
-                    TupleBandSource::Observation
-                } else {
-                    TupleBandSource::CompleteSequence
-                },
-            );
+            self.apply_sequence_bootstrap_band(&inputs, outcome, &mut response, ctx)?;
         }
+        Ok(self.finish_sequence_response(
+            &inputs,
+            IdentifiedClaim { identification, estimand },
+            SequenceFinish {
+                response,
+                horizon_posteriors,
+                last_posterior,
+                bootstrap_cancelled,
+                attach_scalar_posterior: temporal.horizons.len() == 1,
+            },
+            (treatment, outcome),
+            run,
+        ))
+    }
+
+    /// Replaces the sequence response's pointwise band with the joint tuple
+    /// bootstrap band, refitting the observation nuisance per replicate when
+    /// the query carries one.
+    fn apply_sequence_bootstrap_band(
+        &self,
+        inputs: &SequenceResponseInputs<'_>,
+        outcome: VariableId,
+        response: &mut CausalResponse,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        let band = bootstrap_sequence_response(
+            inputs.source_data,
+            inputs.query,
+            SequenceMechanisms { graph: inputs.graph, overlays: inputs.overlays },
+            outcome,
+            inputs.aligned,
+            ObservationBootstrap {
+                options: self.observation_options,
+                replicates: self.bootstrap_replicates,
+            },
+            ctx,
+        )?;
+        apply_tuple_bootstrap_band(
+            response,
+            &band,
+            self.bootstrap_replicates,
+            if inputs.observation_adjusted.is_some() {
+                TupleBandSource::Observation
+            } else {
+                TupleBandSource::CompleteSequence
+            },
+        );
+        Ok(())
+    }
+
+    /// Assembles the Sequence response result: the scalar summary, the
+    /// overlay and per-horizon posterior disclosures, and the finish.
+    fn finish_sequence_response(
+        &self,
+        inputs: &SequenceResponseInputs<'_>,
+        claim: IdentifiedClaim,
+        finish: SequenceFinish,
+        (treatment, outcome): (VariableId, VariableId),
+        run: ExecuteRun<'_>,
+    ) -> StudyResult {
+        let IdentifiedClaim { identification, estimand } = claim;
+        let SequenceFinish {
+            response,
+            horizon_posteriors,
+            last_posterior,
+            bootstrap_cancelled,
+            attach_scalar_posterior,
+        } = finish;
+        let ExecuteRun { physical, ctx, started, identify_cached } = run;
         let (scalar, standard_error) = super::response_path::response_scalar_summary(&response);
         let estimate = EffectEstimate::new(
             scalar,
@@ -2039,7 +1424,7 @@ impl super::Study {
             response.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         )
-        .with_n_obs(lag_aligned_analysis_rows(data, aligned));
+        .with_n_obs(lag_aligned_analysis_rows(inputs.data, inputs.aligned));
         let mut diagnostics = vec![Diagnostic::new(
             "estimate.temporal.sequence_overlay",
             DiagnosticKind::Scientific,
@@ -2058,7 +1443,7 @@ impl super::Study {
         for diagnostic in posterior_note_diagnostics(&horizon_posteriors) {
             push_unique_diagnostic(&mut diagnostics, &mut seen_diagnostic_codes, diagnostic);
         }
-        if !attach_scalar_posterior && matches!(self.inference, InferenceMode::Bayesian(_)) {
+        if !attach_scalar_posterior && self.inference.is_bayesian() {
             diagnostics.push(Diagnostic::new(
                 "estimate.temporal.sequence_posterior_not_attached",
                 DiagnosticKind::Scientific,
@@ -2076,29 +1461,22 @@ impl super::Study {
             DiagnosticSeverity::Info,
             "scalar ATE refuters are not applicable to a function-valued temporal response",
         ));
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                EstimatorId::TemporalResponseBayesian
-            } else {
-                EstimatorId::TemporalResponseGcomp
-            },
-            treatment,
-            outcome,
-            identify_cached: false,
-            extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: bootstrap_cancelled || ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
+        self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    EstimatorId::temporal_response_for(&self.inference),
+                ),
+                treatment,
+                outcome,
+            )
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(bootstrap_cancelled || ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
                 identify_provenance: Some(provenance_ids(
                     "identify.temporal_backdoor",
                     "identify.temporal.backdoor.unfolded",
@@ -2112,8 +1490,8 @@ impl super::Study {
                 posterior: last_posterior,
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
-            },
-        }))
+            }),
+        )
     }
 
     pub(super) fn execute_temporal_class_response(
@@ -2123,10 +1501,11 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if super::response_functional_is_derivative(&query.functional) {
+            return self.execute_temporal_class_derivative(data, query, physical, ctx);
+        }
         let started = Instant::now();
-        query
-            .require_licensed_temporal_observation()
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.require_licensed_temporal_observation()?;
         if matches!(
             query.observation,
             ObservationSpec::IntervalCensored { .. } | ObservationSpec::Truncated { .. }
@@ -2151,260 +1530,277 @@ impl super::Study {
         }
         enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let mut assembly = ClassResponseAssembly::new(query, temporal)?;
-        let cells_per_horizon = assembly.cells_per_horizon();
-        let n_horizons = temporal.horizons.len();
-        let mut primary_estimand = None;
-        let mut primary_identification = None;
-        let mut primary_envelope = None;
-        let mut assumptions = antecedent_core::AssumptionSet::new();
-        let mut diagnostics = Vec::new();
+        let sweep = ClassResponseSweep { data, query, temporal, treatment, outcome, ctx };
+        let mut run = ClassResponseRun {
+            assembly: ClassResponseAssembly::new(query, temporal)?,
+            primary_estimand: None,
+            primary_identification: None,
+            primary_envelope: None,
+            assumptions: antecedent_core::AssumptionSet::new(),
+            diagnostics: Vec::new(),
+            observation_atoms: Vec::new(),
+        };
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
-        let mut observation_atoms = Vec::new();
-        let mut class_observation_band_applied = false;
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
-            let effect_query = TemporalEffectQuery {
-                treatment,
-                outcome,
-                policy: temporal.policy.clone(),
-                control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-                active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
-                horizon_steps: horizon,
-                max_history_lag: temporal.max_history_lag,
-                target_population: query.target_population.clone(),
-            };
+            let effect_query =
+                class_horizon_witness(query, temporal, (treatment, outcome), horizon);
             let bundle =
                 self.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &effect_query)?;
             let envelope = &bundle.envelope.envelope;
-            diagnostics.push(temporal_class_envelope_diagnostic(envelope, self.graph.class()));
+            run.diagnostics.push(temporal_class_envelope_diagnostic(envelope, self.graph.class()));
             let weights = class_weights.for_envelope(&bundle.envelope)?;
-            assembly.begin_horizon(envelope);
+            run.assembly.begin_horizon(envelope);
+            let mut fits = ClassResponseHorizonFits::default();
             for (case_index, (case, indexer)) in
                 envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
             {
-                if !identification_status_ok_for_case(case.result.status)
-                    || case.result.estimands.is_empty()
-                {
-                    assembly.push_unevaluated(
+                self.class_response_completion(
+                    &sweep,
+                    &mut run,
+                    &mut fits,
+                    ClassResponseSite {
                         horizon_index,
-                        case_index,
-                        weights[case_index],
-                        case.result.status,
-                    );
-                    continue;
-                }
-                let estimand =
-                    select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-                let mut qh = query.clone();
-                let mut temporal_h = temporal.clone();
-                temporal_h.horizons = Arc::from([horizon]);
-                qh.temporal = Some(temporal_h);
-                let observation_query = qh.clone();
-                let adjustment = class_atom_adjustment(&estimand, indexer);
-                let series_owned = if qh.observation == ObservationSpec::Complete
-                    || matches!(self.inference, InferenceMode::Bayesian(_))
-                {
-                    None
-                } else {
-                    if self.observation_delayed_entry.is_some() {
-                        return Err(CausalError::Unsupported {
-                            message: "delayed entry is not licensed for temporal observation",
-                        });
-                    }
-                    let outcome_regressors =
-                        antecedent_estimate::temporal_curve_outcome_regressors(
-                            &qh,
-                            &[(&estimand, indexer)],
-                        )
-                        .map_err(CausalError::from)?;
-                    let (series, _) = ObservationMechanismEstimator::new(self.observation_options)
-                        .adjust_temporal_series(data, &qh, &adjustment, &outcome_regressors)
-                        .map_err(CausalError::from)?;
-                    qh.observation = ObservationSpec::Complete;
-                    qh.observation_assumptions = Arc::from([]);
-                    Some(series)
-                };
-                let series = series_owned.as_ref().unwrap_or(data);
-                let mut response = match &self.inference {
-                    InferenceMode::Bayesian(cfg)
-                        if query.observation != ObservationSpec::Complete =>
-                    {
-                        let Some(dag) = case.graph.sequential_dag() else {
-                            assembly.push_unevaluated(
-                                horizon_index,
-                                case_index,
-                                weights[case_index],
-                                case.result.status,
-                            );
-                            continue;
-                        };
-                        if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
-                            return Err(CausalError::Unsupported {
-                                message: "prior_artifact stays refused on observed temporal Bayes",
-                            });
-                        }
-                        let bayes = bayesian_gcomp(cfg, ctx);
-                        let (response, _) =
-                            antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(
-                                data,
-                                &dag,
-                                &[(&estimand, indexer)],
-                                &qh,
-                                case.result.status,
-                                case.result.required_assumptions.clone(),
-                                &bayes,
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?;
-                        response
-                    }
-                    InferenceMode::Bayesian(cfg) => {
-                        let mut bayes = bayesian_gcomp(cfg, ctx);
-                        let entry =
-                            crate::analysis::prepared::CachedTemporalHorizonIdentification {
-                                horizon,
-                                identification: case.result.clone(),
-                                estimand: estimand.clone(),
-                                indexer: indexer.clone(),
-                            };
-                        let (prior, conflict) = resolve_temporal_response_prior(
-                            cfg,
-                            series,
-                            qh.temporal.as_ref().expect("temporal horizon"),
-                            &[&entry],
-                            treatment,
-                            outcome,
-                            ctx,
-                        )?;
-                        if let Some(summary) = conflict.as_ref() {
-                            push_conflict_diagnostics(&mut diagnostics, summary);
-                        }
-                        bayes.prior = prior;
-                        TemporalResponseEstimator::new()
-                            .estimate_bayesian(
-                                series,
-                                &[(&estimand, indexer)],
-                                &qh,
-                                case.result.status,
-                                case.result.required_assumptions.clone(),
-                                &bayes,
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?
-                    }
-                    InferenceMode::Frequentist => {
-                        // Requested replicates ride each completion atom. An
-                        // observation-adjusted series keeps the analytic fit: a
-                        // naive resample would not refit the nuisance mechanism.
-                        let mut estimator = TemporalResponseEstimator::new();
-                        estimator.inner.bootstrap_replicates =
-                            if series_owned.is_some() { 0 } else { self.bootstrap_replicates };
-                        estimator
-                            .estimate(
-                                series,
-                                &[(&estimand, indexer)],
-                                &qh,
-                                case.result.status,
-                                case.result.required_assumptions.clone(),
-                                ctx,
-                            )
-                            .map_err(CausalError::from)?
-                    }
-                };
-                // The class response pools each completion's per-cell band into one
-                // shared draws-agnostic band (published with `draws: None`) and rejects
-                // a band that carries retained draws. A single-coordinate
-                // `InterventionResponse` band now retains its posterior draws (only the
-                // single-atom graph-posterior scalar path consumes them), so drop them
-                // here to keep the completions poolable and the class band unchanged.
-                if let ResponseUncertainty::PointwiseBand { draws, .. } = &mut response.uncertainty
-                {
-                    *draws = None;
-                }
-                let atom_assumptions = response.assumptions.clone();
-                let atom_index = assembly.push_atom(
-                    horizon_index,
-                    case_index,
-                    weights[case_index],
-                    case.result.status,
-                    horizon,
-                    response,
-                )?;
-                if series_owned.is_some() && matches!(self.inference, InferenceMode::Frequentist) {
-                    observation_atoms.push(ClassObservationAtom {
-                        atom_index,
-                        horizon_index,
-                        estimand: estimand.clone(),
-                        indexer: indexer.clone(),
-                        assumptions: case.result.required_assumptions.clone(),
-                        weight: weights[case_index],
-                        adjustment,
                         horizon,
-                        observation_query,
-                        kind: ClassObservationKind::Curve,
+                        case_index,
+                        weight: weights[case_index],
+                        case,
+                        indexer,
+                        envelope: &bundle.envelope,
+                    },
+                )?;
+            }
+            run.assembly.end_horizon(horizon_index, horizon)?;
+        }
+        self.finish_temporal_class_response(&sweep, run, physical, started)
+    }
+
+    /// Fits one completion's temporal response at a horizon and adds it to the
+    /// class assembly as an atom, or as unevaluated when it cannot be fitted.
+    fn class_response_completion(
+        &self,
+        sweep: &ClassResponseSweep<'_>,
+        run: &mut ClassResponseRun,
+        fits: &mut ClassResponseHorizonFits,
+        site: ClassResponseSite<'_>,
+    ) -> Result<(), CausalError> {
+        let ClassResponseSweep { data, query, temporal, .. } = *sweep;
+        let ClassResponseSite {
+            horizon_index,
+            horizon,
+            case_index,
+            weight,
+            case,
+            indexer,
+            envelope,
+        } = site;
+        if !identification_status_ok_for_case(case.result.status)
+            || case.result.estimands.is_empty()
+        {
+            run.assembly.push_unevaluated(horizon_index, case_index, weight, case.result.status);
+            return Ok(());
+        }
+        let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+        let mut qh = query.clone();
+        let mut temporal_h = temporal.clone();
+        temporal_h.horizons = Arc::from([horizon]);
+        qh.temporal = Some(temporal_h);
+        let observation_query = qh.clone();
+        let adjustment = class_atom_adjustment(&estimand, indexer);
+        let series_owned =
+            if qh.observation == ObservationSpec::Complete || self.inference.is_bayesian() {
+                None
+            } else {
+                if self.observation_delayed_entry.is_some() {
+                    return Err(CausalError::Unsupported {
+                        message: "delayed entry is not licensed for temporal observation",
                     });
                 }
-                if primary_estimand.is_none() {
-                    primary_estimand = Some(estimand);
-                    primary_identification = Some(case.result.clone());
-                    primary_envelope = Some(bundle.envelope.clone());
-                    assumptions = atom_assumptions;
-                }
-            }
-            assembly.end_horizon(horizon_index, horizon)?;
+                let outcome_regressors = antecedent_estimate::temporal_curve_outcome_regressors(
+                    &qh,
+                    &[(&estimand, indexer)],
+                )
+                .map_err(CausalError::from)?;
+                let (series, _) = ObservationMechanismEstimator::new(self.observation_options)
+                    .adjust_temporal_series(data, &qh, &adjustment, &outcome_regressors)
+                    .map_err(CausalError::from)?;
+                qh.observation = ObservationSpec::Complete;
+                qh.observation_assumptions = Arc::from([]);
+                Some(series)
+            };
+        let series = series_owned.as_ref().unwrap_or(data);
+        let input = ClassResponseInput { series, query: &qh, estimand: &estimand, indexer };
+        let Some(mut response) =
+            self.class_completion_response(sweep, run, fits, &site, input, series_owned.is_some())?
+        else {
+            run.assembly.push_unevaluated(horizon_index, case_index, weight, case.result.status);
+            return Ok(());
+        };
+        // The class response pools each completion's per-cell band into one
+        // shared draws-agnostic band (published with `draws: None`) and rejects
+        // a band that carries retained draws. A single-coordinate
+        // `InterventionResponse` band now retains its posterior draws (only the
+        // single-atom graph-posterior scalar path consumes them), so drop them
+        // here to keep the completions poolable and the class band unchanged.
+        if let ResponseUncertainty::PointwiseBand { draws, .. } = &mut response.uncertainty {
+            *draws = None;
         }
+        let atom_assumptions = response.assumptions.clone();
+        let atom_index = run.assembly.push_atom(
+            horizon_index,
+            case_index,
+            weight,
+            case.result.status,
+            horizon,
+            response,
+        )?;
+        if series_owned.is_some() && self.inference.is_frequentist() {
+            run.observation_atoms.push(ClassObservationAtom {
+                atom_index,
+                horizon_index,
+                estimand: estimand.clone(),
+                indexer: indexer.clone(),
+                assumptions: case.result.required_assumptions.clone(),
+                weight,
+                adjustment,
+                observation_query,
+                kind: ClassObservationKind::Curve,
+            });
+        }
+        if run.primary_estimand.is_none() {
+            run.primary_estimand = Some(estimand);
+            run.primary_identification = Some(case.result.clone());
+            run.primary_envelope = Some(envelope.clone());
+            run.assumptions = atom_assumptions;
+        }
+        Ok(())
+    }
+
+    /// The response of one completion under the study's inference mode, or
+    /// `None` when the observed-data Bayesian path has no sequential DAG for
+    /// the completion.
+    fn class_completion_response(
+        &self,
+        sweep: &ClassResponseSweep<'_>,
+        run: &mut ClassResponseRun,
+        fits: &mut ClassResponseHorizonFits,
+        site: &ClassResponseSite<'_>,
+        input: ClassResponseInput<'_>,
+        series_adjusted: bool,
+    ) -> Result<Option<CausalResponse>, CausalError> {
+        let ClassResponseSweep { data, query, treatment, outcome, ctx, .. } = *sweep;
+        let ClassResponseSite { horizon, case, indexer, .. } = *site;
+        let ClassResponseInput { series: _, query: qh, estimand, indexer: _ } = input;
+        Ok(Some(match &self.inference {
+            InferenceMode::Bayesian(cfg) if query.observation != ObservationSpec::Complete => {
+                let Some(dag) = case.graph.sequential_dag() else {
+                    return Ok(None);
+                };
+                if cfg.has_transferred_source() {
+                    return Err(CausalError::Unsupported {
+                        message: "prior_artifact stays refused on observed temporal Bayes",
+                    });
+                }
+                let bayes = bayesian_gcomp(cfg, ctx);
+                let (response, _) =
+                    antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(data, &dag, antecedent_estimate::TemporalIdentification { horizons: &[(estimand, indexer)], status: case.result.status, assumptions: case.result.required_assumptions.clone() }, qh, &bayes, ctx)
+                    .map_err(CausalError::from)?;
+                response
+            }
+            InferenceMode::Bayesian(cfg) => {
+                let (response, conflict) = fit_class_bayesian_response(
+                    &mut fits.bayesian,
+                    cfg,
+                    input,
+                    horizon,
+                    &case.result,
+                    (treatment, outcome),
+                    ctx,
+                )?;
+                if let Some(summary) = conflict.as_ref() {
+                    push_conflict_diagnostics(&mut run.diagnostics, summary);
+                }
+                response
+            }
+            InferenceMode::Frequentist => {
+                // Requested replicates ride each completion atom. An
+                // observation-adjusted series keeps the analytic fit: a
+                // naive resample would not refit the nuisance mechanism.
+                let mut estimator = TemporalResponseEstimator::new();
+                estimator.inner.bootstrap_replicates =
+                    if series_adjusted { 0 } else { self.bootstrap_replicates };
+                // An observation-adjusted series is built per completion
+                // from its own adjustment, so only the unadjusted series
+                // shares fits.
+                let memo = (!series_adjusted).then_some(&mut fits.frequentist);
+                fit_class_frequentist_response(
+                    memo,
+                    &estimator,
+                    input,
+                    case.result.status,
+                    &case.result.required_assumptions,
+                    ctx,
+                )?
+            }
+        }))
+    }
+
+    /// Folds the swept class atoms into the class response: the observation
+    /// circular-block band when a single completion identifies, the identified
+    /// set diagnostics, the structural mixture and the identified-execute
+    /// finish.
+    fn finish_temporal_class_response(
+        &self,
+        sweep: &ClassResponseSweep<'_>,
+        run: ClassResponseRun,
+        physical: &PhysicalExecutionPlan,
+        started: Instant,
+    ) -> Result<StudyResult, CausalError> {
+        let ClassResponseSweep { data, query, temporal, treatment, outcome, ctx } = *sweep;
+        let ClassResponseRun {
+            mut assembly,
+            primary_estimand,
+            primary_identification,
+            primary_envelope,
+            mut assumptions,
+            mut diagnostics,
+            observation_atoms,
+        } = run;
+        let cells_per_horizon = assembly.cells_per_horizon();
         if query.observation != ObservationSpec::Complete {
             append_temporal_observation_assumptions(query, &mut assumptions);
         }
-        let ClassResponseParts {
-            mut response,
-            response_envelope,
-            identified_mass,
-            unidentified_mass,
-            unevaluable_mass,
-        } = assembly.finish(
+        let mut parts = assembly.finish(
             query,
             temporal,
             assumptions.clone(),
             "estimate.temporal_response.class_envelope",
         )?;
         let mut structural_atoms = std::mem::take(&mut assembly.structural_atoms);
-        let full_mass_scope = assembly.full_mass_scope;
-        let truncated_atoms = assembly.truncated_atoms;
-        if query.observation != ObservationSpec::Complete
-            && matches!(self.inference, InferenceMode::Frequentist)
-            && self.bootstrap_replicates > 0
-        {
-            let identified_cases = structural_atoms
-                .iter()
-                .filter(|atom| atom.value.is_some())
-                .map(|atom| atom.graph_key & 0xFFFF_FFFF)
-                .collect::<std::collections::BTreeSet<_>>();
-            let apply_class_band = identified_cases.len() == 1
-                && full_mass_scope
-                && unidentified_mass == 0.0
-                && unevaluable_mass == 0.0;
-            class_observation_band_applied = apply_class_observation_bootstrap(
+        let class_observation_band_applied = self.apply_class_observation_band(
+            ClassBandRequest {
                 data,
-                &observation_atoms,
-                &mut structural_atoms,
-                &mut response,
-                &mut diagnostics,
+                query,
+                atoms: &observation_atoms,
                 cells_per_horizon,
-                n_horizons,
-                apply_class_band,
-                self.observation_options,
-                self.bootstrap_replicates,
+                n_horizons: temporal.horizons.len(),
+                full_mass_scope: assembly.full_mass_scope,
+                unidentified_mass: parts.unidentified_mass,
+                unevaluable_mass: parts.unevaluable_mass,
                 ctx,
-            )?;
-        }
+            },
+            ClassBootstrapTargets {
+                structural_atoms: &mut structural_atoms,
+                response: &mut parts.response,
+                diagnostics: &mut diagnostics,
+            },
+        )?;
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "temporal class response missing estimand".into(),
         })?;
         let mut identification = primary_identification.ok_or_else(|| CausalError::Compile {
             message: "temporal class response missing identification".into(),
         })?;
-        identification.status = response.identification_status;
+        identification.status = parts.response.identification_status;
         if query.observation != ObservationSpec::Complete {
             append_temporal_observation_assumptions(
                 query,
@@ -2412,80 +1808,123 @@ impl super::Study {
             );
         }
         diagnostics.extend(class_response_identified_set_diagnostics(
-            matches!(self.inference, InferenceMode::Bayesian(_)),
+            self.inference.is_bayesian(),
             self.class_prior.is_some(),
         ));
         if query.observation != ObservationSpec::Complete {
             diagnostics.push(class_observation_band_note(class_observation_band_applied));
         }
-        let conditional = self.class_prior.as_ref().and_then(|_| {
-            temporal_class_response_mean(
-                &structural_atoms,
-                &response_envelope,
-                temporal.horizons.len(),
-                full_mass_scope,
-            )
-        });
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+        let structural = self.class_structural_mixture(
+            structural_atoms,
+            &parts,
+            (temporal.horizons.len(), assembly.full_mass_scope, assembly.truncated_atoms),
+        );
+        Ok(self.finish_class_response_tail(ClassResponseTail {
             physical,
             identification,
             estimand,
             estimate: nan_effect(),
             identifier_id: IdentifierId::GeneralizedAdjustment,
-            estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                EstimatorId::TemporalResponseBayesian
-            } else {
-                EstimatorId::TemporalResponseGcomp
-            },
-            treatment,
-            outcome,
+            endpoints: (treatment, outcome),
+            envelope: primary_envelope,
+            response: parts.response,
+            structural,
+            diagnostics,
             identify_cached: self.temporal_class_cache_covers(&temporal.horizons),
-            extra_diagnostics: Vec::new(),
+            // Observation circular-block bands ride the class response when a single
+            // completion identifies; otherwise requested replicates stay on the atoms and
+            // the class band is withheld.
+            bootstrap_replicates: class_observation_band_applied
+                .then_some(self.bootstrap_replicates),
+            started,
+            ctx,
             refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: primary_envelope.map(|envelope| {
-                    crate::Identification::TemporalEnvelope {
-                        envelope,
-                        strategy: IdentifierId::GeneralizedAdjustment,
-                        structure_version: self.graph.version(),
-                    }
-                }),
-                response: Some(response),
-                structural_response: Some(crate::result::StructuralResponseMixture {
-                    weight_basis: if self.class_prior.is_some() {
-                        crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
-                    } else {
-                        crate::result::StructuralWeightBasis::CompletionEnumeration
-                    },
-                    atoms: structural_atoms,
-                    identified_mass,
-                    unidentified_mass,
-                    unevaluable_mass,
-                    subsampled_out_mass: 0.0,
-                    identified_set: Some(response_envelope),
-                    identified_set_interval: None,
-                    conditional_on_identified: conditional,
-                    full_mass_scope,
-                    truncated_atoms,
-                }),
-                diagnostics: Some(diagnostics),
-                // Observation circular-block bands ride the class response when a
-                // single completion identifies; otherwise requested replicates
-                // stay on the atoms and the class band is withheld.
-                bootstrap_replicates_requested: Some(if class_observation_band_applied {
-                    Some(self.bootstrap_replicates)
-                } else {
-                    None
-                }),
-                ..Default::default()
-            },
+            identify_provenance: None,
+            estimate_provenance: None,
         }))
+    }
+
+    /// The observation circular-block band over the class atoms of an observed
+    /// Frequentist query; reports whether it rides the class response, which
+    /// needs a single identified completion over the full class mass.
+    fn apply_class_observation_band(
+        &self,
+        request: ClassBandRequest<'_>,
+        targets: ClassBootstrapTargets<'_>,
+    ) -> Result<bool, CausalError> {
+        let ClassBandRequest {
+            data,
+            query,
+            atoms,
+            cells_per_horizon,
+            n_horizons,
+            full_mass_scope,
+            unidentified_mass,
+            unevaluable_mass,
+            ctx,
+        } = request;
+        if query.observation == ObservationSpec::Complete
+            || !self.inference.is_frequentist()
+            || self.bootstrap_replicates == 0
+        {
+            return Ok(false);
+        }
+        let identified_cases = targets
+            .structural_atoms
+            .iter()
+            .filter(|atom| atom.value.is_some())
+            .map(|atom| atom.graph_key & 0xFFFF_FFFF)
+            .collect::<std::collections::BTreeSet<_>>();
+        let apply_class_band = identified_cases.len() == 1
+            && full_mass_scope
+            && unidentified_mass == 0.0
+            && unevaluable_mass == 0.0;
+        apply_class_observation_bootstrap(
+            data,
+            atoms,
+            targets,
+            ClassBandLayout { cells_per_horizon, n_horizons, apply_class_band },
+            ObservationBootstrap {
+                options: self.observation_options,
+                replicates: self.bootstrap_replicates,
+            },
+            ctx,
+        )
+    }
+
+    /// The structural mixture over a class sweep's atoms, weighted by the
+    /// caller's class prior or the completion enumeration.
+    fn class_structural_mixture(
+        &self,
+        atoms: Vec<crate::result::StructuralResponseAtom>,
+        parts: &ClassResponseParts,
+        (n_horizons, full_mass_scope, truncated_atoms): (usize, bool, usize),
+    ) -> crate::result::StructuralResponseMixture {
+        let conditional = self.class_prior.as_ref().and_then(|_| {
+            temporal_class_response_mean(
+                &atoms,
+                &parts.response_envelope,
+                n_horizons,
+                full_mass_scope,
+            )
+        });
+        crate::result::StructuralResponseMixture {
+            weight_basis: if self.class_prior.is_some() {
+                crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
+            } else {
+                crate::result::StructuralWeightBasis::CompletionEnumeration
+            },
+            atoms,
+            identified_mass: parts.identified_mass,
+            unidentified_mass: parts.unidentified_mass,
+            unevaluable_mass: parts.unevaluable_mass,
+            subsampled_out_mass: 0.0,
+            identified_set: Some(parts.response_envelope.clone()),
+            identified_set_interval: None,
+            conditional_on_identified: conditional,
+            full_mass_scope,
+            truncated_atoms,
+        }
     }
 
     fn execute_temporal_class_sequence_response(
@@ -2514,8 +1953,7 @@ impl super::Study {
         })?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
-            {
+            if cfg.has_transfer() {
                 return Err(CausalError::Unsupported {
                     message: "multi-step Sequence transfer stays refused on incomplete classes",
                 });
@@ -2524,167 +1962,47 @@ impl super::Study {
         } else {
             None
         };
-        let mut lower = Vec::new();
-        let mut upper = Vec::new();
-        let mut structural_atoms = Vec::new();
-        let mut primary_estimand = None;
-        let mut primary_identification = None;
-        let mut primary_envelope = None;
-        let mut assumptions = antecedent_core::AssumptionSet::new();
-        let mut full_mass_scope = true;
-        let mut truncated_atoms = 0usize;
+        let sweep = ClassSequenceSweep {
+            data,
+            query,
+            temporal,
+            overlays: &overlays,
+            bayes: bayes.as_ref(),
+            treatment,
+            outcome,
+            ctx,
+        };
+        let mut run = ClassSequenceRun::new();
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
-        let mut horizon_fingerprints: Vec<Vec<u64>> = Vec::new();
-        let mut observation_atoms = Vec::new();
-        let mut class_observation_band_applied = false;
-        let mut diagnostics = vec![Diagnostic::new(
-            "estimate.temporal.sequence_overlay",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "class-aware Sequence runs per directed completion; a joint-coordinate miss \
-             unidentifies that completion, not the class; no last-step collapse",
-        )];
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
-            let effect_query = TemporalEffectQuery {
-                treatment,
-                outcome,
-                policy: temporal.policy.clone(),
-                control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-                active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
-                horizon_steps: horizon,
-                max_history_lag: temporal.max_history_lag,
-                target_population: query.target_population.clone(),
-            };
+            let effect_query =
+                class_horizon_witness(query, temporal, (treatment, outcome), horizon);
             let bundle =
                 self.identify_temporal_class(IdentifierId::GeneralizedAdjustment, &effect_query)?;
             let envelope = &bundle.envelope.envelope;
             let weights = class_weights.for_envelope(&bundle.envelope)?;
-            horizon_fingerprints
+            run.horizon_fingerprints
                 .push(envelope.cases.iter().map(|case| case.graph.fingerprint()).collect());
-            full_mass_scope &= envelope.truncated_completions == 0;
-            truncated_atoms += envelope.truncated_completions;
+            run.full_mass_scope &= envelope.truncated_completions == 0;
+            run.truncated_atoms += envelope.truncated_completions;
             let mut horizon_values = Vec::new();
             for (case_index, (case, indexer)) in
                 envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
             {
-                if !identification_status_ok_for_case(case.result.status)
-                    || case.result.estimands.is_empty()
-                {
-                    structural_atoms.push(crate::result::StructuralResponseAtom {
-                        posterior: None,
-                        response: None,
-                        graph_key: ((horizon_index as u64) << 32) | case_index as u64,
-                        weight: weights[case_index],
-                        status: case.result.status,
-                        value: None,
-                    });
-                    continue;
-                }
-                let Some(dag) = case.graph.sequential_dag() else {
-                    structural_atoms.push(crate::result::StructuralResponseAtom {
-                        posterior: None,
-                        response: None,
-                        graph_key: ((horizon_index as u64) << 32) | case_index as u64,
-                        weight: weights[case_index],
-                        status: case.result.status,
-                        value: None,
-                    });
-                    continue;
-                };
-                let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
-                let estimand =
-                    select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-                let mut qh = query.clone();
-                qh.temporal.as_mut().expect("temporal query").horizons = Arc::from([horizon]);
-                let observation_query = qh.clone();
-                let adjustment = class_atom_adjustment(&estimand, indexer);
-                let (effect, posterior) = if query.observation != ObservationSpec::Complete
-                    && bayes.is_some()
-                {
-                    let (response, posterior) = antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(
-                        data, &dag, &[(&estimand, indexer)], &qh, case.result.status,
-                        case.result.required_assumptions.clone(), bayes.as_ref().expect("Bayesian"), ctx,
-                    ).map_err(CausalError::from)?;
-                    // The observed-data posterior summarizes the sequence response as
-                    // its first quantity when no effect column is declared; never index
-                    // an absent summary.
-                    let column = posterior.effect_column().unwrap_or(0);
-                    let effect = EffectEstimate::new(
-                        posterior.summaries.mean.get(column).copied().unwrap_or(f64::NAN),
-                        posterior.summaries.sd.get(column).copied().unwrap_or(f64::NAN),
-                        response.assumptions,
-                        OverlapPolicy::ExplicitOverride,
-                    );
-                    (effect, Some(posterior))
-                } else {
-                    let adjusted = if query.observation == ObservationSpec::Complete {
-                        None
-                    } else {
-                        Some(
-                            ObservationMechanismEstimator::new(self.observation_options)
-                                .adjust_temporal_series(
-                                    data,
-                                    &qh,
-                                    &adjustment,
-                                    &antecedent_estimate::temporal_sequence_outcome_regressors(
-                                        &dag, outcome,
-                                    ),
-                                )
-                                .map_err(CausalError::from)?
-                                .0,
-                        )
-                    };
-                    antecedent_estimate::estimate_sequence_mechanisms(
-                        adjusted.as_ref().unwrap_or(data),
-                        &dag,
-                        indexer,
-                        &estimand,
-                        outcome,
-                        outcome_offset,
-                        &overlays,
-                        case.result.status,
-                        case.result.required_assumptions.clone(),
-                        0,
-                        bayes.as_ref(),
-                        ctx,
-                    )
-                    .map_err(CausalError::from)?
-                };
-                horizon_values.push(effect.ate);
-                structural_atoms.push(crate::result::StructuralResponseAtom {
-                    posterior,
-                    response: None,
-                    graph_key: ((horizon_index as u64) << 32) | case_index as u64,
-                    weight: weights[case_index],
-                    status: case.result.status,
-                    value: Some(ResponseValue::Scalar(effect.ate)),
-                });
-                if query.observation != ObservationSpec::Complete && bayes.is_none() {
-                    observation_atoms.push(ClassObservationAtom {
-                        atom_index: structural_atoms.len() - 1,
+                self.class_sequence_completion(
+                    &sweep,
+                    &mut run,
+                    &mut horizon_values,
+                    ClassResponseSite {
                         horizon_index,
-                        estimand: estimand.clone(),
-                        indexer: indexer.clone(),
-                        assumptions: case.result.required_assumptions.clone(),
-                        weight: weights[case_index],
-                        adjustment,
                         horizon,
-                        observation_query,
-                        kind: ClassObservationKind::Sequence {
-                            dag: Box::new(dag.clone()),
-                            overlays: overlays.clone(),
-                            outcome,
-                            outcome_offset,
-                            status: case.result.status,
-                        },
-                    });
-                }
-                if primary_estimand.is_none() {
-                    primary_estimand = Some(estimand);
-                    primary_identification = Some(case.result.clone());
-                    primary_envelope = Some(bundle.envelope.clone());
-                    assumptions = effect.assumptions;
-                }
+                        case_index,
+                        weight: weights[case_index],
+                        case,
+                        indexer,
+                        envelope: &bundle.envelope,
+                    },
+                )?;
             }
             if horizon_values.is_empty() {
                 return Err(CausalError::Compile {
@@ -2693,20 +2011,192 @@ impl super::Study {
                     ),
                 });
             }
-            lower.push(horizon_values.iter().copied().fold(f64::INFINITY, f64::min));
-            upper.push(horizon_values.iter().copied().fold(f64::NEG_INFINITY, f64::max));
+            run.lower.push(horizon_values.iter().copied().fold(f64::INFINITY, f64::min));
+            run.upper.push(horizon_values.iter().copied().fold(f64::NEG_INFINITY, f64::max));
         }
+        self.finish_class_sequence_response(&sweep, run, physical, started)
+    }
+
+    /// Estimates one directed completion's Sequence effect at a horizon and
+    /// records it as a structural atom, or as unevaluated when the completion
+    /// is not identified or carries no sequential DAG.
+    fn class_sequence_completion(
+        &self,
+        sweep: &ClassSequenceSweep<'_>,
+        run: &mut ClassSequenceRun,
+        horizon_values: &mut Vec<f64>,
+        site: ClassResponseSite<'_>,
+    ) -> Result<(), CausalError> {
+        let ClassSequenceSweep { query, outcome, bayes, overlays, .. } = *sweep;
+        let ClassResponseSite {
+            horizon_index,
+            horizon,
+            case_index,
+            weight,
+            case,
+            indexer,
+            envelope,
+        } = site;
+        let evaluable = identification_status_ok_for_case(case.result.status)
+            && !case.result.estimands.is_empty();
+        let Some(dag) = evaluable.then(|| case.graph.sequential_dag()).flatten() else {
+            run.structural_atoms.push(bare_class_atom(
+                class_completion_key(horizon_index, case_index),
+                weight,
+                case.result.status,
+            ));
+            return Ok(());
+        };
+        let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
+        let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+        let mut qh = query.clone();
+        qh.temporal
+            .as_mut()
+            .ok_or_else(|| CausalError::Compile {
+                message: "class sequence response query carries no temporal spec".into(),
+            })?
+            .horizons = Arc::from([horizon]);
+        let observation_query = qh.clone();
+        let adjustment = class_atom_adjustment(&estimand, indexer);
+        let (effect, posterior) =
+            self.class_sequence_effect(sweep, &site, &dag, (&estimand, &qh), &adjustment)?;
+        horizon_values.push(effect.ate);
+        run.structural_atoms.push(crate::result::StructuralResponseAtom {
+            posterior,
+            value: Some(ResponseValue::Scalar(effect.ate)),
+            ..bare_class_atom(
+                class_completion_key(horizon_index, case_index),
+                weight,
+                case.result.status,
+            )
+        });
+        if query.observation != ObservationSpec::Complete && bayes.is_none() {
+            run.observation_atoms.push(ClassObservationAtom {
+                atom_index: run.structural_atoms.len() - 1,
+                horizon_index,
+                estimand: estimand.clone(),
+                indexer: indexer.clone(),
+                assumptions: case.result.required_assumptions.clone(),
+                weight,
+                adjustment,
+                observation_query,
+                kind: ClassObservationKind::Sequence {
+                    dag: Box::new(dag.clone()),
+                    overlays: overlays.to_vec(),
+                    outcome,
+                    outcome_offset,
+                    status: case.result.status,
+                },
+            });
+        }
+        if run.primary_estimand.is_none() {
+            run.primary_estimand = Some(estimand);
+            run.primary_identification = Some(case.result.clone());
+            run.primary_envelope = Some(envelope.clone());
+            run.assumptions = effect.provenance.assumptions;
+        }
+        Ok(())
+    }
+
+    /// One directed completion's Sequence effect and posterior: the observed-data
+    /// Bayesian fit when the query carries an observation mechanism and the
+    /// study is Bayesian, otherwise the sequential-mechanism estimate on the
+    /// (observation-adjusted) series.
+    fn class_sequence_effect(
+        &self,
+        sweep: &ClassSequenceSweep<'_>,
+        site: &ClassResponseSite<'_>,
+        dag: &TemporalDag,
+        (estimand, qh): (&IdentifiedEstimand, &ResponseQuery),
+        adjustment: &[VariableId],
+    ) -> Result<(EffectEstimate, Option<CausalPosterior>), CausalError> {
+        let ClassSequenceSweep { data, query, overlays, bayes, outcome, ctx, .. } = *sweep;
+        let ClassResponseSite { horizon, case, indexer, .. } = *site;
+        let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
+        Ok(if let Some(bayes) = bayes.filter(|_| query.observation != ObservationSpec::Complete) {
+            let (response, posterior) =
+                antecedent_estimate::temporal_observed_bayes::estimate_observed_temporal_response(
+                    data,
+                    dag,
+                    antecedent_estimate::TemporalIdentification {
+                        horizons: &[(estimand, indexer)],
+                        status: case.result.status,
+                        assumptions: case.result.required_assumptions.clone(),
+                    },
+                    qh,
+                    bayes,
+                    ctx,
+                )
+                .map_err(CausalError::from)?;
+            // The observed-data posterior summarizes the sequence response as
+            // its first quantity when no effect column is declared; never index
+            // an absent summary.
+            let column = posterior.effect_column().unwrap_or(0);
+            let effect = EffectEstimate::new(
+                posterior.summaries.mean.get(column).copied().unwrap_or(f64::NAN),
+                posterior.summaries.sd.get(column).copied().unwrap_or(f64::NAN),
+                response.assumptions,
+                OverlapPolicy::ExplicitOverride,
+            );
+            (effect, Some(posterior))
+        } else {
+            let adjusted = if query.observation == ObservationSpec::Complete {
+                None
+            } else {
+                Some(
+                    ObservationMechanismEstimator::new(self.observation_options)
+                        .adjust_temporal_series(
+                            data,
+                            qh,
+                            adjustment,
+                            &antecedent_estimate::temporal_sequence_outcome_regressors(
+                                dag, outcome,
+                            ),
+                        )
+                        .map_err(CausalError::from)?
+                        .0,
+                )
+            };
+            antecedent_estimate::estimate_sequence_mechanisms(
+                &antecedent_estimate::SequentialProblem {
+                    data: adjusted.as_ref().unwrap_or(data),
+                    graph: dag,
+                    indexer,
+                    estimand,
+                },
+                &antecedent_estimate::SequenceTarget { outcome, outcome_offset, overlays },
+                antecedent_estimate::SequentialInference {
+                    status: case.result.status,
+                    assumptions: case.result.required_assumptions.clone(),
+                    bootstrap_replicates: 0,
+                    bayesian: bayes,
+                },
+                ctx,
+            )
+            .map_err(CausalError::from)?
+        })
+    }
+
+    /// The class Sequence response over the swept completions: the
+    /// completion-envelope surface and, for an observed Frequentist query with
+    /// one identified completion, its observation circular-block band.
+    fn class_sequence_surface(
+        &self,
+        sweep: &ClassSequenceSweep<'_>,
+        run: &mut ClassSequenceRun,
+    ) -> Result<(ClassResponseParts, bool), CausalError> {
+        let ClassSequenceSweep { data, query, temporal, ctx, .. } = *sweep;
         let response_envelope = antecedent_core::ResponseEnvelope {
             grid: Arc::from(temporal.horizons.iter().map(|&h| f64::from(h)).collect::<Vec<_>>()),
             dimension: 1,
-            lower: Arc::from(lower),
-            upper: Arc::from(upper),
+            lower: Arc::from(std::mem::take(&mut run.lower)),
+            upper: Arc::from(std::mem::take(&mut run.upper)),
         };
         let (identified_mass, unidentified_mass, unevaluable_mass) =
-            temporal_class_response_masses(&structural_atoms);
-        let incomplete = unidentified_mass > 0.0 || unevaluable_mass > 0.0 || !full_mass_scope;
+            temporal_class_response_masses(&run.structural_atoms);
+        let incomplete = unidentified_mass > 0.0 || unevaluable_mass > 0.0 || !run.full_mass_scope;
         if query.observation != ObservationSpec::Complete {
-            append_temporal_observation_assumptions(query, &mut assumptions);
+            append_temporal_observation_assumptions(query, &mut run.assumptions);
         }
         let mut response = CausalResponse {
             estimand: query.functional.clone(),
@@ -2717,8 +2207,8 @@ impl super::Study {
             },
             estimate: if incomplete {
                 ResponseIdentification::GraphDependent(temporal_class_complete_values(
-                    &structural_atoms,
-                    &horizon_fingerprints,
+                    &run.structural_atoms,
+                    &run.horizon_fingerprints,
                     &response_envelope,
                     temporal.horizons.len(),
                 ))
@@ -2738,7 +2228,7 @@ impl super::Study {
                 warnings: Vec::new(),
                 point_status: None,
             },
-            assumptions: assumptions.clone(),
+            assumptions: run.assumptions.clone(),
             provenance_id: Arc::from("estimate.temporal_response.class_sequence"),
             horizon_identification: Some(
                 temporal
@@ -2759,33 +2249,58 @@ impl super::Study {
             ),
             interaction_structurally_zero: false,
         };
-        if query.observation != ObservationSpec::Complete
-            && matches!(self.inference, InferenceMode::Frequentist)
-            && self.bootstrap_replicates > 0
-        {
-            let identified_cases = structural_atoms
-                .iter()
-                .filter(|atom| atom.value.is_some())
-                .map(|atom| atom.graph_key & 0xFFFF_FFFF)
-                .collect::<std::collections::BTreeSet<_>>();
-            let apply_class_band = identified_cases.len() == 1
-                && full_mass_scope
-                && unidentified_mass == 0.0
-                && unevaluable_mass == 0.0;
-            class_observation_band_applied = apply_class_observation_bootstrap(
+        let class_observation_band_applied = self.apply_class_observation_band(
+            ClassBandRequest {
                 data,
-                &observation_atoms,
-                &mut structural_atoms,
-                &mut response,
-                &mut diagnostics,
-                1,
-                temporal.horizons.len(),
-                apply_class_band,
-                self.observation_options,
-                self.bootstrap_replicates,
+                query,
+                atoms: &run.observation_atoms,
+                cells_per_horizon: 1,
+                n_horizons: temporal.horizons.len(),
+                full_mass_scope: run.full_mass_scope,
+                unidentified_mass,
+                unevaluable_mass,
                 ctx,
-            )?;
-        }
+            },
+            ClassBootstrapTargets {
+                structural_atoms: &mut run.structural_atoms,
+                response: &mut response,
+                diagnostics: &mut run.diagnostics,
+            },
+        )?;
+        Ok((
+            ClassResponseParts {
+                response,
+                response_envelope,
+                identified_mass,
+                unidentified_mass,
+                unevaluable_mass,
+            },
+            class_observation_band_applied,
+        ))
+    }
+
+    /// Packages the class Sequence response with its structural mixture and
+    /// identified-execute finish.
+    fn finish_class_sequence_response(
+        &self,
+        sweep: &ClassSequenceSweep<'_>,
+        mut run: ClassSequenceRun,
+        physical: &PhysicalExecutionPlan,
+        started: Instant,
+    ) -> Result<StudyResult, CausalError> {
+        let ClassSequenceSweep { query, temporal, treatment, outcome, ctx, .. } = *sweep;
+        let (parts, class_observation_band_applied) =
+            self.class_sequence_surface(sweep, &mut run)?;
+        let ClassSequenceRun {
+            structural_atoms,
+            primary_estimand,
+            primary_identification,
+            primary_envelope,
+            full_mass_scope,
+            truncated_atoms,
+            mut diagnostics,
+            ..
+        } = run;
         if query.observation != ObservationSpec::Complete {
             diagnostics.push(class_observation_band_note(class_observation_band_applied));
         }
@@ -2795,77 +2310,37 @@ impl super::Study {
         let mut identification = primary_identification.ok_or_else(|| CausalError::Compile {
             message: "class-aware Sequence missing identification".into(),
         })?;
-        identification.status = response.identification_status;
+        identification.status = parts.response.identification_status;
         if query.observation != ObservationSpec::Complete {
             append_temporal_observation_assumptions(
                 query,
                 &mut identification.required_assumptions,
             );
         }
-        let conditional = self.class_prior.as_ref().and_then(|_| {
-            temporal_class_response_mean(
-                &structural_atoms,
-                &response_envelope,
-                temporal.horizons.len(),
-                full_mass_scope,
-            )
-        });
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+        let structural = self.class_structural_mixture(
+            structural_atoms,
+            &parts,
+            (temporal.horizons.len(), full_mass_scope, truncated_atoms),
+        );
+        Ok(self.finish_class_response_tail(ClassResponseTail {
             physical,
             identification,
             estimand,
             estimate: nan_effect(),
             identifier_id: IdentifierId::GeneralizedAdjustment,
-            estimator_id: if bayes.is_some() {
-                EstimatorId::TemporalResponseBayesian
-            } else {
-                EstimatorId::TemporalResponseGcomp
-            },
-            treatment,
-            outcome,
+            endpoints: (treatment, outcome),
+            envelope: primary_envelope,
+            response: parts.response,
+            structural,
+            diagnostics,
             identify_cached: self.temporal_class_cache_covers(&temporal.horizons),
-            extra_diagnostics: Vec::new(),
+            bootstrap_replicates: class_observation_band_applied
+                .then_some(self.bootstrap_replicates),
+            started,
+            ctx,
             refutations: Vec::new(),
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: primary_envelope.map(|envelope| {
-                    crate::Identification::TemporalEnvelope {
-                        envelope,
-                        strategy: IdentifierId::GeneralizedAdjustment,
-                        structure_version: self.graph.version(),
-                    }
-                }),
-                response: Some(response),
-                structural_response: Some(crate::result::StructuralResponseMixture {
-                    weight_basis: if self.class_prior.is_some() {
-                        crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
-                    } else {
-                        crate::result::StructuralWeightBasis::CompletionEnumeration
-                    },
-                    atoms: structural_atoms,
-                    identified_mass,
-                    unidentified_mass,
-                    unevaluable_mass,
-                    subsampled_out_mass: 0.0,
-                    identified_set: Some(response_envelope),
-                    identified_set_interval: None,
-                    conditional_on_identified: conditional,
-                    full_mass_scope,
-                    truncated_atoms,
-                }),
-                diagnostics: Some(diagnostics),
-                bootstrap_replicates_requested: Some(if class_observation_band_applied {
-                    Some(self.bootstrap_replicates)
-                } else {
-                    None
-                }),
-                ..Default::default()
-            },
+            identify_provenance: None,
+            estimate_provenance: None,
         }))
     }
 
@@ -2876,612 +2351,88 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
+        if self.inference.is_bayesian()
+            && query.effect_modifiers.is_empty()
+            && !query.is_multi_step_sustained()
         {
-            return self.execute_temporal_class_sequential(data, query, physical, ctx);
-        }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
             return self.execute_temporal_class_bayesian(data, query, physical, ctx);
         }
-        let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, query)?, false)
-            };
-        let envelope = &bundle.envelope.envelope;
-        if matches!(envelope.status, IdentificationStatus::NotIdentified)
-            || envelope.identified_weight.0 <= 0.0
-        {
-            return Err(CausalError::not_identified(
-                envelope.status,
-                envelope.truncated_completions > 0,
-                "temporal class-aware effect not identified (no identified mass in envelope)",
-            ));
-        }
-        let mut diagnostics =
-            vec![temporal_class_envelope_diagnostic(envelope, self.graph.class())];
-        let mut weighted_ate = 0.0;
-        let mut se_items = Vec::new();
-        let mut total_w = 0.0;
-        let mut primary_estimand: Option<IdentifiedEstimand> = None;
-        let mut assumptions = antecedent_core::AssumptionSet::default();
-        let mut refute_atoms = Vec::new();
-        let mut fitted_atoms = Vec::new();
-        let mut atom_values: Vec<Option<f64>> = vec![None; envelope.cases.len()];
-        for (i, (case, indexer)) in
-            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
-        {
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                continue;
-            }
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-            let design = TemporalAtomDesign::linear(
-                data,
-                &estimand,
-                query,
-                indexer,
-                self.split.as_ref(),
-                ctx,
-            )?;
-            let estimate = design.effect_estimate(case.result.required_assumptions.clone());
-            let w = case.weight.0;
-            weighted_ate += w * estimate.ate;
-            se_items.push((w, estimate.se_analytic));
-            total_w += w;
-            atom_values[i] = Some(estimate.ate);
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
-            }
-            fitted_atoms.push(ClassPulseAtom {
-                weight: w,
-                point: estimate.ate,
-                indexer: indexer.clone(),
-                design,
-            });
-            refute_atoms.push(EnvelopeRefuteAtom {
-                key: i as u64,
-                weight: w,
-                estimand,
-                indexer: Some(indexer.clone()),
-                original: estimate,
-            });
-        }
-        if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
-            return Err(CausalError::Compile {
-                message: "temporal class-aware envelope had no estimable identified cases".into(),
-            });
-        }
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "temporal class-aware envelope missing estimand".into(),
-        })?;
-        let (designs, weights): (Vec<_>, Vec<_>) =
-            fitted_atoms.iter().map(|atom| (&atom.design, atom.weight)).unzip();
-        let block = shared_circular_block_mixture_se(
-            &designs,
-            &weights,
-            temporal_class_block_span(fitted_atoms.iter().map(|atom| &atom.indexer)),
-            self.bootstrap_replicates,
-            0xC1A5_5E00,
-            ctx,
-        );
-        let points: Vec<f64> = fitted_atoms.iter().map(|atom| atom.point).collect();
-        let identified_set_interval = block
-            .identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL)
-            .map(|interval| interval.with_truncated(envelope.truncated_completions > 0));
-        let se_analytic = mix_weighted_analytic_se(se_items);
-        let se_bootstrap = block.se.is_finite().then_some(block.se);
-        let estimate = EffectEstimate::from_parts(
-            weighted_ate / total_w,
-            se_analytic,
-            se_bootstrap,
-            (self.bootstrap_replicates > 0).then_some(block.completed),
-            (self.bootstrap_replicates > 0)
-                .then_some(block.attempted.saturating_sub(block.completed)),
-            ctx.cancellation.is_cancelled(),
-            false,
-            assumptions,
-            OverlapPolicy::ExplicitOverride,
-            None,
-            None,
-        )
-        .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture);
-        let identification = envelope_to_identification_result_for(
-            envelope,
-            CausalQuery::TemporalEffect(query.clone()),
-        );
-        let tabular = TabularData::new(data.storage().clone());
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
-        let mut refute_ws = EstimationWorkspace::default();
-        let (refutations, na_diagnostics) = run_envelope_effect_refuters(
-            &tabular,
-            &ate_q,
-            &refute_atoms,
-            &mut refute_ws,
-            ctx,
-            self.refute,
-            "temporal.linear.adjustment",
-            &self.custom_validators,
-            Some(query),
-            self.split.as_ref(),
-            Some(data.time_index()),
-        )?;
-        diagnostics.extend(na_diagnostics);
-        if se_bootstrap.is_some() {
-            diagnostics.extend(envelope_shared_block_diagnostics(
-                total_w,
-                envelope.unidentified_weight.0,
-                &block,
-            ));
-        } else if fitted_atoms.len() > 1 {
-            diagnostics.push(envelope_se_omits_between_atom_variance());
-        }
-        diagnostics.extend(
-            identified_set_interval
-                .as_ref()
-                .into_iter()
-                .flat_map(identified_set_interval_diagnostics),
-        );
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        let mut structural = temporal_class_structural_mixture(
-            envelope,
-            crate::result::StructuralWeightBasis::CompletionEnumeration,
-            None,
-            &atom_values,
-        );
-        structural.identified_set_interval = identified_set_interval;
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::TemporalLinearAdjustment,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: (self.bootstrap_replicates > 0).then_some(block.completed),
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
-                    strategy: identifier_id,
-                    structure_version: self.graph.version(),
-                }),
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                ..Default::default()
-            },
-        }))
+        self.execute_temporal_class_frozen_weights(data, query, physical, ctx)
     }
 
-    pub(super) fn execute_temporal_class_sequential(
+    /// The class routes whose fit and assembly the sealed operation shares:
+    /// conditional point, linear adjustment and sequential g-computation.
+    pub(super) fn execute_temporal_class_frozen_weights(
         &self,
         data: &TimeSeriesData,
         query: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if self.split.is_some() {
-            return Err(CausalError::Unsupported {
-                message: "class-aware multi-step sustained requires no discovery-estimation split",
-            });
-        }
+        use super::temporal_class_effect_core::{
+            TemporalClassEffectInputs, fit_temporal_class_effect,
+        };
         let started = Instant::now();
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
-        let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, query)?, false)
-            };
-        let envelope = &bundle.envelope.envelope;
-        if matches!(envelope.status, IdentificationStatus::NotIdentified)
-            || envelope.identified_weight.0 <= 0.0
-        {
-            return Err(CausalError::not_identified(
-                envelope.status,
-                envelope.truncated_completions > 0,
-                "temporal class-aware effect not identified (no identified mass in envelope)",
-            ));
-        }
-        let class_masses = self
-            .class_prior
-            .as_ref()
-            .map(|prior| prior.masses_for_envelope(&bundle.envelope))
-            .transpose()?;
-        let bayes = if let InferenceMode::Bayesian(cfg) = &self.inference {
-            if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
-            {
-                return Err(CausalError::Unsupported {
-                    message: "multi-step Sequence transfer stays refused on incomplete classes",
-                });
-            }
-            Some(bayesian_gcomp(cfg, ctx))
-        } else {
-            None
-        };
-        let mut diagnostics =
-            vec![temporal_class_envelope_diagnostic(envelope, self.graph.class())];
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal.sustained_window",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "the contrast propagates through all intervened times on each directed completion; \
-             no last-step collapse; bidirected MAG completions stay unevaluable",
-        ));
-        let mut weights = Vec::new();
-        let mut flags = Vec::new();
-        let mut keys = Vec::new();
-        let mut atom_values: Vec<Option<f64>> = vec![None; envelope.cases.len()];
-        let mut per_graph = Vec::new();
-        let mut seq_atoms: Vec<super::sequential_validation::SequentialValidationAtom> = Vec::new();
-        let mut seq_atom_keys = Vec::new();
-        let mut seq_atom_seeds: Vec<u64> = Vec::new();
-        let mut atom_posteriors = std::collections::HashMap::new();
-        let mut primary_estimand = None;
-        let mut unevaluable_weight = 0.0;
-        let mut weighted_ate = 0.0;
-        let mut total_w = 0.0;
-        for (i, (case, indexer)) in
-            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
-        {
-            let key = case.graph.fingerprint();
-            keys.push(key);
-            let weight = class_masses.as_ref().map_or(case.weight.0, |masses| masses[i]);
-            weights.push(weight);
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            }
-            let Some(dag) = case.graph.sequential_dag() else {
-                flags.push(GraphIdentFlag::Unidentified);
-                unevaluable_weight += weight;
-                diagnostics.push(Diagnostic::new(
-                    "estimate.temporal_class.mag_sequential_unevaluable",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!(
-                        "completion {key} has bidirected edges; sequential g-comp is unevaluable"
-                    ),
-                ));
-                continue;
-            };
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalSequentialGcomp)
-                .or_else(|_| {
-                    select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)
-                })?;
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-            }
-            flags.push(GraphIdentFlag::Identified);
-            let mut assumptions = case.result.required_assumptions.clone();
-            assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::ParametricRestriction(
-                    antecedent_core::ParametricAssumption {
-                        id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(
-                            "linear additive mechanisms on the identified unfolded DAG",
-                        ),
-                    },
-                ),
-                source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                    algorithm: Arc::from("temporal.sequential.gcomp"),
-                },
-                scope: antecedent_core::AssumptionScope::Estimation,
-                status: antecedent_core::AssumptionStatus::Declared,
-            });
-            // Each completion's posterior draws from its own seed stream; a completion
-            // whose fitted mechanisms coincide with an earlier one's is refit on that
-            // completion's seed, so one model carries one posterior.
-            let mut seed = completion_fit_seed(ctx, key);
-            let (estimate, posterior, mechanisms) = loop {
-                let mut mechanisms = Vec::new();
-                let completion_bayes =
-                    bayes.as_ref().map(|est| BayesianGComputationAte { seed, ..est.clone() });
-                let (estimate, posterior) =
-                    antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                        data,
-                        &dag,
-                        indexer,
-                        &estimand,
-                        query,
-                        case.result.status,
-                        assumptions.clone(),
-                        if bayes.is_some() { self.bootstrap_replicates } else { 0 },
-                        completion_bayes.as_ref(),
-                        ctx,
-                        Some(&mut mechanisms),
-                    )
-                    .map_err(CausalError::from)?;
-                let shared_seed = seq_atoms
-                    .iter()
-                    .zip(&seq_atom_seeds)
-                    .find(|(atom, atom_seed)| {
-                        bayes.is_some()
-                            && **atom_seed != seed
-                            && same_fitted_mechanisms(&atom.mechanisms, &mechanisms)
-                    })
-                    .map(|(_, atom_seed)| *atom_seed);
-                match shared_seed {
-                    Some(shared) => seed = shared,
-                    None => break (estimate, posterior, mechanisms),
-                }
-            };
-            seq_atom_seeds.push(seed);
-            atom_values[i] = Some(estimate.ate);
-            weighted_ate += weight * estimate.ate;
-            total_w += weight;
-            if let Some(posterior) = posterior.as_ref() {
-                atom_posteriors.insert(key, posterior.clone());
-                if let Some(col) = posterior.effect_column() {
-                    if let Ok(draws) = posterior.draws.column(col) {
-                        per_graph.push(GraphEffectDraws {
-                            graph_key: key,
-                            effect_draws: Arc::from(draws.to_vec()),
-                        });
-                    }
-                }
-            }
-            seq_atom_keys.push(key);
-            seq_atoms.push(super::sequential_validation::SequentialValidationAtom {
-                weight,
-                graph: dag,
-                indexer: indexer.clone(),
-                estimand,
-                status: case.result.status,
-                estimate,
-                mechanisms,
-            });
-        }
-        if seq_atoms.is_empty() {
-            return Err(CausalError::Compile {
-                message: "temporal class-aware multi-step envelope had no evaluable directed \
-                          completions"
-                    .into(),
-            });
-        }
-        let identification = envelope_to_identification_result_for(
-            envelope,
-            CausalQuery::TemporalEffect(query.clone()),
-        );
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "temporal class sequential envelope missing estimand".into(),
-        })?;
-        let weight_basis = if class_masses.is_some() {
-            crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
-        } else {
-            crate::result::StructuralWeightBasis::CompletionEnumeration
-        };
-        let mut identified_set_interval = None;
-        if bayes.is_some() {
-            identified_set_interval = posterior_identified_set_interval(
-                seq_atom_keys.iter().filter_map(|key| atom_posteriors.get(key)),
-                data.row_count(),
-                envelope.truncated_completions > 0,
-            );
-        }
-        // Unevaluable (bidirected) completions are flagged unidentified for the
-        // mixture, which never draws from them; their share is reported as
-        // `unevaluable_mass`, not as unidentified mass.
-        let unevaluable_share = unevaluable_weight / weights.iter().sum::<f64>();
-        let (estimate, mut posterior) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            if class_masses.is_some()
-                && envelope.truncated_completions == 0
-                && seq_atoms.iter().any(|atom| atom.weight > 0.0)
-            {
-                let graphs = WeightedGraphSamples::new(weights, flags, keys)
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-                let mut mixed = aggregate_effect_envelope(
-                    &graphs,
-                    &per_graph,
-                    InferenceDiagnostics::analytic("temporal_class_sequential"),
-                    EnvelopeOptions::default(),
-                )
-                .map_err(CausalError::from)?;
-                mixed.unidentified_mass = (mixed.unidentified_mass - unevaluable_share).max(0.0);
-                (effect_from_posterior(&mixed)?, Some(mixed))
-            } else {
-                diagnostics.push(Diagnostic::new(
-                    "estimate.envelope.response_posterior_not_mixed",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "completion posteriors are retained as atoms; mixing requires caller-supplied \
-                     class mass, positive evaluable mass, and uncapped class scope",
-                ));
-                (nan_effect(), None)
-            }
-        } else if total_w > 0.0 {
-            let designs = seq_atoms
-                .iter()
-                .map(|atom| {
-                    TemporalAtomDesign::sequential(
-                        data,
-                        &atom.graph,
-                        &atom.indexer,
-                        &atom.estimand,
-                        query,
-                        atom.status,
-                        ctx,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let weights: Vec<f64> = seq_atoms.iter().map(|atom| atom.weight).collect();
-            let block = shared_circular_block_mixture_se(
-                &designs.iter().collect::<Vec<_>>(),
-                &weights,
-                temporal_class_block_span(seq_atoms.iter().map(|atom| &atom.indexer)),
-                self.bootstrap_replicates,
-                0x5E0C_1A55,
-                ctx,
-            );
-            let points: Vec<f64> = seq_atoms.iter().map(|atom| atom.estimate.ate).collect();
-            identified_set_interval = block
-                .identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL)
-                .map(|interval| interval.with_truncated(envelope.truncated_completions > 0));
-            let se_analytic = mix_weighted_analytic_se(
-                seq_atoms.iter().map(|atom| (atom.weight, atom.estimate.se_analytic)),
-            );
-            let se_bootstrap = block.se.is_finite().then_some(block.se);
-            if se_bootstrap.is_some() {
-                diagnostics.extend(envelope_shared_block_diagnostics(
-                    total_w,
-                    envelope.unidentified_weight.0,
-                    &block,
-                ));
-            } else if seq_atoms.len() > 1 {
-                diagnostics.push(envelope_se_omits_between_atom_variance());
-            }
-            (
-                EffectEstimate::from_parts(
-                    weighted_ate / total_w,
-                    se_analytic,
-                    se_bootstrap,
-                    (self.bootstrap_replicates > 0).then_some(block.completed),
-                    (self.bootstrap_replicates > 0)
-                        .then_some(block.attempted.saturating_sub(block.completed)),
-                    ctx.cancellation.is_cancelled(),
-                    false,
-                    seq_atoms[0].estimate.assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                    None,
-                    None,
-                )
-                .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture),
-                None,
-            )
-        } else {
-            (nan_effect(), None)
-        };
-        let (refutations, extra_diagnostics, predictive_checks) = if estimate.ate.is_finite() {
-            super::sequential_validation::validate_sequential(
+        let (identifier_id, bundle, identify_cached) =
+            self.temporal_class_proof(physical, query, ctx)?;
+        let fit = fit_temporal_class_effect(
+            &TemporalClassEffectInputs {
                 data,
                 query,
-                &seq_atoms,
-                self.refute,
-                &self.custom_validators,
-                bayes.as_ref(),
-                posterior.as_mut(),
-                estimate.ate,
-                ctx,
-                super::super::latency::predictive_check_sims(self.latency_mode),
-            )?
-        } else {
-            let mut reports = Vec::new();
-            let mut extra = Vec::new();
-            let mut checks = Vec::new();
-            for (atom, key) in seq_atoms.iter().zip(&seq_atom_keys) {
-                let (mut local_reports, local_extra, local_checks) =
-                    super::sequential_validation::validate_sequential(
-                        data,
-                        query,
-                        std::slice::from_ref(atom),
-                        self.refute,
-                        &self.custom_validators,
-                        bayes.as_ref(),
-                        atom_posteriors.get_mut(key),
-                        atom.estimate.ate,
-                        ctx,
-                        super::super::latency::predictive_check_sims(self.latency_mode),
-                    )?;
-                for report in &mut local_reports {
-                    report.refuter = Arc::from(format!("completion.{key}.{}", report.refuter));
-                }
-                reports.extend(local_reports);
-                extra.extend(local_extra);
-                checks.extend(local_checks);
-            }
-            (reports, extra, checks)
-        };
-        diagnostics.extend(extra_diagnostics);
-        diagnostics.extend(
-            identified_set_interval
-                .as_ref()
-                .into_iter()
-                .flat_map(identified_set_interval_diagnostics),
+                bundle: &bundle,
+                graph_class: self.graph.class(),
+                inference: &self.inference,
+                class_prior: self.class_prior.as_ref(),
+                bootstrap_replicates: self.bootstrap_replicates,
+                split: self.split.as_ref(),
+                refute: self.refute,
+                custom_validators: &self.custom_validators,
+                latency_mode: self.latency_mode,
+            },
+            ctx,
+        )?;
+        let point_only = fit.point_only;
+        let mut identification = envelope_to_identification_result_for(
+            &bundle.envelope.envelope,
+            CausalQuery::TemporalEffect(query.clone()),
         );
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        let mut structural = temporal_class_structural_mixture(
-            envelope,
-            weight_basis,
-            class_masses.as_deref(),
-            &atom_values,
-        );
-        structural.identified_set_interval = identified_set_interval;
-        for atom in &mut structural.atoms {
-            atom.posterior = atom_posteriors.remove(&atom.graph_key);
-        }
-        let total: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
-        structural.unevaluable_mass = unevaluable_weight / total;
-        structural.unidentified_mass =
-            (structural.unidentified_mass - structural.unevaluable_mass).max(0.0);
-        let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+        identification.status = bundle.envelope.envelope.status;
+        let args = fit.finish_args(
             physical,
             identification,
-            estimand,
-            estimate,
+            &bundle,
             identifier_id,
-            estimator_id: EstimatorId::TemporalSequentialGcomp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
-                    strategy: identifier_id,
-                    structure_version: self.graph.version(),
-                }),
-                posterior,
-                structural_response: Some(structural),
-                diagnostics: Some(diagnostics),
-                predictive_checks,
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.temporal.sequential.gcomp",
-                    "estimate.temporal_class.envelope",
-                )),
-                ..Default::default()
+            query,
+            FitFinishMeta {
+                identify_cached,
+                structure_version: self.graph.version(),
+                wall_time_ns: elapsed_ns(started),
             },
-        }))
+        );
+        Ok(super::temporal_effect_core::seal_point_only(
+            point_only,
+            self.finish_identified_execute(args),
+        ))
+    }
+
+    /// The identifier and class proof of a one-shot class effect: the prepared
+    /// cache when present, else a fresh identification.
+    fn temporal_class_proof(
+        &self,
+        physical: &PhysicalExecutionPlan,
+        query: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (IdentifierId, Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, bool),
+        CausalError,
+    > {
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
+        if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
+            Ok((identifier_id, Arc::clone(cache), true))
+        } else {
+            report_identify_compute(ctx);
+            Ok((identifier_id, self.identify_temporal_class(identifier_id, query)?, false))
+        }
     }
 
     pub(super) fn execute_temporal_class_bayesian(
@@ -3497,16 +2448,10 @@ impl super::Study {
                 message: "temporal class Bayesian execute requires Bayesian inference".into(),
             });
         };
-        let identifier = physical
-            .logical
-            .record
-            .identifier
-            .as_deref()
-            .unwrap_or(DEFAULT_PAG_IDENTIFIER_ID.as_str());
-        let identifier_id: IdentifierId = identifier.parse()?;
+        let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.clone(), true)
+            if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
+                (Arc::clone(cache), true)
             } else {
                 report_identify_compute(ctx);
                 (self.identify_temporal_class(identifier_id, query)?, false)
@@ -3531,42 +2476,96 @@ impl super::Study {
         if class_masses.is_none() {
             diagnostics.push(enumeration_not_probability_diagnostic());
         }
-        let mut weights = Vec::new();
-        let mut flags = Vec::new();
-        let mut keys = Vec::new();
-        let mut fit_atoms = Vec::new();
-        let mut primary_estimand = None;
-        let mut envelope_conflict = None;
-        let mut atom_means = Vec::new();
-        for (i, (case, indexer)) in
-            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
-        {
-            let key = case.graph.fingerprint();
-            keys.push(key);
-            let weight = class_masses.as_ref().map_or(case.weight.0, |masses| masses[i]);
-            weights.push(weight);
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            }
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-            }
-            flags.push(GraphIdentFlag::Identified);
-            fit_atoms.push((key, estimand, case.result.status, indexer.clone(), weight));
+        let inputs = ClassBayesianInputs { data, query, cfg, ctx };
+        let ClassBayesianPlan { weights, flags, keys, fit_atoms, primary_estimand } =
+            plan_class_bayesian_atoms(&bundle.envelope, class_masses.as_deref())?;
+        let mut fits = self.fit_class_bayesian_atoms(&inputs, &fit_atoms, &mut diagnostics)?;
+        if fits.atoms.is_empty() {
+            return Err(CausalError::Compile {
+                message: "temporal class-aware envelope had no estimable identified cases".into(),
+            });
         }
+        let identification = envelope_to_identification_result_for(
+            envelope,
+            CausalQuery::TemporalEffect(query.clone()),
+        );
+        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
+            message: "temporal class Bayesian envelope missing estimand".into(),
+        })?;
+        let (estimate, posterior, mut structural_response) = Self::mix_class_bayesian_atoms(
+            &inputs,
+            (&bundle.envelope, class_masses.as_deref()),
+            (weights, flags, keys),
+            &mut fits,
+            &mut diagnostics,
+        )?;
+        let (refutations, predictive_checks) = self.refute_class_bayesian_atoms(
+            &inputs,
+            &fits,
+            &mut structural_response,
+            &mut diagnostics,
+        )?;
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        Ok(self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, EstimatorId::BayesianTemporalGcomp),
+                query.treatment,
+                query.outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
+                certificate: Some(crate::Identification::TemporalEnvelope {
+                    envelope: (*bundle.envelope).clone(),
+                    strategy: identifier_id,
+                    structure_version: self.graph.version(),
+                }),
+                posterior,
+                structural_response: Some(structural_response),
+                diagnostics: Some(diagnostics),
+                predictive_checks,
+                estimate_provenance: Some(
+                    super::temporal_class_effect_core::class_envelope_provenance(
+                        EstimatorId::BayesianTemporalGcomp,
+                    ),
+                ),
+                ..Default::default()
+            }),
+        ))
+    }
+
+    /// Fits each identified completion's Bayesian temporal g-computation,
+    /// sharing a posterior (and seed) between completions that fit the same
+    /// problem under the same prior and status.
+    fn fit_class_bayesian_atoms(
+        &self,
+        inputs: &ClassBayesianInputs<'_>,
+        fit_atoms: &[ClassBayesianFitAtom],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<ClassBayesianFits, CausalError> {
+        let ClassBayesianInputs { data, query, cfg, ctx } = *inputs;
         let mut estimator = TemporalLinearAdjustment::new();
         estimator.inner.bootstrap_replicates = 0;
         estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
         let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
-        let mut atoms = Vec::new();
-        let mut atom_seeds: Vec<u64> = Vec::new();
-        let mut per_graph = Vec::new();
+        let mut fits = ClassBayesianFits {
+            atoms: Vec::new(),
+            atom_seeds: Vec::new(),
+            per_graph: Vec::new(),
+            atom_means: Vec::new(),
+            envelope_conflict: None,
+            estimator: bayes.inner.clone(),
+        };
         let mut ws = BayesianGCompWorkspace::default();
-        for (key, estimand, status, indexer, weight) in &fit_atoms {
+        for (key, estimand, status, indexer, weight) in fit_atoms {
             let prep = estimator
                 .prepare(data, estimand, query, indexer, self.split.as_ref(), &ctx.kernel_policy)
                 .map_err(CausalError::from)?;
@@ -3579,26 +2578,46 @@ impl super::Study {
             // Each completion draws from its own seed stream; completions fitting the
             // same problem under the same prior share a seed, so one model carries
             // one posterior.
-            let seed = atoms
+            let seed = fits
+                .atoms
                 .iter()
-                .zip(&atom_seeds)
+                .zip(&fits.atom_seeds)
                 .find(|(fit, _): &(&EnvelopeAtomFit, _)| {
                     fit.prior == resolved && same_fitted_problem(&fit.prep, &bprep)
                 })
                 .map_or_else(|| completion_fit_seed(ctx, *key), |(_, seed)| *seed);
-            atom_seeds.push(seed);
-            bayes.inner.prior = resolved;
+            fits.atom_seeds.push(seed);
+            bayes.inner.prior.clone_from(&resolved);
             bayes.inner.seed = seed;
-            let mut posterior =
-                bayes.fit(&bprep, *status, &mut ws, ctx).map_err(CausalError::from)?;
-            if let Some(summary) = conflict.as_ref() {
-                // A transfer conflict is a per-completion diagnostic. It rides the
-                // atom posterior and the result diagnostics whether or not a class
-                // prior licenses a mixture, and it never changes identification.
-                push_conflict_diagnostics(&mut diagnostics, summary);
-                posterior = with_conflict_summary(posterior, summary.clone());
-            }
-            envelope_conflict = envelope_conflict.or(conflict);
+            // An earlier completion that fitted every input of this fit (the problem,
+            // the resolved prior, the seed they share, the identification status)
+            // already holds its posterior, conflict summary included.
+            let earlier = fits.atoms.iter().zip(&fits.atom_seeds).find(
+                |(fit, fitted_seed): &(&EnvelopeAtomFit, _)| {
+                    **fitted_seed == seed
+                        && fit.status == *status
+                        && fit.prior == resolved
+                        && same_fit_inputs(&fit.prep, &bprep)
+                },
+            );
+            let posterior = if let Some((fit, _)) = earlier {
+                if let Some(summary) = conflict.as_ref() {
+                    push_conflict_diagnostics(diagnostics, summary);
+                }
+                fit.posterior.clone()
+            } else {
+                let mut posterior =
+                    bayes.fit(&bprep, *status, &mut ws, ctx).map_err(CausalError::from)?;
+                if let Some(summary) = conflict.as_ref() {
+                    // A transfer conflict is a per-completion diagnostic. It rides the
+                    // atom posterior and the result diagnostics whether or not a class
+                    // prior licenses a mixture, and it never changes identification.
+                    push_conflict_diagnostics(diagnostics, summary);
+                    posterior = with_conflict_summary(posterior, summary.clone());
+                }
+                posterior
+            };
+            fits.envelope_conflict = fits.envelope_conflict.take().or(conflict);
             let mean = posterior.summaries.mean.first().copied().unwrap_or_else(|| {
                 posterior
                     .effect_column()
@@ -3609,14 +2628,14 @@ impl super::Study {
                     })
                     .unwrap_or(f64::NAN)
             });
-            atom_means.push(mean);
+            fits.atom_means.push(mean);
             let draws = posterior
                 .effect_column()
                 .and_then(|col| posterior.draws.column(col).ok().map(|d| Arc::from(d.to_vec())));
             if let Some(effect_draws) = draws {
-                per_graph.push(GraphEffectDraws { graph_key: *key, effect_draws });
+                fits.per_graph.push(GraphEffectDraws { graph_key: *key, effect_draws });
             }
-            atoms.push(EnvelopeAtomFit {
+            fits.atoms.push(EnvelopeAtomFit {
                 key: *key,
                 prep: bprep,
                 posterior,
@@ -3624,28 +2643,37 @@ impl super::Study {
                 weight: *weight,
                 estimand: estimand.clone(),
                 indexer: Some(indexer.clone()),
-                prior: bayes.inner.prior.clone(),
+                prior: resolved,
             });
         }
-        if atoms.is_empty() {
-            return Err(CausalError::Compile {
-                message: "temporal class-aware envelope had no estimable identified cases".into(),
-            });
-        }
-        let identification = envelope_to_identification_result_for(
-            envelope,
-            CausalQuery::TemporalEffect(query.clone()),
-        );
-        let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-            message: "temporal class Bayesian envelope missing estimand".into(),
-        })?;
+        fits.estimator = bayes.inner.clone();
+        Ok(fits)
+    }
+
+    /// Mixes the atom posteriors into the class effect and builds the
+    /// structural mixture with its posterior identified-set interval.
+    fn mix_class_bayesian_atoms(
+        inputs: &ClassBayesianInputs<'_>,
+        (bundle_envelope, class_masses): (
+            &antecedent_identify::TemporalClassEnvelope,
+            Option<&[f64]>,
+        ),
+        (weights, flags, keys): (Vec<f64>, Vec<GraphIdentFlag>, Vec<u64>),
+        fits: &mut ClassBayesianFits,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<
+        (EffectEstimate, Option<CausalPosterior>, crate::result::StructuralResponseMixture),
+        CausalError,
+    > {
+        let ClassBayesianInputs { data, .. } = *inputs;
+        let envelope = &bundle_envelope.envelope;
         let mut case_means: Vec<Option<f64>> = vec![None; envelope.cases.len()];
         let mut mean_idx = 0usize;
         for (i, case) in envelope.cases.iter().enumerate() {
             if identification_status_ok_for_case(case.result.status)
                 && !case.result.estimands.is_empty()
             {
-                case_means[i] = atom_means.get(mean_idx).copied();
+                case_means[i] = fits.atom_means.get(mean_idx).copied();
                 mean_idx += 1;
             }
         }
@@ -3653,29 +2681,28 @@ impl super::Study {
             ClassPosteriorMix {
                 class_prior_supplied: class_masses.is_some(),
                 truncated_completions: envelope.truncated_completions,
-                evaluable_mass_positive: atoms.iter().any(|atom| atom.weight > 0.0),
+                evaluable_mass_positive: fits.atoms.iter().any(|atom| atom.weight > 0.0),
                 weights,
                 flags,
                 keys,
-                per_graph: &per_graph,
-                conflict: envelope_conflict,
+                per_graph: &fits.per_graph,
+                conflict: fits.envelope_conflict.take(),
                 label: "temporal_class_envelope",
             },
-            atoms.iter().map(|atom| &atom.posterior),
-            &mut diagnostics,
+            fits.atoms.iter().map(|atom| &atom.posterior),
+            diagnostics,
         )?;
-        let mut structural_response = temporal_class_structural_mixture(
-            envelope,
-            weight_basis,
-            class_masses.as_deref(),
-            &case_means,
-        );
+        let mut structural_response =
+            temporal_class_structural_mixture(envelope, weight_basis, class_masses, &case_means);
         for atom in &mut structural_response.atoms {
-            atom.posterior =
-                atoms.iter().find(|fit| fit.key == atom.graph_key).map(|fit| fit.posterior.clone());
+            atom.posterior = fits
+                .atoms
+                .iter()
+                .find(|fit| fit.key == atom.graph_key)
+                .map(|fit| fit.posterior.clone());
         }
         structural_response.identified_set_interval = posterior_identified_set_interval(
-            atoms.iter().map(|fit| &fit.posterior),
+            fits.atoms.iter().map(|fit| &fit.posterior),
             data.row_count(),
             envelope.truncated_completions > 0,
         );
@@ -3686,44 +2713,64 @@ impl super::Study {
                 .into_iter()
                 .flat_map(identified_set_interval_diagnostics),
         );
+        Ok((estimate, posterior, structural_response))
+    }
+
+    /// Runs the refutation suite and full Bayesian validation on each fitted
+    /// completion, labelling reports by completion and attaching each
+    /// validated posterior to its structural atom.
+    fn refute_class_bayesian_atoms(
+        &self,
+        inputs: &ClassBayesianInputs<'_>,
+        fits: &ClassBayesianFits,
+        structural_response: &mut crate::result::StructuralResponseMixture,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<
+        (
+            Vec<antecedent_validate::RefutationReport>,
+            Vec<antecedent_validate::PredictiveCheckReport>,
+        ),
+        CausalError,
+    > {
+        let ClassBayesianInputs { data, query, cfg, ctx } = *inputs;
         let tabular = TabularData::new(data.storage().clone());
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let ate_q = temporal_refuter_average(query);
         let mut refute_ws = EstimationWorkspace::default();
         let mut refutations = Vec::new();
         let mut predictive_checks = Vec::new();
-        for (atom, &seed) in atoms.iter().zip(&atom_seeds) {
+        for (atom, &seed) in fits.atoms.iter().zip(&fits.atom_seeds) {
             let refute_atom = EnvelopeRefuteAtom::from_fit(atom)?;
             let atom_ate = refute_atom.original.ate;
             let start = refutations.len();
-            let (reports, na_diagnostics) = run_envelope_effect_refuters(
-                &tabular,
-                &ate_q,
-                std::slice::from_ref(&refute_atom),
-                &mut refute_ws,
-                ctx,
-                self.refute,
-                EstimatorId::BayesianTemporalGcomp.as_str(),
-                &self.custom_validators,
-                Some(query),
-                self.split.as_ref(),
-                Some(data.time_index()),
-            )?;
+            let (reports, na_diagnostics) = EnvelopeRefutation {
+                data: &tabular,
+                query: &ate_q,
+                suite: self.refute,
+                estimator: EstimatorId::BayesianTemporalGcomp.as_str(),
+                custom: &self.custom_validators,
+                temporal: Some(TemporalRefutation {
+                    query,
+                    split: self.split.as_ref(),
+                    time_index: data.time_index(),
+                }),
+            }
+            .run(std::slice::from_ref(&refute_atom), &mut refute_ws, ctx)?;
             refutations.extend(reports);
             diagnostics.extend(na_diagnostics);
             let mut atom_posterior = atom.posterior.clone();
-            let atom_estimator =
-                BayesianGComputationAte { prior: atom.prior.clone(), seed, ..bayes.inner.clone() };
+            let atom_estimator = BayesianGComputationAte {
+                prior: atom.prior.clone(),
+                seed,
+                ..fits.estimator.clone()
+            };
             predictive_checks.extend(run_envelope_bayesian_full_validation(
-                self.refute,
-                cfg,
-                &atom_estimator,
+                BayesianValidation { suite: self.refute, cfg, estimator: &atom_estimator },
                 std::slice::from_ref(atom),
                 &mut atom_posterior,
                 atom_ate,
                 ctx,
                 super::super::latency::predictive_check_sims(self.latency_mode),
-                &mut refutations,
-                &mut diagnostics,
+                ValidationSink { refutations: &mut refutations, diagnostics },
             )?);
             for report in &mut refutations[start..] {
                 report.refuter = Arc::from(format!("completion.{}.{}", atom.key, report.refuter));
@@ -3734,44 +2781,7 @@ impl super::Study {
                 structural.posterior = Some(atom_posterior);
             }
         }
-        if identify_cached {
-            diagnostics.push(identify_cached_diagnostic());
-        }
-        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-            physical,
-            identification,
-            estimand,
-            estimate,
-            identifier_id,
-            estimator_id: EstimatorId::BayesianTemporalGcomp,
-            treatment: query.treatment,
-            outcome: query.outcome,
-            identify_cached,
-            extra_diagnostics: Vec::new(),
-            refutations,
-            distribution: None,
-            mediation: None,
-            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: ctx.cancellation.is_cancelled(),
-            early_stopped: false,
-            extras: IdentifiedExecuteExtras {
-                certificate: Some(crate::Identification::TemporalEnvelope {
-                    envelope: bundle.envelope.clone(),
-                    strategy: identifier_id,
-                    structure_version: self.graph.version(),
-                }),
-                posterior,
-                structural_response: Some(structural_response),
-                diagnostics: Some(diagnostics),
-                predictive_checks,
-                estimate_provenance: Some(provenance_ids(
-                    "estimate.bayesian.temporal.gcomp",
-                    "estimate.temporal_class.envelope",
-                )),
-                ..Default::default()
-            },
-        }))
+        Ok((refutations, predictive_checks))
     }
 
     /// Whether the prepared class cache holds a certificate for every horizon.
@@ -3787,15 +2797,18 @@ impl super::Study {
         &self,
         identifier_id: IdentifierId,
         query: &TemporalEffectQuery,
-    ) -> Result<crate::analysis::prepared::CachedTemporalClassIdentification, CausalError> {
+    ) -> Result<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, CausalError>
+    {
         if let Some(cache) = self.temporal_class_identification_cache.as_ref() {
             if let Some((_, envelope)) =
                 cache.by_horizon.iter().find(|(horizon, _)| *horizon == query.horizon_steps)
             {
-                return Ok(crate::analysis::prepared::CachedTemporalClassIdentification {
-                    envelope: envelope.clone(),
-                    by_horizon: Vec::new(),
-                });
+                return Ok(Arc::new(
+                    crate::analysis::prepared::CachedTemporalClassIdentification {
+                        envelope: Arc::clone(envelope),
+                        by_horizon: Vec::new(),
+                    },
+                ));
             }
         }
         let mut config = antecedent_identify::GeneralizedAdjustmentConfig::default();
@@ -3826,10 +2839,10 @@ impl super::Study {
             &self.query,
             query.horizon_steps,
         )?;
-        Ok(crate::analysis::prepared::CachedTemporalClassIdentification {
-            envelope,
+        Ok(Arc::new(crate::analysis::prepared::CachedTemporalClassIdentification {
+            envelope: Arc::new(envelope),
             by_horizon: Vec::new(),
-        })
+        }))
     }
 }
 
@@ -3901,10 +2914,13 @@ impl<'a> TemporalClassWeights<'a> {
         envelope: &antecedent_identify::TemporalClassEnvelope,
     ) -> Result<Vec<f64>, CausalError> {
         if let Some(prior) = self.prior {
-            if self.binding.is_none() {
-                self.binding = Some(crate::class_prior::ClassPriorBinding::bind(prior, envelope)?);
+            if let Some(binding) = &self.binding {
+                return binding.masses_for_envelope(envelope);
             }
-            return self.binding.as_ref().expect("bound class prior").masses_for_envelope(envelope);
+            let binding = crate::class_prior::ClassPriorBinding::bind(prior, envelope)?;
+            let masses = binding.masses_for_envelope(envelope);
+            self.binding = Some(binding);
+            return masses;
         }
         let raw: Vec<f64> = envelope.envelope.cases.iter().map(|case| case.weight.0).collect();
         let total: f64 = raw.iter().sum();
@@ -4090,6 +3106,90 @@ pub(super) struct ClassResponseParts {
     pub unevaluable_mass: f64,
 }
 
+/// The identified-execute tail every class response executor (temporal Pulse/Sustained,
+/// Sequence and panel) ends with: the strategy, certificate and extras are the same, only the
+/// fitted pieces differ.
+pub(super) struct ClassResponseTail<'a> {
+    pub physical: &'a PhysicalExecutionPlan,
+    pub identification: IdentificationResult,
+    pub estimand: IdentifiedEstimand,
+    /// Scalar summary of the response, or a NaN effect when the response carries the result.
+    pub estimate: EffectEstimate,
+    pub identifier_id: IdentifierId,
+    pub endpoints: (VariableId, VariableId),
+    /// The completion envelope the certificate retains.
+    pub envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    pub response: CausalResponse,
+    pub structural: crate::result::StructuralResponseMixture,
+    pub diagnostics: Vec<Diagnostic>,
+    pub identify_cached: bool,
+    /// The bootstrap replicate count the result records (`None`: the class band is withheld).
+    pub bootstrap_replicates: Option<u32>,
+    pub started: Instant,
+    pub ctx: &'a ExecutionContext,
+    /// Refutation reports. Class routes pass an empty list; the graph-posterior
+    /// route passes the reports it already computed.
+    pub refutations: Vec<antecedent_validate::RefutationReport>,
+    /// Overrides the identifier provenance step. `None` keeps the strategy default.
+    pub identify_provenance: Option<(Arc<str>, Arc<str>)>,
+    /// Overrides the estimator provenance step. `None` keeps the strategy default.
+    pub estimate_provenance: Option<(Arc<str>, Arc<str>)>,
+}
+
+impl super::Study {
+    /// Publish a class response through the identified-execute finish.
+    pub(super) fn finish_class_response_tail(&self, tail: ClassResponseTail<'_>) -> StudyResult {
+        let ClassResponseTail {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            endpoints: (treatment, outcome),
+            envelope,
+            response,
+            structural,
+            diagnostics,
+            identify_cached,
+            bootstrap_replicates,
+            started,
+            ctx,
+            refutations,
+            identify_provenance,
+            estimate_provenance,
+        } = tail;
+        self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(identifier_id, EstimatorId::temporal_response_for(&self.inference)),
+                treatment,
+                outcome,
+            )
+            .identify_cached(identify_cached)
+            .refutations(refutations)
+            .wall_time_ns(elapsed_ns(started))
+            .cancelled(ctx.cancellation.is_cancelled())
+            .extras(IdentifiedExecuteExtras {
+                certificate: envelope.map(|envelope| crate::Identification::TemporalEnvelope {
+                    envelope: Arc::unwrap_or_clone(envelope),
+                    strategy: identifier_id,
+                    structure_version: self.graph.version(),
+                }),
+                response: Some(response),
+                structural_response: Some(structural),
+                diagnostics: Some(diagnostics),
+                bootstrap_replicates_requested: Some(bootstrap_replicates),
+                identify_provenance,
+                estimate_provenance,
+                ..Default::default()
+            }),
+        )
+    }
+}
+
 impl ClassResponseAssembly {
     /// Start an assembly for `query`'s functional over `temporal.horizons`.
     ///
@@ -4102,11 +3202,7 @@ impl ClassResponseAssembly {
         temporal: &antecedent_core::TemporalResponseSpec,
     ) -> Result<Self, CausalError> {
         let cells_per_horizon = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => treatment
-                .grid
-                .values()
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?
-                .len(),
+            ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?.len(),
             ResponseFunctional::InterventionResponse { .. } => 1,
             _ => {
                 return Err(CausalError::Unsupported {
@@ -4156,14 +3252,11 @@ impl ClassResponseAssembly {
         weight: f64,
         status: IdentificationStatus,
     ) {
-        self.structural_atoms.push(crate::result::StructuralResponseAtom {
-            posterior: None,
-            response: None,
-            graph_key: ((horizon_index as u64) << 32) | case_index as u64,
+        self.structural_atoms.push(bare_class_atom(
+            class_completion_key(horizon_index, case_index),
             weight,
             status,
-            value: None,
-        });
+        ));
     }
 
     /// Record one fitted completion surface at this horizon; returns its atom index.
@@ -4206,16 +3299,12 @@ impl ClassResponseAssembly {
         }
         self.horizon_values.push(values);
         self.structural_atoms.push(crate::result::StructuralResponseAtom {
-            posterior: None,
-            response: None,
-            graph_key: ((horizon_index as u64) << 32) | case_index as u64,
-            weight,
-            status,
             value: match &response.estimate {
                 ResponseIdentification::PointIdentified(value)
                 | ResponseIdentification::PartiallyIdentified(value) => Some(value.clone()),
                 _ => None,
             },
+            ..bare_class_atom(class_completion_key(horizon_index, case_index), weight, status)
         });
         let index = self.structural_atoms.len() - 1;
         self.supports.push(response.support.clone());
@@ -4270,10 +3359,7 @@ impl ClassResponseAssembly {
     ) -> Result<ClassResponseParts, CausalError> {
         let (grid, dimension) = match &query.functional {
             ResponseFunctional::MeanCurve { treatment, .. } => {
-                let doses = treatment
-                    .grid
-                    .values()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                let doses = treatment.grid.values()?;
                 let grid: Vec<f64> = doses
                     .iter()
                     .flat_map(|dose| {
@@ -4527,8 +3613,7 @@ pub(super) fn mix_class_effect_posteriors<'a>(
         ));
         return Ok((nan_effect(), None, basis));
     }
-    let graphs = WeightedGraphSamples::new(mix.weights, mix.flags, mix.keys)
-        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let graphs = WeightedGraphSamples::new(mix.weights, mix.flags, mix.keys)?;
     let mut mixed = aggregate_effect_envelope(
         &graphs,
         mix.per_graph,
@@ -4631,6 +3716,7 @@ pub(crate) fn aggregate_temporal_horizon_evidence<'a>(
     Ok((aggregate_status, assumptions))
 }
 
+#[derive(Clone)]
 pub(super) struct MediationHorizonClick {
     pub(super) horizon: u32,
     pub(super) identification: IdentificationResult,
@@ -4704,7 +3790,7 @@ pub(super) fn mediation_horizon_z_differs(clicks: &[MediationHorizonClick]) -> b
     clicks.iter().skip(1).any(|click| click.adjustment.as_ref() != first.adjustment.as_ref())
 }
 
-fn mediation_click_adjustment_keys(
+pub(super) fn mediation_click_adjustment_keys(
     click: &MediationHorizonClick,
 ) -> Arc<[antecedent_core::TemporalNodeKey]> {
     let mut keys = click
@@ -4924,19 +4010,12 @@ fn summarize_observation_bootstrap(
     for (cell, &mid) in center.iter().enumerate() {
         values.clear();
         values.extend(draws.iter().map(|draw| draw[cell]));
-        let sd = sample_sd(&values);
+        let sd = antecedent_stats::sample_std(&values);
         band.lower.push(mid - z * sd);
         band.upper.push(mid + z * sd);
     }
     band.draws = draws.to_vec();
     band
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn sample_sd(values: &[f64]) -> f64 {
-    let n = values.len() as f64;
-    let mean = values.iter().sum::<f64>() / n;
-    (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt()
 }
 
 /// Full-sample point surface of a response, in the mean layout.
@@ -4969,13 +4048,6 @@ enum ClassObservationKind {
     },
 }
 
-struct ClassPulseAtom {
-    weight: f64,
-    point: f64,
-    indexer: TemporalIndexer,
-    design: TemporalAtomDesign,
-}
-
 struct ClassObservationAtom {
     atom_index: usize,
     horizon_index: usize,
@@ -4984,8 +4056,6 @@ struct ClassObservationAtom {
     assumptions: antecedent_core::AssumptionSet,
     weight: f64,
     adjustment: Vec<VariableId>,
-    #[allow(dead_code)]
-    horizon: u32,
     observation_query: ResponseQuery,
     kind: ClassObservationKind,
 }
@@ -5001,86 +4071,212 @@ fn class_atom_adjustment(
         .collect()
 }
 
-#[allow(clippy::too_many_arguments)]
-fn apply_class_observation_bootstrap(
-    source: &TimeSeriesData,
-    atoms: &[ClassObservationAtom],
-    structural_atoms: &mut [crate::result::StructuralResponseAtom],
-    response: &mut CausalResponse,
-    diagnostics: &mut Vec<Diagnostic>,
+/// The series, graph and per-horizon retained results a Sequence temporal response runs over.
+#[derive(Clone, Copy)]
+struct SequenceResponseInputs<'a> {
+    data: &'a TimeSeriesData,
+    source_data: &'a TimeSeriesData,
+    graph: &'a TemporalDag,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    overlays: &'a [antecedent_estimate::SequentialMechanismOverlay],
+    aligned: &'a [&'a crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    observation_adjusted: Option<&'a antecedent_estimate::ObservationAdjustedOutcome>,
+}
+
+/// The observation-adjustment bootstrap budget of one temporal response: the
+/// observation estimator options and the replicate count.
+#[derive(Clone, Copy)]
+struct ObservationBootstrap {
+    options: antecedent_estimate::ObservationEstimatorOptions,
+    replicates: u32,
+}
+
+/// The shared mechanism graph and per-horizon overlays of a sequence response.
+#[derive(Clone, Copy)]
+struct SequenceMechanisms<'a> {
+    graph: &'a TemporalDag,
+    overlays: &'a [antecedent_estimate::SequentialMechanismOverlay],
+}
+
+/// The class-level slots a class observation bootstrap writes into.
+struct ClassBootstrapTargets<'a> {
+    structural_atoms: &'a mut [crate::result::StructuralResponseAtom],
+    response: &'a mut CausalResponse,
+    diagnostics: &'a mut Vec<Diagnostic>,
+}
+
+/// How a class response's cells are laid out over horizons, and whether the class band applies.
+#[derive(Clone, Copy)]
+struct ClassBandLayout {
     cells_per_horizon: usize,
     n_horizons: usize,
     apply_class_band: bool,
+}
+
+/// The joint circular-block tuple replicates the class atoms' observation
+/// bands are summarized from.
+fn class_tuple_replicates(
+    source: &TimeSeriesData,
+    atoms: &[ClassObservationAtom],
     options: antecedent_estimate::ObservationEstimatorOptions,
     replicates: u32,
     ctx: &ExecutionContext,
-) -> Result<bool, CausalError> {
-    if replicates == 0 || atoms.is_empty() {
-        return Ok(false);
-    }
+) -> Result<TupleReplicates, CausalError> {
     let structural_span = atoms
         .iter()
         .map(|atom| atom.indexer.history() as usize + atom.indexer.horizon() as usize)
         .max()
         .unwrap_or(1);
     // Every atom (curve or Sequence) resamples the same lag-aligned outcome-time tuples.
-    let tuple = {
-        let identifications: Vec<[(&IdentifiedEstimand, &TemporalIndexer); 1]> =
-            atoms.iter().map(|atom| [(&atom.estimand, &atom.indexer)]).collect();
-        let targets: Vec<TupleObservationTarget<'_>> = atoms
-            .iter()
-            .zip(&identifications)
-            .map(|(atom, identification)| -> Result<TupleObservationTarget<'_>, CausalError> {
-                Ok(TupleObservationTarget {
-                    query: &atom.observation_query,
-                    adjustment: &atom.adjustment,
-                    outcome_regressors: match &atom.kind {
-                        ClassObservationKind::Curve => {
-                            antecedent_estimate::temporal_curve_outcome_regressors(
-                                &atom.observation_query,
-                                identification,
-                            )
-                            .map_err(CausalError::from)?
-                        }
-                        ClassObservationKind::Sequence { dag, outcome, .. } => {
-                            antecedent_estimate::temporal_sequence_outcome_regressors(dag, *outcome)
-                        }
+    let identifications: Vec<[(&IdentifiedEstimand, &TemporalIndexer); 1]> =
+        atoms.iter().map(|atom| [(&atom.estimand, &atom.indexer)]).collect();
+    let targets: Vec<TupleObservationTarget<'_>> = atoms
+        .iter()
+        .zip(&identifications)
+        .map(|(atom, identification)| -> Result<TupleObservationTarget<'_>, CausalError> {
+            Ok(TupleObservationTarget {
+                query: &atom.observation_query,
+                adjustment: &atom.adjustment,
+                outcome_regressors: match &atom.kind {
+                    ClassObservationKind::Curve => {
+                        antecedent_estimate::temporal_curve_outcome_regressors(
+                            &atom.observation_query,
+                            identification,
+                        )
+                        .map_err(CausalError::from)?
+                    }
+                    ClassObservationKind::Sequence { dag, outcome, .. } => {
+                        antecedent_estimate::temporal_sequence_outcome_regressors(dag, *outcome)
+                    }
+                },
+                surface: match &atom.kind {
+                    ClassObservationKind::Curve => {
+                        TupleSurface::Curve { identifications: identification }
+                    }
+                    ClassObservationKind::Sequence {
+                        dag,
+                        overlays,
+                        outcome,
+                        outcome_offset,
+                        status,
+                    } => TupleSurface::Sequence {
+                        graph: dag,
+                        overlays,
+                        outcome: *outcome,
+                        horizons: vec![(&atom.estimand, &atom.indexer, *outcome_offset, *status)],
                     },
-                    surface: match &atom.kind {
-                        ClassObservationKind::Curve => {
-                            TupleSurface::Curve { identifications: identification }
-                        }
-                        ClassObservationKind::Sequence {
-                            dag,
-                            overlays,
-                            outcome,
-                            outcome_offset,
-                            status,
-                        } => TupleSurface::Sequence {
-                            graph: dag,
-                            overlays,
-                            outcome: *outcome,
-                            horizons: vec![(
-                                &atom.estimand,
-                                &atom.indexer,
-                                *outcome_offset,
-                                *status,
-                            )],
-                        },
-                    },
-                })
+                },
             })
-            .collect::<Result<_, _>>()?;
-        tuple_block_observation_replicates(
-            source,
-            &targets,
-            structural_span,
-            options,
-            replicates,
-            0x0C1A_5500,
-            ctx,
-        )?
-    };
+        })
+        .collect::<Result<_, _>>()?;
+    tuple_block_observation_replicates(
+        source,
+        &targets,
+        structural_span,
+        options,
+        replicates,
+        0x0C1A_5500,
+        ctx,
+    )
+}
+
+/// Withholds the class-level observation band on a multi-completion
+/// identified set, recording the counts and why the atoms keep their own bands.
+fn withhold_class_observation_band(
+    response: &mut CausalResponse,
+    diagnostics: &mut Vec<Diagnostic>,
+    (replicates, attempted): (u32, u32),
+    cancelled: bool,
+) {
+    response.support.warnings.retain(|warning| {
+        warning.code.as_ref() != antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD
+    });
+    diagnostics.push(Diagnostic::new(
+        "estimate.temporal_class.observation_class_band_withheld",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "class-level observation band is withheld on a multi-completion identified set; \
+         each completion atom retains its outer circular-block band; complete-data bands \
+         are not reused",
+    ));
+    response.support.diagnostics.push(antecedent_core::SupportDiagnostic {
+        id: Arc::from("response.observation_block_bootstrap"),
+        values: Arc::from([
+            f64::from(replicates),
+            0.0,
+            f64::from(u32::from(cancelled)),
+            f64::from(attempted),
+        ]),
+        detail: Arc::from(
+            "requested, completed class-band, cancellation, and attempted counts; the \
+             class band is withheld; atoms retain per-completion circular-block bands",
+        ),
+        scope: antecedent_core::DiagnosticScope::Global,
+    });
+}
+
+/// The tuple replicates, per-atom draws and the (attempted, cancelled) counts
+/// the atom bands are summarized from.
+type AtomBandSource<'a> = (&'a TupleReplicates, &'a [Vec<Vec<f64>>], (u32, bool));
+
+/// Writes each completion atom's observation circular-block band onto its
+/// structural atom, building a point-only response for atoms without one.
+fn apply_atom_observation_bands(
+    atoms: &[ClassObservationAtom],
+    structural_atoms: &mut [crate::result::StructuralResponseAtom],
+    response: &CausalResponse,
+    (tuple, atom_draws, (attempted, cancelled)): AtomBandSource<'_>,
+    replicates: u32,
+) {
+    let points = &tuple.points;
+    for (atom_i, atom) in atoms.iter().enumerate() {
+        let band = summarize_observation_bootstrap(
+            &atom_draws[atom_i],
+            &points[atom_i],
+            attempted,
+            cancelled,
+        )
+        .with_block(tuple, atom_i);
+        if let Some(atom_response) =
+            structural_atoms.get_mut(atom.atom_index).and_then(|item| item.response.as_mut())
+        {
+            apply_observation_bootstrap(atom_response, &band, replicates);
+        } else if let Some(structural) = structural_atoms.get_mut(atom.atom_index) {
+            if let Some(value) = structural.value.clone() {
+                let mut stub = CausalResponse {
+                    estimand: response.estimand.clone(),
+                    identification_status: structural.status,
+                    estimate: ResponseIdentification::PointIdentified(value),
+                    uncertainty: ResponseUncertainty::None,
+                    support: response.support.clone(),
+                    assumptions: atom.assumptions.clone(),
+                    provenance_id: Arc::from("estimate.temporal_response.class_atom"),
+                    horizon_identification: None,
+                    interaction_structurally_zero: false,
+                };
+                apply_observation_bootstrap(&mut stub, &band, replicates);
+                structural.response = Some(stub);
+            }
+        }
+    }
+}
+
+fn apply_class_observation_bootstrap(
+    source: &TimeSeriesData,
+    atoms: &[ClassObservationAtom],
+    targets: ClassBootstrapTargets<'_>,
+    layout: ClassBandLayout,
+    bootstrap: ObservationBootstrap,
+    ctx: &ExecutionContext,
+) -> Result<bool, CausalError> {
+    let ClassBootstrapTargets { structural_atoms, response, diagnostics } = targets;
+    let ClassBandLayout { cells_per_horizon, n_horizons, apply_class_band } = layout;
+    let ObservationBootstrap { options, replicates } = bootstrap;
+    if replicates == 0 || atoms.is_empty() {
+        return Ok(false);
+    }
+    let tuple = class_tuple_replicates(source, atoms, options, replicates, ctx)?;
     let mut atom_draws: Vec<Vec<Vec<f64>>> = vec![Vec::new(); atoms.len()];
     let mut class_draws: Vec<Vec<f64>> = Vec::new();
     let class_len = cells_per_horizon.saturating_mul(n_horizons);
@@ -5124,36 +4320,13 @@ fn apply_class_observation_bootstrap(
     }
 
     let cancelled = ctx.cancellation.is_cancelled();
-    for (atom_i, atom) in atoms.iter().enumerate() {
-        let band = summarize_observation_bootstrap(
-            &atom_draws[atom_i],
-            &points[atom_i],
-            attempted,
-            cancelled,
-        )
-        .with_block(&tuple, atom_i);
-        if let Some(atom_response) =
-            structural_atoms.get_mut(atom.atom_index).and_then(|item| item.response.as_mut())
-        {
-            apply_observation_bootstrap(atom_response, &band, replicates);
-        } else if let Some(structural) = structural_atoms.get_mut(atom.atom_index) {
-            if let Some(value) = structural.value.clone() {
-                let mut stub = CausalResponse {
-                    estimand: response.estimand.clone(),
-                    identification_status: structural.status,
-                    estimate: ResponseIdentification::PointIdentified(value),
-                    uncertainty: ResponseUncertainty::None,
-                    support: response.support.clone(),
-                    assumptions: atom.assumptions.clone(),
-                    provenance_id: Arc::from("estimate.temporal_response.class_atom"),
-                    horizon_identification: None,
-                    interaction_structurally_zero: false,
-                };
-                apply_observation_bootstrap(&mut stub, &band, replicates);
-                structural.response = Some(stub);
-            }
-        }
-    }
+    apply_atom_observation_bands(
+        atoms,
+        structural_atoms,
+        response,
+        (&tuple, &atom_draws, (attempted, cancelled)),
+        replicates,
+    );
 
     if apply_class_band {
         let center = mix(&points.iter().map(Some).collect::<Vec<_>>()).unwrap_or_default();
@@ -5162,31 +4335,7 @@ fn apply_class_observation_bootstrap(
         apply_observation_bootstrap(response, &band, replicates);
         Ok(!band.lower.is_empty())
     } else {
-        response.support.warnings.retain(|warning| {
-            warning.code.as_ref() != antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD
-        });
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal_class.observation_class_band_withheld",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "class-level observation band is withheld on a multi-completion identified set; \
-             each completion atom retains its outer circular-block band; complete-data bands \
-             are not reused",
-        ));
-        response.support.diagnostics.push(antecedent_core::SupportDiagnostic {
-            id: Arc::from("response.observation_block_bootstrap"),
-            values: Arc::from([
-                f64::from(replicates),
-                0.0,
-                f64::from(u32::from(cancelled)),
-                f64::from(attempted),
-            ]),
-            detail: Arc::from(
-                "requested, completed class-band, cancellation, and attempted counts; the \
-                 class band is withheld; atoms retain per-completion circular-block bands",
-            ),
-            scope: antecedent_core::DiagnosticScope::Global,
-        });
+        withhold_class_observation_band(response, diagnostics, (replicates, attempted), cancelled);
         Ok(false)
     }
 }
@@ -5357,15 +4506,14 @@ fn apply_tuple_bootstrap_band(
 /// the replicate pseudo-outcome. Reordering the raw series instead (and rebuilding lags
 /// on the reordered rows) pairs values across block junctions and biases the replicate
 /// slope toward zero.
-#[allow(clippy::too_many_arguments)]
 fn bootstrap_observation_adjusted_temporal_response(
     source: &TimeSeriesData,
     query: &ResponseQuery,
     aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
-    options: antecedent_estimate::ObservationEstimatorOptions,
-    replicates: u32,
+    bootstrap: ObservationBootstrap,
     ctx: &ExecutionContext,
 ) -> Result<Option<ObservationBootstrapBand>, CausalError> {
+    let ObservationBootstrap { options, replicates } = bootstrap;
     if replicates == 0 {
         return Ok(None);
     }
@@ -5395,18 +4543,17 @@ fn bootstrap_observation_adjusted_temporal_response(
 /// the resampled tuples and replaces the outcome-time column with the replicate
 /// pseudo-outcomes (a design that reads the outcome at a nonzero lag is refused); a
 /// complete-data query keeps its recorded outcomes.
-#[allow(clippy::too_many_arguments)]
 fn bootstrap_sequence_response(
     source: &TimeSeriesData,
     query: &ResponseQuery,
-    graph: &TemporalDag,
-    overlays: &[antecedent_estimate::SequentialMechanismOverlay],
+    mechanisms: SequenceMechanisms<'_>,
     outcome: VariableId,
     aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
-    options: antecedent_estimate::ObservationEstimatorOptions,
-    replicates: u32,
+    bootstrap: ObservationBootstrap,
     ctx: &ExecutionContext,
 ) -> Result<ObservationBootstrapBand, CausalError> {
+    let SequenceMechanisms { graph, overlays } = mechanisms;
+    let ObservationBootstrap { options, replicates } = bootstrap;
     let adjustment = contemporaneous_adjustment_variables(aligned);
     let horizons = aligned
         .iter()
@@ -5499,16 +4646,12 @@ pub(super) fn resolve_temporal_response_prior(
     let mut conflict = None;
     let mut expected_design = None;
     for entry in aligned {
-        let pulse = TemporalEffectQuery {
-            treatment,
-            outcome,
-            policy: temporal.policy.clone(),
-            control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-            active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
-            horizon_steps: entry.horizon,
-            max_history_lag: temporal.max_history_lag,
-            target_population: antecedent_core::TargetPopulation::AllObserved,
-        };
+        let pulse = unit_contrast_query(
+            temporal,
+            (treatment, outcome),
+            entry.horizon,
+            antecedent_core::TargetPopulation::AllObserved,
+        );
         let prep = TemporalLinearAdjustment::new()
             .prepare(data, &entry.estimand, &pulse, &entry.indexer, None, &ctx.kernel_policy)
             .map_err(CausalError::from)?;
@@ -5556,7 +4699,10 @@ mod tests {
         AssumptionStatus,
     };
 
+    use super::super::most_conservative_identification_status;
     use super::*;
+    use antecedent_core::AverageEffectQuery;
+    use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord};
 
     fn horizon_result(
         status: IdentificationStatus,
@@ -5576,17 +4722,17 @@ mod tests {
             scope: AssumptionScope::Identification,
             status: AssumptionStatus::Declared,
         });
-        IdentificationResult::from_parts(
+        IdentificationResult::from_parts(antecedent_identify::IdentificationResultParts {
             status,
-            CausalQuery::AverageEffect(query),
-            Vec::new(),
-            CausalExprArena::new(),
-            DerivationTrace::default(),
-            assumptions,
-            Vec::new(),
-            IdentificationPerformanceRecord::default(),
-            None,
-        )
+            query: CausalQuery::AverageEffect(query),
+            estimands: Vec::new(),
+            arena: CausalExprArena::new(),
+            derivation: DerivationTrace::default(),
+            required_assumptions: assumptions,
+            diagnostics: Vec::new(),
+            performance: IdentificationPerformanceRecord::default(),
+            hedge: None,
+        })
     }
 
     #[test]
@@ -5783,9 +4929,6 @@ mod observation_bootstrap_tests {
     }
 }
 
-/// RNG stream base for the temporal mediation shared circular-block bootstrap.
-const MEDIATION_BLOCK_STREAM: u64 = 0x3ED1_B10C_0000;
-
 /// [`temporal_dependence_se_diagnostics`] for a Frequentist multi-step Sustained
 /// fit on one `TemporalDag`, from the block length, aligned rows and contrast
 /// influence the sequential estimator returned on `estimate` (the quantities its
@@ -5797,11 +4940,11 @@ pub(super) fn sequential_dependence_se_diagnostics(
     replicates: u32,
 ) -> Vec<Diagnostic> {
     let (block_length, rows, kernel_bias) =
-        estimate.block_resampling.map_or((0, 0, 1.0), |geometry| {
+        estimate.uncertainty.block.resampling.map_or((0, 0, 1.0), |geometry| {
             (geometry.block_length, geometry.rows, geometry.kernel_bias)
         });
-    let scores: Vec<&[f64]> = estimate.influence.as_deref().into_iter().collect();
-    let effective_rows = if estimate.block_resampling.is_some() {
+    let scores: Vec<&[f64]> = estimate.scores.influence.as_deref().into_iter().collect();
+    let effective_rows = if estimate.uncertainty.block.resampling.is_some() {
         antecedent_estimate::score_effective_rows(&scores, block_length)
     } else {
         f64::NAN
@@ -5817,8 +4960,36 @@ pub(super) fn sequential_dependence_se_diagnostics(
             "se_bootstrap refits every mechanism of the sequential g-computation on the \
              same circular blocks of consecutive lag-aligned rows ({}/{replicates} \
              replicates){}",
-            estimate.bootstrap_replicates_ok.unwrap_or(0),
+            estimate.uncertainty.bootstrap.replicates_ok.unwrap_or(0),
             if replicates == 0 { "; request bootstrap_replicates > 0 for an interval" } else { "" },
+        ),
+    )
+}
+
+/// [`temporal_dependence_se_diagnostics`] for a Frequentist single-step fit on
+/// one series, from the dependence-honest fit's own block geometry.
+pub(super) fn single_window_dependence_se_diagnostics(
+    estimate: &EffectEstimate,
+    dependence: &antecedent_estimate::TemporalDependenceSe,
+) -> Vec<Diagnostic> {
+    temporal_dependence_se_diagnostics(
+        antecedent_estimate::CircularBlockFamily::SingleWindow,
+        dependence.block_length,
+        dependence.rows,
+        dependence.kernel_bias,
+        dependence.effective_rows,
+        dependence.replicates_attempted > 0,
+        &format!(
+            "se_bootstrap refits the lag-aligned design on circular blocks of \
+             consecutive rows ({}/{} replicates); se_analytic is NaN: the iid OLS SE \
+             ignores serial dependence and no HAC SE is calibrated for this cell{}",
+            estimate.uncertainty.bootstrap.replicates_ok.unwrap_or(0),
+            dependence.replicates_attempted,
+            if dependence.replicates_attempted == 0 {
+                "; request bootstrap_replicates > 0 for an interval"
+            } else {
+                ""
+            },
         ),
     )
 }
@@ -5861,4 +5032,1609 @@ pub(super) fn temporal_dependence_se_diagnostics(
     )];
     out.extend(short_series_warning(effective_rows, family));
     out
+}
+
+impl super::Study {
+    /// The isotropic conjugate prior scale a temporal cross-world fit uses
+    /// under Bayesian inference; a mapped coefficient prior is refused.
+    fn cross_world_prior_scale(&self) -> Result<Option<f64>, CausalError> {
+        match &self.inference {
+            InferenceMode::Bayesian(cfg) => {
+                if cfg.has_transfer() {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
+                    });
+                }
+                Ok(Some(cfg.prior_scale))
+            }
+            InferenceMode::Frequentist => Ok(None),
+        }
+    }
+
+    pub(super) fn execute_temporal_cross_world(
+        &self,
+        data: &TimeSeriesData,
+        graph: &TemporalDag,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        if self.refute != RefuteSuite::None {
+            return Err(CausalError::Unsupported {
+                message: "temporal cross-world effects are point-only; cheap/full refuters are not licensed",
+            });
+        }
+        let prior_scale = self.cross_world_prior_scale()?;
+        let CrossWorldContrast { treatment, outcome, mediator, active, control } =
+            cross_world_contrast(&self.query)?;
+        let probe = TemporalEffectQuery::pulse(treatment, outcome, 1.0)
+            .with_policy(antecedent_core::TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let found = TemporalBackdoorIdentifier::new()
+            .identify_temporal(graph, &probe)
+            .map_err(CausalError::from)?;
+        let identification = found.result;
+        require_identified(&identification)?;
+        let estimand = identification.estimands.first().cloned().ok_or_else(|| {
+            CausalError::Compile { message: "temporal cross-world proof has no estimand".into() }
+        })?;
+        let mut direct_estimand = estimand.clone();
+        if matches!(
+            &self.query,
+            CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_)
+        ) {
+            direct_estimand.adjustment_set = Arc::from([]);
+        }
+        let fit =
+            |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
+                let used = match &self.query {
+                    CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_) => {
+                        &direct_estimand
+                    }
+                    _ => &estimand,
+                };
+                antecedent_estimate::temporal_linear_slopes(
+                    data,
+                    used,
+                    &found.indexer,
+                    &antecedent_estimate::TemporalSlopeSpec {
+                        outcome,
+                        treatments,
+                        treatment_offset: probe.try_treatment_offset()?,
+                        outcome_offset: probe.outcome_offset(),
+                        contemporaneous,
+                    },
+                    &ctx.kernel_policy,
+                    prior_scale,
+                )
+                .map_err(CausalError::from)
+            };
+        let point = cross_world_point(
+            &self.query,
+            &fit,
+            CrossWorldContrast { treatment, outcome, mediator, active, control },
+        )?;
+        let identification = template_scoped_cross_world(
+            identification,
+            &found.indexer,
+            self.query.clone(),
+            CrossWorldContrast { treatment, outcome, mediator, active, control },
+        );
+        let estimand = identification.estimands[0].clone();
+        let estimate = EffectEstimate::new(
+            point,
+            f64::NAN,
+            identification.required_assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let mut result = self.finish_identified_execute(
+            IdentifiedExecuteFinish::new(
+                physical,
+                identification,
+                estimand,
+                estimate,
+                Strategy::new(
+                    IdentifierId::TemporalBackdoorUnfolded,
+                    EstimatorId::TemporalLinearAdjustment,
+                ),
+                treatment,
+                outcome,
+            )
+            .wall_time_ns(elapsed_ns(started)),
+        );
+        result.interval = None;
+        result.posterior = None;
+        result.diagnostics.push(Diagnostic::new(
+            "estimate.temporal.cross_world",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            "published value is the linear unfolded cross-world point; no interval is published",
+        ));
+        Ok(result)
+    }
+}
+
+/// The treatment, outcome, mediator and levels of a cross-world query, or the
+/// refusal when the query is not a one-mediator or hard-intervention contrast.
+fn cross_world_contrast(query: &CausalQuery) -> Result<CrossWorldContrast, CausalError> {
+    let (treatment, outcome, mediator, active, control) = match query {
+        CausalQuery::NestedCounterfactual(q) => {
+            (q.treatment, q.outcome, Some(q.mediator), q.active_value(), q.control_value())
+        }
+        CausalQuery::PathSpecific(q) => {
+            if q.path_nodes.len() != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "temporal path-specific effect is the one-mediator edge product",
+                });
+            }
+            let active = hard_level(&q.active)?;
+            let control = hard_level(&q.control)?;
+            (q.treatment, q.outcome, Some(q.path_nodes[0]), active, control)
+        }
+        CausalQuery::Counterfactual(q) => {
+            let treatment =
+                q.interventions.first().and_then(Intervention::primary_variable).ok_or(
+                    CausalError::Unsupported {
+                        message: "temporal counterfactual needs one hard intervention",
+                    },
+                )?;
+            let outcome = *q.outcomes.first().ok_or(CausalError::Unsupported {
+                message: "temporal counterfactual needs one outcome",
+            })?;
+            (treatment, outcome, None, hard_level(&q.interventions[0])?, hard_level(&q.control)?)
+        }
+        CausalQuery::Distribution(q) => {
+            let treatment =
+                q.interventions.first().and_then(Intervention::primary_variable).ok_or(
+                    CausalError::Unsupported {
+                        message: "temporal interventional distribution needs one hard intervention",
+                    },
+                )?;
+            let outcome = *q.outcomes.first().ok_or(CausalError::Unsupported {
+                message: "temporal interventional distribution needs one outcome",
+            })?;
+            if !q.conditioning.is_empty() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal interventional distribution is unconditional",
+                });
+            }
+            (treatment, outcome, None, hard_level(&q.interventions[0])?, 0.0)
+        }
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "temporal cross-world route does not estimate this query",
+            });
+        }
+    };
+    Ok(CrossWorldContrast { treatment, outcome, mediator, active, control })
+}
+
+/// The linear unfolded cross-world point of the query's contrast, from the
+/// fitted slopes of `fit`.
+fn cross_world_point(
+    query: &CausalQuery,
+    fit: &impl Fn(VariableId, &[VariableId], &[VariableId]) -> Result<(f64, Vec<f64>), CausalError>,
+    contrast: CrossWorldContrast,
+) -> Result<f64, CausalError> {
+    let CrossWorldContrast { treatment, outcome, mediator, active, control } = contrast;
+    let delta = active - control;
+    Ok(match query {
+        CausalQuery::NestedCounterfactual(_) => {
+            let mediator = mediator.ok_or_else(missing_cross_world_mediator)?;
+            let (_, slopes) = fit(outcome, &[treatment, mediator], &[mediator])?;
+            slopes[0] * delta
+        }
+        CausalQuery::PathSpecific(_) => {
+            let mediator = mediator.ok_or_else(missing_cross_world_mediator)?;
+            let (_, through) = fit(mediator, &[treatment], &[])?;
+            let (_, onward) = fit(outcome, &[treatment, mediator], &[mediator])?;
+            through[0] * onward[1] * delta
+        }
+        CausalQuery::Counterfactual(_) => {
+            let (_, slopes) = fit(outcome, &[treatment], &[])?;
+            slopes[0] * delta
+        }
+        CausalQuery::Distribution(_) => {
+            let (intercept, slopes) = fit(outcome, &[treatment], &[])?;
+            intercept + slopes[0] * active
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "temporal cross-world route does not estimate this query",
+        })?,
+    })
+}
+
+/// A mediated cross-world contrast whose contrast record carries no mediator.
+pub(super) fn missing_cross_world_mediator() -> CausalError {
+    CausalError::Compile { message: "cross-world mediated contrast needs a mediator".into() }
+}
+
+/// The variables and levels of one cross-world (mediation) contrast.
+#[derive(Clone, Copy)]
+pub(super) struct CrossWorldContrast {
+    pub(super) treatment: VariableId,
+    pub(super) outcome: VariableId,
+    pub(super) mediator: Option<VariableId>,
+    pub(super) active: f64,
+    pub(super) control: f64,
+}
+
+/// How a temporal derivative response differentiates: the lag offsets of the
+/// derivative's treatment and outcome, the kernel policy and the prior scale.
+#[derive(Clone, Copy)]
+pub(super) struct DerivativeSpec<'a> {
+    pub(super) treatment_offset: i32,
+    pub(super) outcome_offset: i32,
+    pub(super) policy: &'a antecedent_core::KernelPolicy,
+    pub(super) prior_scale: Option<f64>,
+}
+
+pub(super) fn template_scoped_cross_world(
+    mut identification: IdentificationResult,
+    indexer: &antecedent_core::TemporalIndexer,
+    query: CausalQuery,
+    contrast: CrossWorldContrast,
+) -> IdentificationResult {
+    let CrossWorldContrast { treatment, outcome, mediator, active, control } = contrast;
+    let map = |id: VariableId| indexer.key_of(id.raw()).map(|key| key.variable).unwrap_or(id);
+    let adjustment: Vec<VariableId> = identification
+        .estimands
+        .first()
+        .map(|estimand| {
+            let mut mapped: Vec<VariableId> =
+                estimand.adjustment_set.iter().copied().map(map).collect();
+            mapped.sort_by_key(|id| id.raw());
+            mapped.dedup();
+            mapped
+        })
+        .unwrap_or_default();
+    let mut arena = CausalExprArena::new();
+    let backdoor_method = identification.estimands.first().map_or_else(
+        || Arc::from("temporal.backdoor.unfolded"),
+        |estimand| estimand.method.clone(),
+    );
+    let active_value = antecedent_core::Value::f64(active);
+    let control_value = antecedent_core::Value::f64(control);
+    // Nested and path points are the direct slope and the mediator-edge product
+    // that were fit. A counterfactual and an interventional mean stay the
+    // back-door formula of the adjustment set that entered that fit.
+    let (method, adjustment, mediators, functional) = match (&query, mediator) {
+        (CausalQuery::NestedCounterfactual(_), Some(mediator)) => (
+            Arc::from(EstimandMethod::TemporalMediationDirect.as_str()),
+            Arc::from([]),
+            Arc::from([mediator]),
+            direct_slope_functional(&mut arena, treatment, mediator, outcome, active, control),
+        ),
+        (CausalQuery::PathSpecific(_), Some(mediator)) => (
+            Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
+            Arc::from([]),
+            Arc::from([mediator]),
+            mediator_edge_product_functional(
+                &mut arena, treatment, mediator, outcome, active, control,
+            ),
+        ),
+        (CausalQuery::Distribution(_), _) => {
+            let functional = arena.backdoor_mean(treatment, outcome, &adjustment, active_value);
+            (backdoor_method, Arc::from(adjustment), Arc::from([]), functional)
+        }
+        _ => {
+            let functional =
+                arena.backdoor_ate(treatment, outcome, &adjustment, active_value, control_value);
+            (backdoor_method, Arc::from(adjustment), Arc::from([]), functional)
+        }
+    };
+    identification.query = query;
+    identification.arena = arena;
+    identification.estimands = vec![IdentifiedEstimand::new(
+        method,
+        adjustment,
+        Arc::from([]),
+        mediators,
+        functional,
+        None,
+    )];
+    identification.hedge = None;
+    identification
+}
+
+/// Linear natural direct effect: the treatment slope in the outcome regression
+/// that holds the contemporaneous mediator, times the level gap.
+fn direct_slope_functional(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    mediator: VariableId,
+    outcome: VariableId,
+    active: f64,
+    control: f64,
+) -> antecedent_expr::ExprId {
+    let left = held_mediator_mean(arena, treatment, mediator, outcome, active);
+    let right = held_mediator_mean(arena, treatment, mediator, outcome, control);
+    let contrast = arena.intern(ExprNode::Contrast {
+        left,
+        right,
+        op: antecedent_expr::ContrastOp::Difference,
+    });
+    arena.set_derivation(
+        contrast,
+        DerivationMeta::rule(
+            "temporal.cross_world.direct_slope",
+            Some(Arc::from(
+                "outcome-regression treatment slope with the contemporaneous mediator held, times the level gap",
+            )),
+        ),
+    );
+    contrast
+}
+
+fn held_mediator_mean(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    mediator: VariableId,
+    outcome: VariableId,
+    level: f64,
+) -> antecedent_expr::ExprId {
+    let variables = arena.intern_var_set([outcome]);
+    let conditioned_on = arena.intern_var_set([treatment, mediator]);
+    let intervention =
+        arena.intern_intervention_assignments([antecedent_expr::InterventionAssignment::concrete(
+            treatment,
+            antecedent_core::Value::f64(level),
+        )]);
+    let distribution = arena.intern_distribution(
+        variables,
+        conditioned_on,
+        intervention,
+        DomainRef::Interventional,
+    );
+    arena.intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution })
+}
+
+/// Product of the treatment-to-mediator edge over the level gap and the
+/// mediator-to-outcome partial slope.
+fn mediator_edge_product_functional(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    mediator: VariableId,
+    outcome: VariableId,
+    active: f64,
+    control: f64,
+) -> antecedent_expr::ExprId {
+    let through = arena.backdoor_ate(
+        treatment,
+        mediator,
+        &[],
+        antecedent_core::Value::f64(active),
+        antecedent_core::Value::f64(control),
+    );
+    let onward_high = held_treatment_mean(arena, treatment, mediator, outcome, control, 1.0);
+    let onward_low = held_treatment_mean(arena, treatment, mediator, outcome, control, 0.0);
+    let onward = arena.intern(ExprNode::Contrast {
+        left: onward_high,
+        right: onward_low,
+        op: antecedent_expr::ContrastOp::Difference,
+    });
+    let factors = arena.intern_list([through, onward]);
+    let product = arena.intern(ExprNode::Product(factors));
+    arena.set_derivation(
+        product,
+        DerivationMeta::rule(
+            "temporal.cross_world.mediator_edge_product",
+            Some(Arc::from(
+                "product of the treatment-to-mediator slope and the mediator-to-outcome slope, times the level gap",
+            )),
+        ),
+    );
+    product
+}
+
+fn held_treatment_mean(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    mediator: VariableId,
+    outcome: VariableId,
+    treatment_level: f64,
+    mediator_level: f64,
+) -> antecedent_expr::ExprId {
+    let variables = arena.intern_var_set([outcome]);
+    let conditioned_on = arena.intern_var_set([treatment, mediator]);
+    let intervention = arena.intern_intervention_assignments([
+        antecedent_expr::InterventionAssignment::concrete(
+            treatment,
+            antecedent_core::Value::f64(treatment_level),
+        ),
+        antecedent_expr::InterventionAssignment::concrete(
+            mediator,
+            antecedent_core::Value::f64(mediator_level),
+        ),
+    ]);
+    let distribution = arena.intern_distribution(
+        variables,
+        conditioned_on,
+        intervention,
+        DomainRef::Interventional,
+    );
+    arena.intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution })
+}
+
+fn hard_level(intervention: &Intervention) -> Result<f64, CausalError> {
+    match intervention {
+        Intervention::Set { value: antecedent_core::Value::Float64(level), .. }
+            if level.is_finite() =>
+        {
+            Ok(*level)
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "temporal cross-world interventions are finite hard sets",
+        }),
+    }
+}
+
+/// The fitted slope of a point derivative on the requested scale, evaluated at
+/// the treatment point `at`.
+fn scaled_point_slope(
+    scale: antecedent_core::DerivativeScale,
+    at: f64,
+    (intercept, slope): (f64, f64),
+) -> Result<f64, CausalError> {
+    use antecedent_core::DerivativeScale;
+    let mean = intercept + slope * at;
+    match scale {
+        DerivativeScale::Identity => Ok(slope),
+        DerivativeScale::LogTreatment if at > 0.0 => Ok(at * slope),
+        DerivativeScale::LogOutcome if mean.is_finite() && mean != 0.0 => Ok(slope / mean),
+        DerivativeScale::LogLog if at > 0.0 && mean.is_finite() && mean != 0.0 => {
+            Ok(at * slope / mean)
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "temporal derivative scale needs a positive treatment point and a non-zero fitted mean",
+        }),
+    }
+}
+
+/// The directional derivative of each outcome along `direction`, from the
+/// fitted treatment slopes.
+fn directional_derivative_value(
+    fit: &impl Fn(VariableId, &[VariableId]) -> Result<(f64, Vec<f64>), CausalError>,
+    outcomes: &[VariableId],
+    treatments: &[VariableId],
+    direction: &[f64],
+) -> Result<ResponseValue, CausalError> {
+    let mut values = Vec::with_capacity(outcomes.len());
+    for &outcome in outcomes {
+        let (_, slopes) = fit(outcome, treatments)?;
+        values.push(slopes.iter().zip(direction.iter()).map(|(slope, step)| slope * step).sum());
+    }
+    Ok(ResponseValue::Vector(std::sync::Arc::from(values)))
+}
+
+/// The Jacobian of the outcomes with respect to the treatments at `at`, with
+/// the requested derivative scale applied to each fitted slope.
+fn jacobian_derivative_value(
+    fit: &impl Fn(VariableId, &[VariableId]) -> Result<(f64, Vec<f64>), CausalError>,
+    (outcomes, treatments): (&[VariableId], &[VariableId]),
+    at: &[f64],
+    scale: antecedent_core::DerivativeScale,
+) -> Result<ResponseValue, CausalError> {
+    use antecedent_core::DerivativeScale;
+    let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
+    for &outcome in outcomes {
+        let (intercept, slopes) = fit(outcome, treatments)?;
+        let mean = intercept
+            + slopes.iter().zip(at.iter()).map(|(slope, point)| slope * point).sum::<f64>();
+        for (&slope, &point) in slopes.iter().zip(at.iter()) {
+            let scaled = match scale {
+                DerivativeScale::Identity => slope,
+                DerivativeScale::LogTreatment if point > 0.0 => point * slope,
+                DerivativeScale::LogOutcome if mean.is_finite() && mean != 0.0 => slope / mean,
+                DerivativeScale::LogLog if point > 0.0 && mean.is_finite() && mean != 0.0 => {
+                    point * slope / mean
+                }
+                _ => {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal Jacobian scale needs a positive treatment point and a non-zero fitted mean",
+                    });
+                }
+            };
+            values.push(scaled);
+        }
+    }
+    Ok(ResponseValue::Jacobian {
+        outcomes: outcomes.len(),
+        treatments: treatments.len(),
+        values: std::sync::Arc::from(values),
+    })
+}
+
+pub(super) fn temporal_linear_derivative_response(
+    data: &TimeSeriesData,
+    query: &ResponseQuery,
+    estimand: &IdentifiedEstimand,
+    indexer: &TemporalIndexer,
+    identification: &IdentificationResult,
+    spec: DerivativeSpec<'_>,
+) -> Result<CausalResponse, CausalError> {
+    use antecedent_core::{DerivativeWeighting, ResponseFunctional as F};
+    let DerivativeSpec { treatment_offset, outcome_offset, policy, prior_scale } = spec;
+    if query.target_population != antecedent_core::TargetPopulation::AllObserved {
+        return Err(CausalError::Unsupported {
+            message: "temporal derivative requires the all-observed population",
+        });
+    }
+    let fit = |outcome, treatments: &[VariableId]| {
+        antecedent_estimate::temporal_linear_slopes(
+            data,
+            estimand,
+            indexer,
+            &antecedent_estimate::TemporalSlopeSpec {
+                outcome,
+                treatments,
+                treatment_offset,
+                outcome_offset,
+                contemporaneous: &[],
+            },
+            policy,
+            prior_scale,
+        )
+        .map_err(CausalError::from)
+    };
+    let mut support_at = vec![0.0_f64];
+    let support_treatments;
+    let mut average_over_observed = false;
+    let value = match &query.functional {
+        F::AverageDerivative { outcome, treatment, weighting } => {
+            if !matches!(weighting, DerivativeWeighting::Observed) {
+                return Err(CausalError::Unsupported {
+                    message: "temporal average derivative is licensed for the observed weighting",
+                });
+            }
+            support_treatments = vec![*treatment];
+            average_over_observed = true;
+            let (_, slopes) = fit(*outcome, &[*treatment])?;
+            ResponseValue::Scalar(slopes[0])
+        }
+        F::PointDerivative { outcome, treatment, at, order, scale } => {
+            if *order != 1 {
+                return Err(CausalError::Unsupported {
+                    message: "temporal point derivative is the first derivative of the linear fit",
+                });
+            }
+            let (intercept, slopes) = fit(*outcome, &[*treatment])?;
+            support_treatments = vec![*treatment];
+            support_at = vec![*at];
+            ResponseValue::Scalar(scaled_point_slope(*scale, *at, (intercept, slopes[0]))?)
+        }
+        F::DirectionalDerivative { outcomes, treatments, at, direction } => {
+            if at.len() != treatments.len() || direction.len() != treatments.len() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal directional derivative point and direction follow the treatments",
+                });
+            }
+            support_treatments = treatments.to_vec();
+            support_at = at.to_vec();
+            directional_derivative_value(&fit, outcomes, treatments, direction)?
+        }
+        F::Jacobian { outcomes, treatments, at, scale } => {
+            if at.len() != treatments.len() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal Jacobian is evaluated at one point per treatment",
+                });
+            }
+            support_treatments = treatments.to_vec();
+            support_at = at.to_vec();
+            jacobian_derivative_value(&fit, (outcomes, treatments), at, *scale)?
+        }
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "temporal linear derivative does not estimate this functional",
+            });
+        }
+    };
+    let support =
+        derivative_support_report(data, &support_treatments, &support_at, average_over_observed);
+    Ok(CausalResponse {
+        estimand: query.functional.clone(),
+        identification_status: identification.status,
+        estimate: ResponseIdentification::PointIdentified(value),
+        uncertainty: ResponseUncertainty::None,
+        support,
+        assumptions: identification.required_assumptions.clone(),
+        provenance_id: std::sync::Arc::from("estimate.temporal.linear_derivative"),
+        horizon_identification: None,
+        interaction_structurally_zero: false,
+    })
+}
+
+/// Average derivatives are supported on the observed treatment range. A requested
+/// evaluation point is outside the data when it leaves that range.
+fn derivative_support_report(
+    data: &TimeSeriesData,
+    treatments: &[VariableId],
+    requested: &[f64],
+    average_over_observed: bool,
+) -> antecedent_core::SupportReport {
+    use antecedent_core::{SupportRegion, SupportReport, SupportStatus};
+    let range = |variable: VariableId| -> Option<(f64, f64)> {
+        let values = data.float64_values(variable).ok()?;
+        let mut min = f64::INFINITY;
+        let mut max = f64::NEG_INFINITY;
+        for value in values {
+            if value.is_finite() {
+                min = min.min(value);
+                max = max.max(value);
+            }
+        }
+        (min.is_finite() && max.is_finite()).then_some((min, max))
+    };
+    if average_over_observed {
+        let (minima, maxima, status) = match treatments.first().and_then(|id| range(*id)) {
+            Some((min, max)) => (vec![min], vec![max], SupportStatus::Supported),
+            None => (vec![f64::NAN], vec![f64::NAN], SupportStatus::OutsideEmpiricalSupport),
+        };
+        let mut warnings = Vec::new();
+        if status != SupportStatus::Supported {
+            warnings.push(Diagnostic::new(
+                "estimate.temporal.linear_derivative.support",
+                DiagnosticKind::Support,
+                DiagnosticSeverity::Warning,
+                "the average derivative has no finite observed treatment values",
+            ));
+        }
+        return SupportReport {
+            status,
+            query_region: SupportRegion {
+                minima: std::sync::Arc::from(minima),
+                maxima: std::sync::Arc::from(maxima),
+            },
+            diagnostics: Vec::new(),
+            warnings,
+            point_status: None,
+        };
+    }
+    let inside = treatments.iter().zip(requested).all(|(variable, point)| {
+        range(*variable)
+            .is_some_and(|(min, max)| point.is_finite() && *point >= min && *point <= max)
+    });
+    let status = if inside && treatments.len() == requested.len() && !requested.is_empty() {
+        SupportStatus::Supported
+    } else {
+        SupportStatus::OutsideEmpiricalSupport
+    };
+    let mut warnings = Vec::new();
+    if status != SupportStatus::Supported {
+        warnings.push(Diagnostic::new(
+            "estimate.temporal.linear_derivative.support",
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            "the requested evaluation point is outside the observed treatment series",
+        ));
+    }
+    SupportReport {
+        status,
+        query_region: SupportRegion {
+            minima: std::sync::Arc::from(requested),
+            maxima: std::sync::Arc::from(requested),
+        },
+        diagnostics: Vec::new(),
+        warnings,
+        point_status: None,
+    }
+}
+
+pub(super) fn temporal_cross_world_hard_level(
+    intervention: &Intervention,
+) -> Result<f64, CausalError> {
+    hard_level(intervention)
+}
+
+type BayesianMediationFit =
+    (antecedent_estimate::CausalPosterior, Vec<antecedent_prob::ConflictSummary>);
+
+/// The inputs a class completion's temporal mediation fit or refutation is keyed
+/// and computed from.
+#[derive(Clone, Copy)]
+struct ClassMediationInput<'a> {
+    data: &'a TimeSeriesData,
+    estimand: &'a IdentifiedEstimand,
+    query: &'a antecedent_core::MediationQuery,
+    adjustment: &'a Arc<[antecedent_data::LaggedColumn]>,
+    status: IdentificationStatus,
+}
+
+/// The series, query, estimand and lag indexer a class completion's temporal
+/// response is fitted from.
+#[derive(Clone, Copy)]
+struct ClassResponseInput<'a> {
+    series: &'a TimeSeriesData,
+    query: &'a ResponseQuery,
+    estimand: &'a IdentifiedEstimand,
+    indexer: &'a TemporalIndexer,
+}
+
+/// The series, query and estimator every completion of a CPDAG mediation
+/// sweep is fitted with.
+#[derive(Clone, Copy)]
+struct CpdagMediationInputs<'a> {
+    data: &'a TimeSeriesData,
+    query: &'a antecedent_core::MediationQuery,
+    estimator: &'a TemporalMediationEstimator,
+    ctx: &'a ExecutionContext,
+}
+
+/// The completion a CPDAG mediation fit is run for: its horizon, position,
+/// class weight, identification and unfold indexer.
+#[derive(Clone, Copy)]
+struct CpdagCompletionSite<'a> {
+    horizon: u32,
+    horizon_index: usize,
+    completion_idx: usize,
+    weight: f64,
+    identification: &'a IdentificationResult,
+    indexer: &'a TemporalIndexer,
+    envelope: &'a Arc<antecedent_identify::TemporalClassEnvelope>,
+}
+
+/// The completion atom the sweep pushed for the completion being estimated.
+fn last_mediation_atom(
+    run: &mut CpdagMediationRun,
+) -> Result<&mut crate::result::StructuralResponseAtom, CausalError> {
+    run.structural_atoms.last_mut().ok_or_else(|| CausalError::Compile {
+        message: "CPDAG mediation sweep estimated a completion before recording its atom".into(),
+    })
+}
+
+/// Accumulators the CPDAG mediation sweep threads across horizons and
+/// completions and folds into the result.
+struct CpdagMediationRun {
+    slices: Vec<antecedent_estimate::TemporalMediationSlice>,
+    primary: Option<(IdentificationResult, IdentifiedEstimand)>,
+    primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    refutations: Vec<antecedent_validate::RefutationReport>,
+    aggregate_graph_dependent: bool,
+    structural_atoms: Vec<crate::result::StructuralResponseAtom>,
+    full_mass_scope: bool,
+    truncated_atoms: usize,
+    block_replicates_ok: Option<u32>,
+    /// The contrast the completions share, when the shared-design branch
+    /// fires: at one horizon it is the result's scalar estimate. The Bayesian
+    /// arm also keeps the composed posterior that contrast was taken from, so
+    /// the reported interval is its quantile.
+    shared_contrast: Option<TemporalMediationEstimate>,
+    shared_posterior: Option<antecedent_estimate::CausalPosterior>,
+    shared_horizons: usize,
+    block_cancelled: bool,
+    diagnostics: Vec<Diagnostic>,
+}
+
+impl CpdagMediationRun {
+    fn new(horizon_count: usize) -> Self {
+        Self {
+            slices: Vec::with_capacity(horizon_count),
+            primary: None,
+            primary_envelope: None,
+            refutations: Vec::new(),
+            aggregate_graph_dependent: false,
+            structural_atoms: Vec::new(),
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            block_replicates_ok: None,
+            shared_contrast: None,
+            shared_posterior: None,
+            shared_horizons: 0,
+            block_cancelled: false,
+            diagnostics: vec![Diagnostic::new(
+                "estimate.temporal_mediation.class_identified_set",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "completion-specific mediation effects are returned as per-horizon identified \
+                 sets; completion enumeration is not averaged",
+            )],
+        }
+    }
+
+    /// One horizon whose completions all fit the same mediation design: the
+    /// identified set is that single contrast, so it is the result's scalar
+    /// estimate. Frequentist reports the design's circular-block SE; Bayesian
+    /// reports the composed posterior's quantile. The identified set stays
+    /// beside it; each states its own calibration.
+    fn scalar_contrast(&mut self) -> (EffectEstimate, Option<TemporalMediationEstimate>) {
+        if let Some(contrast) = self.shared_contrast.take() {
+            let interval = if self.shared_posterior.is_some() {
+                "its posterior quantile is the reported interval"
+            } else {
+                "its circular-block SE is the reported interval"
+            };
+            self.diagnostics.push(Diagnostic::new(
+                "estimate.temporal_mediation.class_shared_design_scalar",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "every completion is identified and fits the same mediation design, so the \
+                     completion identified set is one contrast; that contrast is the scalar \
+                     estimate and {interval}, beside the identified set"
+                ),
+            ));
+            (
+                contrast
+                    .effect
+                    .clone()
+                    .with_block_family(antecedent_estimate::CircularBlockFamily::Mediation),
+                Some(contrast),
+            )
+        } else {
+            if self.shared_horizons > 0 {
+                self.diagnostics.push(Diagnostic::new(
+                    "estimate.temporal_mediation.multi_horizon",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "all requested horizons are retained in mediation_grid; the scalar estimate \
+                     and scalar mediation fields are intentionally absent because no horizon is \
+                     authoritative",
+                ));
+            }
+            (nan_effect(), None)
+        }
+    }
+}
+
+/// One horizon's completion fit memos and shared-design bookkeeping.
+struct CpdagHorizonState {
+    /// Completions with one method, mediator, adjustment and status run one
+    /// fit at this horizon; every other input of a fit is fixed per horizon.
+    bayesian_fits: CompletionFitMemo<BayesianMediationFit, MediationFitKey>,
+    point_fits: CompletionFitMemo<TemporalMediationEstimate, MediationFitKey>,
+    refute_fits: CompletionFitMemo<Vec<antecedent_validate::RefutationReport>, MediationFitKey>,
+    /// Completions (frequentist or Bayesian) that all fit the same mediation
+    /// design (same estimand, same S(h)) estimate one contrast; that design is
+    /// kept for the class interval.
+    shared_design: Option<(IdentifiedEstimand, Arc<[antecedent_data::LaggedColumn]>)>,
+    shared_status: Option<IdentificationStatus>,
+    designs_agree: bool,
+    effects: Vec<f64>,
+    hit_cap: bool,
+    completion_count: usize,
+}
+
+impl CpdagHorizonState {
+    fn new(hit_cap: bool, completion_count: usize) -> Self {
+        Self {
+            bayesian_fits: CompletionFitMemo::default(),
+            point_fits: CompletionFitMemo::default(),
+            refute_fits: CompletionFitMemo::default(),
+            shared_design: None,
+            shared_status: None,
+            designs_agree: true,
+            effects: Vec::new(),
+            hit_cap,
+            completion_count,
+        }
+    }
+
+    fn bounds(&self) -> (f64, f64) {
+        let lower = self.effects.iter().copied().fold(f64::INFINITY, f64::min);
+        let upper = self.effects.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        (lower, upper)
+    }
+
+    fn every_completion_identified(&self) -> bool {
+        self.effects.len() == self.completion_count && !self.hit_cap
+    }
+}
+
+/// The unit-contrast effect query a class response identifies its completion
+/// envelope with at one horizon.
+fn class_horizon_witness(
+    query: &ResponseQuery,
+    temporal: &antecedent_core::TemporalResponseSpec,
+    (treatment, outcome): (VariableId, VariableId),
+    horizon: u32,
+) -> TemporalEffectQuery {
+    unit_contrast_query(temporal, (treatment, outcome), horizon, query.target_population.clone())
+}
+
+/// Graph key of the completion at `case_index` of the envelope identified at `horizon_index`.
+pub(super) const fn class_completion_key(horizon_index: usize, case_index: usize) -> u64 {
+    ((horizon_index as u64) << 32) | case_index as u64
+}
+
+/// A completion atom that carries only its mass and identification status.
+pub(super) fn bare_class_atom(
+    graph_key: u64,
+    weight: f64,
+    status: IdentificationStatus,
+) -> crate::result::StructuralResponseAtom {
+    crate::result::StructuralResponseAtom {
+        posterior: None,
+        response: None,
+        graph_key,
+        weight,
+        status,
+        value: None,
+    }
+}
+
+/// The unit-contrast (`do(x = 0)` against `do(x = 1)`) effect query a class response
+/// identifies its completion envelopes with at one horizon, under the response's temporal
+/// policy and history bound and with no effect modifiers.
+pub(super) fn unit_contrast_query(
+    temporal: &antecedent_core::TemporalResponseSpec,
+    (treatment, outcome): (VariableId, VariableId),
+    horizon: u32,
+    target_population: antecedent_core::TargetPopulation,
+) -> TemporalEffectQuery {
+    TemporalEffectQuery {
+        treatment,
+        outcome,
+        policy: temporal.policy.clone(),
+        control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
+        active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
+        horizon_steps: horizon,
+        max_history_lag: temporal.max_history_lag,
+        target_population,
+        effect_modifiers: std::sync::Arc::from([]),
+    }
+}
+
+/// The cached identification of every requested horizon, each required to be
+/// identified, in horizon order.
+fn identified_horizon_entries<'a>(
+    cache: &'a crate::analysis::prepared::CachedTemporalIdentification,
+    temporal: &antecedent_core::TemporalResponseSpec,
+) -> Result<Vec<&'a crate::analysis::prepared::CachedTemporalHorizonIdentification>, CausalError> {
+    let mut aligned = Vec::with_capacity(temporal.horizons.len());
+    for &horizon in temporal.horizons.iter() {
+        let entry = cache.get(horizon).ok_or_else(|| CausalError::Compile {
+            message: format!("temporal identification missing horizon {horizon}"),
+        })?;
+        require_identified(&entry.identification)?;
+        aligned.push(entry);
+    }
+    Ok(aligned)
+}
+
+/// The series, query, specification and unfold indexer a temporal derivative
+/// response is computed from.
+#[derive(Clone, Copy)]
+struct DerivativeResponseInputs<'a> {
+    data: &'a TimeSeriesData,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    indexer: &'a TemporalIndexer,
+    treatment: VariableId,
+    outcome: VariableId,
+}
+
+/// What the observation preparation of a temporal response reads.
+#[derive(Clone, Copy)]
+struct ResponseObservationInput<'a> {
+    data: &'a TimeSeriesData,
+    graph: &'a TemporalDag,
+    query: &'a ResponseQuery,
+    outcome: VariableId,
+    aligned: &'a [&'a crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    observed_bayes: bool,
+}
+
+/// The observation-adjusted series and working query of a temporal response;
+/// the series and adjustment are absent when the data is complete or the
+/// observation is modelled inside the Bayesian fit.
+struct ResponseObservation {
+    series: Option<TimeSeriesData>,
+    adjusted: Option<antecedent_estimate::ObservationAdjustedOutcome>,
+    working_query: ResponseQuery,
+}
+
+/// Everything the temporal response surface estimation reads.
+#[derive(Clone, Copy)]
+struct TemporalResponseEstimation<'a> {
+    data: &'a TimeSeriesData,
+    source_data: &'a TimeSeriesData,
+    graph: &'a TemporalDag,
+    query: &'a ResponseQuery,
+    working_query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    aligned: &'a [&'a crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    identifications: &'a [(&'a IdentifiedEstimand, &'a TemporalIndexer)],
+    status: IdentificationStatus,
+    assumptions: &'a antecedent_core::AssumptionSet,
+    observation_adjusted: Option<&'a antecedent_estimate::ObservationAdjustedOutcome>,
+    observed_bayes: bool,
+    treatment: VariableId,
+    outcome: VariableId,
+}
+
+/// A temporal response surface with the prior-conflict summary and observed
+/// posterior its estimation produced.
+struct EstimatedTemporalResponse {
+    response: CausalResponse,
+    conflict_summary: Option<antecedent_prob::ConflictSummary>,
+    observed_posterior: Option<antecedent_estimate::CausalPosterior>,
+}
+
+/// The diagnostics a temporal response result carries, in publication order.
+fn temporal_response_diagnostics(
+    aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+    response: &CausalResponse,
+    conflict_summary: Option<&antecedent_prob::ConflictSummary>,
+    identify_cached: bool,
+) -> Vec<Diagnostic> {
+    let scalar = super::response_path::response_scalar_summary(response).0;
+    let mut diagnostics = Vec::new();
+    for entry in aligned {
+        diagnostics.extend(entry.identification.diagnostics.iter().cloned());
+    }
+    if horizon_adjustment_sets_differ(aligned) {
+        diagnostics.push(Diagnostic::new(
+            "identify.temporal_response.horizon_dependent",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "adjustment sets differ across requested horizons; each cell uses I(h) \
+             identified for that horizon, not a shared max-horizon set",
+        ));
+    }
+    if identify_cached {
+        diagnostics.push(identify_cached_diagnostic());
+    }
+    if let Some(summary) = conflict_summary {
+        push_conflict_diagnostics(&mut diagnostics, summary);
+    }
+    diagnostics.push(Diagnostic::new(
+        "refute.temporal_response.skipped",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "scalar ATE refuters are not applicable to a function-valued temporal response",
+    ));
+    if !scalar.is_finite() {
+        diagnostics.push(Diagnostic::new(
+            "estimate.response.no_scalar_summary",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "this response is function-valued; the scalar effect summary is not applicable \
+             and the result is carried by the response payload",
+        ));
+    }
+    for warning in &response.support.warnings {
+        diagnostics.push(warning.clone());
+    }
+    diagnostics
+}
+
+/// The per-horizon surface of a Sequence response: pointwise means and bands,
+/// each horizon's identification record, and the posteriors kept for
+/// disclosure.
+struct SequenceHorizonSurface {
+    mean: Vec<f64>,
+    lower: Vec<f64>,
+    upper: Vec<f64>,
+    horizons: Vec<antecedent_core::HorizonIdentification>,
+    uncertainty_complete: bool,
+    last_posterior: Option<CausalPosterior>,
+    /// Every horizon's posterior notes are kept (not just the scalar artifact's),
+    /// so a `tempering_capped` / `tempering_inestimable` disclosure raised at an
+    /// earlier horizon still reaches the result even when only the last horizon's
+    /// posterior is attached as the scalar summary.
+    horizon_posteriors: Vec<CausalPosterior>,
+    bootstrap_cancelled: bool,
+}
+
+/// What a Sequence response is finished from once its band is final.
+struct SequenceFinish {
+    response: CausalResponse,
+    horizon_posteriors: Vec<CausalPosterior>,
+    last_posterior: Option<CausalPosterior>,
+    bootstrap_cancelled: bool,
+    attach_scalar_posterior: bool,
+}
+
+/// Fits the sequential mechanisms at every requested horizon and collects the
+/// pointwise surface (Wald bounds, or posterior quantiles under Bayesian
+/// inference).
+fn estimate_sequence_horizons(
+    inputs: &SequenceResponseInputs<'_>,
+    outcome: VariableId,
+    bayes: Option<&BayesianGComputationAte>,
+    assumptions: &antecedent_core::AssumptionSet,
+    ctx: &ExecutionContext,
+) -> Result<SequenceHorizonSurface, CausalError> {
+    let SequenceResponseInputs { data, graph, temporal, overlays, aligned, .. } = *inputs;
+    let horizon_count = temporal.horizons.len();
+    let mut surface = SequenceHorizonSurface {
+        mean: Vec::with_capacity(horizon_count),
+        lower: Vec::with_capacity(horizon_count),
+        upper: Vec::with_capacity(horizon_count),
+        horizons: Vec::with_capacity(horizon_count),
+        uncertainty_complete: true,
+        last_posterior: None,
+        horizon_posteriors: Vec::with_capacity(horizon_count),
+        bootstrap_cancelled: false,
+    };
+    let attach_scalar_posterior = horizon_count == 1;
+    let z = antecedent_stats::NORMAL_Q975;
+    for (horizon_steps, entry) in temporal.horizons.iter().copied().zip(aligned.iter()) {
+        require_identified(&entry.identification)?;
+        let outcome_offset = i32::try_from(horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX);
+        let (effect, posterior) = antecedent_estimate::estimate_sequence_mechanisms(
+            &antecedent_estimate::SequentialProblem {
+                data,
+                graph,
+                indexer: &entry.indexer,
+                estimand: &entry.estimand,
+            },
+            &antecedent_estimate::SequenceTarget { outcome, outcome_offset, overlays },
+            antecedent_estimate::SequentialInference { status: entry.identification.status, assumptions: assumptions.clone(), bootstrap_replicates: // Frequentist bands: the joint tuple bootstrap below.
+            0, bayesian: bayes },
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+        surface.bootstrap_cancelled |= effect.uncertainty.bootstrap.cancelled;
+        let (point, lo, hi) = if let Some(post) = posterior.as_ref() {
+            (post.summaries.mean[0], post.summaries.q025[0], post.summaries.q975[0])
+        } else {
+            let se = effect.se_bootstrap().unwrap_or(effect.se_analytic());
+            (effect.ate, effect.ate - z * se, effect.ate + z * se)
+        };
+        if let Some(post) = posterior.as_ref() {
+            surface.horizon_posteriors.push(post.clone());
+        }
+        if attach_scalar_posterior {
+            surface.last_posterior = posterior;
+        }
+        surface.mean.push(point);
+        surface.uncertainty_complete &= lo.is_finite() && hi.is_finite();
+        surface.lower.push(lo);
+        surface.upper.push(hi);
+        surface.horizons.push(antecedent_core::HorizonIdentification {
+            horizon: horizon_steps,
+            status: entry.identification.status,
+            method: Arc::clone(&entry.estimand.method),
+            adjustment: Arc::from(named_adjustment_keys(entry)),
+        });
+    }
+    Ok(surface)
+}
+
+/// The support report of a Sequence overlay response: extrapolative by
+/// construction, with the overlays recorded and the band disclosures attached.
+fn sequence_overlay_support(
+    overlays: &[antecedent_estimate::SequentialMechanismOverlay],
+    temporal: &antecedent_core::TemporalResponseSpec,
+    uncertainty_complete: bool,
+) -> antecedent_core::SupportReport {
+    let first_horizon = f64::from(temporal.horizons.first().copied().unwrap_or(1));
+    let last_horizon = f64::from(temporal.horizons.last().copied().unwrap_or(1));
+    let mut support = antecedent_core::SupportReport {
+        // Joint longitudinal support is not established by univariate
+        // ranges. Until a sequential-positivity diagnostic exists, do not
+        // label an arbitrary overlay schedule empirically supported.
+        status: antecedent_core::SupportStatus::Extrapolative,
+        query_region: antecedent_core::SupportRegion {
+            minima: Arc::from([first_horizon]),
+            maxima: Arc::from([last_horizon]),
+        },
+        diagnostics: vec![antecedent_core::SupportDiagnostic {
+            id: Arc::from("response.temporal.sequence_overlay"),
+            values: Arc::from(
+                overlays
+                    .iter()
+                    .flat_map(|overlay| {
+                        [
+                            f64::from(overlay.node.variable.raw()),
+                            f64::from(overlay.node.offset),
+                            if overlay.node.level.is_some() { 1.0 } else { 0.0 },
+                            overlay.node.level.unwrap_or(0.0),
+                            overlay.node.shift,
+                            overlay.multiplier,
+                            if overlay.bounds.is_some() { 1.0 } else { 0.0 },
+                            overlay.bounds.map_or(0.0, |bounds| bounds.0),
+                            overlay.bounds.map_or(0.0, |bounds| bounds.1),
+                        ]
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            detail: Arc::from(
+                "sequential Sequence overlays as \
+                 [variable, offset, is_fixed_level, level_or_zero, shift, multiplier, \
+                 has_bounds, lower_or_zero, upper_or_zero, …]; \
+                 transforms apply to deterministic propagated means, not stochastic draws",
+            ),
+            scope: antecedent_core::DiagnosticScope::Global,
+        }],
+        warnings: vec![Diagnostic::new(
+            "response.temporal.sequence_joint_support_unassessed",
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            "joint longitudinal positivity for the requested Sequence overlay is not \
+             estimated; support is conservatively marked extrapolative",
+        )],
+        point_status: Some(Arc::from(vec![
+            antecedent_core::SupportStatus::Extrapolative;
+            temporal.horizons.len()
+        ])),
+    };
+    antecedent_estimate::publish_simultaneous_band(
+        &mut support,
+        Err(antecedent_estimate::EstimationError::unsupported(
+            "Sequence overlays publish a simultaneous band only from the Frequentist joint \
+             tuple bootstrap (request bootstrap replicates); Bayesian Sequence overlays are \
+             sampled one horizon at a time, so there is no joint draw surface",
+        )),
+        "",
+    );
+    if !uncertainty_complete {
+        support.warnings.push(Diagnostic::new(
+            "response.temporal.sequence_uncertainty_unavailable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "a complete pointwise Sequence band was unavailable; uncertainty is omitted \
+             rather than represented by non-finite endpoints",
+        ));
+    }
+    support
+}
+
+/// The series, query and context every completion of a class temporal
+/// response sweep is fitted with.
+#[derive(Clone, Copy)]
+struct ClassResponseSweep<'a> {
+    data: &'a TimeSeriesData,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    treatment: VariableId,
+    outcome: VariableId,
+    ctx: &'a ExecutionContext,
+}
+
+/// The completion of a class temporal response sweep being fitted: its
+/// position, class weight, identification case and unfold indexer.
+#[derive(Clone, Copy)]
+struct ClassResponseSite<'a> {
+    horizon_index: usize,
+    horizon: u32,
+    case_index: usize,
+    weight: f64,
+    case: &'a antecedent_identify::GraphIdentificationCase<
+        antecedent_identify::TemporalCompletionGraph,
+    >,
+    indexer: &'a TemporalIndexer,
+    envelope: &'a Arc<antecedent_identify::TemporalClassEnvelope>,
+}
+
+/// Accumulators of a class temporal response sweep: the assembly the atoms
+/// join and the first completion's identification products.
+struct ClassResponseRun {
+    assembly: ClassResponseAssembly,
+    primary_estimand: Option<IdentifiedEstimand>,
+    primary_identification: Option<IdentificationResult>,
+    primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    assumptions: antecedent_core::AssumptionSet,
+    diagnostics: Vec<Diagnostic>,
+    observation_atoms: Vec<ClassObservationAtom>,
+}
+
+/// Completions given the same estimand, indexer, status and assumptions run
+/// one fit at a horizon; every other fit input is fixed per horizon.
+#[derive(Default)]
+struct ClassResponseHorizonFits {
+    bayesian: CompletionFitMemo<BayesianResponseFit, ResponseFitKey>,
+    frequentist: CompletionFitMemo<CausalResponse, ResponseFitKey>,
+}
+
+impl ClassSequenceRun {
+    fn new() -> Self {
+        Self {
+            lower: Vec::new(),
+            upper: Vec::new(),
+            structural_atoms: Vec::new(),
+            primary_estimand: None,
+            primary_identification: None,
+            primary_envelope: None,
+            assumptions: antecedent_core::AssumptionSet::new(),
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            horizon_fingerprints: Vec::new(),
+            observation_atoms: Vec::new(),
+            diagnostics: vec![Diagnostic::new(
+                "estimate.temporal.sequence_overlay",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "class-aware Sequence runs per directed completion; a joint-coordinate miss \
+                 unidentifies that completion, not the class; no last-step collapse",
+            )],
+        }
+    }
+}
+
+/// What the observation circular-block band of a class response reads.
+#[derive(Clone, Copy)]
+struct ClassBandRequest<'a> {
+    data: &'a TimeSeriesData,
+    query: &'a ResponseQuery,
+    atoms: &'a [ClassObservationAtom],
+    cells_per_horizon: usize,
+    n_horizons: usize,
+    full_mass_scope: bool,
+    unidentified_mass: f64,
+    unevaluable_mass: f64,
+    ctx: &'a ExecutionContext,
+}
+
+/// The series, query, overlays and Bayesian composition every directed
+/// completion of a class Sequence sweep is estimated with.
+#[derive(Clone, Copy)]
+struct ClassSequenceSweep<'a> {
+    data: &'a TimeSeriesData,
+    query: &'a ResponseQuery,
+    temporal: &'a antecedent_core::TemporalResponseSpec,
+    overlays: &'a [antecedent_estimate::SequentialMechanismOverlay],
+    bayes: Option<&'a BayesianGComputationAte>,
+    treatment: VariableId,
+    outcome: VariableId,
+    ctx: &'a ExecutionContext,
+}
+
+/// Accumulators of a class Sequence sweep: per-horizon envelope bounds, the
+/// structural atoms and the first completion's identification products.
+struct ClassSequenceRun {
+    lower: Vec<f64>,
+    upper: Vec<f64>,
+    structural_atoms: Vec<crate::result::StructuralResponseAtom>,
+    primary_estimand: Option<IdentifiedEstimand>,
+    primary_identification: Option<IdentificationResult>,
+    primary_envelope: Option<Arc<antecedent_identify::TemporalClassEnvelope>>,
+    assumptions: antecedent_core::AssumptionSet,
+    full_mass_scope: bool,
+    truncated_atoms: usize,
+    horizon_fingerprints: Vec<Vec<u64>>,
+    observation_atoms: Vec<ClassObservationAtom>,
+    diagnostics: Vec<Diagnostic>,
+}
+
+/// The series, query, Bayesian configuration and context a class Bayesian
+/// temporal effect fits and refutes with.
+#[derive(Clone, Copy)]
+struct ClassBayesianInputs<'a> {
+    data: &'a TimeSeriesData,
+    query: &'a TemporalEffectQuery,
+    cfg: &'a BayesianConfig,
+    ctx: &'a ExecutionContext,
+}
+
+/// One identified completion to fit: its fingerprint, estimand, status,
+/// unfold indexer and class weight.
+type ClassBayesianFitAtom = (u64, IdentifiedEstimand, IdentificationStatus, TemporalIndexer, f64);
+
+/// Per-completion weights, identification flags and fingerprints of a class
+/// envelope, with the completions to fit and the first estimand.
+struct ClassBayesianPlan {
+    weights: Vec<f64>,
+    flags: Vec<GraphIdentFlag>,
+    keys: Vec<u64>,
+    fit_atoms: Vec<ClassBayesianFitAtom>,
+    primary_estimand: Option<IdentifiedEstimand>,
+}
+
+/// The fitted completion atoms of a class Bayesian temporal effect with the
+/// seeds, effect draws and means they were fitted under.
+struct ClassBayesianFits {
+    atoms: Vec<EnvelopeAtomFit>,
+    atom_seeds: Vec<u64>,
+    per_graph: Vec<GraphEffectDraws>,
+    atom_means: Vec<f64>,
+    envelope_conflict: Option<antecedent_prob::ConflictSummary>,
+    /// The Bayesian g-computation estimator the atoms were fitted with; each
+    /// refutation replaces its prior and seed.
+    estimator: BayesianGComputationAte,
+}
+
+/// Classifies each completion of a class envelope: its weight (the class
+/// prior's mass when supplied), whether it is identified, and which to fit.
+fn plan_class_bayesian_atoms(
+    bundle_envelope: &antecedent_identify::TemporalClassEnvelope,
+    class_masses: Option<&[f64]>,
+) -> Result<ClassBayesianPlan, CausalError> {
+    let mut plan = ClassBayesianPlan {
+        weights: Vec::new(),
+        flags: Vec::new(),
+        keys: Vec::new(),
+        fit_atoms: Vec::new(),
+        primary_estimand: None,
+    };
+    for (i, (case, indexer)) in
+        bundle_envelope.envelope.cases.iter().zip(bundle_envelope.indexers.iter()).enumerate()
+    {
+        let key = case.graph.fingerprint();
+        plan.keys.push(key);
+        let weight = class_masses.map_or(case.weight.0, |masses| masses[i]);
+        plan.weights.push(weight);
+        if !identification_status_ok_for_case(case.result.status)
+            || case.result.estimands.is_empty()
+        {
+            plan.flags.push(GraphIdentFlag::Unidentified);
+            continue;
+        }
+        let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+        plan.primary_estimand.get_or_insert_with(|| estimand.clone());
+        plan.flags.push(GraphIdentFlag::Identified);
+        plan.fit_atoms.push((key, estimand, case.result.status, indexer.clone(), weight));
+    }
+    Ok(plan)
+}
+
+/// The composed Bayesian mediation posterior of one class completion, with the
+/// prior-conflict summaries its mechanism fits resolved, served from `fits`
+/// when an earlier completion (or the shared-design recompute) of the same
+/// horizon fitted the same method, mediator, adjustment and status.
+#[inline(never)]
+fn fit_class_bayesian_mediation(
+    fits: &mut CompletionFitMemo<BayesianMediationFit, MediationFitKey>,
+    cfg: &BayesianConfig,
+    input: ClassMediationInput<'_>,
+    horizon: u32,
+    ctx: &ExecutionContext,
+) -> Result<BayesianMediationFit, CausalError> {
+    let ClassMediationInput { data, estimand, query, adjustment, status } = input;
+    let key = MediationFitKey::new(estimand, adjustment, status);
+    if let Some(hit) = fits.get(&key) {
+        return Ok(hit.clone());
+    }
+    let bayes = bayesian_gcomp(cfg, ctx);
+    let preparations =
+        antecedent_estimate::bayesian_mediation::prepare_temporal_mediation_adjusted(
+            data, estimand, query, adjustment, ctx,
+        )
+        .map_err(CausalError::from)?;
+    let mut conflicts = Vec::new();
+    let mut mechanisms = Vec::with_capacity(preparations.len());
+    for (index, prep) in preparations.iter().enumerate() {
+        let mut mechanism = bayes.clone();
+        mechanism.seed = mediation_mechanism_seed(mechanism.seed, horizon, index);
+        let (prior, conflict) = resolve_envelope_prior_anchor(cfg, prep, ctx)?;
+        conflicts.extend(conflict);
+        mechanism.prior = prior;
+        mechanisms.push(
+            mechanism
+                .fit(prep, status, &mut BayesianGCompWorkspace::default(), ctx)
+                .map_err(CausalError::from)?,
+        );
+    }
+    let composed = antecedent_estimate::bayesian_mediation::compose_temporal_mediation(
+        &mechanisms[0],
+        &mechanisms[1],
+        query,
+        status,
+    )
+    .map_err(CausalError::from)?;
+    let fitted = (composed, conflicts);
+    fits.insert(key, fitted.clone());
+    Ok(fitted)
+}
+
+/// The point mediation estimate of one class completion, served from `fits`
+/// when an earlier completion of the horizon fitted the same method, mediator
+/// and adjustment.
+#[inline(never)]
+fn fit_class_frequentist_mediation(
+    fits: &mut CompletionFitMemo<antecedent_estimate::TemporalMediationEstimate, MediationFitKey>,
+    estimator: &TemporalMediationEstimator,
+    input: ClassMediationInput<'_>,
+    ctx: &ExecutionContext,
+) -> Result<antecedent_estimate::TemporalMediationEstimate, CausalError> {
+    let ClassMediationInput { data, estimand, query, adjustment, status } = input;
+    let key = MediationFitKey::new(estimand, adjustment, status);
+    if let Some(hit) = fits.get(&key) {
+        return Ok(hit.clone());
+    }
+    let estimate = estimator
+        .estimate_with_adjustment(data, estimand, query, adjustment, &[], ctx)
+        .map_err(CausalError::from)?;
+    fits.insert(key, estimate.clone());
+    Ok(estimate)
+}
+
+/// The refutation reports of one class completion's mediation estimate, served
+/// from `fits` under the key of the estimate they check. The reports read the
+/// estimand only through its mediator and the estimator's method check.
+#[inline(never)]
+fn refute_class_mediation(
+    fits: &mut CompletionFitMemo<Vec<antecedent_validate::RefutationReport>, MediationFitKey>,
+    input: ClassMediationInput<'_>,
+    estimate: &antecedent_estimate::TemporalMediationEstimate,
+    full: bool,
+    ctx: &ExecutionContext,
+) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
+    let ClassMediationInput { data, estimand, query, adjustment, status } = input;
+    let key = MediationFitKey::new(estimand, adjustment, status);
+    if let Some(hit) = fits.get(&key) {
+        return Ok(hit.clone());
+    }
+    let reports = antecedent_validate::mediation::refute_temporal_mediation_adjusted(
+        data, estimand, query, estimate, full, adjustment, ctx,
+    )
+    .map_err(CausalError::from)?;
+    fits.insert(key, reports.clone());
+    Ok(reports)
+}
+
+type BayesianResponseFit = (CausalResponse, Option<antecedent_prob::ConflictSummary>);
+
+/// One class completion's Bayesian temporal response and the prior-conflict
+/// summary its prior resolution produced, served from `fits` when an earlier
+/// completion of the horizon was given the same fit inputs.
+#[inline(never)]
+fn fit_class_bayesian_response(
+    fits: &mut CompletionFitMemo<BayesianResponseFit, ResponseFitKey>,
+    cfg: &BayesianConfig,
+    input: ClassResponseInput<'_>,
+    horizon: u32,
+    identification: &IdentificationResult,
+    (treatment, outcome): (VariableId, VariableId),
+    ctx: &ExecutionContext,
+) -> Result<BayesianResponseFit, CausalError> {
+    let ClassResponseInput { series, query, estimand, indexer } = input;
+    let status = identification.status;
+    let assumptions = &identification.required_assumptions;
+    let key = ResponseFitKey::new(estimand, indexer, status, assumptions);
+    if let Some(hit) = fits.get(&key) {
+        return Ok(hit.clone());
+    }
+    let mut bayes = bayesian_gcomp(cfg, ctx);
+    let entry = crate::analysis::prepared::CachedTemporalHorizonIdentification {
+        horizon,
+        identification: identification.clone(),
+        estimand: estimand.clone(),
+        indexer: indexer.clone(),
+    };
+    let (prior, conflict) = resolve_temporal_response_prior(
+        cfg,
+        series,
+        query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
+            message: "class temporal response query carries no temporal spec".into(),
+        })?,
+        &[&entry],
+        treatment,
+        outcome,
+        ctx,
+    )?;
+    bayes.prior = prior;
+    let response = TemporalResponseEstimator::new()
+        .estimate_bayesian(
+            series,
+            antecedent_estimate::TemporalIdentification {
+                horizons: &[(estimand, indexer)],
+                status,
+                assumptions: assumptions.clone(),
+            },
+            query,
+            &bayes,
+            ctx,
+        )
+        .map_err(CausalError::from)?;
+    let fitted = (response, conflict);
+    fits.insert(key, fitted.clone());
+    Ok(fitted)
+}
+
+/// One class completion's frequentist temporal response, served from `fits`
+/// (when the caller supplies a memo) under the same condition.
+#[inline(never)]
+fn fit_class_frequentist_response(
+    fits: Option<&mut CompletionFitMemo<CausalResponse, ResponseFitKey>>,
+    estimator: &TemporalResponseEstimator,
+    input: ClassResponseInput<'_>,
+    status: IdentificationStatus,
+    assumptions: &antecedent_core::AssumptionSet,
+    ctx: &ExecutionContext,
+) -> Result<CausalResponse, CausalError> {
+    let ClassResponseInput { series, query, estimand, indexer } = input;
+    let key = ResponseFitKey::new(estimand, indexer, status, assumptions);
+    if let Some(hit) = fits.as_deref().and_then(|memo| memo.get(&key)) {
+        return Ok(hit.clone());
+    }
+    let response = estimator
+        .estimate(series, &[(estimand, indexer)], query, status, assumptions.clone(), ctx)
+        .map_err(CausalError::from)?;
+    if let Some(memo) = fits {
+        memo.insert(key, response.clone());
+    }
+    Ok(response)
 }

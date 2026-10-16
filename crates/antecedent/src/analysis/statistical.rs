@@ -4,11 +4,14 @@
 
 use super::exact::{ExactFactorRequirement, ExactStudyIdentities};
 use super::{PreparedStudy, StudyBuilder};
+use antecedent_contract::{
+    AssumptionSlot, IdentificationSlot, ObligationKind, ObligationRecord, ObligationScope,
+    ReasoningView, SlotAvailability, SupportSlot, UncertaintyComponent, UncertaintySlot,
+    UncertaintySource,
+};
 use antecedent_core::{
-    AssumptionSlot, AssumptionSource, AssumptionStatus, ExecutionContext, IdentificationSlot,
-    IdentificationStatus, IdentityDomain, NodeRef, ObligationKind, ObligationRecord,
-    ObligationScope, ReasoningView, SlotAvailability, SupportSlot, TheoremScope,
-    UncertaintyComponent, UncertaintySlot, UncertaintySource, VariableId,
+    AssumptionSource, AssumptionStatus, ExecutionContext, IdentificationStatus, IdentityDomain,
+    NodeRef, TheoremScope, VariableId,
 };
 use antecedent_estimate::{
     EmpiricalTableOptions, INTERVAL_NUMERICAL_FAILURE, ReplicatePolicy,
@@ -31,12 +34,69 @@ use std::sync::Arc;
 use crate::result::PERCENTILE_95_MIN_REPLICATES;
 
 use super::transport_common::{
-    GraphFields, digest, err, estimate_err, rebind_snapshots, rebuild_checked_proof,
+    GraphFields, PERCENTILE_FLOOR, apply_posterior_draw_floor, assignments, digest, err,
+    estimate_err, law_wires, rebind_snapshots, rebuild_checked_proof, requirements,
+    sort_axis_values,
 };
 
-/// The facade's licensing floor for a nominal-0.95 pointwise percentile edge.
-const PERCENTILE_FLOOR: ReplicatePolicy =
-    ReplicatePolicy::percentile_floor(PERCENTILE_95_MIN_REPLICATES);
+/// Why a statistical transport estimate carries no (or no licensed) uncertainty interval.
+///
+/// The wire spelling of each reason is what artifacts and reasoning slots carry; this names
+/// the closed set so a comparison against a wire string cannot drift from the producer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IntervalWithholdReason {
+    /// No interval was computed for this estimate.
+    UncertaintyUnavailable,
+    /// Fewer replicates than the facade's licensing floor.
+    InsufficientBootstrapReplicates,
+    /// The declared bootstrap exceeded its failure budget.
+    BootstrapFailureFraction,
+    /// A replicate failed numerically.
+    NumericalFailure,
+    /// The evidence's dependence structure licenses no resampling.
+    UnsupportedDependence,
+    /// The catalog binds no estimated regime to resample.
+    NoEstimatedRegime,
+    /// No bootstrap was requested.
+    BootstrapNotRequested,
+    /// Supplied laws only: there is no sample to bound.
+    ExactSuppliedLaw,
+}
+
+impl IntervalWithholdReason {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::UncertaintyUnavailable => "uncertainty_unavailable",
+            Self::InsufficientBootstrapReplicates => "insufficient_bootstrap_replicates",
+            Self::BootstrapFailureFraction => "bootstrap_failure_fraction",
+            Self::NumericalFailure => INTERVAL_NUMERICAL_FAILURE,
+            Self::UnsupportedDependence => "transport.unsupported_dependence",
+            Self::NoEstimatedRegime => "no_estimated_regime",
+            Self::BootstrapNotRequested => "bootstrap_not_requested",
+            Self::ExactSuppliedLaw => "exact_supplied_law_no_sampling_uncertainty",
+        }
+    }
+
+    fn parse(wire: &str) -> Option<Self> {
+        [
+            Self::UncertaintyUnavailable,
+            Self::InsufficientBootstrapReplicates,
+            Self::BootstrapFailureFraction,
+            Self::NumericalFailure,
+            Self::UnsupportedDependence,
+            Self::NoEstimatedRegime,
+            Self::BootstrapNotRequested,
+            Self::ExactSuppliedLaw,
+        ]
+        .into_iter()
+        .find(|reason| reason.as_str() == wire)
+    }
+
+    /// Whether `wire` is exactly this reason.
+    fn is(self, wire: Option<&str>) -> bool {
+        wire == Some(self.as_str())
+    }
+}
 
 fn is_bayesian_provider(estimator: antecedent_estimate::EmpiricalTableEstimator) -> bool {
     matches!(
@@ -60,23 +120,6 @@ fn bayesian_provider(
     }
 }
 
-fn apply_posterior_draw_floor(
-    estimate: &mut antecedent_estimate::BayesianStatisticalTransportEstimate,
-) {
-    if estimate.interval_reason.as_deref()
-        != Some(antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED)
-    {
-        return;
-    }
-    if let Err(reason) =
-        PERCENTILE_FLOOR.decide(estimate.draws_requested, estimate.draws_ok, estimate.draws_failed)
-    {
-        estimate.atom_intervals = Arc::from([]);
-        estimate.mean_intervals = Arc::from([]);
-        estimate.interval_reason = Some(Arc::from(reason));
-    }
-}
-
 fn bayesian_uncertainty_slot(
     requested: u32,
     dependence: Option<&str>,
@@ -92,14 +135,18 @@ fn bayesian_uncertainty_slot(
                 )]))
             }
             Some(reason) => SlotAvailability::unavailable(reason),
-            None => SlotAvailability::unavailable("uncertainty_unavailable"),
+            None => SlotAvailability::unavailable(
+                IntervalWithholdReason::UncertaintyUnavailable.as_str(),
+            ),
         };
     }
     if let Some(reason) = dependence {
         return SlotAvailability::unavailable(reason);
     }
     if requested < PERCENTILE_95_MIN_REPLICATES {
-        SlotAvailability::unavailable("insufficient_bootstrap_replicates")
+        SlotAvailability::unavailable(
+            IntervalWithholdReason::InsufficientBootstrapReplicates.as_str(),
+        )
     } else {
         SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
             UncertaintySource::Sampling,
@@ -190,7 +237,7 @@ impl StatisticalStudyResult {
             coverage_target: None,
             replicates_ok: 0,
             replicates_failed: 0,
-            reason: Some("uncertainty_unavailable"),
+            reason: Some(IntervalWithholdReason::UncertaintyUnavailable.as_str()),
         };
         // A point's own `uncertainty_reason` also covers the facade's licensing floor
         // (`insufficient_bootstrap_replicates`), which withholds only that point's
@@ -362,6 +409,18 @@ impl StudyBuilder {
     }
 }
 
+/// The premises one statistical preparation is built from, apart from the context.
+pub(super) struct StatisticalPremises {
+    pub(super) diagram: SelectionDiagram,
+    pub(super) functional: BoundTransportFunctional,
+    pub(super) input: Arc<StatisticalTransportInput>,
+    pub(super) data: ExactTransportData,
+    pub(super) samples: Vec<SampleSummary>,
+    pub(super) request: Assignment,
+    pub(super) limits: ExactEvaluationLimits,
+    pub(super) options: EmpiricalTableOptions,
+}
+
 impl PreparedStudy<StatisticalPreparedState> {
     fn build(
         diagram: SelectionDiagram,
@@ -387,35 +446,50 @@ impl PreparedStudy<StatisticalPreparedState> {
         let samples =
             input.samples.iter().map(SampleSummary::from_sample).collect::<Result<Vec<_>, _>>()?;
         Self::build_fitted(
-            diagram, functional, input, data, samples, request, limits, options, ctx, false,
+            StatisticalPremises {
+                diagram,
+                functional,
+                input: Arc::new(input),
+                data,
+                samples,
+                request,
+                limits,
+                options,
+            },
+            ctx,
+            false,
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn build_fitted(
-        diagram: SelectionDiagram,
-        functional: BoundTransportFunctional,
-        input: StatisticalTransportInput,
-        data: ExactTransportData,
-        samples: Vec<SampleSummary>,
-        request: Assignment,
-        limits: ExactEvaluationLimits,
-        options: EmpiricalTableOptions,
+        premises: StatisticalPremises,
         ctx: &ExecutionContext,
         loaded_only: bool,
     ) -> Result<Self, IoError> {
-        antecedent_estimate::empirical_table::validate_options(&options).map_err(estimate_err)?;
-        let invariants = StudyInvariants::compute(&functional, &data, &samples)?;
-        Self::from_invariants(
-            &invariants,
+        let StatisticalPremises {
             diagram,
             functional,
-            Arc::new(input),
+            input,
             data,
             samples,
             request,
             limits,
             options,
+        } = premises;
+        antecedent_estimate::empirical_table::validate_options(&options).map_err(estimate_err)?;
+        let invariants = StudyInvariants::compute(&functional, &data, &samples)?;
+        Self::from_invariants(
+            &invariants,
+            StatisticalPremises {
+                diagram,
+                functional,
+                input,
+                data,
+                samples,
+                request,
+                limits,
+                options,
+            },
             ctx,
             loaded_only,
         )
@@ -423,20 +497,22 @@ impl PreparedStudy<StatisticalPreparedState> {
 
     /// Build one request's prepared state from the identity layers that do not
     /// depend on the request.
-    #[allow(clippy::too_many_arguments)]
     fn from_invariants(
         invariants: &StudyInvariants,
-        diagram: SelectionDiagram,
-        functional: BoundTransportFunctional,
-        input: Arc<StatisticalTransportInput>,
-        data: ExactTransportData,
-        samples: Vec<SampleSummary>,
-        request: Assignment,
-        limits: ExactEvaluationLimits,
-        options: EmpiricalTableOptions,
+        premises: StatisticalPremises,
         ctx: &ExecutionContext,
         loaded_only: bool,
     ) -> Result<Self, IoError> {
+        let StatisticalPremises {
+            diagram,
+            functional,
+            input,
+            data,
+            samples,
+            request,
+            limits,
+            options,
+        } = premises;
         // Coverage, assignments, binding snapshots and allocation limits are checked at preparation.
         antecedent_estimate::prepare_exact_transport(
             &functional,
@@ -453,7 +529,7 @@ impl PreparedStudy<StatisticalPreparedState> {
                 &proof.proof.outcomes,
                 &proof.proof.treatments,
                 &proof.proof.target,
-                statistical_assignments(&request),
+                assignments(&request),
             ),
         )?;
         // The interval method and the draw count are inferential commitments:
@@ -532,7 +608,7 @@ impl PreparedStudy<StatisticalPreparedState> {
 
     fn with_grid(mut self, grid: Vec<Vec<(u32, ValueWire)>>) -> Result<Self, IoError> {
         if !grid.is_empty() {
-            if !grid.contains(&statistical_assignments(&self.state.request)) {
+            if !grid.contains(&assignments(&self.state.request)) {
                 return Err(err("grid omits the retained target"));
             }
             self.state.identities.inference_binding = digest(
@@ -613,7 +689,8 @@ impl PreparedStudy<StatisticalPreparedState> {
         estimate.atom_intervals = None;
         estimate.mean_intervals = None;
         if estimate.uncertainty_reason.is_none() {
-            estimate.uncertainty_reason = Some(Arc::from("insufficient_bootstrap_replicates"));
+            estimate.uncertainty_reason =
+                Some(Arc::from(IntervalWithholdReason::InsufficientBootstrapReplicates.as_str()));
         }
     }
 
@@ -629,7 +706,7 @@ impl PreparedStudy<StatisticalPreparedState> {
         StatisticalStudyInspection {
             identities: self.state.identities.clone(),
             formula: self.state.functional.arena().pretty(self.state.functional.root()),
-            factors: statistical_requirements(&self.state.functional),
+            factors: requirements(&self.state.functional),
             bindings: statistical_bindings(&self.state.input, &self.state.data),
             reasoning: self.reasoning(false, None, None),
             theorem_scope: if matches!(
@@ -669,35 +746,41 @@ impl PreparedStudy<StatisticalPreparedState> {
                 Some(est) if est.uncertainty.is_some() && est.uncertainty_reason.is_none() => {
                     SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
                         UncertaintySource::Sampling,
-                        "percentile_bootstrap",
+                        antecedent_estimate::PERCENTILE_BOOTSTRAP,
                         false,
                     )]))
                 }
                 Some(est) => SlotAvailability::unavailable(
-                    est.uncertainty_reason.as_deref().unwrap_or("uncertainty_unavailable"),
+                    est.uncertainty_reason
+                        .as_deref()
+                        .unwrap_or(IntervalWithholdReason::UncertaintyUnavailable.as_str()),
                 ),
                 None if self.licensed_interval() => {
                     SlotAvailability::Available(UncertaintySlot::new([UncertaintyComponent::new(
                         UncertaintySource::Sampling,
-                        "percentile_bootstrap",
+                        antecedent_estimate::PERCENTILE_BOOTSTRAP,
                         false,
                     )]))
                 }
                 None if self.state.input.samples.is_empty() => {
-                    SlotAvailability::unavailable("exact_supplied_law_no_sampling_uncertainty")
+                    SlotAvailability::unavailable(IntervalWithholdReason::ExactSuppliedLaw.as_str())
                 }
                 None if self.state.options.bootstrap_replicates == 0 => {
-                    SlotAvailability::unavailable("bootstrap_not_requested")
+                    SlotAvailability::unavailable(
+                        IntervalWithholdReason::BootstrapNotRequested.as_str(),
+                    )
                 }
                 None if self.state.options.bootstrap_replicates < PERCENTILE_95_MIN_REPLICATES => {
-                    SlotAvailability::unavailable("insufficient_bootstrap_replicates")
+                    SlotAvailability::unavailable(
+                        IntervalWithholdReason::InsufficientBootstrapReplicates.as_str(),
+                    )
                 }
                 None => SlotAvailability::unavailable(
                     antecedent_estimate::dependence_refusal(
                         self.state.functional.catalog(),
                         &self.state.input.samples,
                     )
-                    .unwrap_or("transport.unsupported_dependence"),
+                    .unwrap_or(IntervalWithholdReason::UnsupportedDependence.as_str()),
                 ),
             }
         };
@@ -836,7 +919,7 @@ impl PreparedStudy<StatisticalPreparedState> {
             self.state
                 .grid
                 .iter()
-                .position(|request| *request == statistical_assignments(&self.state.request))
+                .position(|request| *request == assignments(&self.state.request))
                 .ok_or_else(|| err("retained target missing from grid"))?
         };
         let mut estimate = antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
@@ -906,8 +989,10 @@ impl PreparedStudy<StatisticalPreparedState> {
                 self.state.limits,
                 &point_options,
                 &frozen_ctx,
-                &self.state.data,
-                distributions,
+                antecedent_estimate::statistical_transport::EvaluatedPointLaws {
+                    point_laws: &self.state.data,
+                    distributions,
+                },
             ),
             None => antecedent_estimate::statistical_transport::evaluate_statistical_transport_grid_with_point_laws(
                 &self.state.functional,
@@ -926,7 +1011,7 @@ impl PreparedStudy<StatisticalPreparedState> {
             &self.state.data,
             &self.state.samples,
         )?;
-        let grid: Vec<_> = requests.iter().map(statistical_assignments).collect();
+        let grid: Vec<_> = requests.iter().map(assignments).collect();
         requests
             .iter()
             .zip(estimates)
@@ -934,14 +1019,16 @@ impl PreparedStudy<StatisticalPreparedState> {
             .map(|(index, (request, mut estimate))| {
                 let prepared = Self::from_invariants(
                     &invariants,
-                    self.state.diagram.clone(),
-                    self.state.functional.clone(),
-                    Arc::clone(&self.state.input),
-                    self.state.data.clone(),
-                    self.state.samples.clone(),
-                    request.clone(),
-                    self.state.limits,
-                    self.state.options,
+                    StatisticalPremises {
+                        diagram: self.state.diagram.clone(),
+                        functional: self.state.functional.clone(),
+                        input: Arc::clone(&self.state.input),
+                        data: self.state.data.clone(),
+                        samples: self.state.samples.clone(),
+                        request: request.clone(),
+                        limits: self.state.limits,
+                        options: self.state.options,
+                    },
                     &frozen_ctx,
                     false,
                 )?
@@ -969,8 +1056,8 @@ impl PreparedStudy<StatisticalPreparedState> {
     /// Invalid retained identity.
     pub fn preview_transform(
         &self,
-        intent: antecedent_core::TransformIntent,
-    ) -> Result<antecedent_core::TransformationReport, IoError> {
+        intent: antecedent_contract::TransformIntent,
+    ) -> Result<antecedent_contract::TransformationReport, IoError> {
         super::exact::preview_transform_report(&self.state.identities, intent, "statistical")
     }
 
@@ -1112,8 +1199,8 @@ impl PreparedStudy<StatisticalPreparedState> {
             selections: self.state.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
             proof: TransportProofWire::from_checked(self.state.functional.derivation())?,
             catalog: EvidenceCatalogWire::from_catalog(self.state.functional.catalog()),
-            laws: statistical_law_wires(&self.state.data)?,
-            request: statistical_assignments(&self.state.request),
+            laws: law_wires(&self.state.data)?,
+            request: assignments(&self.state.request),
             operations: self.state.limits.operations,
             depth: self.state.limits.depth,
             options: StatisticalOptionsWire::from_options(&self.state.options),
@@ -1217,14 +1304,16 @@ impl PreparedStudy<StatisticalPreparedState> {
         let mut frozen_ctx = ctx.clone();
         frozen_ctx.rng = antecedent_core::RngFactory::from_seed(wire.seed);
         let prepared = Self::build_fitted(
-            diagram,
-            functional,
-            input,
-            data,
-            wire.samples.clone(),
-            request,
-            ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
-            options,
+            StatisticalPremises {
+                diagram,
+                functional,
+                input: Arc::new(input),
+                data,
+                samples: wire.samples.clone(),
+                request,
+                limits: ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
+                options,
+            },
             &frozen_ctx,
             true,
         )?
@@ -1329,8 +1418,7 @@ impl StudyInvariants {
         };
         let identification_product = digest(IdentityDomain::IdentificationProduct, &proof)?;
         let arena = antecedent_io::expr_wire::expr_arena_to_wire(functional.arena())?;
-        let snapshot =
-            digest(IdentityDomain::DataSnapshot, &(statistical_law_wires(data)?, samples))?;
+        let snapshot = digest(IdentityDomain::DataSnapshot, &(law_wires(data)?, samples))?;
         Ok(Self {
             proof,
             shape,
@@ -1343,22 +1431,6 @@ impl StudyInvariants {
             snapshot,
         })
     }
-}
-
-fn statistical_requirements(functional: &BoundTransportFunctional) -> Vec<ExactFactorRequirement> {
-    let mut out = functional
-        .leaf_factors()
-        .into_iter()
-        .map(|(expression, leaf)| ExactFactorRequirement {
-            expression,
-            binding: leaf.binding,
-            variables: leaf.variables.to_vec(),
-            conditioned_on: leaf.conditioned_on.to_vec(),
-            interventions: leaf.intervention.iter().map(|a| a.variable).collect(),
-        })
-        .collect::<Vec<_>>();
-    out.sort_by_key(|factor| factor.expression.raw());
-    out
 }
 
 fn statistical_bindings(
@@ -1376,26 +1448,6 @@ fn statistical_bindings(
         .collect()
 }
 
-fn statistical_law_wires(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
-    let mut laws = data
-        .laws()
-        .iter()
-        .map(|law| {
-            let wire = ExactLawWire::from_law(law);
-            Ok((
-                antecedent_io::to_cbor(&(
-                    wire.population.clone(),
-                    wire.regime,
-                    &wire.interventions,
-                ))?,
-                wire,
-            ))
-        })
-        .collect::<Result<Vec<_>, IoError>>()?;
-    laws.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(laws.into_iter().map(|(_, law)| law).collect())
-}
-
 fn statistical_shape(data: &ExactTransportData) -> Result<String, IoError> {
     statistical_shape_wires(data.laws().iter().map(ExactLawWire::metadata).collect())
 }
@@ -1406,12 +1458,7 @@ fn statistical_shape_wires(mut laws: Vec<ExactLawWire>) -> Result<String, IoErro
         law.snapshot.clear();
         law.axes.sort_by_key(|axis| axis.0);
         for (_, values) in &mut law.axes {
-            values.sort_by(|a, b| {
-                a.to_value()
-                    .as_f64()
-                    .partial_cmp(&b.to_value().as_f64())
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
+            sort_axis_values(values)?;
         }
         law.interventions.sort_by_key(|a| a.0);
         law.absolute_tolerance = 0.0;
@@ -1420,13 +1467,6 @@ fn statistical_shape_wires(mut laws: Vec<ExactLawWire>) -> Result<String, IoErro
     let mut canonical = laws.iter().map(antecedent_io::to_cbor).collect::<Result<Vec<_>, _>>()?;
     canonical.sort();
     digest(IdentityDomain::Observation, &canonical)
-}
-
-fn statistical_assignments(request: &Assignment) -> Vec<(u32, ValueWire)> {
-    let mut values: Vec<_> =
-        request.entries().iter().map(|(v, x)| (v.raw(), ValueWire::from_value(x))).collect();
-    values.sort_by_key(|(v, _)| *v);
-    values
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1588,6 +1628,10 @@ pub(super) fn validate_sample_summaries(
     Ok(())
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "checks the wire's uncertainty row against the prepared study stage by stage (budget, replicate means, failure policy, intervals) building one estimate"
+)]
 fn validate_uncertainty(
     wire: &StatisticalExecutionWire,
     point: antecedent_expr::ExactDistribution,
@@ -1607,13 +1651,13 @@ fn validate_uncertainty(
     };
     let Some(row) = &wire.uncertainty else {
         let expected = if wire.samples.is_empty() {
-            "exact_supplied_law_no_sampling_uncertainty"
+            IntervalWithholdReason::ExactSuppliedLaw.as_str()
         } else if is_bayesian_provider(wire.options.to_options()?.estimator)
             || wire.options.bootstrap_replicates == 0
         {
-            "bootstrap_not_requested"
+            IntervalWithholdReason::BootstrapNotRequested.as_str()
         } else {
-            "transport.unsupported_dependence"
+            IntervalWithholdReason::UnsupportedDependence.as_str()
         };
         if wire.atom_intervals.is_some()
             || wire.mean_intervals.is_some()
@@ -1628,7 +1672,7 @@ fn validate_uncertainty(
     };
     let sizes: Vec<_> = wire.samples.iter().map(|s| (s.snapshot.clone(), s.n)).collect();
     if row.estimator != wire.options.estimator
-        || row.method != "percentile_bootstrap"
+        || row.method != antecedent_estimate::PERCENTILE_BOOTSTRAP
         || row.interval_scope != "pointwise"
         || row.coverage_target.to_bits() != wire.options.coverage_level.to_bits()
         || row.replicates_requested != wire.options.bootstrap_replicates
@@ -1697,7 +1741,8 @@ fn validate_uncertainty(
             return Err(bad());
         }
     } else if unlicensed {
-        if wire.uncertainty_reason.as_deref() != Some("insufficient_bootstrap_replicates")
+        if !IntervalWithholdReason::InsufficientBootstrapReplicates
+            .is(wire.uncertainty_reason.as_deref())
             || wire.atom_intervals.is_some()
             || wire.mean_intervals.is_some()
         {
@@ -1751,6 +1796,10 @@ fn validate_uncertainty(
     Ok(estimate)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "checks the Bayesian posterior wire's metadata, draw rows and intervals against the point distribution, building one posterior estimate"
+)]
 fn validate_bayesian_posterior(
     wire: Option<&BayesianTransportPosteriorWire>,
     point: &antecedent_expr::ExactDistribution,
@@ -1780,18 +1829,24 @@ fn validate_bayesian_posterior(
         return Err(err("Bayesian transport artifact draw metadata mismatch"));
     }
     let reason = wire.interval_reason.as_deref();
-    let dependence =
-        matches!(reason, Some("transport.unsupported_dependence" | "no_estimated_regime"));
+    let parsed = reason.and_then(IntervalWithholdReason::parse);
+    let dependence = matches!(
+        parsed,
+        Some(
+            IntervalWithholdReason::UnsupportedDependence
+                | IntervalWithholdReason::NoEstimatedRegime
+        )
+    );
     let withheld = dependence
         || matches!(
-            reason,
+            parsed,
             Some(
-                "bootstrap_failure_fraction"
-                    | "insufficient_bootstrap_replicates"
-                    | INTERVAL_NUMERICAL_FAILURE
+                IntervalWithholdReason::BootstrapFailureFraction
+                    | IntervalWithholdReason::InsufficientBootstrapReplicates
+                    | IntervalWithholdReason::NumericalFailure
             )
         );
-    if reason == Some("insufficient_bootstrap_replicates")
+    if IntervalWithholdReason::InsufficientBootstrapReplicates.is(reason)
         && PERCENTILE_FLOOR.decide(wire.draws_requested, wire.draws_ok, wire.draws_failed).is_ok()
     {
         return Err(err("Bayesian transport artifact withholds an earned posterior interval"));

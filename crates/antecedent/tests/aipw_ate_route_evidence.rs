@@ -3,10 +3,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, StructureSource, Study};
-use antecedent_core::{ExecutionContext, SlotAvailability};
+use antecedent_contract::SlotAvailability;
+use antecedent_core::ExecutionContext;
 use antecedent_data::TableView;
 use antecedent_io::consume_analysis_result;
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use common::fixtures::confounded_scm;

@@ -4,17 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
-use antecedent_kernels::{norm_inv, quantile_type7_sorted};
+use antecedent_kernels::{median_sorted, midranks_into, norm_inv, quantile_type7_sorted};
 
 /// Per-parameter MCMC diagnostics (Vehtari / Stan style).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -91,7 +81,13 @@ pub fn mcmc_summary(
 
 /// Maximum rank∪folded R-hat across parameters (`∞` if any fails).
 #[must_use]
-pub fn max_split_rhat(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64 {
+#[cfg(test)]
+pub(crate) fn max_split_rhat(
+    samples: &[f64],
+    n_chains: usize,
+    n_draws: usize,
+    n_params: usize,
+) -> f64 {
     if n_chains < 2 || n_draws < 8 || n_params == 0 {
         return f64::INFINITY;
     }
@@ -258,17 +254,9 @@ fn has_variation(x: &[f64]) -> bool {
 
 fn fold_about_median(x: &[f64]) -> Vec<f64> {
     let mut sorted = x.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(f64::total_cmp);
     let med = median_sorted(&sorted);
     x.iter().map(|&v| (v - med).abs()).collect()
-}
-
-fn median_sorted(sorted: &[f64]) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return f64::NAN;
-    }
-    if n % 2 == 1 { sorted[n / 2] } else { 0.5 * sorted[n / 2 - 1] + 0.5 * sorted[n / 2] }
 }
 
 fn empirical_quantiles(x: &[f64], q_lo: f64, q_hi: f64) -> (f64, f64) {
@@ -280,27 +268,8 @@ fn empirical_quantiles(x: &[f64], q_lo: f64, q_hi: f64) -> (f64, f64) {
 /// Average ranks for ties, then Φ⁻¹((r − 3/8) / (S + 1/4)).
 fn rank_normalize(x: &[f64]) -> Vec<f64> {
     let s = x.len();
-    let mut idx: Vec<usize> = (0..s).collect();
-    idx.sort_by(|&i, &j| x[i].partial_cmp(&x[j]).unwrap_or(std::cmp::Ordering::Equal));
     let mut ranks = vec![0.0; s];
-    let mut i = 0;
-    while i < s {
-        let mut j = i + 1;
-        #[allow(
-            clippy::float_cmp,
-            reason = "ties are groups of exactly equal draws, which share an average rank"
-        )]
-        let tied = |j: usize| x[idx[j]] == x[idx[i]];
-        while j < s && tied(j) {
-            j += 1;
-        }
-        // Ranks are 1-based; average for ties.
-        let avg = (i + 1 + j) as f64 / 2.0;
-        for k in i..j {
-            ranks[idx[k]] = avg;
-        }
-        i = j;
-    }
+    midranks_into(x, &mut ranks).expect("rank buffer is allocated to the sample length");
     let denom = s as f64 + 0.25;
     ranks
         .into_iter()
@@ -311,6 +280,10 @@ fn rank_normalize(x: &[f64]) -> Vec<f64> {
         .collect()
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn split_rhat_on_segments(seg_major: &[f64], m: usize, n: usize) -> f64 {
     let stats = split_segment_stats(seg_major, m, n);
     if !(stats.w > 0.0) {
@@ -327,6 +300,10 @@ fn split_rhat_on_segments(seg_major: &[f64], m: usize, n: usize) -> f64 {
 /// O(m·n²) work of which O(m·n·τ) is used. Per-lag arithmetic, the
 /// truncation test, and the monotone clamp are unchanged, so the result is
 /// bit-identical to the eager form.
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn geyer_ess_split(seg_major: &[f64], m: usize, n: usize) -> f64 {
     let s = (m * n) as f64;
     let stats = split_segment_stats(seg_major, m, n);
@@ -380,6 +357,10 @@ struct SegmentStats {
     var_hat: f64,
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn split_segment_stats(seg_major: &[f64], m: usize, n: usize) -> SegmentStats {
     let nf = n as f64;
     let mut means = vec![0.0; m];
@@ -417,8 +398,8 @@ fn split_segment_stats(seg_major: &[f64], m: usize, n: usize) -> SegmentStats {
     SegmentStats { means, w, var_hat }
 }
 
-/// Â_lag for one lag > 0 (unbiased within-chain, Stan/Vehtari 2021:
-/// Â_t = var̂⁺ − W + ā_t, so ρ̂_t = 1 − (W − ā_t)/var̂⁺ — not ā_t/var̂⁺,
+/// `Â_lag` for one lag > 0 (unbiased within-chain, Stan/Vehtari 2021:
+/// `Â_t = var̂⁺ − W + ā_t`, so `ρ̂_t = 1 − (W − ā_t)/var̂⁺`, not `ā_t/var̂⁺`,
 /// which ignores between-chain variance).
 fn lag_autocovariance(
     seg_major: &[f64],
@@ -459,18 +440,8 @@ mod tests {
     use super::*;
 
     fn fill_iid_normal(n_chains: usize, n_draws: usize, seed: u64) -> Vec<f64> {
-        // Deterministic LCG pseudo-normals via Box-Muller-ish bits.
-        let mut samples = vec![0.0; n_chains * n_draws];
-        let mut state = seed;
-        for v in &mut samples {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-            let u1 = ((state >> 33) as f64) / ((1u64 << 31) as f64);
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-            let u2 = ((state >> 33) as f64) / ((1u64 << 31) as f64);
-            let u1 = u1.clamp(1e-12, 1.0 - 1e-12);
-            *v = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-        }
-        samples
+        let mut rng = antecedent_core::CausalRng::from_seed(seed);
+        (0..n_chains * n_draws).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect()
     }
 
     #[test]

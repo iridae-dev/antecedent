@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![allow(
     clippy::float_cmp,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -182,11 +181,18 @@ fn assert_prepared_reuse(
     expected: f64,
     tolerance: f64,
 ) {
-    assert!((click.estimate.ate - expected).abs() < tolerance);
-    assert!((fresh.estimate.ate - expected).abs() < tolerance);
-    assert!((refreshed.estimate.ate - expected).abs() < tolerance);
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
+    assert!((click.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((fresh.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!((refreshed.estimate.as_effect().unwrap().ate - expected).abs() < tolerance);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
+    assert!(
+        (refreshed.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
     assert_eq!(cached_count(fresh), 0);
     assert_eq!(cached_count(click), 1);
@@ -274,7 +280,7 @@ fn admg_frontdoor_functional_effect_numeric_pin() {
 /// The point-identified response value; any other response shape is a failure, not a value
 /// to be replaced by the scalar `estimate.ate` (which would compare the wrong quantity).
 fn response_mean(result: &antecedent::StudyResult) -> f64 {
-    let response = result.response.as_ref().expect("response payload");
+    let response = result.response().expect("response payload");
     let value = match &response.estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => *v,
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean[0],
@@ -285,7 +291,7 @@ fn response_mean(result: &antecedent::StudyResult) -> f64 {
 }
 
 fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
-    let response = result.response.as_ref().expect("response payload");
+    let response = result.response().expect("response payload");
     match &response.estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
             mean.to_vec()
@@ -298,6 +304,10 @@ fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
 /// do(T=0) and do(T=1) match the licensed `InterventionalDistribution` / ATE
 /// functional on the same graph.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for admg frontdoor response pins against distribution"
+)]
 fn admg_frontdoor_response_pins_against_distribution() {
     let pin = admg_pin();
     let data = expand_contingency(&pin);
@@ -320,7 +330,7 @@ fn admg_frontdoor_response_pins_against_distribution() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    assert!((ate.estimate.ate - expected_ate).abs() < tolerance);
+    assert!((ate.estimate.as_effect().unwrap().ate - expected_ate).abs() < tolerance);
 
     let mut dist_means = Vec::new();
     let mut ir_means = Vec::new();
@@ -338,7 +348,7 @@ fn admg_frontdoor_response_pins_against_distribution() {
             .unwrap()
             .run(&ctx)
             .unwrap();
-        let dist_mean = dist.distribution.as_ref().expect("distribution").mean;
+        let dist_mean = dist.distribution().expect("distribution").mean;
         dist_means.push(dist_mean);
 
         let ir = ResponseQuery::new(ResponseFunctional::InterventionResponse {
@@ -509,9 +519,17 @@ fn napkin_effect_with_a_free_variable_is_the_enumerated_effect() {
         let result = builder.build().unwrap().run(&ctx).unwrap();
         if bayesian {
             // Posterior mean of a Bayesian bootstrap over 2048 rows.
-            assert!((result.estimate.ate - truth).abs() < 0.05, "ate={}", result.estimate.ate);
+            assert!(
+                (result.estimate.as_effect().unwrap().ate - truth).abs() < 0.05,
+                "ate={}",
+                result.estimate.as_effect().unwrap().ate
+            );
         } else {
-            assert!((result.estimate.ate - truth).abs() < 1e-12, "ate={}", result.estimate.ate);
+            assert!(
+                (result.estimate.as_effect().unwrap().ate - truth).abs() < 1e-12,
+                "ate={}",
+                result.estimate.as_effect().unwrap().ate
+            );
         }
         let diagnostic = free_variable_diagnostic(&result);
         assert!(diagnostic.message.contains("variable 1"), "{}", diagnostic.message);
@@ -531,7 +549,7 @@ fn napkin_effect_with_a_free_variable_is_the_enumerated_effect() {
             .unwrap()
             .run(&ctx)
             .unwrap();
-        let distribution = result.distribution.as_ref().expect("distribution");
+        let distribution = result.distribution().expect("distribution");
         assert!((distribution.mean - expected).abs() < 1e-12, "mean={}", distribution.mean);
         let total: f64 = distribution.atoms.iter().map(|a| a.probability).sum();
         assert!((total - 1.0).abs() < 1e-12, "atoms sum to {total}");

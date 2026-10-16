@@ -137,7 +137,7 @@ pub fn run() -> Result<(), CausalError> {
         .build()?
         .run(&ExecutionContext::for_tests(42))?;
 
-    let response = result.response.as_ref().expect("response payload");
+    let response = result.response().expect("response payload");
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
     else {

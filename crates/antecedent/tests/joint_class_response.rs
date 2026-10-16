@@ -82,7 +82,7 @@ fn joint_certificate_and_estimate_cover_both_targets() {
             .prepare(&ExecutionContext::for_tests(7))
             .unwrap();
         let result = prepared.estimate(&data(), &ExecutionContext::for_tests(7)).unwrap();
-        let response = result.response.as_ref().unwrap();
+        let response = result.response().unwrap();
         let value = match &response.estimate {
             ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
             other => panic!("expected a joint scalar, got {other:?}"),
@@ -107,7 +107,7 @@ fn bayesian_joint_response_uses_the_same_certificate() {
             .unwrap()
             .run(&ExecutionContext::for_tests(7))
             .unwrap();
-        let response = result.response.as_ref().unwrap();
+        let response = result.response().unwrap();
         let value = match &response.estimate {
             ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) => *value,
             other => panic!("expected a joint scalar, got {other:?}"),
@@ -172,7 +172,7 @@ fn incomplete_joint_envelope_preserves_distinct_adjustments_and_caps() {
         .unwrap()
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
-    let response = result.response.unwrap();
+    let response = result.response().cloned().unwrap();
     let envelope = match response.estimate {
         ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(envelope)) => envelope,
         other => panic!("expected completion identified set, got {other:?}"),
@@ -226,7 +226,7 @@ fn bayesian_joint_stochastic_policies_integrate_the_linear_response() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(7))
                 .unwrap();
-            let response = result.response.unwrap();
+            let response = result.response().unwrap();
             let ResponseIdentification::PointIdentified(ResponseValue::Scalar(mean)) =
                 response.estimate
             else {

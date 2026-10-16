@@ -56,16 +56,19 @@ import fnmatch
 import hashlib
 import json
 import os
+import re
 import shutil
 import struct
-import re
 import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+import _rust_source as _rust
+from _repo import REPO_ROOT as ROOT
+from _repo import ensure_scripts_on_path, read_text, write_text
+
 LIST = ROOT / "scripts" / "calibration_surface.list"
 RECORDS = ROOT / "parity" / "coverage_records.toml"
 GATES = ROOT / "parity" / "calibration_gates.toml"
@@ -101,8 +104,6 @@ MAX_PATHS_SHOWN = 12
 # Rust source: comments and literals removed, so names are code, not prose.
 # --------------------------------------------------------------------------
 
-_SPECIAL = re.compile(r"//|/\*|b?r#*\"|\"|'")
-_CHAR = re.compile(r"'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|.)|[^\\'\n])'")
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _DEF = re.compile(
     r"^[ \t]*(?:pub(?:\([^)]*\))?[ \t]+)?(?:(?:unsafe|async|const|extern|default)[ \t]+)*"
@@ -114,132 +115,13 @@ _DEF = re.compile(
 
 def rust_code(text: str) -> str:
     """`text` with comments dropped and string / char literal contents blanked."""
-    out: list[str] = []
-    i, n = 0, len(text)
-    while i < n:
-        m = _SPECIAL.search(text, i)
-        if m is None:
-            out.append(text[i:])
-            break
-        start = m.start()
-        tok = m.group(0)
-        if tok.startswith(("r", "b")) and start > 0 and (
-            text[start - 1].isalnum() or text[start - 1] == "_"
-        ):
-            # `for"` / `abr"`: an identifier that ends in r or b, then a quote.
-            out.append(text[i : start + len(tok) - 1])
-            i = start + len(tok) - 1
-            continue
-        out.append(text[i:start])
-        if tok == "//":
-            end = text.find("\n", start)
-            i = n if end < 0 else end
-        elif tok == "/*":
-            depth, j = 1, start + 2
-            while j < n and depth:
-                if text.startswith("/*", j):
-                    depth, j = depth + 1, j + 2
-                elif text.startswith("*/", j):
-                    depth, j = depth - 1, j + 2
-                else:
-                    if text[j] == "\n":
-                        out.append("\n")
-                    j += 1
-            i = j
-        elif tok == '"':
-            j = start + 1
-            while j < n and text[j] != '"':
-                if text[j] == "\n":
-                    out.append("\n")
-                j += 2 if text[j] == "\\" else 1
-            out.append('""')
-            i = j + 1
-        elif tok == "'":
-            ch = _CHAR.match(text, start)
-            if ch:
-                out.append("' '")
-                i = ch.end()
-            else:  # a lifetime or label
-                out.append("'")
-                i = start + 1
-        else:  # raw string r#"…"#
-            hashes = tok.count("#")
-            end = text.find('"' + "#" * hashes, m.end())
-            end = n if end < 0 else end + 1 + hashes
-            out.append('""' + "\n" * text.count("\n", start, end))
-            i = end
-    return "".join(out)
-
+    return _rust.rust_code(text)
 
 
 def rust_mask(text: str, line_docs: list[tuple[int, int]] | None = None) -> str:
     """`text` with comments and string / char literals blanked to spaces, keeping every
     offset and newline, so braces found in the mask are braces of the code."""
-    out: list[str] = []
-    i, n = 0, len(text)
-
-    def blank(a: int, b: int) -> None:
-        out.append("".join("\n" if c == "\n" else " " for c in text[a:b]))
-
-    while i < n:
-        m = _SPECIAL.search(text, i)
-        if m is None:
-            out.append(text[i:])
-            break
-        start = m.start()
-        tok = m.group(0)
-        if tok.startswith(("r", "b")) and start > 0 and (
-            text[start - 1].isalnum() or text[start - 1] == "_"
-        ):
-            out.append(text[i : start + len(tok) - 1])
-            i = start + len(tok) - 1
-            continue
-        out.append(text[i:start])
-        if tok == "//":
-            end = text.find("\n", start)
-            end = n if end < 0 else end
-            if (
-                line_docs is not None
-                and text.startswith("///", start)
-                and not text.startswith("////", start)
-            ):
-                line_docs.append((start, end))
-            blank(start, end)
-            i = end
-        elif tok == "/*":
-            depth, j = 1, start + 2
-            while j < n and depth:
-                if text.startswith("/*", j):
-                    depth, j = depth + 1, j + 2
-                elif text.startswith("*/", j):
-                    depth, j = depth - 1, j + 2
-                else:
-                    j += 1
-            j = min(j, n)
-            blank(start, j)
-            i = j
-        elif tok == '"':
-            j = start + 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == "\\" else 1
-            end = min(j + 1, n)
-            blank(start, end)
-            i = end
-        elif tok == "'":
-            ch = _CHAR.match(text, start)
-            if ch:
-                blank(start, ch.end())
-                i = ch.end()
-            else:  # a lifetime or label
-                out.append("'")
-                i = start + 1
-        else:  # raw string r#"..."#
-            hashes = tok.count("#")
-            end = text.find('"' + "#" * hashes, m.end())
-            end = n if end < 0 else end + 1 + hashes
-            blank(start, end)
-            i = end
-    return "".join(out)
+    return _rust.rust_mask(text, line_docs)
 
 
 _TEST_MOD = re.compile(
@@ -289,7 +171,7 @@ def declares_out_of_line_test_module(rel: str, root: Path | None = None) -> bool
         + r"\s*;"
     )
     for cand in candidates:
-        if cand.is_file() and pattern.search(rust_mask(cand.read_text(errors="ignore"))):
+        if cand.is_file() and pattern.search(rust_mask(read_text(cand, errors="ignore"))):
             return True
     return False
 
@@ -430,7 +312,7 @@ class Surface:
 def load_surface(path: Path = LIST, text: str | None = None) -> Surface:
     surface = Surface()
     seen: set[str] = set()
-    text = path.read_text() if text is None else text
+    text = read_text(path) if text is None else text
     for lineno, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -478,7 +360,7 @@ def load_surface(path: Path = LIST, text: str | None = None) -> Surface:
     known = surface.facets
     if CORE not in known:
         surface.errors.append(f"{path.name}: no {CORE} facet")
-    for facet, rel in surface.allows:
+    for facet, _rel in surface.allows:
         if facet not in known or facet == CORE:
             surface.errors.append(f"{path.name}: allow names unknown or core facet {facet}")
     for facet, _, _ in surface.keys:
@@ -495,7 +377,7 @@ def load_surface(path: Path = LIST, text: str | None = None) -> Surface:
 def _crate_deps() -> dict[str, set[str]]:
     deps: dict[str, set[str]] = {}
     for manifest in sorted((ROOT / "crates").glob("*/Cargo.toml")):
-        data = tomllib.loads(manifest.read_text())
+        data = tomllib.loads(read_text(manifest))
         names: set[str] = set()
         tables = [data.get(t, {}) for t in ("dependencies", "dev-dependencies", "build-dependencies")]
         for target in data.get("target", {}).values():
@@ -600,7 +482,7 @@ _CODE_CACHE: dict[str, str] = {}
 
 def _code(rel: str) -> str:
     if rel not in _CODE_CACHE:
-        _CODE_CACHE[rel] = rust_code((ROOT / rel).read_text(errors="ignore"))
+        _CODE_CACHE[rel] = rust_code(read_text(ROOT / rel, errors="ignore"))
     return _CODE_CACHE[rel]
 
 
@@ -685,8 +567,8 @@ def check(surface: Surface) -> list[str]:
             required.append(f"{base}/build.rs")
     tests = ROOT / "crates/antecedent/tests"
     for suite in sorted(tests.glob("*.rs")):
-        text = suite.read_text(errors="ignore")
-        if suite.name.startswith(("v19_", "v110_calibration_")) or "for_record(" in text:
+        text = read_text(suite, errors="ignore")
+        if "for_record(" in text:
             required.append(suite.relative_to(ROOT).as_posix())
     for harness in sorted((tests / "common").rglob("*")):
         if harness.is_file():
@@ -752,7 +634,7 @@ def check(surface: Surface) -> list[str]:
 def load_records(path: Path = RECORDS) -> list[dict]:
     if not path.is_file():
         return []
-    return tomllib.loads(path.read_text()).get("record", [])
+    return tomllib.loads(read_text(path)).get("record", [])
 
 
 def load_gate_rows(path: Path = GATES) -> list[dict]:
@@ -771,7 +653,7 @@ def load_gate_rows(path: Path = GATES) -> list[dict]:
             "calibration_sha": row["calibration_sha"],
             "passed": row.get("passed"),
         }
-        for row in tomllib.loads(path.read_text()).get("gate", [])
+        for row in tomllib.loads(read_text(path)).get("gate", [])
     ]
 
 
@@ -864,7 +746,7 @@ def documentation_edits_match(old: str, new: str, replacements: list[dict]) -> b
     rust_mask(old, old_docs)
     rust_mask(new, new_docs)
     old_offsets, new_offsets = [0], [0]
-    for before, after in zip(old_lines, new_lines):
+    for before, after in zip(old_lines, new_lines, strict=True):
         old_offsets.append(old_offsets[-1] + len(before))
         new_offsets.append(new_offsets[-1] + len(after))
     expected = list(old_lines)
@@ -907,7 +789,7 @@ def documentation_certificates() -> dict[str, tuple[str, str]]:
     """Validated exact blob pairs; no numerical/replay SHA or outcome is rewritten."""
     if not DOCUMENTATION_CERTIFICATES.is_file():
         return {}
-    data = tomllib.loads(DOCUMENTATION_CERTIFICATES.read_text(encoding="utf-8"))
+    data = tomllib.loads(read_text(DOCUMENTATION_CERTIFICATES))
     if (
         set(data) != {"schema_version", "certificate"}
         or type(data["schema_version"]) is not int
@@ -1009,7 +891,7 @@ def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[s
         if rel in surface.testmods:
             old = _git("show", f"{sha}:{rel}")
             if head is None:
-                new_text = (ROOT / rel).read_text() if (ROOT / rel).is_file() else None
+                new_text = read_text(ROOT / rel) if (ROOT / rel).is_file() else None
             else:
                 new = _git("show", f"{head}:{rel}")
                 new_text = new.stdout if new.returncode == 0 else None
@@ -1022,7 +904,7 @@ def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[s
         if NORMALIZED.search(rel):
             old = _git("show", f"{sha}:{rel}")
             if head is None:
-                new_text = (ROOT / rel).read_text() if (ROOT / rel).is_file() else None
+                new_text = read_text(ROOT / rel) if (ROOT / rel).is_file() else None
             else:
                 new = _git("show", f"{head}:{rel}")
                 new_text = new.stdout if new.returncode == 0 else None
@@ -1310,7 +1192,7 @@ def parse_waivers(text: str) -> tuple[list[Waiver], list[str]]:
 def load_waivers(path: Path = WAIVERS) -> tuple[list[Waiver], list[str]]:
     if not path.is_file():
         return [], []
-    return parse_waivers(path.read_text())
+    return parse_waivers(read_text(path))
 
 
 def _toml_str(value: str) -> str:
@@ -1886,7 +1768,7 @@ def attest(assessments: list[Assessment], surface: Surface, any_records: bool) -
 
 def _gate_groups_for(records: list[dict]) -> tuple[list, int, dict[str, list]]:
     """Gate groups (scripts/calibration_groups.py owns the mapping) measuring each record."""
-    sys.path.insert(0, str(ROOT / "scripts"))
+    ensure_scripts_on_path()
     import calibration_groups
 
     groups = calibration_groups.gate_groups()
@@ -1909,7 +1791,7 @@ def _safe_label(label: str) -> str:
 def group_log_names(safe: str) -> list[str]:
     """The logs scripts/gate_calibration.sh writes for one group: one per
     sample-size grid point, and that point's recheck."""
-    sys.path.insert(0, str(ROOT / "scripts"))
+    ensure_scripts_on_path()
     import collect_coverage_records
 
     return [
@@ -1922,7 +1804,7 @@ def group_log_names(safe: str) -> list[str]:
 def replay_payloads(label_logs: list[Path]) -> dict[str, dict]:
     """Records of one group's logs, merged over their grid points exactly as
     scripts/collect_coverage_records.py merges them (a point's recheck wins)."""
-    sys.path.insert(0, str(ROOT / "scripts"))
+    ensure_scripts_on_path()
     import collect_coverage_records
 
     return collect_coverage_records.merged_records([p for p in label_logs if p.is_file()])
@@ -1930,7 +1812,7 @@ def replay_payloads(label_logs: list[Path]) -> dict[str, dict]:
 
 def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> dict[str, dict]:
     """Verify raw captured logs against an exact source/selection, without running work."""
-    capture = json.loads((out_dir / "raw-replay-capture.json").read_text())
+    capture = json.loads(read_text(out_dir / "raw-replay-capture.json"))
     if capture.get("version") != 1 or capture.get("source_sha") != source_sha:
         raise ValueError("capture does not bind this exact source commit")
     if capture.get("records") != records:
@@ -2062,7 +1944,7 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
     if not reuse_capture:
         names = [name for g in plan.values() for name in group_log_names(_safe_label(g.label))
                  if (out_dir / name).is_file()]
-        capture_file.write_text(json.dumps({
+        write_text(capture_file, json.dumps({
             "version": 1, "source_sha": head, "records": [r.record for r in waiver.replay],
             "logs": {name: hashlib.sha256((out_dir / name).read_bytes()).hexdigest() for name in names},
             "payloads": payloads,
@@ -2090,7 +1972,7 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
         differences=differences,
         fingerprints={str(rec["id"]): fingerprint(rec) for rec in stored},
     )
-    waiver_file.write_text(render_waivers(waivers))
+    write_text(waiver_file, render_waivers(waivers))
     for difference in differences:
         print(f"DIFFERS: {difference}")
     verdict = "bit-identical" if identical else "NOT identical: the waiver is invalid"
@@ -2170,7 +2052,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         "boundary": False,
         "role": "gated",
     }
-    suite = "crates/antecedent/tests/v19_static_calibration.rs"
+    suite = "crates/antecedent/tests/static_calibration.rs"
     cf = {
         "id": "cf",
         "test": f"{suite}::counterfactual",
@@ -2180,7 +2062,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         "calibration_sha": start,
         **measured,
     }
-    temporal = "crates/antecedent/tests/v19_temporal_frequentist.rs"
+    temporal = "crates/antecedent/tests/temporal_frequentist.rs"
     tp = {
         "id": "tp",
         "test": f"{temporal}::pulse",
@@ -2190,7 +2072,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         "calibration_sha": start,
         **measured,
     }
-    library = "crates/antecedent-estimate/src/calibration_coverage.rs"
+    library = "crates/antecedent-stats/src/calibration_coverage.rs"
     lib = {
         "id": "lib",
         "test": f"{library}::linear_adjustment_analytic_ci_coverage",
@@ -2532,7 +2414,7 @@ def _grid_merge_self_test(expect) -> None:
     import io
     import tempfile
 
-    sys.path.insert(0, str(ROOT / "scripts"))
+    ensure_scripts_on_path()
     import collect_coverage_records as collector
 
     def line(point: int, n: int, observed: float, boundary: bool = False, **extra) -> str:
@@ -2550,7 +2432,7 @@ def _grid_merge_self_test(expect) -> None:
             logs = []
             for name, body in lines.items():
                 path = Path(tmp) / name
-                path.write_text("\n".join(body) + "\n")
+                write_text(path, "\n".join(body) + "\n")
                 logs.append(path)
             try:
                 with contextlib.redirect_stdout(io.StringIO()):
@@ -2600,13 +2482,13 @@ def _grid_merge_self_test(expect) -> None:
         logs = {}
         for point, n in enumerate((200, 400, 800)):
             name = f"synthetic.p{point}.log"
-            (out_dir / name).write_text(line(point, n, 0.9) + "\n")
+            write_text(out_dir / name, line(point, n, 0.9) + "\n")
             logs[name] = hashlib.sha256((out_dir / name).read_bytes()).hexdigest()
         payloads = replay_payloads([out_dir / name for name in logs])
         capture = {"version": 1, "source_sha": "a" * 40, "records": ["cov.x"],
                    "logs": logs, "payloads": payloads}
         capture_path = out_dir / "raw-replay-capture.json"
-        capture_path.write_text(json.dumps(capture))
+        write_text(capture_path, json.dumps(capture))
         expect(load_replay_capture(out_dir, "a" * 40, ["cov.x"]) == payloads,
                "capture reuses actual parsed synthetic raw grid logs without measurements")
         rejected = 0
@@ -2615,7 +2497,7 @@ def _grid_merge_self_test(expect) -> None:
                 load_replay_capture(out_dir, sha, ids)
             except ValueError:
                 rejected += 1
-        (out_dir / "synthetic.p0.log").write_text(line(0, 200, 0.8) + "\n")
+        write_text(out_dir / "synthetic.p0.log", line(0, 200, 0.8) + "\n")
         try:
             load_replay_capture(out_dir, "a" * 40, ["cov.x"])
         except ValueError:
@@ -2742,7 +2624,7 @@ def self_test() -> int:
         ),
         "widening a reviewed re-export by one name fails",
     )
-    text = LIST.read_text()
+    text = read_text(LIST)
     stale = load_surface(
         text=text.replace(
             "allow mechanism crates/antecedent/src/lib.rs gcm\n",
@@ -2857,30 +2739,30 @@ def self_test() -> int:
     )
     refs = references(base)
     counterfactual = {
-        "test": "crates/antecedent/tests/v19_static_calibration.rs::t",
-        "dgp": "crates/antecedent/tests/v19_static_calibration.rs::d",
+        "test": "crates/antecedent/tests/static_calibration.rs::t",
+        "dgp": "crates/antecedent/tests/static_calibration.rs::d",
         "query": "Counterfactual",
         "estimator": "gcm.fit",
     }
     temporal_rec = {
-        "test": "crates/antecedent/tests/v19_temporal_frequentist.rs::t",
-        "dgp": "crates/antecedent/tests/v19_temporal_frequentist.rs::d",
+        "test": "crates/antecedent/tests/temporal_frequentist.rs::t",
+        "dgp": "crates/antecedent/tests/temporal_frequentist.rs::d",
         "query": "PulseEffect",
         "estimator": "temporal.linear.adjustment",
     }
     expect(
         set(record_facets(counterfactual, base, refs))
-        >= {CORE, "mechanism", "suite.v19_static_calibration"},
+        >= {CORE, "mechanism", "suite.static_calibration"},
         "a counterfactual record carries core, mechanism and its suite",
     )
     temporal_facets = record_facets(temporal_rec, base, refs)
     expect(
         CORE in temporal_facets
         and "mechanism" not in temporal_facets
-        and "suite.v19_static_calibration" not in temporal_facets
+        and "suite.static_calibration" not in temporal_facets
         and "estimator.temporal_adjustment" in temporal_facets
         and "identity.temporal" in temporal_facets
-        and "suite.v19_temporal_frequentist" in temporal_facets,
+        and "suite.temporal_frequentist" in temporal_facets,
         "a temporal record carries core, its estimator, identity and suite; not mechanism",
     )
     split = []
@@ -2901,9 +2783,7 @@ def self_test() -> int:
         # Transport records can depend on both shared and route-specific
         # estimator surfaces. Keep every such attestation obligation explicit.
         expected = transport_facets.get(est)
-        if expected is not None and set(got) != expected:
-            split.append((est, got))
-        elif expected is None and len(got) != 1:
+        if expected is not None and set(got) != expected or expected is None and len(got) != 1:
             split.append((est, got))
     expect(
         split == [],
@@ -2946,7 +2826,7 @@ def self_test() -> int:
             owed(mutated) == {"cf", "tp"},
             f"a {label} change owes every record measured at that SHA",
         )
-    suite = {"a" * 40: ["crates/antecedent/tests/v19_temporal_frequentist.rs"], "b" * 40: []}
+    suite = {"a" * 40: ["crates/antecedent/tests/temporal_frequentist.rs"], "b" * 40: []}
     expect(owed(suite) == {"tp"}, "a suite change owes the records that suite emits")
     estimator = {
         "a" * 40: ["crates/antecedent-estimate/src/temporal_adjustment.rs"],
@@ -2956,7 +2836,7 @@ def self_test() -> int:
         owed(estimator) == {"tp"},
         "an estimator change owes only the records that use that estimator",
     )
-    other_estimator = {"a" * 40: ["crates/antecedent-estimate/src/bayesian.rs"], "b" * 40: []}
+    other_estimator = {"a" * 40: ["crates/antecedent-estimate/src/bayesian/mod.rs"], "b" * 40: []}
     expect(owed(other_estimator) == set(), "a different estimator's file owes nothing")
     identity = {
         "a" * 40: ["crates/antecedent-identify/src/temporal_backdoor.rs"],
@@ -2973,7 +2853,7 @@ def self_test() -> int:
         "a record measured at a commit missing from the clone is unverifiable",
     )
     _attestation_gate_self_test(base, refs, records, expect)
-    manifest = (ROOT / "Cargo.toml").read_text()
+    manifest = read_text(ROOT / "Cargo.toml")
     bumped = re.sub(r'(?m)^version = "[^"]+"', 'version = "9.9.9"', manifest)
     profile = manifest.replace('lto = "thin"', 'lto = "fat"', 1)
     expect(
@@ -3066,7 +2946,7 @@ def main() -> int:
     surface = load_surface()
     if args.command == "check":
         if doc_pairs:
-            doc_data = tomllib.loads(DOCUMENTATION_CERTIFICATES.read_text(encoding="utf-8"))
+            doc_data = tomllib.loads(read_text(DOCUMENTATION_CERTIFICATES))
             doc_lines = sum(len(row["replacement"]) for row in doc_data["certificate"])
             print(
                 f"documentation-only equivalence: {len(doc_pairs)} paths, "

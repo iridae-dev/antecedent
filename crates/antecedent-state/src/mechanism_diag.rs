@@ -2,15 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_lossless, clippy::implicit_hasher)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::VecDeque;
 
 use antecedent_core::{CacheBudget, StateVersion};
@@ -187,7 +178,7 @@ impl RollingMechanismDiagnostics {
 
     /// Approximate bytes retained by this slot.
     #[must_use]
-    pub fn bytes_estimate(&self) -> u64 {
+    fn bytes_estimate(&self) -> u64 {
         self.bytes_for(self.ring.len(), self.beta.len())
     }
 
@@ -254,6 +245,10 @@ fn subtract_row(ols: &mut LinearOlsSuffStats, row: &[f64], y: f64) -> Result<(),
 /// # Errors
 ///
 /// Budget exceeded (same refuse policy as [`crate::store::ResultStore`]).
+#[allow(
+    clippy::implicit_hasher,
+    reason = "concrete map keyed by the default hasher; these caches are never built with a custom one"
+)]
 pub fn insert_mechanism_diag(
     map: &mut std::collections::HashMap<std::sync::Arc<str>, RollingMechanismDiagnostics>,
     key: std::sync::Arc<str>,
@@ -273,6 +268,10 @@ pub fn insert_mechanism_diag(
 }
 
 /// Remove a diagnostics slot and free exactly the budget it was charged.
+#[allow(
+    clippy::implicit_hasher,
+    reason = "concrete map keyed by the default hasher; these caches are never built with a custom one"
+)]
 pub fn evict_mechanism_diag(
     map: &mut std::collections::HashMap<std::sync::Arc<str>, RollingMechanismDiagnostics>,
     key: &str,
@@ -295,8 +294,8 @@ mod tests {
         let mut all_rows = Vec::new();
         let mut all_y = Vec::new();
         for i in 0..12 {
-            let row = [1.0, i as f64];
-            let y = 2.0 + 3.0 * i as f64;
+            let row = [1.0, f64::from(i)];
+            let y = 2.0 + 3.0 * f64::from(i);
             roll.append_row(&row, y).unwrap();
             all_rows.extend_from_slice(&row);
             all_y.push(y);

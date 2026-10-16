@@ -5,48 +5,51 @@
 use antecedent_core::TemporalNodeKey;
 use antecedent_core::{Lag, VariableId};
 
-use crate::algo::bfs_reaches;
+use crate::directed::DirectedCore;
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// Directed acyclic graph over lagged (`VariableId`, `Lag`) nodes.
+///
+/// Directed nodes and edges are the shared directed core an [`Admg`](crate::Admg)
+/// also wraps. This type adds the lag rules.
 #[derive(Clone, Debug)]
 pub struct TemporalDag {
-    nodes: Vec<NodeRef>,
-    children: Vec<Vec<DenseNodeId>>,
-    parents: Vec<Vec<DenseNodeId>>,
-    insert_ws: GraphWorkspace,
+    directed: DirectedCore,
 }
+
+impl PartialEq for TemporalDag {
+    fn eq(&self, other: &Self) -> bool {
+        self.directed.same_directed(&other.directed)
+    }
+}
+
+impl Eq for TemporalDag {}
 
 impl TemporalDag {
     /// Empty temporal DAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self {
-            nodes: Vec::new(),
-            children: Vec::new(),
-            parents: Vec::new(),
-            insert_ws: GraphWorkspace::default(),
-        }
+        Self { directed: DirectedCore::new() }
     }
 
     /// Node count.
     #[must_use]
     pub fn node_count(&self) -> usize {
-        self.nodes.len()
+        self.directed.node_count()
     }
 
     /// Whether empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
+        self.directed.is_empty()
     }
 
     /// Nodes in dense order.
     #[must_use]
     pub fn nodes(&self) -> &[NodeRef] {
-        &self.nodes
+        self.directed.nodes()
     }
 
     /// Add a lagged node.
@@ -63,11 +66,7 @@ impl TemporalDag {
                 });
             }
         }
-        let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        self.nodes.push(node);
-        self.children.push(Vec::new());
-        self.parents.push(Vec::new());
-        Ok(DenseNodeId::from_raw(id))
+        self.directed.push_labeled(node)
     }
 
     /// Convenience: add `variable` at `lag`.
@@ -109,52 +108,79 @@ impl TemporalDag {
         if let (
             NodeRef::Lagged { variable: v1, lag: l1 },
             NodeRef::Lagged { variable: v2, lag: l2 },
-        ) = (self.nodes[from.as_usize()], self.nodes[to.as_usize()])
+        ) = (self.nodes()[from.as_usize()], self.nodes()[to.as_usize()])
         {
             if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
                 return Err(GraphError::ContemporaneousSelfEdge { variable: v1 });
             }
-            crate::types::reject_future_to_past(&self.nodes, from, to)?;
+            crate::types::reject_future_to_past(self.nodes(), from, to)?;
         }
-        if self.children[from.as_usize()].contains(&to) {
-            return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
+        self.directed.try_insert(from, to)
+    }
+
+    /// Insert directed edges, using one acyclicity check when every edge is legal.
+    ///
+    /// A temporal rejection, duplicate, or cycle is inserted one edge at a time,
+    /// so the prefix and the error match [`Self::insert_directed`].
+    pub(crate) fn insert_directed_edges(
+        &mut self,
+        edges: &[(DenseNodeId, DenseNodeId)],
+    ) -> Result<(), GraphError> {
+        if edges.iter().all(|&(from, to)| self.temporal_precheck(from, to))
+            && self.directed.accepts_new_edges(edges)
+        {
+            self.directed.push_edges(edges);
+            return Ok(());
         }
-        let mut ws = core::mem::take(&mut self.insert_ws);
-        let cycle = bfs_reaches(&self.children, to, from, &mut ws);
-        self.insert_ws = ws;
-        if cycle {
-            return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
+        for &(from, to) in edges {
+            self.insert_directed(from, to)?;
         }
-        self.children[from.as_usize()].push(to);
-        self.parents[to.as_usize()].push(from);
         Ok(())
+    }
+
+    /// Whether `insert_directed` would get past the temporal rules to the cycle check.
+    fn temporal_precheck(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
+        if self.validate_node(from).is_err() || self.validate_node(to).is_err() {
+            return false;
+        }
+        let (NodeRef::Lagged { variable: v1, lag: l1 }, NodeRef::Lagged { variable: v2, lag: l2 }) =
+            (self.nodes()[from.as_usize()], self.nodes()[to.as_usize()])
+        else {
+            return false;
+        };
+        if v1 == v2 && l1 == l2 && l1.is_contemporaneous() {
+            return false;
+        }
+        crate::types::reject_future_to_past(self.nodes(), from, to).is_ok()
     }
 
     /// Children.
     #[must_use]
     pub fn children(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.children[id.as_usize()]
+        &self.directed.child_adj()[id.as_usize()]
     }
 
     /// Parents.
     #[must_use]
     pub fn parents(&self, id: DenseNodeId) -> &[DenseNodeId] {
-        &self.parents[id.as_usize()]
+        &self.directed.parent_adj()[id.as_usize()]
     }
 
     /// Iterate directed edges as marked edges.
     pub fn edges(&self) -> impl Iterator<Item = MarkedEdge> + '_ {
-        self.children.iter().enumerate().flat_map(|(i, kids)| {
-            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
-            kids.iter().map(move |&to| MarkedEdge::directed(from, to))
-        })
+        self.directed.marked_edges()
+    }
+
+    /// Directed edges as raw `(parent, child)` dense-id pairs in ascending order.
+    #[must_use]
+    pub fn directed_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
+        self.directed.edge_pairs_sorted()
     }
 
     /// Reachability.
     #[must_use]
     pub fn reaches(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
-        let mut ws = GraphWorkspace::default();
-        bfs_reaches(&self.children, from, to, &mut ws)
+        self.directed.reaches(from, to)
     }
 
     /// Reachability with a reusable workspace.
@@ -164,13 +190,13 @@ impl TemporalDag {
         to: DenseNodeId,
         ws: &mut GraphWorkspace,
     ) -> bool {
-        bfs_reaches(&self.children, from, to, ws)
+        self.directed.reaches_with(from, to, ws)
     }
 
     /// Map dense id to a serializable [`TemporalNodeKey`].
     #[must_use]
     pub fn temporal_key(&self, id: DenseNodeId) -> Option<TemporalNodeKey> {
-        match self.nodes.get(id.as_usize())? {
+        match self.nodes().get(id.as_usize())? {
             NodeRef::Lagged { variable, lag } => {
                 let offset = -i32::try_from(lag.raw()).ok()?;
                 Some(TemporalNodeKey { variable: *variable, offset })
@@ -200,6 +226,19 @@ mod tests {
     }
 
     #[test]
+    fn directed_edge_pairs_are_sorted_dense_pairs() {
+        let mut g = TemporalDag::empty();
+        assert!(g.directed_edge_pairs_sorted().is_empty());
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(b, c).unwrap();
+        g.insert_directed(a, c).unwrap();
+        g.insert_directed(a, b).unwrap();
+        assert_eq!(g.directed_edge_pairs_sorted(), vec![(0, 1), (0, 2), (1, 2)]);
+    }
+
+    #[test]
     fn allows_lagged_self_edge() {
         let mut g = TemporalDag::empty();
         let past = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
@@ -215,5 +254,27 @@ mod tests {
         let now = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
         // `now` (lag 0) -> `past` (lag 1) points from the present into the past.
         assert!(matches!(g.insert_directed(now, past), Err(GraphError::FutureToPast { .. })));
+    }
+
+    #[test]
+    fn batch_insert_matches_one_edge_at_a_time() {
+        let mut nodes = TemporalDag::empty();
+        let past = nodes.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let now = nodes.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let other = nodes.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let cases = [
+            vec![(past, now), (past, other)],
+            vec![(now, past)],
+            vec![(now, now)],
+            vec![(past, now), (past, now)],
+        ];
+        for edges in cases {
+            let mut one = nodes.clone();
+            let one_err = edges.iter().try_for_each(|&(from, to)| one.insert_directed(from, to));
+            let mut batch = nodes.clone();
+            let batch_err = batch.insert_directed_edges(&edges);
+            assert_eq!(one_err, batch_err);
+            assert_eq!(one, batch);
+        }
     }
 }

@@ -1,4 +1,4 @@
-"""Exact binary observation recovery (2.2B X10) from Python.
+"""Exact binary observation recovery from Python.
 
 The observed pattern law and the truth are enumerated here from binary
 structural mechanisms, independently of the library. Treatment ``t`` and outcome
@@ -162,7 +162,7 @@ def test_prepare_exact_compiles_the_retained_derivation_after_builder_disposal()
     prepared = builder.prepare_exact(observed_law(), REQUESTS)
     del builder
     plan = prepared.plan()
-    assert plan["rule_version"] == "x10.recovery.v1"
+    assert plan["rule_version"] == "binary_observation_recovery.v1"
     assert all(m["identity"].startswith("catalog_distribution.v1") for m in plan["margins"])
     result = json.loads(prepared.estimate())
     assert result["recovered"]["origin"] == "recovered"
@@ -189,7 +189,7 @@ def test_refresh_rebinds_the_snapshot_law_and_re_executes_the_retained_plan():
     prepared.refresh(observed_law())
     after = json.loads(prepared.estimate())
     assert after["recovered"]["probabilities"] == before["recovered"]["probabilities"]
-    assert prepared.plan()["rule_version"] == "x10.recovery.v1"
+    assert prepared.plan()["rule_version"] == "binary_observation_recovery.v1"
     with pytest.raises(CausalUnsupportedError) as refused:
         prepared.refresh(observed_law(snapshot="snap-2"))
     assert refused.value.reason_code == "invalid_argument"

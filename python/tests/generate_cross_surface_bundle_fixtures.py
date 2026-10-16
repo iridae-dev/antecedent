@@ -1,4 +1,4 @@
-"""Build the Python half of the cross-surface composition-bundle fixtures (C3).
+"""Build the Python half of the cross-surface composition-bundle fixtures.
 
 Run from the repository root::
 

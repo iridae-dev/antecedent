@@ -7,7 +7,6 @@
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
 
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -24,15 +23,10 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
 use antecedent_graph::{Dag, DenseNodeId};
-use serde_json::Value as JsonValue;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 
 fn fixture_dir(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/gcm").join(name)
-}
-
-fn load_expected(name: &str) -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir(name).join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("gcm").join(name)
 }
 
 fn chain_data(n: usize, plant_outlier: bool) -> (TabularData, Dag) {
@@ -78,7 +72,7 @@ fn chain_data(n: usize, plant_outlier: bool) -> (TabularData, Dag) {
 
 #[test]
 fn gcm_fit_intervene() {
-    let expected = load_expected("gcm_fit_intervene");
+    let expected = load_expected_json(&fixture_dir("gcm_fit_intervene"));
     let true_mean = expected["true_interventional_mean_y"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
     let (data, g) = chain_data(40, false);
@@ -103,7 +97,7 @@ fn gcm_interventional_distribution_query() {
     use antecedent::gcm::sample_interventional_distribution;
     use antecedent_core::InterventionalDistributionQuery;
 
-    let expected = load_expected("gcm_fit_intervene");
+    let expected = load_expected_json(&fixture_dir("gcm_fit_intervene"));
     let true_mean = expected["true_interventional_mean_y"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
     let (data, g) = chain_data(40, false);
@@ -221,7 +215,7 @@ fn gcm_path_specific_query() {
 
 #[test]
 fn gcm_anomaly() {
-    let expected = load_expected("gcm_anomaly");
+    let expected = load_expected_json(&fixture_dir("gcm_anomaly"));
     let idx = expected["planted_outlier_index"].as_u64().unwrap() as usize;
     let (data, g) = chain_data(30, true);
     let fitted = fit_gcm(g, &data).unwrap();
@@ -233,7 +227,7 @@ fn gcm_anomaly() {
 
 #[test]
 fn gcm_cf_ite() {
-    let expected = load_expected("gcm_cf_ite");
+    let expected = load_expected_json(&fixture_dir("gcm_cf_ite"));
     let true_ite = expected["true_mean_ite"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
     let (data, g) = chain_data(50, false);
@@ -316,7 +310,7 @@ fn binary_treatment_scm(n: usize) -> (antecedent::gcm::CompiledCausalModel, Tabu
 
 #[test]
 fn do_sampling_weighting() {
-    let expected = load_expected("do_sampling_weighting");
+    let expected = load_expected_json(&fixture_dir("do_sampling_weighting"));
     let true_mean = expected["expected_treated_mean"].as_f64().unwrap();
     let (model, data) = binary_treatment_scm(80);
     let ctx = ExecutionContext::for_tests(1);
@@ -328,7 +322,7 @@ fn do_sampling_weighting() {
 
 #[test]
 fn do_sampling_kde() {
-    let expected = load_expected("do_sampling_kde");
+    let expected = load_expected_json(&fixture_dir("do_sampling_kde"));
     let n_draws = expected["n_draws"].as_u64().unwrap() as usize;
     let (model, _) = binary_treatment_scm(80);
     let ctx = ExecutionContext::for_tests(1);
@@ -346,7 +340,7 @@ fn do_sampling_kde() {
 
 #[test]
 fn do_sampling_mcmc() {
-    let expected = load_expected("do_sampling_mcmc");
+    let expected = load_expected_json(&fixture_dir("do_sampling_mcmc"));
     let n_samples = expected["n_samples"].as_u64().unwrap() as usize;
     let (model, _) = binary_treatment_scm(80);
     let ctx = ExecutionContext::for_tests(1);

@@ -11,6 +11,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
+use crate::util::{DrawSpec, dot, mean};
 
 /// Scoped Bayesian IV output. Intervals are equal-tailed posterior intervals conditional on
 /// the selected model, prior scale, and plug-in Gaussian residual variance.
@@ -32,69 +33,67 @@ pub struct BayesianIvEstimate {
     pub model: &'static str,
 }
 
+/// The observed vectors of a single-instrument IV fit, aligned by row.
+#[derive(Clone, Copy, Debug)]
+pub struct IvSample<'a> {
+    /// Instrument values.
+    pub instrument: &'a [f64],
+    /// Treatment values.
+    pub treatment: &'a [f64],
+    /// Outcome values.
+    pub outcome: &'a [f64],
+}
+
+/// Declared stage variances of the fixed-variance control-function model.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StageVariances {
+    /// Variance of the first-stage (treatment) disturbance.
+    pub treatment: f64,
+    /// Variance of the outcome disturbance.
+    pub outcome: f64,
+}
+
+impl StageVariances {
+    fn validate(self) -> Result<Self, EstimationError> {
+        if !self.treatment.is_finite()
+            || self.treatment <= 0.0
+            || !self.outcome.is_finite()
+            || self.outcome <= 0.0
+        {
+            return Err(EstimationError::stats_msg(
+                "declared IV stage variances must be finite and positive",
+            ));
+        }
+        Ok(self)
+    }
+}
+
 /// Fit the linear control-function IV model and sample its conditional Gaussian posterior.
 ///
-/// `instrument` and `treatment` must be finite vectors of at least 8 rows. The instrument is
+/// `sample` vectors must be finite and at least 8 rows. The instrument is
 /// binary or continuous; the first-stage design includes an intercept. The structural model
 /// currently uses one instrument and a homoskedastic Gaussian likelihood. This function does
 /// not claim generic IV robustness or identification outside that model.
 pub fn fit_bayesian_iv(
-    instrument: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &IvSample<'_>,
     prior_sd: f64,
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
     weak_f_threshold: f64,
 ) -> Result<BayesianIvEstimate, EstimationError> {
-    fit_bayesian_iv_inner(
-        instrument,
-        treatment,
-        outcome,
-        prior_sd,
-        draws,
-        seed,
-        weak_f_threshold,
-        None,
-    )
+    fit_bayesian_iv_inner(sample, prior_sd, sampling, weak_f_threshold, None)
 }
 
 /// Fit using fixed, declared stage variances instead of estimating them from the observations.
 /// The posterior remains model-based and limited to the stated control-function system.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "public estimator inputs match the documented model contract"
-)]
 pub fn fit_bayesian_iv_fixed_variances(
-    instrument: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &IvSample<'_>,
     prior_sd: f64,
-    treatment_variance: f64,
-    outcome_variance: f64,
-    draws: usize,
-    seed: u64,
+    variances: StageVariances,
+    sampling: DrawSpec,
     weak_f_threshold: f64,
 ) -> Result<BayesianIvEstimate, EstimationError> {
-    if !treatment_variance.is_finite()
-        || treatment_variance <= 0.0
-        || !outcome_variance.is_finite()
-        || outcome_variance <= 0.0
-    {
-        return Err(EstimationError::stats_msg(
-            "declared IV stage variances must be finite and positive",
-        ));
-    }
-    fit_bayesian_iv_inner(
-        instrument,
-        treatment,
-        outcome,
-        prior_sd,
-        draws,
-        seed,
-        weak_f_threshold,
-        Some((treatment_variance, outcome_variance)),
-    )
+    let variances = variances.validate()?;
+    fit_bayesian_iv_inner(sample, prior_sd, sampling, weak_f_threshold, Some(variances))
 }
 
 /// Fit a jointly Gaussian structural IV model with a *fixed unit loading* on
@@ -107,21 +106,16 @@ pub fn fit_bayesian_iv_fixed_variances(
 /// `(alpha, pi, mu, beta)`. The fixed loading is a substantive restriction:
 /// this route must not be used when the outcome disturbance has an unknown
 /// loading on `v`.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "public estimator inputs match the documented model contract"
-)]
 pub fn fit_bayesian_iv_joint_fixed_loading(
-    instrument: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &IvSample<'_>,
     prior_sd: f64,
-    treatment_variance: f64,
-    outcome_variance: f64,
-    draws: usize,
-    seed: u64,
+    variances: StageVariances,
+    sampling: DrawSpec,
     weak_f_threshold: f64,
 ) -> Result<BayesianIvEstimate, EstimationError> {
+    let IvSample { instrument, treatment, outcome } = *sample;
+    let StageVariances { treatment: treatment_variance, outcome: outcome_variance } = variances;
+    let DrawSpec { draws, seed } = sampling;
     let n = instrument.len();
     if n < 8
         || treatment.len() != n
@@ -144,7 +138,7 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
     let zbar = mean(instrument);
     let tbar = mean(treatment);
     let zss = instrument.iter().map(|z| (z - zbar).powi(2)).sum::<f64>();
-    if zss <= 1e-12 {
+    if antecedent_stats::column_is_constant(instrument, n, 0) {
         return Err(EstimationError::stats_msg("Bayesian IV instrument has no variation"));
     }
     let pi =
@@ -177,31 +171,15 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
     for (i, row) in precision.iter_mut().enumerate() {
         row[i] += 1.0 / prior_sd.powi(2);
     }
-    let covariance = invert4(precision)?;
+    let covariance = crate::util::invert_fixed(&precision)
+        .ok_or_else(|| EstimationError::stats_msg("joint Bayesian IV precision is singular"))?;
     let posterior_mean: [f64; 4] =
         std::array::from_fn(|i| (0..4).map(|j| covariance[i][j] * rhs[j]).sum());
-    let mut chol = [[0.0; 4]; 4];
-    for i in 0..4 {
-        for j in 0..=i {
-            let s = covariance[i][j] - (0..j).map(|k| chol[i][k] * chol[j][k]).sum::<f64>();
-            if i == j {
-                if s <= 0.0 {
-                    return Err(EstimationError::stats_msg(
-                        "joint Bayesian IV covariance is not positive definite",
-                    ));
-                }
-                chol[i][j] = s.sqrt();
-            } else {
-                chol[i][j] = s / chol[j][j];
-            }
-        }
-    }
-    let mut state = seeded_state(seed);
-    let mut effect_draws = Vec::with_capacity(draws);
-    for _ in 0..draws {
-        let z = [normal(&mut state), normal(&mut state), normal(&mut state), normal(&mut state)];
-        effect_draws.push(posterior_mean[3] + (0..=3).map(|j| chol[3][j] * z[j]).sum::<f64>());
-    }
+    // Only the effect coordinate is reported, and its marginal posterior is Gaussian.
+    let mut effect_draws =
+        crate::util::normal_draws(posterior_mean[3], covariance[3][3], draws, seed).ok_or_else(
+            || EstimationError::stats_msg("joint Bayesian IV covariance is not positive definite"),
+        )?;
     effect_draws.sort_by(f64::total_cmp);
     Ok(BayesianIvEstimate {
         mean: effect_draws.iter().sum::<f64>() / draws as f64,
@@ -214,51 +192,15 @@ pub fn fit_bayesian_iv_joint_fixed_loading(
     })
 }
 
-fn invert4(a: [[f64; 4]; 4]) -> Result<[[f64; 4]; 4], EstimationError> {
-    let mut aug = [[0.0; 8]; 4];
-    for i in 0..4 {
-        for j in 0..4 {
-            aug[i][j] = a[i][j];
-        }
-        aug[i][i + 4] = 1.0;
-    }
-    for c in 0..4 {
-        let pivot = (c..4).max_by(|i, j| aug[*i][c].abs().total_cmp(&aug[*j][c].abs())).unwrap();
-        if aug[pivot][c].abs() < 1e-12 {
-            return Err(EstimationError::stats_msg("joint Bayesian IV precision is singular"));
-        }
-        aug.swap(c, pivot);
-        let divisor = aug[c][c];
-        for j in 0..8 {
-            aug[c][j] /= divisor;
-        }
-        for i in 0..4 {
-            if i == c {
-                continue;
-            }
-            let factor = aug[i][c];
-            for j in 0..8 {
-                aug[i][j] -= factor * aug[c][j];
-            }
-        }
-    }
-    Ok(std::array::from_fn(|i| std::array::from_fn(|j| aug[i][j + 4])))
-}
-
-#[expect(
-    clippy::too_many_arguments,
-    reason = "shared private fitter receives the exact variance and model settings of each public contract"
-)]
 fn fit_bayesian_iv_inner(
-    instrument: &[f64],
-    treatment: &[f64],
-    outcome: &[f64],
+    sample: &IvSample<'_>,
     prior_sd: f64,
-    draws: usize,
-    seed: u64,
+    sampling: DrawSpec,
     weak_f_threshold: f64,
-    known_variances: Option<(f64, f64)>,
+    known_variances: Option<StageVariances>,
 ) -> Result<BayesianIvEstimate, EstimationError> {
+    let IvSample { instrument, treatment, outcome } = *sample;
+    let DrawSpec { draws, seed } = sampling;
     let n = instrument.len();
     if n < 8
         || treatment.len() != n
@@ -277,7 +219,7 @@ fn fit_bayesian_iv_inner(
     let zbar = mean(instrument);
     let tbar = mean(treatment);
     let zss = instrument.iter().map(|z| (z - zbar).powi(2)).sum::<f64>();
-    if zss <= 1e-12 {
+    if antecedent_stats::column_is_constant(instrument, n, 0) {
         return Err(EstimationError::stats_msg("Bayesian IV instrument has no variation"));
     }
     let pi =
@@ -292,20 +234,33 @@ fn fit_bayesian_iv_inner(
             "weak_instrument: first-stage F={first_stage_f:.3} is below threshold {weak_f_threshold:.3}"
         )));
     }
-    let (stage_mean, stage_cov) =
-        first_stage_posterior(instrument, treatment, prior_sd, known_variances.map(|x| x.0))?;
+    let (stage_mean, stage_cov) = first_stage_posterior(
+        instrument,
+        treatment,
+        prior_sd,
+        known_variances.map(|v| v.treatment),
+    )?;
     let stage_draws = first_stage_draws(stage_mean, &stage_cov, draws, seed)?;
     let mut effect_draws = Vec::with_capacity(draws);
     let mut log_weights = Vec::with_capacity(draws);
-    for (draw_idx, stage) in stage_draws.chunks_exact(2).enumerate() {
+    for draw_idx in 0..draws {
+        let stage = [stage_draws[0][draw_idx], stage_draws[1][draw_idx]];
         let e: Vec<f64> =
             (0..n).map(|i| treatment[i] - stage[0] - stage[1] * instrument[i]).collect();
         let x: Vec<[f64; 3]> = (0..n).map(|i| [1.0, treatment[i], e[i]]).collect();
         let (beta, cov, log_evidence) =
-            normal_posterior(&x, outcome, prior_sd, known_variances.map(|x| x.1))?;
-        let sampled =
-            gaussian_draws(&beta, &cov, 1, 1, seed.wrapping_add(draw_idx as u64).wrapping_add(1))?;
-        effect_draws.push(sampled[1]);
+            normal_posterior(&x, outcome, prior_sd, known_variances.map(|v| v.outcome))?;
+        // The effect coordinate's marginal posterior, one seeded draw per first-stage draw.
+        let sampled = crate::util::normal_draws(
+            beta[1],
+            cov[1][1],
+            1,
+            seed.wrapping_add(draw_idx as u64).wrapping_add(1),
+        )
+        .ok_or_else(|| {
+            EstimationError::stats_msg("Bayesian IV posterior covariance is not positive definite")
+        })?;
+        effect_draws.push(sampled[0]);
         log_weights.push(log_evidence);
     }
     if known_variances.is_some() {
@@ -313,7 +268,7 @@ fn fit_bayesian_iv_inner(
             weighted_resample(&effect_draws, &log_weights, draws, seed.wrapping_add(0xD1B5_4A32));
     }
     effect_draws.sort_by(f64::total_cmp);
-    let mean_effect = effect_draws.iter().sum::<f64>() / draws as f64;
+    let mean_effect = mean(&effect_draws);
     let lower = quantile(&effect_draws, 0.025);
     let upper = quantile(&effect_draws, 0.975);
     Ok(BayesianIvEstimate {
@@ -331,9 +286,6 @@ fn fit_bayesian_iv_inner(
     })
 }
 
-fn mean(x: &[f64]) -> f64 {
-    x.iter().sum::<f64>() / x.len() as f64
-}
 /// Exchangeable-rank (type-6) quantile of sorted posterior draws, the rule every
 /// posterior-draw interval in the crate uses; `NaN` for an empty sample.
 fn quantile(sorted: &[f64], p: f64) -> f64 {
@@ -396,8 +348,7 @@ fn weighted_resample(values: &[f64], log_weights: &[f64], n: usize, seed: u64) -
         running += w / total;
         cumulative.push(running);
     }
-    let mut state = seeded_state(seed);
-    let offset = uniform(&mut state) / n as f64;
+    let offset = antecedent_core::CausalRng::from_seed(seed).next_f64() / n as f64;
     let mut out = Vec::with_capacity(n);
     let mut j = 0;
     for i in 0..n {
@@ -409,172 +360,68 @@ fn weighted_resample(values: &[f64], log_weights: &[f64], n: usize, seed: u64) -
     }
     out
 }
-/// Mixes a caller seed through the splitmix64 finalizer so nearby seeds start unrelated
-/// xorshift streams; an unmixed xorshift state makes the first draw nearly linear in the seed.
-fn seeded_state(seed: u64) -> u64 {
-    crate::splitmix::seed_mix(seed).max(1)
-}
-
-fn uniform(state: &mut u64) -> f64 {
-    *state ^= *state << 13;
-    *state ^= *state >> 7;
-    *state ^= *state << 17;
-    ((*state >> 11) as f64 + 0.5) / ((1_u64 << 53) as f64)
-}
 fn first_stage_posterior(
     z: &[f64],
     t: &[f64],
     sd: f64,
     known_variance: Option<f64>,
 ) -> Result<([f64; 2], [[f64; 2]; 2]), EstimationError> {
+    let singular = || EstimationError::stats_msg("Bayesian IV first-stage posterior is singular");
     let n = z.len() as f64;
-    let mut a =
-        [[n, z.iter().sum::<f64>()], [z.iter().sum::<f64>(), z.iter().map(|v| v * v).sum::<f64>()]];
+    let sum_z = z.iter().sum::<f64>();
+    let mut a = [[n, sum_z], [sum_z, z.iter().map(|v| v * v).sum::<f64>()]];
     let rhs = [t.iter().sum::<f64>(), z.iter().zip(t).map(|(zi, ti)| zi * ti).sum::<f64>()];
-    let det0 = a[0][0] * a[1][1] - a[0][1] * a[1][0];
-    if det0 <= 1e-12 {
-        return Err(EstimationError::stats_msg("Bayesian IV first-stage posterior is singular"));
-    }
+    let ols_inv = crate::util::invert_fixed(&a).ok_or_else(singular)?;
     let ols = [
-        (a[1][1] * rhs[0] - a[0][1] * rhs[1]) / det0,
-        (-a[1][0] * rhs[0] + a[0][0] * rhs[1]) / det0,
+        ols_inv[0][0] * rhs[0] + ols_inv[0][1] * rhs[1],
+        ols_inv[1][0] * rhs[0] + ols_inv[1][1] * rhs[1],
     ];
     let rss = z.iter().zip(t).map(|(zi, ti)| (ti - ols[0] - ols[1] * zi).powi(2)).sum::<f64>();
     let variance = known_variance.unwrap_or_else(|| (rss / (z.len() - 2) as f64).max(1e-12));
     let ridge = variance / (sd * sd);
     a[0][0] += ridge;
     a[1][1] += ridge;
-    let det = a[0][0] * a[1][1] - a[0][1] * a[1][0];
-    let inv = [[a[1][1] / det, -a[0][1] / det], [-a[1][0] / det, a[0][0] / det]];
+    let inv = crate::util::invert_fixed(&a).ok_or_else(singular)?;
     let cov = inv.map(|row| row.map(|v| v * variance));
     let beta = [inv[0][0] * rhs[0] + inv[0][1] * rhs[1], inv[1][0] * rhs[0] + inv[1][1] * rhs[1]];
     Ok((beta, cov))
 }
+/// `n` draws of each first-stage coefficient: `[intercept draws, slope draws]`, drawn jointly
+/// by the shared multivariate sampler.
 fn first_stage_draws(
     mean: [f64; 2],
     cov: &[[f64; 2]; 2],
     n: usize,
     seed: u64,
-) -> Result<Vec<f64>, EstimationError> {
-    let mut l = [[0.0; 2]; 2];
-    for i in 0..2 {
-        for j in 0..=i {
-            let s = cov[i][j] - (0..j).map(|k| l[i][k] * l[j][k]).sum::<f64>();
-            if i == j {
-                if s <= 0.0 {
-                    return Err(EstimationError::stats_msg(
-                        "Bayesian IV first-stage covariance is not positive definite",
-                    ));
-                }
-                l[i][j] = s.sqrt();
-            } else {
-                l[i][j] = s / l[j][j];
-            }
-        }
-    }
-    let mut state = seeded_state(seed);
-    let mut out = Vec::with_capacity(2 * n);
-    for _ in 0..n {
-        let z = [normal(&mut state), normal(&mut state)];
-        for i in 0..2 {
-            out.push(mean[i] + (0..=i).map(|j| l[i][j] * z[j]).sum::<f64>());
-        }
-    }
-    Ok(out)
+) -> Result<[Vec<f64>; 2], EstimationError> {
+    let flat = [cov[0][0], cov[0][1], cov[1][0], cov[1][1]];
+    let draws = antecedent_prob::sample_gaussian_mvn(
+        &mean,
+        &flat,
+        n,
+        seed,
+        &mut antecedent_prob::LaplaceWorkspace::default(),
+    )
+    .map_err(|_| {
+        EstimationError::stats_msg("Bayesian IV first-stage covariance is not positive definite")
+    })?;
+    Ok([draws[..n].to_vec(), draws[n..2 * n].to_vec()])
 }
 fn invert(a: [[f64; 3]; 3]) -> Result<[[f64; 3]; 3], EstimationError> {
-    let mut aug = [[0.0; 6]; 3];
-    for i in 0..3 {
-        for j in 0..3 {
-            aug[i][j] = a[i][j];
-        }
-        aug[i][i + 3] = 1.0;
-    }
-    for c in 0..3 {
-        let p = (c..3).max_by(|i, j| aug[*i][c].abs().total_cmp(&aug[*j][c].abs())).unwrap_or(c);
-        if aug[p][c].abs() < 1e-12 {
-            return Err(EstimationError::stats_msg("Bayesian IV posterior design is singular"));
-        }
-        aug.swap(c, p);
-        let d = aug[c][c];
-        for j in 0..6 {
-            aug[c][j] /= d;
-        }
-        for i in 0..3 {
-            if i != c {
-                let f = aug[i][c];
-                for j in 0..6 {
-                    aug[i][j] -= f * aug[c][j];
-                }
-            }
-        }
-    }
-    let mut out = [[0.0; 3]; 3];
-    for i in 0..3 {
-        for j in 0..3 {
-            out[i][j] = aug[i][j + 3];
-        }
-    }
-    Ok(out)
+    crate::util::invert_fixed(&a)
+        .ok_or_else(|| EstimationError::stats_msg("Bayesian IV posterior design is singular"))
 }
 fn mul_vec(a: [[f64; 3]; 3], b: [f64; 3]) -> [f64; 3] {
     std::array::from_fn(|i| (0..3).map(|j| a[i][j] * b[j]).sum())
 }
-fn dot(a: &[f64; 3], b: &[f64; 3]) -> f64 {
-    (0..3).map(|i| a[i] * b[i]).sum()
-}
-fn gaussian_draws(
-    mean: &[f64; 3],
-    cov: &[[f64; 3]; 3],
-    _cols: usize,
-    n: usize,
-    seed: u64,
-) -> Result<Vec<f64>, EstimationError> {
-    // Cholesky factor of the symmetric posterior covariance.
-    let mut l = [[0.0; 3]; 3];
-    for i in 0..3 {
-        for j in 0..=i {
-            let s = cov[i][j] - (0..j).map(|k| l[i][k] * l[j][k]).sum::<f64>();
-            if i == j {
-                if s <= 0.0 {
-                    return Err(EstimationError::stats_msg(
-                        "Bayesian IV posterior covariance is not positive definite",
-                    ));
-                }
-                l[i][j] = s.sqrt();
-            } else {
-                l[i][j] = s / l[j][j];
-            }
-        }
-    }
-    let mut rng = seeded_state(seed);
-    let mut out = Vec::with_capacity(n * 3);
-    for _ in 0..n {
-        let z = [normal(&mut rng), normal(&mut rng), normal(&mut rng)];
-        for i in 0..3 {
-            out.push(mean[i] + (0..=i).map(|j| l[i][j] * z[j]).sum::<f64>());
-        }
-    }
-    Ok(out)
-}
-fn normal(state: &mut u64) -> f64 {
-    fn u(s: &mut u64) -> f64 {
-        *s ^= *s << 13;
-        *s ^= *s >> 7;
-        *s ^= *s << 17;
-        ((*s >> 11) as f64 + 0.5) / ((1_u64 << 53) as f64)
-    }
-    let r = (-2.0 * u(state).ln()).sqrt();
-    r * (std::f64::consts::TAU * u(state)).cos()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn consecutive_seeds_start_independent_standard_normal_streams() {
-        let first: Vec<f64> =
-            (0..4000_u64).map(|seed| normal(&mut seeded_state(42 + seed))).collect();
+        let first: Vec<f64> = (0..4000_u64)
+            .map(|seed| crate::util::normal_draws(0.0, 1.0, 1, 42 + seed).unwrap()[0])
+            .collect();
         let mean = first.iter().sum::<f64>() / first.len() as f64;
         let var = first.iter().map(|z| (z - mean).powi(2)).sum::<f64>() / first.len() as f64;
         let lag1 = first.windows(2).map(|w| (w[0] - mean) * (w[1] - mean)).sum::<f64>()
@@ -589,25 +436,21 @@ mod tests {
         let mut covered = 0usize;
         let reps = 300usize;
         for rep in 0..reps {
-            let mut state = (1_000_003_u64.wrapping_mul(rep as u64 + 1)).max(1);
+            let mut rng = antecedent_core::CausalRng::from_seed(1_000_003 * (rep as u64 + 1));
             let z: Vec<f64> = (0..180).map(|i| f64::from(i % 2)).collect();
             let mut t = Vec::with_capacity(180);
             let mut y = Vec::with_capacity(180);
             for &zi in &z {
-                let v = normal(&mut state);
+                let v = antecedent_kernels::standard_normal(&mut rng);
                 let ti = zi + v;
                 t.push(ti);
-                y.push(1.0 + 2.0 * ti + v + normal(&mut state));
+                y.push(1.0 + 2.0 * ti + v + antecedent_kernels::standard_normal(&mut rng));
             }
             let fit = fit_bayesian_iv_joint_fixed_loading(
-                &z,
-                &t,
-                &y,
+                &IvSample { instrument: &z, treatment: &t, outcome: &y },
                 10.0,
-                1.0,
-                1.0,
-                800,
-                30_000 + rep as u64,
+                StageVariances { treatment: 1.0, outcome: 1.0 },
+                DrawSpec::new(800, 30_000 + rep as u64),
                 10.0,
             )
             .unwrap();
@@ -625,18 +468,36 @@ mod tests {
         let u: Vec<f64> = (0..n).map(|i| if i % 4 < 2 { -0.2 } else { 0.2 }).collect();
         let t: Vec<f64> = z.iter().zip(&u).map(|(z, u)| 0.25 + 0.65 * z + u).collect();
         let y: Vec<f64> = t.iter().zip(&u).map(|(t, u)| 1.0 + 2.0 * t + 1.5 * u).collect();
-        let fit = fit_bayesian_iv(&z, &t, &y, 10.0, 2000, 23, 10.0).unwrap();
+        let fit = fit_bayesian_iv(
+            &IvSample { instrument: &z, treatment: &t, outcome: &y },
+            10.0,
+            DrawSpec::new(2000, 23),
+            10.0,
+        )
+        .unwrap();
         assert!((fit.mean - 2.0).abs() < 0.15, "{}", fit.mean);
         assert!(fit.first_stage_f > 10.0);
-        let narrow = fit_bayesian_iv(&z, &t, &y, 0.2, 1000, 4, 10.0).unwrap();
+        let narrow = fit_bayesian_iv(
+            &IvSample { instrument: &z, treatment: &t, outcome: &y },
+            0.2,
+            DrawSpec::new(1000, 4),
+            10.0,
+        )
+        .unwrap();
         assert!(
             (narrow.mean - fit.mean).abs() > 0.01,
             "prior sensitivity means: narrow={} broad={}",
             narrow.mean,
             fit.mean
         );
-        let fixed =
-            fit_bayesian_iv_fixed_variances(&z, &t, &y, 10.0, 0.04, 0.01, 1000, 17, 10.0).unwrap();
+        let fixed = fit_bayesian_iv_fixed_variances(
+            &IvSample { instrument: &z, treatment: &t, outcome: &y },
+            10.0,
+            StageVariances { treatment: 0.04, outcome: 0.01 },
+            DrawSpec::new(1000, 17),
+            10.0,
+        )
+        .unwrap();
         assert!(fixed.model.contains("declared fixed variances"));
         assert!((fixed.mean - 2.0).abs() < 0.15);
     }
@@ -646,7 +507,22 @@ mod tests {
         let z: Vec<f64> = (0..n).map(|i| f64::from((i / 2) % 2)).collect();
         let t: Vec<f64> = (0..n).map(|i| f64::from(i % 2)).collect();
         let y = t.clone();
-        let e = fit_bayesian_iv(&z, &t, &y, 2.0, 100, 9, 10.0).unwrap_err();
+        let e = fit_bayesian_iv(
+            &IvSample { instrument: &z, treatment: &t, outcome: &y },
+            2.0,
+            DrawSpec::new(100, 9),
+            10.0,
+        )
+        .unwrap_err();
         assert!(e.to_string().contains("weak_instrument"));
+    }
+    #[test]
+    fn the_posterior_inverse_is_scale_free_and_still_refuses_collinear_designs() {
+        // Pivots of order 1e-16 were refused by the former absolute 1e-12 cutoff.
+        let tiny = [[1e-16, 0.0, 0.0], [0.0, 4e-16, 0.0], [0.0, 0.0, 9e-16]];
+        assert!(invert(tiny).is_ok());
+        let collinear = [[1.0, 2.0, 0.0], [2.0, 4.0, 0.0], [0.0, 0.0, 1.0]];
+        let e = invert(collinear).unwrap_err();
+        assert!(e.to_string().contains("Bayesian IV posterior design is singular"), "{e}");
     }
 }

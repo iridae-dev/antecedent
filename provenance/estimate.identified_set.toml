@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Confidence Intervals for Partially Identified Parameters", doi = "10.1111/j.1468-0262.2004.00555.x", sections = ["Lemma 2.1 and the modified CI that covers the true parameter, not the whole identification region"] },
+ { title = "Confidence Intervals for Partially Identified Parameters", doi = "10.1111/j.1468-0262.2004.00555.x", sections = ["Lemma and the modified CI that covers the true parameter, not the whole identification region"] },
  { title = "Inference for Parameters Defined by Moment Inequalities Using Generalized Moment Selection", doi = "10.3982/ECTA7502", sections = ["BIC-type moment-selection threshold used when the estimated set width is not treated as superefficient at zero"] },
 ]
 
@@ -21,6 +21,6 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-estimate/src/identified_set.rs",
+ "crates/antecedent-stats/src/identified_set.rs",
  "crates/antecedent/src/result.rs (StructuralResponseMixture identified-set interval)",
 ]

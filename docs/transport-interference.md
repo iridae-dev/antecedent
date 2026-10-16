@@ -82,7 +82,7 @@ on the point numbers; the `analyze` path derives its Monte Carlo stream from the
 analysis seed.
 
 The calibration slot of both cells is keyed by the construction the coverage
-harness measures (`crates/antecedent/tests/v110_calibration_design.rs`):
+harness measures (`crates/antecedent/tests/calibration_design.rs`):
 query, graph class, `fixed` structure, `tabular` modality, `Frequentist`,
 estimator (`transport.trial_ipw` / `interference.ht_hajek`), `analytic_se`,
 `iid` dependence, `point` identification, at the reported 0.95 level. A
@@ -205,4 +205,36 @@ provenance record preserve that distinction; no coverage theorem is claimed.
 - The network is treated as fixed and supplied by the caller.
 - Observational network treatment and graph semantics for contagion or
   allocational interference are outside this contract.
-- Cyclic/equilibrium causal systems remain outside this release.
+- Cyclic/equilibrium causal systems are not supported.
+
+## Supplied augmented response-grid utility
+
+`transport.advanced.estimate_augmented_response_grid` exposes the existing Rust
+augmented response-grid evaluator through a checked identification certificate:
+
+```python
+from antecedent.transport import advanced as transport
+
+reading = transport.estimate_augmented_response_grid(
+    certificate,
+    outcome=outcome, trial=trial_membership,
+    selection_probability=selection_probability, grid=dose_grid,
+    observed_regression=observed_regression,
+    target_regression=target_regression, response_weight=response_weight,
+)
+reading.mean
+reading.source_effective_sample_size
+reading.selection_overlap
+reading.to_rows()
+```
+
+The row-aligned vectors have `row_count` entries. `target_regression` and
+`response_weight` have shape `(grid_size, row_count)` and are flattened in native
+grid-major order. Signed local response weights remain supported. Rust checks
+numerical inputs and that the retained certificate authorizes this equation;
+a certificate for another identification formula is refused.
+
+The result names its means, grid, source effective sample sizes and selection
+overlap diagnostics and is explicitly `point_only`. This evaluates caller-supplied
+regressions and weights; it adds no fitted estimator, confidence interval or
+retained-study license.

@@ -85,8 +85,8 @@ fn mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export
         drop(route_builder);
 
         let first = prepared.estimate(&initial, &context).unwrap();
-        let got = values(first.response.as_ref().unwrap());
-        let one_shot_values = values(one_shot.response.as_ref().unwrap());
+        let got = values(first.response().unwrap());
+        let one_shot_values = values(one_shot.response().unwrap());
         for (prepared_value, one_shot_value) in got.iter().zip(one_shot_values) {
             assert!((prepared_value - one_shot_value).abs() < 1e-10);
         }
@@ -97,7 +97,7 @@ fn mean_curve_explicit_and_accepted_keep_ordered_grid_through_refresh_and_export
 
         let refreshed_data = data(0.3);
         let refreshed = prepared.refresh(refreshed_data.clone(), &context).unwrap();
-        let refreshed_values = values(refreshed.response.as_ref().unwrap());
+        let refreshed_values = values(refreshed.response().unwrap());
         for (&dose, &estimate) in [-0.5, 0.0, 0.5].iter().zip(&refreshed_values) {
             let truth = 0.7 + 1.7 * dose;
             assert!((estimate - truth).abs() < 0.12, "refreshed dose {dose}: {estimate}");
@@ -144,8 +144,8 @@ fn intervention_gcomp_explicit_and_accepted_cover_each_validation_suite() {
             drop(route_builder);
 
             let first = prepared.estimate(&initial, &context).unwrap();
-            let one_shot_value = values(one_shot.response.as_ref().unwrap())[0];
-            let prepared_value = values(first.response.as_ref().unwrap())[0];
+            let one_shot_value = values(one_shot.response().unwrap())[0];
+            let prepared_value = values(first.response().unwrap())[0];
             assert!((prepared_value - one_shot_value).abs() < 1e-10, "{suite:?}");
             assert_eq!(first.refutations.is_empty(), suite == RefuteSuite::None);
             let got = prepared_value;
@@ -154,7 +154,7 @@ fn intervention_gcomp_explicit_and_accepted_cover_each_validation_suite() {
 
             let refreshed_data = data(0.3);
             let refreshed = prepared.refresh(refreshed_data, &context).unwrap();
-            let refreshed_value = values(refreshed.response.as_ref().unwrap())[0];
+            let refreshed_value = values(refreshed.response().unwrap())[0];
             assert!((refreshed_value - truth - 0.3).abs() < 0.12, "{suite:?} refresh");
 
             let artifact = prepared

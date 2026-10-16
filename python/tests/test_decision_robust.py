@@ -106,7 +106,7 @@ def _claims(
 SUPPORTED = decision_robust.Support("supported")
 
 
-def test_f6_admissible_identity_ignores_order_and_changes_with_rules() -> None:
+def test_admissible_identity_ignores_order_and_changes_with_rules() -> None:
     rules = decision_robust.AdmissibilityRules(
         default_weakest_support="weak_overlap",
         support_rules=(
@@ -147,7 +147,7 @@ def test_f6_admissible_identity_ignores_order_and_changes_with_rules() -> None:
     assert contract.identity != contract.with_admissibility(changed).identity
 
 
-def test_f6_admissible_contract_exports_loads_and_refuses_a_resealed_identity() -> None:
+def test_admissible_contract_exports_loads_and_refuses_a_resealed_identity() -> None:
     rules = _require_supported(uncertainty="credible")
     contract = decision_robust.AdmissibleContract(_base(), rules)
     data = contract.export()
@@ -163,7 +163,7 @@ def test_f6_admissible_contract_exports_loads_and_refuses_a_resealed_identity() 
     assert decision.Contract.load(plain.export(), expected_identity=plain.identity) == plain
 
 
-def test_f6_invalid_rules_refuse_with_registered_code_and_detail() -> None:
+def test_invalid_rules_refuse_with_registered_code_and_detail() -> None:
     ghost = decision_robust.AdmissibilityRules(
         support_rules=(decision_robust.SupportRule("ghost", 0, "supported"),)
     )
@@ -184,7 +184,7 @@ def test_f6_invalid_rules_refuse_with_registered_code_and_detail() -> None:
         decision_robust.AdmissibilityRules(uncertainty="sometimes")  # type: ignore[arg-type]
 
 
-def test_f6_invariant_best_is_structurally_robust_and_graph_dependence_is_named() -> None:
+def test_invariant_best_is_structurally_robust_and_graph_dependence_is_named() -> None:
     contract = _contract(rules=_require_supported())
     robust = decision_robust.finite_scenarios(
         contract, _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
@@ -211,7 +211,7 @@ def test_f6_invariant_best_is_structurally_robust_and_graph_dependence_is_named(
     assert {s["status"] for s in graph.structures} == {"evaluated"}
 
 
-def test_f6_support_robust_support_dependent_and_unsupported_states() -> None:
+def test_support_robust_support_dependent_and_unsupported_states() -> None:
     contract = _contract(rules=_require_supported())
     weak = decision_robust.Support("extrapolative")
     outside = decision_robust.Support("outside_empirical_support")
@@ -254,7 +254,7 @@ def test_f6_support_robust_support_dependent_and_unsupported_states() -> None:
     assert by_id["B"].supported_range == (3.0, 3.0)
 
 
-def test_f6_declared_exclusions_and_no_admissible_action_only_remove_actions() -> None:
+def test_declared_exclusions_and_no_admissible_action_only_remove_actions() -> None:
     rules = decision_robust.AdmissibilityRules(
         declared_exclusions=(decision_robust.DeclaredExclusion("A", "legal"),)
     )
@@ -278,7 +278,7 @@ def test_f6_declared_exclusions_and_no_admissible_action_only_remove_actions() -
     assert nothing.selected is None
 
 
-def test_f6_uncertainty_requirement_is_met_only_by_its_own_kind() -> None:
+def test_uncertainty_requirement_is_met_only_by_its_own_kind() -> None:
     claims = _claims((5.0, 3.0), (6.0, 2.0))
     for required, supplied, kind, accepted in [
         ("none", "structural_envelope", "finite_scenarios", True),
@@ -306,7 +306,7 @@ def test_f6_uncertainty_requirement_is_met_only_by_its_own_kind() -> None:
     assert "structural_envelope" in (wrong.verdict.reason or "")
 
 
-def test_f6_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_weights() -> None:
+def test_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_weights() -> None:
     # A = 0.5*5 + 0.5*1 = 3.0 and B = 0.5*3 + 0.5*4 = 3.5.
     bayes = _contract("bayes_over_structures")
     weighted = decision_robust.weighted_atoms(
@@ -353,7 +353,7 @@ def test_f6_weighted_atoms_keep_unresolved_mass_and_completion_counts_are_not_we
     assert [s["status"] for s in held.structures] == ["evaluated", "unidentified"]
 
 
-def test_f6_unresolved_structures_leave_invariance_unchecked() -> None:
+def test_unresolved_structures_leave_invariance_unchecked() -> None:
     contract = _contract()
     for unresolved in (
         decision_robust.Claim.unidentified("s2"),
@@ -377,7 +377,7 @@ def test_f6_unresolved_structures_leave_invariance_unchecked() -> None:
     assert two.value.detail == "decision_adapters.point_claim_is_single"
 
 
-def test_f6_identified_sets_partial_identification_reports_an_interval_per_action() -> None:
+def test_identified_sets_partial_identification_reports_an_interval_per_action() -> None:
     contract = _contract()
 
     def decide(
@@ -430,7 +430,7 @@ def test_f6_identified_sets_partial_identification_reports_an_interval_per_actio
     assert missing.value.detail == "decision_adapters.missing_action"
 
 
-def test_f6_identified_sets_apply_support_hard_exclusions_and_interval_arithmetic() -> None:
+def test_identified_sets_apply_support_hard_exclusions_and_interval_arithmetic() -> None:
     contract = _contract(rules=_require_supported())
     weak = decision_robust.Support("extrapolative")
     result = decision_robust.identified_sets(
@@ -483,7 +483,7 @@ def test_f6_identified_sets_apply_support_hard_exclusions_and_interval_arithmeti
     assert unknown.value.detail == "decision_adapters.unknown_action"
 
 
-def test_f6_external_callback_receipt_is_retained_and_never_labelled_native() -> None:
+def test_external_callback_receipt_is_retained_and_never_labelled_native() -> None:
     contract = _contract(rules=_require_supported())
     receipt = decision_robust.ExternalReceipt(
         atom_id="s1",
@@ -552,7 +552,7 @@ def test_f6_external_callback_receipt_is_retained_and_never_labelled_native() ->
     assert "receipt_atom" in ghost.value.detail or "receipt_atom" in str(ghost.value.offending)
 
 
-def test_f6_robust_result_exports_replays_and_refuses_changed_inputs() -> None:
+def test_robust_result_exports_replays_and_refuses_changed_inputs() -> None:
     contract = _contract(rules=_require_supported())
     claims = _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
     result = decision_robust.robust(contract, claims)

@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (gather); do not edit -->
 # Sample gather benchmark baseline
 
 Commit: c9db53a0 (the commit that added this file; the measured commit was not written down)

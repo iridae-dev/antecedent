@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 # The self-test (scripts/promotion_selftest.py) builds ONE synthetic record
-# (2.2A.XT.self_test_cell) with its own owning registries and source files in a temp
+# (xt.cell) with its own owning registries and source files in a temp
 # dir, so it never depends on the state of any committed record. The baseline
 # synthetic registry must pass the checker; each corruption case mutates only
 # synthetic files and must fail with its specific message and rule id, and every
@@ -25,8 +25,8 @@ self_test() {
 }
 
 if [[ "${1:-}" == "--self-test" ]]; then
-  python3 scripts/check_2_3_prerequisites.py --self-test
-  python3 scripts/check_2_3_evidence_ledger.py --self-test
+  python3 scripts/check_prerequisites.py --self-test
+  python3 scripts/check_evidence_ledger.py --self-test
   self_test
   exit $?
 fi
@@ -46,11 +46,10 @@ fi
 EVIDENCE="$(mktemp)"
 SELECTED="$(mktemp)"
 trap 'rm -f "$EVIDENCE" "$SELECTED"' EXIT
-python3 scripts/check_2_3_prerequisites.py
-python3 scripts/check_2_3_evidence_ledger.py
-for release in 2_2 2_3; do
-  registry="parity/promotion_${release}.toml"
-  echo "== ${release/_/.} promotion records =="
+python3 scripts/check_prerequisites.py
+python3 scripts/check_evidence_ledger.py
+for registry in parity/promotion.toml; do
+  echo "== promotion records =="
   : > "$EVIDENCE"
   if [[ "$group" == all ]]; then
     python3 scripts/check_promotion_records.py "$registry" --emit-evidence "$EVIDENCE"
@@ -68,14 +67,14 @@ for release in 2_2 2_3; do
     selected="$SELECTED"
   fi
   if [[ ! -s "$selected" ]]; then
-    echo "no ${release/_/.} promotion evidence in $group shard"
+    echo "no promotion evidence in $group shard"
     continue
   fi
   if [[ "$group" == all || "$group" == python ]] && ! command -v uv >/dev/null 2>&1; then
     echo "FAIL: uv is required; unexecuted Python rows are not promotion evidence"
     exit 1
   fi
-  echo "== ${release/_/.} promotion evidence: executing cited fixtures and refusals =="
+  echo "== promotion evidence: executing cited fixtures and refusals =="
   python3 scripts/run_evidence_rows.py "$ROOT" "$selected" "$ROOT" fixture_evidence gate_promotion
 done
 echo "gate_promotion: ok"

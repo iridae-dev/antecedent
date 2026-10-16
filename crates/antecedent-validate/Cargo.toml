@@ -12,32 +12,39 @@ keywords.workspace = true
 categories.workspace = true
 description = "Effect refuters, sensitivity analysis, and validation diagnostics for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
 
 [features]
 default = []
-# Exposes the closed 2.2B X3 joint-sensitivity endpoint bootstrap
-# (`joint_sensitivity_bootstrap_interval_internal`) to the calibration harness. Enabled only
-# by dev-dependencies (resolver 2 keeps it out of normal builds); no released build carries it.
+# Exposes the closed joint-sensitivity endpoint bootstrap
+# (`joint_sensitivity_bootstrap_interval_internal`) to the calibration harness.
+# Pass `--features calibration-internal` to compile it. No released build carries it.
 calibration-internal = ["antecedent-estimate/calibration-internal"]
 
 [dependencies]
-antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.3.0", path = "../antecedent-data" }
-antecedent-estimate = { version = "2.3.0", path = "../antecedent-estimate" }
-antecedent-expr = { version = "2.3.0", path = "../antecedent-expr" }
-antecedent-identify = { version = "2.3.0", path = "../antecedent-identify" }
-antecedent-discovery = { version = "2.3.0", path = "../antecedent-discovery" }
-antecedent-graph = { version = "2.3.0", path = "../antecedent-graph" }
-antecedent-prob = { version = "2.3.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.3.0", path = "../antecedent-stats" }
-antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
+antecedent-core = { workspace = true }
+antecedent-data = { workspace = true }
+antecedent-estimate = { workspace = true }
+antecedent-expr = { workspace = true }
+antecedent-identify = { workspace = true }
+antecedent-io-core = { workspace = true }
+antecedent-discovery = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-prob = { workspace = true }
+antecedent-stats = { workspace = true }
+antecedent-kernels = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-# Self dev-dependency: the X3 integration tests exercise the closed endpoint bootstrap,
-# compiled only under `calibration-internal`.
-antecedent-validate = { path = ".", features = ["calibration-internal"] }
 serde_json = { workspace = true }
+
+[[bench]]
+name = "refuters"
+harness = false
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

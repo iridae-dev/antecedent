@@ -1,4 +1,4 @@
-//! Python bindings for the E1 preflight, rank-drop and cost surface.
+//! Python bindings for the preflight, rank-drop and cost surface.
 //!
 //! Reports cross the boundary as JSON text (the Rust report types are `Serialize`) and the
 //! Python wrapper parses them into frozen dataclasses, so the two languages share one shape.
@@ -13,7 +13,6 @@ use antecedent::{
 };
 use antecedent_core::{CausalSchema, VariableId};
 use antecedent_data::TableView;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::Serialize;
 
@@ -24,7 +23,7 @@ use crate::{
 };
 
 fn to_json<T: Serialize>(value: &T) -> PyResult<String> {
-    serde_json::to_string(value).map_err(|e| PyValueError::new_err(e.to_string()))
+    serde_json::to_string(value).map_err(|e| crate::value_err(e.to_string()))
 }
 
 /// Resolve a declared priority (column names, highest first) against the frozen schema.
@@ -187,7 +186,7 @@ impl PyPreparedBatch {
             let first = inner
                 .plans()
                 .first()
-                .ok_or_else(|| PyValueError::new_err("a prepared batch holds no plans"))?;
+                .ok_or_else(|| crate::value_err("a prepared batch holds no plans"))?;
             policy_for(first.schema(), priority)?
         };
         detach_catch(py, move || {
@@ -212,14 +211,14 @@ struct BoundDesign {
 
 impl BoundDesign {
     fn bind(
-        py: Python<'_>,
+        _py: Python<'_>,
         names: Vec<String>,
         columns: Vec<Bound<'_, PyAny>>,
         treatment: &str,
         outcome: &str,
         adjustment: &[String],
     ) -> PyResult<Self> {
-        let (data, _) = tabular_from_py_columns(py, names, columns)?;
+        let (data, _) = tabular_from_py_columns(names, columns)?;
         let lookup =
             |name: &str| data.schema().id_of(name).map_err(|e| py_err(CausalError::from(e)));
         let treatment = lookup(treatment)?;
@@ -334,7 +333,7 @@ fn estimate_with_rank_drop_json(
     let design = BoundDesign::bind(py, names, columns, treatment, outcome, &adjustment)?;
     let policy = policy_for(design.data.schema(), priority)?;
     let estimator =
-        estimator.parse::<EstimatorId>().map_err(|e| PyValueError::new_err(e.to_string()))?;
+        estimator.parse::<EstimatorId>().map_err(|e| crate::value_err(e.to_string()))?;
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
         to_json(

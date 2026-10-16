@@ -1,12 +1,12 @@
-# Configured batches and batch retarget (2.2 E3)
+# Configured batches and batch retarget
 
-A batch answers many average-effect questions on one table. Two additions in 2.2: the batch
+A batch answers many average-effect questions on one table. Two additions: the batch
 entry points take the same typed estimator configurations as `analyze`, and a prepared batch
 can **retarget** a declared family of claims to caller-declared populations and report their
 joint covariance and named contrasts. The points and plug-in covariance are `point_only`;
 the 95% max-t simultaneous band is licensed for complete families at its measured
 coordinate (see [The simultaneous interval](#the-simultaneous-interval)). The record is
-`2.2E.E3.batch_retarget_covariance_contrasts` in `parity/promotion_2_2.toml`.
+`estimate.batch_retarget_covariance` in `parity/promotion.toml`.
 
 ## Typed estimator configurations
 

@@ -4,7 +4,6 @@
 //! define the policy.
 
 use antecedent_core::{TemporalPolicy, TemporalResponseSpec};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -13,9 +12,9 @@ pub(crate) const DEFAULT_POLICY: &str = TemporalResponseSpec::DEFAULT_POLICY;
 
 pub(crate) fn policy_at_lag(tag: impl AsRef<str>, treatment_lag: u32) -> PyResult<TemporalPolicy> {
     let at = -i32::try_from(treatment_lag)
-        .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
+        .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
     let tag = tag.as_ref().to_ascii_lowercase();
-    TemporalResponseSpec::parse_policy(&tag, at).map_err(|e| PyValueError::new_err(e.to_string()))
+    TemporalResponseSpec::parse_policy(&tag, at).map_err(|e| crate::value_err(e.to_string()))
 }
 
 /// Machine-readable [`TemporalResponseSpec`] license for the Python facade.

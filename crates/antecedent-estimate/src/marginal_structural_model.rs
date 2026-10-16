@@ -1,6 +1,9 @@
 //! Additive binary marginal structural model with subject-level stabilized IPTW.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::longitudinal_regime::SubjectHistories;
+use crate::util::dot;
+
 /// Point coefficients and pointwise subject-clustered CR1 sandwich errors.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MsmSummary {
@@ -41,7 +44,7 @@ pub fn pointwise_intervals_95(fit: &MsmSummary, subjects: usize) -> Option<MsmIn
     {
         return None;
     }
-    let z = antecedent_stats::normal_ppf(0.975);
+    let z = antecedent_stats::NORMAL_Q975;
     let interval = |center: f64, se: f64| [center - z * se, center + z * se];
     let result = MsmIntervals95 {
         intercept: interval(fit.intercept, fit.intercept_standard_error),
@@ -61,18 +64,25 @@ pub fn pointwise_intervals_95(fit: &MsmSummary, subjects: usize) -> Option<MsmIn
 }
 
 /// Fit one terminal-outcome row per subject; all histories are subject-major.
-// arity mirrors the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+///
+/// `numerator` is the stabilizing treatment probability at each period.
+#[allow(
+    clippy::too_many_lines,
+    reason = "validate the histories, build the weighted design, solve, then form the sandwich covariance; the stages share the design and weights"
+)]
 pub fn fit_binary_msm(
     y: &[f64],
-    a: &[bool],
-    p: &[f64],
+    histories: &SubjectHistories<'_>,
     numerator: &[f64],
-    observed: &[bool],
-    censor: &[f64],
-    periods: usize,
-    floor: f64,
 ) -> Result<MsmSummary, &'static str> {
+    let SubjectHistories {
+        treatment: a,
+        treatment_probability: p,
+        outcome_observed: observed,
+        censoring_probability: censor,
+        periods,
+        minimum_probability: floor,
+    } = *histories;
     let n = y.len();
     let cells = n.checked_mul(periods).ok_or("MSM dimensions overflow")?;
     if n == 0
@@ -99,8 +109,6 @@ pub fn fit_binary_msm(
     let mut design = vec![vec![0.0; columns]; n];
     let mut weights = vec![0.0; n];
     let mut max_weight: f64 = 0.0;
-    let mut sum = 0.0;
-    let mut sumsq = 0.0;
     for i in 0..n {
         design[i][0] = 1.0;
         if observed[i] && !y[i].is_finite() {
@@ -132,11 +140,6 @@ pub fn fit_binary_msm(
         if observed[i] {
             weights[i] = weight;
             max_weight = max_weight.max(weight);
-            sum += weight;
-            sumsq += weight * weight;
-            if !sum.is_finite() || !sumsq.is_finite() {
-                return Err("stabilized weight diagnostics overflowed");
-            }
         }
     }
     let mut bread_input = vec![vec![0.0; columns]; columns];
@@ -155,7 +158,8 @@ pub fn fit_binary_msm(
     if rhs.iter().chain(bread_input.iter().flatten()).any(|v| !v.is_finite()) {
         return Err("weighted MSM normal equations overflowed");
     }
-    let bread = invert(bread_input)?;
+    let bread =
+        crate::util::invert_rows(&bread_input).ok_or("weighted MSM design is rank-deficient")?;
     let beta = matvec(&bread, &rhs);
     if beta.iter().any(|v| !v.is_finite()) {
         return Err("MSM coefficients are non-finite");
@@ -184,7 +188,7 @@ pub fn fit_binary_msm(
     let intercept_standard_error = covariance[0][0].max(0.0).sqrt();
     let standard_errors =
         (1..columns).map(|j| covariance[j][j].max(0.0).sqrt()).collect::<Vec<_>>();
-    let ess = sum * sum / sumsq;
+    let ess = antecedent_kernels::kish_ess(&weights);
     if covariance.iter().flatten().any(|v| !v.is_finite())
         || !intercept_standard_error.is_finite()
         || standard_errors.iter().any(|v| !v.is_finite())
@@ -203,43 +207,6 @@ pub fn fit_binary_msm(
     })
 }
 
-fn invert(mut a: Vec<Vec<f64>>) -> Result<Vec<Vec<f64>>, &'static str> {
-    let n = a.len();
-    let mut inverse = vec![vec![0.0; n]; n];
-    #[allow(clippy::needless_range_loop, reason = "index sets the matrix diagonal inverse[i][i]")]
-    for i in 0..n {
-        inverse[i][i] = 1.0;
-    }
-    for j in 0..n {
-        let pivot = (j..n).max_by(|&x, &y| a[x][j].abs().total_cmp(&a[y][j].abs())).unwrap();
-        let scale = a[pivot].iter().map(|v| v.abs()).fold(0.0, f64::max);
-        if a[pivot][j].abs() <= 1e-12 * scale.max(1.0) {
-            return Err("weighted MSM design is rank-deficient");
-        }
-        a.swap(j, pivot);
-        inverse.swap(j, pivot);
-        let divisor = a[j][j];
-        for k in 0..n {
-            a[j][k] /= divisor;
-            inverse[j][k] /= divisor;
-        }
-        for i in 0..n {
-            if i == j {
-                continue;
-            }
-            let factor = a[i][j];
-            for k in 0..n {
-                a[i][k] -= factor * a[j][k];
-                inverse[i][k] -= factor * inverse[j][k];
-            }
-        }
-    }
-    Ok(inverse)
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
 fn matvec(a: &[Vec<f64>], b: &[f64]) -> Vec<f64> {
     a.iter().map(|row| dot(row, b)).collect()
 }
@@ -267,8 +234,19 @@ mod tests {
             false, true, true,
         ];
         let y = [1.0, 4.0, 3.0, 6.0, 1.0, 4.0, 3.0, 6.0];
-        let result =
-            fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01).unwrap();
+        let result = fit_binary_msm(
+            &y,
+            &SubjectHistories {
+                treatment: &a,
+                treatment_probability: &[0.5; 16],
+                outcome_observed: &[true; 8],
+                censoring_probability: &[1.0; 16],
+                periods: 2,
+                minimum_probability: 0.01,
+            },
+            &[0.5; 2],
+        )
+        .unwrap();
         assert!((result.intercept - 1.0).abs() < 1e-12);
         assert!((result.period_effects[0] - 2.0).abs() < 1e-12);
         assert!((result.period_effects[1] - 3.0).abs() < 1e-12);
@@ -276,15 +254,59 @@ mod tests {
         assert!(result.standard_errors.iter().all(|v| v.is_finite()));
         assert!(pointwise_intervals_95(&result, 8).is_none());
         assert!(
-            fit_binary_msm(&y, &a, &[0.0; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01)
-                .unwrap_err()
-                .contains("positivity")
+            fit_binary_msm(
+                &y,
+                &SubjectHistories {
+                    treatment: &a,
+                    treatment_probability: &[0.0; 16],
+                    outcome_observed: &[true; 8],
+                    censoring_probability: &[1.0; 16],
+                    periods: 2,
+                    minimum_probability: 0.01
+                },
+                &[0.5; 2]
+            )
+            .unwrap_err()
+            .contains("positivity")
         );
         assert!(
-            fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[0.0; 16], 2, 0.01)
-                .unwrap_err()
-                .contains("censoring")
+            fit_binary_msm(
+                &y,
+                &SubjectHistories {
+                    treatment: &a,
+                    treatment_probability: &[0.5; 16],
+                    outcome_observed: &[true; 8],
+                    censoring_probability: &[0.0; 16],
+                    periods: 2,
+                    minimum_probability: 0.01
+                },
+                &[0.5; 2]
+            )
+            .unwrap_err()
+            .contains("censoring")
         );
+    }
+
+    #[test]
+    fn a_design_with_no_treatment_variation_is_rank_deficient() {
+        // The period-0 and period-1 treatment columns are identically zero, so the weighted
+        // normal equations are singular at any scale.
+        let y = [1.0, 4.0, 3.0, 6.0, 1.0, 4.0, 3.0, 6.0];
+        let a = [false; 16];
+        let e = fit_binary_msm(
+            &y,
+            &SubjectHistories {
+                treatment: &a,
+                treatment_probability: &[0.5; 16],
+                outcome_observed: &[true; 8],
+                censoring_probability: &[1.0; 16],
+                periods: 2,
+                minimum_probability: 0.01,
+            },
+            &[0.5; 2],
+        )
+        .unwrap_err();
+        assert!(e.contains("rank-deficient"), "{e}");
     }
 
     #[test]
@@ -312,13 +334,15 @@ mod tests {
             }
             let fit = fit_binary_msm(
                 &outcomes,
-                &treatment,
-                &probabilities,
+                &SubjectHistories {
+                    treatment: &treatment,
+                    treatment_probability: &probabilities,
+                    outcome_observed: &observed,
+                    censoring_probability: &censoring,
+                    periods: 2,
+                    minimum_probability: 0.01,
+                },
                 &[0.5; 2],
-                &observed,
-                &censoring,
-                2,
-                0.01,
             )
             .unwrap();
             if let Some(intervals) = pointwise_intervals_95(&fit, n) {

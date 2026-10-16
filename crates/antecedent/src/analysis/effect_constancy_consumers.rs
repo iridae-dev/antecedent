@@ -1,6 +1,6 @@
-//! Consumers of original F18 effects, without a new constancy or transfer guarantee.
+//! Consumers of original effect-constancy effects, without a new constancy or transfer guarantee.
 //!
-//! An independently consumed F18 artifact is required. Transport contrasts are diagnostic,
+//! an independently consumed effect-constancy artifact is required. Transport contrasts are diagnostic,
 //! source-bank preferences are explicitly data dependent, and policy comparisons are affine
 //! point evaluations. Neither non-rejection nor agreement licenses transport or pooling.
 //!
@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_contract::{DecisionContract, UtilityExpr};
 use antecedent_design::decision_eval::{
     DecisionResult, MeanSource, Verdict, evaluate_contract_on_means,
@@ -26,7 +26,7 @@ pub struct ConstancyEvidence {
     pub identity: EffectConstancyIdentity,
     /// Point-only inference; this is not a measured heterogeneity guarantee.
     pub inference_claim: String,
-    /// Original F18 calibration status, currently unmeasured.
+    /// Original effect-constancy calibration status, currently unmeasured.
     pub calibration: String,
     /// Original non-rejection and power caveats.
     pub caveats: Vec<String>,
@@ -35,7 +35,7 @@ pub struct ConstancyEvidence {
 /// Original covariance-aware, family-adjusted contrast for a transport review.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransportConstancyDiagnostic {
-    /// Original F18 evidence and unchanged limitations.
+    /// Original effect-constancy evidence and unchanged limitations.
     pub evidence: ConstancyEvidence,
     /// Original declared contrast, with its original orientation and Holm family.
     pub contrast: ContrastReport,
@@ -43,20 +43,20 @@ pub struct TransportConstancyDiagnostic {
     pub separate_transport_identification_required: bool,
 }
 
-/// Explicit association of a prior-bank entry with an original F18 partition.
+/// Explicit association of a prior-bank entry with an original effect-constancy partition.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PriorPartitionBinding {
     /// Exact original catalog artifact identity.
     pub artifact_id: String,
-    /// Original F18 partition label, rather than a reconstructed effect.
+    /// Original effect-constancy partition label, rather than a reconstructed effect.
     pub partition: String,
 }
 
 /// Original compatibility filtering and advisory effect-similarity ranking.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ConstancyPriorRanking {
-    /// Original F18 evidence and unchanged limitations.
+    /// Original effect-constancy evidence and unchanged limitations.
     pub evidence: ConstancyEvidence,
     /// Original compatibility reports, in original catalog order.
     pub compatibility: Vec<CompatibilityReport>,
@@ -86,7 +86,7 @@ pub struct ConstancyPolicyPartition {
 /// Point policy results over every original fully supported partition.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConstancyPolicyReview {
-    /// Original F18 evidence and unchanged limitations.
+    /// Original effect-constancy evidence and unchanged limitations.
     pub evidence: ConstancyEvidence,
     /// Each original partition and its original affine decision evaluation.
     pub partitions: Vec<ConstancyPolicyPartition>,
@@ -155,7 +155,7 @@ fn bounded_policy(contract: &DecisionContract) -> Result<(), ConstancyConsumerEr
     Ok(())
 }
 
-/// A freshly verified original F18 artifact used by real downstream engines.
+/// A freshly verified original effect-constancy artifact used by real downstream engines.
 #[derive(Clone, Debug)]
 pub struct ConstancyConsumers {
     original: EffectConstancy,

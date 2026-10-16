@@ -83,11 +83,11 @@ fn dr_existing_score_sources_match_heterogeneous_structural_truth() {
         let (original, fits) = count_resolved_fits(|| original_engine(dr, &columns));
         assert_eq!(fits, if dr { 13 } else { 12 });
         close(original.ate, 2.0);
-        close(original.se_analytic, (0.25_f64 / 159.0).sqrt());
-        let table = original.score_table.as_ref().unwrap();
+        close(original.se_analytic(), (0.25_f64 / 159.0).sqrt());
+        let table = original.scores.table.as_ref().unwrap();
         let known = oracle(table, &vec![1.0; 160]);
         close(known.0, original.ate);
-        close(known.1, original.se_analytic);
+        close(known.1, original.se_analytic());
         for (row, score) in table
             .row_index
             .iter()
@@ -96,7 +96,7 @@ fn dr_existing_score_sources_match_heterogeneous_structural_truth() {
             close(score, 2.0 + 0.5 * columns[2].1[usize::try_from(*row).unwrap()]);
         }
         if dr {
-            let fitted = original.fitted_effect.as_ref().unwrap();
+            let fitted = original.heterogeneity.fitted_effect.as_ref().unwrap();
             let bytes = serde_json::to_vec(fitted.as_ref()).unwrap();
             let portable: antecedent_estimate::FittedEffect =
                 serde_json::from_slice(&bytes).unwrap();
@@ -182,7 +182,7 @@ fn dr_first_unchanged_utility_and_weighted_laws_match_known_truth_and_fresh_fits
         assert_eq!(first.receipt.totals().model_fits, u64::from(dr));
         let original = original_engine(dr, &request.columns);
         close(first.law.ate, original.ate);
-        close(first.law.std_error, original.se_analytic);
+        close(first.law.std_error, original.se_analytic());
         let scores = session.score_table().unwrap().scores.as_ptr();
         assert_eq!(run(&mut session, &request).receipt.totals().total(), 0);
         assert_eq!(session.score_table().unwrap().scores.as_ptr(), scores);
@@ -331,9 +331,9 @@ fn dr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data() 
         let exported = session.export_scores().unwrap();
         let bytes = exported.to_bytes("dr-complete-cases").unwrap();
         let restored = FrozenScoreTable::from_bytes(&bytes, None).unwrap();
-        assert_eq!(restored.score_table().unwrap(), *table);
+        assert_eq!(ScoreTable::from_frozen(&restored).unwrap(), *table);
         assert!(FrozenScoreTable::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
-        let known = oracle(&restored.score_table().unwrap(), &vec![1.0; 159]);
+        let known = oracle(&ScoreTable::from_frozen(&restored).unwrap(), &vec![1.0; 159]);
         close(known.0, first.law.ate);
         close(known.1, first.law.std_error);
         check_portable_retarget(&request, table, &restored);

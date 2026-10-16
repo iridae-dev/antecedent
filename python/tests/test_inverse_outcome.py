@@ -1,4 +1,4 @@
-"""Finite-action inverse-outcome query (2.2 E6) from Python.
+"""Finite-action inverse-outcome query from Python.
 
 Forward responses are either run through a real response route on a known
 structural law, or built as synthetic views of an analytic law

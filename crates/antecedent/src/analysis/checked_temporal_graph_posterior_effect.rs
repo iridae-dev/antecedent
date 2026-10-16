@@ -2,15 +2,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
+use crate::analysis::route_guards::inference_label;
 use std::sync::Arc;
 
 use antecedent_core::{CausalQuery, TemporalEffectQuery};
 use antecedent_data::DiscoveryEstimationSplit;
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind};
-use antecedent_prob::GraphIdentFlag;
+use antecedent_prob::WeightedGraphSamples;
 
 use super::builder::{DataInput, RefuteSuite};
 use super::execute::Study;
+use super::posterior_binding::{
+    CacheKeys, PosteriorProof, identified_key_set, validate_posterior_cache,
+};
 use super::prepared::{
     CachedDbnPosteriorIdentification, CachedTemporalClassPosteriorIdentification,
 };
@@ -30,7 +35,7 @@ pub(crate) enum CheckedTemporalGraphPosteriorProof {
 }
 
 /// A fixed pulse or sustained effect procedure over posterior-weighted
-/// TemporalDag, TemporalCpdag, or TemporalPag atoms under frequentist or
+/// `TemporalDag`, `TemporalCpdag`, or `TemporalPag` atoms under frequentist or
 /// Bayesian inference. The frozen posterior samples, the per-atom proofs, the
 /// inference settings, and the physical plan are sealed together.
 #[derive(Clone, Debug)]
@@ -45,12 +50,26 @@ pub(crate) struct CheckedTemporalGraphPosteriorEffect {
     split: Option<DiscoveryEstimationSplit>,
     max_completions: Option<usize>,
     validation: RefuteSuite,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
+}
+
+/// The frozen premises of [`CheckedTemporalGraphPosteriorEffect::prepare`], carried together.
+pub(crate) struct CheckedTemporalGraphPosteriorEffectPremises<'a> {
+    pub(crate) posterior: GraphPosterior,
+    pub(crate) query: TemporalEffectQuery,
+    pub(crate) proof: CheckedTemporalGraphPosteriorProof,
+    pub(crate) inference: InferenceMode,
+    pub(crate) estimator_spec: Option<&'a EstimatorSpec>,
+    pub(crate) bootstrap_replicates: u32,
+    pub(crate) split: Option<DiscoveryEstimationSplit>,
+    pub(crate) max_completions: Option<usize>,
+    pub(crate) validation: RefuteSuite,
+    pub(crate) physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 impl CheckedTemporalGraphPosteriorEffect {
     /// Whether `study` is a coordinate this operation seals: a series pulse or
-    /// sustained effect over TemporalDag, TemporalCpdag, or TemporalPag
+    /// sustained effect over `TemporalDag`, `TemporalCpdag`, or `TemporalPag`
     /// posterior atoms with the default point-estimate settings. The one-shot
     /// facade and the prepared sealer share this predicate.
     #[must_use]
@@ -76,26 +95,28 @@ impl CheckedTemporalGraphPosteriorEffect {
                 .is_none_or(|id| id == EstimatorId::temporal_effect_for(query, &study.inference))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn prepare(
-        posterior: GraphPosterior,
-        query: TemporalEffectQuery,
-        proof: CheckedTemporalGraphPosteriorProof,
-        inference: InferenceMode,
-        estimator_spec: Option<&EstimatorSpec>,
-        bootstrap_replicates: u32,
-        split: Option<DiscoveryEstimationSplit>,
-        max_completions: Option<usize>,
-        validation: RefuteSuite,
-        physical: PhysicalExecutionPlan,
+        premises: CheckedTemporalGraphPosteriorEffectPremises<'_>,
     ) -> Result<Self, CausalError> {
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let CheckedTemporalGraphPosteriorEffectPremises {
+            posterior,
+            query,
+            proof,
+            inference,
+            estimator_spec,
+            bootstrap_replicates,
+            split,
+            max_completions,
+            validation,
+            physical,
+        } = premises;
+        query.validate()?;
         if !query.policy.is_pulse_or_sustained() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior effect supports pulse and sustained schedules",
             });
         }
-        if !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full) {
+        if !validation.is_point() {
             return Err(CausalError::Unsupported {
                 message: "checked temporal graph-posterior effect supports none, cheap, or full validation",
             });
@@ -125,20 +146,7 @@ impl CheckedTemporalGraphPosteriorEffect {
             });
         }
         let target = CausalQuery::TemporalEffect(query.clone());
-        if physical.logical.query != target
-            || physical
-                .logical
-                .record
-                .identifier
-                .as_deref()
-                .is_some_and(|name| name != identifier.as_str())
-            || physical
-                .logical
-                .record
-                .estimator
-                .as_deref()
-                .is_some_and(|name| name != estimator.as_str())
-        {
+        if physical.logical.query != target || !physical.binding().names(identifier, estimator) {
             return Err(CausalError::Compile {
                 message:
                     "temporal graph-posterior physical plan disagrees with its retained procedure"
@@ -239,17 +247,6 @@ impl CheckedTemporalGraphPosteriorEffect {
             && sealed.lag_masks == posterior.lag_masks
     }
 
-    /// Posterior sample keys, weights, and identification flags retain the
-    /// sample-level mass, including unidentified atoms.
-    #[must_use]
-    pub(crate) fn sample_mass(&self) -> (&[u64], &[f64], &[GraphIdentFlag]) {
-        let graphs = match &self.proof {
-            CheckedTemporalGraphPosteriorProof::Dbn(cache) => &cache.graphs,
-            CheckedTemporalGraphPosteriorProof::Class(cache) => &cache.graphs,
-        };
-        (&graphs.graph_keys, &graphs.weights, &graphs.identified)
-    }
-
     /// Number of identified atoms carrying a retained proof.
     #[must_use]
     pub(crate) fn identified_atom_count(&self) -> usize {
@@ -260,12 +257,22 @@ impl CheckedTemporalGraphPosteriorEffect {
     }
 }
 
+impl PosteriorProof for CheckedTemporalGraphPosteriorEffect {
+    fn graphs(&self) -> &WeightedGraphSamples {
+        self.proof.graphs()
+    }
+
+    fn atom_keys(&self) -> Vec<u64> {
+        self.proof.atom_keys()
+    }
+}
+
 fn validate_proof_binding(
     posterior: &GraphPosterior,
     query: &CausalQuery,
     proof: &CheckedTemporalGraphPosteriorProof,
 ) -> Result<(), CausalError> {
-    let (graphs, atom_keys): (_, Vec<u64>) = match proof {
+    match proof {
         CheckedTemporalGraphPosteriorProof::Dbn(cache) => {
             // DBN atoms retain the identifier's average-effect query over each
             // atom's own unfolded graph; bind it through that atom's indexer.
@@ -282,7 +289,6 @@ fn validate_proof_binding(
                     &atom.indexer,
                 )?;
             }
-            (&cache.graphs, cache.atoms.iter().map(|atom| atom.key).collect())
         }
         CheckedTemporalGraphPosteriorProof::Class(cache) => {
             if cache.class_atoms.iter().any(|atom| &atom.identification.query != query) {
@@ -290,29 +296,16 @@ fn validate_proof_binding(
                     message: "temporal graph-posterior proof identifies a different temporal query",
                 });
             }
-            (&cache.graphs, cache.class_atoms.iter().map(|atom| atom.key).collect())
         }
-    };
-    if graphs.n_samples != posterior.n_graphs
-        || graphs.weights.len() != posterior.n_graphs
-        || graphs.identified.len() != posterior.n_graphs
-        || graphs
-            .weights
-            .iter()
-            .zip(posterior.weights.iter())
-            .any(|(a, b)| a.to_bits() != b.to_bits())
-    {
-        return Err(CausalError::Unsupported {
-            message: "temporal graph-posterior proof does not match the frozen posterior samples",
-        });
     }
-    let identified_keys: std::collections::HashSet<u64> = graphs
-        .graph_keys
-        .iter()
-        .zip(graphs.identified.iter())
-        .filter(|(_, flag)| matches!(flag, GraphIdentFlag::Identified))
-        .map(|(key, _)| *key)
-        .collect();
+    validate_posterior_cache(
+        posterior,
+        proof,
+        CacheKeys::CacheLocal,
+        "temporal graph-posterior proof does not match the frozen posterior samples",
+    )?;
+    let identified_keys = identified_key_set(proof.graphs());
+    let atom_keys = proof.atom_keys();
     let mut seen = std::collections::HashSet::with_capacity(atom_keys.len());
     for key in &atom_keys {
         if !seen.insert(*key) || !identified_keys.contains(key) {
@@ -327,6 +320,55 @@ fn validate_proof_binding(
         });
     }
     Ok(())
+}
+
+/// Read-only frozen samples, per-atom proof counts, and procedure retained for
+/// a pulse or sustained effect over a temporal graph posterior.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedTemporalGraphPosteriorEffectInfo {
+    /// Exact policy, intervention levels, horizon, and target population.
+    pub query: antecedent_core::TemporalEffectQuery,
+    /// Atom kind of the frozen posterior (`TemporalDag`, `TemporalCpdag`, or `TemporalPag`).
+    pub atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Inference label frozen at preparation.
+    pub inference: std::sync::Arc<str>,
+    /// Posterior sample key, including repeated and unidentified samples.
+    pub graph_keys: std::sync::Arc<[u64]>,
+    /// Frozen posterior sample weights.
+    pub weights: std::sync::Arc<[f64]>,
+    /// Sample-level identification flags, preserving unidentified mass.
+    pub identified: std::sync::Arc<[antecedent_prob::GraphIdentFlag]>,
+    /// Number of identified atoms carrying a retained proof.
+    pub identified_atom_count: usize,
+    /// Circular-block bootstrap budget fixed during preparation.
+    pub bootstrap_replicates: u32,
+}
+
+impl Inspect for CheckedTemporalGraphPosteriorEffect {
+    type Info = CheckedTemporalGraphPosteriorEffectInfo;
+
+    fn info(&self) -> CheckedTemporalGraphPosteriorEffectInfo {
+        let (graph_keys, weights, identified) = self.sample_mass();
+        CheckedTemporalGraphPosteriorEffectInfo {
+            query: self.query().clone(),
+            atom_kind: self.posterior().atom_kind,
+            identifier: self.identifier(),
+            estimator: self.estimator(),
+            validation: self.validation(),
+            inference: inference_label(self.inference()),
+            graph_keys: Arc::from(graph_keys),
+            weights: Arc::from(weights),
+            identified: Arc::from(identified),
+            identified_atom_count: self.identified_atom_count(),
+            bootstrap_replicates: self.bootstrap_replicates(),
+        }
+    }
 }
 
 #[cfg(test)]

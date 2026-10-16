@@ -806,10 +806,13 @@ impl PyFittedGcm {
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
             let ctx = Self::ctx(seed, threads);
-            let features: Vec<VariableId> = (0..data.schema().len())
-                .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
-                .filter(|id| *id != y_id)
-                .collect();
+            let mut features = Vec::new();
+            for i in 0..data.schema().len() {
+                let id = VariableId::from_raw(crate::fit_u32(i)?);
+                if id != y_id {
+                    features.push(id);
+                }
+            }
             let scores = facade_attribute_feature_relevance(
                 &inner.model,
                 &data,
@@ -866,9 +869,10 @@ impl PyFittedGcm {
         let names = Arc::clone(&self.names);
         detach_catch(py, move || {
             let ctx = Self::ctx(seed, threads);
-            let targets: Vec<VariableId> = (0..data.schema().len())
-                .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
-                .collect();
+            let mut targets = Vec::with_capacity(data.schema().len());
+            for i in 0..data.schema().len() {
+                targets.push(VariableId::from_raw(crate::fit_u32(i)?));
+            }
             let query = MechanismChangeQuery::new(
                 targets,
                 PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
@@ -931,7 +935,7 @@ fn fit_gcm_py(
     threads: Option<u32>,
 ) -> PyResult<PyFittedGcm> {
     let _ = threads;
-    let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
+    let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let g = dag_from_edges(&data, &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
@@ -954,7 +958,7 @@ fn attribute_paths(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<ChangeAttributionResult> {
-    let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
+    let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let g = dag_from_edges(&data, &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;

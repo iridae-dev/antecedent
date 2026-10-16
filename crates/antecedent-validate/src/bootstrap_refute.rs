@@ -32,17 +32,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 /// RNG stream base for the aligned-row block replicates.
-const BOOTSTRAP_REFUTE_STREAM: u64 = 0xA7E0_0009_0000;
+const BOOTSTRAP_REFUTE_STREAM: u64 = crate::streams::BOOTSTRAP_REFUTE;
 
 use std::sync::Arc;
 
@@ -52,8 +43,9 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::unbiased_index;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, check_cancelled, complete_case_rows,
-    forced_refit_estimator, linear_estimator_no_bootstrap, refit_effect, with_resampled_rows,
+    RefutationProblem, RefutationReport, complete_case_rows, forced_refit_estimator,
+    full_sample_refit_ate, linear_estimator_no_bootstrap, map_drawn_problem_replicates,
+    map_drawn_replicates, refit_effect_shared, with_resampled_rows,
 };
 use crate::error::ValidationError;
 
@@ -141,9 +133,14 @@ impl BootstrapRefute {
         }
         require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
+        let centre_rows: Vec<usize> = (0..aligned.rows).collect();
+        let centre = (aligned.estimate)(&centre_rows).ok_or_else(|| {
+            ValidationError::estimation_msg("composed bootstrap centre refit failed".to_string())
+        })?;
         Ok(coverage_report(
             problem,
             boot.column(0),
+            centre,
             self.ci_level,
             self.replicates,
             scale,
@@ -179,9 +176,9 @@ impl BootstrapRefute {
         // The published interval's blocks: sized on every normal-equation score.
         // A bootstrapped estimate carries the length its interval resampled;
         // otherwise (no replicates, or a different design) derive it once here.
-        let block = match problem.original.block_resampling {
+        let block = match problem.original.uncertainty.block.resampling {
             Some(geometry)
-                if problem.original.bootstrap_replicates_ok.is_some()
+                if problem.original.uncertainty.bootstrap.replicates_ok.is_some()
                     && geometry.rows == rows.rows =>
             {
                 geometry.block_length
@@ -202,7 +199,7 @@ impl BootstrapRefute {
             .ate_on_row_indices_into(&prep, workspace, &all_rows, &mut x_boot, &mut y_boot)
             .map_err(ValidationError::from)?;
         let gap = (full - problem.original.ate).abs();
-        let sd = problem.original.se_analytic;
+        let sd = problem.original.se_analytic();
         if sd.is_finite() && sd > 0.0 && gap > STAND_IN_MAX_GAP_SD * sd {
             return Err(ValidationError::NotApplicable {
                 message: "the published estimate differs from the least-squares contrast by \
@@ -239,6 +236,7 @@ impl BootstrapRefute {
         Ok(coverage_report(
             problem,
             boot.column(0),
+            full,
             self.ci_level,
             self.replicates,
             scale,
@@ -257,7 +255,10 @@ impl BootstrapRefute {
     /// # Errors
     ///
     /// Data or estimation failures.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "resample, refit and compare in one pass; the stages share the replicate buffers"
+    )]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -275,15 +276,13 @@ impl BootstrapRefute {
             });
         }
         let n = problem.data.row_count();
-        let mut resample_ids = vec![problem.treatment(), problem.outcome()];
         // Temporal unfolded adjustment ids are dense node ids, not schema columns.
-        if problem.temporal.is_none() {
-            resample_ids.extend_from_slice(&problem.estimand.adjustment_set);
-        } else {
-            // Contemporaneous schema covariates already present in the series/panel table.
+        // Modifiers are columns either way: a missing modifier is not an estimation row.
+        let mut resample_ids = problem.estimation_ids(problem.temporal.is_none());
+        if problem.temporal.is_some() {
             for v in problem.data.schema().variables() {
                 let id = v.id;
-                if id != problem.treatment() && id != problem.outcome() {
+                if !resample_ids.contains(&id) {
                     resample_ids.push(id);
                 }
             }
@@ -304,9 +303,8 @@ impl BootstrapRefute {
                 message: "bootstrap CI coverage requires at least 2 complete-case rows",
             });
         }
-        let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
+        let mut rng = ctx.rng.stream(BOOTSTRAP_REFUTE_STREAM);
         let mut row_idx = vec![0usize; n];
-        let mut ates = Vec::with_capacity(self.replicates as usize);
         // AllObserved static OLS: resampling the prepared design rows is the same
         // complete-case bootstrap as rebuilding a table and calling `prepare` again.
         // ATT/ATC re-filter treatment labels after the table rebuild, and temporal
@@ -327,40 +325,49 @@ impl BootstrapRefute {
                     }
                 }
                 let n_design = prepared.design.nrows;
-                let mut design_idx = vec![0usize; n_design];
-                let mut x_boot = vec![0.0; n_design * prepared.design.ncols];
-                let mut y_boot = vec![0.0; n_design];
-                for _ in 0..self.replicates {
-                    check_cancelled(ctx)?;
-                    for slot in &mut row_idx {
-                        *slot = valid[unbiased_index(&mut rng, valid.len())];
-                    }
-                    for (k, &orig) in selected.iter().enumerate() {
-                        if orig >= n {
-                            return Err(ValidationError::estimation_msg(
-                                "prepared design row_selection is out of range",
-                            ));
+                let ncols = prepared.design.ncols;
+                let ates = map_drawn_replicates(
+                    ctx,
+                    self.replicates,
+                    |_| {
+                        for slot in &mut row_idx {
+                            *slot = valid[unbiased_index(&mut rng, valid.len())];
                         }
-                        let src_orig = row_idx[orig];
-                        let src_d = orig_to_design[src_orig];
-                        if src_d == usize::MAX {
-                            return Err(ValidationError::estimation_msg(
-                                "bootstrap resample left the prepared design",
-                            ));
+                        let mut design_idx = vec![0usize; n_design];
+                        for (k, &orig) in selected.iter().enumerate() {
+                            if orig >= n {
+                                return Err(ValidationError::estimation_msg(
+                                    "prepared design row_selection is out of range",
+                                ));
+                            }
+                            let src_d = orig_to_design[row_idx[orig]];
+                            if src_d == usize::MAX {
+                                return Err(ValidationError::estimation_msg(
+                                    "bootstrap resample left the prepared design",
+                                ));
+                            }
+                            design_idx[k] = src_d;
                         }
-                        design_idx[k] = src_d;
-                    }
-                    ates.push(estimator.ate_on_row_indices_into(
-                        &prepared,
-                        workspace,
-                        &design_idx,
-                        &mut x_boot,
-                        &mut y_boot,
-                    )?);
-                }
+                        Ok(design_idx)
+                    },
+                    || {
+                        (
+                            EstimationWorkspace::default(),
+                            vec![0.0; n_design * ncols],
+                            vec![0.0; n_design],
+                        )
+                    },
+                    |(workspace, x_boot, y_boot), _ctx, _r, design_idx| {
+                        Ok(estimator.ate_on_row_indices_into(
+                            &prepared, workspace, design_idx, x_boot, y_boot,
+                        )?)
+                    },
+                )?;
+                let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
                 return Ok(coverage_report(
                     problem,
                     ates,
+                    centre,
                     self.ci_level,
                     self.replicates,
                     1.0,
@@ -368,26 +375,36 @@ impl BootstrapRefute {
                 ));
             }
         }
-        for _ in 0..self.replicates {
-            check_cancelled(ctx)?;
-            for slot in &mut row_idx {
-                *slot = valid[unbiased_index(&mut rng, valid.len())];
-            }
-            let data = with_resampled_rows(problem.data, &resample_ids, &row_idx, &keep)?;
-            let est = refit_effect(
-                problem,
-                &data,
-                problem.estimand,
-                &[],
-                &self.estimator,
-                workspace,
-                ctx,
-            )?;
-            ates.push(est.ate);
-        }
+        let ates = map_drawn_problem_replicates(
+            ctx,
+            problem,
+            self.replicates,
+            |_| {
+                for slot in &mut row_idx {
+                    *slot = valid[unbiased_index(&mut rng, valid.len())];
+                }
+                Ok(row_idx.clone())
+            },
+            EstimationWorkspace::default,
+            |problem, refit, workspace, ctx, _r, row_idx| {
+                let data = with_resampled_rows(problem.data, &resample_ids, row_idx, &keep)?;
+                let est = refit_effect_shared(
+                    problem,
+                    refit,
+                    &data,
+                    problem.estimand,
+                    &[],
+                    &self.estimator,
+                    workspace,
+                    ctx,
+                )?;
+                Ok(est.ate)
+            },
+        )?;
         // Panel temporal designs resample stacked rows iid here (no per-unit block
         // or cluster plan yet); static designs are iid by construction.
-        Ok(coverage_report(problem, ates, self.ci_level, self.replicates, 1.0, None))
+        let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
+        Ok(coverage_report(problem, ates, centre, self.ci_level, self.replicates, 1.0, None))
     }
 }
 
@@ -399,6 +416,7 @@ impl BootstrapRefute {
 fn coverage_report(
     problem: &RefutationProblem<'_>,
     mut ates: Vec<f64>,
+    centre: f64,
     ci_level: f64,
     replicates: u32,
     scale: f64,
@@ -426,30 +444,28 @@ fn coverage_report(
     let width = hi - lo;
     // A non-finite replicate (total order puts `-NaN` first, `NaN` last) makes the endpoints
     // or the mean non-finite; every comparison below is then false, so the check fails closed.
-    let passed = problem.original.ate >= lo && problem.original.ate <= hi;
-    RefutationReport {
-        refuter: Arc::from("bootstrap.ci_coverage"),
-        original_ate: problem.original.ate,
-        refuted_ate: mean_ate,
-        comparison: width,
-        informative: true,
-        passed,
-        failure_condition: if passed {
+    let passed = centre.is_finite() && centre >= lo && centre <= hi;
+    RefutationReport::builder("bootstrap.ci_coverage")
+        .original_ate(problem.original.ate)
+        .refuted_ate(mean_ate)
+        .comparison(width)
+        .informative(true)
+        .passed(passed)
+        .failure_condition(if passed {
             None
         } else {
             Some(Arc::from(format!(
-                "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] from {m} of {replicates} \
-                 replicates (the point estimate against its own refit bootstrap interval: \
+                "full-sample refit {centre} outside {}% bootstrap CI [{lo}, {hi}] from {m} of \
+                 {replicates} replicates (the refit against its own bootstrap interval: \
                  neither a placebo falsification nor a calibration check of a published \
                  credible interval){}",
-                problem.original.ate,
                 ci_level * 100.0,
                 stand_in.map(|note| format!("; {note}")).unwrap_or_default()
             )))
-        },
+        })
         // Replicates that produced the interval, not the number requested.
-        replicates: u32::try_from(m).unwrap_or(u32::MAX),
-    }
+        .replicates(u32::try_from(m).unwrap_or(u32::MAX))
+        .build()
 }
 
 #[cfg(test)]

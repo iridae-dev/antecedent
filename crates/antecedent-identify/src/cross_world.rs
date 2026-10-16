@@ -52,7 +52,7 @@ use serde::{Deserialize, Serialize};
 /// Most variables a graph may have under this contract.
 pub const CROSS_WORLD_MAX_NODES: usize = 8;
 /// The contract the witness attests.
-pub const CROSS_WORLD_CONTRACT: &str = "path_specific_two_world_markovian_dag";
+pub(crate) const CROSS_WORLD_CONTRACT: &str = "path_specific_two_world_markovian_dag";
 
 const ASSUMPTIONS: [&str; 4] = [
     "consistency",
@@ -82,7 +82,7 @@ impl CrossWorldRefusal {
     /// identified, only that no route here evaluates it.
     fn outside_contract(message: impl Into<String>) -> Self {
         Self {
-            code: "route_not_supported",
+            code: antecedent_core::reason_code!("route_not_supported"),
             detail: "cross_world.query_outside_contract",
             message: message.into(),
         }
@@ -90,7 +90,7 @@ impl CrossWorldRefusal {
 
     fn recanting(variable: u32, message: impl Into<String>) -> Self {
         Self {
-            code: "cross_world_not_identified",
+            code: antecedent_core::reason_code!("cross_world_not_identified"),
             detail: "cross_world.recanting_witness",
             message: format!("variable {variable} {}", message.into()),
         }
@@ -98,7 +98,7 @@ impl CrossWorldRefusal {
 
     fn graph(message: impl Into<String>) -> Self {
         Self {
-            code: "cell_not_licensed",
+            code: antecedent_core::reason_code!("cell_not_licensed"),
             detail: "cross_world.graph_outside_contract",
             message: message.into(),
         }
@@ -106,7 +106,7 @@ impl CrossWorldRefusal {
 
     fn invalid(message: impl Into<String>) -> Self {
         Self {
-            code: "invalid_argument",
+            code: antecedent_core::reason_code!("invalid_argument"),
             detail: "cross_world.invalid_query",
             message: message.into(),
         }
@@ -129,7 +129,7 @@ pub struct CounterfactualNode {
 /// The machine-checkable derivation of a cross-world estimand.
 ///
 /// The struct is `#[non_exhaustive]` and rejects unknown fields on the wire: a
-/// later route (ADMG counterfactual identification, B5) adds fields or a new
+/// later route (ADMG counterfactual identification) adds fields or a new
 /// witness kind under a new artifact version, and a reader of this version must
 /// refuse it rather than misread it. Today it describes one fixed-DAG contract
 /// whose reroutes all read world 0 (`rerouted_edges` carries the source world so
@@ -187,9 +187,7 @@ pub fn check_cross_world(
     graph: &Dag,
     query: &CrossWorldQuery,
 ) -> Result<CrossWorldWitness, CrossWorldRefusal> {
-    let mut edges: Vec<(u32, u32)> = graph.edges().map(|e| (e.a.raw(), e.b.raw())).collect();
-    edges.sort_unstable();
-    check_cross_world_edges(graph.node_count(), &edges, query)
+    check_cross_world_edges(graph.node_count(), &graph.directed_edge_pairs_sorted(), query)
 }
 
 /// [`check_cross_world`] on an explicit node count and sorted edge list.
@@ -290,14 +288,7 @@ pub fn check_cross_world_edges(
         parents(variable).into_iter().map(|p| (p, read_world(world, p, variable))).collect()
     };
     let closure = |world: u8| -> BTreeSet<(u32, u8)> {
-        let mut seen = BTreeSet::new();
-        let mut stack = vec![(outcome.raw(), world)];
-        while let Some((v, w)) = stack.pop() {
-            if seen.insert((v, w)) {
-                stack.extend(reads_of(v, w));
-            }
-        }
-        seen
+        antecedent_graph::algo::implicit_closure([(outcome.raw(), world)], |&(v, w)| reads_of(v, w))
     };
     // A variable takes a different value in world 1 than in world 0 only through
     // an edge reading world 1 from a variable that does.
@@ -379,11 +370,8 @@ pub(crate) fn topological_order(node_count: usize, edges: &[(u32, u32)]) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_core::VariableId;
 
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
+    use crate::test_support::v;
 
     const MEDIATION: [(u32, u32); 3] = [(0, 1), (0, 2), (1, 2)];
 
@@ -441,7 +429,7 @@ mod tests {
         let refusal = check_cross_world_edges(3, &MEDIATION, &query).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
         assert_eq!(refusal.detail, "cross_world.query_outside_contract");
-        // The 2.2B X8 latent coupling (marginalized, not abducted) is outside
+        // The latent coupling (marginalized, not abducted) is outside
         // this fixed-DAG contract too: refused as a shape, never as a verdict.
         let direct = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
         let latent = CrossWorldQuery::new(

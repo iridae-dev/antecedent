@@ -67,9 +67,9 @@ impl TabularData {
                 None,
                 MeasurementSpec::default(),
             )
-            .map_err(|e| DataError::Schema(e.to_string()))?;
+            .map_err(DataError::from)?;
         }
-        let schema = b.build().map_err(|e| DataError::Schema(e.to_string()))?;
+        let schema = b.build().map_err(DataError::from)?;
         Self::try_from_schema_f64(
             schema,
             collected.iter().map(|(name, values)| (name.as_ref(), *values)),
@@ -221,13 +221,6 @@ impl TimeSeriesData {
     ) -> Result<Self, DataError> {
         let replaced = TabularData::new(self.storage.clone()).with_replaced_float(id, values)?;
         Self::try_new(replaced.storage().clone(), self.time_index.clone())
-    }
-
-    /// Pointer identity of the columnar Arc (tests: planning must not clone payloads).
-    #[cfg(test)]
-    #[must_use]
-    pub(crate) fn columnar_ptr(&self) -> *const [OwnedColumn] {
-        Arc::as_ptr(self.storage.columns_arc())
     }
 
     /// Restrict analysis to rows where `mask` is valid, intersected (AND) with any existing

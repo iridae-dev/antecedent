@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
+use antecedent_contract::{ObligationKind, ObligationRecord, ObligationScope};
 use antecedent_core::{
-    AssumptionSource, AssumptionStatus, ExecutionContext, MonteCarloBudget, ObligationKind,
-    ObligationRecord, ObligationScope, SemanticDigest,
+    AssumptionSource, AssumptionStatus, ExecutionContext, MonteCarloBudget, SemanticDigest,
 };
 
 use crate::analysis::CausalContract;
@@ -17,13 +17,13 @@ pub use antecedent_design::{
     AffineUtility, BinomialSignal, CandidateDesign, ConstraintViolation, DecisionConstraint,
     DecisionEvaluation, DecisionPrior, DecisionProblem, DecisionProblemId, DecisionRegistry,
     DecisionSignal, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
-    DesignObjective, DesignRankConfig, DesignRanker, DesignRanking, EffectWidthContext,
-    EnvironmentGramSpec, EnvironmentPlan, ExperimentPlan, GaussianMeanSignal,
-    InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws,
-    PreposteriorAnalysis, RankedCandidate, SamplingPlan, ScoreEvaluation, Utility,
-    evaluate_decision,
+    DesignObjective, DesignRankConfig, DesignRanker, EffectWidthContext, EnvironmentGramSpec,
+    EnvironmentPlan, ExperimentPlan, GaussianMeanSignal, InterventionDesignEffect,
+    MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, PreposteriorAnalysis, RankedCandidate,
+    SamplingPlan, ScoreEvaluation, ScoredDesignRanking, Utility, evaluate_decision,
 };
-/// X6 study planning over the X1 (mz) and X9 (mixed-source) catalogs: declared
+use antecedent_design::{ObjectiveChannel, ObjectiveScorer};
+/// Study planning over the mz-transport and mixed-source catalogs: declared
 /// candidate studies, the bounded cost-ordered plan, arrival and the portable
 /// `study_plan_v1` artifact.
 pub use antecedent_design::{
@@ -62,10 +62,10 @@ pub fn rank_designs<A, O>(
     candidates: &[CandidateDesign],
     eval: &DesignEvaluationContext<'_, A, O>,
     ctx: &ExecutionContext,
-) -> Result<DesignRanking, CausalError>
+) -> Result<ScoredDesignRanking, CausalError>
 where
-    A: Clone,
-    O: Clone,
+    A: Clone + Sync,
+    O: Clone + Sync,
 {
     ranker.rank(objective, candidates, eval, ctx).map_err(CausalError::from)
 }
@@ -110,10 +110,10 @@ pub fn rank_designs_bound<A, O>(
     eval: &DesignEvaluationContext<'_, A, O>,
     ctx: &ExecutionContext,
     decision_target: Option<SemanticDigest>,
-) -> Result<DesignRanking, CausalError>
+) -> Result<ScoredDesignRanking, CausalError>
 where
-    A: Clone,
-    O: Clone,
+    A: Clone + Sync,
+    O: Clone + Sync,
 {
     let preview = preview_design_rank(contract, objective, candidates, eval, decision_target)?;
     if preview.unresolved {
@@ -146,7 +146,7 @@ fn width_targets_incomparable(
     contract: &CausalContract,
     decision_target: Option<SemanticDigest>,
 ) -> bool {
-    matches!(objective, DesignObjective::ReduceEffectPosteriorWidth { .. })
+    matches!(objective.channel(), ObjectiveChannel::EffectWidth { .. })
         && decision_target.is_some_and(|target| target != contract.identities.target)
 }
 
@@ -155,7 +155,7 @@ fn id_mass_renormalized<A, O>(
     contract: &CausalContract,
     eval: &DesignEvaluationContext<'_, A, O>,
 ) -> bool {
-    if !matches!(objective, DesignObjective::IncreaseIdentificationProbability { .. }) {
+    if !matches!(objective.channel(), ObjectiveChannel::Identification { .. }) {
         return false;
     }
     let Some(slot) = contract.reasoning.identification.as_ref() else {
@@ -199,8 +199,8 @@ fn inspect_rank_binding<A, O>(
     ];
     let mut violations = Vec::new();
     let mut unresolved = false;
-    match objective {
-        DesignObjective::ReduceEffectPosteriorWidth { .. } => {
+    match objective.channel() {
+        ObjectiveChannel::EffectWidth { .. } => {
             if eval.effect_width.is_none() {
                 unresolved = true;
                 obligations.push(rank_obligation(
@@ -218,7 +218,7 @@ fn inspect_rank_binding<A, O>(
                 collect_width_violations(candidates, eval.effect_width, &mut violations);
             }
         }
-        DesignObjective::IncreaseIdentificationProbability { query } => {
+        ObjectiveChannel::Identification { query } => {
             if eval.graphs.n_samples == 0 {
                 unresolved = true;
                 push_all_unresolved(
@@ -228,10 +228,10 @@ fn inspect_rank_binding<A, O>(
                     "missing_structural_distribution",
                 );
             } else {
-                collect_id_violations(candidates, eval, *query, &mut violations);
+                collect_id_violations(candidates, eval, query, &mut violations);
             }
         }
-        DesignObjective::ReduceGraphEntropy => {
+        ObjectiveChannel::GraphEntropy => {
             if eval.graphs.n_samples == 0 {
                 unresolved = true;
                 push_all_unresolved(
@@ -242,7 +242,7 @@ fn inspect_rank_binding<A, O>(
                 );
             }
         }
-        DesignObjective::DistinguishModels { .. } if eval.model_loglik.is_none() => {
+        ObjectiveChannel::ModelDistinction { .. } if eval.model_loglik.is_none() => {
             unresolved = true;
             push_all_unresolved(
                 candidates,
@@ -251,11 +251,11 @@ fn inspect_rank_binding<A, O>(
                 "missing_model_loglik",
             );
         }
-        DesignObjective::ReduceDecisionRegret { .. } => {
+        ObjectiveChannel::Decision { .. } => {
             let signal = eval.decisions.map(|registry| registry.signal.as_ref());
             unresolved = collect_decision_violations(candidates, signal, &mut violations);
         }
-        DesignObjective::DistinguishModels { .. } => {}
+        ObjectiveChannel::ModelDistinction { .. } => {}
     }
     DesignRankPreview {
         obligations: obligations.into(),
@@ -408,8 +408,8 @@ fn violation(index: usize, constraint: &'static str, detail: &'static str) -> Co
     }
 }
 
-fn incomplete_ranking(violations: &[ConstraintViolation]) -> DesignRanking {
-    DesignRanking {
+fn incomplete_ranking(violations: &[ConstraintViolation]) -> ScoredDesignRanking {
+    ScoredDesignRanking {
         ranked: Arc::from([]),
         violations: Arc::from(violations.to_vec()),
         budget: MonteCarloBudget::default(),
@@ -434,10 +434,10 @@ fn active_candidates(
 }
 
 fn remap_ranking(
-    ranking: DesignRanking,
+    ranking: ScoredDesignRanking,
     index_map: &[usize],
     preview_violations: &[ConstraintViolation],
-) -> DesignRanking {
+) -> ScoredDesignRanking {
     let ranked: Vec<RankedCandidate> = ranking
         .ranked
         .iter()
@@ -452,7 +452,7 @@ fn remap_ranking(
         item.candidate_index = index_map[item.candidate_index];
         item
     }));
-    DesignRanking {
+    ScoredDesignRanking {
         ranked: ranked.into(),
         violations: violations.into(),
         budget: ranking.budget,

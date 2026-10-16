@@ -12,7 +12,7 @@
 //! `EU(safe) = 3`, `EVPI = 0.5` and the verdict is uniquely optimal `safe`.
 //! Every consumer-side identity is built from constants here.
 
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, source_digest,
 };
@@ -21,27 +21,26 @@ use antecedent_design::decision_contract::{
     StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{Verdict, evaluate_contract};
-use antecedent_io::distribution_artifact::{
+use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io_core::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::{conformance_dir, read_fixture_bytes};
 
 fn fixture_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cross_surface")
+    conformance_dir("cross_surface")
 }
 
 fn read_fixture(name: &str) -> Vec<u8> {
-    let path = fixture_dir().join(name);
-    std::fs::read(&path).unwrap_or_else(|error| {
-        panic!(
-            "missing cross-surface fixture {} ({error}); run \
-             `python python/tests/generate_cross_surface_fixtures.py` from the repo root \
-             (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design \
-             --test cross_surface_decision -- --ignored regenerate_rust_fixtures)",
-            path.display()
-        )
-    })
+    read_fixture_bytes(
+        &fixture_dir(),
+        name,
+        "run \
+            `python python/tests/generate_cross_surface_fixtures.py` from the repo root \
+            (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design \
+            --test cross_surface_decision -- --ignored regenerate_rust_fixtures)",
+    )
 }
 
 fn flip_last_byte(bytes: &[u8]) -> Vec<u8> {
@@ -50,19 +49,10 @@ fn flip_last_byte(bytes: &[u8]) -> Vec<u8> {
     copy
 }
 
+mod common;
+
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
-    ScientificQuantity {
-        variable_id: variable.into(),
-        variable_name: variable.into(),
-        role: QuantityRole::Outcome,
-        units: "units".into(),
-        population_id: "target".into(),
-        regime_id: regime.into(),
-        horizon: 0,
-        functional_id: "outcome".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
-    }
+    ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
 fn columns() -> Vec<ScientificQuantity> {

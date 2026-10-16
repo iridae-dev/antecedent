@@ -1,3 +1,4 @@
+<!-- generated from benches/baselines/baselines.toml (response_interference); do not edit -->
 # Causal-response / interference benchmark baselines
 
 Commit: c2671624 (the commit that added this file; the measured commit was not written down)

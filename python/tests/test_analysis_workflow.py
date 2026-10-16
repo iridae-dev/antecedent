@@ -47,7 +47,8 @@ def test_estimate_other_data_does_not_rebind_study():
     baseline = study.estimate()
     other = study.estimate({**data, "y": data["y"] + data["t"]})
     assert other.data_snapshot_id != baseline.data_snapshot_id
-    assert study.inspect().data_snapshot_id == baseline.data_snapshot_id
+    assert study.inspect_plan().data_snapshot_id == baseline.data_snapshot_id
+    assert study.inspect().data_snapshot_id == other.data_snapshot_id
     assert ant.artifacts.accept(other.export())["accepts_as_verified_program"] == "true"
     assert study.estimate().effect == pytest.approx(baseline.effect)
 
@@ -116,7 +117,7 @@ def test_response_retains_study_and_exports_own_execution():
     assert result.export() == encoded
     loaded = ant.load(encoded)
     assert_answer_kept(loaded)
-    assert loaded.artifact.payload["response"] is not None
+    assert loaded.decoded_artifact.to_dict()["payload"]["response"] is not None
     assert loaded.inspect().uncertainty.available
 
 
@@ -154,8 +155,8 @@ def test_load_verified_execution_and_forward_uncontracted_body():
 
     body_only = ant.artifacts.dumps(
         "analysis_result",
-        loaded.artifact.payload,
-        variable_names=loaded.artifact.variable_names,
+        loaded.decoded_artifact.to_dict()["payload"],
+        variable_names=loaded.decoded_artifact.variable_names,
         artifact_id="body-only",
     )
     unverified = ant.load(body_only)
@@ -265,7 +266,7 @@ def test_contracted_posterior_keeps_draws_and_native_uncertainty_target():
     )
     loaded = ant.load(result.export())
     assert_answer_kept(loaded)
-    assert loaded.artifact.payload["posterior_artifact"]
+    assert loaded.decoded_artifact.to_dict()["payload"]["posterior_artifact"]
     assert any(
         c["source"] == "parameter" and c["target"] == "posterior"
         for c in loaded.inspect().uncertainty.payload["components"]

@@ -7,7 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::zero_sized_map_values)]
 #![cfg_attr(
     test,
     allow(
@@ -16,16 +15,13 @@
     )
 )]
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Endpoint, Pag, PagReview};
-use antecedent_stats::{
-    CiPreparationPlan, ConditionalIndependence, ConfidenceMethod, FdrAdjustment,
-    PartialCorrelation, PreparedCiTest,
-};
+use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::combinations::for_each_combination_vars;
 use crate::constraints::DiscoveryConstraints;
@@ -37,7 +33,7 @@ use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::fci::{StaticPagDiscoveryResult, build_pag_circle_skeleton, load_sepsets_into_state};
 use crate::orientation::{OrientationState, RuleDelta};
-use crate::pc::{adjacent_vars, collect_float_columns, edge_key};
+use crate::pc::{adjacent_vars, edge_key};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
     EvidenceSource, GraphEvidence, PcSepsets, discovery_assumptions,
@@ -48,8 +44,8 @@ use crate::rule_scheduling::{
     set_marks_oriented,
 };
 use crate::static_skeleton::{
-    StaticSkeleton, StaticSkeletonInput, record_sepset, run_static_skeleton, skeleton_scored_links,
-    static_ci_test, static_edge_evidence,
+    StaticCiRun, StaticSkeleton, StaticSkeletonInput, record_sepset, run_static_skeleton,
+    skeleton_scored_links, static_edge_evidence,
 };
 
 /// Classic RFCI over tabular (non-temporal) data.
@@ -66,16 +62,7 @@ pub struct Rfci {
     pub discriminating_path_budget: DiscriminatingPathBudget,
 }
 
-impl std::fmt::Debug for Rfci {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Rfci")
-            .field("constraints", &self.constraints)
-            .field("ci", &"<dyn ConditionalIndependence>")
-            .field("fdr", &self.fdr)
-            .field("discriminating_path_budget", &self.discriminating_path_budget)
-            .finish()
-    }
-}
+crate::debug_with_ci!(Rfci, discriminating_path_budget);
 
 impl Default for Rfci {
     fn default() -> Self {
@@ -138,6 +125,10 @@ impl Rfci {
     ///
     /// Data, CI, orientation failures, or an FDR configuration that cannot cover the complete
     /// adaptive CI family.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
@@ -151,60 +142,38 @@ impl Rfci {
                 "RFCI FDR is refused until adjustment covers adjacency, Lemma 3.1, discriminating-path, and sepset-minimization CI tests",
             ));
         }
-        crate::ci::ensure_ci_decisions_meaningful(
-            &*self.ci,
-            self.constraints.significance,
-            self.constraints.alpha,
-            false,
-        )?;
-        if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported {
-                message: "RFCI requires at least one variable",
-            });
-        }
-
-        let col_owned = collect_float_columns(data, variables)?;
-        let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
-        let n = cols[0].len();
-        crate::ci::ensure_ci_fits_rows(&*self.ci, n)?;
-        if n < 3 {
-            return Err(DiscoveryError::stats_msg("insufficient rows for RFCI"));
-        }
-        for c in &cols {
-            if c.len() != n {
-                return Err(DiscoveryError::data_msg("column length mismatch"));
-            }
-        }
-
-        let var_index: HashMap<VariableId, usize> =
-            variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
-
-        let plan = CiPreparationPlan {
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
-        let prepared: PreparedCiTest =
-            self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
-        workspace.prepared_ci = Some(prepared);
-
-        let alpha = self.constraints.alpha;
-        let max_cond = self.constraints.max_cond_size;
-        let skel = run_static_skeleton(
-            &StaticSkeletonInput {
+        let (col_owned, var_index) = crate::pc::prepare_static_columns(
+            crate::pc::StaticColumnRequest {
                 ci: &*self.ci,
-                constraints: &self.constraints,
-                cols: &cols,
-                var_index: &var_index,
-                variables,
-                label: "rfci.pc.depth",
+                significance: self.constraints.significance,
+                alpha: self.constraints.alpha,
+                fdr: false,
+                empty_variables: "RFCI requires at least one variable",
+                insufficient_rows: "insufficient rows for RFCI",
             },
+            data,
+            variables,
             workspace,
             ctx,
         )?;
+        let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
+
+        let alpha = self.constraints.alpha;
+        let max_cond = self.constraints.max_cond_size;
+        let input = StaticSkeletonInput {
+            ci: &*self.ci,
+            constraints: &self.constraints,
+            cols: &cols,
+            var_index: &var_index,
+            variables,
+            label: "rfci.pc.depth",
+        };
+        let skel = run_static_skeleton(&input, workspace, ctx)?;
         let mut scored = skeleton_scored_links(&skel);
         let StaticSkeleton { mut adj, mut sepsets, mut ci_tests, mut iterations, .. } = skel;
         let mut combo_scratch = Vec::new();
         let dense_of = |v: VariableId| crate::pipeline::dense_of(&var_index, v);
+        let mut ci = StaticCiRun::new(&input, workspace, ctx, alpha);
 
         let mut pag = build_pag_circle_skeleton(variables, &var_index, &adj)?;
 
@@ -214,21 +183,18 @@ impl Rfci {
         };
 
         // --- Phase 2: Lemma 3.1 unshielded triples (no Possible-D-Sep) ---
-        let mut lemma_tests = 0u64;
-        lemma_tests += self.rfci_unshielded_triples(
-            &cols,
-            &var_index,
-            variables,
-            &mut adj,
-            &mut sepsets,
-            &mut pag,
-            &mut state,
-            &dense_of,
-            workspace,
-            ctx,
-            alpha,
-            &mut combo_scratch,
+        let tests_before = ci.tests;
+        rfci_unshielded_triples(
+            &mut ci,
+            &mut RfciGraph {
+                adj: &mut adj,
+                sepsets: &mut sepsets,
+                pag: &mut pag,
+                state: &mut state,
+                dense_of: &dense_of,
+            },
         )?;
+        let lemma_tests = ci.tests - tests_before;
         ci_tests += lemma_tests;
         iterations.push(DiscoveryIteration {
             label: Arc::from("rfci.lemma31_unshielded"),
@@ -247,40 +213,35 @@ impl Rfci {
             let d = run_fci_orientation_to_fixed_point(&mut pag, &zhang, &mut state)?;
             orient_conflicts = orient_conflicts.max(d.conflicts);
             let mut disc_changed = false;
-            let disc = self.rfci_discriminating_paths(
-                &cols,
-                &var_index,
-                variables,
-                &mut adj,
-                &mut sepsets,
-                &mut pag,
-                &mut state,
-                &dense_of,
-                workspace,
-                ctx,
-                alpha,
+            let tests_before = ci.tests;
+            let disc = rfci_discriminating_paths(
+                &mut ci,
+                &mut RfciGraph {
+                    adj: &mut adj,
+                    sepsets: &mut sepsets,
+                    pag: &mut pag,
+                    state: &mut state,
+                    dense_of: &dense_of,
+                },
                 &mut combo_scratch,
-                &mut ci_tests,
             )?;
+            ci_tests += ci.tests - tests_before;
             if disc.edges_changed > 0 {
                 disc_changed = true;
                 orient_conflicts = orient_conflicts.max(disc.conflicts);
                 // New edges removed ⇒ re-check Lemma 3.1 triples.
-                let extra = self.rfci_unshielded_triples(
-                    &cols,
-                    &var_index,
-                    variables,
-                    &mut adj,
-                    &mut sepsets,
-                    &mut pag,
-                    &mut state,
-                    &dense_of,
-                    workspace,
-                    ctx,
-                    alpha,
-                    &mut combo_scratch,
+                let tests_before = ci.tests;
+                rfci_unshielded_triples(
+                    &mut ci,
+                    &mut RfciGraph {
+                        adj: &mut adj,
+                        sepsets: &mut sepsets,
+                        pag: &mut pag,
+                        state: &mut state,
+                        dense_of: &dense_of,
+                    },
                 )?;
-                ci_tests += extra;
+                ci_tests += ci.tests - tests_before;
                 load_sepsets_into_state(&sepsets, &dense_of, &mut state)?;
             }
             if d.edges_changed == 0 && !disc_changed {
@@ -310,7 +271,7 @@ impl Rfci {
             });
         }
 
-        scored.retain(|s| adj.contains_key(&edge_key(s.link.source, s.link.target)));
+        scored.retain(|s| adj.contains(edge_key(s.link.source, s.link.target)));
 
         let edge_evidence = static_edge_evidence(&scored, &sepsets, "rfci");
 
@@ -342,368 +303,242 @@ impl Rfci {
             sepsets,
         })
     }
+}
 
-    /// Colombo–Maathuis Lemma 3.1: local CI around unshielded triples.
-    #[allow(clippy::too_many_arguments)]
-    fn rfci_unshielded_triples(
-        &self,
-        cols: &[&[f64]],
-        var_index: &HashMap<VariableId, usize>,
-        variables: &[VariableId],
-        adj: &mut HashMap<(u32, u32), ()>,
-        sepsets: &mut PcSepsets,
-        pag: &mut Pag,
-        state: &mut OrientationState,
-        dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
-        workspace: &mut DiscoveryWorkspace,
-        ctx: &ExecutionContext,
-        alpha: f64,
-        combo_scratch: &mut Vec<VariableId>,
-    ) -> Result<u64, DiscoveryError> {
-        let mut tests = 0u64;
-        let mut queue: VecDeque<(VariableId, VariableId, VariableId)> = VecDeque::new();
-        let mut pending: HashSet<(u32, u32, u32)> = HashSet::new();
+/// The mutable graph state the RFCI phases edit: skeleton, separating sets, PAG and marks.
+struct RfciGraph<'a> {
+    adj: &'a mut crate::static_skeleton::UndirectedAdj,
+    sepsets: &'a mut PcSepsets,
+    pag: &'a mut Pag,
+    state: &'a mut OrientationState,
+    dense_of: &'a dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
+}
 
-        let enqueue = |queue: &mut VecDeque<_>,
-                       pending: &mut HashSet<_>,
-                       a: VariableId,
-                       b: VariableId,
-                       c: VariableId| {
-            let (lo, hi) = if a.raw() <= c.raw() { (a, c) } else { (c, a) };
-            let key = (lo.raw(), b.raw(), hi.raw());
-            if pending.insert(key) {
-                queue.push_back((lo, b, hi));
+/// Work queue of unshielded triples `(lo, middle, hi)`, each queued at most once.
+#[derive(Default)]
+struct UnshieldedTriples {
+    queue: VecDeque<(VariableId, VariableId, VariableId)>,
+    pending: HashSet<(u32, u32, u32)>,
+}
+
+impl UnshieldedTriples {
+    fn push(&mut self, a: VariableId, b: VariableId, c: VariableId) {
+        let (lo, hi) = if a.raw() <= c.raw() { (a, c) } else { (c, a) };
+        if self.pending.insert((lo.raw(), b.raw(), hi.raw())) {
+            self.queue.push_back((lo, b, hi));
+        }
+    }
+
+    fn pop(&mut self) -> Option<(VariableId, VariableId, VariableId)> {
+        let (a, b, c) = self.queue.pop_front()?;
+        self.pending.remove(&(a.raw(), b.raw(), c.raw()));
+        Some((a, b, c))
+    }
+}
+
+/// Colombo–Maathuis Lemma 3.1: local CI around unshielded triples.
+fn rfci_unshielded_triples(
+    ci: &mut StaticCiRun<'_>,
+    graph: &mut RfciGraph<'_>,
+) -> Result<(), DiscoveryError> {
+    let variables = ci.input.variables;
+    let mut triples = UnshieldedTriples::default();
+
+    for &b in variables {
+        let nbrs = adjacent_vars(b, graph.adj, variables);
+        for (i, &a) in nbrs.iter().enumerate() {
+            for &c in &nbrs[i + 1..] {
+                if !graph.adj.contains(edge_key(a, c)) {
+                    triples.push(a, b, c);
+                }
             }
+        }
+    }
+
+    while let Some((a, b, c)) = triples.pop() {
+        if !graph.adj.contains(edge_key(a, b)) || !graph.adj.contains(edge_key(b, c)) {
+            continue;
+        }
+        if graph.adj.contains(edge_key(a, c)) {
+            continue; // no longer unshielded
+        }
+        let Some(sep_ac) = sepset_vars(graph.sepsets, a, c) else {
+            continue;
+        };
+        let cond: Vec<VariableId> = sep_ac.into_iter().filter(|&z| z != b).collect();
+
+        // a ⊥? b | sep(a,c)\{b}
+        if ci.p_value(a, b, &cond)? > ci.alpha {
+            let minimal = ci.minimize_sepset(a, b, &cond)?;
+            remove_edge_update(ci, graph, (a, b), &minimal, &mut triples)?;
+            continue;
+        }
+
+        if ci.p_value(b, c, &cond)? > ci.alpha {
+            let minimal = ci.minimize_sepset(b, c, &cond)?;
+            remove_edge_update(ci, graph, (b, c), &minimal, &mut triples)?;
+            continue;
+        }
+
+        // Both dependent: orient v-structure iff b ∉ sep(a,c).
+        let b_in_sep = sepset_vars(graph.sepsets, a, c).is_some_and(|s| s.iter().any(|&z| z == b));
+        if !b_in_sep {
+            let ad = (graph.dense_of)(a)?;
+            let bd = (graph.dense_of)(b)?;
+            let cd = (graph.dense_of)(c)?;
+            // a *→ b ←* c (keep far marks; set arrow at b).
+            let mut delta = RuleDelta::default();
+            orient_collider_leg(graph.pag, graph.state, &mut delta, ad, bd)?;
+            orient_collider_leg(graph.pag, graph.state, &mut delta, cd, bd)?;
+        }
+    }
+    Ok(())
+}
+
+/// Zhang R4 with Colombo–Maathuis Lemma 3.2: CI-check each discriminating path, then orient.
+fn rfci_discriminating_paths(
+    ci: &mut StaticCiRun<'_>,
+    graph: &mut RfciGraph<'_>,
+    combo_scratch: &mut Vec<VariableId>,
+) -> Result<RuleDelta, DiscoveryError> {
+    let (adj, sepsets, pag, state) =
+        (&mut *graph.adj, &mut *graph.sepsets, &mut *graph.pag, &mut *graph.state);
+    let dense_of = graph.dense_of;
+    let variables = ci.input.variables;
+    let mut delta = RuleDelta::default();
+    // Per-edge budgets: an edge whose search runs out keeps its circle (sound) and is
+    // recorded, instead of aborting the whole run.
+    let budget = state.discriminating_budget;
+    let mut paths = Vec::new();
+    for i in 0..pag.node_count() {
+        let b = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
+        for (c, _at_b, at_c) in pag.neighbors(b) {
+            if !matches!(at_c, Endpoint::Circle) {
+                continue;
+            }
+            let (found, truncated) = find_discriminating_paths_for_edge(pag, b, c, budget);
+            if truncated {
+                state.discriminating_skipped.insert((c.raw(), b.raw()));
+            }
+            paths.extend(found);
+        }
+    }
+
+    for path in paths {
+        let a = path.a();
+        let c = path.c();
+        let b = path.b();
+        let d_k = path.d_k();
+        let a_v = variables[a.as_usize()];
+        let b_v = variables[b.as_usize()];
+        let Some(sep_ab) = sepset_vars(sepsets, a_v, b_v) else {
+            continue;
         };
 
-        for &b in variables {
-            let nbrs = adjacent_vars(b, adj, variables);
-            for (i, &a) in nbrs.iter().enumerate() {
-                for &c in &nbrs[i + 1..] {
-                    if !adj.contains_key(&edge_key(a, c)) {
-                        enqueue(&mut queue, &mut pending, a, b, c);
+        // Lemma 3.2: consecutive pairs must stay dependent given all subsets of sep\{pair}.
+        let mut remove: Option<(VariableId, VariableId, Vec<VariableId>)> = None;
+        'pairs: for w in path.nodes.windows(2) {
+            let u = variables[w[0].as_usize()];
+            let v = variables[w[1].as_usize()];
+            let pool: Vec<VariableId> =
+                sep_ab.iter().copied().filter(|&z| z != u && z != v).collect();
+            for depth in 0..=pool.len() {
+                let mut sets = Vec::new();
+                for_each_combination_vars(&pool, depth, combo_scratch, |z| {
+                    sets.push(z.to_vec());
+                    true
+                });
+                for z in &sets {
+                    if ci.p_value(u, v, z)? > ci.alpha {
+                        let minimal = ci.minimize_sepset(u, v, z)?;
+                        remove = Some((u, v, minimal));
+                        break 'pairs;
                     }
                 }
             }
         }
 
-        while let Some((a, b, c)) = queue.pop_front() {
-            pending.remove(&(a.raw(), b.raw(), c.raw()));
-            if !adj.contains_key(&edge_key(a, b)) || !adj.contains_key(&edge_key(b, c)) {
+        if let Some((u, v, minimal)) = remove {
+            if ci.input.constraints.static_required(u, v) {
                 continue;
             }
-            if adj.contains_key(&edge_key(a, c)) {
-                continue; // no longer unshielded
-            }
-            let Some(sep_ac) = sepset_vars(sepsets, a, c) else {
-                continue;
-            };
-            let cond: Vec<VariableId> = sep_ac.into_iter().filter(|&z| z != b).collect();
-
-            // a ⊥? b | sep(a,c)\{b}
-            let (_stat_ab, p_ab) = static_ci_test(
-                &*self.ci,
-                &self.constraints,
-                cols,
-                var_index,
-                a,
-                b,
-                &cond,
-                workspace,
-                ctx,
-            )?;
-            tests += 1;
-            if p_ab > alpha {
-                let minimal = self.minimize_sepset(
-                    cols, var_index, a, b, &cond, workspace, ctx, alpha, &mut tests,
-                )?;
-                self.remove_edge_update(
-                    a,
-                    b,
-                    &minimal,
-                    adj,
-                    sepsets,
-                    pag,
-                    dense_of,
-                    variables,
-                    &mut queue,
-                    &mut pending,
-                )?;
-                continue;
-            }
-
-            let (_stat_bc, p_bc) = static_ci_test(
-                &*self.ci,
-                &self.constraints,
-                cols,
-                var_index,
-                b,
-                c,
-                &cond,
-                workspace,
-                ctx,
-            )?;
-            tests += 1;
-            if p_bc > alpha {
-                let minimal = self.minimize_sepset(
-                    cols, var_index, b, c, &cond, workspace, ctx, alpha, &mut tests,
-                )?;
-                self.remove_edge_update(
-                    b,
-                    c,
-                    &minimal,
-                    adj,
-                    sepsets,
-                    pag,
-                    dense_of,
-                    variables,
-                    &mut queue,
-                    &mut pending,
-                )?;
-                continue;
-            }
-
-            // Both dependent: orient v-structure iff b ∉ sep(a,c).
-            let b_in_sep = sepset_vars(sepsets, a, c).is_some_and(|s| s.iter().any(|&z| z == b));
-            if !b_in_sep {
-                let ad = dense_of(a)?;
-                let bd = dense_of(b)?;
-                let cd = dense_of(c)?;
-                // a *→ b ←* c (keep far marks; set arrow at b).
-                let mut delta = RuleDelta::default();
-                orient_collider_leg(pag, state, &mut delta, ad, bd)?;
-                orient_collider_leg(pag, state, &mut delta, cd, bd)?;
-            }
-            let _ = combo_scratch;
-        }
-        Ok(tests)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn rfci_discriminating_paths(
-        &self,
-        cols: &[&[f64]],
-        var_index: &HashMap<VariableId, usize>,
-        variables: &[VariableId],
-        adj: &mut HashMap<(u32, u32), ()>,
-        sepsets: &mut PcSepsets,
-        pag: &mut Pag,
-        state: &mut OrientationState,
-        dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
-        workspace: &mut DiscoveryWorkspace,
-        ctx: &ExecutionContext,
-        alpha: f64,
-        combo_scratch: &mut Vec<VariableId>,
-        ci_tests: &mut u64,
-    ) -> Result<RuleDelta, DiscoveryError> {
-        let mut delta = RuleDelta::default();
-        // Per-edge budgets: an edge whose search runs out keeps its circle (sound) and is
-        // recorded, instead of aborting the whole run.
-        let budget = state.discriminating_budget;
-        let mut paths = Vec::new();
-        for i in 0..pag.node_count() {
-            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
-            for (c, _at_b, at_c) in pag.neighbors(b) {
-                if !matches!(at_c, Endpoint::Circle) {
-                    continue;
-                }
-                let (found, truncated) = find_discriminating_paths_for_edge(pag, b, c, budget);
-                if truncated {
-                    state.discriminating_skipped.insert((c.raw(), b.raw()));
-                }
-                paths.extend(found);
-            }
-        }
-
-        for path in paths {
-            let a = path.a();
-            let c = path.c();
-            let b = path.b();
-            let d_k = path.d_k();
-            let a_v = variables[a.as_usize()];
-            let b_v = variables[b.as_usize()];
-            let Some(sep_ab) = sepset_vars(sepsets, a_v, b_v) else {
-                continue;
-            };
-
-            // Lemma 3.2: consecutive pairs must stay dependent given all subsets of sep\{pair}.
-            let mut remove: Option<(VariableId, VariableId, Vec<VariableId>)> = None;
-            'pairs: for w in path.nodes.windows(2) {
-                let u = variables[w[0].as_usize()];
-                let v = variables[w[1].as_usize()];
-                let pool: Vec<VariableId> =
-                    sep_ab.iter().copied().filter(|&z| z != u && z != v).collect();
-                for depth in 0..=pool.len() {
-                    let mut sets = Vec::new();
-                    for_each_combination_vars(&pool, depth, combo_scratch, |z| {
-                        sets.push(z.to_vec());
-                        true
-                    });
-                    for z in &sets {
-                        let (_s, p) = static_ci_test(
-                            &*self.ci,
-                            &self.constraints,
-                            cols,
-                            var_index,
-                            u,
-                            v,
-                            z,
-                            workspace,
-                            ctx,
-                        )?;
-                        *ci_tests += 1;
-                        if p > alpha {
-                            let minimal = self.minimize_sepset(
-                                cols, var_index, u, v, z, workspace, ctx, alpha, ci_tests,
-                            )?;
-                            remove = Some((u, v, minimal));
-                            break 'pairs;
-                        }
-                    }
-                }
-            }
-
-            if let Some((u, v, minimal)) = remove {
-                if self.constraints.static_required(u, v) {
-                    continue;
-                }
-                let key = edge_key(u, v);
-                if adj.remove(&key).is_some() {
-                    record_sepset(sepsets, u, v, &minimal);
-                    let ud = dense_of(u)?;
-                    let vd = dense_of(v)?;
-                    let _ = pag.remove_edge(ud, vd);
-                    state.set_sepset(
-                        ud,
-                        vd,
-                        Arc::from(
-                            minimal.iter().filter_map(|x| dense_of(*x).ok()).collect::<Vec<_>>(),
-                        ),
-                    );
-                    delta.edges_changed += 1;
-                }
-                continue;
-            }
-
-            // Standard R4 orientation (Zhang) after Lemma 3.2 checks pass.
-            let c_in_sep = sep_ab.iter().any(|&z| dense_of(z).ok().is_some_and(|d| d == c));
-            let collider = discriminating_implies_collider(c_in_sep);
-            let Some(e_cb) = pag.edge_between(c, b) else {
-                continue;
-            };
-            let mark_at_c = if e_cb.a == c { e_cb.at_a } else { e_cb.at_b };
-            if !matches!(mark_at_c, Endpoint::Circle) {
-                continue;
-            }
-            if collider {
-                if orient_discriminated_collider(pag, state, &mut delta, d_k, c, b)? {
-                    delta.edges_changed += 1;
-                }
-            } else if set_marks_oriented(
-                pag,
-                state,
-                &mut delta,
-                c,
-                b,
-                Endpoint::Tail,
-                Endpoint::Arrow,
-            )? {
+            let key = edge_key(u, v);
+            if adj.remove(key) {
+                record_sepset(sepsets, u, v, &minimal);
+                let ud = dense_of(u)?;
+                let vd = dense_of(v)?;
+                let _ = pag.remove_edge(ud, vd);
+                let dense_sep: Vec<DenseNodeId> =
+                    minimal.iter().map(|x| dense_of(*x)).collect::<Result<_, _>>()?;
+                state.set_sepset(ud, vd, Arc::from(dense_sep));
                 delta.edges_changed += 1;
             }
+            continue;
         }
-        delta.fixed_point = delta.edges_changed == 0;
-        Ok(delta)
-    }
 
-    #[allow(clippy::too_many_arguments)]
-    fn remove_edge_update(
-        &self,
-        x: VariableId,
-        y: VariableId,
-        minimal: &[VariableId],
-        adj: &mut HashMap<(u32, u32), ()>,
-        sepsets: &mut PcSepsets,
-        pag: &mut Pag,
-        dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
-        variables: &[VariableId],
-        queue: &mut VecDeque<(VariableId, VariableId, VariableId)>,
-        pending: &mut HashSet<(u32, u32, u32)>,
-    ) -> Result<(), DiscoveryError> {
-        if self.constraints.static_required(x, y) {
-            return Ok(());
+        // Standard R4 orientation (Zhang) after Lemma 3.2 checks pass.
+        let c_in_sep =
+            sep_ab.iter().map(|&z| dense_of(z)).collect::<Result<Vec<_>, _>>()?.contains(&c);
+        let collider = discriminating_implies_collider(c_in_sep);
+        let Some(e_cb) = pag.edge_between(c, b) else {
+            continue;
+        };
+        let mark_at_c = if e_cb.a == c { e_cb.at_a } else { e_cb.at_b };
+        if !matches!(mark_at_c, Endpoint::Circle) {
+            continue;
         }
-        let key = edge_key(x, y);
-        if adj.remove(&key).is_none() {
-            return Ok(());
-        }
-        record_sepset(sepsets, x, y, minimal);
-        let xd = dense_of(x)?;
-        let yd = dense_of(y)?;
-        let _ = pag.remove_edge(xd, yd);
-
-        // New unshielded triples created by removing x–y: for each common neighbor.
-        let nx = adjacent_vars(x, adj, variables);
-        let ny = adjacent_vars(y, adj, variables);
-        for &b in &nx {
-            if b != y && adj.contains_key(&edge_key(y, b)) && !adj.contains_key(&edge_key(x, y)) {
-                // triple x-b-y is unshielded if x–y gone
-                let (lo, hi) = if x.raw() <= y.raw() { (x, y) } else { (y, x) };
-                let key = (lo.raw(), b.raw(), hi.raw());
-                if pending.insert(key) {
-                    queue.push_back((lo, b, hi));
-                }
+        if collider {
+            if orient_discriminated_collider(pag, state, &mut delta, d_k, c, b)? {
+                delta.edges_changed += 1;
             }
+        } else if set_marks_oriented(pag, state, &mut delta, c, b, Endpoint::Tail, Endpoint::Arrow)?
+        {
+            delta.edges_changed += 1;
         }
-        for &b in &ny {
-            if b != x && adj.contains_key(&edge_key(x, b)) {
-                let (lo, hi) = if x.raw() <= y.raw() { (x, y) } else { (y, x) };
-                let key = (lo.raw(), b.raw(), hi.raw());
-                if pending.insert(key) {
-                    queue.push_back((lo, b, hi));
-                }
-            }
-        }
-        Ok(())
     }
+    delta.fixed_point = delta.edges_changed == 0;
+    Ok(delta)
+}
 
-    #[allow(clippy::too_many_arguments)]
-    fn minimize_sepset(
-        &self,
-        cols: &[&[f64]],
-        var_index: &HashMap<VariableId, usize>,
-        x: VariableId,
-        y: VariableId,
-        z: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
-        ctx: &ExecutionContext,
-        alpha: f64,
-        tests: &mut u64,
-    ) -> Result<Vec<VariableId>, DiscoveryError> {
-        let mut s = z.to_vec();
-        let mut i = 0;
-        while i < s.len() {
-            let mut trial = s.clone();
-            trial.remove(i);
-            let (_stat, p) = static_ci_test(
-                &*self.ci,
-                &self.constraints,
-                cols,
-                var_index,
-                x,
-                y,
-                &trial,
-                workspace,
-                ctx,
-            )?;
-            *tests += 1;
-            if p > alpha {
-                s = trial;
-            } else {
-                i += 1;
-            }
-        }
-        Ok(s)
+/// Remove `edge` as separated by `minimal` and queue the triples its removal unshields.
+fn remove_edge_update(
+    ci: &StaticCiRun<'_>,
+    graph: &mut RfciGraph<'_>,
+    edge: (VariableId, VariableId),
+    minimal: &[VariableId],
+    triples: &mut UnshieldedTriples,
+) -> Result<(), DiscoveryError> {
+    let (adj, sepsets, pag) = (&mut *graph.adj, &mut *graph.sepsets, &mut *graph.pag);
+    let dense_of = graph.dense_of;
+    let (x, y) = edge;
+    let variables = ci.input.variables;
+    if ci.input.constraints.static_required(x, y) {
+        return Ok(());
     }
+    let key = edge_key(x, y);
+    if !adj.remove(key) {
+        return Ok(());
+    }
+    record_sepset(sepsets, x, y, minimal);
+    let xd = dense_of(x)?;
+    let yd = dense_of(y)?;
+    let _ = pag.remove_edge(xd, yd);
+
+    // New unshielded triples created by removing x–y: for each common neighbor.
+    let nx = adjacent_vars(x, adj, variables);
+    let ny = adjacent_vars(y, adj, variables);
+    for &b in &nx {
+        if b != y && adj.contains(edge_key(y, b)) && !adj.contains(edge_key(x, y)) {
+            // triple x-b-y is unshielded if x–y gone
+            triples.push(x, b, y);
+        }
+    }
+    for &b in &ny {
+        if b != x && adj.contains(edge_key(x, b)) {
+            triples.push(x, b, y);
+        }
+    }
+    Ok(())
 }
 
 fn sepset_vars(sepsets: &PcSepsets, a: VariableId, b: VariableId) -> Option<Vec<VariableId>> {
@@ -716,47 +551,12 @@ fn sepset_vars(sepsets: &PcSepsets, a: VariableId, b: VariableId) -> Option<Vec<
 mod tests {
     use std::sync::Arc;
 
-    use antecedent_core::{
-        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-        VariableId,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_core::{ExecutionContext, VariableId};
     use antecedent_graph::Endpoint;
     use antecedent_stats::OracleCi;
 
     use super::*;
-
-    fn tabular_n(ncols: usize, nrows: usize) -> TabularData {
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..ncols {
-            b.add_variable(
-                format!("v{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let owned: Vec<OwnedColumn> = (0..ncols)
-            .map(|i| {
-                OwnedColumn::Float64(
-                    Float64Column::new(
-                        VariableId::from_raw(i as u32),
-                        Arc::from(vec![0.0; nrows]),
-                        ValidityBitmap::all_valid(nrows),
-                    )
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        TabularData::new(storage)
-    }
+    use crate::test_tables::tabular_n;
 
     #[test]
     fn oracle_chain_recovers_skeleton() {

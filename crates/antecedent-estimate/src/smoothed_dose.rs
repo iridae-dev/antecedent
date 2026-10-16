@@ -1,4 +1,4 @@
-//! Smoothed dose-response transport grid (2.2B cell X4).
+//! Smoothed dose-response transport grid.
 //!
 //! # The one cell
 //!
@@ -85,6 +85,7 @@ use crate::EstimationError;
 use crate::estimator_menu::{EstimatorMenu, EstimatorMenuEntry, MenuRefusal};
 use crate::learned_continuous::FoldProvenance;
 use crate::learned_trial::TrialSampling;
+use crate::util::refuse;
 use antecedent_core::{ExecutionContext, SmoothedDoseTransportQuery, SmoothingKernel, VariableId};
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_learn::{
@@ -112,9 +113,9 @@ pub const SMOOTHED_DOSE_MAX_BASIS_DEGREE: u8 = 3;
 /// Most hinge knots of the dose basis.
 pub const SMOOTHED_DOSE_MAX_KNOTS: usize = 8;
 /// The fold scheme recorded on every estimate.
-pub const SMOOTHED_DOSE_FOLD_SCHEME: &str = "stratified_round_robin_source_and_target";
+pub const SMOOTHED_DOSE_FOLD_SCHEME: &str = "stratified_seeded_source_and_target";
 /// The one supported target of a request.
-pub const SMOOTHED_DOSE_TARGET: &str = "smoothed_dose_response";
+pub(crate) const SMOOTHED_DOSE_TARGET: &str = "smoothed_dose_response";
 /// Most design rows per quadrature chunk; cancellation is polled once per chunk.
 const CHUNK_DESIGN_ROWS: usize = 1 << 14;
 /// Most design bytes per quadrature chunk; wide designs get fewer rows per chunk.
@@ -164,9 +165,9 @@ pub const SMOOTHED_DOSE_BOUNDS: SmoothedDoseBounds = SmoothedDoseBounds {
 };
 
 /// Point-only status: no interval was requested.
-pub const DOSE_POINT_ONLY: &str = "point_only";
+pub(crate) const DOSE_POINT_ONLY: &str = "point_only";
 /// Withheld status: an interval was requested and is withheld with a reason.
-pub const DOSE_WITHHELD: &str = "withheld";
+pub(crate) const DOSE_WITHHELD: &str = "withheld";
 
 /// The deterministic dose-by-covariate basis the outcome learner is fed:
 /// `[1, t, .., t^degree, (t - k)_+ for each knot, x_1..x_d, b(t) x_j if interactions]`.
@@ -407,6 +408,9 @@ pub struct SmoothedDoseGridPoint {
     pub support: LocalDoseSupport,
     /// Analytic influence-function standard error: a diagnostic, not a licensed claim.
     pub influence_se_diagnostic: f64,
+    /// Per-row score contributions whose sample mean is [`Self::estimate`].
+    #[serde(default)]
+    pub row_scores: Vec<f64>,
 }
 
 /// Held-out nuisance losses.
@@ -465,10 +469,6 @@ pub struct SmoothedDoseEvaluation {
     pub diagnostics: SmoothedDoseDiagnostics,
     /// Membership overlap.
     pub overlap: MembershipOverlap,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 fn support_refusal(detail: &str, message: &str) -> EstimationError {
@@ -557,8 +557,7 @@ pub fn parse_smoothed_dose_target(name: &str) -> Result<(), EstimationError> {
 ///
 /// # Errors
 /// `route_not_supported` (`dose_response.estimated_dose_density`).
-#[doc(hidden)]
-pub fn parse_dose_density_provenance(name: &str) -> Result<(), EstimationError> {
+pub(crate) fn parse_dose_density_provenance(name: &str) -> Result<(), EstimationError> {
     if name == "known" {
         return Ok(());
     }
@@ -690,23 +689,19 @@ fn strata(input: &SmoothedDoseInput) -> [Vec<usize>; 2] {
     rows
 }
 
-/// Stratified round-robin fold of every row: the source rows and the target rows are
-/// each dealt across the folds in row order, so every fold holds both roles. The
-/// assignment is deterministic in the source flags alone; no seed enters it.
+/// Key of the seeded dose-transport fold shuffle.
+const FOLD_PLAN_SEED: u64 = 0x5344_F01D_5EED_0001;
+
+/// Stratified fold of every row: the source rows and the target rows are each shuffled with
+/// a fixed key and dealt round-robin across the folds by the shared cross-fit plan, so every
+/// fold holds both roles. The assignment is deterministic in the source flags alone; no
+/// caller seed enters it. Empty when `folds` or the sample size is outside what the option
+/// validation accepts.
 #[must_use]
 #[doc(hidden)]
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "i % folds is below the fold count, which validation bounds by 20"
-)]
 pub fn smoothed_dose_fold_assignment(input: &SmoothedDoseInput, folds: usize) -> Vec<u16> {
-    let mut assignment = vec![0u16; input.source.len()];
-    for rows in strata(input) {
-        for (i, row) in rows.into_iter().enumerate() {
-            assignment[row] = (i % folds.max(1)) as u16;
-        }
-    }
-    assignment
+    let stratum: Vec<u32> = input.source.iter().map(|&source| u32::from(!source)).collect();
+    crate::crossfit_plan::row_fold_ids_u16(&stratum, folds, FOLD_PLAN_SEED)
 }
 
 fn kernel_weight(
@@ -1055,21 +1050,38 @@ type FoldPredictor<'a> = dyn Fn(usize, &[f64], usize, &ExecutionContext) -> Resu
     + Sync
     + 'a;
 
+/// The fold count and per-fold outcome predictor of a cross-fitted outcome model.
+#[derive(Clone, Copy)]
+struct FoldedPredictor<'a> {
+    fold_count: usize,
+    predict: &'a FoldPredictor<'a>,
+}
+
+/// One quadrature rule over the kernel window `[center − half_width, center + half_width]`
+/// of one grid dose.
+#[derive(Clone, Copy)]
+struct TargetQuadrature<'a> {
+    kernel: SmoothingKernel,
+    center: f64,
+    half_width: f64,
+    nodes: &'a [f64],
+    weights: &'a [f64],
+}
+
 /// Target-term quadrature of one grid dose under one rule: `nu_hat` per target row, in
 /// target-row order, each from its own fold's model. Cancellation is polled before every
 /// chunk of at most [`CHUNK_DESIGN_ROWS`] design rows.
-#[allow(clippy::too_many_arguments, reason = "one quadrature rule of one grid dose")]
 fn smoothed_target_rows(
     basis: &DoseBasis,
     input: &SmoothedDoseInput,
-    kernel: SmoothingKernel,
     folds: &[u16],
-    (fold_count, predictor): (usize, &FoldPredictor<'_>),
-    (a, h): (f64, f64),
-    (nodes, weights): (&[f64], &[f64]),
+    predictor: &FoldedPredictor<'_>,
+    rule: &TargetQuadrature<'_>,
     target_rows: &[usize],
     ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, EstimationError> {
+    let FoldedPredictor { fold_count, predict: predictor } = *predictor;
+    let TargetQuadrature { kernel, center: a, half_width: h, nodes, weights } = *rule;
     let q = nodes.len();
     let kernel_weights: Vec<f64> =
         nodes.iter().zip(weights).map(|(u, w)| w * kernel.density(*u)).collect();
@@ -1101,6 +1113,26 @@ fn smoothed_target_rows(
 
 fn mean_in_order(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
+}
+
+/// Per-row contributions scaled so their mean is `mean(nu) + sum(residual) / n0`.
+fn dose_row_scores(
+    n: usize,
+    n0: f64,
+    target_rows: &[usize],
+    nu_fine: &[f64],
+    source_rows: &[usize],
+    residual_terms: &[f64],
+) -> Vec<f64> {
+    let scale = n as f64 / n0;
+    let mut row_scores = vec![0.0; n];
+    for (local, &row) in target_rows.iter().enumerate() {
+        row_scores[row] = nu_fine[local] * scale;
+    }
+    for (local, &row) in source_rows.iter().enumerate() {
+        row_scores[row] = residual_terms[local] * scale;
+    }
+    row_scores
 }
 
 /// Evaluate the point from stored fold models, rows and premises: out-of-fold
@@ -1203,11 +1235,15 @@ pub fn evaluate_smoothed_dose_models(
             smoothed_target_rows(
                 &options.basis,
                 input,
-                query.kernel,
                 folds,
-                (fold_count, &predictor),
-                (a, bandwidth),
-                (&nodes, &weights),
+                &FoldedPredictor { fold_count, predict: &predictor },
+                &TargetQuadrature {
+                    kernel: query.kernel,
+                    center: a,
+                    half_width: bandwidth,
+                    nodes: &nodes,
+                    weights: &weights,
+                },
                 &target_rows,
                 inner,
             )
@@ -1272,6 +1308,14 @@ pub fn evaluate_smoothed_dose_models(
             },
             support: local_support(query, input, a),
             influence_se_diagnostic: squares.sqrt() / n0,
+            row_scores: dose_row_scores(
+                n,
+                n0,
+                &target_rows,
+                &nu_fine,
+                &source_rows,
+                &residual_terms,
+            ),
         })
     })?;
     let max_odds_weight = odds.iter().copied().fold(0.0, f64::max);
@@ -1771,7 +1815,7 @@ pub fn smoothed_dose_estimator_menu(
             "group-level exchangeability of the dose within one population",
             "none: the dose density is supplied and group means are kernel-weighted",
             "local support in every group-dose cell",
-            "the 2.1 conditional continuous-dose response; not calibrated by this cell",
+            "the conditional continuous-dose response; not calibrated by this cell",
             menu_refusal(
                 antecedent_core::reason_code!("route_not_supported"),
                 None,
@@ -1984,11 +2028,15 @@ mod tests {
             let result = smoothed_target_rows(
                 &basis,
                 &data,
-                SmoothingKernel::Epanechnikov,
                 &folds,
-                (2, &predictor),
-                (2.0, 0.5),
-                (&nodes, &weights),
+                &FoldedPredictor { fold_count: 2, predict: &predictor },
+                &TargetQuadrature {
+                    kernel: SmoothingKernel::Epanechnikov,
+                    center: 2.0,
+                    half_width: 0.5,
+                    nodes: &nodes,
+                    weights: &weights,
+                },
                 &target,
                 &ctx,
             );
@@ -2123,7 +2171,7 @@ mod tests {
     }
 
     #[test]
-    fn the_fold_assignment_deals_each_role_round_robin_and_ignores_values() {
+    fn the_fold_assignment_deals_each_role_by_a_seeded_shuffle_and_ignores_values() {
         let data = input(30);
         let folds = smoothed_dose_fold_assignment(&data, 3);
         for fold in 0..3u16 {

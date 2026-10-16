@@ -1,7 +1,10 @@
-// Imbens–Manski / product-posterior envelope diagnostics for class mixtures.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+// Imbens–Manski / product-posterior envelope diagnostics for class mixtures.
 
-use super::*;
+use super::{
+    CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
+    PreparedBayesianProblem,
+};
 use antecedent_core::StreamDomain;
 
 /// Nominal level of the identified-set interval published on class structural mixtures.
@@ -27,6 +30,29 @@ pub fn same_fitted_problem(a: &PreparedBayesianProblem, b: &PreparedBayesianProb
         && a.control.to_bits() == b.control.to_bits()
         && a.coef_names == b.coef_names
         && a.serial_dependence == b.serial_dependence
+}
+
+/// Whether two prepared Bayesian problems agree on every field, so that a fit of
+/// one is a fit of the other.
+///
+/// [`same_fitted_problem`] compares the likelihood (design, outcome, contrast,
+/// names, row dependence); this also compares what that comparison leaves out
+/// (the design's column map, retained rows, contrast, smooth and
+/// standardization provenance, the row units, method, adjustment set and overlap
+/// policy). Two problems that agree here, fitted under one prior, seed and
+/// identification status, have the same posterior, so the second fit can be
+/// served the first.
+pub fn same_fit_inputs(a: &PreparedBayesianProblem, b: &PreparedBayesianProblem) -> bool {
+    same_fitted_problem(a, b)
+        && a.design.columns == b.design.columns
+        && a.design.row_selection == b.design.row_selection
+        && a.design.contrasts == b.design.contrasts
+        && a.design.smooths == b.design.smooths
+        && a.design.standardization == b.design.standardization
+        && a.unit_ids == b.unit_ids
+        && a.method == b.method
+        && a.adjustment_set == b.adjustment_set
+        && a.overlap == b.overlap
 }
 
 /// Whether two sequential completions fitted the same stationary mechanisms

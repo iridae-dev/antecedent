@@ -14,8 +14,8 @@ use antecedent_expr::IdentifiedEstimand;
 
 use crate::ValidationError;
 use crate::common::{
-    RefutationReport, fill_gaussian, replicate_mean, replicate_p_value, with_contiguous_row_window,
-    with_extra_float, with_replaced_float,
+    RefutationReport, STABILITY_ALPHA, STABILITY_REPLICATES, fill_gaussian, finish_p_report,
+    map_replicates, with_contiguous_row_window, with_extra_float, with_replaced_float,
 };
 
 /// Query-native cheap/full dispatch. Temporal mediation uses the mediation
@@ -97,8 +97,11 @@ impl QueryRefutationPlan {
 /// Run the native suite with the same graph-derived adjustment as the estimate.
 #[allow(
     clippy::float_cmp,
-    clippy::too_many_arguments,
     reason = "the treatment column is compared to its own deduplicated level values, which are copies of the same floats; the argument list mirrors the estimate call"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one replicate pass feeds three refuters that share a noise draw, then the overlap diagnostic"
 )]
 pub fn refute_temporal_mediation_adjusted(
     data: &TimeSeriesData,
@@ -116,49 +119,53 @@ pub fn refute_temporal_mediation_adjusted(
     })?;
     let mut placebo_query = query.clone();
     placebo_query.contrast = MediationContrast::Mediated;
-    let mut noise = vec![0.0; tabular.row_count()];
-    let mut placebo = Vec::new();
-    let mut rcc = Vec::new();
-    let mut subset = Vec::new();
-    for replicate in 0..MEDIATION_REPLICATES {
-        if ctx.cancellation.is_cancelled() {
-            return Err(ValidationError::Cancelled);
-        }
-        fill_gaussian(&mut noise, ctx, 0xF014_0000 + replicate);
-        let replaced = with_replaced_float(&tabular, mediator, Arc::from(noise.clone()))?;
-        let series =
-            TimeSeriesData::try_new(replaced.storage().clone(), data.time_index().clone())?;
-        placebo.push(
-            estimator
+    // The three refuters share one noise vector per replicate, so one pass drives all of them.
+    let rows = tabular.row_count();
+    let per_replicate = map_replicates(
+        ctx,
+        STABILITY_REPLICATES,
+        || vec![0.0; rows],
+        |noise, ctx, replicate| {
+            let replicate = u64::from(replicate);
+            fill_gaussian(noise, ctx, 0xF014_0000 + replicate);
+            let replaced = with_replaced_float(&tabular, mediator, Arc::from(noise.clone()))?;
+            let series =
+                TimeSeriesData::try_new(replaced.storage().clone(), data.time_index().clone())?;
+            let placebo_ate = estimator
                 .estimate_with_adjustment(&series, estimand, &placebo_query, adjustment, &[], ctx)?
                 .effect
-                .ate,
-        );
-        let (augmented, id) =
-            with_extra_float(&tabular, "__mediation_rcc", Arc::from(noise.clone()))?;
-        let series =
-            TimeSeriesData::try_new(augmented.storage().clone(), data.time_index().clone())?;
-        rcc.push(
-            estimator
+                .ate;
+            let (augmented, id) =
+                with_extra_float(&tabular, "__mediation_rcc", Arc::from(noise.clone()))?;
+            let series =
+                TimeSeriesData::try_new(augmented.storage().clone(), data.time_index().clone())?;
+            let rcc_ate = estimator
                 .estimate_with_adjustment(&series, estimand, query, adjustment, &[id], ctx)?
                 .effect
-                .ate,
-        );
-        if full {
-            let window = with_contiguous_row_window(&tabular, 0.8, ctx, 0xF015_0000 + replicate)?;
-            let index = TimeIndex {
-                regularity: data.time_index().regularity.clone(),
-                length: window.row_count(),
+                .ate;
+            let subset_ate = if full {
+                let window =
+                    with_contiguous_row_window(&tabular, 0.8, ctx, 0xF015_0000 + replicate)?;
+                let index = TimeIndex {
+                    regularity: data.time_index().regularity.clone(),
+                    length: window.row_count(),
+                };
+                let series = TimeSeriesData::try_new(window.storage().clone(), index)?;
+                Some(
+                    estimator
+                        .estimate_with_adjustment(&series, estimand, query, adjustment, &[], ctx)?
+                        .effect
+                        .ate,
+                )
+            } else {
+                None
             };
-            let series = TimeSeriesData::try_new(window.storage().clone(), index)?;
-            subset.push(
-                estimator
-                    .estimate_with_adjustment(&series, estimand, query, adjustment, &[], ctx)?
-                    .effect
-                    .ate,
-            );
-        }
-    }
+            Ok((placebo_ate, rcc_ate, subset_ate))
+        },
+    )?;
+    let placebo: Vec<f64> = per_replicate.iter().map(|r| r.0).collect();
+    let rcc: Vec<f64> = per_replicate.iter().map(|r| r.1).collect();
+    let subset: Vec<f64> = per_replicate.iter().filter_map(|r| r.2).collect();
     let mut reports = vec![
         report("mediation.placebo_mediator", 0.0, &placebo)?,
         report("mediation.random_common_cause", original.effect.ate, &rcc)?,
@@ -198,40 +205,30 @@ pub fn refute_temporal_mediation_adjusted(
         let fraction = if width > 0.0 { shared / width } else { 0.0 };
         // A range diagnostic, not a re-estimate: the effect columns carry the published
         // contrast, and `comparison` is the shared fraction of the mediator range.
-        reports.push(RefutationReport::new(
-            "mediation.binary_mediator_support",
-            original.effect.ate,
-            original.effect.ate,
-            fraction,
-            true,
-            fraction > 0.0,
-            (fraction <= 0.0).then(|| {
-                Arc::from("binary treatment groups have disjoint empirical mediator ranges")
-            }),
-            1,
-        ));
+        reports.push(
+            RefutationReport::builder("mediation.binary_mediator_support")
+                .original_ate(original.effect.ate)
+                .refuted_ate(original.effect.ate)
+                .comparison(fraction)
+                .informative(true)
+                .passed(fraction > 0.0)
+                .failure_condition((fraction <= 0.0).then(|| {
+                    Arc::from("binary treatment groups have disjoint empirical mediator ranges")
+                }))
+                .replicates(1)
+                .build(),
+        );
     }
 
     Ok(reports)
 }
 
-/// Replicates per mediation refuter (placebo, random common cause, window / subset).
-const MEDIATION_REPLICATES: u64 = 20;
-
 fn report(id: &str, target: f64, values: &[f64]) -> Result<RefutationReport, ValidationError> {
-    let p = replicate_p_value(values, target)?;
     // Linear mediation placebo/RCC/subset use the same OLS-orthogonal constructions
     // as the ATE refuters: they cannot falsify the claim, so they are not informative.
-    Ok(RefutationReport::new(
-        id,
-        target,
-        replicate_mean(values),
-        p,
-        false,
-        p >= 0.05,
-        (p < 0.05).then(|| Arc::from("mediation contrast is inconsistent with the refuter target")),
-        u32::try_from(values.len()).unwrap_or(u32::MAX),
-    ))
+    finish_p_report(id, target, values, target, STABILITY_ALPHA, |_, _| {
+        "mediation contrast is inconsistent with the refuter target".to_owned()
+    })
 }
 
 /// Static mediation-native suite. Cheap tests a placebo mediator, an exogenous
@@ -240,7 +237,7 @@ fn report(id: &str, target: f64, values: &[f64]) -> Result<RefutationReport, Val
 ///
 /// # Errors
 /// Invalid refit data, regression failure, or cancellation.
-#[allow(clippy::float_cmp)] // Exact binary treatment levels define the two groups.
+#[allow(clippy::float_cmp, reason = "Exact binary treatment levels define the two groups")]
 pub fn refute_static_mediation(
     data: &TabularData,
     graph: &antecedent_graph::Dag,
@@ -252,39 +249,46 @@ pub fn refute_static_mediation(
     use antecedent_estimate::estimate_static_mediation;
     let mut placebo_query = query.clone();
     placebo_query.contrast = MediationContrast::NaturalIndirect;
-    let mut placebo = Vec::new();
-    let mut rcc = Vec::new();
-    let mut subset = Vec::new();
-    for rep in 0..MEDIATION_REPLICATES {
-        if ctx.cancellation.is_cancelled() {
-            return Err(ValidationError::Cancelled);
-        }
-        let mut replaced = data.clone();
-        let mut noise = vec![0.0; data.row_count()];
-        for (j, &mediator) in query.mediators.iter().enumerate() {
-            fill_gaussian(&mut noise, ctx, 0x1300_2000 + rep * 100 + j as u64);
-            replaced = with_replaced_float(&replaced, mediator, Arc::from(noise.clone()))?;
-        }
-        let fit = |d: &TabularData, q: &MediationQuery, extra: &[antecedent_core::VariableId]| {
-            estimate_static_mediation(
-                d,
-                graph,
-                q,
-                original.effect.assumptions.clone(),
-                0,
-                extra,
-                ctx,
-            )
-        };
-        placebo.push(fit(&replaced, &placebo_query, &[])?.effect.ate);
-        fill_gaussian(&mut noise, ctx, 0x1300_4000 + rep);
-        let (augmented, id) = with_extra_float(data, "__mediation_rcc", Arc::from(noise))?;
-        rcc.push(fit(&augmented, query, &[id])?.effect.ate);
-        if full {
-            let sub = crate::common::with_row_subset(data, 0.8, ctx, 0x1300_5000 + rep)?;
-            subset.push(fit(&sub, query, &[])?.effect.ate);
-        }
-    }
+    let per_replicate = map_replicates(
+        ctx,
+        STABILITY_REPLICATES,
+        || (),
+        |(), ctx, rep| {
+            let rep = u64::from(rep);
+            let mut replaced = data.clone();
+            let mut noise = vec![0.0; data.row_count()];
+            for (j, &mediator) in query.mediators.iter().enumerate() {
+                fill_gaussian(&mut noise, ctx, 0x1300_2000 + rep * 100 + j as u64);
+                replaced = with_replaced_float(&replaced, mediator, Arc::from(noise.clone()))?;
+            }
+            let fit =
+                |d: &TabularData, q: &MediationQuery, extra: &[antecedent_core::VariableId]| {
+                    estimate_static_mediation(
+                        d,
+                        graph,
+                        q,
+                        original.effect.provenance.assumptions.clone(),
+                        0,
+                        extra,
+                        ctx,
+                    )
+                };
+            let placebo_ate = fit(&replaced, &placebo_query, &[])?.effect.ate;
+            fill_gaussian(&mut noise, ctx, 0x1300_4000 + rep);
+            let (augmented, id) = with_extra_float(data, "__mediation_rcc", Arc::from(noise))?;
+            let rcc_ate = fit(&augmented, query, &[id])?.effect.ate;
+            let subset_ate = if full {
+                let sub = crate::common::with_row_subset(data, 0.8, ctx, 0x1300_5000 + rep)?;
+                Some(fit(&sub, query, &[])?.effect.ate)
+            } else {
+                None
+            };
+            Ok((placebo_ate, rcc_ate, subset_ate))
+        },
+    )?;
+    let placebo: Vec<f64> = per_replicate.iter().map(|r| r.0).collect();
+    let rcc: Vec<f64> = per_replicate.iter().map(|r| r.1).collect();
+    let subset: Vec<f64> = per_replicate.iter().filter_map(|r| r.2).collect();
     let mut reports = vec![
         report("mediation.static.placebo_mediator", 0.0, &placebo)?,
         report("mediation.static.random_common_cause", original.effect.ate, &rcc)?,
@@ -313,21 +317,22 @@ pub fn refute_static_mediation(
         }
         // A range diagnostic, not a re-estimate: `comparison` is 1 when every mediator's
         // per-arm empirical ranges overlap and 0 otherwise.
-        reports.push(RefutationReport::new(
-            "mediation.static.mediator_overlap",
-            original.effect.ate,
-            original.effect.ate,
-            f64::from(overlap),
-            false,
-            overlap,
-            (!overlap).then(|| {
-                Arc::from(
-                    "the treatment arms have disjoint empirical mediator ranges (a necessary \
-                     condition for conditional positivity fails)",
-                )
-            }),
-            0,
-        ));
+        reports.push(
+            RefutationReport::builder("mediation.static.mediator_overlap")
+                .original_ate(original.effect.ate)
+                .refuted_ate(original.effect.ate)
+                .comparison(f64::from(overlap))
+                .informative(false)
+                .passed(overlap)
+                .failure_condition((!overlap).then(|| {
+                    Arc::from(
+                        "the treatment arms have disjoint empirical mediator ranges (a necessary \
+                         condition for conditional positivity fails)",
+                    )
+                }))
+                .replicates(0)
+                .build(),
+        );
     }
     Ok(reports)
 }

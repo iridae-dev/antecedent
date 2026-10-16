@@ -17,8 +17,12 @@ use std::sync::Arc;
 pub const MAX_MEASURED_ARTIFACT_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SCALARS: usize = 32;
 const FEATURE: &str = "measured_inference_v1";
+pub(crate) mod adaptive_interval;
+pub mod cohort_interval;
+pub mod count_fitted_interval;
 pub(crate) mod nested;
 pub(crate) mod recovery_temporal;
+pub mod split_effect;
 pub(crate) mod transport;
 
 /// A caller's immutable expected source and reported question. This is a
@@ -144,6 +148,11 @@ impl MeasuredInference {
             "nested_bayesian" => crate::nested_markov_bayesian_artifact::Artifact::consume_measured(bytes, expected, crate::nested_markov_bayesian_artifact::Limits::default(), ctx).map(|(_, measured)| measured),
             "sampled_recovery" => crate::sampled_recovery_artifact::SampledRecoveryArtifactWire::consume_measured(bytes, expected, crate::sampled_recovery_artifact::SampledRecoveryConsumeLimits::default(), ctx),
             "temporal_interval" => crate::temporal_interval_artifact::TemporalIntervalArtifactWire::consume_measured(bytes, expected, &crate::temporal_interval_artifact::TemporalIntervalConsumeLimits::default(), ctx),
+            "cohort_interval" => cohort_interval::CohortIntervalArtifactWire::consume_measured(bytes, expected, ctx),
+            "count_fitted_interval" => count_fitted_interval::CountFittedIntervalArtifactWire::consume_measured(bytes, expected),
+            "adaptive_interval" => crate::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::consume_measured_interval(bytes, expected, ctx),
+            "sampled_counterfactual_transport" => crate::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::consume_measured(bytes, expected, crate::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits::default(), ctx),
+            "split_effect" => crate::measured_inference::split_effect::consume_measured(bytes, expected, ctx),
             _ => Err(refusal("measured_inference.unsupported_route", "no measured native consumer is registered for the requested route")),
         }
     }
@@ -198,7 +207,7 @@ fn basis_wire(b: &CalibrationBasis) -> CalibrationBasisWire {
 pub fn report_seal(report: &MeasuredInferenceReport) -> Result<String, IoError> {
     let mut identity = report.identity.clone();
     identity.seal.clear();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::Claim,
         &(
             FEATURE,
@@ -209,8 +218,7 @@ pub fn report_seal(report: &MeasuredInferenceReport) -> Result<String, IoError> 
             &report.validated_scope,
             identity,
         ),
-    )?
-    .to_hex())
+    )
 }
 
 /// Build readable record-bound metadata from supplied declarations. This is
@@ -392,12 +400,7 @@ pub(crate) fn posterior_interval(mut draws: Vec<f64>, level: f64) -> Result<(f64
     }
     draws.sort_by(f64::total_cmp);
     let quantile = |p: f64| {
-        #[allow(
-            clippy::cast_precision_loss,
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "bounded native posterior draw indexing"
-        )]
+        #[allow(clippy::cast_precision_loss, reason = "bounded native posterior draw indexing")]
         let h = p * (draws.len() - 1) as f64;
         #[allow(
             clippy::cast_possible_truncation,

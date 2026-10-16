@@ -2,8 +2,10 @@
 //! Historical numerical replay preserves source standing and issues no native authority.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use crate::{CausalSerializationError, detach_catch, value_err, with_reason_code};
-use pyo3::exceptions::PyValueError;
+use crate::bridge::{
+    MAX_DECLARED_ARTIFACT_BYTES, check_declared_len, check_declared_size, serialization,
+};
+use crate::{detach_catch, value_err, value_err_code, with_reason_code};
 use pyo3::prelude::*;
 
 fn invalid_rollout_request(error: serde_json::Error) -> PyErr {
@@ -13,14 +15,8 @@ fn invalid_rollout_request(error: serde_json::Error) -> PyErr {
     )
 }
 
-fn serialization(error: impl std::fmt::Display) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
-}
 fn check_binding_size(json: &str) -> PyResult<()> {
-    if json.len() > 16 * 1024 * 1024 {
-        return Err(PyValueError::new_err("rollout binding exceeds its JSON byte bound"));
-    }
-    Ok(())
+    check_declared_size(json, MAX_DECLARED_ARTIFACT_BYTES, "rollout binding")
 }
 
 /// Bind and independently check the original finite source law and ranking.
@@ -35,12 +31,16 @@ fn export_rollout(
     source_evidence: Option<&[u8]>,
 ) -> PyResult<(String, Vec<u8>)> {
     check_binding_size(binding_json)?;
-    if source.len() > antecedent_io::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES
-        || ranking.len()
-            > antecedent_design::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES
-    {
-        return Err(PyValueError::new_err("rollout source or ranking exceeds its byte bound"));
-    }
+    check_declared_len(
+        source.len(),
+        antecedent_io::distribution_artifact::MAX_DISTRIBUTION_ARTIFACT_BYTES,
+        "rollout source",
+    )?;
+    check_declared_len(
+        ranking.len(),
+        antecedent_design::design_ranking_artifact::MAX_DESIGN_RANKING_ARTIFACT_BYTES,
+        "rollout ranking",
+    )?;
     if source_evidence.is_some_and(|bytes| {
         bytes.len() > antecedent_design::source_evidence::MAX_SOURCE_EVIDENCE_BYTES
     }) {
@@ -71,7 +71,7 @@ fn export_rollout(
 
 fn rollout_error(error: antecedent_io::error::IoError) -> PyErr {
     if let antecedent_io::error::IoError::Refused { code, message } = error {
-        with_reason_code(value_err(message), code)
+        value_err_code(code, message)
     } else {
         serialization(error)
     }
@@ -81,6 +81,27 @@ fn rollout_json(
     artifact: &antecedent_design::rollout_artifact::RolloutArtifact,
 ) -> PyResult<String> {
     let chain = artifact.provenance_chain().map_err(rollout_error)?;
+    let mut lineage = Vec::with_capacity(chain.links().len());
+    for link in chain.links() {
+        let digest = chain
+            .digest_of(&link.id)
+            .map_err(|error| serialization(format!("validated link: {error:?}")))?;
+        let mut parent_digests = Vec::with_capacity(link.parents.len());
+        for id in &link.parents {
+            parent_digests.push(
+                chain
+                    .digest_of(id)
+                    .map_err(|error| serialization(format!("validated parent: {error:?}")))?,
+            );
+        }
+        lineage.push(serde_json::json!({
+            "id": link.id,
+            "stage": link.stage.as_str(),
+            "parents": link.parents,
+            "digest": digest,
+            "parent_digests": parent_digests,
+        }));
+    }
     serde_json::to_string(&serde_json::json!({
         "identity": artifact.digest,
         "expectation": artifact.binding,
@@ -91,10 +112,7 @@ fn rollout_json(
             "source":artifact.binding.source,"state":artifact.binding.state,
             "original_diagnostics":artifact.diagnostic_evidence().map_err(rollout_error)?.map(|evidence| evidence.summary()),
             "native_row_origin_verified":false,
-            "lineage":chain.links().iter().map(|link|serde_json::json!({
-                "id":link.id,"stage":link.stage.as_str(),"parents":link.parents,"digest":chain.digest_of(&link.id).expect("validated link"),
-                "parent_digests":link.parents.iter().map(|id|chain.digest_of(id).expect("validated parent")).collect::<Vec<_>>()
-            })).collect::<Vec<_>>()
+            "lineage": lineage
         },
         "native_execution_authority": false,
     }))
@@ -105,9 +123,11 @@ fn rollout_json(
 #[pyfunction]
 fn consume_rollout(py: Python<'_>, artifact: &[u8], expectation_json: &str) -> PyResult<String> {
     check_binding_size(expectation_json)?;
-    if artifact.len() > antecedent_design::rollout_artifact::MAX_ROLLOUT_BYTES {
-        return Err(PyValueError::new_err("rollout artifact exceeds its byte bound"));
-    }
+    check_declared_len(
+        artifact.len(),
+        antecedent_design::rollout_artifact::MAX_ROLLOUT_BYTES,
+        "rollout artifact",
+    )?;
     let artifact = artifact.to_vec();
     let expected: antecedent_design::rollout_artifact::RolloutExpectation =
         serde_json::from_str(expectation_json).map_err(invalid_rollout_request)?;
@@ -122,9 +142,11 @@ fn consume_rollout(py: Python<'_>, artifact: &[u8], expectation_json: &str) -> P
 #[pyfunction]
 fn rollout_ranking(artifact: &[u8], expectation_json: &str) -> PyResult<Vec<u8>> {
     check_binding_size(expectation_json)?;
-    if artifact.len() > antecedent_design::rollout_artifact::MAX_ROLLOUT_BYTES {
-        return Err(PyValueError::new_err("rollout artifact exceeds its byte bound"));
-    }
+    check_declared_len(
+        artifact.len(),
+        antecedent_design::rollout_artifact::MAX_ROLLOUT_BYTES,
+        "rollout artifact",
+    )?;
     let expected = serde_json::from_str(expectation_json).map_err(invalid_rollout_request)?;
     Ok(antecedent_design::rollout_artifact::consume(artifact, &expected)
         .map_err(rollout_error)?

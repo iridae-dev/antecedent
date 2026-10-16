@@ -1,4 +1,4 @@
-//! F12: EVSI through the existing `ReduceDecisionRegret` path with declared
+//! EVSI through the existing `ReduceDecisionRegret` path with declared
 //! integration, cost mapping, ties, truncation and source-overlap refusals.
 //!
 //! Independent oracles (constants written out; nothing is read from the code under test):
@@ -22,49 +22,52 @@
 //!   `P(y) = (5/16, 6/16, 5/16)` and `P(theta = 1/4 | y) = (9/10, 1/2, 1/10)`. The bet's
 //!   posterior value is `(-1/5, 0, 1/5)`; the prior value of both actions is 0. Then
 //!   `EVSI = 5/16 * 1/5 = 1/16` and `EVPI = 1/2 * (0 + 1/4) = 1/8`.
-//! * Frozen F12 record: binary state, guess the state (utility 1 if right), prior 1/2, signal
+//! * Frozen EVSI record: binary state, guess the state (utility 1 if right), prior 1/2, signal
 //!   accuracy `a`. Current value 1/2, post-signal value `a`, `EVSI = a - 1/2`, `EVPI = 1/2`.
 //!   `a = 3/4` gives `EVSI = 1/4` and, with a utility-unit cost 1/10, net `3/20`.
 
 use std::sync::Arc;
 
-use antecedent_core::{
-    CancellationToken, ExternalCapability, ExternalScientificObject, ExternalTrustState,
-    ProviderObjectIdentity, QuantityRole, ScientificQuantity, SignalProviderContract,
+use antecedent_contract::{
+    ExternalCapability, ExternalScientificObject, ExternalTrustState, ProviderObjectIdentity,
+    QuantityRole, ScientificQuantity, SignalProviderContract,
 };
+use std::collections::BTreeMap;
+
+use antecedent_contract::evidence_ledger::{
+    EvidenceLedger, Lineage, ObservationId, SourceDeclaration, SourceKind,
+};
+use antecedent_core::CancellationToken;
+use antecedent_core::CausalRng;
 use antecedent_design::evsi::{
     CostToUtilityMap, EvsiCandidate, EvsiError, EvsiRequest, IntegrationMethod, RankingBasis,
     StudyCostSpec, evaluate_evsi,
 };
+use antecedent_design::evsi::{EvsiEvidence, evaluate_evsi_with_evidence};
+use antecedent_design::preposterior::DecisionSignal;
 use antecedent_design::signal::{
     ExternalDecisionValues, ExternalLaw, ExternalSignal, ExternalSignalBody, NativeBinomialSignal,
     NativeGaussianMeanSignal, SignalLimits, SignalProvider, SignalRequest, SignalTrustLabel,
     SignalUpdateMode,
 };
+use antecedent_design::signal::{PreparedLaw, PreparedSignal, SignalError};
 use antecedent_design::{
-    AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignRankConfig,
-    SamplingPlan,
+    AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignError,
+    DesignRankConfig, SamplingPlan,
 };
+use antecedent_test_support::within as near;
 
 const EVSI_GAUSSIAN: f64 = 0.041_657_735_293_843_15;
 const EVPI_GAUSSIAN: f64 = 0.197_796_557_401_306_07;
 
-fn near(a: f64, b: f64, tol: f64) -> bool {
-    (a - b).abs() <= tol
-}
+mod common;
 
 fn quantity(role: QuantityRole, id: &str) -> ScientificQuantity {
     ScientificQuantity {
-        variable_id: id.into(),
-        variable_name: id.into(),
         role,
         units: "dimensionless".into(),
-        population_id: "target".into(),
-        regime_id: "observational".into(),
-        horizon: 0,
         functional_id: "state".into(),
-        conditioning: vec![],
-        transform_id: "identity".into(),
+        ..common::quantity(id)
     }
 }
 
@@ -231,7 +234,7 @@ fn gaussian_request(scale_unused: f64) -> EvsiRequest {
 }
 
 #[test]
-fn f12_gaussian_mean_matches_the_closed_form_normal_linear_loss_value() {
+fn gaussian_mean_matches_the_closed_form_normal_linear_loss_value() {
     let prior = DecisionPrior::Normal { mean: 0.5, variance: 1.0 };
     let report = run(&gaussian_problem(1.0, 0.0), &prior, &gaussian_request(1.0)).unwrap();
     let row = &report.candidates[0];
@@ -256,7 +259,7 @@ fn f12_gaussian_mean_matches_the_closed_form_normal_linear_loss_value() {
 }
 
 #[test]
-fn f12_binomial_enumeration_matches_native_and_every_external_update_mode() {
+fn binomial_enumeration_matches_native_and_every_external_update_mode() {
     let problem = bet_problem(1.0, 0.0);
     let prior = bet_prior();
     let req_for = |id: &str| signal_request(id, 2);
@@ -321,7 +324,7 @@ fn f12_binomial_enumeration_matches_native_and_every_external_update_mode() {
 }
 
 #[test]
-fn f12_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() {
+fn evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() {
     let prior = bet_prior();
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
     let req =
@@ -347,7 +350,7 @@ fn f12_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() {
 }
 
 #[test]
-fn f12_monte_carlo_is_labelled_with_error_replicates_ess_and_convergence() {
+fn monte_carlo_is_labelled_with_error_replicates_ess_and_convergence() {
     // Bet pays theta - 0.45 over draws {0.2, 0.5, 0.8}: EVPI = (0 + 0.05 + 0.35) / 3 - 0.05 = 1/12.
     let utility = AffineUtility::new(vec![0.0, -0.45], vec![0.0, 1.0]).unwrap();
     let problem = DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]);
@@ -379,7 +382,7 @@ fn f12_monte_carlo_is_labelled_with_error_replicates_ess_and_convergence() {
     assert!(!strict.candidates[0].integration.converged);
 }
 
-/// The frozen F12 decision: guess the binary state; accuracy `a` gives EVSI `a - 1/2`.
+/// The frozen EVSI decision: guess the binary state; accuracy `a` gives EVSI `a - 1/2`.
 fn guess_problem() -> DecisionProblem<usize, f64> {
     // guess0 pays 1 - theta, guess1 pays theta.
     let utility = AffineUtility::new(vec![1.0, 0.0], vec![-1.0, 1.0]).unwrap();
@@ -407,7 +410,7 @@ fn guess_prior() -> DecisionPrior<f64> {
 const GUESS_ACTIONS: [&str; 2] = ["guess0", "guess1"];
 
 #[test]
-fn f12_frozen_record_values_and_net_value_only_with_a_cost_mapping() {
+fn frozen_record_values_and_net_value_only_with_a_cost_mapping() {
     let problem = guess_problem();
     let prior = guess_prior();
     // Without a mapping: value and cost are reported separately.
@@ -457,7 +460,7 @@ fn f12_frozen_record_values_and_net_value_only_with_a_cost_mapping() {
 }
 
 #[test]
-fn f12_incompatible_cost_units_and_missing_maps_refuse() {
+fn incompatible_cost_units_and_missing_maps_refuse() {
     let problem = guess_problem();
     let prior = guess_prior();
     // Currency cost with a utility-unit map: units differ.
@@ -521,7 +524,7 @@ fn f12_incompatible_cost_units_and_missing_maps_refuse() {
 }
 
 #[test]
-fn f12_changed_terminal_action_set_and_incoherent_values_refuse() {
+fn changed_terminal_action_set_and_incoherent_values_refuse() {
     let problem = bet_problem(1.0, 0.0);
     let prior = bet_prior();
     let id = "values";
@@ -562,7 +565,7 @@ fn f12_changed_terminal_action_set_and_incoherent_values_refuse() {
 }
 
 #[test]
-fn f12_external_law_for_other_prior_draws_or_sample_size_refuses() {
+fn external_law_for_other_prior_draws_or_sample_size_refuses() {
     let problem = bet_problem(1.0, 0.0);
     let prior = bet_prior();
     let other_states = ExternalLaw::Likelihood {
@@ -580,16 +583,75 @@ fn f12_external_law_for_other_prior_draws_or_sample_size_refuses() {
     assert_eq!(error, EvsiError::PriorStatesMismatch("c".into()));
     assert_eq!(error.to_refusal().detail, "evsi.prior_states_mismatch");
 
-    // The candidate design's declared sample size must equal its signal request's.
+    // The prepared signal's sample size is the request's `n`. A design row count
+    // that differs is not a mismatch: the native provider overrides the design field.
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
-    let mut mismatched = candidate("c", 2, provider, 0.0, "utility");
-    mismatched.design = sampling(3);
-    let error = run(&problem, &prior, &request(&BET_ACTIONS, vec![mismatched], None)).unwrap_err();
+    let mut overridden = candidate("c", 2, Arc::clone(&provider), 0.0, "utility");
+    overridden.design = sampling(3);
+    let report = run(&problem, &prior, &request(&BET_ACTIONS, vec![overridden], None)).unwrap();
+    assert_eq!(report.candidates[0].sample_size, 2);
+    let aligned = run(
+        &problem,
+        &prior,
+        &request(&BET_ACTIONS, vec![candidate("c", 2, provider, 0.0, "utility")], None),
+    )
+    .unwrap();
+    assert_eq!(report.candidates[0].evsi.to_bits(), aligned.candidates[0].evsi.to_bits());
+
+    // A signal whose own rule reports a different n is the mismatch.
+    let provider: Arc<dyn SignalProvider> = Arc::new(ReportingSize(9));
+    let error = run(
+        &problem,
+        &prior,
+        &request(&BET_ACTIONS, vec![candidate("c", 2, provider, 0.0, "utility")], None),
+    )
+    .unwrap_err();
     assert_eq!(error, EvsiError::SampleSizeMismatch("c".into()));
 }
 
+/// Prepared signal that reports `n` regardless of the design.
+struct ReportingSize(u64);
+
+impl DecisionSignal<f64> for ReportingSize {
+    fn name(&self) -> &'static str {
+        "reporting_size"
+    }
+
+    fn sample_size(&self, _candidate: &CandidateDesign) -> Option<u64> {
+        Some(self.0)
+    }
+
+    fn log_likelihood(
+        &self,
+        _statistic: f64,
+        _n: u64,
+        states: &[f64],
+        out: &mut [f64],
+    ) -> Result<(), DesignError> {
+        out[..states.len()].fill(0.0);
+        Ok(())
+    }
+
+    fn sample_statistic(
+        &self,
+        _state: &f64,
+        _n: u64,
+        _rng: &mut CausalRng,
+    ) -> Result<f64, DesignError> {
+        Ok(0.0)
+    }
+}
+
+impl SignalProvider for ReportingSize {
+    fn prepare(&self, request: &SignalRequest) -> Result<PreparedSignal, SignalError> {
+        let mut prepared = NativeBinomialSignal.prepare(request)?;
+        prepared.law = PreparedLaw::Likelihood(Arc::new(ReportingSize(self.0)));
+        Ok(prepared)
+    }
+}
+
 #[test]
-fn f12_source_overlap_between_prior_and_study_data_refuses() {
+fn source_overlap_between_prior_and_study_data_refuses() {
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
     let mut overlapping = candidate("c", 2, provider, 0.0, "utility");
     overlapping.reused_observation_ids = vec!["obs-future".into(), "obs-prior".into()];
@@ -613,7 +675,7 @@ fn f12_source_overlap_between_prior_and_study_data_refuses() {
 }
 
 #[test]
-fn f12_signal_provider_refusals_surface_with_their_namespace() {
+fn signal_provider_refusals_surface_with_their_namespace() {
     // The provider's exact-request check fires when the request was altered after the
     // external object was bound to its fingerprint.
     let problem = bet_problem(1.0, 0.0);
@@ -626,7 +688,7 @@ fn f12_signal_provider_refusals_surface_with_their_namespace() {
 }
 
 #[test]
-fn f12_ties_truncation_and_cancellation_are_reported() {
+fn ties_truncation_and_cancellation_are_reported() {
     let problem = bet_problem(1.0, 0.0);
     let prior = bet_prior();
     let make = |id: &str| {
@@ -669,7 +731,7 @@ fn f12_ties_truncation_and_cancellation_are_reported() {
 }
 
 #[test]
-fn f12_candidates_rank_by_net_value_and_larger_samples_are_worth_more() {
+fn candidates_rank_by_net_value_and_larger_samples_are_worth_more() {
     // Two-point prior, bet pays theta - 1/2, equal prior weights: after outcome y the
     // marginal-weighted bet value is (1/2)(1/4)(P(y | 3/4) - P(y | 1/4)), so
     // EVSI(n) = (1/8) * sum_y max(0, P(y | 3/4) - P(y | 1/4)).
@@ -712,4 +774,182 @@ fn f12_candidates_rank_by_net_value_and_larger_samples_are_worth_more() {
     .unwrap();
     assert_eq!(report.candidates[0].semantic_id, "small");
     assert!(report.candidates[0].net_value.unwrap() > report.candidates[1].net_value.unwrap());
+}
+
+fn ledger_request(ids: Vec<&str>) -> EvsiRequest {
+    let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
+    let mut req = request(
+        &BET_ACTIONS,
+        ids.into_iter()
+            .map(|id| {
+                let mut c = candidate(id, 2, Arc::clone(&provider), 0.0, "utility");
+                c.reused_observation_ids = vec![];
+                c
+            })
+            .collect(),
+        None,
+    );
+    req.prior_observation_ids = vec![];
+    req
+}
+
+fn row(domain: &str, key: &str) -> ObservationId {
+    ObservationId::from_key(domain, key.as_bytes())
+}
+
+#[test]
+fn a_study_derived_from_the_priors_data_under_another_id_is_refused_as_shared() {
+    // The prior rests on rows {r1, r2}. The study is a duplicate of the prior's source and
+    // names no rows of its own, so a string-set comparison of declared ids sees nothing; the
+    // ledger resolves its rows through lineage and finds both shared.
+    let mut ledger = EvidenceLedger::new();
+    let prior_source = ledger
+        .add_source(
+            SourceDeclaration::new("historical prior", SourceKind::Prior)
+                .with_observations([row("t", "r1"), row("t", "r2")]),
+        )
+        .unwrap();
+    let derived = ledger
+        .add_source(
+            SourceDeclaration::new("re-encoded copy", SourceKind::ObservationSet)
+                .with_lineage(Lineage::Duplicate { of: prior_source }),
+        )
+        .unwrap();
+    let fresh =
+        ledger
+            .add_source(
+                SourceDeclaration::new("new trial", SourceKind::ObservationSet)
+                    .with_observations([row("t", "n1"), row("t", "n2"), row("t", "n3")]),
+            )
+            .unwrap();
+    let bound = BTreeMap::from([("derived".to_owned(), derived), ("fresh".to_owned(), fresh)]);
+    let evidence = EvsiEvidence::new(&ledger, prior_source, &bound);
+    let (problem, prior) = (bet_problem(1.0, 0.0), bet_prior());
+
+    let error = evaluate_evsi_with_evidence(
+        &problem,
+        &prior,
+        &ledger_request(vec!["derived"]),
+        &evidence,
+        &CancellationToken::new(),
+    )
+    .unwrap_err();
+    let EvsiError::SourceOverlap(ids) = &error else {
+        panic!("expected shared overlap: {error:?}")
+    };
+    assert_eq!(ids.len(), 2);
+    assert_eq!(error.to_refusal().detail, "evsi.source_overlap");
+
+    // Disjoint data passes and reports the two sources' observations it compared (2 + 3).
+    let report = evaluate_evsi_with_evidence(
+        &problem,
+        &prior,
+        &ledger_request(vec!["fresh"]),
+        &evidence,
+        &CancellationToken::new(),
+    )
+    .unwrap();
+    assert_eq!(report.candidates[0].source_overlap.observations_checked, 5);
+    assert!(report.candidates[0].source_overlap.overlapping.is_empty());
+    assert!(near(report.candidates[0].evsi, 1.0 / 16.0, 1e-12));
+}
+
+#[test]
+fn unknown_lineage_or_an_unbound_candidate_is_refused_never_independent() {
+    let mut ledger = EvidenceLedger::new();
+    let prior_source = ledger
+        .add_source(
+            SourceDeclaration::new("historical prior", SourceKind::Prior)
+                .with_observations([row("t", "r1")]),
+        )
+        .unwrap();
+    // First-hand source whose observations the producer did not declare.
+    let opaque = ledger
+        .add_source(SourceDeclaration::new("opaque study", SourceKind::ObservationSet))
+        .unwrap();
+    let bound = BTreeMap::from([("opaque".to_owned(), opaque)]);
+    let evidence = EvsiEvidence::new(&ledger, prior_source, &bound);
+    let (problem, prior) = (bet_problem(1.0, 0.0), bet_prior());
+    for id in ["opaque", "unbound"] {
+        let error = evaluate_evsi_with_evidence(
+            &problem,
+            &prior,
+            &ledger_request(vec![id]),
+            &evidence,
+            &CancellationToken::new(),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(&error, EvsiError::SourceOverlapUnknown { candidate, .. } if candidate == id),
+            "{id}: {error:?}"
+        );
+        let refusal = error.to_refusal();
+        assert_eq!(refusal.code, "evidence_overlap_unknown");
+        assert_eq!(refusal.detail, "evsi.source_overlap_unknown");
+    }
+
+    // The ledger is the only overlap model on this path: string lists are refused.
+    let mut with_strings = ledger_request(vec!["opaque"]);
+    with_strings.prior_observation_ids = vec!["obs-prior".into()];
+    let error = evaluate_evsi_with_evidence(
+        &problem,
+        &prior,
+        &with_strings,
+        &evidence,
+        &CancellationToken::new(),
+    )
+    .unwrap_err();
+    assert!(matches!(error, EvsiError::InvalidRequest(_)));
+}
+
+fn monte_carlo_problem() -> (DecisionProblem<usize, f64>, DecisionPrior<f64>) {
+    let utility = AffineUtility::new(vec![0.0, -0.45], vec![0.0, 1.0]).unwrap();
+    (
+        DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]),
+        DecisionPrior::Draws(vec![0.2, 0.5, 0.8]),
+    )
+}
+
+#[test]
+fn monte_carlo_streams_are_keyed_by_replicate_and_shared_across_candidates() {
+    let (problem, prior) = monte_carlo_problem();
+    let make = |id: &str, n: u64| {
+        let provider: Arc<dyn SignalProvider> =
+            Arc::new(NativeGaussianMeanSignal::new(0.25).unwrap());
+        candidate(id, n, provider, 0.0, "utility")
+    };
+    let build = |candidates: Vec<EvsiCandidate>| {
+        let mut req = request(&BET_ACTIONS, candidates, None);
+        req.rank_config = DesignRankConfig {
+            min_batches: 4,
+            max_batches: 4,
+            batch_size: 16,
+            rank_uncertainty_threshold: 0.0,
+        };
+        req.mc_error_tolerance = 1.0;
+        req
+    };
+    let alone = run(&problem, &prior, &build(vec![make("mc", 4)])).unwrap();
+    let find = |report: &antecedent_design::evsi::EvsiReport, id: &str| {
+        report.candidates.iter().find(|c| c.semantic_id == id).unwrap().clone()
+    };
+    // Another candidate in the catalog (before it in canonical order, with a different
+    // sample size) leaves this candidate's replicates, hence its estimate, bit-identical.
+    let crowded = run(&problem, &prior, &build(vec![make("a-other", 8), make("mc", 4)])).unwrap();
+    let (x, y) = (find(&alone, "mc"), find(&crowded, "mc"));
+    assert_eq!(x.evsi.to_bits(), y.evsi.to_bits());
+    assert_eq!(x.integration.stderr.to_bits(), y.integration.stderr.to_bits());
+    assert_eq!(x.integration.replicates, 64);
+    // The stream coordinates are in the receipt, and another semantic id is another stream.
+    let stream = |row: &antecedent_design::evsi::EvsiCandidateRow| {
+        row.assumptions.iter().find(|a| a.starts_with("monte_carlo_streams:")).cloned()
+    };
+    assert!(stream(&x).is_some());
+    assert_eq!(stream(&x), stream(&y));
+    // Common random numbers: a renamed candidate and a tied twin see the same noise.
+    let renamed = run(&problem, &prior, &build(vec![make("mc2", 4)])).unwrap();
+    assert_eq!(stream(&x), stream(&find(&renamed, "mc2")));
+    assert_eq!(x.evsi.to_bits(), find(&renamed, "mc2").evsi.to_bits());
+    let twins = run(&problem, &prior, &build(vec![make("t1", 4), make("t2", 4)])).unwrap();
+    assert_eq!(find(&twins, "t1").evsi.to_bits(), find(&twins, "t2").evsi.to_bits());
 }

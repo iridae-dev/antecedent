@@ -1,5 +1,5 @@
 //! Known-variance Bayesian basis regression: the outcome-mechanism model object of the
-//! learned joint source-target transport row (2.3A cell X4 remainder, B1 model provider).
+//! learned joint source-target transport row.
 //!
 //! `antecedent-learn` owns the **basis declaration** ([`PolynomialBasis`]) and the **fitted
 //! Gaussian model** ([`KnownVarianceBasisRegression`]): a dense Gaussian coefficient prior,
@@ -13,11 +13,6 @@
 //! which estimand is read off the posterior belong to the caller.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![allow(
-    clippy::needless_range_loop,
-    reason = "small dense Gram algebra indexes several buffers by one position"
-)]
 
 use std::sync::Arc;
 
@@ -33,7 +28,7 @@ use crate::{LearnError, LearnerProvenance};
 /// Highest polynomial degree the basis accepts.
 pub const BASIS_MAX_DEGREE: usize = 6;
 /// Relative pivot at or below which the weighted Gram matrix counts as rank deficient.
-pub const BASIS_PIVOT_TOLERANCE: f64 = 1e-10;
+pub(crate) const BASIS_PIVOT_TOLERANCE: f64 = 1e-10;
 
 /// Per-covariate polynomial basis `x_j, x_j^2, ..., x_j^degree` (no cross terms, no
 /// constant: the intercept is the caller's).

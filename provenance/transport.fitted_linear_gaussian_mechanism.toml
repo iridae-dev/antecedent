@@ -1,0 +1,26 @@
+feature_id = "transport.fitted_linear_gaussian_mechanism"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Admission of fitted additive-noise linear-Gaussian mechanisms from a source population into a
+# target-population composed model. The admission rule is the selection-diagram rule (a mechanism
+# with no selection node into it, or into a latent cause it loads on, is shared); the composed
+# model and its closed-form interventional means are the existing composition engine.
+papers = [
+  { title = "External Validity: From Do-Calculus to Transportability Across Populations (Pearl and Bareinboim, 2014)", doi = "10.1214/14-STS486", sections = ["selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"] },
+]
+implementation_deviations = [
+  "Bounded executed route, not a published algorithm: only fitted linear-Gaussian mechanisms are carried; finite tables are decided by the finite counterfactual transport derivation and are refused here with a pointer to it.",
+  "A natively refitted target mechanism always takes precedence over a carried one for the same variable; the two are never averaged.",
+  "A mechanism that loads on a shared latent cause is carried only with the analyst's explicit population-invariance declaration, as the composition checker requires; the diagram alone does not cover a latent.",
+  "The parameter covariance of a carried mechanism is the covariance of its source fit. The selection-diagram assumption adds no variance and the result says so; no calibrated claim about the target is made.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-model/tests/mechanism_transport.rs",
+  "crates/antecedent-model/tests/transport_obstruction_agreement.rs",
+  "crates/antecedent-model/tests/transport_fixture/mod.rs",
+]

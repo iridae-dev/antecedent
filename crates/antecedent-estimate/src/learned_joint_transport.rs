@@ -1,10 +1,10 @@
-//! Learned joint source-target transport (2.3A cell X4 remainder and 2.3B B1 model-provider
-//! row `learned_joint_transport`): the outcome mechanism is **fitted through
+//! Learned joint source-target transport (model-provider row
+//! `learned_joint_transport`): the outcome mechanism is **fitted through
 //! `antecedent-learn`**.
 //!
 //! # The named row
 //!
-//! * **Graph.** The fixed DAG and selection assumptions of one already identified 2.2
+//! * **Graph.** The fixed DAG and selection assumptions of one already identified
 //!   transport row (a direct or baseline-standardization [`TransportIdentification`]). An
 //!   ADMG or a graph posterior is refused (`learned_joint_transport.unsupported_graph`).
 //! * **Provider.** `antecedent-learn`'s [`KnownVarianceBasisRegression`] over a declared
@@ -53,6 +53,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::EstimationError;
 use crate::joint_bayesian_transport::{
     FailedFitDiagnostics, GaussianPrior, IdentificationRecord, JOINT_TRANSPORT_MAX_DRAWS,
     JOINT_TRANSPORT_MAX_PARAMETERS, JointDraws, JointPriors, JointTransportCalibration,
@@ -60,6 +61,7 @@ use crate::joint_bayesian_transport::{
     SourceDependence, SourceDisagreement, SourceEffectSummary, SourceSharing, TargetData,
     TransportGraphClass, VaryingBlock, check_prior_data_overlap,
 };
+use crate::util::dot;
 use antecedent_core::ExecutionContext;
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_learn::{
@@ -70,7 +72,7 @@ use antecedent_prob::ProbError;
 use std::collections::BTreeSet;
 
 /// Route name of the closed public interval route.
-pub const LEARNED_JOINT_ROUTE: &str = "antecedent.transport.learned_joint";
+pub(crate) const LEARNED_JOINT_ROUTE: &str = "antecedent.transport.learned_joint";
 /// Sampler recorded on fits: iid draws from the learn crate's exact Gaussian posterior.
 pub const LEARNED_JOINT_SAMPLER: &str = "learn_conjugate_gaussian_iid";
 /// The provider crate of the outcome mechanism.
@@ -223,7 +225,10 @@ impl LearnedJointFit {
     /// Actual source rows were captured during fitting; the full executed model
     /// identity includes basis, priors, source variances and sharing declaration.
     /// This supplies no public uncertainty activation or sampling-design authority.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "the public refusal type is deliberately rich and part of the stable signature"
+    )]
     pub fn target_calibration_basis(
         &self,
         level: f64,
@@ -444,32 +449,9 @@ fn quadratic(a: &[f64], n: usize, left: &[f64], right: &[f64]) -> f64 {
     total
 }
 
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
-/// Whether a symmetric matrix is positive definite, by an unpivoted Cholesky.
+/// Whether a symmetric matrix is positive definite under the shared Cholesky rule.
 fn positive_definite(a: &[f64], n: usize) -> bool {
-    let mut l = vec![0.0; n * n];
-    for j in 0..n {
-        let mut d = a[j * n + j];
-        for k in 0..j {
-            d -= l[j * n + k] * l[j * n + k];
-        }
-        if d.is_nan() || d <= 1e-10 * a[j * n + j].abs().max(f64::MIN_POSITIVE) {
-            return false;
-        }
-        let root = d.sqrt();
-        l[j * n + j] = root;
-        for i in (j + 1)..n {
-            let mut s = a[i * n + j];
-            for k in 0..j {
-                s -= l[i * n + k] * l[j * n + k];
-            }
-            l[i * n + j] = s / root;
-        }
-    }
-    true
+    antecedent_stats::cholesky_spd(a, n).is_some()
 }
 
 fn check_prior(prior: &GaussianPrior, dim: usize) -> Result<(), Refused> {
@@ -1045,9 +1027,10 @@ fn draw_joint(
 /// covariates, invalid basis, missing law or source, undeclared source dependence,
 /// prior/likelihood double use, prior or draw bounds, weak target overlap, a
 /// rank-deficient basis design, a failed learn fit, or cancellation.
-// The public refusal type is deliberately rich and part of the stable signature; the private
-// pipeline boxes it and this boundary unboxes it.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the public refusal type is deliberately rich and part of the stable signature; the private pipeline boxes it and this boundary unboxes it"
+)]
 pub fn fit_learned_joint_transport(
     id: &TransportIdentification,
     model: &LearnedJointModel,
@@ -1113,33 +1096,57 @@ fn fit_inner(
     let ids: Vec<&str> = sources.iter().map(|s| s.id.as_str()).collect();
     let names = parameter_names(&layout, &terms, &ids);
     let draws = draw_joint(&learned.posterior, &effects, &names, options, ctx)?;
-    Ok(assemble(
+    assemble(FitParts {
         model,
-        &layout,
+        layout: &layout,
         sources,
-        &learned,
+        learned: &learned,
         effects,
-        (draws, names),
-        (identification, mass, disagreement),
-        (&basis, terms),
+        draws,
+        parameter_names: names,
+        identification,
+        unsupported_mass: mass,
+        disagreement,
+        basis: &basis,
+        basis_terms: terms,
         options,
-    ))
+    })
+    .map_err(|error| Box::new(invalid(DETAIL_INVALID_INPUT, error.to_string())))
 }
 
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn assemble(
-    model: &LearnedJointModel,
-    layout: &Layout,
-    sources: &[SourceData],
-    learned: &LearnFit,
+/// Everything the finished fit record is assembled from.
+struct FitParts<'a> {
+    model: &'a LearnedJointModel,
+    layout: &'a Layout,
+    sources: &'a [SourceData],
+    learned: &'a LearnFit,
     effects: EffectSet,
-    drawn: (JointDraws, Vec<String>),
-    checked: (IdentificationRecord, f64, SourceDisagreement),
-    basis: (&PolynomialBasis, Vec<String>),
-    options: &JointTransportOptions,
-) -> LearnedJointFit {
-    let (draws, parameter_names) = drawn;
-    let (identification, mass, disagreement) = checked;
+    draws: JointDraws,
+    parameter_names: Vec<String>,
+    identification: IdentificationRecord,
+    unsupported_mass: f64,
+    disagreement: SourceDisagreement,
+    basis: &'a PolynomialBasis,
+    basis_terms: Vec<String>,
+    options: &'a JointTransportOptions,
+}
+
+fn assemble(parts: FitParts<'_>) -> Result<LearnedJointFit, EstimationError> {
+    let FitParts {
+        model,
+        layout,
+        sources,
+        learned,
+        effects,
+        draws,
+        parameter_names,
+        identification,
+        unsupported_mass: mass,
+        disagreement,
+        basis,
+        basis_terms,
+        options,
+    } = parts;
     let posterior = &learned.posterior;
     let dim = layout.dim();
     let count = effects.vectors.len();
@@ -1151,11 +1158,16 @@ fn assemble(
                 quadratic(&posterior.covariance, dim, &effects.vectors[i], &effects.vectors[j]);
         }
     }
-    LearnedJointFit {
-        calibration_rows: sources
-            .iter()
-            .map(|s| u64::try_from(s.outcome.len()).expect("validated bounded source rows"))
-            .sum(),
+    let mut calibration_rows = 0u64;
+    for source in sources {
+        let rows = u64::try_from(source.outcome.len())
+            .map_err(|_| EstimationError::data_msg("learned joint source row count exceeds u64"))?;
+        calibration_rows = calibration_rows.checked_add(rows).ok_or_else(|| {
+            EstimationError::data_msg("learned joint calibration row count overflowed")
+        })?;
+    }
+    Ok(LearnedJointFit {
+        calibration_rows,
         target_effect_mean: effect_means[count - 1],
         target_effect_variance: effect_covariance[count * count - 1],
         model_identity: model_identity(model, layout, sources),
@@ -1181,8 +1193,8 @@ fn assemble(
             query: LEARNED_JOINT_QUERY,
             learn_model_id: posterior.model_id.to_string(),
             learn_implementation: posterior.provenance.implementation.clone(),
-            basis_id: basis.0.id(),
-            basis_terms: basis.1,
+            basis_id: basis.id(),
+            basis_terms,
         },
         parameter_names,
         posterior_mean: posterior.mean.clone(),
@@ -1192,5 +1204,5 @@ fn assemble(
         effect_covariance,
         draws,
         identification,
-    }
+    })
 }

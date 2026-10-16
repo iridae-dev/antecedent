@@ -1,4 +1,4 @@
-"""Selection differences and invariances behind each transport-scenario answer (2.3.0 A1).
+"""Selection differences and invariances behind each transport-scenario answer.
 
 A transport scenario is a selection diagram: a graph plus the *selection targets*, the
 variables whose generating mechanism may differ between the source and the target. The

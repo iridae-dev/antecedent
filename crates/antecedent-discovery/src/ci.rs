@@ -7,9 +7,79 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_stats::ensure_alpha_resolvable;
+use antecedent_core::ExecutionContext;
+use antecedent_stats::{StatsError, ensure_alpha_resolvable};
 
 use crate::error::DiscoveryError;
+
+/// Smallest number of queries worth a thread of their own: below it the spawn and the fresh
+/// per-thread workspace cost more than the tests.
+const MIN_QUERIES_PER_THREAD: usize = 4;
+
+/// Evaluate `request` against `prepared`, splitting the queries across the context's threads
+/// when there are enough of them.
+///
+/// Every query is independent of its batch position (permutation streams are keyed by the
+/// query, never by its index), so the results are bit-identical for any thread count and
+/// arrive in query order.
+///
+/// # Errors
+///
+/// The first failing part's error, as `test_batch` would report it.
+pub(crate) fn run_ci_batch(
+    ci: &(dyn ConditionalIndependence + Sync),
+    prepared: &PreparedCiTest,
+    request: &CiBatchRequest<'_>,
+    workspace: &mut CiWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<Vec<CiResult>, StatsError> {
+    let n = request.queries.len();
+    let threads = (ctx.parallelism.max_threads.get() as usize).min(n / MIN_QUERIES_PER_THREAD);
+    if threads < 2 {
+        return ci.test_batch(prepared, request, workspace, ctx).map(|out| out.results);
+    }
+    let per_part = n.div_ceil(threads);
+    let parts = n.div_ceil(per_part);
+    let chunks = ctx.map_indexed(parts, |part, inner| {
+        let lo = part * per_part;
+        let hi = (lo + per_part).min(n);
+        let sub = CiBatchRequest { queries: &request.queries[lo..hi], ..request.clone() };
+        ci.test_batch(prepared, &sub, &mut CiWorkspace::default(), inner).map(|out| out.results)
+    })?;
+    Ok(chunks.into_iter().flatten().collect())
+}
+
+/// Sizes of the successive chunks of a scan that stops at its first hit.
+///
+/// A serial context evaluates one test at a time, exactly as an unbatched loop would. A
+/// threaded one starts with a single test (most edges separate or fail immediately) and then
+/// widens geometrically, so the tests evaluated past the hit stay within a small multiple of
+/// the tests that were needed.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ChunkSchedule {
+    next: usize,
+    threads: usize,
+    cap: usize,
+}
+
+impl ChunkSchedule {
+    pub(crate) fn new(ctx: &ExecutionContext) -> Self {
+        let threads = ctx.parallelism.max_threads.get() as usize;
+        Self { next: 1, threads, cap: if threads <= 1 { 1 } else { threads * 16 } }
+    }
+
+    pub(crate) fn next_size(&mut self) -> usize {
+        let size = self.next;
+        self.next = if self.threads <= 1 {
+            1
+        } else if size == 1 {
+            self.threads * MIN_QUERIES_PER_THREAD
+        } else {
+            (size * 2).min(self.cap)
+        };
+        size
+    }
+}
 
 /// Refuse a CI test / `alpha` / multiplicity combination whose decisions would not mean what
 /// they say.
@@ -24,7 +94,7 @@ use crate::error::DiscoveryError;
 ///
 /// [`DiscoveryError::Stats`] when `alpha` is unresolvable;
 /// [`DiscoveryError::Unsupported`] when FDR is requested for a non-frequentist p-value.
-pub fn ensure_ci_decisions_meaningful(
+pub(crate) fn ensure_ci_decisions_meaningful(
     ci: &dyn ConditionalIndependence,
     significance: SignificanceMethod,
     alpha: f64,
@@ -83,7 +153,7 @@ pub(crate) fn fdr_resolution_diagnostic(
 /// # Errors
 ///
 /// [`DiscoveryError::Unsupported`] when the weights do not fit the frame.
-pub fn ensure_ci_fits_frame(
+pub(crate) fn ensure_ci_fits_frame(
     ci: &dyn ConditionalIndependence,
     frame: &antecedent_data::LaggedFrame,
 ) -> Result<(), DiscoveryError> {
@@ -108,7 +178,7 @@ pub fn ensure_ci_fits_frame(
 /// # Errors
 ///
 /// [`DiscoveryError::Unsupported`] when the weight count differs from `n_rows`.
-pub fn ensure_ci_fits_rows(
+pub(crate) fn ensure_ci_fits_rows(
     ci: &dyn ConditionalIndependence,
     n_rows: usize,
 ) -> Result<(), DiscoveryError> {
@@ -117,6 +187,40 @@ pub fn ensure_ci_fits_rows(
             "observation weights must have exactly one entry per data row",
         )),
         _ => Ok(()),
+    }
+}
+
+/// Prepare `columns` once for the unmasked fast path.
+///
+/// Every algorithm uses the caller's significance method and the default confidence
+/// method. Masked queries still re-prepare on the compacted columns.
+///
+/// # Errors
+///
+/// The CI implementation's prepare error.
+pub(crate) fn prepare_ci(
+    ci: &(dyn ConditionalIndependence + Sync),
+    columns: &[&[f64]],
+    significance: SignificanceMethod,
+    ctx: &ExecutionContext,
+) -> Result<PreparedCiTest, DiscoveryError> {
+    let plan = CiPreparationPlan { significance, confidence: ConfidenceMethod::default() };
+    ci.prepare(columns, &plan, ctx).map_err(DiscoveryError::from)
+}
+
+/// One batch request at the caller's significance level and the default confidence method.
+pub(crate) fn ci_batch_request<'a>(
+    columns: &'a [&'a [f64]],
+    queries: &'a [CiQuery],
+    z_flat: &'a [usize],
+    significance: SignificanceMethod,
+) -> CiBatchRequest<'a> {
+    CiBatchRequest {
+        columns,
+        queries,
+        z_flat,
+        significance,
+        confidence: ConfidenceMethod::default(),
     }
 }
 

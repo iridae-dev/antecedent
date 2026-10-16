@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use antecedent::AcceptedGraph;
-use antecedent::discovery::GraphPosterior;
+use antecedent::discovery::{GraphPosterior, SamplingSummary};
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, StructuralAggregationPolicy, Study};
 use antecedent_core::{
@@ -249,9 +249,11 @@ fn known_truth_dbn_posterior(
         vec![valid_contemporaneous, noncertified_contemporaneous],
         contemporaneous_marginals.clone(),
         contemporaneous_marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, lagged_marginals)
@@ -261,7 +263,10 @@ fn known_truth_dbn_posterior(
     .with_algorithm("known_truth_fixture")
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "asserts the manufacturing DBN known-truth mixture across the frequentist and Bayesian arms for one policy"
+)]
 fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: RefuteSuite) {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
@@ -330,8 +335,15 @@ fn assert_manufacturing_dbn_known_truth_mixture(policy: TemporalPolicy, suite: R
         "prepared estimate and refresh clicks must reuse the frozen atom identification"
     );
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
+    assert!(
+        (refreshed.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
     // The one-shot facade prepares the checked plan and estimates from its
     // retained atom proofs, so the fresh run reports the cached identification.
     assert_eq!(cached_count(&fresh), 1, "fresh DBN-posterior execution seals then estimates");
@@ -408,14 +420,19 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
         let ctx = ExecutionContext::for_tests(41);
         let result = study.run(&ctx).unwrap();
         assert!(
-            (result.estimate.ate - pin["expected_effect_given_identified"].as_f64().unwrap()).abs()
+            (result.estimate.as_effect().unwrap().ate
+                - pin["expected_effect_given_identified"].as_f64().unwrap())
+            .abs()
                 < pin["effect_abs_tolerance"].as_f64().unwrap(),
             "{policy:?}: effect {}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
         assert!(result.refutations.is_empty(), "{policy:?}: none runs no refuter");
-        assert!(result.estimate.se_bootstrap.is_some());
-        assert_eq!(result.estimate.bootstrap_replicates_ok, Some(12));
+        assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_some());
+        assert_eq!(
+            result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+            Some(12)
+        );
         assert!(result.diagnostics.iter().any(|diagnostic| {
             diagnostic.code.as_ref() == "estimate.dbn_posterior.frequentist"
             && diagnostic.message.contains("shared circular-block")
@@ -452,13 +469,13 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
         );
         match structural.conditional_on_identified.as_ref() {
             Some(antecedent_core::ResponseValue::Scalar(value)) => {
-                assert!((value - result.estimate.ate).abs() < 1e-12);
+                assert!((value - result.estimate.as_effect().unwrap().ate).abs() < 1e-12);
             }
             other => panic!("expected a scalar conditional summary, got {other:?}"),
         }
         let set = structural.identified_set.as_ref().expect("identified set");
-        assert!((set.lower[0] - result.estimate.ate).abs() < 1e-12);
-        assert!((set.upper[0] - result.estimate.ate).abs() < 1e-12);
+        assert!((set.lower[0] - result.estimate.as_effect().unwrap().ate).abs() < 1e-12);
+        assert!((set.upper[0] - result.estimate.as_effect().unwrap().ate).abs() < 1e-12);
     }
 }
 
@@ -502,7 +519,9 @@ fn manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters() {
                 .any(|diagnostic| { diagnostic.code.as_ref() == "refute.envelope.effect_mixture" })
         );
         assert!(
-            (result.estimate.ate - pin["expected_effect_given_identified"].as_f64().unwrap()).abs()
+            (result.estimate.as_effect().unwrap().ate
+                - pin["expected_effect_given_identified"].as_f64().unwrap())
+            .abs()
                 < pin["effect_abs_tolerance"].as_f64().unwrap()
         );
     }
@@ -552,7 +571,7 @@ fn manufacturing_dbn_posterior_multistep_sustained_supports_cheap_without_collap
             .unwrap()
             .run(&ctx)
             .unwrap();
-        assert!(result.estimate.ate.is_finite());
+        assert!(result.estimate.as_effect().unwrap().ate.is_finite());
         assert!(!result.refutations.is_empty());
     }
 }
@@ -650,9 +669,11 @@ fn known_truth_dbn_mediation_posterior(pin: &serde_json::Value, weights: &[f64])
         vec![identified_c, unidentified_c],
         contemporaneous_marginals.clone(),
         contemporaneous_marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, lagged_marginals)
@@ -696,8 +717,15 @@ fn assert_dbn_mediation_known_truth_mixture(suite: RefuteSuite) {
     let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 2);
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
+    assert!(
+        (refreshed.estimate.as_effect().unwrap().ate - click.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
     // A one-shot run now prepares and executes the sealed DBN-posterior mediation
     // operation, so the fresh result reports its identification as cached once.
     assert_eq!(cached_count(&fresh), 1);
@@ -722,8 +750,8 @@ fn assert_dbn_mediation_known_truth_mixture(suite: RefuteSuite) {
         &fresh,
         StructuralAggregationPolicy::SameEstimandWeightedMean,
     ));
-    let mediation = fresh.mediation.as_ref().expect("mediation envelope");
-    assert!((mediation.effect.ate - fresh.estimate.ate).abs() < 1e-12);
+    let mediation = fresh.mediation().expect("mediation envelope");
+    assert!((mediation.effect.ate - fresh.estimate.as_effect().unwrap().ate).abs() < 1e-12);
     if suite != RefuteSuite::None {
         assert!(!click.refutations.is_empty());
         assert!(!click.predictive_checks.is_empty());
@@ -749,6 +777,10 @@ fn manufacturing_dbn_posterior_bayesian_mediation_envelope() {
 /// structured field, not only in a diagnostic. The shared circular-block
 /// bootstrap supplies Total/Direct/Mediated SEs from the same replicates.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for manufacturing dbn posterior frequentist mediation envelope"
+)]
 fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
@@ -781,8 +813,14 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     let click = prepared.estimate_series(&series, &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 2);
     assert_eq!(click.support_status.unwrap().as_str(), "licensed");
-    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert_eq!(click.estimate.se_bootstrap, fresh.estimate.se_bootstrap);
+    assert!(
+        (click.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
+    assert_eq!(
+        click.estimate.as_effect().unwrap().se_bootstrap(),
+        fresh.estimate.as_effect().unwrap().se_bootstrap()
+    );
     // A one-shot run now prepares and executes the sealed DBN-posterior mediation
     // operation, so the fresh result reports its identification as cached once.
     assert_eq!(cached_count(&fresh), 1);
@@ -790,9 +828,9 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
 
     // Known truth: the requested (mediated) contrast of the identified atom.
     assert!(
-        (fresh.estimate.ate - effect_truth).abs() < tolerance,
+        (fresh.estimate.as_effect().unwrap().ate - effect_truth).abs() < tolerance,
         "mediated {} vs truth {effect_truth}",
-        fresh.estimate.ate
+        fresh.estimate.as_effect().unwrap().ate
     );
     assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
     assert_eq!(fresh.logical_plan.identifier.as_deref(), Some("temporal.mediation"));
@@ -803,10 +841,18 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     ));
 
     // Dependence-honest SE from the shared circular-block replicates.
-    let se = fresh.estimate.se_bootstrap.expect("Frequentist DBN mediation SE");
+    let se =
+        fresh.estimate.as_effect().unwrap().se_bootstrap().expect("Frequentist DBN mediation SE");
     assert!(se.is_finite() && se > 0.0, "se {se}");
-    assert!(fresh.estimate.se_analytic.is_nan());
-    let ok = fresh.estimate.bootstrap_replicates_ok.expect("replicates recorded");
+    assert!(fresh.estimate.as_effect().unwrap().se_analytic().is_nan());
+    let ok = fresh
+        .estimate
+        .as_effect()
+        .unwrap()
+        .uncertainty
+        .bootstrap
+        .replicates_ok
+        .expect("replicates recorded");
     assert!((20..=40).contains(&ok), "replicates_ok {ok}");
     assert!(
         fresh
@@ -820,7 +866,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
             .iter()
             .all(|d| d.code.as_ref() != "estimate.dbn_posterior.mediation.uncertainty_withheld")
     );
-    let grid = fresh.mediation_grid.as_ref().expect("mediation grid");
+    let grid = fresh.mediation_grid().expect("mediation grid");
     let slice = &grid.slices[0];
     match &slice.uncertainty {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
@@ -848,9 +894,9 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     assert_eq!(identified_atoms.len(), 1);
     assert!((identified_atoms[0].weight - identified_truth).abs() < 1e-12);
 
-    let mediation = fresh.mediation.as_ref().expect("Frequentist DBN mediation envelope");
-    assert!((mediation.effect.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert!((mediation.mediated.unwrap() - fresh.estimate.ate).abs() < 1e-12);
+    let mediation = fresh.mediation().expect("Frequentist DBN mediation envelope");
+    assert!((mediation.effect.ate - fresh.estimate.as_effect().unwrap().ate).abs() < 1e-12);
+    assert!((mediation.mediated.unwrap() - fresh.estimate.as_effect().unwrap().ate).abs() < 1e-12);
     // OLS product-of-coefficients identity on the shared regressors.
     let (total, direct, mediated) =
         (mediation.total.unwrap(), mediation.direct.unwrap(), mediation.mediated.unwrap());
@@ -879,8 +925,8 @@ fn manufacturing_dbn_posterior_frequentist_mediation_withholds_se_without_replic
         .unwrap()
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    assert!(result.estimate.se_bootstrap.is_none());
-    assert!(result.estimate.se_analytic.is_nan());
+    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_none());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
     assert!(
         result
             .diagnostics
@@ -888,7 +934,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_withholds_se_without_replic
             .any(|d| d.code.as_ref() == "estimate.dbn_posterior.mediation.uncertainty_withheld")
     );
     assert!(matches!(
-        result.mediation_grid.as_ref().unwrap().slices[0].uncertainty,
+        result.mediation_grid().unwrap().slices[0].uncertainty,
         antecedent_estimate::TemporalMediationUncertainty::Unavailable
     ));
 }
@@ -950,9 +996,9 @@ fn manufacturing_dbn_posterior_frequentist_mediation_cheap_and_full_mix_atom_ref
             );
         }
         assert!(
-            (result.estimate.ate - effect_truth).abs() < tolerance,
+            (result.estimate.as_effect().unwrap().ate - effect_truth).abs() < tolerance,
             "{suite:?}: {} vs {effect_truth}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
     }
 }
@@ -962,6 +1008,10 @@ fn manufacturing_dbn_posterior_frequentist_mediation_cheap_and_full_mix_atom_ref
 /// published contrasts are the fixed-weight means of the atom fits, and one
 /// shared circular-block replicate refits both atoms for all three SEs.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for manufacturing dbn posterior frequentist mediation mixes atoms in one replicate"
+)]
 fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicate() {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
@@ -984,9 +1034,11 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
         vec![c, c, c],
         zeros.clone(),
         zeros,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.2, 1.0, 1.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0])
@@ -1023,7 +1075,11 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
         .collect();
     assert_eq!(atom_values.len(), 2);
     let mixed = atom_values.iter().map(|(w, v)| w * v).sum::<f64>() / 0.8;
-    assert!((result.estimate.ate - mixed).abs() < 1e-12, "{} vs {mixed}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - mixed).abs() < 1e-12,
+        "{} vs {mixed}",
+        result.estimate.as_effect().unwrap().ate
+    );
     // The known-truth atom recovers 0.44; the lagged-mediator atom is a
     // different graph with its own S(h) and its own (graph-specific) value.
     assert!((atom_values[0].1 - effect_truth).abs() < tolerance, "{atom_values:?}");
@@ -1038,12 +1094,12 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     let upper = atom_values.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
     let set = structural.identified_set.as_ref().expect("atom range");
     assert_eq!((set.lower[0], set.upper[0]), (lower, upper));
-    let se = result.estimate.se_bootstrap.expect("mixture SE");
+    let se = result.estimate.as_effect().unwrap().se_bootstrap().expect("mixture SE");
     assert!(se.is_finite() && se > 0.0);
     // The shared-block mixture SE is a circular-block construction, not an iid bootstrap: the
     // interval label (and the calibration record it keys) must say so.
     assert_eq!(
-        result.estimate.block_family,
+        result.estimate.as_effect().unwrap().uncertainty.block.family,
         Some(antecedent_estimate::CircularBlockFamily::Mixture)
     );
     let binding = result.primary_interval_binding(false);
@@ -1052,9 +1108,9 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     // The same replicate SD with no block family recorded models no serial correlation on a
     // series; it is not the `iid` construction a calibration of exchangeable rows describes.
     let mut unblocked = result.clone();
-    unblocked.estimate.block_family = None;
+    unblocked.estimate.as_effect_mut().unwrap().uncertainty.block.family = None;
     assert_eq!(unblocked.primary_interval_binding(false).dependence, "serial_unmodelled");
-    match &result.mediation_grid.as_ref().unwrap().slices[0].uncertainty {
+    match &result.mediation_grid().unwrap().slices[0].uncertainty {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
             requested,
             block,
@@ -1124,9 +1180,9 @@ fn manufacturing_dbn_posterior_mediation_retains_multiple_horizons() {
         .unwrap()
         .run(&ExecutionContext::for_tests(43))
         .unwrap();
-    assert_eq!(result.mediation_grid.as_ref().unwrap().slices.len(), 2);
+    assert_eq!(result.mediation_grid().unwrap().slices.len(), 2);
     assert!(result.posterior.is_none());
-    assert!(result.mediation.is_none());
+    assert!(result.mediation().is_none());
 }
 
 /// Two atoms, both genuinely identified (no autoregressive / not-certified
@@ -1155,9 +1211,11 @@ fn manufacturing_dbn_posterior_bayesian_mediation_estimation_failure_is_not_unid
         vec![c, c],
         zeros.clone(),
         zeros,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![0.2, 1.0, 1.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0])
@@ -1246,7 +1304,7 @@ fn response_values(result: &antecedent::StudyResult) -> Vec<f64> {
             return response_value_points(value);
         }
     }
-    let response = result.response.as_ref().expect("response");
+    let response = result.response().expect("response");
     match &response.estimate {
         ResponseIdentification::PointIdentified(value)
         | ResponseIdentification::PartiallyIdentified(value) => response_value_points(value),
@@ -1504,9 +1562,11 @@ fn dbn_posterior_response_agrees_with_independent_atom_mix() {
         vec![contemporaneous_a, contemporaneous_b],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0,
-        InferenceDiagnostics::analytic("independent_response_mix"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("independent_response_mix"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_lagged_marginals(1, vec![1.0, 0.0, 0.0, 0.0])
@@ -1758,7 +1818,7 @@ fn manufacturing_pressure_defect_bayesian() {
         (mean - expected_ate).abs() < tolerance,
         "posterior mean={mean} expected ~{expected_ate}"
     );
-    assert!((result.estimate.ate - mean).abs() < 1e-12);
+    assert!((result.estimate.as_effect().unwrap().ate - mean).abs() < 1e-12);
     let p_below = post.probability_below(0.0).unwrap();
     assert!(p_below.is_finite(), "p_below_zero={p_below}");
     let bytes = encode_causal_posterior_bytes(post, "temporal-pulse").unwrap();
@@ -1962,9 +2022,9 @@ fn run_temporal_frequentist_case(
 fn assert_dose_horizon_ate(result: &antecedent::result::StudyResult) {
     assert_eq!(result.support_status.unwrap().as_str(), "licensed");
     assert!(
-        (result.estimate.ate - 2.0).abs() < 1e-6,
+        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 1e-6,
         "structural contrast is exactly 2.0 on the orthogonal-design fixture; got ate={}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
 }
 
@@ -2132,9 +2192,9 @@ fn dose_horizon_pulse_and_sustained_none_all_structures() {
                 .unwrap_or_else(|e| panic!("{key} accepted={accepted}: {e}"));
             assert_dose_horizon_ate(&result);
             assert!(
-                (result.estimate.ate - truth).abs() <= atol,
+                (result.estimate.as_effect().unwrap().ate - truth).abs() <= atol,
                 "{key} accepted={accepted}: ate={} truth={truth}",
-                result.estimate.ate
+                result.estimate.as_effect().unwrap().ate
             );
             assert!(
                 result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),

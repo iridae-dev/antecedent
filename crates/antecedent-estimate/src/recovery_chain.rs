@@ -1,5 +1,5 @@
-//! Exact evaluation of the ordered-response recovery row (2.3 B2 / X10 second
-//! row). The graph decision, the formula and its derivation live in
+//! Exact evaluation of the ordered-response recovery row.
+//! The graph decision, the formula and its derivation live in
 //! [`antecedent_identify::recovery_chain`]; this module evaluates the formula on
 //! an exact nine-cell observed pattern law.
 //!
@@ -9,8 +9,8 @@
 //! forbids cannot be expressed. Positivity (the head response and every
 //! complete-case cell have mass, and the head-variable margin used by a
 //! dependent tail has mass) is checked before any division. Exact laws only: no
-//! sampled provider is composed here, and calibration of one is separate,
-//! measured only at the release cut, and unmeasured and closed in this slice.
+//! sampled provider is composed here, and calibration of one is separate and
+//! unmeasured.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

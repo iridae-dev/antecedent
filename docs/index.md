@@ -6,11 +6,12 @@ answer means—its assumptions, identification status, empirical support,
 uncertainty, provenance, and limits—when the analysis is estimated, reused,
 combined, saved, transported, or consumed by other software.
 
-> **Antecedent 2.3.0.** Install it with
-> `python -m pip install --upgrade antecedent` (Python 3.11+), then begin with
-> the [Python quickstart](python-workflow.md). Read the
-> [2.3.0 release notes](release-notes/v2.3.0.md) when upgrading from an earlier
-> release.
+> Install with `python -m pip install --upgrade antecedent` (Python 3.11+),
+> then begin with the [Python quickstart](python-workflow.md). The
+> [release notes](release-notes/v2.4.0.md) describe what changed in each
+> version, with earlier releases listed in the navigation.
+
+Choose [an example](examples.md), use [support lookup](support-lookup.md), or read [the glossary](glossary.md) when a standing label is unfamiliar. For a complete 2.4 workflow, follow [notebook to system](guides/notebook-to-system.md) and [measurement to decision](tutorials/measurement-to-decision.md).
 
 Most causal failures in software are semantic failures at boundaries. Read
 [the system model](system-model.md) first: it explains how Antecedent compiles
@@ -34,28 +35,28 @@ Start an ordinary analysis with the [Python workflow](python-workflow.md) or
 [Rust quickstart](rust-quickstart.md). The same model extends to discovery and
 structural uncertainty, response and temporal questions, Bayesian inference,
 validation, counterfactuals, learner-backed estimation, transport across
-populations, and the 2.1 design-family studies — randomized and factorial
+populations, and design-family studies — randomized and factorial
 experiments, held-out policy value, quasi-experimental designs, survival, and
 longitudinal regimes. Those are different causal programs, not disconnected
 products.
 
-## 2.3 features
+## Decisions, design, and composition
 
-The 2.3 line connects analysis to decisions. Each page states its claim label and
+These pages connect an analysis to a decision. Each page states its claim label and
 what it refuses.
 
 | Question | Read |
 | --- | --- |
-| What is the path from analysis to a decision to a study plan? | [The 2.3 lifecycle](2_3-lifecycle.md) |
-| Which study should I run next, and how do I replay the ranking? | [Design ranking](2_3-design-ranking.md) |
-| How far could the answer move under an unmeasured assumption? | [Sensitivity and robustness](2_3-sensitivity-and-robustness.md) |
-| Can a counterfactual effect be carried to another population? | [Transport and counterfactuals](2_3-transport-counterfactuals.md) |
-| How do I recompute a decision without refitting? | [Prepared recalculation](2_3-recalculation-capabilities.md) |
-| How do I bind foreign numbers, decide on them and export the whole composition? | [External science](2_3-external-science.md), [decisions](2_3-decisions.md), [composition](2_3-composition.md) |
+| What is the path from analysis to a decision to a study plan? | [The analysis lifecycle](lifecycle.md) |
+| Which study should I run next, and how do I replay the ranking? | [Design ranking](design-ranking.md) |
+| How far could the answer move under an unmeasured assumption? | [Sensitivity and robustness](sensitivity-and-robustness.md) |
+| Can a counterfactual effect be carried to another population? | [Transport and counterfactuals](transport-counterfactuals.md) |
+| How do I recompute a decision without refitting? | [Prepared recalculation](recalculation-capabilities.md) |
+| How do I bind foreign numbers, decide on them and export the whole composition? | [External science](external-science.md), [decisions](decisions.md), [composition](composition.md) |
 | How do refusals expose their cause and remedy? | [Structured refusals](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies) |
 
 For exact public boundaries, consult the [support matrix](support-matrix.md).
 An implemented capability is not automatically a licensed analysis, and a
 licensed analysis does not establish that a real-world causal model is true.
 
-Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [2.3.0 release notes](release-notes/v2.3.0.md).
+Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [measured-inference guide](population-time-uncertainty.md).

@@ -1,0 +1,20 @@
+feature_id = "sensitivity.joint_uncertainty"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "The public interval is the conservative endpoint percentile bootstrap of the joint range: the lower endpoint is a percentile of the replicate minima and the upper endpoint is a percentile of the replicate maxima. An exact supplied law has no sampling uncertainty and withholds.",
+  "The version 3 range artifact still refuses a forged sampling interval. The interval is returned by the interval route.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/joint_sensitivity_lifecycle.rs",
+  "python/tests/test_transport_joint_sensitivity.py",
+]

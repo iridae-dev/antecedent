@@ -1,0 +1,16 @@
+feature_id = "predictive_assessment.overlap_check"
+implementation_crate = "antecedent-validate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: set arithmetic over declared observation identities with the evidence ledger's lineage resolution; original engineering with no introducing paper.
+papers = [
+]
+implementation_deviations = [
+  "Overlap is computed over producer-declared row identities; two distinct identities are never merged, and undeclared observations are unknown, never independent.",
+  "Statistical dependence between disjoint observations is not represented here; it is the declared dependence's job.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-io/tests/predictive_assessment_artifact.rs", "crates/antecedent-validate/tests/predictive_assessment.rs", "crates/antecedent/tests/predictive_assessment_facade.rs"]

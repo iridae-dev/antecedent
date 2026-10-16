@@ -1,4 +1,4 @@
-//! B4 nonlinear continuous-mediator mediation: exact-SCM closed-form truth, quadrature error
+//! Nonlinear continuous-mediator mediation: exact-SCM closed-form truth, quadrature error
 //! check, confounding and overlap refusals, the total = direct + indirect identity, and a
 //! labelled regression cross-check against the linear product of coefficients. Calibration is
 //! `unmeasured` and nothing here measures coverage.
@@ -168,7 +168,7 @@ fn refusal_message(r: Result<NonlinearMediationEstimate, EstimationError>) -> St
 }
 
 #[test]
-fn b4_mediation_closed_form_algebra_is_self_consistent() {
+fn mediation_closed_form_algebra_is_self_consistent() {
     // The two ways of writing the truth (decomposed and telescoped) agree.
     let s = base_scm();
     let (nde, nie, te) = truth(&s);
@@ -178,7 +178,7 @@ fn b4_mediation_closed_form_algebra_is_self_consistent() {
 }
 
 #[test]
-fn b4_mediation_exact_scm_recovers_closed_form_effects() {
+fn mediation_exact_scm_recovers_closed_form_effects() {
     let s = base_scm();
     let g = grid(&s);
     let est = run(&g, &NonlinearMediationPremises::sequentially_ignorable(), &config(8))
@@ -197,7 +197,7 @@ fn b4_mediation_exact_scm_recovers_closed_form_effects() {
 }
 
 #[test]
-fn b4_mediation_quadrature_error_check_reports_and_refuses() {
+fn mediation_quadrature_error_check_reports_and_refuses() {
     // Cubic outcome: E[M^3 | a'] = mu^3 + 3*mu*sigma2 depends on mu, so the sigma2 integration
     // term does not cancel from the contrasts and the node count matters.
     let s = Scm { c3: 0.2, ..base_scm() };
@@ -224,7 +224,7 @@ fn b4_mediation_quadrature_error_check_reports_and_refuses() {
 }
 
 #[test]
-fn b4_mediation_confounding_and_cross_world_premises_are_refused() {
+fn mediation_confounding_and_cross_world_premises_are_refused() {
     let g = grid(&base_scm());
     let cfg = config(8);
     let mut flags = [
@@ -270,7 +270,7 @@ fn b4_mediation_confounding_and_cross_world_premises_are_refused() {
 }
 
 #[test]
-fn b4_mediation_total_equals_direct_plus_indirect() {
+fn mediation_total_equals_direct_plus_indirect() {
     let s = Scm { c2: -0.35, delta: -0.5, alpha: 0.4, b1: -0.2, ..base_scm() };
     let g = grid(&s);
     let est = run(&g, &NonlinearMediationPremises::sequentially_ignorable(), &config(10))
@@ -284,7 +284,7 @@ fn b4_mediation_total_equals_direct_plus_indirect() {
 }
 
 #[test]
-fn b4_mediation_weak_overlap_is_refused() {
+fn mediation_weak_overlap_is_refused() {
     // alpha = 6: the control mediator law sits far outside the treated arm's mediator range.
     let s = Scm { alpha: 6.0, ..base_scm() };
     let g = grid(&s);
@@ -321,7 +321,7 @@ fn b4_mediation_weak_overlap_is_refused() {
 }
 
 #[test]
-fn b4_mediation_linear_g_matches_product_of_coefficients_cross_check() {
+fn mediation_linear_g_matches_product_of_coefficients_cross_check() {
     // Regression / cross-check, NOT independent truth: with g linear and no interaction the
     // natural indirect effect is the linear product of coefficients (alpha_hat * c1_hat) and the
     // natural direct effect is the treatment coefficient. The coefficients are read from the
@@ -349,7 +349,7 @@ fn b4_mediation_linear_g_matches_product_of_coefficients_cross_check() {
 }
 
 #[test]
-fn b4_mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
+fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
     let g = grid(&base_scm());
     let ignorable = NonlinearMediationPremises::sequentially_ignorable();
     let cfg = NonlinearMediationConfig { bootstrap_replicates: 30, seed: 7, ..config(8) };
@@ -368,4 +368,77 @@ fn b4_mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
     assert_ne!(a.natural_direct_se, c.natural_direct_se);
     assert_eq!(a.calibration, "unmeasured");
     assert_eq!(a.interval_status, "closed_calibration_unmeasured");
+}
+
+#[test]
+fn mediation_posterior_mean_stays_at_the_exact_scm_coefficients() {
+    let s = base_scm();
+    let est = run(&grid(&s), &NonlinearMediationPremises::sequentially_ignorable(), &config(8))
+        .expect("estimate");
+    let (mediator, outcome) = antecedent_estimate::posterior_mean::mediation_coefficient_posterior(
+        &est.mediator_design,
+        &est.outcome_design,
+        antecedent_estimate::posterior_mean::PosteriorRequest::IndependentNormal { scale: 1.0e6 },
+    )
+    .expect("posterior");
+    for (got, expected) in mediator.iter().zip([0.0, s.alpha, s.gamma]) {
+        assert!((got - expected).abs() < 1e-4, "mediator {got} vs {expected}");
+    }
+    assert_eq!(outcome.len(), est.outcome_coefficients.len());
+    for (got, expected) in outcome.iter().zip(&est.outcome_coefficients) {
+        assert!((got - expected).abs() < 1e-5, "outcome {got} vs {expected}");
+    }
+}
+
+#[test]
+fn mediation_posterior_refuses_a_mapped_prior() {
+    let s = base_scm();
+    let est = run(&grid(&s), &NonlinearMediationPremises::sequentially_ignorable(), &config(8))
+        .expect("estimate");
+    let err = antecedent_estimate::posterior_mean::mediation_coefficient_posterior(
+        &est.mediator_design,
+        &est.outcome_design,
+        antecedent_estimate::posterior_mean::PosteriorRequest::MappedCoefficient,
+    )
+    .expect_err("mapped prior");
+    let EstimationError::Refused { message, .. } = err else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("mediation_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn mediation_posterior_consumer_replays_the_design_summary() {
+    use antecedent_estimate::posterior_mean::{PosteriorRequest, mediation_coefficient_posterior};
+    use antecedent_estimate::vector_treatment::DesignSummary;
+    use antecedent_estimate::vector_treatment::full_coefficient_posterior_mean;
+    let design = DesignSummary {
+        n_rows: 4,
+        first_treatment: 1,
+        gram: vec![4.0, 6.0, 6.0, 14.0],
+        xty: vec![10.0, 19.0],
+        rss: 1.8,
+    };
+    let empty = DesignSummary {
+        n_rows: 4,
+        first_treatment: 1,
+        gram: vec![4.0, 6.0, 6.0, 14.0],
+        xty: vec![],
+        rss: 1.8,
+    };
+    let request = PosteriorRequest::IndependentNormal { scale: 1.0 };
+    let produced = full_coefficient_posterior_mean(&design, 1.0).expect("ridge");
+    let replayed = mediation_coefficient_posterior(&design, &design, request).expect("pair");
+    let penalty = 0.9;
+    let det = 4.0 * (14.0 + penalty) - 36.0;
+    let beta0 = ((14.0 + penalty) * 10.0 - 6.0 * 19.0) / det;
+    let beta1 = (-6.0 * 10.0 + 4.0 * 19.0) / det;
+    assert!((produced[0] - beta0).abs() < 1e-9, "{}", produced[0]);
+    assert!((produced[1] - beta1).abs() < 1e-9, "{}", produced[1]);
+    assert!((replayed.0[0] - beta0).abs() < 1e-9 && (replayed.1[1] - beta1).abs() < 1e-9);
+    let err = mediation_coefficient_posterior(&empty, &design, request).expect_err("empty");
+    let EstimationError::Refused { message, .. } = err else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("mediation_posterior.empty_design"), "{message}");
 }

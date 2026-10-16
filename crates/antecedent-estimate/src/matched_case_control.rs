@@ -1,4 +1,4 @@
-//! Conditional odds ratio from matched case-control sets (2.2 E7).
+//! Conditional odds ratio from matched case-control sets.
 //!
 //! # Design and estimand
 //!
@@ -48,6 +48,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
+use crate::util::refuse;
 use antecedent_core::ExecutionContext;
 use std::collections::BTreeMap;
 
@@ -92,10 +93,6 @@ pub struct ConditionalOddsRatio {
     pub odds_ratio: f64,
     /// What every declared set contributed.
     pub counts: MatchedSetCounts,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 /// Accept only the declared sampling design.
@@ -226,7 +223,7 @@ struct Tally {
     exposed_cases: usize,
 }
 
-#[allow(clippy::float_cmp)] // exact 0/1 coding is the contract; anything else is refused
+#[allow(clippy::float_cmp, reason = "exact 0/1 coding is the contract; anything else is refused")]
 fn binary(value: f64) -> Option<bool> {
     if value == 0.0 {
         Some(false)
@@ -332,8 +329,9 @@ fn not_finite(informative: usize, which: &str) -> EstimationError {
     )
 }
 
-/// Root of the monotone score: bracket it, then a safeguarded Newton iteration.
-fn solve(
+/// Root of the monotone scalar conditional score (not a linear solve): bracket it, then a
+/// safeguarded Newton iteration.
+fn solve_log_odds_ratio(
     types: &[SetType],
     informative: usize,
     ctx: &ExecutionContext,
@@ -409,7 +407,7 @@ pub fn conditional_odds_ratio(
             "every case is as exposed as its set allows, so the estimate is infinite",
         ));
     }
-    let beta = solve(&sets.types, informative, ctx)?;
+    let beta = solve_log_odds_ratio(&sets.types, informative, ctx)?;
     Ok(ConditionalOddsRatio { log_odds_ratio: beta, odds_ratio: beta.exp(), counts: sets.counts })
 }
 

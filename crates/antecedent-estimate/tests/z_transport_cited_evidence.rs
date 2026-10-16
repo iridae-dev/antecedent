@@ -270,7 +270,10 @@ fn empirical_cited_margin_publishes_a_nominal_interval_around_the_exact_point() 
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // One staged artifact lifecycle covers both posterior providers.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one staged artifact lifecycle covers both posterior providers"
+)]
 fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
     let diagram = surrogate_diagram();
     let query = surrogate_query();
@@ -384,7 +387,10 @@ fn bayesian_cited_margin_publishes_an_unmeasured_posterior() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)] // Couple the negative selection case with the independent SCM check.
+#[allow(
+    clippy::too_many_lines,
+    reason = "couple the negative selection case with the independent SCM check"
+)]
 fn selection_on_a_non_outcome_still_transports_and_matches_scm_truth() {
     let mut graph = Admg::with_variables(5);
     for (from, to) in [(0, 1), (1, 2), (2, 3), (0, 3)] {

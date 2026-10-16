@@ -1,4 +1,4 @@
-//! E3: configured batches and batch retarget (joint covariance, contrasts, max-t
+//! Configured batches and batch retarget (joint covariance, contrasts, max-t
 //! simultaneous interval, score-table lifetime, tidy export).
 //!
 //! The independent oracles here are written from the raw score tables with plain sums: the
@@ -23,6 +23,7 @@ use antecedent_data::TabularData;
 use antecedent_estimate::{AipwAte, OverlapPolicy, PropensityNuisance, RidgeTuning, ScoreTable};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
+use antecedent_test_support::dot;
 
 const T1: u32 = 0;
 const T2: u32 = 1;
@@ -124,10 +125,6 @@ fn oracle(table: &ScoreTable, weights: &[f64]) -> (f64, Vec<f64>) {
     (theta, xi)
 }
 
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
 fn solo(fx: &Fixture, query: &AverageEffectQuery, est: &AipwAte, seed: u64) -> StudyResult {
     Study::tabular(fx.data.clone())
         .graph(fx.graph.clone())
@@ -177,13 +174,13 @@ fn a_configured_batch_matches_the_single_query_call_bit_for_bit() {
                 [("estimate_many", &estimated[i]), ("prepared", &refreshed[i])]
             {
                 assert_eq!(
-                    batch_result.estimate.ate.to_bits(),
-                    alone.estimate.ate.to_bits(),
+                    batch_result.estimate.as_effect().unwrap().ate.to_bits(),
+                    alone.estimate.as_effect().unwrap().ate.to_bits(),
                     "{what} query {i}: ate"
                 );
                 assert_eq!(
-                    batch_result.estimate.se_analytic.to_bits(),
-                    alone.estimate.se_analytic.to_bits(),
+                    batch_result.estimate.as_effect().unwrap().se_analytic().to_bits(),
+                    alone.estimate.as_effect().unwrap().se_analytic().to_bits(),
                     "{what} query {i}: se"
                 );
             }
@@ -310,8 +307,12 @@ fn the_joint_score_covariance_matches_an_independent_calculation() {
     let single = prepared.plans()[0].retarget(&plus, &[z_id()], &ExecutionContext::for_tests(63));
     let single = single.unwrap();
     let first = report.claims[0].outcome.as_ref().unwrap();
-    close(single.estimate.ate, first.value, "single-query point");
-    close(single.estimate.se_analytic, first.std_error.unwrap(), "single-query se");
+    close(single.estimate.as_effect().unwrap().ate, first.value, "single-query point");
+    close(
+        single.estimate.as_effect().unwrap().se_analytic(),
+        first.std_error.unwrap(),
+        "single-query se",
+    );
 
     // Contrast algebra against the influence values: value c'θ, variance Σ_r (Σ_k c_k ξ_kr)².
     let route = report.contrasts[0].outcome.as_ref().unwrap();
@@ -523,7 +524,7 @@ fn retarget_after_estimate_reweights_that_estimates_rows() {
     let (results, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
     assert_eq!(estimated.source(), ScoreSource::Estimated);
     for (i, result) in results.iter().enumerate() {
-        assert_eq!(estimated.table(i), result.estimate.score_table.as_ref());
+        assert_eq!(estimated.table(i), result.estimate.as_effect().unwrap().scores.table.as_ref());
     }
     let rows = estimated.common_rows().unwrap().unwrap();
     let w = exp_weights(&fx, &rows, 1.0);

@@ -1,8 +1,7 @@
 """`ci=` (a Python callable CI test) reaching the PanelFrame discovery path.
 
-`analyze(panel, discovery=..., ...)` for `PanelFrame` routes through
-`_handle_panel_frame` (`antecedent/_analyze.py`) to the native
-`analyze_panel_discover`. That native function previously had no `ci` parameter
+`analyze(panel, discovery=..., ...)` for `PanelFrame` routes through the prepared panel
+discovery route. That route previously had no `ci` parameter
 at all, so a caller-supplied CI test was accepted by `PCMCI`/`PCMCIPlus`/
 `LPCMCI`/`JPCMCIPlus` (which all carry a `ci` field) and then silently dropped
 before crossing into Rust — the panel path always ran the default `parcorr`
@@ -40,7 +39,7 @@ def _counting_ci(calls: list[int]):
 
 
 def test_panel_discover_pcmci_ci_callback_invoked():
-    """PCMCI branch of `_handle_panel_frame` must forward `ci=` to the native call.
+    """PCMCI branch of the panel discovery route must forward `ci=` to the native call.
 
     The counting callback always reports independence, so discovery finds no
     edges at all; PCMCI's review is DAG-shaped (`accept_temporal_graph_review`
@@ -79,7 +78,7 @@ def test_panel_discover_pcmci_ci_callback_invoked():
 
 
 def test_panel_discover_jpcmci_plus_ci_callback_invoked():
-    """JPCMCIPlus branch of `_handle_panel_frame` must forward `ci=` to the native call.
+    """JPCMCIPlus branch of the panel discovery route must forward `ci=` to the native call.
 
     The counting callback always reports independence, so discovery finds no
     edges at all. JPCMCIPlus's review is CPDAG-shaped

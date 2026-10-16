@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import sys
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _repo import ensure_scripts_on_path
+
+ensure_scripts_on_path()
 import collect_coverage_records as collector  # noqa: E402
 
 
@@ -21,9 +22,8 @@ class DelegatedIntervalCarrierTest(unittest.TestCase):
             root = Path(directory)
             source = root / "source.rs"
             source.write_text("pub(crate) fn candidate_interval_replay() {}\n"
-                              "pub fn candidate_interval_internal() {}\n")
-            with patch.object(intervals, "ROOT", root), patch.object(intervals.cai, "ROOT", root), \
-                    patch.object(intervals, "RELEASE", "2.3"):
+                              "pub fn candidate_interval_internal() {}\n", encoding="utf-8", newline="\n")
+            with patch.object(intervals, "ROOT", root), patch.object(intervals.cai, "ROOT", root):
                 self.assertEqual(intervals.surface_interval_findings("source.rs"),
                                  [(2, "candidate_interval_internal")])
 
@@ -34,7 +34,7 @@ class DelegatedIntervalCarrierTest(unittest.TestCase):
             root = Path(directory)
             source = root / "carrier.py"
             source.write_text("class Scalar:\n    @property\n    def interval(self):\n"
-                              "        return float(self._body['lower']), float(self._body['upper'])\n")
+                              "        return float(self._body['lower']), float(self._body['upper'])\n", encoding="utf-8", newline="\n")
             field = {"name": "interval", "source": "carrier.py", "class": "Scalar",
                      "method_records": ["method"], "authority_fixture": "factory-proof",
                      "why": "Original authorized endpoint projection"}
@@ -60,7 +60,7 @@ class DelegatedIntervalCarrierTest(unittest.TestCase):
                 self.assertEqual(intervals.delegated_interval_findings(record, findings, {"method": {}}, errors), findings)
                 self.assertTrue(errors)
                 source.write_text("class Scalar:\n    @property\n    def interval(self):\n"
-                                  "        return float(self._body['lower']) - 1, float(self._body['upper']) + 1\n")
+                                  "        return float(self._body['lower']) - 1, float(self._body['upper']) + 1\n", encoding="utf-8", newline="\n")
                 errors = []
                 self.assertEqual(intervals.delegated_interval_findings(record, findings, owners, errors), findings)
                 self.assertTrue(errors, "Numerically recomputed interval cannot borrow delegated evidence")
@@ -76,7 +76,7 @@ class ArchivedSupersededMeasurementTest(unittest.TestCase):
             source.parent.mkdir(parents=True)
             old = "cov.fixture.dag.frequentist.l95.old_method"
             replacement = "cov.fixture.dag.frequentist.l95.corrected_method"
-            source.write_text(f'#[test] #[ignore] fn old_method() {{ emit("{old}"); }}')
+            source.write_text(f'#[test] #[ignore] fn old_method() {{ emit("{old}"); }}', encoding="utf-8", newline="\n")
             subprocess.run(["git", "init", "-q", directory], check=True)
             subprocess.run(["git", "add", "."], cwd=root, check=True)
             subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
@@ -117,7 +117,7 @@ class ConditionalDgpReferenceTest(unittest.TestCase):
             source.write_text(
                 'fn measure(latent: bool) { let key = RecordKey { '
                 'dgp: if latent { "latent_rows" } else { "markov_rows" }, }; }'
-            )
+            , encoding="utf-8", newline="\n")
             self.assertEqual(collector.conditional_record_dgp_labels(source),
                              {"latent_rows", "markov_rows"})
 
@@ -128,7 +128,7 @@ class ConditionalDgpReferenceTest(unittest.TestCase):
                 '// dgp: if latent { "forged" } else { "forged2" }\n'
                 'fn measure() { let unrelated = "forged"; '
                 'let key = RecordKey { dgp: if latent { label() } else { "computed" }, }; }'
-            )
+            , encoding="utf-8", newline="\n")
             self.assertEqual(collector.conditional_record_dgp_labels(source), set())
 
 
@@ -158,7 +158,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "licensed.toml"
-            path.write_text(source)
+            path.write_text(source, encoding="utf-8", newline="\n")
             original = collector.LICENSED
             collector.LICENSED = path
             try:
@@ -179,9 +179,9 @@ class AppendAttestedRecordsTest(unittest.TestCase):
             finally:
                 collector.LICENSED = original
             self.assertEqual(changed, 1)
-            self.assertIn('calibration = ["new"]', path.read_text())
+            self.assertIn('calibration = ["new"]', path.read_text(encoding="utf-8"))
             self.assertEqual(
-                path.read_text().split('[[cell]]')[2],
+                path.read_text(encoding="utf-8").split('[[cell]]')[2],
                 source.split('[[cell]]')[2],
             )
 
@@ -209,13 +209,13 @@ class LicensedCellSyncTest(unittest.TestCase):
             with self.subTest(inference=inference), tempfile.TemporaryDirectory() as directory:
                 source = self.source(inference)
                 path = Path(directory) / "licensed.toml"
-                path.write_text(source)
+                path.write_text(source, encoding="utf-8", newline="\n")
                 with patch.object(collector, "LICENSED", path):
                     collector.sync_licensed_cells({
                         "frontdoor": self.record("functional.effect", inference, True),
                         "new_passing": self.record(estimator, inference),
                     })
-                parsed = collector.tomllib.loads(path.read_text())["cell"][0]
+                parsed = collector.tomllib.loads(path.read_text(encoding="utf-8"))["cell"][0]
                 self.assertEqual(parsed["calibration"], ["frontdoor"])
                 self.assertEqual(parsed["calibration_reason"], "boundary_record")
 
@@ -223,42 +223,42 @@ class LicensedCellSyncTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             source = self.source(bound=False)
             path = Path(directory) / "licensed.toml"
-            path.write_text(source)
+            path.write_text(source, encoding="utf-8", newline="\n")
             with patch.object(collector, "LICENSED", path):
                 self.assertEqual(collector.sync_licensed_cells({
                     "new": self.record("nested_markov_bayesian")}), 0)
-            self.assertEqual(path.read_text(), source)
+            self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     def test_missing_bound_record_refuses_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = self.source()
             path = Path(directory) / "licensed.toml"
-            path.write_text(source)
+            path.write_text(source, encoding="utf-8", newline="\n")
             with patch.object(collector, "LICENSED", path), self.assertRaisesRegex(
                 SystemExit, "bound calibration records absent"
             ):
                 collector.sync_licensed_cells({"new": self.record("nested_markov_bayesian")})
-            self.assertEqual(path.read_text(), source)
+            self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     def test_explicit_same_axes_foreign_estimator_refuses_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = self.source()
             path = Path(directory) / "licensed.toml"
-            path.write_text(source)
+            path.write_text(source, encoding="utf-8", newline="\n")
             with patch.object(collector, "LICENSED", path), self.assertRaisesRegex(
                 SystemExit, "not owned by the licensed cell"
             ):
                 collector.sync_licensed_cells({"new": self.record("nested_markov_bayesian")},
                     {("AverageEffect", "Admg", "explicit", "Bayesian", "none"): ["new"]})
-            self.assertEqual(path.read_text(), source)
+            self.assertEqual(path.read_text(encoding="utf-8"), source)
 
     def test_refresh_uses_new_measurement_of_original_bound_method(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "licensed.toml"
-            path.write_text(self.source())
+            path.write_text(self.source(), encoding="utf-8", newline="\n")
             with patch.object(collector, "LICENSED", path):
                 collector.sync_licensed_cells({"frontdoor": self.record("functional.effect")})
-            parsed = collector.tomllib.loads(path.read_text())["cell"][0]
+            parsed = collector.tomllib.loads(path.read_text(encoding="utf-8"))["cell"][0]
             self.assertEqual(parsed["calibration"], ["frontdoor"])
             self.assertNotIn("calibration_reason", parsed)
 
@@ -296,12 +296,12 @@ class LicensedCellSyncTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "licensed.toml"
             source = self.source()
-            path.write_text(source)
+            path.write_text(source, encoding="utf-8", newline="\n")
             with patch.object(collector, "LICENSED", path), self.assertRaisesRegex(
                 SystemExit, "not owned by the licensed cell"
             ):
                 collector.sync_licensed_cells({"frontdoor": self.record("nested_markov_bayesian")})
-            self.assertEqual(path.read_text(), source)
+            self.assertEqual(path.read_text(encoding="utf-8"), source)
 
 
 
@@ -319,10 +319,10 @@ class LicensedCellSyncTest(unittest.TestCase):
         proof.parent.mkdir(parents=True)
         (root / "crates/owner/Cargo.toml").write_text(
             '[package]\nname = "owner"\nversion = "0.1.0"\nedition = "2021"\n'
-        )
-        source.write_text("// pub struct NativeOwner;" if comment_only else "pub struct NativeOwner;")
+        , encoding="utf-8", newline="\n")
+        source.write_text("// pub struct NativeOwner;" if comment_only else "pub struct NativeOwner;", encoding="utf-8", newline="\n")
         proof.write_text("#[test]\n" + ("#[ignore]\n" if ignored else "")
-                         + "fn scientific_owner_proof() { assert_eq!(1, 1); }")
+                         + "fn scientific_owner_proof() { assert_eq!(1, 1); }", encoding="utf-8", newline="\n")
         return {"estimator": "actual.scientific", "source": "crates/owner/src/lib.rs",
                 "source_symbol": "NativeOwner", "evidence_test": "crates/owner/tests/owner.rs",
                 "evidence_assertion": "scientific_owner_proof"}
@@ -354,7 +354,7 @@ class LicensedCellSyncTest(unittest.TestCase):
             self.assertTrue(any("ignore" in error for error in
                                 self.scientific_owner_evidence_errors(cell, root)))
             proof = root / entry["evidence_test"]
-            proof.write_text("#[test] fn scientific_owner_proof() {}")
+            proof.write_text("#[test] fn scientific_owner_proof() {}", encoding="utf-8", newline="\n")
             self.assertTrue(self.scientific_owner_evidence_errors(cell, root))
 
     def test_scientific_owner_malformed_or_duplicate_declarations_refuse(self) -> None:
@@ -445,7 +445,7 @@ class OneSidedRoleTest(unittest.TestCase):
                 collector.write_registry({"rid": record}, out, retag=False)
             finally:
                 collector.surface_list_blob = original
-            text = out.read_text()
+            text = out.read_text(encoding="utf-8")
             parsed = tomllib.loads(text)["record"][0]
         self.assertEqual(parsed["one_sided"], UPPER)
         self.assertLess(text.index('role = "one_sided"'), text.index("one_sided = {"))

@@ -1,0 +1,21 @@
+feature_id = "transport.assumption_range"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Assumption range for a violated transport premise: the transported quantity may differ from
+# the point value by a declared additive or proportional shift s in [0, bound]; the range at s
+# is [v - s, v + s] or [v - s|v|, v + s|v|], evaluated at declared grid points and carried
+# through the existing sensitivity artifact. A one-parameter bias model; no primary paper.
+papers = []
+implementation_deviations = [
+  "An assumption range, not an interval or posterior: no probability attaches to any shift and the bound is the caller's declaration; nothing in the data licenses it.",
+  "No sampling interval is composed into the range; exact finite-law arithmetic supplies no calibration.",
+  "Structural premises (a discovered graph) have no scalar family and are refused with a remedy instead of an invented range.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/transport_sensitivity.rs",
+]

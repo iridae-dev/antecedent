@@ -1,4 +1,4 @@
-//! Python bridge of the 2.3 B3 source-target mechanism discrepancy diagnostic.
+//! Python bridge of the source-target mechanism discrepancy diagnostic.
 //!
 //! Python declares the two populations (a measurement contract and either raw rows or summary
 //! statistics); the OLS fits, the Wald statistic, the p-value, the Holm breakdown, the minimal
@@ -6,6 +6,8 @@
 //! refusal comes back as structured JSON (`code`, `detail`, `message`) for the Python layer to
 //! raise as its own typed exception. Non-rejection never certifies invariance and the test's
 //! Type I error and power are unmeasured.
+use crate::bridge::RefusalJson;
+use crate::detach_catch;
 use antecedent::analysis::mechanism_discrepancy::{
     MechanismDiscrepancyIdentity, MechanismDiscrepancyRefusal, MechanismDiscrepancyRequestWire,
     MechanismMeasurement, ParentSpec, PopulationSample, consume_mechanism_discrepancy,
@@ -16,17 +18,14 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::json;
 
+const STAGE: &str = "mechanism_discrepancy";
+
 fn refusal_json(refusal: &MechanismDiscrepancyRefusal) -> String {
-    json!({"code": refusal.code, "detail": refusal.detail, "message": refusal.message}).to_string()
+    RefusalJson::new(refusal.code, STAGE, &refusal.detail, &refusal.message).json()
 }
 
 fn invalid_json(detail: &str, message: &str) -> String {
-    json!({
-        "code": reason_code!("invalid_argument"),
-        "detail": detail,
-        "message": message,
-    })
-    .to_string()
+    RefusalJson::new(reason_code!("invalid_argument"), STAGE, detail, message).json()
 }
 
 /// Sufficient statistics (`n`, `X'X`, `X'y`, `y'y`) of one population's raw rows; returns the
@@ -38,6 +37,7 @@ fn invalid_json(detail: &str, message: &str) -> String {
 #[doc(hidden)]
 #[allow(clippy::too_many_arguments)]
 fn mechanism_discrepancy_summarize(
+    py: Python<'_>,
     label: String,
     node: String,
     node_unit: String,
@@ -45,7 +45,7 @@ fn mechanism_discrepancy_summarize(
     protocol_id: String,
     outcome: Vec<f64>,
     parent_values: Vec<Vec<f64>>,
-) -> (Option<String>, Option<String>) {
+) -> PyResult<(Option<String>, Option<String>)> {
     let sample = PopulationSample {
         label,
         measurement: MechanismMeasurement {
@@ -58,23 +58,25 @@ fn mechanism_discrepancy_summarize(
         parent_values,
         unit_ids: Vec::new(),
     };
-    match summarize_sample(&sample) {
-        Ok(summary) => (
-            Some(
-                json!({
-                    "n": summary.n,
-                    "xtx": summary.xtx,
-                    "xty": summary.xty,
-                    "yty": summary.yty,
-                })
-                .to_string(),
+    detach_catch(py, move || {
+        Ok(match summarize_sample(&sample) {
+            Ok(summary) => (
+                Some(
+                    json!({
+                        "n": summary.n,
+                        "xtx": summary.xtx,
+                        "xty": summary.xty,
+                        "yty": summary.yty,
+                    })
+                    .to_string(),
+                ),
+                None,
             ),
-            None,
-        ),
-        Err(error) => {
-            (None, Some(refusal_json(&MechanismDiscrepancyRefusal::from_estimation(&error))))
-        }
-    }
+            Err(error) => {
+                (None, Some(refusal_json(&MechanismDiscrepancyRefusal::from_estimation(&error))))
+            }
+        })
+    })
 }
 
 /// Run and seal the diagnostic of a declared request; returns the report JSON and the artifact
@@ -89,41 +91,45 @@ fn mechanism_discrepancy_run<'py>(
     source_ids: Vec<String>,
     target_ids: Vec<String>,
     artifact_id: &str,
-) -> (Option<String>, Option<Bound<'py, PyBytes>>, Option<String>) {
+) -> PyResult<(Option<String>, Option<Bound<'py, PyBytes>>, Option<String>)> {
     let request: MechanismDiscrepancyRequestWire = match serde_json::from_str(request_json) {
         Ok(request) => request,
         Err(error) => {
-            return (
+            return Ok((
                 None,
                 None,
                 Some(invalid_json("mechanism_discrepancy.invalid_request", &error.to_string())),
-            );
+            ));
         }
     };
-    let artifact = match run_mechanism_discrepancy(&request, &source_ids, &target_ids) {
-        Ok(artifact) => artifact,
-        Err(error) => {
-            return (
+    let artifact_id = artifact_id.to_owned();
+    let (report, bytes, refusal) = detach_catch(py, move || {
+        let artifact = match run_mechanism_discrepancy(&request, &source_ids, &target_ids) {
+            Ok(artifact) => artifact,
+            Err(error) => {
+                return Ok((
+                    None,
+                    None,
+                    Some(refusal_json(&MechanismDiscrepancyRefusal::from_artifact_error(&error))),
+                ));
+            }
+        };
+        let report = serde_json::to_string(&artifact.report());
+        Ok(match (report, artifact.to_bytes(&artifact_id)) {
+            (Ok(report), Ok(bytes)) => (Some(report), Some(bytes), None),
+            (_, Err(error)) => (
                 None,
                 None,
                 Some(refusal_json(&MechanismDiscrepancyRefusal::from_artifact_error(&error))),
-            );
-        }
-    };
-    let report = serde_json::to_string(&artifact.report());
-    match (report, artifact.to_bytes(artifact_id)) {
-        (Ok(report), Ok(bytes)) => (Some(report), Some(PyBytes::new(py, &bytes)), None),
-        (_, Err(error)) => (
-            None,
-            None,
-            Some(refusal_json(&MechanismDiscrepancyRefusal::from_artifact_error(&error))),
-        ),
-        (Err(error), _) => (
-            None,
-            None,
-            Some(invalid_json("mechanism_discrepancy.invalid_artifact", &error.to_string())),
-        ),
-    }
+            ),
+            (Err(error), _) => (
+                None,
+                None,
+                Some(invalid_json("mechanism_discrepancy.invalid_artifact", &error.to_string())),
+            ),
+        })
+    })?;
+    Ok((report, bytes.map(|bytes| PyBytes::new(py, &bytes)), refusal))
 }
 
 /// Consume artifact bytes by recomputation; returns the report JSON or a structured refusal.
@@ -131,36 +137,43 @@ fn mechanism_discrepancy_run<'py>(
 #[pyo3(signature = (data, expected_identity_json=None))]
 #[doc(hidden)]
 fn mechanism_discrepancy_consume(
+    py: Python<'_>,
     data: &[u8],
     expected_identity_json: Option<&str>,
-) -> (Option<String>, Option<String>) {
+) -> PyResult<(Option<String>, Option<String>)> {
     let expected: Option<MechanismDiscrepancyIdentity> = match expected_identity_json {
         Some(text) => match serde_json::from_str(text) {
             Ok(identity) => Some(identity),
             Err(error) => {
-                return (
+                return Ok((
                     None,
                     Some(invalid_json(
                         "mechanism_discrepancy.invalid_identity",
                         &error.to_string(),
                     )),
-                );
+                ));
             }
         },
         None => None,
     };
-    match consume_mechanism_discrepancy(data, expected.as_ref()) {
-        Ok(artifact) => match serde_json::to_string(&artifact.report()) {
-            Ok(report) => (Some(report), None),
+    detach_catch(py, move || {
+        Ok(match consume_mechanism_discrepancy(data, expected.as_ref()) {
+            Ok(artifact) => match serde_json::to_string(&artifact.report()) {
+                Ok(report) => (Some(report), None),
+                Err(error) => (
+                    None,
+                    Some(invalid_json(
+                        "mechanism_discrepancy.invalid_artifact",
+                        &error.to_string(),
+                    )),
+                ),
+            },
             Err(error) => (
                 None,
-                Some(invalid_json("mechanism_discrepancy.invalid_artifact", &error.to_string())),
+                Some(refusal_json(&MechanismDiscrepancyRefusal::from_artifact_error(&error))),
             ),
-        },
-        Err(error) => {
-            (None, Some(refusal_json(&MechanismDiscrepancyRefusal::from_artifact_error(&error))))
-        }
-    }
+        })
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

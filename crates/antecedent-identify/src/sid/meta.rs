@@ -32,7 +32,7 @@ pub struct MetaTransportQuery {
 }
 /// Checked representation shared by classical and meta-transport derivations.
 /// The scientific scope is explicit in `evidence_setting` and `sources`.
-pub type CheckedTransportDerivation = ClassicalTransportDerivation;
+pub(crate) type CheckedTransportDerivation = ClassicalTransportDerivation;
 
 impl ClassicalTransportDerivation {
     /// Immutable theorem evidence setting (separate from catalog availability).
@@ -399,10 +399,8 @@ pub fn verify_meta_s_hedge(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::v;
     use antecedent_graph::DenseNodeId;
-    fn v(n: u32) -> VariableId {
-        VariableId::from_raw(n)
-    }
     fn query() -> MetaTransportQuery {
         MetaTransportQuery {
             outcomes: Arc::from([v(2)]),

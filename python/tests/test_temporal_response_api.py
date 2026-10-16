@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import antecedent
@@ -12,9 +11,9 @@ from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Sequence, Set, Soft
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 _FIXTURE = load_json(_ROOT / "conformance" / "response" / "temporal_dose_horizon" / "expected.json")
 
 
@@ -234,7 +233,7 @@ def _assert_pinned_block_bands(result: Any) -> None:
     """The seeded run pinned in ``block_band``: every band value to ``band_rtol``.
 
     A determinism pin of the circular-block bootstrap, not a coverage claim
-    (coverage is the ``v19_temporal_response_calibration`` calibration gate).
+    (coverage is the ``temporal_response_calibration`` calibration gate).
     """
     pin = _FIXTURE["contract"]["block_band"]
     rtol = float(_FIXTURE["tolerance"]["band_rtol"])
@@ -378,7 +377,7 @@ def test_temporal_default_lag_matches_pulse():
 
 
 def test_temporal_horizons_reject_bool_and_dynamic_policy():
-    with pytest.raises(CausalValueError, match="positive integers"):
+    with pytest.raises(antecedent.errors.CausalTypeError, match=r"horizons\[0\]"):
         antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[True])
     with pytest.raises(CausalValueError, match="pulse"):
         antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1], policy="dynamic")

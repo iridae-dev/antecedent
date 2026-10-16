@@ -4,10 +4,10 @@ use antecedent_core::{
     TransportQuery, VariableId,
 };
 use antecedent_estimate::{TrialAipwInput, TrialAipwOptions};
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
+use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
 fn err(e: impl std::fmt::Display) -> PyErr {
-    PyValueError::new_err(e.to_string())
+    crate::value_err(e.to_string())
 }
 fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwInput> {
     let wire: String = data.call_method1("_json", (names.to_vec(),))?.extract()?;
@@ -32,7 +32,7 @@ impl PreparedLearnedTrial {
     /// Native four-slot reasoning: the executed result's own view once estimated, else
     /// the not-yet-executed view of the prepared identification (identification is a
     /// property of the accepted certificate, not of a fitted estimate).
-    fn reasoning(&self) -> Option<antecedent_core::ReasoningView> {
+    fn reasoning(&self) -> Option<antecedent_contract::ReasoningView> {
         self.last.as_ref().map(antecedent::LearnedTrialResult::reasoning).or_else(|| {
             self.inner
                 .as_ref()

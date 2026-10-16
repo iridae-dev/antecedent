@@ -3,31 +3,16 @@
 from __future__ import annotations
 
 import math
-import random
 
 import antecedent
 import numpy as np
 import pytest
 
-
-def _confounded_scm(n: int = 600, seed: int = 7):
-    rng = random.Random(seed)
-    z = np.empty(n, dtype=np.float64)
-    t = np.empty(n, dtype=np.float64)
-    y = np.empty(n, dtype=np.float64)
-    for i in range(n):
-        zi = rng.gauss(0.0, 1.0)
-        p = 1.0 / (1.0 + math.exp(-(-0.4 + 0.9 * zi)))
-        ti = 1.0 if rng.random() < p else 0.0
-        yi = 2.0 * ti + zi + rng.gauss(0.0, 0.4)
-        z[i] = zi
-        t[i] = ti
-        y[i] = yi
-    return {"t": t, "y": y, "z": z}, [("z", "t"), ("z", "y"), ("t", "y")]
+from _scm import confounded_scm
 
 
 def test_interactive_vs_standard_effort():
-    data, edges = _confounded_scm()
+    data, edges = confounded_scm(n=600, seed=7)
     interactive = antecedent.analyze(
         data,
         graph=edges,
@@ -58,7 +43,7 @@ def test_interactive_vs_standard_effort():
 
 
 def test_cancel_mid_bootstrap_partial():
-    data, edges = _confounded_scm(n=400, seed=11)
+    data, edges = confounded_scm(n=400, seed=11)
     requested = 80
     full = antecedent.analyze(
         data,
@@ -100,7 +85,7 @@ def test_cancel_mid_bootstrap_partial():
 
 
 def test_progressive_stages_callback_order():
-    data, edges = _confounded_scm(400, 11)
+    data, edges = confounded_scm(400, 11)
     stages: list[str] = []
     point_ate: list[float] = []
 

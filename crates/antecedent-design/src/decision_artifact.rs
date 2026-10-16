@@ -7,19 +7,17 @@
 //! the decision is recomputed and must reproduce the stored result exactly, so
 //! a stored number never needs the producing process to be explained.
 
-use antecedent_core::{
+use antecedent_contract::{
     CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError, ScientificQuantity,
 };
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::distribution_artifact::DistributionArtifact;
-use antecedent_io::error::IoError;
-use antecedent_io::quantity_wire::ScientificQuantityWire;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use antecedent_core::CanonicalWriter;
+use antecedent_io_core::convert::to_cbor;
+use antecedent_io_core::distribution_artifact::DistributionArtifact;
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
+
+use crate::signal::RefusalBuilder;
 
 use crate::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
@@ -287,50 +285,65 @@ pub(crate) fn encode(
     note: &str,
     body: &[u8],
 ) -> Result<Vec<u8>, IoError> {
-    if artifact_id.trim().is_empty() {
-        return Err(IoError::Convert("missing artifact id".into()));
-    }
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: antecedent_io::migrate::STABLE_FORMAT,
-            minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(kind.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-            artifact_id: artifact_id.into(),
-            sections: vec![section_descriptor(BODY_SECTION, "application/cbor", body)],
-            provenance: ProvenanceWire { note: note.into() },
+    encode_section(kind, BODY_SECTION, artifact_id, note, body)
+}
+
+pub(crate) fn encode_section(
+    kind: &str,
+    section: &str,
+    artifact_id: &str,
+    note: &str,
+    body: &[u8],
+) -> Result<Vec<u8>, IoError> {
+    antecedent_io_core::encode_container(
+        &antecedent_io_core::ArtifactContainer {
+            kind,
+            note,
+            max_bytes: MAX_DECISION_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![SectionBytes::new(BODY_SECTION, body.to_vec())],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes)?;
-    if bytes.len() > MAX_DECISION_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
-    }
-    Ok(bytes)
+        &[antecedent_io_core::OutSection {
+            id: section,
+            content_type: antecedent_io_core::CONTENT_CBOR,
+            bytes: body,
+        }],
+    )
+    .map_err(|error| error.into_io("unsupported decision artifact layout"))
 }
 
 pub(crate) fn decode<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     kind: &str,
 ) -> Result<T, IoError> {
-    if bytes.len() > MAX_DECISION_ARTIFACT_BYTES {
-        return Err(IoError::TooLarge);
-    }
-    let mut reader = ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(kind.into())
-        || manifest.sections.len() != 1
-        || manifest.sections[0].id != BODY_SECTION
-    {
-        return Err(IoError::Convert("unsupported decision artifact layout".into()));
-    }
-    if manifest.sections[0].uncompressed_size > MAX_DECISION_ARTIFACT_BYTES as u64 {
-        return Err(IoError::TooLarge);
-    }
-    let section = reader.load_section(BODY_SECTION)?;
-    from_cbor(section.as_bytes())
+    decode_section(bytes, kind, BODY_SECTION)
 }
+
+pub(crate) fn decode_section<T: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    kind: &str,
+    section: &str,
+) -> Result<T, IoError> {
+    let parts =
+        antecedent_io_core::decode_container(kind, MAX_DECISION_ARTIFACT_BYTES, &[section], bytes)
+            .map_err(|error| error.into_io("unsupported decision artifact layout"))?;
+    let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
+        return Err(IoError::Convert("unsupported decision artifact layout".into()));
+    };
+    // The version word is read from the untyped item first, so a newer body
+    // with a changed shape is refused as an unsupported version rather than
+    // as a field error of this reader's layout.
+    antecedent_io_core::decode_with_version(&body, |version: u16| {
+        if version == DECISION_BODY_VERSION {
+            Ok(())
+        } else {
+            Err(IoError::UnsupportedVersion { version: u32::from(version) })
+        }
+    })
+}
+
+/// Version word of every decision artifact body this reader decodes.
+const DECISION_BODY_VERSION: u16 = 1;
 
 pub(crate) fn refused(slot: &str, message: &str) -> IoError {
     IoError::Refused {
@@ -400,20 +413,19 @@ impl DecisionContractArtifact {
 /// BLAKE3 of a source's aligned draws and coordinates, retained by a result.
 #[must_use]
 pub fn source_digest(source: &DistributionArtifact) -> String {
-    let mut hasher = blake3::Hasher::new();
+    let mut hasher = CanonicalWriter::new("antecedent.decision_source.v1");
+    hasher.word(source.quantities().len() as u64);
     for quantity in source.quantities() {
-        hasher.update(format!("{quantity:?}").as_bytes());
+        hasher.bytes(&to_cbor(quantity).unwrap_or_default());
     }
-    hasher.update(&(source.n_draws() as u64).to_le_bytes());
-    for value in source.draws() {
-        hasher.update(&value.to_le_bytes());
-    }
+    hasher.word(source.n_draws() as u64).reals(source.draws());
+    hasher.opt_word(source.metadata().weights.as_ref().map(|w| w.len() as u64));
     if let Some(weights) = &source.metadata().weights {
-        for weight in weights {
-            hasher.update(&weight.to_le_bytes());
+        for &weight in weights {
+            hasher.real(weight);
         }
     }
-    hasher.finalize().to_hex().to_string()
+    hasher.finish_hex()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -791,19 +803,22 @@ pub fn contract_from_json(json: &str) -> Result<DecisionContract, IoError> {
 /// # Errors
 /// A malformed or invalid declaration, as a structured refusal.
 // The refusal is the cold path of a once-per-declaration check; boxing would not pay.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
 pub fn contract_from_json_refusal(
     json: &str,
-) -> Result<DecisionContract, antecedent_core::ExternalRefusal> {
-    let malformed = |why: String| antecedent_core::ExternalRefusal {
-        code: antecedent_core::reason_code!("invalid_argument"),
-        stage: "declare",
-        detail: "decision_contract.invalid_declaration".to_owned(),
-        offending: Some(why),
-        expected: None,
-        supplied: None,
-        capability: None,
-        remedy: Some("declare the contract with the documented fields"),
+) -> Result<DecisionContract, antecedent_contract::ExternalRefusal> {
+    let malformed = |why: String| {
+        RefusalBuilder::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            "declare",
+            "decision_contract.invalid_declaration",
+        )
+        .offending(why)
+        .remedy("declare the contract with the documented fields")
+        .build()
     };
     if json.len() > MAX_DECISION_ARTIFACT_BYTES {
         return Err(malformed("declaration is too large".to_owned()));
@@ -838,16 +853,14 @@ pub fn result_to_json(
 
 /// BLAKE3 of a mean source's coordinates and means.
 #[must_use]
-pub fn mean_source_digest(source: &MeanSource) -> String {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"antecedent.decision_mean_source.v1");
+pub(crate) fn mean_source_digest(source: &MeanSource) -> String {
+    let mut hasher = CanonicalWriter::new("antecedent.decision_mean_source.v1");
+    hasher.word(source.coordinates.len() as u64);
     for quantity in &source.coordinates {
-        hasher.update(format!("{quantity:?}").as_bytes());
+        quantity.write_canonical(&mut hasher);
     }
-    for value in &source.means {
-        hasher.update(&value.to_le_bytes());
-    }
-    hasher.finalize().to_hex().to_string()
+    hasher.reals(&source.means);
+    hasher.finish_hex()
 }
 
 /// The JSON form of a result computed from a mean source, bound to the mean

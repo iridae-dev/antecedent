@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use crate::ids::VariableId;
 use crate::intervention::{Intervention, TemporalPolicy};
 use crate::value::Value;
@@ -28,6 +30,9 @@ pub struct TemporalEffectQuery {
     pub max_history_lag: Option<u32>,
     /// Target population.
     pub target_population: TargetPopulation,
+    /// Effect modifiers. Empty for an unconditional pulse or sustained effect.
+    /// A non-empty set is a temporal conditional effect on the same policy.
+    pub effect_modifiers: Arc<[VariableId]>,
 }
 
 impl TemporalEffectQuery {
@@ -43,6 +48,7 @@ impl TemporalEffectQuery {
             horizon_steps: 1,
             max_history_lag: None,
             target_population: TargetPopulation::AllObserved,
+            effect_modifiers: Arc::from([]),
         }
     }
 
@@ -63,7 +69,15 @@ impl TemporalEffectQuery {
             horizon_steps: 1,
             max_history_lag: None,
             target_population: TargetPopulation::AllObserved,
+            effect_modifiers: Arc::from([]),
         }
+    }
+
+    /// Condition the pulse or sustained effect on these modifiers.
+    #[must_use]
+    pub fn with_effect_modifiers(mut self, modifiers: impl Into<Arc<[VariableId]>>) -> Self {
+        self.effect_modifiers = modifiers.into();
+        self
     }
 
     /// Set outcome evaluation horizon in time steps.
@@ -108,6 +122,15 @@ impl TemporalEffectQuery {
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.treatment == self.outcome {
             return Err(QueryError::TreatmentEqualsOutcome { id: self.treatment });
+        }
+        if self
+            .effect_modifiers
+            .iter()
+            .any(|modifier| *modifier == self.treatment || *modifier == self.outcome)
+        {
+            return Err(QueryError::InvalidIntervention(
+                "a temporal conditional modifier cannot be the treatment or the outcome".into(),
+            ));
         }
         if self.horizon_steps == 0 {
             return Err(QueryError::NonPositiveHorizon);

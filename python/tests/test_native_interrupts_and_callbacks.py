@@ -31,6 +31,8 @@ def test_sigint_interrupts_a_running_native_discovery():
     Before the interrupt watcher, the GIL-released run never returned to CPython's signal
     machinery, so the KeyboardInterrupt only surfaced after the whole discovery finished.
     """
+    if signal.getsignal(signal.SIGINT) is signal.SIG_IGN:
+        pytest.skip("SIGINT is ignored (background job): Python never raises KeyboardInterrupt")
     names, columns = _static()
 
     def slow_independent(_columns, queries):
@@ -165,3 +167,39 @@ def test_seed_governs_a_mechanism_that_accepts_an_rng():
     c = np.asarray(_do(_Seeded(), seed=8).draws)
     np.testing.assert_array_equal(a, b)
     assert not np.array_equal(a, c)
+
+
+def test_a_long_native_estimator_lets_other_python_threads_run():
+    """`exact_randomization_test` enumerates 2**20 allocations; the GIL must not be held for it.
+
+    A busy counter thread runs at some rate while the main thread sleeps. During one native call
+    it must keep a comparable share of that rate; a call that held the GIL would starve it down
+    to at most a single interpreter time slice.
+    """
+    progress = [0]
+    stop = threading.Event()
+
+    def spin():
+        while not stop.is_set():
+            progress[0] += 1
+
+    worker = threading.Thread(target=spin, daemon=True)
+    worker.start()
+    try:
+        time.sleep(0.05)
+        start = progress[0]
+        time.sleep(0.2)
+        rate = (progress[0] - start) / 0.2
+        assert rate > 0
+
+        rng = np.random.default_rng(3)
+        outcome = rng.normal(size=20)
+        assignment = [bool(i % 2) for i in range(20)]
+        start = progress[0]
+        began = time.monotonic()
+        _native.exact_randomization_test(outcome, assignment, np.full(20, 0.5))
+        elapsed = time.monotonic() - began
+        assert (progress[0] - start) > 0.3 * rate * elapsed
+    finally:
+        stop.set()
+        worker.join()

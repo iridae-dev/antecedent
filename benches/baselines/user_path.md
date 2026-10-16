@@ -1,4 +1,5 @@
-# User-path jobs (1.11 P1)
+<!-- generated from benches/baselines/baselines.toml (user_path); do not edit -->
+# User-path jobs
 
 Established: 2026-09-19 (the date this file was first committed; the measurement date was not written down)
 Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
@@ -31,7 +32,7 @@ Jobs (default user path: `ExecutionContext::production_default`, published inter
 
 Recorded on each run (stderr): wall time, `copy_count`, `bytes_borrowed`, `exec.identify.cached` hits, `max_threads`. Peak RSS is local (`/usr/bin/time -l`).
 
-Full 10⁴ / 10⁵ numbers set 1.11 / 2.0 sitting-time budgets. They do not replace `hot_paths.md`.
+Full 10⁴ / 10⁵ numbers set the sitting-time budgets. They do not replace `hot_paths.md`.
 
 ## Profile poles (local)
 
@@ -41,5 +42,5 @@ P4 hunts only what those profiles name. Known leftovers after this cut:
 
 - GAC candidate enumeration is still per-call; ordinary ID already memos `SubproblemKey`. Inspect/capability must not search (pinned). User graphs that never hit the cap of 40 do not pay a memo miss.
 - `PY_DEFAULT_CACHE_MAX_BYTES` (4 MB) is on; `CacheBudget` refuses (`StateError::CacheBudget`) rather than growing into OOM.
-- `arch_simd_available()` stays false. No `simd-runtime` unless a profiled path matches scalar tests bit-for-bit.
+- No architecture-specific kernel is compiled in. No `simd-runtime` unless a profiled path matches scalar tests bit-for-bit.
 - Arrow CDI borrow is the ingest win; pandas/dict `as_columns` stays the explicit copy.

@@ -46,7 +46,7 @@ impl PySourceEvidence {
                 "original response has no semantic coordinates",
             )
         })?;
-        let labels = antecedent_core::ResponseCoordinateLabels {
+        let labels = antecedent_contract::ResponseCoordinateLabels {
             outcome_units: &first.units,
             population_id: &first.population_id,
             transform_id: &first.transform_id,
@@ -99,8 +99,12 @@ impl PySourceEvidence {
         }
         let fresh = Self::from_claim_named(actual, self.inner.artifact_id())?;
         self.inner.require_same_source(&fresh.inner).map_err(error)?;
-        let executed =
-            actual.authority.result.executed_contract.as_ref().expect("issued executed contract");
+        let executed = actual.authority.result.executed_contract.as_ref().ok_or_else(|| {
+            invalid(
+                "source_evidence.source_encoding_failed",
+                "issued execution has no executed contract",
+            )
+        })?;
         let execution = antecedent_io::execution_digest(
             &antecedent_io::execution_identity_from_context(&actual.authority.context),
         )
@@ -125,7 +129,7 @@ impl PySourceEvidence {
                 "invalid semantic coordinate declaration",
             )
         })?;
-        let quantity = antecedent_core::ScientificQuantity::try_from(wire).map_err(|_| {
+        let quantity = antecedent_contract::ScientificQuantity::try_from(wire).map_err(|_| {
             invalid(
                 "source_evidence.invalid_coordinates",
                 "invalid semantic coordinate declaration",
@@ -192,7 +196,7 @@ fn source_backed_native_mean(
     let coordinates = wire
         .coordinates
         .into_iter()
-        .map(antecedent_core::ScientificQuantity::try_from)
+        .map(antecedent_contract::ScientificQuantity::try_from)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|cause| invalid("source_evidence.point_binding_mismatch", cause))?;
     if coordinates.len() != wire.means.len()

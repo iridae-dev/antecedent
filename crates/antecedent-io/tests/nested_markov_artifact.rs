@@ -1,15 +1,11 @@
-//! 2.3A A3 (X4) `x4_nested_fit_replay`: the binary nested-Markov pilot receipt (graph id,
+//! The binary nested-Markov pilot receipt (graph id,
 //! parameterization, regime counts, fit receipt, diagnostics and three separate status
 //! fields) replays independently.
 //!
 //! The oracle is the enumerated latent-variable SCM of the engine's own tests, summed out
 //! by hand; it calls nothing in the code under test. Calibration is unmeasured, the
 //! public interval route stays closed, and nothing here asserts coverage.
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::needless_range_loop,
-    reason = "binary levels and tiny fixed enumerations"
-)]
+#![allow(clippy::cast_precision_loss, reason = "binary levels and tiny fixed enumerations")]
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::nested_markov_binary::{
@@ -178,7 +174,7 @@ fn refusal(bytes: &[u8]) -> IoError {
 }
 
 #[test]
-fn x4_nested_fit_replay_exact_counts_replay_value_for_value_against_the_scm() {
+fn nested_fit_replay_exact_counts_replay_value_for_value_against_the_scm() {
     let law = scm_law(0.4, 0.0);
     let (wire, report) = build(&law);
     assert_eq!(wire.graph_id, NESTED_MARKOV_GRAPH_ID);
@@ -206,7 +202,7 @@ fn x4_nested_fit_replay_exact_counts_replay_value_for_value_against_the_scm() {
 }
 
 #[test]
-fn x4_nested_fit_replay_a_constraint_violating_fit_replays_with_its_residuals() {
+fn nested_fit_replay_a_constraint_violating_fit_replays_with_its_residuals() {
     // A direct X1 -> X4 effect leaves the selected ADMG: the Verma constraint fails and
     // the coordinate-ascent projection is reported, not silently fit.
     let (wire, report) = build(&scm_law(0.4, 0.15));
@@ -228,7 +224,7 @@ fn x4_nested_fit_replay_a_constraint_violating_fit_replays_with_its_residuals() 
 }
 
 #[test]
-fn x4_nested_fit_replay_refuses_resealed_semantic_mutations() {
+fn nested_fit_replay_refuses_resealed_semantic_mutations() {
     let (wire, _) = build(&scm_law(0.4, 0.0));
     // A changed count replays to a different receipt.
     let message = refusal(&resealed(&wire, |w| w.regimes[0].cells[0] += 50_000.0)).to_string();
@@ -272,7 +268,7 @@ fn x4_nested_fit_replay_refuses_resealed_semantic_mutations() {
 }
 
 #[test]
-fn x4_nested_fit_replay_enforces_an_expected_identity() {
+fn nested_fit_replay_enforces_an_expected_identity() {
     let (wire, _) = build(&scm_law(0.4, 0.0));
     let expected = NestedMarkovExpectation {
         premises_digest: Some(wire.premises_digest.clone()),
@@ -300,7 +296,7 @@ fn x4_nested_fit_replay_enforces_an_expected_identity() {
 }
 
 #[test]
-fn x4_nested_fit_replay_refuses_an_unknown_version_foreign_feature_and_claim() {
+fn nested_fit_replay_refuses_an_unknown_version_foreign_feature_and_claim() {
     let (wire, _) = build(&scm_law(0.4, 0.0));
     let mut future = wire.clone();
     future.version = 9;
@@ -320,7 +316,7 @@ fn x4_nested_fit_replay_refuses_an_unknown_version_foreign_feature_and_claim() {
 }
 
 #[test]
-fn x4_nested_fit_replay_refuses_stored_sizes_above_the_consumer_limits() {
+fn nested_fit_replay_refuses_stored_sizes_above_the_consumer_limits() {
     let (wire, _) = build(&scm_law(0.4, 0.0));
     let bytes = wire.export().expect("export");
     let tight = [
@@ -338,7 +334,7 @@ fn x4_nested_fit_replay_refuses_stored_sizes_above_the_consumer_limits() {
 }
 
 #[test]
-fn x4_nested_fit_replay_producer_refuses_outside_the_pilot_without_a_nonidentification_claim() {
+fn nested_fit_replay_producer_refuses_outside_the_pilot_without_a_nonidentification_claim() {
     let mut adjacent = input_for(&scm_law(0.4, 0.0), 1.0e6);
     adjacent.graph.bidirected.clear();
     let error = NestedMarkovArtifactWire::build(&adjacent, &FitOptions::default(), &ctx())

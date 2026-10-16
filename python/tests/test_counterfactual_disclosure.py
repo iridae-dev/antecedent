@@ -81,7 +81,7 @@ def test_interaction_is_estimated_not_disclosed(bayesian):
     assert diagnostic(result, HOMOGENEITY) is None
     assert "(homogeneous mechanism)" not in repr(result.estimate)
     mechanisms = diagnostic(result, "gcm.counterfactual.mechanisms")
-    assert "selected: LinearInteractions" in mechanisms or "selected: LinearSpline" in mechanisms
+    assert "selected=linear_interactions" in mechanisms or "selected=linear_spline" in mechanisms
 
 
 def test_additive_dgp_keeps_every_number_it_reports_today():
@@ -126,7 +126,7 @@ def test_single_parent_outcome_discloses_structural_homogeneity(bayesian):
     text = diagnostic(result, HOMOGENEITY)
     assert text is not None, result.diagnostics
     assert "admits no effect modification" in text
-    assert "LinearGaussian" in text and "for y" in text
+    assert "linear_gaussian" in text and "for y" in text
     assert "(homogeneous mechanism)" in repr(result.estimate)
     assert repr(result.estimate).startswith("<EstimateView mean_ite=")
     assert diagnostic(result, REJECTED) is None

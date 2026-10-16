@@ -8,28 +8,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::match_same_arms, clippy::too_many_lines, clippy::type_complexity)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData};
 use antecedent_graph::{DenseNodeId, NodeRef, TemporalCpdagReview};
-use antecedent_stats::{ConfidenceMethod, FdrAdjustment};
+use antecedent_stats::FdrAdjustment;
 
-use crate::combinations::for_each_combination;
+use crate::combinations::Combinations;
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::{
-    DiscoveryWorkspace, PcmciEngine, mci_conditioning_bounded, parents_of_target,
-    refuse_truncated_mci,
+    CiMemo, CiProbe, DiscoveryWorkspace, LaggedSearch, PcmciEngine, mci_conditioning_bounded,
+    parents_of_target, refuse_truncated_mci,
 };
 use crate::error::DiscoveryError;
 use crate::evidence::{
@@ -138,6 +129,10 @@ impl PcmciPlus {
     /// # Errors
     ///
     /// Engine / orientation failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+    )]
     pub fn run_on_frame(
         &self,
         frame: &LaggedFrame,
@@ -166,12 +161,12 @@ impl PcmciPlus {
         let compiled = self.engine.constraints.compile(variables)?;
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
-            let plan = antecedent_stats::CiPreparationPlan {
-                significance: self.engine.constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
-            workspace.prepared_ci =
-                Some(self.engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+            workspace.prepared_ci = Some(crate::ci::prepare_ci(
+                &*self.engine.ci,
+                &cols,
+                self.engine.constraints.significance,
+                ctx,
+            )?);
         }
 
         // --- Step 1: lagged-only PC1 → B̂⁻ ---
@@ -179,16 +174,9 @@ impl PcmciPlus {
             lagged_pc1_parents(&self.engine, frame, variables, workspace, ctx, threads)?;
 
         // --- Step 2: contemporaneous MCI phase ---
-        let (scored, contemp_sepsets, contemp_tests, truncated) = contemp_mci_phase(
-            &self.engine,
-            frame,
-            variables,
-            &compiled,
-            &lagged_parents,
-            workspace,
-            ctx,
-            None,
-        )?;
+        let search = LaggedSearch { frame, variables, compiled: &compiled };
+        let (scored, contemp_sepsets, contemp_tests, truncated) =
+            contemp_mci_phase(&self.engine, search, &lagged_parents, workspace, ctx, None)?;
         ci_tests += contemp_tests;
         let _ = truncated;
         iterations.push(DiscoveryIteration {
@@ -213,7 +201,7 @@ impl PcmciPlus {
         let mut state = orientation_state_from_sepsets(&node_ids, &sepsets);
 
         // --- Step 3: majority collider (with subset re-tests) ---
-        let majority_delta = orient_majority_colliders(
+        let (majority_delta, majority_tests) = orient_majority_colliders(
             &self.engine,
             frame,
             &lagged_parents,
@@ -222,6 +210,11 @@ impl PcmciPlus {
             workspace,
             ctx,
         )?;
+        ci_tests += majority_tests;
+        iterations.push(DiscoveryIteration {
+            label: Arc::from("pcmci_plus.majority_collider"),
+            ci_tests: majority_tests,
+        });
 
         // --- Step 4: Meek R1–R4 contemporaneous only ---
         let rules: [&dyn OrientationRule<antecedent_graph::TemporalCpdag>; 4] =
@@ -294,6 +287,7 @@ type ScoreMap = HashMap<(VariableId, Lag, VariableId), (f64, f64)>;
 /// # Errors
 ///
 /// Engine / CI failures.
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 pub(crate) fn lagged_pc1_parents(
     engine: &PcmciEngine,
     frame: &LaggedFrame,
@@ -339,17 +333,19 @@ pub(crate) fn lagged_pc1_parents(
 ///
 /// When `search` is `Some`, only links for which `search(link)` is true are tested for
 /// removal; other adjacencies stay as fixed conditioning parents (J-PCMCI+ phases).
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear pass whose steps share local state; splitting it would thread the same locals through helpers"
+)]
 pub(crate) fn contemp_mci_phase(
     engine: &PcmciEngine,
-    frame: &LaggedFrame,
-    variables: &[VariableId],
-    compiled: &crate::constraints::CompiledConstraints,
+    search_space: LaggedSearch<'_>,
     lagged_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
     search: Option<&dyn Fn(LaggedLink) -> bool>,
 ) -> Result<(Vec<ScoredLink>, PcSepsets, u64, u64), DiscoveryError> {
+    let LaggedSearch { frame, variables, compiled } = search_space;
     let alpha = engine.constraints.alpha;
     let max_cond = engine.constraints.max_cond_size;
     let mut adj: AdjMap = HashMap::new();
@@ -455,16 +451,13 @@ pub(crate) fn contemp_mci_phase(
                 debug_assert!(workspace.others.len() <= MAX_MCI_COND);
 
                 let cond = std::mem::take(&mut workspace.others);
-                let result = engine.ci_statistic(
-                    frame,
-                    src,
-                    slag,
+                let link = LaggedLink {
+                    source: src,
+                    source_lag: slag,
                     target,
-                    Lag::CONTEMPORANEOUS,
-                    &cond,
-                    workspace,
-                    ctx,
-                );
+                    target_lag: Lag::CONTEMPORANEOUS,
+                };
+                let result = engine.ci_statistic(frame, link, &cond, workspace, ctx);
                 workspace.others = cond;
                 let (stat, p) = result?;
                 ci_tests += 1;
@@ -525,7 +518,9 @@ pub(crate) fn contemp_mci_phase(
 ///
 /// Matches pinned baseline `contemp_collider_rule='majority'`. Conflicts / ambiguous triples
 /// are recorded out-of-band (`conflict_edges`) and conflicting edges are marked `x-x`.
-#[allow(clippy::too_many_arguments)]
+///
+/// Returns the orientation delta and the number of distinct CI tests the votes ran: the same
+/// `(a, b, S)` test recurs under several centres, and each is run and counted once.
 pub(crate) fn orient_majority_colliders(
     engine: &PcmciEngine,
     frame: &LaggedFrame,
@@ -534,10 +529,11 @@ pub(crate) fn orient_majority_colliders(
     state: &mut OrientationState,
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
-) -> Result<RuleDelta, DiscoveryError> {
+) -> Result<(RuleDelta, u64), DiscoveryError> {
     let alpha = engine.constraints.alpha;
     let max_cond = engine.constraints.max_cond_size;
     let mut delta = RuleDelta { fixed_point: true, ..RuleDelta::default() };
+    let mut memo = CiMemo::default();
     let n = graph.node_count();
 
     let mut contemp_nodes = Vec::new();
@@ -571,16 +567,14 @@ pub(crate) fn orient_majority_colliders(
                 if graph.has_edge(a, b) {
                     continue;
                 }
+                let vote = MajorityVote { a, b, c, max_cond, alpha };
                 let (n_sep, n_with_c) = majority_sep_counts(
                     engine,
                     frame,
                     lagged_parents,
                     graph,
-                    a,
-                    b,
-                    c,
-                    max_cond,
-                    alpha,
+                    &vote,
+                    &mut memo,
                     workspace,
                     ctx,
                 )?;
@@ -591,13 +585,18 @@ pub(crate) fn orient_majority_colliders(
                     state.record_conflict(&mut delta, a, b, "ambiguous_majority");
                     continue;
                 }
+                // Integer counts: a tie (`2 * n_with_c == n_sep`) and a collider
+                // (`2 * n_with_c < n_sep`) are exact. The quotient used in the premise
+                // string is not, but for every `u32` pair it lands on the same side of
+                // 1/2 as the integer test (the gap is at least `1/(2 n_sep)`, far above
+                // an ulp at 0.5).
                 let frac = f64::from(n_with_c) / f64::from(n_sep);
-                if (frac - 0.5).abs() < f64::EPSILON {
+                if n_with_c.saturating_mul(2) == n_sep {
                     state.mark_ambiguous_triple(a, c, b);
                     state.record_conflict(&mut delta, a, b, "ambiguous_majority");
                     continue;
                 }
-                if frac < 0.5 {
+                if majority_is_collider(n_with_c, n_sep) {
                     // Collider at c.
                     if a_und {
                         let premise = format!(
@@ -621,7 +620,7 @@ pub(crate) fn orient_majority_colliders(
             }
         }
     }
-    Ok(delta)
+    Ok((delta, memo.computed))
 }
 
 /// Orient leg `endpoint → c` if the edge is still undirected.
@@ -660,12 +659,16 @@ fn orient_majority_leg(
     Ok(())
 }
 
-fn is_contemp_node(graph: &antecedent_graph::TemporalCpdag, id: DenseNodeId) -> bool {
-    match graph.nodes().get(id.raw() as usize) {
-        Some(NodeRef::Lagged { lag, .. }) => lag.is_contemporaneous(),
-        Some(NodeRef::Context { .. }) => true,
-        _ => false,
-    }
+/// Collider at `c` when strictly fewer than half the separating sets contain it.
+///
+/// See the call in [`orient_majority_colliders`]: this matches `frac < 0.5` for every
+/// `u32` count, and it does not change which edge the vote orients.
+fn majority_is_collider(n_with_c: u32, n_sep: u32) -> bool {
+    u64::from(n_with_c).saturating_mul(2) < u64::from(n_sep)
+}
+
+pub(crate) fn is_contemp_node(graph: &antecedent_graph::TemporalCpdag, id: DenseNodeId) -> bool {
+    crate::orientation::is_contemporaneous_node(graph, id)
 }
 
 fn node_var_lag(
@@ -679,20 +682,31 @@ fn node_var_lag(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn majority_sep_counts(
-    engine: &PcmciEngine,
-    frame: &LaggedFrame,
-    lagged_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
-    graph: &antecedent_graph::TemporalCpdag,
+/// One majority-rule vote on the unshielded triple `a — c — b`: separation subsets of up to
+/// `max_cond` conditioners are accepted at level `alpha`.
+struct MajorityVote {
     a: DenseNodeId,
     b: DenseNodeId,
     c: DenseNodeId,
     max_cond: usize,
     alpha: f64,
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the engine, frame, graph, vote and the run's memo and workspace are independent borrows of one majority pass"
+)]
+fn majority_sep_counts(
+    engine: &PcmciEngine,
+    frame: &LaggedFrame,
+    lagged_parents: &[(VariableId, Vec<(VariableId, Lag)>)],
+    graph: &antecedent_graph::TemporalCpdag,
+    vote: &MajorityVote,
+    memo: &mut CiMemo,
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
 ) -> Result<(u32, u32), DiscoveryError> {
+    let MajorityVote { a, b, c, max_cond, alpha } = *vote;
     let (va, la) = node_var_lag(graph, a)
         .ok_or_else(|| DiscoveryError::unsupported("majority collider: missing node a"))?;
     let (vb, lb) = node_var_lag(graph, b)
@@ -733,60 +747,50 @@ fn majority_sep_counts(
     let mut n_sep = 0u32;
     let mut n_with_c = 0u32;
     let c_key = (vc, lc);
-    let mut scratch = Vec::new();
-    let mut vote_err: Option<DiscoveryError> = None;
-    for q in 0..=max_cond.min(cand.len()) {
-        for_each_combination(&cand, q, &mut scratch, |s| {
-            if vote_err.is_some() {
-                return false;
+    let link = LaggedLink { source: va, source_lag: la, target: vb, target_lag: lb };
+    let mut others = Vec::new();
+    // Whether `c` is in the candidate part `S` of each generated set, in generation order.
+    let s_has_c = std::cell::RefCell::new(std::collections::VecDeque::new());
+    // Reserve room for S *before* building the lagged MCI block (same honesty as the
+    // contemporaneous MCI phase): truncating after appending S would drop lagged parents from
+    // the tail.
+    let sets = (0..=max_cond.min(cand.len())).flat_map(|q| Combinations::new(&cand, q)).map(|s| {
+        let s_budget = MAX_MCI_COND.saturating_sub(s.len());
+        let dropped = mci_conditioning_bounded(
+            link,
+            parents_of_target(lagged_parents, vb),
+            parents_of_target(lagged_parents, va),
+            s_budget,
+            &mut others,
+        );
+        refuse_truncated_mci(dropped)?;
+        s_has_c.borrow_mut().push_back(s.contains(&c_key));
+        let mut merged: Vec<(VariableId, Lag)> = Vec::with_capacity(s.len() + others.len());
+        merged.extend_from_slice(&s);
+        for &x in &others {
+            if !merged.contains(&x) {
+                merged.push(x);
             }
-            // Reserve room for S *before* building the lagged MCI block (same honesty as
-            // the contemporaneous MCI phase): truncating after appending S would drop
-            // lagged parents from the tail.
-            let link = LaggedLink { source: va, source_lag: la, target: vb, target_lag: lb };
-            let s_budget = MAX_MCI_COND.saturating_sub(s.len());
-            let dropped = mci_conditioning_bounded(
-                link,
-                parents_of_target(lagged_parents, vb),
-                parents_of_target(lagged_parents, va),
-                s_budget,
-                &mut workspace.others,
-            );
-            if let Err(e) = refuse_truncated_mci(dropped) {
-                vote_err = Some(e);
-                return false;
-            }
-            let mut merged: Vec<(VariableId, Lag)> =
-                Vec::with_capacity(s.len() + workspace.others.len());
-            merged.extend_from_slice(s);
-            for &x in &workspace.others {
-                if !merged.contains(&x) {
-                    merged.push(x);
-                }
-            }
-            workspace.others = merged;
-            let cond = std::mem::take(&mut workspace.others);
-            let result = engine.ci_statistic(frame, va, la, vb, lb, &cond, workspace, ctx);
-            workspace.others = cond;
-            match result {
-                Ok((_, p)) if p > alpha => {
-                    n_sep = n_sep.saturating_add(1);
-                    if s.contains(&c_key) {
-                        n_with_c = n_with_c.saturating_add(1);
-                    }
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    vote_err = Some(e);
-                    return false;
-                }
-            }
-            true
-        });
-        if let Some(e) = vote_err.take() {
-            return Err(e);
         }
-    }
+        Ok(merged)
+    });
+    engine.scan_ci_sets(
+        CiProbe { frame, link },
+        sets,
+        memo,
+        workspace,
+        ctx,
+        |_cond, _stat, p| {
+            let has_c = s_has_c.borrow_mut().pop_front() == Some(true);
+            if p > alpha {
+                n_sep = n_sep.saturating_add(1);
+                if has_c {
+                    n_with_c = n_with_c.saturating_add(1);
+                }
+            }
+            std::ops::ControlFlow::<()>::Continue(())
+        },
+    )?;
     Ok((n_sep, n_with_c))
 }
 
@@ -999,21 +1003,20 @@ mod tests {
         let collider_engine = PcmciEngine::new()
             .with_ci(Arc::new(SepGivenC { c_col, independent_iff_c_present: false }));
         let mut ws = DiscoveryWorkspace::default();
+        let vote = MajorityVote { a, b, c, max_cond: 1, alpha: 0.05 };
         let (n_sep, n_with_c) = majority_sep_counts(
             &collider_engine,
             &frame,
             &[],
             &graph,
-            a,
-            b,
-            c,
-            1,
-            0.05,
+            &vote,
+            &mut CiMemo::default(),
             &mut ws,
             &ctx,
         )
         .unwrap();
         assert_eq!((n_sep, n_with_c), (1, 0), "collider case: c must never appear in a sepset");
+        assert!(majority_is_collider(n_with_c, n_sep));
         assert!(f64::from(n_with_c) / f64::from(n_sep) < 0.5);
 
         // Chain/fork ground truth: only {c} separates a, b ⇒ vote must conclude
@@ -1021,21 +1024,20 @@ mod tests {
         let chain_engine = PcmciEngine::new()
             .with_ci(Arc::new(SepGivenC { c_col, independent_iff_c_present: true }));
         let mut ws = DiscoveryWorkspace::default();
+        let vote = MajorityVote { a, b, c, max_cond: 1, alpha: 0.05 };
         let (n_sep, n_with_c) = majority_sep_counts(
             &chain_engine,
             &frame,
             &[],
             &graph,
-            a,
-            b,
-            c,
-            1,
-            0.05,
+            &vote,
+            &mut CiMemo::default(),
             &mut ws,
             &ctx,
         )
         .unwrap();
         assert_eq!((n_sep, n_with_c), (1, 1), "chain/fork case: every sepset must contain c");
+        assert!(!majority_is_collider(n_with_c, n_sep));
         assert!(f64::from(n_with_c) / f64::from(n_sep) > 0.5);
     }
 
@@ -1173,9 +1175,18 @@ mod tests {
         let (graph, a, c, b) = unshielded_triple();
         let engine = PcmciEngine::new().with_ci(Arc::new(AlwaysCiError));
         let mut ws = DiscoveryWorkspace::default();
-        let err =
-            majority_sep_counts(&engine, &frame, &[], &graph, a, b, c, 1, 0.05, &mut ws, &ctx)
-                .expect_err("CI failure must not be swallowed as a non-vote");
+        let vote = MajorityVote { a, b, c, max_cond: 1, alpha: 0.05 };
+        let err = majority_sep_counts(
+            &engine,
+            &frame,
+            &[],
+            &graph,
+            &vote,
+            &mut CiMemo::default(),
+            &mut ws,
+            &ctx,
+        )
+        .expect_err("CI failure must not be swallowed as a non-vote");
         let msg = err.to_string();
         assert!(
             msg.contains("forced CI failure") || msg.contains("Internal") || msg.contains("stats"),

@@ -1,16 +1,12 @@
 """Numerical evidence for joint class-aware response identification and execution."""
 
-from pathlib import Path
-
 import antecedent
 import numpy as np
 import pytest
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-_PIN = load_json(
-    Path(__file__).resolve().parents[2] / "conformance/response/class_aware_envelope/joint.json"
-)
+_PIN = load_json(REPO_ROOT / "conformance/response/class_aware_envelope/joint.json")
 
 
 def _data():
@@ -43,7 +39,7 @@ def test_joint_response_identify_prepare_and_estimate(kind, accepted, bayesian):
         "y", intervention=[antecedent.intervention.Set("t", 1), antecedent.intervention.Set("z", 1)]
     )
     identified = antecedent.identify(graph=graph, query=query)
-    assert identified.adjustment_set == ["w"]
+    assert identified.adjustment_set == tuple(["w"])
     kwargs = {"refute": False, "bootstrap": 0, "seed": 7}
     if bayesian:
         kwargs["inference"] = antecedent.Bayesian()

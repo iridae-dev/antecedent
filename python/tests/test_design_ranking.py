@@ -3,7 +3,7 @@
 Oracles are the constants of ``crates/antecedent-design/tests/{evsi,design_ranking,
 design_ranking_artifact}.rs``, derived by hand and not read from the code under test:
 
-* frozen F11/F12/F14 decision: guess a binary state (utility 1 if right), prior 1/2; a signal of
+* frozen decision: guess a binary state (utility 1 if right), prior 1/2; a signal of
   accuracy ``a`` has ``EVSI = a - 1/2``, so accuracies 3/4 and 5/8 give 1/4 and 1/8, ``EVPI = 1/2``,
   and with an identical utility-unit cost 1/10 the net values are 3/20 and 1/40;
 * binomial bet, two-point prior ``{1/4, 3/4}``, ``n = 2``: ``EVSI = 1/16`` and ``EVPI = 1/8``;
@@ -100,7 +100,7 @@ def _rank(candidates: list[dr.Candidate], **kw: object) -> dr.DesignRankingResul
     return dr.rank_designs(candidates, decision=GUESS, signal=_signal(), **kw)  # type: ignore[arg-type]
 
 
-def test_f14_independent_consumer_retains_the_checked_derivation_chain() -> None:
+def test_independent_consumer_retains_the_checked_derivation_chain() -> None:
     ranked = _rank(_frozen(), source_digests=("source-a", "source-b"))
     consumed = dr.consume(ranked.export(), expected_identity=ranked.expectation())
     assert consumed.lineage == ranked.lineage
@@ -141,10 +141,10 @@ def _bet_candidate(cid: str, provider: dr.SignalProvider) -> dr.Candidate:
     return dr.Candidate(cid, 2, provider, cost=0.0, cost_unit="utility")
 
 
-# -- F11: external signal and update ---------------------------------------------------------
+# -- external signal and update ---------------------------------------------------------
 
 
-def test_f11_external_signal_update_has_the_frozen_branch_values() -> None:
+def test_external_signal_update_has_the_frozen_branch_values() -> None:
     # P(signal=1) = 1/2; P(theta=1 | signal=1) = 3/4 and P(theta=1 | signal=0) = 1/4.
     sensitivity_specificity = dr.ExternalLaw.likelihood(
         states=[0.0, 1.0],
@@ -161,7 +161,7 @@ def test_f11_external_signal_update_has_the_frozen_branch_values() -> None:
     assert value.claim == "point_only"
 
 
-def test_f11_native_and_equivalent_external_signal_agree_on_known_truth() -> None:
+def test_native_and_equivalent_external_signal_agree_on_known_truth() -> None:
     native = dr.evsi(_bet(), _bet_candidate("native", dr.BinomialSignal()), signal=_signal())
     external = dr.evsi(
         _bet(), _bet_candidate("external", _external(BET_POSTERIOR)), signal=_signal()
@@ -178,7 +178,7 @@ def test_f11_native_and_equivalent_external_signal_agree_on_known_truth() -> Non
     assert external.provider.request_id == external.request_fingerprint
 
 
-def test_f11_every_update_mode_executes_end_to_end() -> None:
+def test_every_update_mode_executes_end_to_end() -> None:
     ranking = dr.rank_designs(
         [
             _bet_candidate("a_likelihood", _external(BET_LIKELIHOOD)),
@@ -218,9 +218,7 @@ def test_f11_every_update_mode_executes_end_to_end() -> None:
         ({"attested_sample_size": 3}, "signal_provider.sample_size_mismatch"),
     ],
 )
-def test_f11_wrong_candidate_prior_or_sample_id_refuses(
-    kwargs: dict[str, object], detail: str
-) -> None:
+def test_wrong_candidate_prior_or_sample_id_refuses(kwargs: dict[str, object], detail: str) -> None:
     provider = _external(_accuracy_posterior(0.75), **kwargs)
     with pytest.raises(dr.SignalProviderRefusal) as caught:
         dr.evsi(GUESS, dr.Candidate("study", 1, provider), signal=_signal())
@@ -229,7 +227,7 @@ def test_f11_wrong_candidate_prior_or_sample_id_refuses(
     assert caught.value.reason_code == "design_signal_invalid"
 
 
-def test_f11_predictive_law_without_a_coherent_update_refuses() -> None:
+def test_predictive_law_without_a_coherent_update_refuses() -> None:
     incoherent = dr.ExternalLaw.posterior(
         states=[0.0, 1.0],
         statistics=[0.0, 1.0],
@@ -249,7 +247,7 @@ def test_f11_predictive_law_without_a_coherent_update_refuses() -> None:
     assert caught.value.detail == "signal_provider.law_incoherent"
 
 
-def test_f11_a_request_without_lineage_or_independence_refuses() -> None:
+def test_a_request_without_lineage_or_independence_refuses() -> None:
     bad = dr.SignalSpec(
         prior_id="prior-1",
         state=_quantity("state"),
@@ -263,10 +261,10 @@ def test_f11_a_request_without_lineage_or_independence_refuses() -> None:
         dr.evsi(_bet(), _bet_candidate("native", dr.BinomialSignal()))  # no signal request
 
 
-# -- F12: EVSI, EVPI and the cost mapping -----------------------------------------------------
+# -- EVSI, EVPI and the cost mapping -----------------------------------------------------
 
 
-def test_f12_frozen_values_and_net_value_only_with_a_cost_mapping() -> None:
+def test_frozen_values_and_net_value_only_with_a_cost_mapping() -> None:
     separate = _rank([_guess_candidate("study", 0.75, 0.1, "usd")])
     row = separate.candidates[0]
     assert row.evsi == pytest.approx(0.25, abs=1e-12)
@@ -289,7 +287,7 @@ def test_f12_frozen_values_and_net_value_only_with_a_cost_mapping() -> None:
     assert priced.candidates[0].net_value == pytest.approx(0.25 - 0.2, abs=1e-12)
 
 
-def test_f12_currency_without_a_mapping_and_missing_maps_refuse() -> None:
+def test_currency_without_a_mapping_and_missing_maps_refuse() -> None:
     with pytest.raises(dr.CostUnitsRefusal) as caught:
         _rank([_guess_candidate("study", 0.75, 0.1, "usd")], cost_map=UTILITY_MAP)
     assert caught.value.reason_code == "design_cost_units_mismatch"
@@ -305,7 +303,7 @@ def test_f12_currency_without_a_mapping_and_missing_maps_refuse() -> None:
     assert caught.value.detail == "evsi.cost_map_required"
 
 
-def test_f12_changed_terminal_action_set_refuses() -> None:
+def test_changed_terminal_action_set_refuses() -> None:
     other_actions = dr.ExternalLaw.decision_values(
         branch_probabilities=[0.3125, 0.375, 0.3125],
         action_ids=["abstain", "other"],
@@ -325,7 +323,7 @@ def test_f12_changed_terminal_action_set_refuses() -> None:
     assert caught.value.detail == "evsi.decision_values_incoherent"
 
 
-def test_f12_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() -> None:
+def test_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() -> None:
     candidate = _bet_candidate("native", dr.BinomialSignal())
     base = dr.evsi(_bet(), candidate, signal=_signal())
     assert 0.0 <= base.evsi <= base.evpi + 1e-12
@@ -334,7 +332,7 @@ def test_f12_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant()
     assert scaled.evpi == pytest.approx(3.0 * base.evpi, abs=1e-12)
 
 
-def test_f12_gaussian_mean_matches_the_closed_form_and_is_a_point_value() -> None:
+def test_gaussian_mean_matches_the_closed_form_and_is_a_point_value() -> None:
     decision = dr.DesignDecision(
         contract="contract-gauss",
         actions=(dr.ActionUtility("stay", 0.0, 0.0), dr.ActionUtility("treat", 0.0, 1.0)),
@@ -350,7 +348,7 @@ def test_f12_gaussian_mean_matches_the_closed_form_and_is_a_point_value() -> Non
     assert value.natively_replayed and value.replay == "native_exact_recomputed"
 
 
-def test_f12_monte_carlo_value_reports_error_and_makes_no_coverage_claim() -> None:
+def test_monte_carlo_value_reports_error_and_makes_no_coverage_claim() -> None:
     decision = dr.DesignDecision(
         contract="contract-mc",
         actions=(dr.ActionUtility("abstain", 0.0, 0.0), dr.ActionUtility("bet", -0.45, 1.0)),
@@ -377,7 +375,7 @@ def test_f12_monte_carlo_value_reports_error_and_makes_no_coverage_claim() -> No
     assert ranking.calibration == "unmeasured"
 
 
-def test_f12_ties_and_truncated_search_are_reported() -> None:
+def test_ties_and_truncated_search_are_reported() -> None:
     def make(cid: str) -> dr.Candidate:
         return _bet_candidate(cid, dr.BinomialSignal())
 
@@ -392,10 +390,10 @@ def test_f12_ties_and_truncated_search_are_reported() -> None:
     assert cut.search.unevaluated_ids == ("c",)
 
 
-# -- F14: the ranking artifact -----------------------------------------------------------------
+# -- the ranking artifact -----------------------------------------------------------------
 
 
-def test_f14_net_values_are_three_twentieths_and_one_fortieth_in_any_input_order() -> None:
+def test_net_values_are_three_twentieths_and_one_fortieth_in_any_input_order() -> None:
     forward = _rank(_frozen(), cost_map=UTILITY_MAP)
     reversed_ = _rank(list(reversed(_frozen())), cost_map=UTILITY_MAP)
     assert [c.id for c in forward.candidates] == ["cand-1", "cand-2"]
@@ -408,7 +406,7 @@ def test_f14_net_values_are_three_twentieths_and_one_fortieth_in_any_input_order
     assert forward.export() == reversed_.export()
 
 
-def test_f14_export_consume_round_trip_with_retained_expectation() -> None:
+def test_export_consume_round_trip_with_retained_expectation() -> None:
     result = _rank(_frozen(), cost_map=UTILITY_MAP, source_digests=("digest-b", "digest-a"))
     data = result.export()
     consumed = dr.consume(data, expected_identity=result.expectation())
@@ -433,7 +431,7 @@ def test_f14_export_consume_round_trip_with_retained_expectation() -> None:
         assert "not verified" in entry.trust_limit
 
 
-def test_f14_altered_signal_or_update_refuses_replay_against_retained_identities() -> None:
+def test_altered_signal_or_update_refuses_replay_against_retained_identities() -> None:
     original = _rank(_frozen(), cost_map=UTILITY_MAP)
     # Same EVSI (1/4), but updated natively from a supplied likelihood instead of an externally
     # computed posterior: a different update mode, hence a different signal identity.
@@ -475,7 +473,7 @@ def test_f14_altered_signal_or_update_refuses_replay_against_retained_identities
         )
 
 
-def test_f14_overlapping_source_data_and_incompatible_cost_units_refuse() -> None:
+def test_overlapping_source_data_and_incompatible_cost_units_refuse() -> None:
     overlapping = [_guess_candidate("cand-1", 0.75, reused_observations=("obs-prior",))]
     with pytest.raises(dr.SourceOverlapRefusal) as caught:
         _rank(overlapping, cost_map=UTILITY_MAP, prior_observations=("obs-prior",))
@@ -499,7 +497,7 @@ def test_f14_overlapping_source_data_and_incompatible_cost_units_refuse() -> Non
         dr.consume(ranking.export(), expected_identity=dr.Expectation(no_cost_map=True))
 
 
-def test_f14_external_values_retain_attested_values_and_are_never_marked_native() -> None:
+def test_external_values_retain_attested_values_and_are_never_marked_native() -> None:
     ranking = dr.rank_designs(
         [_bet_candidate("values", _external(BET_VALUES))], decision=_bet(), signal=_signal()
     )
@@ -515,7 +513,7 @@ def test_f14_external_values_retain_attested_values_and_are_never_marked_native(
     assert consumed.entries[0].replay == "attested_values_combined"
 
 
-def test_f14_corrupt_or_truncated_bytes_raise_a_serialization_error() -> None:
+def test_corrupt_or_truncated_bytes_raise_a_serialization_error() -> None:
     data = bytearray(_rank(_frozen(), cost_map=UTILITY_MAP).export())
     flipped = bytearray(data)
     flipped[len(flipped) // 2] ^= 0x55
@@ -525,7 +523,7 @@ def test_f14_corrupt_or_truncated_bytes_raise_a_serialization_error() -> None:
         dr.consume(bytes(data[: len(data) // 2]), skip_expectation_check=True)
 
 
-def test_f14_structural_order_is_preserved_when_no_probabilistic_model_is_licensed() -> None:
+def test_structural_order_is_preserved_when_no_probabilistic_model_is_licensed() -> None:
     structural = [
         dr.StructuralCandidate("precise", True, 5, 100),
         dr.StructuralCandidate("noisy", True, 1, 100),

@@ -68,10 +68,14 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
     assert_eq!(prepared.plan().logical.record.estimator.as_deref(), Some("bayesian.robust_ate"));
     drop(builder);
     let result = prepared.estimate(&data, &ctx).unwrap();
-    assert!((one_shot.estimate.ate - result.estimate.ate).abs() < 1e-12);
+    assert!(
+        (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-12
+    );
     assert!(result.posterior.is_some());
     assert!(
-        (result.estimate.ate - spec["truth"].as_f64().unwrap()).abs()
+        (result.estimate.as_effect().unwrap().ate - spec["truth"].as_f64().unwrap()).abs()
             < spec["tolerance"].as_f64().unwrap()
     );
     assert!(
@@ -81,7 +85,10 @@ fn bayesian_robust_ate_all_observed_staged_known_truth() {
     );
     assert!(result.posterior.as_ref().unwrap().assumptions.entries.iter().any(|a| matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == "bayesian.robust_ate.modular_bootstrap_pushforward")));
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-    assert_eq!(refreshed.estimate.ate.to_bits(), result.estimate.ate.to_bits());
+    assert_eq!(
+        refreshed.estimate.as_effect().unwrap().ate.to_bits(),
+        result.estimate.as_effect().unwrap().ate.to_bits()
+    );
     assert_eq!(prepared.checked_bayesian_robust_ate_info().unwrap(), plan);
     let x = data.float64_values(VariableId::from_raw(0)).unwrap();
     let treatment = data.float64_values(VariableId::from_raw(1)).unwrap();

@@ -1,10 +1,10 @@
-# Smoothed dose-response transport (2.2B X4)
+# Smoothed dose-response transport
 
 One cell: a randomized continuous dose from a trial, transported to a covariate-shifted
 target population, reported on a grid of at most 16 doses at one declared bandwidth.
-Record `2.2B.X4.smoothed_dose_response_transport` in `parity/promotion_2_2.toml`;
+Record `transport.smoothed_dose_response` in `parity/promotion.toml`;
 refusal details live in the `dose_response` namespace. The scope summary is in
-[the transport scope guide](../guides/transport-scope.md#smoothed-dose-response-transport-22b-x4).
+[the transport scope guide](../guides/transport-scope.md#smoothed-dose-response-transport).
 
 This page states the estimand, derives the estimator's score and its robustness, and
 lists the numerical checks that verify the derivation. The derivation was written for
@@ -304,7 +304,7 @@ only under the `calibration-internal` feature, which only dev-dependencies enabl
 the calibration harness `crates/antecedent/tests/smoothed_dose_calibration.rs` measures
 it. The two design-specific coverage records have been measured. The public
 route remains closed (`cell_not_licensed`, `dose_response.interval_withheld`)
-for 2.2 despite the measured interval coordinate.
+despite the measured interval coordinate.
 
 A replicate:
 

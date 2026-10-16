@@ -1,0 +1,29 @@
+feature_id = "discovery.sample_split_effect"
+implementation_crate = "antecedent-io"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Discovery on one half of the rows, estimation on the disjoint other half. The single-split
+# idea is cited as the closest published statement; the whole-method coverage statement, the
+# acceptance rule (a finished search with one fully directed graph) and the measured family
+# are original bookkeeping. PC and partial correlation are the standard constraint-based
+# algorithm and test, reimplemented in this repository; backdoor adjustment by the treatment's
+# parents and the ordinary least-squares interval are textbook.
+papers = [
+  { title = "A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
+  { title = "Causation, Prediction, and Search (Spirtes, Glymour, Scheines, 2nd ed., MIT Press, 2000)", doi = "10.7551/mitpress/1754.001.0001", sections = ["the PC algorithm and collider orientation"] },
+]
+implementation_deviations = [
+  "The interval's coverage is a measured property of the whole method over the declared family (linear-Gaussian, causally sufficient, faithful, fully orientable class, five to seven variables). It is not a statement about the graph discovered on one dataset: faithfulness and causal sufficiency are not testable from that dataset.",
+  "A structure with any unresolved edge, an exhausted search bound or conflicting orientation evidence reports no interval. No completion of an equivalence class is part of the measured construction; a declared completion is a different design with no record.",
+  "Discovery and estimation on the same rows are a different construction, measured only as a named boundary under its own key, and never attested.",
+  "The test, threshold, split share and level are fixed to the measured values and are not request fields.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/sample_split_effect_facade.rs",
+  "crates/antecedent/tests/sample_split_effect_calibration.rs",
+  "python/tests/test_sample_split_effect.py",
+]

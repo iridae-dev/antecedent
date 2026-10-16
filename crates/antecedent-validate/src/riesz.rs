@@ -20,7 +20,6 @@
 #![cfg_attr(
     test,
     allow(
-        clippy::cast_possible_truncation,
         clippy::float_cmp,
         reason = "test fixtures compare exact constants and index with small literals"
     )
@@ -111,16 +110,15 @@ impl RieszSensitivity {
         let representer = self.representer_and_ipw(problem, propensity)?;
         if let Some(defect) = representer.defect {
             // Separation makes the representer unbounded: no finite δ certifies robustness.
-            return Ok(RefutationReport {
-                refuter: Arc::from("sensitivity.riesz"),
-                original_ate: problem.original.ate,
-                refuted_ate: problem.original.ate,
-                comparison: 0.0,
-                informative: true,
-                passed: false,
-                failure_condition: Some(Arc::from(defect)),
-                replicates: 0,
-            });
+            return Ok(RefutationReport::builder("sensitivity.riesz")
+                .original_ate(problem.original.ate)
+                .refuted_ate(problem.original.ate)
+                .comparison(0.0)
+                .informative(true)
+                .passed(false)
+                .failure_condition(Some(Arc::from(defect)))
+                .replicates(0)
+                .build());
         }
         let Representer { alpha, y, ipw_ate, .. } = representer;
         // Centring. `|E[αΔ]| ≤ δ·sd(Y)·‖α‖₂` bounds the confounding bias of the ATE functional,
@@ -153,7 +151,7 @@ impl RieszSensitivity {
         }
 
         let mut sorted = self.delta_grid.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(f64::total_cmp);
         let original_sign = centre.signum();
         let mut last_bound_ate = centre;
         let mut explained_away_at = None;
@@ -172,7 +170,6 @@ impl RieszSensitivity {
                 explained_away_at = Some(delta);
                 break;
             }
-            let _ = &y; // y retained for future DR extensions
         }
         // Smallest grid δ that tips the estimate; +∞ if the bound never covers zero.
         let robustness = explained_away_at.unwrap_or(f64::INFINITY);
@@ -181,17 +178,14 @@ impl RieszSensitivity {
             robustness,
             self.pass_threshold,
         );
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.riesz"),
-            original_ate: problem.original.ate,
-            refuted_ate: last_bound_ate,
-            comparison: robustness,
-            informative: true,
+        Ok(crate::sensitivity::grid_report(
+            "sensitivity.riesz",
+            problem.original.ate,
+            last_bound_ate,
+            robustness,
             passed,
-            failure_condition: if passed {
-                None
-            } else {
-                Some(Arc::from(format!(
+            || {
+                format!(
                     "{} (||α||₂={alpha_l2})",
                     crate::sensitivity::grid_failure_text(
                         "Riesz bound: effect",
@@ -199,10 +193,10 @@ impl RieszSensitivity {
                         robustness,
                         self.pass_threshold,
                     )
-                )))
+                )
             },
-            replicates: self.delta_grid.len() as u32,
-        })
+            self.delta_grid.len() as u32,
+        ))
     }
 
     fn representer_and_ipw(
@@ -212,7 +206,11 @@ impl RieszSensitivity {
     ) -> Result<Representer, ValidationError> {
         let cols = fit_diagnostic_propensity(problem, &self.glm_options, true, propensity)?;
         let defect = cols.defect;
-        let y = cols.outcome.expect("outcome requested");
+        let y = cols.outcome.ok_or_else(|| {
+            ValidationError::estimation_msg(
+                "diagnostic propensity fit omitted the requested outcome",
+            )
+        })?;
         let nrows = cols.treatment.len();
         #[allow(
             clippy::float_cmp,

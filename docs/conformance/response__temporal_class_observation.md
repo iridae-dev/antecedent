@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/response/temporal_class_observation`
 
-Licensed 1.3/1.6 observation pairs on `TemporalCpdag` / `TemporalPag`
+Licensed observation pairs on `TemporalCpdag` / `TemporalPag`
 `ResponseCurve` / `InterventionResponse`, including Sequence overlays. The
 observation mechanism is adjusted per completion (IPCW for Frequentist,
 observed-data Gaussian likelihood for Bayesian), and the class-mass contract

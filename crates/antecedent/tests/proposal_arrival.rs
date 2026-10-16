@@ -2,10 +2,10 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use antecedent::analysis::design_ranking::{DesignRankingRequestWire, evaluate};
 use antecedent::analysis::proposal_arrival::{ArrivalArtifact, ArrivalRequest, execute};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
-    DependenceGroup, Environment, EvidenceCatalog, EvidenceKind, ExecutionContext, QuantityRole,
-    RegimeBinding, SamplingDesign, ScientificQuantity, VariableCoordinate, VariableDomain,
-    VariableId,
+    DependenceGroup, Environment, EvidenceCatalog, EvidenceKind, ExecutionContext, RegimeBinding,
+    SamplingDesign, VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_design::{
     DurableStudyCandidate, ExpectedEvidence, RepairFamilyRef, RepairLimits, RepairObjective,
@@ -257,12 +257,10 @@ fn arrival_original_artifact_and_raw_provider_replay_refuses_resealed_changes() 
             _ => forged.request.assignment[0].1 = ValueWire::Int64(0),
         }
         // A producer can reseal bytes, but must reproduce the changed scientific result.
-        forged.identity = blake3::hash(
-            &antecedent_io::convert::to_cbor(&(forged.version, &forged.request, &forged.result))
-                .unwrap(),
-        )
-        .to_hex()
-        .to_string();
+        let sealed =
+            antecedent_io::convert::to_cbor(&(forged.version, &forged.request, &forged.result))
+                .unwrap();
+        forged.identity = antecedent_core::blake3_hex(&sealed);
         assert!(
             detail(
                 ArrivalArtifact::consume(

@@ -1,5 +1,5 @@
-//! Facade-level adapters from the real 2.2 scenario claims into decision atoms
-//! and per-action intervals (2.3 B). Every expected value is derived by hand
+//! Facade-level adapters from the real scenario claims into decision atoms
+//! and per-action intervals. Every expected value is derived by hand
 //! from the laws below.
 //!
 //! The scenarios share `z -> x`, `z -> y`, `x -> y`, `x <-> y` and differ in the
@@ -22,10 +22,10 @@ use antecedent::{
     AdmissibilityRules, AdmissibleDecisionContract, AtomSupport, BoundDecisionContract,
     IdentifiedVerdict, PreparedTransportScenarios, Study, StudyBuilder,
 };
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext,
-    QuantityRole, RegimeId, RegimeKind, ScientificQuantity, SearchLimits, SupportStatus, Value,
-    VariableDomain, VariableId,
+    RegimeId, RegimeKind, SearchLimits, SupportStatus, Value, VariableDomain, VariableId,
 };
 use antecedent_design::decision_adapters::ClaimKind;
 use antecedent_design::decision_contract::{
@@ -46,8 +46,10 @@ use antecedent_identify::{
     },
 };
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
+use antecedent_test_support::near_lt_1e9 as near;
 use common::fixtures::confounded_scm;
 
 const Z: u32 = 0;
@@ -62,10 +64,6 @@ const BUDGET: SearchLimits = SearchLimits { operations: 100_000, depth: 256 };
 
 fn v(i: u32) -> VariableId {
     VariableId::from_raw(i)
-}
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-9
 }
 
 fn scenario(name: &str, selections: &[u32], weight: Option<f64>) -> TransportScenario {
@@ -179,8 +177,7 @@ fn report_under(scenarios: Vec<TransportScenario>, budget: SearchLimits) -> Scen
     let prepared: PreparedTransportScenarios = StudyBuilder::transport_scenarios(
         &set,
         query(),
-        catalog(),
-        budget,
+        antecedent::EvidenceSearch { catalog: catalog(), budget },
         laws(),
         Assignment::from_pairs([(v(X), Value::f64(1.0))]),
         ExactEvaluationLimits::default(),

@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value)]
 #![cfg_attr(
     test,
     allow(
@@ -88,7 +87,7 @@ pub(crate) fn fdr_family_size(scored: &[ScoredLink], fdr: Option<FdrAdjustment>)
 /// those of edges since removed (they are hypotheses in the family). Multi-phase algorithms
 /// must refuse this helper unless they can supply their complete adaptive test family.
 #[must_use]
-pub fn retain_after_family_fdr(
+pub(crate) fn retain_after_family_fdr(
     mut surviving: Vec<ScoredLink>,
     family_p: &[f64],
     family_edge: &[(u32, u32)],
@@ -127,16 +126,6 @@ pub fn retain_after_family_fdr(
     surviving
 }
 
-/// Backward-compatible BH toggle (excludes contemporaneous links, matching pinned baseline).
-#[must_use]
-pub fn threshold_scored_links_bh(
-    scored: Vec<ScoredLink>,
-    fdr: bool,
-    alpha: f64,
-) -> Vec<ScoredLink> {
-    threshold_scored_links(scored, fdr.then(FdrAdjustment::bh), alpha)
-}
-
 /// Keep a contemporaneous undirected adjacency only when **both** directed tests survive.
 ///
 /// pinned baseline symmetrizes lag-0 links: X—Y at τ=0 requires both X→Y and Y→X adjacency
@@ -144,7 +133,7 @@ pub fn threshold_scored_links_bh(
 /// survive, the retained score uses the more conservative (max) p-value and the
 /// corresponding statistic.
 #[must_use]
-pub fn symmetrize_contemporaneous_links(links: Vec<ScoredLink>) -> Vec<ScoredLink> {
+pub(crate) fn symmetrize_contemporaneous_links(links: Vec<ScoredLink>) -> Vec<ScoredLink> {
     let mut lagged = Vec::new();
     let mut contemp: HashMap<(u32, u32), (Option<ScoredLink>, Option<ScoredLink>)> = HashMap::new();
     for s in links {
@@ -209,23 +198,16 @@ fn edge_evidence_from_scored(links: &[ScoredLink], sepsets: &PcSepsets) -> Arc<[
         .collect()
 }
 
-/// Insert scored links into a fresh [`TemporalDag`] and wrap as evidence.
-///
-/// # Errors
-///
-/// Propagates lag-node registration failures.
-pub fn graph_evidence_from_scored(
-    links: Vec<ScoredLink>,
-) -> Result<DagGraphEvidence, DiscoveryError> {
-    graph_evidence_from_scored_with_sepsets(links, &PcSepsets::default())
-}
-
 /// Insert scored links into a fresh [`TemporalDag`] with separating-set evidence.
 ///
 /// # Errors
 ///
 /// Propagates lag-node registration failures.
-pub fn graph_evidence_from_scored_with_sepsets(
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "public signature takes ownership like its siblings; a borrow would be an API change"
+)]
+pub(crate) fn graph_evidence_from_scored_with_sepsets(
     links: Vec<ScoredLink>,
     sepsets: &PcSepsets,
 ) -> Result<DagGraphEvidence, DiscoveryError> {
@@ -258,7 +240,7 @@ pub fn graph_evidence_from_scored_with_sepsets(
 
 /// Wrap an oriented [`TemporalCpdag`] and scored links as CPDAG evidence.
 #[must_use]
-pub fn cpdag_evidence_from_oriented(
+pub(crate) fn cpdag_evidence_from_oriented(
     graph: TemporalCpdag,
     links: Vec<ScoredLink>,
     sepsets: &PcSepsets,
@@ -277,7 +259,7 @@ pub fn cpdag_evidence_from_oriented(
 /// # Errors
 ///
 /// Node / edge insertion failures.
-pub fn cpdag_from_scored_links(
+pub(crate) fn cpdag_from_scored_links(
     links: &[ScoredLink],
     variables: &[VariableId],
     max_lag: u32,
@@ -322,7 +304,8 @@ pub fn cpdag_from_scored_links(
 /// # Errors
 ///
 /// Node / edge insertion failures.
-pub fn pag_from_scored_links(
+#[cfg(test)]
+pub(crate) fn pag_from_scored_links(
     links: &[ScoredLink],
     variables: &[VariableId],
     max_lag: u32,
@@ -367,7 +350,7 @@ pub fn pag_from_scored_links(
 
 /// Wrap an oriented [`TemporalPag`] and scored links as PAG evidence.
 #[must_use]
-pub fn pag_evidence_from_oriented(
+pub(crate) fn pag_evidence_from_oriented(
     graph: TemporalPag,
     links: Vec<ScoredLink>,
     sepsets: &PcSepsets,

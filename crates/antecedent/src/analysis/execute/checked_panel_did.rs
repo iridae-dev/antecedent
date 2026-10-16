@@ -1,41 +1,129 @@
-//! Retained two-period panel DiD execution.
+//! Retained two-period panel `DiD` execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalExprArena, CausalQuery, DerivationTrace, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphClass,
+    IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteFinish, IdentifierId, InferenceMode, Instant, PhysicalExecutionPlan,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, elapsed_ns, finish_identified_execute_with_context,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Clone)]
-pub(crate) struct CheckedPanelDidOperation {
-    query: antecedent_core::PanelDidQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
+pub(crate) type CheckedPanelDidOperation =
+    RandomizedTrialOperation<antecedent_core::PanelDidQuery, ()>;
+
+impl RandomizedTrialQuery for antecedent_core::PanelDidQuery {
+    const OPERATION: &'static str = "CheckedPanelDidOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "panel DiD refresh requires the prepared schema and row order";
 }
 
-impl std::fmt::Debug for CheckedPanelDidOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedPanelDidOperation")
-            .field("query", &self.query)
-            .field("rows", &self.rows)
-            .finish_non_exhaustive()
+/// Per-subject cohort, cluster and outcome by period of a staggered `DiD` panel.
+type StaggeredSubjects<'a> = BTreeMap<&'a str, (i64, &'a str, BTreeMap<i64, f64>)>;
+
+/// Effect, cluster-score SE and interval of a balanced two-period panel `DiD`.
+struct BalancedDidFit {
+    effect: f64,
+    se: f64,
+    groups: usize,
+    interval_supported: bool,
+    interval_95: Option<[f64; 2]>,
+    cluster_counts: [usize; 2],
+}
+
+/// Difference of group-mean change scores with the cluster-score sandwich SE.
+fn balanced_did_fit(
+    changes: Vec<(bool, &str, f64)>,
+    sums: [f64; 2],
+    counts: [usize; 2],
+) -> Result<BalancedDidFit, CausalError> {
+    let means = [sums[0] / counts[0] as f64, sums[1] / counts[1] as f64];
+    let effect = means[1] - means[0];
+    let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
+    let mut clusters: [BTreeSet<&str>; 2] = Default::default();
+    for (treated, cluster, change) in changes {
+        let g = usize::from(treated);
+        clusters[g].insert(cluster);
+        *scores.entry(cluster).or_default() +=
+            (if treated { 1.0 } else { -1.0 }) * (change - means[g]) / counts[g] as f64;
     }
+    if clusters.iter().any(|set| set.len() < 2) {
+        return Err(CausalError::Unsupported {
+            message: "cluster SE requires at least two clusters in each group",
+        });
+    }
+    if !clusters[0].is_disjoint(&clusters[1]) {
+        return Err(CausalError::Unsupported {
+            message: "panel DiD requires clusters nested within treatment groups for cluster inference",
+        });
+    }
+    let g = scores.len();
+    let variance = g as f64 / (g - 1) as f64 * scores.values().map(|v| v * v).sum::<f64>();
+    let se = variance.sqrt();
+    let interval_supported =
+        clusters.iter().all(|set| set.len() >= 30) && se.is_finite() && se > 0.0;
+    let interval_95 = interval_supported.then(|| {
+        let radius = antecedent_stats::normal_ppf(0.975) * se;
+        [effect - radius, effect + radius]
+    });
+    Ok(BalancedDidFit {
+        effect,
+        se,
+        groups: g,
+        interval_supported,
+        interval_95,
+        cluster_counts: [clusters[0].len(), clusters[1].len()],
+    })
+}
+
+/// Descriptive joint pre-trend statistic of an event study, or why it is unavailable.
+fn pretrend_diagnostic(
+    effects: &[antecedent_estimate::staggered_event_study::EventTimeEffect],
+) -> Diagnostic {
+    match antecedent_estimate::staggered_event_study::pretrend_falsification_statistic(effects) {
+        Ok(statistic) => Diagnostic::new(
+            "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "descriptive joint pre-period maximum |effect/cluster SE|={:.8} across {} non-reference cohort-specific leads (minimum {} clusters); no calibrated p-value or cutoff; a small value cannot establish parallel untreated trends",
+                statistic.max_absolute_cluster_studentized_lead,
+                statistic.leads,
+                statistic.min_clusters,
+            ),
+        ),
+        Err(reason) => Diagnostic::new(
+            "diagnostic.quasi.event_study.pretrend_joint_unavailable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "joint pre-period cluster statistic unavailable: {reason}; parallel untreated trends remains a declared assumption"
+            ),
+        ),
+    }
+}
+
+/// Event-time intervals with the cluster counts the support gate reads.
+struct EventTimeIntervals {
+    intervals: Vec<Option<[f64; 2]>>,
+    control_cluster_count: usize,
+    treated_clusters_per_cohort: BTreeMap<i64, usize>,
 }
 
 impl CheckedPanelDidOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::PanelDid(query) = &study.query else {
             return Err(CausalError::Compile {
                 message: "panel DiD operation requires PanelDidQuery".into(),
             });
         };
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -50,38 +138,25 @@ impl CheckedPanelDidOperation {
                 message: "panel DiD currently accepts only the graphless two-period panel query with point estimate and cluster standard error",
             });
         }
-        data.schema()
-            .get(query.outcome)
-            .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        data.schema().get(query.outcome).map_err(CausalError::rejected)?;
         if let Some(nuisance) = &query.augmented {
             for variable in
                 [nuisance.outcome_pre, nuisance.propensity, nuisance.untreated_change_prediction]
             {
-                data.schema()
-                    .get(variable)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                data.schema().get(variable).map_err(CausalError::rejected)?;
             }
         }
         let (plan_id, identifier, estimator) = panel_did_plan_ids(query.design);
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id
-            || physical.logical.record.identifier.as_deref() != Some(identifier)
-            || physical.logical.record.estimator.as_deref() != Some(estimator)
+            || !physical.binding().names_wire(identifier, estimator)
         {
             return Err(CausalError::Compile {
                 message: "panel DiD design differs from its compiled plan".into(),
             });
         }
         let (identification, estimand) = panel_did_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -89,16 +164,7 @@ impl CheckedPanelDidOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "panel DiD refresh requires the prepared schema and row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         let y = match data.column(self.query.outcome).map_err(CausalError::from)? {
             antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
             _ => {
@@ -119,6 +185,88 @@ impl CheckedPanelDidOperation {
         if self.query.design == antecedent_core::DidSamplingDesign::RepeatedCrossSection {
             return self.execute_repeated_cross_section(data, y);
         }
+        let (changes, sums, counts) = self.balanced_subject_changes(y)?;
+        let BalancedDidFit {
+            effect,
+            se,
+            groups: g,
+            interval_supported,
+            interval_95,
+            cluster_counts,
+        } = balanced_did_fit(changes, sums, counts)?;
+        let identification = self.identification.clone();
+        let assumptions = identification.required_assumptions.clone();
+        let estimate = EffectEstimate::new(
+            effect,
+            if interval_supported { se } else { f64::NAN },
+            assumptions,
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        )
+        .with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
+        let started = Instant::now();
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
+                    Diagnostic::new(
+                        "estimate.quasi.panel_did.cluster_se",
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        "two-period subject change-score DiD; cluster score sandwich SE; pointwise normal interval requires 30 independent clusters per arm",
+                    ),
+                    Diagnostic::new(
+                        "identification.quasi.parallel_trends_untestable_two_periods",
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        "parallel untreated trends is a declared identifying assumption; two periods do not permit a pre-trend check",
+                    ),
+                ]).wall_time_ns(elapsed_ns(started)),
+        );
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
+            effect,
+            standard_error: se,
+            interval_95,
+            treated_subjects: counts[1],
+            comparison_subjects: counts[0],
+            clusters: g,
+            uncertainty: Arc::from(if interval_supported {
+                "cluster_robust_normal_interval_independent_clusters"
+            } else {
+                "cluster_robust_standard_error_no_interval"
+            }),
+            event_time_effects: Arc::from([]),
+            event_time_intervals_95: Arc::from([]),
+            augmented: None,
+        });
+        if crate::support::license_if_graphless(
+            panel_did_graphless_key(antecedent_core::DidSamplingDesign::BalancedPanel),
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "cluster",
+                treated: cluster_counts[1],
+                control: cluster_counts[0],
+                interval_95_published: interval_95.is_some(),
+                reported_intervals: usize::from(interval_95.is_some()),
+                ..Default::default()
+            },
+        )
+        .is_some()
+        {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
+        result.treatment = None;
+        result.rebind_interval(false);
+        Ok(result)
+    }
+
+    /// Pre/post change score per subject, with the group change sums and subject counts.
+    #[allow(
+        clippy::type_complexity,
+        reason = "the change tuples and the two group arrays are read only by `balanced_did_fit`"
+    )]
+    fn balanced_subject_changes(
+        &self,
+        y: &[f64],
+    ) -> Result<(Vec<(bool, &str, f64)>, [f64; 2], [usize; 2]), CausalError> {
         #[allow(
             clippy::type_complexity,
             reason = "one-off per-subject accumulator tuple confined to this local map"
@@ -181,215 +329,15 @@ impl CheckedPanelDidOperation {
                 message: "panel DiD requires treated and comparison subjects".into(),
             });
         }
-        let means = [sums[0] / counts[0] as f64, sums[1] / counts[1] as f64];
-        let effect = means[1] - means[0];
-        let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
-        let mut clusters: [BTreeSet<&str>; 2] = Default::default();
-        for (treated, cluster, change) in changes {
-            let g = usize::from(treated);
-            clusters[g].insert(cluster);
-            *scores.entry(cluster).or_default() +=
-                (if treated { 1.0 } else { -1.0 }) * (change - means[g]) / counts[g] as f64;
-        }
-        if clusters.iter().any(|set| set.len() < 2) {
-            return Err(CausalError::Unsupported {
-                message: "cluster SE requires at least two clusters in each group",
-            });
-        }
-        if !clusters[0].is_disjoint(&clusters[1]) {
-            return Err(CausalError::Unsupported {
-                message: "panel DiD requires clusters nested within treatment groups for cluster inference",
-            });
-        }
-        let g = scores.len();
-        let variance = g as f64 / (g - 1) as f64 * scores.values().map(|v| v * v).sum::<f64>();
-        let se = variance.sqrt();
-        let interval_supported =
-            clusters.iter().all(|set| set.len() >= 30) && se.is_finite() && se > 0.0;
-        let interval_95 = interval_supported.then(|| {
-            let radius = antecedent_stats::normal_ppf(0.975) * se;
-            [effect - radius, effect + radius]
-        });
-        let identification = self.identification.clone();
-        let assumptions = identification.required_assumptions.clone();
-        let estimate = EffectEstimate::new(
-            effect,
-            if interval_supported { se } else { f64::NAN },
-            assumptions,
-            antecedent_estimate::OverlapPolicy::ExplicitOverride,
-        )
-        .with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
-        let started = Instant::now();
-        let mut result = finish_identified_execute_with_context(
-            &self.result_context,
-            Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification,
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![
-                    Diagnostic::new(
-                        "estimate.quasi.panel_did.cluster_se",
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        "two-period subject change-score DiD; cluster score sandwich SE; pointwise normal interval requires 30 independent clusters per arm",
-                    ),
-                    Diagnostic::new(
-                        "identification.quasi.parallel_trends_untestable_two_periods",
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        "parallel untreated trends is a declared identifying assumption; two periods do not permit a pre-trend check",
-                    ),
-                ],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
-        );
-        result.panel_did = Some(crate::PanelDidEstimate {
-            effect,
-            standard_error: se,
-            interval_95,
-            treated_subjects: counts[1],
-            comparison_subjects: counts[0],
-            clusters: g,
-            uncertainty: Arc::from(if interval_supported {
-                "cluster_robust_normal_interval_independent_clusters"
-            } else {
-                "cluster_robust_standard_error_no_interval"
-            }),
-            event_time_effects: Arc::from([]),
-            event_time_intervals_95: Arc::from([]),
-            augmented: None,
-        });
-        if crate::support::license_if_graphless(
-            panel_did_graphless_key(antecedent_core::DidSamplingDesign::BalancedPanel),
-            crate::support::GraphlessAssignmentSupport {
-                assignment_unit: "cluster",
-                treated: clusters[1].len(),
-                control: clusters[0].len(),
-                interval_95_published: interval_95.is_some(),
-                reported_intervals: usize::from(interval_95.is_some()),
-                ..Default::default()
-            },
-        )
-        .is_some()
-        {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
-        }
-        result.treatment = None;
-        result.rebind_interval(false);
-        Ok(result)
+        Ok((changes, sums, counts))
     }
 
-    fn execute_augmented_panel(
+    /// Pointwise 95% intervals of post-adoption event-time effects, with the cluster counts that
+    /// license them.
+    fn event_time_intervals(
         &self,
-        data: &TabularData,
-        post: &[f64],
-    ) -> Result<StudyResult, CausalError> {
-        let nuisance = self.query.augmented.as_ref().expect("validated augmented panel");
-        let numeric_column = |variable| -> Result<Vec<f64>, CausalError> {
-            match data.column(variable).map_err(CausalError::from)? {
-                antecedent_data::ColumnView::Float64(column) => {
-                    Ok(column.values.as_slice().to_vec())
-                }
-                _ => Err(CausalError::Unsupported {
-                    message: "augmented panel DiD requires continuous outcome and nuisance columns",
-                }),
-            }
-        };
-        let pre = numeric_column(nuisance.outcome_pre)?;
-        let propensity = numeric_column(nuisance.propensity)?;
-        let prediction = numeric_column(nuisance.untreated_change_prediction)?;
-        let fit = antecedent_estimate::augmented_panel_did::estimate(
-            &pre,
-            post,
-            &self.query.treated,
-            &propensity,
-            &prediction,
-        )
-        .map_err(|message| CausalError::Compile { message: message.into() })?;
-        let estimate = EffectEstimate::new(
-            fit.effect,
-            f64::NAN,
-            self.identification.required_assumptions.clone(),
-            antecedent_estimate::OverlapPolicy::ExplicitOverride,
-        );
-        let mut result = finish_identified_execute_with_context(
-            &self.result_context,
-            Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
-                    "estimate.quasi.augmented_panel_did.supplied_nuisance",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "supplied propensity and untreated-change predictions; cross-fitting is caller-declared, not verified; no calibrated interval",
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
-        );
-        result.panel_did = Some(crate::PanelDidEstimate {
-            effect: fit.effect,
-            // The field is a wire-compatible placeholder, not a standard error.
-            standard_error: 0.0,
-            interval_95: None,
-            treated_subjects: fit.treated_subjects,
-            comparison_subjects: fit.control_subjects,
-            clusters: self.query.clusters.iter().collect::<BTreeSet<_>>().len(),
-            uncertainty: Arc::from("point_only_no_standard_error"),
-            event_time_effects: Arc::from([]),
-            event_time_intervals_95: Arc::from([]),
-            augmented: Some((
-                fit.propensity_min,
-                fit.propensity_max,
-                fit.effective_control_sample_size,
-                nuisance.predictions_cross_fitted,
-            )),
-        });
-        result.treatment = None;
-        Ok(result)
-    }
-
-    fn execute_staggered_event_study(
-        &self,
-        data: &TabularData,
-        y: &[f64],
-    ) -> Result<StudyResult, CausalError> {
-        let effects = antecedent_estimate::staggered_event_study::estimate(
-            y,
-            &self.query.subjects,
-            &self.query.periods,
-            &self.query.cohorts,
-            &self.query.clusters,
-        )
-        .map_err(|message| CausalError::Compile { message })?;
+        effects: &[antecedent_estimate::staggered_event_study::EventTimeEffect],
+    ) -> EventTimeIntervals {
         let control_clusters = self
             .query
             .clusters
@@ -408,7 +356,7 @@ impl CheckedPanelDidOperation {
         }
         let treated_cluster_count =
             |cohort: i64| treated_clusters_per_cohort.get(&cohort).map_or(0, BTreeSet::len);
-        let event_time_intervals_95 = effects
+        let intervals = effects
             .iter()
             .map(|effect| {
                 if effect.event_time < 0 {
@@ -421,135 +369,23 @@ impl CheckedPanelDidOperation {
                 )
             })
             .collect::<Vec<_>>();
-        let representative_index =
-            effects.iter().position(|effect| effect.event_time >= 0).ok_or_else(|| {
-                CausalError::Compile { message: "event study has no post-adoption contrast".into() }
-            })?;
-        let representative = &effects[representative_index];
-        let representative_interval = event_time_intervals_95[representative_index];
-        let any_interval = event_time_intervals_95.iter().any(Option::is_some);
-        // License the post-adoption event-time intervals only when the interval
-        // is actually published and each side clears the independent-cluster
-        // support gate. Capture the support before `effects` moves into the
-        // result. Pre-adoption leads and event time -1 stay point-only.
-        let representative_treated_clusters = treated_cluster_count(representative.cohort);
-        let published_intervals =
-            event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
-        let graphless_licensed = representative_interval.is_some()
-            && crate::support::license_if_graphless(
-                panel_did_graphless_key(antecedent_core::DidSamplingDesign::StaggeredEventStudy),
-                crate::support::GraphlessAssignmentSupport {
-                    assignment_unit: "cluster",
-                    treated: representative_treated_clusters,
-                    control: control_clusters.len(),
-                    interval_95_published: true,
-                    reported_intervals: published_intervals,
-                    ..Default::default()
-                },
-            )
-            .is_some();
-        let pretrend_diagnostic =
-            match antecedent_estimate::staggered_event_study::pretrend_falsification_statistic(
-                &effects,
-            ) {
-                Ok(statistic) => Diagnostic::new(
-                    "diagnostic.quasi.event_study.pretrend_joint_max_cluster_z",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!(
-                        "descriptive joint pre-period maximum |effect/cluster SE|={:.8} across {} non-reference cohort-specific leads (minimum {} clusters); no calibrated p-value or cutoff; a small value cannot establish parallel untreated trends",
-                        statistic.max_absolute_cluster_studentized_lead,
-                        statistic.leads,
-                        statistic.min_clusters,
-                    ),
-                ),
-                Err(reason) => Diagnostic::new(
-                    "diagnostic.quasi.event_study.pretrend_joint_unavailable",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!(
-                        "joint pre-period cluster statistic unavailable: {reason}; parallel untreated trends remains a declared assumption"
-                    ),
-                ),
-            };
-        let estimate = EffectEstimate::new(
-            representative.effect,
-            if representative_interval.is_some() {
-                representative.standard_error
-            } else {
-                f64::NAN
-            },
-            self.identification.required_assumptions.clone(),
-            antecedent_estimate::OverlapPolicy::ExplicitOverride,
-        )
-        .with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
-        let mut result = finish_identified_execute_with_context(
-            &self.result_context,
-            Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![
-                    Diagnostic::new(
-                        if any_interval {
-                            "estimate.quasi.staggered_event_study.pointwise_95"
-                        } else {
-                            "estimate.quasi.staggered_event_study.pointwise_cluster_se"
-                        },
-                        DiagnosticKind::Scientific,
-                        DiagnosticSeverity::Info,
-                        "cohort-specific event times include descriptive preperiod contrasts without intervals; -1 is omitted; supported post-adoption contrasts have separate pointwise 95% cluster intervals, never simultaneous bands; parallel trends are assumed rather than tested",
-                    ),
-                    pretrend_diagnostic,
-                ],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
-        );
-        result.panel_did = Some(crate::PanelDidEstimate {
-            effect: representative.effect,
-            standard_error: representative.standard_error,
-            interval_95: representative_interval,
-            treated_subjects: representative.treated_subjects,
-            comparison_subjects: representative.comparison_subjects,
-            clusters: representative.clusters,
-            uncertainty: Arc::from(if any_interval {
-                "event_time_pointwise_normal_intervals_independent_clusters"
-            } else {
-                "cluster_robust_standard_error_no_interval"
-            }),
-            event_time_effects: effects.into(),
-            event_time_intervals_95: event_time_intervals_95.into(),
-            augmented: None,
-        });
-        if graphless_licensed {
-            result.support_status = Some(crate::support::CellStatus::Licensed);
+        EventTimeIntervals {
+            intervals,
+            control_cluster_count: control_clusters.len(),
+            treated_clusters_per_cohort: treated_clusters_per_cohort
+                .into_iter()
+                .map(|(cohort, clusters)| (cohort, clusters.len()))
+                .collect(),
         }
-        result.treatment = None;
-        result.rebind_interval(false);
-        Ok(result)
     }
 
-    fn execute_staggered_group_time(
+    /// Per-subject outcomes by period, refusing unbalanced panels or unstable cohort and cluster.
+    fn staggered_balanced_subjects(
         &self,
-        data: &TabularData,
         y: &[f64],
-    ) -> Result<StudyResult, CausalError> {
-        let (cohort, period) = self.query.target.expect("checked staggered target");
-        let baseline = cohort - 1;
+        baseline: i64,
+        period: i64,
+    ) -> Result<StaggeredSubjects<'_>, CausalError> {
         let mut all_periods = BTreeSet::new();
         let mut subjects: BTreeMap<&str, (i64, &str, BTreeMap<i64, f64>)> = BTreeMap::new();
         for (i, value) in y.iter().enumerate() {
@@ -584,6 +420,233 @@ impl CheckedPanelDidOperation {
         {
             return Err(CausalError::Compile { message: "staggered DiD requires a balanced panel with the target and immediately preceding adoption period".into() });
         }
+        Ok(subjects)
+    }
+
+    /// Group-by-period outcome sums, counts and clusters, refusing empty or thin cells.
+    #[allow(
+        clippy::type_complexity,
+        reason = "the three cell arrays are read only by the four-cell estimator"
+    )]
+    fn repeated_cross_section_cells(
+        &self,
+        y: &[f64],
+    ) -> Result<([[f64; 2]; 2], [[usize; 2]; 2], [[BTreeSet<&str>; 2]; 2]), CausalError> {
+        let mut subjects = BTreeSet::new();
+        let mut sums = [[0.0; 2]; 2];
+        let mut counts = [[0usize; 2]; 2];
+        let mut cell_clusters: [[BTreeSet<&str>; 2]; 2] = Default::default();
+        for (i, value) in y.iter().enumerate() {
+            if !value.is_finite() {
+                return Err(CausalError::Unsupported {
+                    message: "repeated-cross-section DiD requires complete finite outcomes",
+                });
+            }
+            if !subjects.insert(self.query.subjects[i].as_ref()) {
+                return Err(CausalError::Compile {
+                    message: "repeated-cross-section DiD requires one row per subject".into(),
+                });
+            }
+            let group = usize::from(self.query.treated[i]);
+            let period = usize::from(self.query.post[i]);
+            sums[group][period] += value;
+            counts[group][period] += 1;
+            cell_clusters[group][period].insert(self.query.clusters[i].as_ref());
+        }
+        if counts.iter().flatten().any(|count| *count == 0) {
+            return Err(CausalError::Compile {
+                message: "repeated-cross-section DiD requires observations in all four group-period cells".into(),
+            });
+        }
+        if cell_clusters.iter().flatten().any(|clusters| clusters.len() < 2) {
+            return Err(CausalError::Unsupported {
+                message: "repeated-cross-section cluster SE requires at least two clusters in each group-period cell",
+            });
+        }
+        Ok((sums, counts, cell_clusters))
+    }
+
+    fn execute_augmented_panel(
+        &self,
+        data: &TabularData,
+        post: &[f64],
+    ) -> Result<StudyResult, CausalError> {
+        let Some(nuisance) = self.query.augmented.as_ref() else {
+            return Err(CausalError::Compile {
+                message: "augmented panel DiD requires the augmented nuisance block".into(),
+            });
+        };
+        let numeric_column = |variable| -> Result<Vec<f64>, CausalError> {
+            match data.column(variable).map_err(CausalError::from)? {
+                antecedent_data::ColumnView::Float64(column) => {
+                    Ok(column.values.as_slice().to_vec())
+                }
+                _ => Err(CausalError::Unsupported {
+                    message: "augmented panel DiD requires continuous outcome and nuisance columns",
+                }),
+            }
+        };
+        let pre = numeric_column(nuisance.outcome_pre)?;
+        let propensity = numeric_column(nuisance.propensity)?;
+        let prediction = numeric_column(nuisance.untreated_change_prediction)?;
+        let fit = antecedent_estimate::augmented_panel_did::estimate(
+            &pre,
+            post,
+            &self.query.treated,
+            &propensity,
+            &prediction,
+        )
+        .map_err(|message| CausalError::Compile { message: message.into() })?;
+        let estimate = EffectEstimate::new(
+            fit.effect,
+            f64::NAN,
+            self.identification.required_assumptions.clone(),
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        );
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+                    "estimate.quasi.augmented_panel_did.supplied_nuisance",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "supplied propensity and untreated-change predictions; cross-fitting is caller-declared, not verified; no calibrated interval",
+                )]),
+        );
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
+            effect: fit.effect,
+            // The field is a wire-compatible placeholder, not a standard error.
+            standard_error: 0.0,
+            interval_95: None,
+            treated_subjects: fit.treated_subjects,
+            comparison_subjects: fit.control_subjects,
+            clusters: self.query.clusters.iter().collect::<BTreeSet<_>>().len(),
+            uncertainty: Arc::from("point_only_no_standard_error"),
+            event_time_effects: Arc::from([]),
+            event_time_intervals_95: Arc::from([]),
+            augmented: Some((
+                fit.propensity_min,
+                fit.propensity_max,
+                fit.effective_control_sample_size,
+                nuisance.predictions_cross_fitted,
+            )),
+        });
+        result.treatment = None;
+        Ok(result)
+    }
+
+    fn execute_staggered_event_study(
+        &self,
+        data: &TabularData,
+        y: &[f64],
+    ) -> Result<StudyResult, CausalError> {
+        let effects = antecedent_estimate::staggered_event_study::estimate(
+            y,
+            &self.query.subjects,
+            &self.query.periods,
+            &self.query.cohorts,
+            &self.query.clusters,
+        )
+        .map_err(|message| CausalError::Compile { message })?;
+        let EventTimeIntervals {
+            intervals: event_time_intervals_95,
+            control_cluster_count,
+            treated_clusters_per_cohort,
+        } = self.event_time_intervals(&effects);
+        let treated_cluster_count =
+            |cohort: i64| treated_clusters_per_cohort.get(&cohort).copied().unwrap_or(0);
+        let representative_index =
+            effects.iter().position(|effect| effect.event_time >= 0).ok_or_else(|| {
+                CausalError::Compile { message: "event study has no post-adoption contrast".into() }
+            })?;
+        let representative = &effects[representative_index];
+        let representative_interval = event_time_intervals_95[representative_index];
+        let any_interval = event_time_intervals_95.iter().any(Option::is_some);
+        // License the post-adoption event-time intervals only when the interval
+        // is actually published and each side clears the independent-cluster
+        // support gate. Capture the support before `effects` moves into the
+        // result. Pre-adoption leads and event time -1 stay point-only.
+        let representative_treated_clusters = treated_cluster_count(representative.cohort);
+        let published_intervals =
+            event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
+        let graphless_licensed = representative_interval.is_some()
+            && crate::support::license_if_graphless(
+                panel_did_graphless_key(antecedent_core::DidSamplingDesign::StaggeredEventStudy),
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "cluster",
+                    treated: representative_treated_clusters,
+                    control: control_cluster_count,
+                    interval_95_published: true,
+                    reported_intervals: published_intervals,
+                    ..Default::default()
+                },
+            )
+            .is_some();
+        let pretrend_diagnostic = pretrend_diagnostic(&effects);
+        let estimate = EffectEstimate::new(
+            representative.effect,
+            if representative_interval.is_some() {
+                representative.standard_error
+            } else {
+                f64::NAN
+            },
+            self.identification.required_assumptions.clone(),
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        )
+        .with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
+                    Diagnostic::new(
+                        if any_interval {
+                            "estimate.quasi.staggered_event_study.pointwise_95"
+                        } else {
+                            "estimate.quasi.staggered_event_study.pointwise_cluster_se"
+                        },
+                        DiagnosticKind::Scientific,
+                        DiagnosticSeverity::Info,
+                        "cohort-specific event times include descriptive preperiod contrasts without intervals; -1 is omitted; supported post-adoption contrasts have separate pointwise 95% cluster intervals, never simultaneous bands; parallel trends are assumed rather than tested",
+                    ),
+                    pretrend_diagnostic,
+                ]),
+        );
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
+            effect: representative.effect,
+            standard_error: representative.standard_error,
+            interval_95: representative_interval,
+            treated_subjects: representative.treated_subjects,
+            comparison_subjects: representative.comparison_subjects,
+            clusters: representative.clusters,
+            uncertainty: Arc::from(if any_interval {
+                "event_time_pointwise_normal_intervals_independent_clusters"
+            } else {
+                "cluster_robust_standard_error_no_interval"
+            }),
+            event_time_effects: effects.into(),
+            event_time_intervals_95: event_time_intervals_95.into(),
+            augmented: None,
+        });
+        if graphless_licensed {
+            result.support_status = Some(crate::support::CellStatus::Licensed);
+        }
+        result.treatment = None;
+        result.rebind_interval(false);
+        Ok(result)
+    }
+
+    fn execute_staggered_group_time(
+        &self,
+        data: &TabularData,
+        y: &[f64],
+    ) -> Result<StudyResult, CausalError> {
+        let Some((cohort, period)) = self.query.target else {
+            return Err(CausalError::Compile {
+                message: "staggered group-time DiD requires a cohort and period target".into(),
+            });
+        };
+        let baseline = cohort - 1;
+        let subjects = self.staggered_balanced_subjects(y, baseline, period)?;
         let selected: [Vec<_>; 2] = [
             subjects.values().filter(|unit| unit.0 == 0).collect(),
             subjects.values().filter(|unit| unit.0 == cohort).collect(),
@@ -627,35 +690,16 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.staggered_group_time.cluster_se",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
                     format!(
                         "cohort {cohort}, period {period}, baseline {baseline}; never-treated controls; cluster score sandwich SE; no interval or parallel-trends test"
                     ),
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                )]),
         );
-        result.panel_did = Some(crate::PanelDidEstimate {
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
             effect,
             standard_error: se,
             interval_95: None,
@@ -676,37 +720,7 @@ impl CheckedPanelDidOperation {
         data: &TabularData,
         y: &[f64],
     ) -> Result<StudyResult, CausalError> {
-        let mut subjects = BTreeSet::new();
-        let mut sums = [[0.0; 2]; 2];
-        let mut counts = [[0usize; 2]; 2];
-        let mut cell_clusters: [[BTreeSet<&str>; 2]; 2] = Default::default();
-        for (i, value) in y.iter().enumerate() {
-            if !value.is_finite() {
-                return Err(CausalError::Unsupported {
-                    message: "repeated-cross-section DiD requires complete finite outcomes",
-                });
-            }
-            if !subjects.insert(self.query.subjects[i].as_ref()) {
-                return Err(CausalError::Compile {
-                    message: "repeated-cross-section DiD requires one row per subject".into(),
-                });
-            }
-            let group = usize::from(self.query.treated[i]);
-            let period = usize::from(self.query.post[i]);
-            sums[group][period] += value;
-            counts[group][period] += 1;
-            cell_clusters[group][period].insert(self.query.clusters[i].as_ref());
-        }
-        if counts.iter().flatten().any(|count| *count == 0) {
-            return Err(CausalError::Compile {
-                message: "repeated-cross-section DiD requires observations in all four group-period cells".into(),
-            });
-        }
-        if cell_clusters.iter().flatten().any(|clusters| clusters.len() < 2) {
-            return Err(CausalError::Unsupported {
-                message: "repeated-cross-section cluster SE requires at least two clusters in each group-period cell",
-            });
-        }
+        let (sums, counts, cell_clusters) = self.repeated_cross_section_cells(y)?;
         let group_clusters: [BTreeSet<&str>; 2] = std::array::from_fn(|group| {
             cell_clusters[group][0].union(&cell_clusters[group][1]).copied().collect()
         });
@@ -748,17 +762,7 @@ impl CheckedPanelDidOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification,
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.outcome,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![
+            IdentifiedExecuteFinish::new(&self.physical, identification, self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![
                     Diagnostic::new(
                         "estimate.quasi.repeated_cross_section_did.cluster_se",
                         DiagnosticKind::Scientific,
@@ -771,18 +775,9 @@ impl CheckedPanelDidOperation {
                         DiagnosticSeverity::Info,
                         "parallel untreated trends is a declared identifying assumption; two periods do not permit a pre-trend check",
                     ),
-                ],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                ]).wall_time_ns(elapsed_ns(started)),
         );
-        result.panel_did = Some(crate::PanelDidEstimate {
+        result.payload = crate::result::ResultPayload::PanelDid(crate::PanelDidEstimate {
             effect,
             standard_error: se,
             interval_95,
@@ -874,16 +869,71 @@ impl Study {
     pub(super) fn execute_panel_did(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedPanelDidOperation::checked(self, data, physical)?.execute(data, ctx)
     }
 }
 
-pub(crate) fn panel_did_identification(
-    query: &antecedent_core::PanelDidQuery,
-) -> (IdentificationResult, IdentifiedEstimand) {
+/// Assumptions the augmented panel adds for its supplied nuisance predictions.
+fn push_augmented_did_assumptions(assumptions: &mut antecedent_core::AssumptionSet) {
+    for (id, description) in [
+        (
+            "correct_propensity_model_or_correct_untreated_change_model",
+            "at least one supplied nuisance model is correct",
+        ),
+        (
+            "strict_propensity_overlap",
+            "every supplied propensity lies strictly between zero and one",
+        ),
+        (
+            "supplied_nuisance_predictions_valid_for_evaluation_rows",
+            "nuisance predictions apply to these subject rows; caller-declared cross-fitting is not verified",
+        ),
+    ] {
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Custom {
+                id: Arc::from(id),
+                description: Arc::from(description),
+            },
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+    }
+}
+
+/// Design id and description of the sampling assumption a `DiD` design declares.
+fn did_sampling_assumption(
+    design: antecedent_core::DidSamplingDesign,
+) -> (&'static str, &'static str) {
+    match design {
+        antecedent_core::DidSamplingDesign::BalancedPanel => (
+            "balanced_panel",
+            "each subject contributes exactly one observed outcome in each of two periods",
+        ),
+        antecedent_core::DidSamplingDesign::RepeatedCrossSection => (
+            "repeated_cross_section",
+            "each subject is sampled once and the sampled group composition is comparable across periods",
+        ),
+        antecedent_core::DidSamplingDesign::StaggeredGroupTime => (
+            "balanced_staggered_adoption_group_time",
+            "each subject has every observed period; cohort zero supplies never-treated controls for the selected adoption cohort and post-adoption period",
+        ),
+        antecedent_core::DidSamplingDesign::StaggeredEventStudy => (
+            "balanced_staggered_adoption_event_study",
+            "each subject has every observed period; cohort zero supplies never-treated controls for cohort-specific event-time contrasts",
+        ),
+        antecedent_core::DidSamplingDesign::AugmentedPanel => (
+            "augmented_two_period_panel",
+            "each subject contributes one row with pre and post outcomes and supplied nuisance predictions",
+        ),
+    }
+}
+
+/// Assumptions a `DiD` design declares: the common ones plus its staggered or augmented additions.
+fn panel_did_assumptions(query: &antecedent_core::PanelDidQuery) -> antecedent_core::AssumptionSet {
     let mut assumptions = antecedent_core::AssumptionSet::default();
     for assumption in
         [antecedent_core::Assumption::Consistency, antecedent_core::Assumption::NoInterference]
@@ -941,53 +991,9 @@ pub(crate) fn panel_did_identification(
         });
     }
     if query.design == antecedent_core::DidSamplingDesign::AugmentedPanel {
-        for (id, description) in [
-            (
-                "correct_propensity_model_or_correct_untreated_change_model",
-                "at least one supplied nuisance model is correct",
-            ),
-            (
-                "strict_propensity_overlap",
-                "every supplied propensity lies strictly between zero and one",
-            ),
-            (
-                "supplied_nuisance_predictions_valid_for_evaluation_rows",
-                "nuisance predictions apply to these subject rows; caller-declared cross-fitting is not verified",
-            ),
-        ] {
-            assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::Custom {
-                    id: Arc::from(id),
-                    description: Arc::from(description),
-                },
-                source: antecedent_core::AssumptionSource::UserDeclared,
-                scope: antecedent_core::AssumptionScope::Identification,
-                status: antecedent_core::AssumptionStatus::Declared,
-            });
-        }
+        push_augmented_did_assumptions(&mut assumptions);
     }
-    let (design_id, design_description) = match query.design {
-        antecedent_core::DidSamplingDesign::BalancedPanel => (
-            "balanced_panel",
-            "each subject contributes exactly one observed outcome in each of two periods",
-        ),
-        antecedent_core::DidSamplingDesign::RepeatedCrossSection => (
-            "repeated_cross_section",
-            "each subject is sampled once and the sampled group composition is comparable across periods",
-        ),
-        antecedent_core::DidSamplingDesign::StaggeredGroupTime => (
-            "balanced_staggered_adoption_group_time",
-            "each subject has every observed period; cohort zero supplies never-treated controls for the selected adoption cohort and post-adoption period",
-        ),
-        antecedent_core::DidSamplingDesign::StaggeredEventStudy => (
-            "balanced_staggered_adoption_event_study",
-            "each subject has every observed period; cohort zero supplies never-treated controls for cohort-specific event-time contrasts",
-        ),
-        antecedent_core::DidSamplingDesign::AugmentedPanel => (
-            "augmented_two_period_panel",
-            "each subject contributes one row with pre and post outcomes and supplied nuisance predictions",
-        ),
-    };
+    let (design_id, design_description) = did_sampling_assumption(query.design);
     assumptions.push(antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::Custom {
             id: Arc::from(design_id),
@@ -997,6 +1003,13 @@ pub(crate) fn panel_did_identification(
         scope: antecedent_core::AssumptionScope::Identification,
         status: antecedent_core::AssumptionStatus::Declared,
     });
+    assumptions
+}
+
+pub(crate) fn panel_did_identification(
+    query: &antecedent_core::PanelDidQuery,
+) -> (IdentificationResult, IdentifiedEstimand) {
+    let assumptions = panel_did_assumptions(query);
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.outcome]);
     let empty = arena.empty_var_set();

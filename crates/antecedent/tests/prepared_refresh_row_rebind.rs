@@ -9,6 +9,7 @@ use antecedent::{EstimatorId, RefuteSuite, Study, StudyBuilder};
 use antecedent_core::ExecutionContext;
 use antecedent_io::{AnalysisResultConsumption, consume_analysis_result};
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 use common::fixtures::confounded_scm;
 

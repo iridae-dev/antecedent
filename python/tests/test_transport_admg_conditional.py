@@ -1,4 +1,4 @@
-"""ADMG conditional transport (2.2B B1) from Python.
+"""ADMG conditional transport from Python.
 
 The graph is ``x -> y -> w`` with ``x <-> y``; the target's ``w`` mechanism
 differs from the source's. Every law and the conditional truth

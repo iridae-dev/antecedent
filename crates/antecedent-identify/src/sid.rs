@@ -5,6 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::prepared::AncestorMemo;
 use crate::selection_separation::{
     MutilatedSelection, SubsetSearchEnd, for_each_admissible_subset, independently_separated,
 };
@@ -13,6 +14,7 @@ use antecedent_core::{
     ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
 };
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
+use antecedent_graph::algo::components_by;
 use antecedent_graph::{
     Admg, BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram,
 };
@@ -22,19 +24,21 @@ use std::sync::Arc;
 
 mod conditional;
 mod conditional_witness;
+mod counterfactual_transport;
 pub mod cpdag_completion;
 mod meta;
 mod mixed_source;
 mod mz_transport;
 pub mod scenario_invariance;
 pub mod scenarios;
+mod static_nodes;
 mod study_planning;
 pub mod temporal_initial_shift;
 pub mod temporal_sequence;
 mod z_transport;
 pub use conditional::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
-    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS, ADMG_CONDITIONAL_MEMORY_BYTES,
+    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS,
     BoundConditionalTransportFunctional, ConditionalObstructionCandidate,
     ConditionalObstructionRecord, ConditionalStageRecord, ConditionalTransportDecision,
     ConditionalTransportDerivation, ConditionalTransportInspection, ConditionalTransportQuery,
@@ -42,14 +46,34 @@ pub use conditional::{
 };
 pub use conditional::{ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord};
 pub use conditional_witness::{
-    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, CONDITIONAL_WITNESS_MAX_WORK, ConditionalWitnessCheck,
-    ConditionalWitnessRecord, WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord,
-    WitnessSearch, search_conditional_witness, verify_conditional_witness,
+    CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, ConditionalWitnessCheck, ConditionalWitnessRecord,
+    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
+    search_conditional_witness, verify_conditional_witness,
+};
+pub use counterfactual_transport::{
+    COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS,
+    COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_CELLS,
+    COUNTERFACTUAL_TRANSPORT_MAX_CONTROLLABLE, COUNTERFACTUAL_TRANSPORT_MAX_LEVELS,
+    COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, COUNTERFACTUAL_TRANSPORT_MAX_NODES,
+    COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
+    COUNTERFACTUAL_TRANSPORT_MAX_SUM_CELLS, COUNTERFACTUAL_TRANSPORT_MAX_VARIABLES,
+    COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
+    CounterfactualCitedRegime, CounterfactualFactor, CounterfactualFunctional, CounterfactualItem,
+    CounterfactualItemSource, CounterfactualLevel, CounterfactualMissingRegime,
+    CounterfactualMovedAtom, CounterfactualSum, CounterfactualSymbol,
+    CounterfactualTransportDecision, CounterfactualTransportDerivation,
+    CounterfactualTransportInspection, CounterfactualTransportMissing,
+    CounterfactualTransportObstruction, CounterfactualTransportProblem,
+    CounterfactualTransportQuery, CounterfactualTransportSearchRecord,
+    CounterfactualTransportSource, CounterfactualTransportUnsupported,
+    CounterfactualTransportWitness, CounterfactualTransportWitnessCheck,
+    counterfactual_transport_refusal, identify_counterfactual_transport,
+    replay_counterfactual_transport, verify_counterfactual_transport_witness,
 };
 use meta::{CLASSICAL_SETTING, META_SETTING, validate_meta_sources};
 pub use meta::{
-    CheckedTransportDerivation, MetaSource, MetaTransportQuery, identify_meta_catalog,
-    identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
+    MetaSource, MetaTransportQuery, identify_meta_catalog, identify_meta_transport,
+    verify_meta_s_hedge, verify_meta_transport,
 };
 pub use mixed_source::{
     BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DISTRIBUTIONS,
@@ -58,7 +82,7 @@ pub use mixed_source::{
     MixedSearchInspection, MixedSearchSummary, MixedSourceDecision, MixedSourceDerivation,
     MixedSourceDerivationRecord, MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep,
     MixedStepRecord, ValidatedMixedSourceQuery, bind_mixed_source_catalog, decide_mixed_source,
-    mixed_source_rule_names, render_frontier, render_quantity, validate_mixed_source_query,
+    mixed_source_rule_names, render_quantity, validate_mixed_source_query,
     verify_mixed_source_derivation,
 };
 pub use mz_transport::{
@@ -71,17 +95,16 @@ pub use mz_transport::{
     validate_mz_transport_query, verify_mz_transport_obstruction,
 };
 pub use study_planning::{
-    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_COST_UNITS,
-    STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET,
-    STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure, StudyFactor, StudyPlan,
-    StudyPlanCandidate, StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute, StudyPlanStop,
-    StudyProposal, StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
+    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_PROPOSALS,
+    STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET, STUDY_PLAN_MEMORY_BYTES,
+    STUDY_PLAN_RANKING, StudyBaseFailure, StudyFactor, StudyPlan, StudyPlanCandidate,
+    StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute, StudyPlanStop, StudyProposal,
+    StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
     plan_study_additions,
 };
 pub use z_transport::{
     BoundZTransportFunctional, ComponentFactorization, TwoSourceZTransportComponent,
-    TwoSourceZTransportDecision, TwoSourceZTransportQuery, Z_TRANSPORT_MAX_CONTROLLABLE,
-    Z_TRANSPORT_MAX_FAMILY_REGIMES, Z_TRANSPORT_MAX_OBSERVED, ZExperimentFamilyError,
+    TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZExperimentFamilyError,
     ZFactorObligation, ZProofOperation, ZTransportBudgetKind, ZTransportDecision,
     ZTransportDerivation, ZTransportDerivationRecord, ZTransportLimitsReceipt,
     ZTransportMissingEvidence, ZTransportNotCertifiedInspection, ZTransportNotCertifiedKind,
@@ -91,7 +114,7 @@ pub use z_transport::{
     decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_z_transport,
     identify_z_transport_reporting, intervention_ancestral_treatments,
     intervention_levels_conflict, intervention_mutilated_admg, validate_z_experiment_family,
-    validate_z_transport_query, verify_z_transport_derivation, verify_z_transport_obstruction,
+    validate_z_transport_query, verify_z_transport_derivation,
 };
 
 /// Theoretical query under the classical family of all source experiments.
@@ -200,7 +223,10 @@ impl ClassicalTransportResult {
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Rule {
     Marginal,
@@ -251,7 +277,10 @@ struct ProofStep {
 /// only under the recorded graph identity and are checked before construction.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 pub struct SidStepRecord {
     pub outcomes: Vec<u32>,
     pub interventions: Vec<u32>,
@@ -267,7 +296,10 @@ pub struct SidStepRecord {
 /// It has no causal authority until `from_record_checked` succeeds.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 pub struct SidDerivationRecord {
     pub evidence_setting: String,
     pub outcomes: Vec<u32>,
@@ -549,6 +581,8 @@ struct Engine<'a> {
     diagram: &'a SelectionDiagram,
     query: &'a ClassicalTransportQuery,
     prepared: PreparedAdmg,
+    /// Ancestral closures for this engine. The graph does not store them.
+    ancestors: AncestorMemo,
     /// Topological order, shared so a factorization step borrows no table.
     topo: Arc<[DenseNodeId]>,
     /// Every node, for the meta-source relevance restriction.
@@ -557,7 +591,7 @@ struct Engine<'a> {
     proof: Vec<ProofStep>,
     memo: HashMap<(State, bool), Option<usize>>,
     limits: SidLimits,
-    /// The shared 2.2 budget this engine charges, when it runs under one;
+    /// The shared transport-search budget this engine charges, when it runs under one;
     /// `None` keeps the engine's own [`SidLimits`] accounting.
     shared: Option<&'a mut (dyn SearchCharge + 'a)>,
     /// Depth of this engine's root within the enclosing search, so a nested
@@ -635,6 +669,7 @@ impl<'a> Engine<'a> {
             diagram,
             query,
             prepared,
+            ancestors: AncestorMemo::default(),
             topo,
             all,
             arena: CausalExprArena::new(),
@@ -652,6 +687,14 @@ impl<'a> Engine<'a> {
             source_catalog: None,
             sources: Vec::new(),
         })
+    }
+    fn cached_ancestors(
+        &mut self,
+        seeds: &BitSet,
+        active: &BitSet,
+        ws: &mut GraphWorkspace,
+    ) -> BitSet {
+        self.prepared.ancestors_cached(seeds, active, ws, &mut self.ancestors)
     }
     fn charge(&mut self, depth: usize) -> Result<(), IdentificationError> {
         self.steps = self.steps.saturating_add(1);
@@ -709,7 +752,7 @@ impl<'a> Engine<'a> {
         Ok(set)
     }
     fn vars(&self, set: &BitSet) -> Result<Vec<VariableId>, IdentificationError> {
-        set.to_dense_ids().into_iter().map(|v| self.prepared.dense_to_var(v)).collect()
+        set.iter().map(|v| self.prepared.dense_to_var(v)).collect()
     }
     fn initial(&mut self) -> Result<State, IdentificationError> {
         let mut v = BitSet::with_len(self.diagram.causal_graph().node_count());
@@ -749,7 +792,10 @@ impl<'a> Engine<'a> {
         }
         let variables = self.arena.intern_var_set(self.vars(&v)?);
         let conditioned_on = self.arena.empty_var_set();
-        let intervention = self.arena.intern_intervention_assignments(assignments.iter().cloned());
+        let intervention = crate::intervention_support::intern_assignments(
+            &mut self.arena,
+            assignments.iter().cloned(),
+        )?;
         let population = self.arena.intern_population(Arc::clone(population));
         let kernel = self.arena.intern(ExprNode::Distribution {
             variables,
@@ -853,7 +899,7 @@ impl<'a> Engine<'a> {
         // original complement cannot affect it after those parents are fixed;
         // retaining them would demand irrelevant experimental coordinates.
         let mut interventions = state.x.clone();
-        for node in state.v.to_dense_ids() {
+        for node in state.v.iter() {
             for parent in self.diagram.causal_graph().parents(node) {
                 if !state.v.contains(*parent) {
                     interventions.insert(*parent);
@@ -1040,8 +1086,11 @@ impl<'a> Engine<'a> {
         self.memo.insert((state, source), result);
         Ok(result)
     }
-    #[allow(clippy::if_not_else)] // Keep the pinned pseudocode branch order.
-    #[allow(clippy::too_many_lines)] // One match implementing the pinned recursive algorithm.
+    #[allow(clippy::if_not_else, reason = "Keep the pinned pseudocode branch order")]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "One match implementing the pinned recursive algorithm"
+    )]
     fn solve_body(
         &mut self,
         state: &State,
@@ -1052,7 +1101,7 @@ impl<'a> Engine<'a> {
         let (rule, children, output) = if !state.x.any() {
             (Rule::Marginal, vec![], self.marginal(state.kernel, &difference(&state.v, &state.y))?)
         } else {
-            let ancestors = self.prepared.ancestors_within(&state.y, &state.v, &mut ws);
+            let ancestors = self.cached_ancestors(&state.y, &state.v, &mut ws);
             let mut non_x = difference(&state.v, &state.x);
             let bar = self.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
             non_x.difference_with(&bar);
@@ -1191,7 +1240,10 @@ pub fn verify_classical_transport(
 
 /// [`verify_classical_transport`] charging `meter`, with the checker rooted at
 /// `(depth offset, live bytes)` of the search it verifies for.
-#[allow(clippy::too_many_lines)] // One auditable premise dispatch for the seven pinned rules.
+#[allow(
+    clippy::too_many_lines,
+    reason = "One auditable premise dispatch for the seven pinned rules"
+)]
 fn verify_charged(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -1277,7 +1329,7 @@ fn verify_charged(
                 checker.marginal(state.kernel, &difference(&state.v, &state.y))?
             }
             Rule::Ancestors => {
-                let ancestors = checker.prepared.ancestors_within(&state.y, &state.v, &mut ws);
+                let ancestors = checker.cached_ancestors(&state.y, &state.v, &mut ws);
                 let expected = State {
                     y: state.y.clone(),
                     x: intersection(&state.x, &ancestors),
@@ -1362,7 +1414,7 @@ fn verify_charged(
                     // Figure 5 line 10 fires only after lines 2-4 declined: the
                     // vertices are their own ancestors, nothing is enlargeable,
                     // and both C(D minus X) and C(D) are single components.
-                    let ancestors = checker.prepared.ancestors_within(&state.y, &state.v, &mut ws);
+                    let ancestors = checker.cached_ancestors(&state.y, &state.v, &mut ws);
                     let bar =
                         checker.prepared.ancestors_bar_x(&state.y, &state.v, &state.x, &mut ws);
                     let mut non_x = difference(&state.v, &state.x);
@@ -1519,24 +1571,11 @@ pub(crate) fn graph_signature(diagram: &SelectionDiagram) -> String {
             other => format!("{other:?}"),
         })
         .collect::<Vec<_>>();
-    let mut directed = Vec::new();
-    let mut bidirected = Vec::new();
-    for i in 0..graph.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).expect("graph capacity"));
-        directed.extend(graph.children(from).iter().map(|to| (i, to.as_usize())));
-        bidirected.extend(
-            graph
-                .bidirected_neighbors(from)
-                .iter()
-                .filter(|to| to.as_usize() > i)
-                .map(|to| (i, to.as_usize())),
-        );
-    }
-    directed.sort_unstable();
-    bidirected.sort_unstable();
+    let directed = graph.directed_edge_pairs_sorted();
+    let bidirected = graph.bidirected_edge_pairs_sorted();
     let mut selections = diagram.selection_targets().iter().map(|v| v.raw()).collect::<Vec<_>>();
     selections.sort_unstable();
-    let edges = |list: &[(usize, usize)]| {
+    let edges = |list: &[(u32, u32)]| {
         list.iter().map(|(a, b)| format!("{a}-{b}")).collect::<Vec<_>>().join(",")
     };
     format!(
@@ -1779,7 +1818,10 @@ pub struct SHedgeCertificate {
 /// Untrusted portable forest edge subgraph, in original variable coordinates.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 pub struct SelectionForestRecord {
     pub nodes: Vec<u32>,
     pub directed: Vec<(u32, u32)>,
@@ -1814,7 +1856,10 @@ impl SelectionForestRecord {
 /// query, graph and full-source-experimental evidence scope must all check.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-#[allow(missing_docs)]
+#[allow(
+    missing_docs,
+    reason = "wire record whose field names are the format and are documented on the domain types"
+)]
 pub struct SHedgeRecord {
     pub evidence_setting: String,
     pub source: String,
@@ -1889,10 +1934,13 @@ impl Engine<'_> {
     ) -> Result<Option<SHedgeCertificate>, IdentificationError> {
         let graph = self.diagram.causal_graph();
         let small = difference(&state.v, &state.x);
+        // Shortest directed distance to `Y` through parents inside `within`: a layered BFS
+        // that needs the hop count of every node, so it is not a closure (which keeps
+        // only membership) and stays here.
         let distances = |within: &BitSet| {
             let mut distances = vec![usize::MAX; graph.node_count()];
             let mut queue = std::collections::VecDeque::new();
-            for root in state.y.to_dense_ids() {
+            for root in state.y.iter() {
                 distances[root.as_usize()] = 0;
                 queue.push_back(root);
             }
@@ -1910,7 +1958,7 @@ impl Engine<'_> {
         let large_distance = distances(&state.v);
         let mut directed = Vec::new();
         let mut bidirected = Vec::new();
-        for node in state.v.to_dense_ids() {
+        for node in state.v.iter() {
             if self.ctx.cancellation.is_cancelled() {
                 return Err(IdentificationError::Cancelled);
             }
@@ -1982,7 +2030,7 @@ impl Engine<'_> {
 ///
 /// # Errors
 /// Invalid witness, different evidence/query/graph scope, or cancellation.
-#[allow(clippy::too_many_lines)] // Keep the independent forest conditions together.
+#[allow(clippy::too_many_lines, reason = "Keep the independent forest conditions together")]
 pub fn verify_s_hedge(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -2077,23 +2125,10 @@ pub fn verify_s_hedge(
             adjacency[j].push(i);
         }
         // One bidirected component must span every node.
-        let mut reached = vec![false; nodes.len()];
-        reached[0] = true;
-        let mut pending = vec![0usize];
-        let mut count = 1usize;
-        while let Some(node) = pending.pop() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(IdentificationError::Cancelled);
-            }
-            for &next in &adjacency[node] {
-                if !reached[next] {
-                    reached[next] = true;
-                    count += 1;
-                    pending.push(next);
-                }
-            }
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
         }
-        if count != nodes.len() {
+        if components_by(nodes.len(), |i| adjacency[i].iter().copied()).len() != 1 {
             return Err(bad());
         }
         let mut roots = nodes
@@ -2140,307 +2175,10 @@ pub fn verify_s_hedge(
     Ok(())
 }
 
-/// Result of explicitly bounded catalog-aware alternative search.
-#[derive(Clone, Debug)]
-pub enum CatalogTransportResult {
-    /// A checked derivation with available supplied-catalog leaves.
-    Identified(Box<BoundTransportFunctional>),
-    /// The searched strategies did not bind. This is not an impossibility proof.
-    MissingEvidence {
-        /// Strategies attempted, in deterministic order.
-        searched: Arc<[Arc<str>]>,
-        /// Per-strategy unmet obligations; no claim to exhaustive formula search.
-        obligations: Arc<[Arc<str>]>,
-    },
-    /// Neither bounded strategy produced a derivation; no catalog impossibility claim.
-    NotCertified {
-        /// Strategies attempted, in deterministic order.
-        searched: Arc<[Arc<str>]>,
-        /// Scope notes for each attempted strategy.
-        obligations: Arc<[Arc<str>]>,
-    },
-}
-
-impl CatalogTransportResult {
-    /// Identification status in the shared transport vocabulary
-    /// ([`TransportOutcomeKind::IDENTIFICATION`](antecedent_core::TransportOutcomeKind::IDENTIFICATION)).
-    #[must_use]
-    pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
-        match self {
-            Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
-            Self::MissingEvidence { .. } => antecedent_core::TransportOutcomeKind::MissingEvidence,
-            Self::NotCertified { .. } => antecedent_core::TransportOutcomeKind::NotCertified,
-        }
-    }
-}
-
-/// Search stages of catalog-aware transport identification, in the order they are tried.
-const SEARCH_STAGES: [&str; 3] =
-    ["target_first_sid", "pretreatment_standardization", "catalog_available_source_first_sid"];
-
-/// The first `count` search stages, as recorded on a result.
-fn searched_stages(count: usize) -> Arc<[Arc<str>]> {
-    SEARCH_STAGES.iter().take(count).map(|&stage| Arc::from(stage)).collect()
-}
-
-/// Pretreatment candidates: non-descendants of the treatments among the remaining nodes.
-fn pretreatment_candidates(
-    diagram: &SelectionDiagram,
-    state: &State,
-    x_nodes: &[DenseNodeId],
-) -> Vec<DenseNodeId> {
-    let mut reach = GraphWorkspace::default();
-    difference(&difference(&state.v, &state.x), &state.y)
-        .to_dense_ids()
-        .into_iter()
-        .filter(|z| {
-            !x_nodes.iter().any(|x| diagram.causal_graph().reaches_with(*x, *z, &mut reach))
-        })
-        .collect()
-}
-
-/// The obligation recorded when the pretreatment-standardization search finds no derivation.
-fn pretreatment_obligation(end: SubsetSearchEnd, steps: usize, n_candidates: usize) -> String {
-    if end == SubsetSearchEnd::Capped {
-        format!(
-            "pretreatment standardization search stopped after {steps} candidate subsets of {n_candidates} pretreatment covariates; inconclusive"
-        )
-    } else {
-        "searched pretreatment standardizations: required supplied source conditional or target marginal is missing".to_owned()
-    }
-}
-
-/// One-step derivation that standardizes over `over`, or transports directly when it is empty.
-fn standardization_derivation(
-    diagram: &SelectionDiagram,
-    query: &ClassicalTransportQuery,
-    arena: CausalExprArena,
-    state: &State,
-    output: ExprId,
-    over: Vec<VariableId>,
-) -> ClassicalTransportDerivation {
-    ClassicalTransportDerivation {
-        query: query.clone(),
-        graph_signature: graph_signature(diagram),
-        selection_targets: diagram.selection_targets().into(),
-        arena,
-        root: output,
-        root_step: 0,
-        sources: Vec::new(),
-        proof: vec![ProofStep {
-            state: state.clone(),
-            rule: if over.is_empty() { Rule::DirectTransport } else { Rule::Standardize },
-            children: Vec::new(),
-            output,
-            parameters: over,
-        }],
-    }
-}
-
-/// Try target-first sID, then catalog-aware source/target recursive choices.
-/// This bounded two-strategy search does not inherit classical completeness.
-///
-/// # Errors
-/// Invalid input, exhausted shared search budget, or cancellation. Never a negative theorem claim.
-pub fn identify_catalog_transport(
-    diagram: &SelectionDiagram,
-    query: &ClassicalTransportQuery,
-    catalog: &antecedent_core::EvidenceCatalog,
-    limits: SidLimits,
-    ctx: &ExecutionContext,
-) -> Result<CatalogTransportResult, IdentificationError> {
-    identify_catalog_transport_metered(diagram, query, catalog, SidMeter::Limits(limits), ctx)
-}
-
-/// [`identify_catalog_transport`] charging `meter`: its own [`SidLimits`], or a
-/// shared budget that the recursive searches and every verification replay
-/// charge. The pretreatment-standardization subset search keeps its own count
-/// of `meter.limits().operations` separation tests (its exhaustion is an
-/// obligation); under a shared budget each of those tests is also charged to
-/// it, and each derivation it finds is verified under `meter`.
-///
-/// # Errors
-/// As [`identify_catalog_transport`]; under a shared budget, its stop.
-#[allow(clippy::too_many_lines)] // one linear pipeline: source pass, then enlargement, then catalog search
-pub(crate) fn identify_catalog_transport_metered(
-    diagram: &SelectionDiagram,
-    query: &ClassicalTransportQuery,
-    catalog: &antecedent_core::EvidenceCatalog,
-    meter: SidMeter<'_>,
-    ctx: &ExecutionContext,
-) -> Result<CatalogTransportResult, IdentificationError> {
-    catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
-    let limits = meter.limits();
-    let mut engine = Engine::new_metered(diagram, query, meter, ctx)?;
-    let state = engine.initial()?;
-    let mut obligations = Vec::<Arc<str>>::new();
-    let mut had_derivation = false;
-    let mut result = engine.solve(state.clone(), false, 0)?;
-    if result.is_none() {
-        result = engine.solve(state.clone(), true, 0)?;
-    }
-    for strategy in 0..2 {
-        if let Some(root_step) = result {
-            had_derivation = true;
-            let derivation = engine.solved_derivation(root_step, Vec::new())?;
-            match derivation.bind_catalog_validated(catalog) {
-                Ok(mut bound) => {
-                    bound.searched = searched_stages(if strategy == 0 { 1 } else { 3 });
-                    return Ok(CatalogTransportResult::Identified(Box::new(bound)));
-                }
-                Err(error) => obligations.push(Arc::from(error.to_string())),
-            }
-        } else {
-            obligations.push(Arc::from("strategy produced no bindable derivation"));
-        }
-        if strategy == 0 {
-            // Independent sufficient-rule alternatives use only target marginals
-            // and source conditionals; they need not bind the target joint law.
-            // Pretreatment candidates are the non-descendants of the treatments;
-            // subsets are tried smallest first under the search's own budget, so
-            // its exhaustion is an obligation, never a failure of the whole call
-            // and never a reason to skip the cheaper source-first strategy.
-            let x_nodes = state.x.to_dense_ids();
-            let candidates = pretreatment_candidates(diagram, &state, &x_nodes);
-            let state_outcomes = engine.vars(&state.y)?;
-            let state_treatments = engine.vars(&state.x)?;
-            let targets = engine.dense_all(diagram.selection_targets())?;
-            let selection =
-                MutilatedSelection::build(diagram.causal_graph(), &state.v, &state.x, &targets)?;
-            let mut found = None;
-            // A shared budget is charged by every separation test (`tick`) and by
-            // the engine while it standardizes and verifies a subset (`visit`);
-            // the two closures hand it back and forth through one cell.
-            let (tick_depth, tick_bytes) =
-                (engine.depth_offset.saturating_add(1), engine.live_bytes());
-            let shared = RefCell::new(engine.shared.take());
-            let end = for_each_admissible_subset(
-                &selection,
-                &state.y.to_dense_ids(),
-                &x_nodes,
-                &candidates,
-                limits.steps,
-                || match shared.borrow_mut().as_deref_mut() {
-                    Some(budget) => budget.charge(tick_depth, tick_bytes).map_err(stop_error),
-                    None if ctx.cancellation.is_cancelled() => Err(IdentificationError::Cancelled),
-                    None => Ok(()),
-                },
-                |subset| {
-                    engine.shared = shared.borrow_mut().take();
-                    let visited = (|| {
-                        let over = subset
-                            .iter()
-                            .map(|z| engine.prepared.dense_to_var(*z))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        // The subset passed the separation test that produced it,
-                        // and its two leaves are probed against the catalog before
-                        // anything is interned or cloned.
-                        if !standardization_binds(
-                            catalog,
-                            query,
-                            &state_outcomes,
-                            &state_treatments,
-                            &over,
-                        ) {
-                            return Ok(false);
-                        }
-                        let Some(output) = engine.standardized(&state, &over, true)? else {
-                            return Ok(false);
-                        };
-                        had_derivation = true;
-                        let derivation = standardization_derivation(
-                            diagram,
-                            query,
-                            engine.arena.clone(),
-                            &state,
-                            output,
-                            over,
-                        );
-                        let mut bound = derivation.bind_catalog_validated(catalog)?;
-                        engine.verify(&derivation)?;
-                        bound.searched = searched_stages(2);
-                        found = Some(bound);
-                        Ok(true)
-                    })();
-                    *shared.borrow_mut() = engine.shared.take();
-                    visited
-                },
-            );
-            engine.shared = shared.into_inner();
-            let end = end?;
-            if let Some(bound) = found {
-                return Ok(CatalogTransportResult::Identified(Box::new(bound)));
-            }
-            obligations.push(Arc::from(pretreatment_obligation(
-                end,
-                limits.steps,
-                candidates.len(),
-            )));
-            // This cache is scoped to immutable evidence and strategy. Changing
-            // the evidence-selection policy invalidates it, not just its root.
-            engine.memo.clear();
-            engine.source_catalog = Some(catalog);
-            result = engine.solve(state.clone(), true, 0)?;
-        }
-    }
-    let searched = searched_stages(3);
-    let obligations = obligations.into();
-    Ok(if had_derivation {
-        CatalogTransportResult::MissingEvidence { searched, obligations }
-    } else {
-        CatalogTransportResult::NotCertified { searched, obligations }
-    })
-}
-
-fn bind_distribution(
-    id: ExprId,
-    source: &CausalExprArena,
-    catalog: &antecedent_core::EvidenceCatalog,
-    target: &str,
-) -> Result<ExprNode, IdentificationError> {
-    let ExprNode::Distribution {
-        variables, conditioned_on, intervention, domain, population, ..
-    } = source.node(id).clone()
-    else {
-        return Err(IdentificationError::InvariantViolated {
-            message: "expected a distribution leaf",
-        });
-    };
-    let name = source.population(population);
-    let vars = source.var_set(variables);
-    let conditions = source.var_set(conditioned_on);
-    let interventions = source.intervention_set(intervention);
-    if name == target && catalog.target_sampling.is_some_and(|s| !s.represents_target_law()) {
-        return Err(IdentificationError::missing_evidence(
-            "transport.missing_evidence",
-            "target sampling does not represent target law",
-        ));
-    }
-    // One predicate decides regime satisfaction for every transport route:
-    // `EvidenceRegime::satisfies`, which the structural identifier also uses.
-    let need = antecedent_core::FactorNeed {
-        population: name,
-        variables: vars,
-        conditioned_on: conditions,
-        interventions: &interventions,
-    };
-    let regime = catalog.satisfying_regime(&need).ok_or_else(|| {
-        IdentificationError::missing_evidence(
-            "transport.missing_evidence",
-            format!(
-                "this derivation needs joint {name} law over {vars:?} given {conditions:?} under do({interventions:?}); alternative search not exhausted"
-            ),
-        )
-    })?;
-    Ok(ExprNode::Distribution {
-        variables,
-        conditioned_on,
-        intervention,
-        domain,
-        population,
-        regime: Some(regime.id),
-    })
-}
+mod catalog;
+use catalog::bind_distribution;
+pub(crate) use catalog::identify_catalog_transport_metered;
+pub use catalog::{CatalogTransportResult, identify_catalog_transport};
 
 fn check_sid_memory(
     diagram: &SelectionDiagram,
@@ -2671,12 +2409,7 @@ pub(crate) fn refuse_over_budget(
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
-    fn d(i: u32) -> DenseNodeId {
-        DenseNodeId::from_raw(i)
-    }
+    use crate::test_support::{d, v};
     fn query() -> ClassicalTransportQuery {
         ClassicalTransportQuery {
             outcomes: Arc::from([v(2)]),

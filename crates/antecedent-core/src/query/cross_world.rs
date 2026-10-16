@@ -120,9 +120,9 @@ impl WorldSpec {
 
 /// How the exogenous terms of the worlds are coupled.
 ///
-/// The path-specific edge contrast (2.2A) uses [`Self::SharedAbducedExogenous`];
+/// The path-specific edge contrast uses [`Self::SharedAbducedExogenous`];
 /// counterfactual identification from an observational law on a latent-variable
-/// graph (2.2B) uses [`Self::SharedLatentExogenous`]. A route refuses a coupling
+/// graph uses [`Self::SharedLatentExogenous`]. A route refuses a coupling
 /// its contract does not name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]

@@ -2,25 +2,15 @@
 
 use std::sync::Arc;
 
-use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cell};
-use antecedent::{AcceptedGraph, GraphClass, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, DiagnosticScope,
-    GridSpec, IdentificationStatus, IntervalInterpretation, Intervention, InterventionSequence,
-    MechanismOverride, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    DerivativeScale, DerivativeWeighting, GridSpec, IntervalInterpretation, Intervention,
+    InterventionSequence, MechanismOverride, ResponseFunctional, ResponseIdentification,
     ResponseUncertainty, ResponseValue, SequencedIntervention, StochasticPolicy, SupportStatus,
-    TemporalPolicy, TemporalResponseSpec, Value, VariableId,
+    TemporalPolicy, Value, VariableId,
 };
-use antecedent_data::TableView;
-use antecedent_estimate::ContinuousResponseEstimator;
-use antecedent_identify::GeneralizedAdjustmentIdentifier;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{
-    CausalIdentifyError, dag_from_named_edges, detach_catch, graphs, py_err, py_execution_context,
-    series_from_tabular, suite_from_refute, temporal_dag_from_schema_edges,
-};
+use crate::py_err;
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ResponseAnalysisResult {
@@ -169,7 +159,7 @@ impl ResponseAnalysisResult {
         result: &antecedent::StudyResult,
         context: &antecedent_core::ExecutionContext,
     ) -> Self {
-        if let (Some(response), Some(_)) = (&result.response, &result.executed_contract) {
+        if let (Some(response), Some(_)) = (result.response(), &result.executed_contract) {
             self.authority = Some(Arc::new(NativeResponseAuthority {
                 response: response.clone(),
                 prepared: Arc::new(prepared.clone()),
@@ -182,8 +172,10 @@ impl ResponseAnalysisResult {
     }
 }
 
-type CoordinateSkeleton =
-    Result<Vec<antecedent_core::ResponseCoordinateSkeleton>, antecedent_core::ExternalRefusal>;
+type CoordinateSkeleton = Result<
+    Vec<antecedent_contract::ResponseCoordinateSkeleton>,
+    antecedent_contract::ExternalRefusal,
+>;
 
 #[pymethods]
 impl ResponseAnalysisResult {
@@ -199,8 +191,7 @@ impl ResponseAnalysisResult {
         else {
             return Ok(None);
         };
-        let grid =
-            treatment.grid.values().map_err(|error| PyValueError::new_err(error.to_string()))?;
+        let grid = treatment.grid.values().map_err(|error| crate::value_err(error.to_string()))?;
         let named =
             |id| authority.schema.get(id).map(|v| v.name.to_string()).map_err(crate::py_err);
         Ok(Some(
@@ -229,7 +220,7 @@ impl ResponseAnalysisResult {
         population: &str,
         transform: &str,
     ) -> PyResult<(Option<String>, Option<String>)> {
-        let labels = antecedent_core::ResponseCoordinateLabels {
+        let labels = antecedent_contract::ResponseCoordinateLabels {
             outcome_units,
             population_id: population,
             transform_id: transform,
@@ -237,20 +228,20 @@ impl ResponseAnalysisResult {
         let labelled = self
             .coordinates
             .clone()
-            .and_then(|cells| antecedent_core::label_coordinates(&cells, &labels));
+            .and_then(|cells| antecedent_contract::label_coordinates(&cells, &labels));
         match labelled {
             Ok(quantities) => {
                 let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
                     quantities.iter().map(Into::into).collect();
                 let json = serde_json::to_string(&wires)
-                    .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                    .map_err(|error| crate::value_err(error.to_string()))?;
                 Ok((Some(json), None))
             }
             Err(refusal) => {
                 let json = serde_json::to_string(
                     &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
                 )
-                .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                .map_err(|error| crate::value_err(error.to_string()))?;
                 Ok((None, Some(json)))
             }
         }
@@ -264,304 +255,8 @@ fn coordinate_skeleton(
     response: &antecedent_core::CausalResponse,
     names: &[String],
 ) -> CoordinateSkeleton {
-    antecedent_core::response_coordinate_skeleton(response, &|id| names.get(id.as_usize()).cloned())
-}
-
-#[pyfunction]
-#[pyo3(signature = (
-    names, columns, edges, kind, treatments, outcomes, *, grid=None, at=None,
-    direction=None, intervention_kinds=None, intervention_parameters=None,
-    order=1, scale="identity", weighting="observed", bandwidth=None,
-    simultaneous_replicates=None, confidence_level=0.95,
-    multiplier_seed=0xA17E_CEDE_0500, export_row_diagnostics=false, accepted=false,
-    refute=None, seed=1
-))]
-#[allow(clippy::too_many_arguments)]
-fn analyze_response(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<Bound<'_, PyAny>>,
-    edges: Vec<(String, String)>,
-    kind: String,
-    treatments: Vec<String>,
-    outcomes: Vec<String>,
-    grid: Option<Vec<f64>>,
-    at: Option<Vec<f64>>,
-    direction: Option<Vec<f64>>,
-    intervention_kinds: Option<Vec<String>>,
-    intervention_parameters: Option<Vec<Vec<f64>>>,
-    order: u8,
-    scale: &str,
-    weighting: &str,
-    bandwidth: Option<f64>,
-    simultaneous_replicates: Option<u32>,
-    confidence_level: f64,
-    multiplier_seed: u64,
-    export_row_diagnostics: bool,
-    accepted: bool,
-    refute: Option<Bound<'_, PyAny>>,
-    seed: u64,
-) -> PyResult<ResponseAnalysisResult> {
-    let suite = match refute.as_ref() {
-        None => RefuteSuite::None,
-        Some(obj) => suite_from_refute(Some(obj))?,
-    };
-    let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
-    let scale = parse_scale(scale)?;
-    let weighting = parse_weighting(weighting)?;
-    detach_catch(py, move || {
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let treatment_ids = resolve_names(data.schema(), &treatments)?;
-        let outcome_ids = resolve_names(data.schema(), &outcomes)?;
-        let functional = build_functional(
-            &kind,
-            &treatment_ids,
-            &outcome_ids,
-            grid,
-            at,
-            direction,
-            intervention_kinds,
-            intervention_parameters,
-            order,
-            scale,
-            weighting,
-        )?;
-        let query = CausalQuery::Response(ResponseQuery::new(functional));
-        let options = antecedent_estimate::ContinuousResponseOptions {
-            bandwidth,
-            simultaneous_replicates,
-            confidence_level,
-            multiplier_seed,
-            export_row_diagnostics,
-            ..Default::default()
-        };
-        let builder = if accepted {
-            Study::tabular(data.clone()).graph(AcceptedGraph::from(dag))
-        } else {
-            Study::tabular(data.clone()).graph(dag)
-        };
-        let study = builder
-            .query(query)
-            .response_options(options)
-            .refute(suite)
-            .bootstrap_replicates(0)
-            .build()
-            .map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(None));
-        let prepared = study.prepare(&ctx).map_err(py_err)?;
-        let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
-        crate::prepared_api::response_from_study(&names, &result, &prepared, &ctx)
-    })
-}
-
-/// Mean response curve over the generalized-adjustment envelope of a PAG.
-///
-/// Each identified MAG completion is estimated on the caller's shared grid with its
-/// completion-specific adjustment set. The pointwise min/max across those curves is the
-/// reported identified envelope; completions that do not identify remain explicit mass.
-#[pyfunction]
-#[pyo3(signature = (names, columns, graph, treatment, outcome, grid, *, max_completions=32))]
-#[allow(clippy::too_many_arguments)]
-fn analyze_response_pag(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<Bound<'_, PyAny>>,
-    graph: graphs::Pag,
-    treatment: String,
-    outcome: String,
-    grid: Vec<f64>,
-    max_completions: usize,
-) -> PyResult<ResponseAnalysisResult> {
-    let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
-    detach_catch(py, move || {
-        let treatment_id = data.schema().id_of(&treatment).map_err(py_err)?;
-        let outcome_id = data.schema().id_of(&outcome).map_err(py_err)?;
-        let functional = ResponseFunctional::MeanCurve {
-            outcome: outcome_id,
-            treatment: antecedent_core::ContinuousDomain::new(
-                treatment_id,
-                GridSpec::Values(Arc::from(grid)),
-            ),
-        };
-        let query = ResponseQuery::new(functional);
-        query.validate().map_err(|error| PyValueError::new_err(error.to_string()))?;
-        let witness = AverageEffectQuery::binary_ate(treatment_id, outcome_id);
-        let identifier = GeneralizedAdjustmentIdentifier {
-            config: antecedent_identify::GeneralizedAdjustmentConfig {
-                max_completions,
-                ..Default::default()
-            },
-        };
-        let envelope = identifier
-            .identify_pag_envelope(&graph.pag, &witness)
-            .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
-        let total_mass = envelope.identified_weight.0 + envelope.unidentified_weight.0;
-        let enumeration_capped = envelope
-            .critical_graph_features
-            .iter()
-            .any(|feature| feature.kind.as_ref() == "completion_enumeration_capped");
-        if total_mass <= 0.0 || envelope.identified_weight.0 <= 0.0 {
-            return Err(PyValueError::new_err(
-                "PAG response curve has no identified mass in its completion envelope",
-            ));
-        }
-
-        let mut curves = Vec::<Vec<f64>>::new();
-        let mut first_response = None;
-        let mut estimable_mass = 0.0;
-        let mut worst_support = SupportStatus::Supported;
-        let mut diagnostic_ids = Vec::new();
-        let mut diagnostic_values = Vec::new();
-        let mut diagnostic_details = Vec::new();
-        let mut diagnostic_scopes = Vec::new();
-        let mut warnings = Vec::new();
-        for (case_index, case) in envelope.cases.iter().enumerate() {
-            if !matches!(
-                case.result.status,
-                IdentificationStatus::NonparametricallyIdentified
-                    | IdentificationStatus::IdentifiedUnderParametricRestrictions
-            ) {
-                continue;
-            }
-            let Some(estimand) = case.result.estimands.first() else {
-                continue;
-            };
-            let response = ContinuousResponseEstimator::new(Arc::clone(&estimand.adjustment_set))
-                .estimate_identified(
-                    &data,
-                    &query,
-                    case.result.status,
-                    case.result.required_assumptions.clone(),
-                )
-                .map_err(py_err)?;
-            let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-                &response.estimate
-            else {
-                return Err(PyValueError::new_err(
-                    "PAG MeanCurve completion did not produce a response surface",
-                ));
-            };
-            curves.push(mean.to_vec());
-            estimable_mass += case.weight.0;
-            if support_rank(response.support.status) > support_rank(worst_support) {
-                worst_support = response.support.status;
-            }
-            for diagnostic in &response.support.diagnostics {
-                diagnostic_ids.push(format!("completion.{case_index}.{}", diagnostic.id));
-                diagnostic_values.push(diagnostic.values.to_vec());
-                diagnostic_details
-                    .push(format!("MAG completion {case_index}: {}", diagnostic.detail));
-                // Completion values are per completion, never per requested coordinate.
-                diagnostic_scopes.push(
-                    if diagnostic.scope == DiagnosticScope::Inapplicable {
-                        DiagnosticScope::Inapplicable
-                    } else {
-                        DiagnosticScope::Global
-                    }
-                    .as_str()
-                    .to_owned(),
-                );
-            }
-            warnings.extend(response.support.warnings.iter().map(|warning| {
-                format!("completion.{case_index}.{}: {}", warning.code, warning.message)
-            }));
-            if first_response.is_none() {
-                first_response = Some(response);
-            }
-        }
-        let first = first_response.ok_or_else(|| {
-            PyValueError::new_err("PAG response curve has identified mass but no estimable case")
-        })?;
-        // The envelope is the range of completion-specific Kennedy *point* curves. It is an
-        // identified-set payload under structural uncertainty, not a confidence interval and
-        // not a claim that sampling uncertainty within each completion was folded in.
-        warnings.push(
-            "response.pag_envelope_point_estimates: envelope bounds are the pointwise min/max of \
-             completion-specific point curves; they omit within-completion sampling uncertainty \
-             and are not a confidence band"
-                .into(),
-        );
-        let width = curves.first().map_or(0, Vec::len);
-        let mut lower = vec![f64::INFINITY; width];
-        let mut upper = vec![f64::NEG_INFINITY; width];
-        for curve in &curves {
-            if curve.len() != width {
-                return Err(PyValueError::new_err("PAG completion curves do not share one grid"));
-            }
-            for (index, value) in curve.iter().enumerate() {
-                lower[index] = lower[index].min(*value);
-                upper[index] = upper[index].max(*value);
-            }
-        }
-        let ResponseIdentification::PointIdentified(ResponseValue::Surface {
-            grid, dimension, ..
-        }) = &first.estimate
-        else {
-            unreachable!("checked above")
-        };
-        let points = grid.chunks(*dimension).map(<[f64]>::to_vec).collect();
-        let lower_rows = lower.iter().map(|value| vec![*value]).collect();
-        let upper_rows = upper.iter().map(|value| vec![*value]).collect();
-        let support_status = support_status_name(worst_support).to_owned();
-        Ok(ResponseAnalysisResult {
-            authority: None,
-            certificate_json: None,
-            treatments: vec![treatment],
-            outcomes: vec![outcome],
-            points,
-            values: Vec::new(),
-            scalar: None,
-            matrix: None,
-            uncertainty_kind: "identified_set".into(),
-            interval_interpretation: None,
-            lower: Some(lower_rows),
-            upper: Some(upper_rows),
-            level: None,
-            standard_error: None,
-            replicates: None,
-            artifact_id: None,
-            support_status,
-            support_minima: first.support.query_region.minima.to_vec(),
-            support_maxima: first.support.query_region.maxima.to_vec(),
-            support_point_status: Vec::new(),
-            diagnostic_ids,
-            diagnostic_values,
-            diagnostic_details,
-            diagnostic_scopes,
-            warnings,
-            identification: format!("{:?}", envelope.status),
-            adjustment_set: Vec::new(),
-            horizon_adjustment_sets: Vec::new(),
-            assumptions: vec![
-                "generalized adjustment within each identified MAG completion".into(),
-            ],
-            provenance_id: "estimate.response.kennedy_dr".into(),
-            // Prior-restricted/partially-identified cases are not licensed point curves
-            // for this estimator; preserve their weight as unidentified execution mass.
-            identified_mass: Some(estimable_mass / total_mass),
-            unidentified_mass: Some((total_mass - estimable_mass) / total_mass),
-            unevaluable_mass: Some(0.0),
-            subsampled_out_mass: Some(0.0),
-            completion_count: Some(envelope.cases.len()),
-            truncated_completions: Some(envelope.truncated_completions),
-            enumeration_capped: Some(enumeration_capped),
-            mass_scope: Some(if enumeration_capped {
-                "examined_completions".into()
-            } else {
-                "full_class".into()
-            }),
-            weight_basis: Some("completion_enumeration".into()),
-            atom_keys: (0..curves.len()).map(|index| index as u64).collect(),
-            atom_weights: vec![1.0; curves.len()],
-            atom_statuses: vec!["NonparametricallyIdentified".into(); curves.len()],
-            atom_values: curves,
-            evidence_status: None,
-            allowlist_reason: None,
-            allowlist_parent: None,
-            diagnostics: Vec::new(),
-            identifier: Some("generalized.adjustment".into()),
-            coordinates: coordinate_skeleton(&first, &names),
-        })
+    antecedent_contract::response_coordinate_skeleton(response, &|id| {
+        names.get(id.as_usize()).cloned()
     })
 }
 
@@ -570,7 +265,7 @@ pub(crate) fn resolve_names(
     names: &[String],
 ) -> PyResult<Vec<VariableId>> {
     if names.is_empty() {
-        return Err(PyValueError::new_err("response variables must not be empty"));
+        return Err(crate::value_err("response variables must not be empty"));
     }
     names.iter().map(|name| schema.id_of(name).map_err(py_err)).collect()
 }
@@ -592,7 +287,7 @@ pub(crate) fn build_functional(
     let scalar = || -> PyResult<(VariableId, VariableId)> {
         match (treatments, outcomes) {
             ([treatment], [outcome]) => Ok((*treatment, *outcome)),
-            _ => Err(PyValueError::new_err(
+            _ => Err(crate::value_err(
                 "this response functional requires one treatment and one outcome",
             )),
         }
@@ -605,7 +300,7 @@ pub(crate) fn build_functional(
                 treatment: antecedent_core::ContinuousDomain::new(
                     treatment,
                     GridSpec::Values(Arc::from(
-                        grid.ok_or_else(|| PyValueError::new_err("grid is required"))?,
+                        grid.ok_or_else(|| crate::value_err("grid is required"))?,
                     )),
                 ),
             })
@@ -620,37 +315,35 @@ pub(crate) fn build_functional(
                 .as_deref()
                 .and_then(|values| values.first())
                 .copied()
-                .ok_or_else(|| PyValueError::new_err("at is required"))?;
+                .ok_or_else(|| crate::value_err("at is required"))?;
             Ok(ResponseFunctional::PointDerivative { outcome, treatment, at: point, order, scale })
         }
         "directional_derivative" => Ok(ResponseFunctional::DirectionalDerivative {
             outcomes: Arc::from(outcomes),
             treatments: Arc::from(treatments),
-            at: Arc::from(at.ok_or_else(|| PyValueError::new_err("at is required"))?),
+            at: Arc::from(at.ok_or_else(|| crate::value_err("at is required"))?),
             direction: Arc::from(
-                direction.ok_or_else(|| PyValueError::new_err("direction is required"))?,
+                direction.ok_or_else(|| crate::value_err("direction is required"))?,
             ),
         }),
         "response_jacobian" => Ok(ResponseFunctional::Jacobian {
             outcomes: Arc::from(outcomes),
             treatments: Arc::from(treatments),
-            at: Arc::from(at.ok_or_else(|| PyValueError::new_err("at is required"))?),
+            at: Arc::from(at.ok_or_else(|| crate::value_err("at is required"))?),
             scale,
         }),
         "intervention_response" => {
             let [outcome] = outcomes else {
-                return Err(PyValueError::new_err(
-                    "InterventionResponse requires exactly one outcome",
-                ));
+                return Err(crate::value_err("InterventionResponse requires exactly one outcome"));
             };
             let kinds = intervention_kinds.ok_or_else(|| {
-                PyValueError::new_err("InterventionResponse requires intervention kinds")
+                crate::value_err("InterventionResponse requires intervention kinds")
             })?;
             let parameters = intervention_parameters.ok_or_else(|| {
-                PyValueError::new_err("InterventionResponse requires intervention parameters")
+                crate::value_err("InterventionResponse requires intervention parameters")
             })?;
             if treatments.len() != kinds.len() || kinds.len() != parameters.len() {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "intervention variables, kinds, and parameters must have equal lengths",
                 ));
             }
@@ -667,7 +360,7 @@ pub(crate) fn build_functional(
                 interventions: Arc::from(interventions),
             })
         }
-        _ => Err(PyValueError::new_err(format!(
+        _ => Err(crate::value_err(format!(
             "response functional {kind:?} is not executable by this estimator"
         ))),
     }
@@ -686,7 +379,7 @@ pub(crate) fn wrap_temporal_sequence_steps(
     let vars: Vec<VariableId> =
         interventions.iter().filter_map(Intervention::primary_variable).collect();
     if vars.len() != interventions.len() {
-        return Err(PyValueError::new_err("each Sequence step must name one treatment variable"));
+        return Err(crate::value_err("each Sequence step must name one treatment variable"));
     }
     let same_var = vars.iter().all(|variable| *variable == vars[0]);
     let unique = {
@@ -696,13 +389,12 @@ pub(crate) fn wrap_temporal_sequence_steps(
         seen.len() == vars.len()
     };
     let offsets: Vec<i32> = if same_var {
-        let n =
-            i32::try_from(vars.len()).map_err(|_| PyValueError::new_err("Sequence is too long"))?;
+        let n = i32::try_from(vars.len()).map_err(|_| crate::value_err("Sequence is too long"))?;
         (0..n).map(|i| origin - (n - 1 - i)).collect()
     } else if unique {
         vec![origin; vars.len()]
     } else {
-        return Err(PyValueError::new_err(
+        return Err(crate::value_err(
             "Sequence schedule is ambiguous; use one variable for a multi-step policy \
              or distinct variables for a joint single-time policy",
         ));
@@ -729,7 +421,7 @@ fn intervention_from_parts(
         if parameters.len() == count && parameters.iter().all(|value| value.is_finite()) {
             Ok(())
         } else {
-            Err(PyValueError::new_err(format!(
+            Err(crate::value_err(format!(
                 "{kind} intervention requires {count} finite parameter(s)"
             )))
         }
@@ -756,7 +448,7 @@ fn intervention_from_parts(
         }
         "categorical" => {
             if parameters.is_empty() || parameters.iter().any(|value| !value.is_finite()) {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "categorical intervention requires finite probabilities",
                 ));
             }
@@ -780,17 +472,17 @@ fn intervention_from_parts(
         "soft_truncated_shift" => {
             exactly(3)?;
             if parameters[1] > parameters[2] {
-                return Err(PyValueError::new_err("truncated_shift requires lower <= upper"));
+                return Err(crate::value_err("truncated_shift requires lower <= upper"));
             }
             Ok(Intervention::soft(
                 variable,
                 MechanismOverride::named("truncated_shift", parameters),
             ))
         }
-        "soft" | "sequence" => Err(PyValueError::new_err(format!(
+        "soft" | "sequence" => Err(crate::value_err(format!(
             "{kind} interventions require a structural/temporal model and are not estimable by response.intervention_gcomp"
         ))),
-        _ => Err(PyValueError::new_err(format!("unknown intervention kind {kind:?}"))),
+        _ => Err(crate::value_err(format!("unknown intervention kind {kind:?}"))),
     }
 }
 
@@ -800,14 +492,14 @@ pub(crate) fn parse_scale(value: &str) -> PyResult<DerivativeScale> {
         "log_treatment" => Ok(DerivativeScale::LogTreatment),
         "log_outcome" => Ok(DerivativeScale::LogOutcome),
         "log_log" => Ok(DerivativeScale::LogLog),
-        _ => Err(PyValueError::new_err("unknown derivative scale")),
+        _ => Err(crate::value_err("unknown derivative scale")),
     }
 }
 
 pub(crate) fn parse_weighting(value: &str) -> PyResult<DerivativeWeighting> {
     match value {
         "observed" => Ok(DerivativeWeighting::Observed),
-        _ => Err(PyValueError::new_err("the current ADE estimator supports weighting='observed'")),
+        _ => Err(crate::value_err("the current ADE estimator supports weighting='observed'")),
     }
 }
 
@@ -859,7 +551,7 @@ pub(crate) fn response_result(
             | ResponseIdentification::PartiallyIdentified(value) => value_parts(value)?,
             ResponseIdentification::GraphDependent(_)
             | ResponseIdentification::Unidentified { .. } => {
-                return Err(PyValueError::new_err(
+                return Err(crate::value_err(
                     "the continuous-response estimator expected an identified payload",
                 ));
             }
@@ -1097,10 +789,6 @@ fn support_status_name(status: SupportStatus) -> &'static str {
     status.as_str()
 }
 
-const fn support_rank(status: SupportStatus) -> u8 {
-    status.severity()
-}
-
 type ValueParts = (Vec<Vec<f64>>, Vec<Vec<f64>>, Option<f64>, Option<Vec<Vec<f64>>>);
 
 fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
@@ -1116,7 +804,7 @@ fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
         }
         ResponseValue::Jacobian { outcomes, treatments, values } => {
             if values.len() != outcomes * treatments {
-                return Err(PyValueError::new_err("invalid Jacobian result shape"));
+                return Err(crate::value_err("invalid Jacobian result shape"));
             }
             Ok((
                 Vec::new(),
@@ -1125,7 +813,7 @@ fn value_parts(value: ResponseValue) -> PyResult<ValueParts> {
                 Some(values.chunks(treatments).map(<[f64]>::to_vec).collect()),
             ))
         }
-        ResponseValue::Envelope(_) => Err(PyValueError::new_err(
+        ResponseValue::Envelope(_) => Err(crate::value_err(
             "identified response envelopes use the bounds API, not this point estimator",
         )),
     }
@@ -1206,162 +894,7 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
     }
 }
 
-/// Temporal dose × horizon / intervention-path response (ADR 0021).
-///
-/// `bootstrap` is the number of joint circular-block replicates behind the pointwise
-/// and simultaneous bands; `None` keeps the `Study` default (199) and `0` publishes the
-/// point surface with no band plus an `estimate.temporal_response.band_withheld`
-/// warning.
-#[pyfunction]
-#[pyo3(signature = (
-    names, columns, edges, kind, treatments, outcomes, *,
-    grid=None, intervention_kinds=None, intervention_parameters=None,
-    horizons, policy=crate::temporal_license::DEFAULT_POLICY,
-    treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None,
-    seed=1, bootstrap=None, threads=None, accepted=false, refute=None,
-    observation_kind=None, latent=None, observed=None, censoring=None, event=None,
-    lower=None, upper=None, indicator=None, assumption_kind=None,
-    assumption_variables=Vec::new(), structural_model=None
-))]
-#[allow(clippy::too_many_arguments)]
-fn analyze_temporal_response(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<Bound<'_, PyAny>>,
-    edges: Vec<(String, u32, String, u32)>,
-    kind: String,
-    treatments: Vec<String>,
-    outcomes: Vec<String>,
-    grid: Option<Vec<f64>>,
-    intervention_kinds: Option<Vec<String>>,
-    intervention_parameters: Option<Vec<Vec<f64>>>,
-    horizons: Vec<u32>,
-    policy: &str,
-    treatment_lag: u32,
-    max_history_lag: Option<u32>,
-    seed: u64,
-    bootstrap: Option<u32>,
-    threads: Option<u32>,
-    accepted: bool,
-    refute: Option<Bound<'_, PyAny>>,
-    observation_kind: Option<String>,
-    latent: Option<String>,
-    observed: Option<String>,
-    censoring: Option<String>,
-    event: Option<String>,
-    lower: Option<String>,
-    upper: Option<String>,
-    indicator: Option<String>,
-    assumption_kind: Option<String>,
-    assumption_variables: Vec<String>,
-    structural_model: Option<String>,
-) -> PyResult<ResponseAnalysisResult> {
-    let suite = match refute.as_ref() {
-        None => RefuteSuite::None,
-        Some(obj) => suite_from_refute(Some(obj))?,
-    };
-    let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
-    let policy = policy.to_ascii_lowercase();
-    detach_catch(py, move || {
-        let series = series_from_tabular(tabular)?;
-        let dag = temporal_dag_from_schema_edges(series.schema(), &edges)?;
-        let treatment_ids = resolve_names(series.schema(), &treatments)?;
-        let outcome_ids = resolve_names(series.schema(), &outcomes)?;
-        let functional = build_functional(
-            &kind,
-            &treatment_ids,
-            &outcome_ids,
-            grid,
-            None,
-            None,
-            intervention_kinds,
-            intervention_parameters,
-            1,
-            DerivativeScale::Identity,
-            DerivativeWeighting::Observed,
-        )?;
-        // Match PulseEffect / SustainedEffect: non-negative lag → policy origin at
-        // `-treatment_lag`. Licensed sustained is the single-step window.
-        let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
-        let origin = -i32::try_from(treatment_lag)
-            .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
-        let functional = wrap_temporal_sequence_steps(functional, origin)?;
-        let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
-        let observation = observation_kind.map(|kind| crate::observation_api::ObservationArgs {
-            kind,
-            latent: latent.unwrap_or_default(),
-            observed,
-            censoring,
-            event,
-            lower,
-            upper,
-            indicator,
-            assumption_kind: assumption_kind.unwrap_or_default(),
-            assumption_variables,
-            structural_model,
-        });
-        let query = crate::observation_api::maybe_with_observation(
-            ResponseQuery::new(functional).with_temporal(temporal),
-            series.schema(),
-            observation.as_ref(),
-        )?;
-        let causal_query = CausalQuery::Response(query.clone());
-        if let Some(cell) = support_cell(
-            &causal_query,
-            GraphClass::TemporalDag,
-            if accepted { StructureSource::Accepted } else { StructureSource::Explicit },
-            &InferenceMode::Frequentist,
-            suite,
-        ) {
-            refuse_if_not_applicable(cell).map_err(py_err)?;
-        }
-        let mut builder = Study::series(series);
-        builder =
-            if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) };
-        // Frequentist temporal surfaces publish a band only from joint circular-block
-        // replicates; zero replicates keep the point surface and withhold the band
-        // (`estimate.temporal_response.band_withheld`). `None` keeps the Study default.
-        if let Some(replicates) = bootstrap {
-            builder = builder.bootstrap_replicates(replicates);
-        }
-        let analysis = builder.query(causal_query).refute(suite).build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let result = analysis.run(&ctx).map_err(py_err)?;
-        let response = result.response.ok_or_else(|| {
-            PyValueError::new_err("temporal response run did not produce a response payload")
-        })?;
-        let adjustment_set = result
-            .estimand
-            .adjustment_set
-            .iter()
-            .map(|id| {
-                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
-            })
-            .collect();
-        let diagnostics =
-            result.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect();
-        Ok(attach_study_response_meta(
-            response_result(
-                response,
-                None,
-                treatments,
-                outcomes,
-                adjustment_set,
-                &names,
-                result.support_status,
-            )?,
-            None,
-            None,
-            diagnostics,
-        ))
-    })
-}
-
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ResponseAnalysisResult>()?;
-    m.add_function(wrap_pyfunction!(analyze_response, m)?)?;
-    m.add_function(wrap_pyfunction!(analyze_response_pag, m)?)?;
-    m.add_function(wrap_pyfunction!(analyze_temporal_response, m)?)?;
     Ok(())
 }

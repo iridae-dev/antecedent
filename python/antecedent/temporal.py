@@ -1,4 +1,4 @@
-"""Effect constancy across a declared time or region partition (F18).
+"""Effect constancy across a declared time or region partition.
 
 One question: does *the same defined effect* take the same value in every declared partition?
 You supply one effect estimate and standard error per partition (disjoint periods or regions),
@@ -42,17 +42,24 @@ estimand, covariance, null or multiplicity family.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from functools import partial
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ._columns import coerce_fields
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ._refusal import raise_refusal
+from ._scientific import ScientificResult
+from ._validate import non_finite_refusal, real
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "ConstancyConclusion",
@@ -73,8 +80,8 @@ _SUPPORT = ("supported", "partial", "unsupported")
 _MAX_PARTITIONS = 1024
 
 
-class TemporalRefusal(CausalUnsupportedError):
-    """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
+class TemporalRefusal(StructuredRefusal):
+    """A :class:`StructuredRefusal` for the structured Rust refusal fields.
 
     ``reason_code`` and ``remedy`` are the inherited, registered fields; ``detail`` is the
     namespaced ``family.slot`` slot (for example ``effect_constancy.incompatible_partitions``
@@ -84,49 +91,13 @@ class TemporalRefusal(CausalUnsupportedError):
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
-        detail = str(refusal["detail"])
-        parts = [detail]
-        message = refusal.get("message")
-        if message:
-            parts[0] = f"{detail}: {message}"
-        if refusal.get("offending"):
-            parts.append(f"at {refusal['offending']}")
-        super().__init__(" ".join(parts), reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage.
-        self.stage: str = refusal.get("stage", "")
-        #: Namespaced ``family.slot`` detail.
-        self.detail: str = detail
-        #: Offending unit, node, field or factor, when there is one.
-        self.offending: str | None = refusal.get("offending")
+        super().__init__(refusal)
         #: The refusing witness as a mapping, when the evaluator retained one.
         self.witness: Mapping[str, Any] | None = refusal.get("witness")
         #: Prerequisite gates a closed route lacks, in a fixed order.
         self.missing_gates: tuple[str, ...] = tuple(refusal.get("missing_gates", ()))
         #: Regime factors (``source:<regime>`` / ``target:<regime>``) the evidence map lacks.
         self.missing_factors: tuple[str, ...] = tuple(refusal.get("missing_factors", ()))
-
-
-def _raise_refusal(payload: str | None) -> None:
-    """Raise the structured refusal in ``payload`` (a JSON string), if there is one."""
-    if payload is not None:
-        raise TemporalRefusal(json.loads(payload))
-
-
-def _finite(value: object, what: str, detail: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float | np.floating | np.integer):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise TemporalRefusal(
-            {
-                "code": "invalid_argument",
-                "stage": "test",
-                "detail": detail,
-                "offending": what,
-                "message": f"{what} is not finite",
-            }
-        )
-    return number
 
 
 def _name(value: object, what: str) -> str:
@@ -197,11 +168,17 @@ class Partition:
             _name(self.coordinate, "coordinate")
         if self.estimand is not None and not isinstance(self.estimand, EffectEstimand):
             raise CausalTypeError("estimand must be an EffectEstimand")
-        object.__setattr__(self, "effect", _finite(self.effect, "effect", _NON_FINITE))
-        object.__setattr__(self, "se", _finite(self.se, "se", _NON_FINITE))
+        coerce_fields(self, effect=_finite_estimate(self.effect, "effect"))
+        coerce_fields(self, se=_finite_estimate(self.se, "se"))
 
 
-_NON_FINITE = "effect_constancy.non_finite_estimate"
+_finite_estimate = partial(
+    real,
+    finite=True,
+    non_finite=non_finite_refusal(
+        TemporalRefusal, stage="test", detail="effect_constancy.non_finite_estimate"
+    ),
+)
 
 
 def _partition(item: Partition | Mapping[str, Any] | Sequence[Any]) -> Partition:
@@ -276,7 +253,7 @@ class EffectConstancyIdentity:
 
 
 @dataclass(frozen=True, slots=True)
-class EffectConstancyResult:
+class EffectConstancyResult(ScientificResult):
     """The global constancy test, its per-partition table and its portable artifact.
 
     ``partitions`` carries each partition's effect (canonical label order) so transport
@@ -304,11 +281,17 @@ class EffectConstancyResult:
     calibration: str
     inference_claim: str
     identity: EffectConstancyIdentity
-    artifact: bytes
+    _artifact_bytes: bytes
+
+    def artifact(self) -> ExportedArtifact[EffectConstancyResult]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``effect_constancy_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
     def table(self) -> list[dict[str, Any]]:
         """The per-partition table: label, coordinate, support, effect and standard error."""
@@ -398,7 +381,7 @@ def _result(report_json: str, artifact: bytes) -> EffectConstancyResult:
         calibration=report["calibration"],
         inference_claim=report["inference_claim"],
         identity=EffectConstancyIdentity(**report["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 
@@ -495,10 +478,17 @@ def effect_constancy(
         "partitions": wire_partitions,
         "dependence": dependence,
         "family": family,
-        "alpha": _finite(alpha, "alpha", "effect_constancy.invalid_alpha"),
+        "alpha": real(
+            alpha,
+            "alpha",
+            finite=True,
+            non_finite=non_finite_refusal(
+                TemporalRefusal, stage="test", detail="effect_constancy.invalid_alpha"
+            ),
+        ),
     }
     report, artifact, refusal = _evaluate(json.dumps(request, allow_nan=False), "effect_constancy")
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TemporalRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native effect-constancy test returned neither a result nor a refusal"
@@ -534,7 +524,7 @@ def consume_effect_constancy_artifact(
         raise CausalTypeError("expected_identity must be an EffectConstancyIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, TemporalRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)

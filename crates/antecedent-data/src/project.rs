@@ -82,7 +82,7 @@ impl TabularData {
                     meta.category_domain,
                     meta.measurement.clone(),
                 )
-                .map_err(|e| DataError::Schema(e.to_string()))?;
+                .map_err(DataError::from)?;
             let new_id = VariableId::from_raw(u32::try_from(new_idx).map_err(|_| {
                 DataError::InvalidArgument {
                     message: "projected schema exceeds VariableId range".into(),
@@ -96,7 +96,7 @@ impl TabularData {
             cols.push(col.with_id(new_id));
         }
 
-        let new_schema = builder.build().map_err(|e| DataError::Schema(e.to_string()))?;
+        let new_schema = builder.build().map_err(DataError::from)?;
         let new_storage = OwnedColumnarStorage::try_new(
             new_schema,
             cols,
@@ -122,7 +122,6 @@ pub fn dedupe_variable_ids(ids: impl IntoIterator<Item = VariableId>) -> Vec<Var
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::cast_precision_loss)]
 
     use super::*;
     use crate::column::{Float64Column, OwnedColumn, ValidityBitmap};

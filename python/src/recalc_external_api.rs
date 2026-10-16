@@ -1,14 +1,14 @@
 //! Bounded executing external mean callbacks, retaining attested output only.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::program_claims_api::{ClaimWire, claim_from, parse_binding};
-use crate::recalc_api::{context, parse_json, plan_refusal_json, refusal_json};
+use crate::recalc_api::{context, parse_json, plan_refusal_json, refusal_value};
 use crate::recalc_bounds::check_columns;
 use antecedent::analysis::recalc_external::{
     CallbackContext, CallbackFailure, CallbackPolicy, ExternalCallbackError,
     ExternalCallbackRequest, ExternalCallbackSession, ExternalMeanProvider, ProviderDescriptor,
 };
+use antecedent_contract::{ExternalResponse, ProviderObjectIdentity};
 use antecedent_core::recalc::Branch;
-use antecedent_core::{ExternalResponse, ProviderObjectIdentity};
 use antecedent_io::external_binding_wire::{
     ContractWire, ProviderWire, RefusalWire, ResponseWire, core_contract, response_from_wire,
 };
@@ -18,6 +18,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 use pyo3::{PyTraverseError, PyVisit};
 use serde::Deserialize;
+
+/// Largest output text an external recalculation callback may return.
+const MAX_CALLBACK_OUTPUT_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
 
 fn invalid(detail: &str, message: impl AsRef<str>) -> PyErr {
     crate::with_reason_code(
@@ -100,15 +103,15 @@ pub(crate) fn request(
         idempotency_key: wire.idempotency_key,
     })
 }
-pub(crate) fn error(error: &ExternalCallbackError, branch: Branch) -> String {
+pub(crate) fn error(error: &ExternalCallbackError, branch: Branch) -> PyResult<String> {
     let stage = format!("provider_request.{}", branch.index());
     let mut body = match error {
         ExternalCallbackError::Binding(refusal)
         | ExternalCallbackError::BindingAttempt { refusal, .. } => {
             serde_json::to_value(RefusalWire::from((**refusal).clone()))
-                .expect("refusal serialization")
+                .map_err(|cause| crate::serialization_err(cause.to_string()))?
         }
-        ExternalCallbackError::Refused(plan) => return plan_refusal_json(plan),
+        ExternalCallbackError::Refused(plan) => return Ok(plan_refusal_json(plan)),
         _ => {
             let detail = match error {
                 ExternalCallbackError::Request(detail)
@@ -116,16 +119,7 @@ pub(crate) fn error(error: &ExternalCallbackError, branch: Branch) -> String {
                 _ => "external_recalc.artifact_invalid",
             };
             let code = error.refusal_code();
-            serde_json::from_str(&refusal_json(
-                code,
-                &stage,
-                detail,
-                None,
-                None,
-                &error.to_string(),
-                None,
-            ))
-            .expect("refusal JSON")
+            refusal_value(code, &stage, detail, None, None, &error.to_string(), None)
         }
     };
     if let ExternalCallbackError::Attempt { report, .. }
@@ -133,7 +127,7 @@ pub(crate) fn error(error: &ExternalCallbackError, branch: Branch) -> String {
     {
         body["attempt"] = serde_json::json!({"request_digest":report.request_digest.to_hex(),"invocations":report.invocations});
     }
-    body.to_string()
+    Ok(body.to_string())
 }
 pub(crate) struct PythonProvider {
     descriptor: ProviderDescriptor,
@@ -184,14 +178,14 @@ impl ExternalMeanProvider for PythonProvider {
             )?;
             let output = self.callback.bind(py).call1((payload,))?;
             let text = output.cast::<PyString>()?;
-            if text.len()? > 1024 * 1024 {
+            if text.len()? > MAX_CALLBACK_OUTPUT_BYTES {
                 return Err(invalid(
                     "external_recalc.limits_exceeded",
                     "callback output exceeds byte bound",
                 ));
             }
             let json = text.to_str()?;
-            if json.len() > 1024 * 1024 {
+            if json.len() > MAX_CALLBACK_OUTPUT_BYTES {
                 return Err(invalid(
                     "external_recalc.limits_exceeded",
                     "callback output exceeds byte bound",
@@ -312,7 +306,7 @@ impl PyCallbackSession {
         });
         self.inner = session;
         match ran {
-            Err(cause) => Ok((None, None, None, Some(error(&cause, req.branch)))),
+            Err(cause) => Ok((None, None, None, Some(error(&cause, req.branch)?))),
             Ok(out) => {
                 let (wire, receipt, refusal) = crate::recalc_family_api::payload(
                     &out.previous,
@@ -336,10 +330,15 @@ impl PyCallbackSession {
             }
         }
     }
-    fn export_output(&self) -> (Option<Vec<u8>>, Option<String>) {
+    fn export_output(&self) -> PyResult<(Option<Vec<u8>>, Option<String>)> {
         match self.inner.export_output() {
-            Ok(bytes) => (Some(bytes), None),
-            Err(cause) => (None, Some(error(&cause, Branch::new(0).expect("zero branch")))),
+            Ok(bytes) => Ok((Some(bytes), None)),
+            Err(cause) => {
+                let branch = Branch::new(0).ok_or_else(|| {
+                    crate::value_err("external branch 0 is outside the declared branch bound")
+                })?;
+                Ok((None, Some(error(&cause, branch)?)))
+            }
         }
     }
     #[staticmethod]
@@ -349,7 +348,7 @@ impl PyCallbackSession {
         columns: Vec<PyReadonlyArray1<'_, f64>>,
         text: &str,
     ) -> PyResult<(Option<Self>, Option<String>)> {
-        if data.len() > 16 * 1024 * 1024 {
+        if data.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
             return Err(invalid(
                 "external_recalc.limits_exceeded",
                 "callback artifact exceeds byte bound",
@@ -358,7 +357,7 @@ impl PyCallbackSession {
         let req = request(names, &columns, text)?;
         match ExternalCallbackSession::resume(data, &req) {
             Ok(inner) => Ok((Some(Self { inner }), None)),
-            Err(cause) => Ok((None, Some(error(&cause, req.branch)))),
+            Err(cause) => Ok((None, Some(error(&cause, req.branch)?))),
         }
     }
 }

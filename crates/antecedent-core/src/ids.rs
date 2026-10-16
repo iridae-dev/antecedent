@@ -8,173 +8,128 @@
 use core::fmt;
 use core::num::NonZeroU32;
 
-/// Dense variable index assigned by [`crate::schema::CausalSchema`] construction.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct VariableId(u32);
+/// `u32` newtype with `from_raw` / `raw`, `Display` as `{prefix}{raw}`, and
+/// optionally `as_usize`. Type names and the stored integer are the macro
+/// arguments; both stay source-compatible with the hand-written types.
+macro_rules! dense_id {
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $prefix:literal
+    ) => {
+        dense_id!($(#[$meta])* $name, $prefix, no_usize);
+    };
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $prefix:literal,
+        usize
+    ) => {
+        dense_id!($(#[$meta])* $name, $prefix, with_usize);
+    };
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $prefix:literal,
+        $usize:ident
+    ) => {
+        $(#[$meta])*
+        #[repr(transparent)]
+        #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+        pub struct $name(u32);
 
-impl VariableId {
-    /// Create an identifier from a raw dense index.
+        impl $name {
+            /// Create from a raw dense index.
+            #[must_use]
+            pub const fn from_raw(raw: u32) -> Self {
+                Self(raw)
+            }
+
+            /// Underlying dense index.
+            #[must_use]
+            pub const fn raw(self) -> u32 {
+                self.0
+            }
+
+            dense_id!(@usize $usize);
+        }
+
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, concat!($prefix, "{}"), self.0)
+            }
+        }
+    };
+    (@usize with_usize) => {
+        /// Convert to `usize` for indexing.
+        #[must_use]
+        pub const fn as_usize(self) -> usize {
+            self.0 as usize
+        }
+    };
+    (@usize no_usize) => {};
+}
+
+dense_id!(
+    /// Dense variable index assigned by [`crate::schema::CausalSchema`] construction.
     ///
-    /// Prefer obtaining IDs from schema construction; this constructor exists
-    /// for deserialization and tests.
-    #[must_use]
-    pub const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
+    /// `from_raw` exists for deserialization and tests. Prefer ids from schema construction.
+    VariableId,
+    "V",
+    usize
+);
 
-    /// Underlying dense index.
-    #[must_use]
-    pub const fn raw(self) -> u32 {
-        self.0
-    }
+dense_id!(
+    /// Multi-environment partition identifier.
+    EnvironmentId,
+    "E",
+    usize
+);
 
-    /// Convert to `usize` for indexing.
-    #[must_use]
-    pub const fn as_usize(self) -> usize {
-        self.0 as usize
-    }
-}
+dense_id!(
+    /// Opaque handle for a rule-driven temporal intervention schedule.
+    ///
+    /// Paired with explicit `active_at` offsets on [`crate::intervention::TemporalPolicy::Dynamic`].
+    DynamicRuleId,
+    "DR",
+    usize
+);
 
-impl fmt::Display for VariableId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "V{}", self.0)
-    }
-}
+dense_id!(
+    /// Handle to a custom target distribution.
+    ///
+    /// Resolved against a caller-supplied registry; sampling is deferred.
+    DistributionRef,
+    "DRef",
+    usize
+);
 
-/// Multi-environment partition identifier.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct EnvironmentId(u32);
+dense_id!(
+    /// Regime identifier for regime-aware analysis.
+    RegimeId,
+    "R",
+    usize
+);
 
-impl EnvironmentId {
-    /// Create from a raw dense index.
-    #[must_use]
-    pub const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    /// Underlying dense index.
-    #[must_use]
-    pub const fn raw(self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for EnvironmentId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "E{}", self.0)
-    }
-}
-
-/// Opaque handle for a rule-driven temporal intervention schedule.
-///
-/// Paired with explicit `active_at` offsets on [`crate::intervention::TemporalPolicy::Dynamic`].
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct DynamicRuleId(u32);
-
-impl DynamicRuleId {
-    /// Create from a raw dense index.
-    #[must_use]
-    pub const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    /// Underlying dense index.
-    #[must_use]
-    pub const fn raw(self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for DynamicRuleId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DR{}", self.0)
-    }
-}
-
-/// Handle to a custom target distribution.
-///
-/// Resolved against a caller-supplied registry; sampling is deferred.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct DistributionRef(u32);
-
-impl DistributionRef {
-    /// Create from a raw dense index.
-    #[must_use]
-    pub const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    /// Underlying dense index.
-    #[must_use]
-    pub const fn raw(self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for DistributionRef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DRef{}", self.0)
-    }
-}
-
-/// Regime identifier for regime-aware analysis.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct RegimeId(u32);
-
-impl RegimeId {
-    /// Create from a raw dense index.
-    #[must_use]
-    pub const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    /// Underlying dense index.
-    #[must_use]
-    pub const fn raw(self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for RegimeId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "R{}", self.0)
-    }
-}
-
-/// Temporal lag magnitude.
-///
-/// [`Lag::CONTEMPORANEOUS`] (`Lag(0)`) is contemporaneous. Historical nodes use
-/// positive lag values internally. Negative-lag conventions are confined to
-/// import/export adapters.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Lag(u32);
+dense_id!(
+    /// Temporal lag magnitude.
+    ///
+    /// [`Lag::CONTEMPORANEOUS`] (`Lag(0)`) is contemporaneous. Historical nodes use
+    /// positive lag values internally. Negative-lag conventions are confined to
+    /// import/export adapters.
+    Lag,
+    "L",
+    usize
+);
 
 impl Lag {
     /// Contemporaneous lag (`0`).
     pub const CONTEMPORANEOUS: Self = Self(0);
 
-    /// Create a lag from a non-negative magnitude.
-    #[must_use]
-    pub const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
     /// Create a positive historical lag.
     #[must_use]
     pub const fn historical(steps: NonZeroU32) -> Self {
         Self(steps.get())
-    }
-
-    /// Underlying magnitude.
-    #[must_use]
-    pub const fn raw(self) -> u32 {
-        self.0
     }
 
     /// Whether this lag is contemporaneous.
@@ -184,11 +139,26 @@ impl Lag {
     }
 }
 
-impl fmt::Display for Lag {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "L{}", self.0)
-    }
-}
+dense_id!(
+    /// Stable handle for an immutable categorical domain stored in a schema.
+    CategoryDomainId,
+    "C",
+    usize
+);
+
+dense_id!(
+    /// Registered causal-query handle in incremental state / design objectives.
+    QueryId,
+    "Q",
+    usize
+);
+
+dense_id!(
+    /// Registered model handle in design objectives / state model stores.
+    ModelId,
+    "M",
+    usize
+);
 
 /// Attribution component (typically a mechanism / node) in change decomposition.
 ///
@@ -239,93 +209,6 @@ impl fmt::Display for ComponentId {
 impl From<VariableId> for ComponentId {
     fn from(variable: VariableId) -> Self {
         Self::from_variable(variable)
-    }
-}
-
-/// Stable handle for an immutable categorical domain stored in a schema.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct CategoryDomainId(u32);
-
-impl CategoryDomainId {
-    /// Create from a raw dense index.
-    #[must_use]
-    pub const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    /// Underlying dense index.
-    #[must_use]
-    pub const fn raw(self) -> u32 {
-        self.0
-    }
-}
-
-impl fmt::Display for CategoryDomainId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "C{}", self.0)
-    }
-}
-
-/// Registered causal-query handle in incremental state / design objectives.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct QueryId(u32);
-
-impl QueryId {
-    /// Create from a raw dense index.
-    #[must_use]
-    pub const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    /// Underlying dense index.
-    #[must_use]
-    pub const fn raw(self) -> u32 {
-        self.0
-    }
-
-    /// Convert to `usize` for indexing.
-    #[must_use]
-    pub const fn as_usize(self) -> usize {
-        self.0 as usize
-    }
-}
-
-impl fmt::Display for QueryId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Q{}", self.0)
-    }
-}
-
-/// Registered model handle in design objectives / state model stores.
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ModelId(u32);
-
-impl ModelId {
-    /// Create from a raw dense index.
-    #[must_use]
-    pub const fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    /// Underlying dense index.
-    #[must_use]
-    pub const fn raw(self) -> u32 {
-        self.0
-    }
-
-    /// Convert to `usize` for indexing.
-    #[must_use]
-    pub const fn as_usize(self) -> usize {
-        self.0 as usize
-    }
-}
-
-impl fmt::Display for ModelId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "M{}", self.0)
     }
 }
 

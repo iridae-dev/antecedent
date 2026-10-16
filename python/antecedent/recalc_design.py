@@ -17,6 +17,7 @@ from numpy.typing import ArrayLike
 
 from . import _native
 from ._recalc_bounds import _columns
+from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError
 from .recalc import (
     Decision,
@@ -26,7 +27,7 @@ from .recalc import (
     RecalcRefusal,
     RecalcResult,
     Utility,
-    _raise,
+    _refusal_type,
     _seed,
 )
 from .recalc_static import _Session
@@ -82,12 +83,14 @@ class DesignWeakInstrument(RecalcRefusal):
         self.diagnostics: Mapping[str, Any] = fields["diagnostics"]
 
 
+def _design_refusal_type(wire: Mapping[str, Any]) -> type[RecalcRefusal]:
+    if wire["detail"] == "recalc.iv_decision_unavailable":
+        return DesignWeakInstrument
+    return _refusal_type(wire)
+
+
 def _raise_design(error: str | None) -> None:
-    if error is not None:
-        wire = json.loads(error)
-        if wire["detail"] == "recalc.iv_decision_unavailable":
-            raise DesignWeakInstrument(wire)
-    _raise(error)
+    raise_refusal(error, _design_refusal_type)
 
 
 def _spec(request: DesignRequest) -> str:

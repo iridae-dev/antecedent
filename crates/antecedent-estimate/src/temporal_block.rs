@@ -76,7 +76,7 @@ impl CircularBlockFamily {
     /// Threshold on [`score_effective_rows`] of the family's estimating scores
     /// below which the interval carries a `short_series` warning.
     ///
-    /// Provenance: `crates/antecedent/tests/v19_short_series_measurement.rs`,
+    /// Provenance: `crates/antecedent/tests/short_series_measurement.rs`,
     /// table in `docs/short-series-thresholds.md` (2000 replicates per cell, the
     /// nominal-0.90 interval built from the published SE, AR(1) ρ ∈ {0.5, 0.8, 0.9,
     /// 0.95}, n from 40 to 1600). Each family is measured on a short-memory score and on a persistent one
@@ -199,7 +199,7 @@ pub fn effective_rows(scores: &[f64]) -> f64 {
 /// at lag 1 but slowly decaying. Capped at `n`; a constant series returns `n`;
 /// non-finite scores return `NaN`.
 #[must_use]
-pub fn block_effective_rows(scores: &[f64], block_length: usize) -> f64 {
+pub(crate) fn block_effective_rows(scores: &[f64], block_length: usize) -> f64 {
     let n = scores.len();
     if scores.iter().any(|s| !s.is_finite()) {
         return f64::NAN;
@@ -280,7 +280,7 @@ const SCORE_VARIANCE_FLOOR: f64 = 1e-20;
     clippy::cast_sign_loss,
     reason = "both values are ceilings of square roots of positive reals, hence non-negative; the block length is clamped to at least 1 before the cast"
 )]
-pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
+pub(crate) fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
     let n = scores.len();
     if n < 8 || scores.iter().any(|s| !s.is_finite()) {
         return None;
@@ -378,7 +378,7 @@ pub fn dependence_block_length(structural_span: usize, rows: usize, scores: &[&[
     reason = "the product ceil(pw * rows^(1/6)) is far below usize::MAX for in-memory series"
 )]
 #[allow(clippy::cast_sign_loss, reason = "both factors are non-negative")]
-pub fn testing_block_length(rows: usize, scores: &[&[f64]]) -> usize {
+pub(crate) fn testing_block_length(rows: usize, scores: &[&[f64]]) -> usize {
     let pw = scores.iter().filter_map(|s| politis_white_block_length(s)).max().unwrap_or(0);
     (pw as f64 * (rows as f64).powf(1.0 / 6.0)).ceil() as usize
 }
@@ -436,6 +436,17 @@ pub fn normal_equation_scores_of_residuals(
         .collect()
 }
 
+/// The `b → 0` intercept of the fixed-b critical-value polynomials: the normal 95% critical
+/// value as the polynomials' source tables print it (two decimals), not
+/// [`antecedent_stats::NORMAL_Q975`].
+///
+/// Both [`circular_fixed_b_scale`] and [`fixed_b_scale`] are `cv_95(b) / FIXED_B_INTERCEPT`
+/// with `cv_95(b) = FIXED_B_INTERCEPT + c₁b + c₂b² + c₃b³`: the cubics were fitted with this
+/// intercept, so the scale is exactly 1 at `b = 0` and the coefficients keep the meaning they
+/// were fitted with; swapping in the unrounded quantile would put the scale about `2e-5` away
+/// from 1 at `b = 0` and mix two constants inside one fitted cubic.
+pub(crate) const FIXED_B_INTERCEPT: f64 = 1.96;
+
 /// Fixed-b correction for a circular-block SE: `cv_95(ℓ/n) / 1.96`, with `cv_95`
 /// the fixed-b two-sided 95% critical value of a mean studentized by the
 /// *circular* Bartlett long-run variance at bandwidth `ℓ`,
@@ -480,7 +491,7 @@ pub fn circular_fixed_b_scale(block_length: usize, rows: usize) -> f64 {
         return 1.0;
     }
     let b = (block_length as f64 / rows as f64).clamp(0.0, 1.0);
-    (1.96 + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / 1.96
+    (FIXED_B_INTERCEPT + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / FIXED_B_INTERCEPT
 }
 
 /// Bartlett kernel-bias factor of a circular-block SE over `block_length`: the largest
@@ -519,12 +530,12 @@ pub fn kernel_bias_scale(scores: &[&[f64]], block_length: usize) -> f64 {
 /// instead and take [`circular_fixed_b_scale`]; the two agree to within 1% of
 /// the SE for `b ≤ 0.2` and diverge above (4% at `b = 1/3`).
 #[must_use]
-pub fn fixed_b_scale(block_length: usize, rows: usize) -> f64 {
+pub(crate) fn fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     if rows == 0 {
         return 1.0;
     }
     let b = (block_length as f64 / rows as f64).clamp(0.0, 1.0);
-    (1.96 + 2.9694 * b + 0.4160 * b * b - 0.5324 * b * b * b) / 1.96
+    (FIXED_B_INTERCEPT + 2.9694 * b + 0.4160 * b * b - 0.5324 * b * b * b) / FIXED_B_INTERCEPT
 }
 
 /// Outcome of a shared circular-block bootstrap of a run-time number of targets
@@ -651,6 +662,16 @@ pub fn aligned_block_bootstrap(
             estimate(&maps)
         });
     Some(RowBlockDraws { draws, attempted, cancelled, block_length, rows: len, kernel_bias: 1.0 })
+}
+
+/// The replicate count and RNG stream base of a circular-block bootstrap. Replicate `r`
+/// draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ r)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockBootstrap {
+    /// Requested replicates; zero publishes no bootstrap SE.
+    pub replicates: u32,
+    /// Base of the per-replicate RNG streams.
+    pub stream_base: u64,
 }
 
 /// Resample `rows` lag-aligned rows in circular blocks of `block_length` (callers
@@ -786,13 +807,8 @@ mod tests {
 
     #[test]
     fn dependence_block_length_keeps_the_rule_for_weak_and_grows_for_persistent_scores() {
-        let mut state = 0x2545_f491_4f6c_dd1d_u64;
-        let mut uniform = || {
-            state ^= state << 13;
-            state ^= state >> 7;
-            state ^= state << 17;
-            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
-        };
+        let mut rng = crate::splitmix::FixtureRng::new(0x2545_f491_4f6c_dd1d_u64);
+        let mut uniform = || rng.uniform() - 0.5;
         let iid: Vec<f64> = (0..400).map(|_| uniform()).collect();
         let mut level = 0.0;
         let persistent: Vec<f64> = (0..400)
@@ -861,13 +877,8 @@ mod tests {
             let cap = (3.0 * nf.sqrt()).min(nf / 3.0).ceil();
             b.clamp(1.0, cap.max(1.0)).ceil() as usize
         }
-        let mut state = 0x2545_f491_4f6c_dd1d_u64;
-        let mut uniform = || {
-            state ^= state << 13;
-            state ^= state >> 7;
-            state ^= state << 17;
-            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
-        };
+        let mut rng = crate::splitmix::FixtureRng::new(0x2545_f491_4f6c_dd1d_u64);
+        let mut uniform = || rng.uniform() - 0.5;
         for n in [8usize, 41, 400, 5000] {
             for rho in [0.0, 0.5, 0.85, 0.97, -0.6] {
                 let mut level = 0.0;
@@ -888,13 +899,8 @@ mod tests {
 
     #[test]
     fn normal_equation_scores_carry_the_persistent_residual_into_the_block_length() {
-        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
-        let mut uniform = || {
-            state ^= state << 13;
-            state ^= state >> 7;
-            state ^= state << 17;
-            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
-        };
+        let mut rng = crate::splitmix::FixtureRng::new(0x9E37_79B9_7F4A_7C15_u64);
+        let mut uniform = || rng.uniform() - 0.5;
         let n = 400;
         // Short-memory regressor, strongly persistent residual.
         let x: Vec<f64> = (0..n).map(|_| uniform()).collect();
@@ -1014,11 +1020,10 @@ mod tests {
         // AR(1)(0.81) score of length 400 (the persistent ρ = 0.9 design's score):
         // about 3% at the production block (74), more at a shorter block.
         let mut state = 0.0_f64;
-        let mut lcg = 0x1234_5678_u64;
+        let mut rng = crate::splitmix::FixtureRng::new(0x1234_5678_u64);
         let persistent: Vec<f64> = (0..400)
             .map(|_| {
-                lcg = lcg.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-                let u = (lcg >> 11) as f64 / (1u64 << 53) as f64 - 0.5;
+                let u = rng.uniform() - 0.5;
                 state = 0.81 * state + u;
                 state
             })
@@ -1074,7 +1079,8 @@ mod tests {
         assert!(circular_fixed_b_scale(8, 399) < circular_fixed_b_scale(4, 59));
         // Simulated circular-Bartlett 97.5% quantiles (n = 2000, 10⁶ series).
         for (b, simulated) in [(0.10, 2.2396), (0.20, 2.5791), (0.33, 3.0979), (0.40, 3.3958)] {
-            let cv = 1.96 * circular_fixed_b_scale((b * 10_000.0_f64).round() as usize, 10_000);
+            let block = (b * 10_000.0_f64).round() as usize;
+            let cv = FIXED_B_INTERCEPT * circular_fixed_b_scale(block, 10_000);
             assert!((cv - simulated).abs() < 0.006, "b={b}: {cv} vs {simulated}");
         }
         // Above the non-circular Kiefer–Vogelsang value at long blocks.

@@ -48,7 +48,7 @@ def lagged_effect(d: dict[str, np.ndarray], adjust: list[str]) -> float:
 
 
 def main() -> int:
-    pin = json.loads((HERE / "identified_pag.json").read_text())
+    pin = json.loads((HERE / "identified_pag.json").read_text(encoding="utf-8"))
     d = series(int(pin["n"]))
     atoms = pin["identified_completions"]
     weights = np.asarray([a["weight"] for a in atoms], dtype=float)
@@ -57,7 +57,7 @@ def main() -> int:
     print(json.dumps({"ate": ate, "completion_effects": effects}, indent=2))
     if "--check" in sys.argv:
         tol = pin["absolute_tolerance"]
-        assert abs(ate - pin["pulse_ate"]) <= tol, (ate, pin["pulse_ate"])
+        assert np.isclose(ate, pin["pulse_ate"], rtol=0.0, atol=tol), (ate, pin["pulse_ate"])
         print("reference matches identified_pag.json")
     return 0
 

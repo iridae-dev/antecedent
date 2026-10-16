@@ -1,4 +1,4 @@
-//! F18 `EffectConstancy`: a global heterogeneity test of one effect across a declared region or
+//! `EffectConstancy`: a global heterogeneity test of one effect across a declared region or
 //! time partition, with a portable, independently consumable artifact.
 //!
 //! The null is frozen (the effect is equal across all declared partitions) and the estimand is

@@ -50,7 +50,7 @@ fn response_curve_runs_through_public_study_facade() {
         .build()
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(50)).unwrap();
-    let response = result.response.as_ref().expect("response payload");
+    let response = result.response().expect("response payload");
 
     assert_eq!(result.logical_plan.plan_id.as_ref(), "static_response");
     assert_eq!(result.logical_plan.identifier.as_deref(), Some("response.backdoor"));
@@ -111,7 +111,7 @@ fn simultaneous_curve_band_runs_through_public_study_facade() {
         .run(&ExecutionContext::for_tests(50))
         .unwrap();
     assert!(matches!(
-        result.response.as_ref().unwrap().uncertainty,
+        result.response().unwrap().uncertainty,
         ResponseUncertainty::SimultaneousBand { replicates: 100, .. }
     ));
     assert!(result.provenance.get("estimate.response.kennedy_dr_simultaneous").is_some());
@@ -187,7 +187,7 @@ fn selected_outcome_curve_runs_through_facade_without_complete_data_bands() {
         .unwrap()
         .run(&ExecutionContext::for_tests(50))
         .unwrap();
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     assert_eq!(response.uncertainty, ResponseUncertainty::None);
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.observation_adjusted");
     assert!(result.provenance.get("estimate.response.observation_adjusted").is_some());
@@ -224,7 +224,7 @@ fn intervention_response_runs_through_public_study_facade_with_its_own_strategy(
         .run(&ExecutionContext::for_tests(52))
         .unwrap();
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("response.intervention_gcomp"));
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
     let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) = response.estimate
     else {
@@ -295,7 +295,7 @@ fn intervention_response_conforms_to_known_truth_fixture() {
         let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
         for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
             assert_eq!(result.support_status.unwrap().as_str(), "licensed");
-            let response = result.response.as_ref().unwrap();
+            let response = result.response().unwrap();
             assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
             let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
                 response.estimate
@@ -311,7 +311,10 @@ fn intervention_response_conforms_to_known_truth_fixture() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for two point curve contrast conforms to average effect under shared linear contract"
+)]
 fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract() {
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/response/two_point_curve_average_effect/expected.json"
@@ -380,7 +383,7 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
                 .unwrap()
                 .estimate(&data, &ExecutionContext::for_tests(51))
                 .unwrap();
-            let response = result.response.unwrap();
+            let response = result.response().cloned().unwrap();
             assert_eq!(response.provenance_id.as_ref(), "estimate.response.bayesian");
             let values = match response.estimate {
                 ResponseIdentification::PointIdentified(ResponseValue::Surface {
@@ -440,7 +443,7 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
         for curve in [&fresh, &click] {
             assert_eq!(curve.support_status.unwrap().as_str(), "licensed");
             let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-                &curve.response.as_ref().unwrap().estimate
+                &curve.response().unwrap().estimate
             else {
                 panic!("expected a point-identified two-point response");
             };
@@ -502,11 +505,11 @@ fn prepared_response_curve_reuses_identification() {
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!(fresh.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert_eq!(click.estimand.adjustment_set, fresh.estimand.adjustment_set);
-    let click_mean = match &click.response.as_ref().unwrap().estimate {
+    let click_mean = match &click.response().unwrap().estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean,
         other => panic!("expected surface, got {other:?}"),
     };
-    let fresh_mean = match &fresh.response.as_ref().unwrap().estimate {
+    let fresh_mean = match &fresh.response().unwrap().estimate {
         ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => mean,
         other => panic!("expected surface, got {other:?}"),
     };
@@ -549,7 +552,7 @@ fn graph_posterior_response_retains_probability_atoms_and_mass() {
         assert!(structural.conditional_on_identified.is_some());
         assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() < 1e-10);
         assert_eq!(structural.atoms.len(), gp.n_graphs);
-        assert!(result.response.is_some());
+        assert!(result.response().is_some());
     }
 }
 
@@ -746,9 +749,11 @@ fn known_truth_mixture_posterior(weights: &[f64]) -> antecedent_discovery::Graph
         vec![direct, adjusted, unidentified],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        antecedent_prob::InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        antecedent_discovery::SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -767,7 +772,10 @@ fn response_values(value: &ResponseValue) -> Vec<f64> {
 /// aggregate carries a joint-IF SE; curves and Bayesian aggregates withhold
 /// their multi-atom interval, so these cells carry numeric pins, not coverage.
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for graph posterior response known truth conditional on identified"
+)]
 fn graph_posterior_response_known_truth_conditional_on_identified() {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
@@ -867,7 +875,7 @@ fn graph_posterior_response_known_truth_conditional_on_identified() {
                     "{mode} {label} conditional_on_identified[{g}]={a}, pinned {b}"
                 );
             }
-            let uncertainty = &result.response.as_ref().unwrap().uncertainty;
+            let uncertainty = &result.response().unwrap().uncertainty;
             let has_diagnostic = |code: &str| {
                 result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == code)
             };
@@ -967,18 +975,17 @@ fn class_response_posterior_not_mixed_fires_only_when_uncertainty_is_dropped() {
     };
     let single = run(false);
     assert!(
-        !matches!(single.response.as_ref().unwrap().uncertainty, ResponseUncertainty::None),
+        !matches!(single.response().unwrap().uncertainty, ResponseUncertainty::None),
         "a single completion keeps its own posterior band"
     );
     assert!(!fires(&single), "nothing is omitted for a single completion");
     let multi = run(true);
-    assert!(matches!(multi.response.as_ref().unwrap().uncertainty, ResponseUncertainty::None));
+    assert!(matches!(multi.response().unwrap().uncertainty, ResponseUncertainty::None));
     assert!(fires(&multi), "dropped per-completion bands must be disclosed");
 }
 
 /// `t`, `y`, `z1`, `z2` with `Y = 1 + 2T + 1.5·Z1 + 0.5·Z2 + e` and `T` driven
 /// by both covariates; `valid[k](i)` marks `z{k+1}` observed at row `i`.
-#[allow(clippy::many_single_char_names)]
 fn two_covariate_response_data(n: usize, valid: [&dyn Fn(usize) -> bool; 2]) -> TabularData {
     use antecedent_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet};
     use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
@@ -1047,9 +1054,13 @@ fn two_adjustment_posterior(weights: [f64; 2]) -> antecedent_discovery::GraphPos
         vec![first, second],
         vec![0.0; 16],
         vec![0.0; 16],
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        antecedent_prob::InferenceDiagnostics::analytic("two_adjustment_posterior"),
-        0,
+        antecedent_discovery::SamplingSummary {
+            ess: 1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic(
+                "two_adjustment_posterior",
+            ),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
 }
@@ -1058,7 +1069,6 @@ fn two_adjustment_posterior(weights: [f64; 2]) -> antecedent_discovery::GraphPos
 /// `z2` late, equal counts) are mixed on the shared data rows by their row
 /// indices, not by position; the interval honours `confidence_level`.
 #[test]
-#[allow(clippy::too_many_lines)]
 fn graph_posterior_response_joint_if_aligns_atom_rows_by_index() {
     let n = 160;
     let data = two_covariate_response_data(n, [&|i| i >= 12, &|i| i < n - 12]);
@@ -1147,7 +1157,7 @@ fn graph_posterior_response_joint_if_aligns_atom_rows_by_index() {
             .se(0);
     assert!((se - positional_se).abs() > 1e-3 * se, "fixture must separate the two mixings");
     let ResponseUncertainty::Scalar { standard_error, level, lower, upper, .. } =
-        result.response.as_ref().unwrap().uncertainty
+        result.response().unwrap().uncertainty
     else {
         panic!("scalar joint-IF aggregate interval expected");
     };
@@ -1189,7 +1199,7 @@ fn graph_posterior_response_failed_atom_is_graph_dependent() {
     assert_ne!(failed.status, antecedent_core::IdentificationStatus::NotIdentified);
     let graph_dependent = antecedent_core::IdentificationStatus::GraphDependent;
     assert_eq!(result.identification.status, graph_dependent);
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     assert_eq!(response.identification_status, graph_dependent);
     assert!(
         matches!(response.estimate, ResponseIdentification::GraphDependent(_)),
@@ -1298,9 +1308,11 @@ fn interactive_budget_fixture() -> (TabularData, antecedent_discovery::GraphPost
         masks,
         vec![0.0; n_vars * n_vars],
         vec![0.0; n_vars * n_vars],
-        32.0,
-        antecedent_prob::InferenceDiagnostics::analytic("test"),
-        0,
+        antecedent_discovery::SamplingSummary {
+            ess: 32.0,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("test"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap();
     (data, gp, n_identified)

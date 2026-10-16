@@ -1,4 +1,4 @@
-//! Dependence-preserving interval of the finite two-step sequence (2.3A, X5).
+//! Dependence-preserving interval of the finite two-step sequence.
 //!
 //! The truth is an enumerated two-step dynamic SCM written out below: a pre-action
 //! state `s0`, a first action `a1` randomized given `s0`, a step-2 covariate `l`
@@ -118,7 +118,7 @@ fn target_truth() -> f64 {
 }
 
 #[test]
-fn x5_dynamic_scm_interval_point_equals_enumerated_truth() {
+fn dynamic_scm_interval_point_equals_enumerated_truth() {
     let p = panel(30);
     assert_eq!(p.unit_count(), 30);
     assert_eq!(p.history_count(), 30 * 800);
@@ -142,7 +142,7 @@ fn x5_dynamic_scm_interval_point_equals_enumerated_truth() {
 }
 
 #[test]
-fn x5_dynamic_scm_studentized_interval_covers_independent_truth() {
+fn dynamic_scm_studentized_interval_covers_independent_truth() {
     let truth = target_truth();
     let by_unit = dependent_unit_interval(
         &panel(30),
@@ -170,7 +170,7 @@ fn x5_dynamic_scm_studentized_interval_covers_independent_truth() {
 }
 
 #[test]
-fn x5_dynamic_scm_interval_replicate_ids_and_digests_reproduce() {
+fn dynamic_scm_interval_replicate_ids_and_digests_reproduce() {
     let p = panel(30);
     let first = dependent_unit_interval(
         &p,
@@ -233,7 +233,7 @@ fn x5_dynamic_scm_interval_replicate_ids_and_digests_reproduce() {
 }
 
 #[test]
-fn x5_dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
+fn dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
     let p = panel(30);
     let observed = dependent_unit_interval(
         &p,
@@ -261,7 +261,7 @@ fn x5_dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
 }
 
 #[test]
-fn x5_dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() {
+fn dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() {
     let p = panel(30);
     let too_many = DependentIntervalConfig { replicates: 2001, ..config(1) };
     let (code, message) =
@@ -297,7 +297,7 @@ fn x5_dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation
 }
 
 #[test]
-fn x5_unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
+fn unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
     let (code, message) = refused(TemporalUnitPanel::new("rows-only", None).unwrap_err());
     assert_eq!(code, "route_not_supported");
     assert!(message.contains("temporal_interval.unknown_units"), "{message}");
@@ -325,7 +325,7 @@ fn x5_unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units() {
 }
 
 #[test]
-fn x5_unknown_unit_dependence_public_route_stays_closed() {
+fn unknown_unit_dependence_public_route_stays_closed() {
     let (code, message) = refused(route_frozen_refusal());
     assert_eq!(code, "cell_not_licensed");
     assert!(message.contains("temporal_interval.route_frozen"), "{message}");

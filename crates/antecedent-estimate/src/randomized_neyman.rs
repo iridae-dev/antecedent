@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 /// Minimum independently randomized clusters in each arm for a normal interval.
-pub const MIN_CLUSTERS_PER_ARM_FOR_INTERVAL: usize = 30;
+pub(crate) const MIN_CLUSTERS_PER_ARM_FOR_INTERVAL: usize = 30;
 use antecedent_stats::NORMAL_Q975 as NORMAL_95;
 
 /// Minimum independently assigned units in each arm for a complete-design interval.
-pub const MIN_UNITS_PER_ARM_FOR_INTERVAL: usize = 30;
+pub(crate) const MIN_UNITS_PER_ARM_FOR_INTERVAL: usize = 30;
 
 /// A completely randomized intention-to-treat contrast.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -54,7 +54,7 @@ pub fn complete_unit_itt(treated: &[f64], control: &[f64]) -> Option<CompleteItt
 }
 
 /// Minimum treated and control units within every block for a blocked interval.
-pub const MIN_UNITS_PER_BLOCK_ARM_FOR_INTERVAL: usize = 15;
+pub(crate) const MIN_UNITS_PER_BLOCK_ARM_FOR_INTERVAL: usize = 15;
 
 /// A blocked, completely randomized intention-to-treat contrast.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -105,7 +105,7 @@ pub fn blocked_unit_itt(blocks: &[(&[f64], &[f64])]) -> Option<BlockedItt> {
 }
 
 /// Minimum observed units in each factorial cell for pointwise intervals.
-pub const MIN_UNITS_PER_FACTORIAL_CELL_FOR_INTERVAL: usize = 30;
+pub(crate) const MIN_UNITS_PER_FACTORIAL_CELL_FOR_INTERVAL: usize = 30;
 
 /// Main effects and interaction from a fixed-cell 2×2 factorial trial.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -231,6 +231,76 @@ pub fn complete_cluster_itt(
             [effect - radius, effect + radius]
         });
     Some(ClusterItt { effect, variance_upper_bound, interval_95 })
+}
+
+/// Block-weighted complete-randomization contrast with its Neyman variance.
+///
+/// Distinct from [`blocked_unit_itt`]: this reports the variance and the
+/// smallest within-block arm probability, and it does not form an interval.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StratifiedNeymanEffect {
+    /// Block-size weighted difference in means.
+    pub effect: f64,
+    /// Sum of squared block weights times conservative within-block variances.
+    pub variance: f64,
+    /// Smallest within-block `min(p, 1 - p)`.
+    pub minimum_probability: f64,
+    /// Number of distinct block labels.
+    pub strata: usize,
+}
+
+/// Stratified difference in means under complete randomization within blocks.
+///
+/// Each block needs two treated and two control units. Block labels are
+/// aggregated in lexicographic order.
+pub fn stratified_neyman_effect(
+    outcome: &[f64],
+    assignment: &[bool],
+    blocks: &[impl AsRef<str>],
+) -> Result<StratifiedNeymanEffect, &'static str> {
+    let n = outcome.len();
+    if n == 0 || assignment.len() != n || blocks.len() != n {
+        return Err("outcome, assignment, and block labels must have equal non-zero length");
+    }
+    if outcome.iter().any(|value| !value.is_finite()) {
+        return Err("outcomes must be finite");
+    }
+    let mut labels = blocks.iter().map(AsRef::as_ref).collect::<Vec<_>>();
+    labels.sort_unstable();
+    labels.dedup();
+    let mut effect = 0.0;
+    let mut variance = 0.0;
+    let mut minimum_probability: f64 = 1.0;
+    for label in &labels {
+        let rows = blocks
+            .iter()
+            .enumerate()
+            .filter_map(|(i, value)| (value.as_ref() == *label).then_some(i))
+            .collect::<Vec<_>>();
+        let treated = rows.iter().filter(|&&i| assignment[i]).copied().collect::<Vec<_>>();
+        let control = rows.iter().filter(|&&i| !assignment[i]).copied().collect::<Vec<_>>();
+        if treated.len() < 2 || control.len() < 2 {
+            return Err(
+                "each stratum needs at least two treated and two control units for variance estimation",
+            );
+        }
+        let mean = |indices: &[usize]| {
+            indices.iter().map(|&i| outcome[i]).sum::<f64>() / indices.len() as f64
+        };
+        let treated_mean = mean(&treated);
+        let control_mean = mean(&control);
+        let treated_var = treated.iter().map(|&i| (outcome[i] - treated_mean).powi(2)).sum::<f64>()
+            / (treated.len() - 1) as f64;
+        let control_var = control.iter().map(|&i| (outcome[i] - control_mean).powi(2)).sum::<f64>()
+            / (control.len() - 1) as f64;
+        let block_weight = rows.len() as f64 / n as f64;
+        effect += block_weight * (treated_mean - control_mean);
+        variance += block_weight.powi(2)
+            * (treated_var / treated.len() as f64 + control_var / control.len() as f64);
+        let p = treated.len() as f64 / rows.len() as f64;
+        minimum_probability = minimum_probability.min(p.min(1.0 - p));
+    }
+    Ok(StratifiedNeymanEffect { effect, variance, minimum_probability, strata: labels.len() })
 }
 
 #[cfg(test)]

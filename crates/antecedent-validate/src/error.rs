@@ -37,6 +37,15 @@ pub enum ValidationError {
         /// Reason.
         message: &'static str,
     },
+    /// A refuter refused a result that is not a stats-backend failure.
+    ///
+    /// Display stays `backend error: …`, the text [`Self::estimation_msg`] used to
+    /// produce by packing the message into [`EstimationError`].
+    #[error("backend error: {message}")]
+    Refused {
+        /// What was refused.
+        message: String,
+    },
 }
 
 impl ValidationError {
@@ -46,9 +55,12 @@ impl ValidationError {
         Self::Data(DataError::InvalidArgument { message: message.into() })
     }
 
-    /// Ad-hoc estimation message.
+    /// A validation refusal whose text is `backend error: {message}`.
+    ///
+    /// This is not an [`EstimationError`]: the stats layer did not fail. Callers
+    /// that matched [`Self::Estimation`] for these messages should match [`Self::Refused`].
     #[must_use]
     pub fn estimation_msg(message: impl Into<String>) -> Self {
-        Self::Estimation(EstimationError::stats_msg(message))
+        Self::Refused { message: message.into() }
     }
 }

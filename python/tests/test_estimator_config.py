@@ -2,10 +2,10 @@
 
 `estimator_config` is a single table-driven kwarg that replaces the old pattern of adding a
 loose Python kwarg per estimator setter. These tests exercise it directly against the native
-`analyze_ate` entry point (rather than the higher-level `antecedent.analyze()` wrapper, which
-does not forward `estimator_config`): a config that measurably changes a result, unknown-key
-and wrong-estimator-key errors, a wrong-type error, the `estimator_config=None` no-drift
-guarantee, and the `rd.sharp` triple expressed through `estimator_config`.
+`PreparedAnalysis.prepare` handle (through `_native_ate.native_ate`), which still takes the
+loose `rd.sharp` triple that the facade refuses: a config that measurably changes a result,
+unknown-key and wrong-estimator-key errors, a wrong-type error, the `estimator_config=None`
+no-drift guarantee, and the `rd.sharp` triple expressed through `estimator_config`.
 """
 
 from __future__ import annotations
@@ -15,21 +15,11 @@ import re
 import antecedent
 import numpy as np
 import pytest
-from antecedent._native import analyze_ate
 from antecedent.estimators import GlmOptions, PropensityWeighting
 
-
-def _confounded_data(seed: int = 7, n: int = 400):
-    """Simple confounded SCM: z -> t -> y, z -> y. Complete cases, no missing data."""
-    rng = np.random.default_rng(seed)
-    z = rng.normal(size=n)
-    t = (z + rng.normal(size=n) * 0.5 > 0).astype(np.float64)
-    y = 2.0 * t + 1.0 * z + rng.normal(size=n) * 0.5
-    names = ["z", "t", "y"]
-    columns = [z, t, y]
-    edges = [("z", "t"), ("z", "y"), ("t", "y")]
-    return names, columns, edges
-
+from _native_ate import native_ate
+from _scm import confounded_columns as _confounded_data
+from _scm import public_scm as _public_scm
 
 # A sharp design as a graph: the running variable is the treatment's only cause.
 _RD_GRAPH = [("r", "t"), ("t", "y"), ("r", "y")]
@@ -54,8 +44,8 @@ def test_cluster_se_kind_changes_se_but_not_the_point_estimate():
     n = len(columns[0])
     cluster_ids = [int(x) for x in np.random.default_rng(11).integers(0, 4, size=n)]
 
-    baseline = analyze_ate(names, columns, edges, "t", "y", refute=False, bootstrap=0, seed=1)
-    configured = analyze_ate(
+    baseline = native_ate(names, columns, edges, "t", "y", refute=False, bootstrap=0, seed=1)
+    configured = native_ate(
         names,
         columns,
         edges,
@@ -79,8 +69,8 @@ def test_bootstrap_replicates_via_estimator_config_matches_ambient_bootstrap_kwa
     to the estimator struct's own 200-replicate default."""
     names, columns, edges = _confounded_data()
 
-    unconfigured = analyze_ate(names, columns, edges, "t", "y", refute=False, bootstrap=64, seed=5)
-    configured = analyze_ate(
+    unconfigured = native_ate(names, columns, edges, "t", "y", refute=False, bootstrap=64, seed=5)
+    configured = native_ate(
         names,
         columns,
         edges,
@@ -108,7 +98,7 @@ def test_bootstrap_replicates_via_estimator_config_matches_ambient_bootstrap_kwa
 def test_unknown_key_names_the_key():
     names, columns, edges = _confounded_data()
     with pytest.raises(ValueError, match="unknown estimator_config key") as exc_info:
-        analyze_ate(
+        native_ate(
             names,
             columns,
             edges,
@@ -126,7 +116,7 @@ def test_key_belonging_to_a_different_estimator_names_it():
     # `glm_options` is valid for propensity/AIPW/glm.adjustment estimators, not the default
     # linear.adjustment.ate — this should name linear.adjustment.ate and point at an owner.
     with pytest.raises(ValueError, match="belongs to estimator") as exc_info:
-        analyze_ate(
+        native_ate(
             names,
             columns,
             edges,
@@ -144,7 +134,7 @@ def test_key_belonging_to_a_different_estimator_names_it():
 def test_estimator_config_unsupported_for_estimators_with_no_config_surface():
     names, columns, edges = _confounded_data()
     with pytest.raises(ValueError, match="estimator_config is not supported for estimator"):
-        analyze_ate(
+        native_ate(
             names,
             columns,
             edges,
@@ -163,7 +153,7 @@ def test_estimator_config_unsupported_for_estimators_with_no_config_surface():
 def test_wrong_value_type_raises():
     names, columns, edges = _confounded_data()
     with pytest.raises(ValueError, match="must be a non-negative int"):
-        analyze_ate(
+        native_ate(
             names,
             columns,
             edges,
@@ -178,7 +168,7 @@ def test_wrong_value_type_raises():
 def test_wrong_cluster_ids_type_raises():
     names, columns, edges = _confounded_data()
     with pytest.raises(ValueError, match="must be a list of non-negative ints"):
-        analyze_ate(
+        native_ate(
             names,
             columns,
             edges,
@@ -196,11 +186,11 @@ def test_wrong_cluster_ids_type_raises():
 def test_estimator_config_none_matches_omitting_it_entirely():
     names, columns, edges = _confounded_data()
 
-    omitted = analyze_ate(names, columns, edges, "t", "y", refute=False, bootstrap=0, seed=3)
-    explicit_none = analyze_ate(
+    omitted = native_ate(names, columns, edges, "t", "y", refute=False, bootstrap=0, seed=3)
+    explicit_none = native_ate(
         names, columns, edges, "t", "y", refute=False, bootstrap=0, seed=3, estimator_config=None
     )
-    empty_dict = analyze_ate(
+    empty_dict = native_ate(
         names, columns, edges, "t", "y", refute=False, bootstrap=0, seed=3, estimator_config={}
     )
 
@@ -216,7 +206,7 @@ def test_estimator_config_none_matches_omitting_it_entirely():
 def test_rd_triple_via_estimator_config_matches_loose_kwargs():
     names, columns = _rd_data()
 
-    via_loose_kwargs = analyze_ate(
+    via_loose_kwargs = native_ate(
         names,
         columns,
         _RD_GRAPH,
@@ -231,7 +221,7 @@ def test_rd_triple_via_estimator_config_matches_loose_kwargs():
         bootstrap=0,
         seed=26,
     )
-    via_estimator_config = analyze_ate(
+    via_estimator_config = native_ate(
         names,
         columns,
         _RD_GRAPH,
@@ -253,7 +243,7 @@ def test_rd_triple_via_estimator_config_matches_loose_kwargs():
 def test_rd_triple_conflict_between_loose_and_estimator_config_raises():
     names, columns = _rd_data()
     with pytest.raises(ValueError, match="conflicting rd.sharp"):
-        analyze_ate(
+        native_ate(
             names,
             columns,
             _RD_GRAPH,
@@ -284,7 +274,7 @@ def _rd_fit(names, columns, se_kind=None):
     config = {"running_variable": "r", "cutoff": 0.0, "bandwidth": 1.5}
     if se_kind is not None:
         config["se_kind"] = se_kind
-    return analyze_ate(
+    return native_ate(
         names,
         columns,
         _RD_GRAPH,
@@ -331,7 +321,7 @@ def test_rd_key_used_without_rd_sharp_estimator_reports_the_owner():
     # `running_variable` is only a valid estimator_config key for rd.sharp; against the
     # default linear.adjustment.ate it should report rd.sharp as the owning estimator.
     with pytest.raises(ValueError, match="belongs to estimator") as exc_info:
-        analyze_ate(
+        native_ate(
             names,
             columns,
             edges,
@@ -345,18 +335,10 @@ def test_rd_key_used_without_rd_sharp_estimator_reports_the_owner():
 
 
 # ---------------------------------------------------------------------------
-# Public-facade coverage. The tests above drive `_native.analyze_ate` directly;
+# Public-facade coverage. The tests above drive the native prepared handle directly;
 # these pin that `estimator_config=` is actually reachable from `antecedent.analyze`,
 # which is the only spelling documented to users.
 # ---------------------------------------------------------------------------
-
-
-def _public_scm(seed: int = 9, n: int = 400):
-    rng = np.random.default_rng(seed)
-    z = rng.normal(size=n)
-    t = (0.7 * z + rng.normal(size=n) * 0.5 > 0).astype(float)
-    y = 1.5 * t + z + rng.normal(size=n) * 0.4
-    return {"z": z, "t": t, "y": y}, [("z", "t"), ("z", "y"), ("t", "y")]
 
 
 def test_public_analyze_accepts_estimator_config_and_none_is_identical():
@@ -413,10 +395,9 @@ def test_public_analyze_rejects_bad_estimator_config(config, needle):
 
 
 # ---------------------------------------------------------------------------
-# estimator_config on the discovery= path (regression for the bug where
-# `handle_static_ate_discover` / `analyze_ate_discover` silently dropped
-# `estimator_config`, so a configured estimator silently fell back to its
-# defaults whenever `discovery=` was used instead of `graph=`).
+# estimator_config on the discovery= path (regression for the bug where the discovery
+# route silently dropped `estimator_config`, so a configured estimator silently fell
+# back to its defaults whenever `discovery=` was used instead of `graph=`).
 #
 # The reliable trick: `GlmOptions(max_iter=3)` starves propensity.weighting's
 # GLM IRLS fit of iterations on `_confounded_data()` (a near-separable binary
@@ -460,8 +441,7 @@ def test_estimator_config_reaches_estimator_on_discovery_path():
 
 def test_estimator_config_dict_reaches_estimator_on_discovery_path():
     """Same regression as above, but through the raw `estimator_config=` dict
-    spelling (rather than a typed `antecedent.estimators` dataclass) and
-    directly against `handle_static_ate_discover`'s native call, to pin the
+    spelling (rather than a typed `antecedent.estimators` dataclass), to pin the
     fix at the `_analyze.py` dispatch layer independent of `estimator._wire()`.
     """
     names, columns, edges = _confounded_data()

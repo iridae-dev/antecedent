@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
+from ._columns import coerce_fields
 from ._native import composition_lineage as _composition_lineage
 from ._native import decision_contract_normalize as _normalize
 from ._native import decision_source_digest as _source_digest
@@ -42,9 +44,12 @@ from ._native import export_decision_contract as _export_contract
 from ._native import export_decision_result as _export_result
 from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
+from ._refusal import raise_refusal
+from ._validate import real, text
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .results.sources import MeanSource
 
 if TYPE_CHECKING:
     from ._native import AteAnalysisResult
@@ -74,11 +79,6 @@ class DecisionRefusal(StructuredRefusal):
         super().__init__(refusal, text=text)
         self.expected: str | None = refusal.get("expected")
         self.supplied: str | None = refusal.get("supplied")
-
-
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise DecisionRefusal(json.loads(refusal))
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,16 +142,9 @@ def _coerce(value: Expr | float) -> Expr:
     return const(float(value))
 
 
-def _number(name: str, value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise CausalTypeError(f"{name} must be a number, got {type(value).__name__}")
-    return float(value)
+_real = partial(real, type_message="{what} must be a number, got {got}")
 
-
-def _text(name: str, value: object) -> str:
-    if not isinstance(value, str):
-        raise CausalTypeError(f"{name} must be a string, got {type(value).__name__}")
-    return value
+_text = partial(text, type_message="{what} must be a string, got {got}")
 
 
 def x(index: int) -> Expr:
@@ -196,12 +189,12 @@ class Criterion:
     @classmethod
     def threshold_probability(cls, threshold: float) -> Criterion:
         """Maximize ``P(utility >= threshold)``; ``threshold`` is a number in utility units."""
-        return cls("threshold_probability", threshold=_number("threshold", threshold))
+        return cls("threshold_probability", threshold=_real(threshold, "threshold"))
 
     @classmethod
     def quantile(cls, p: float) -> Criterion:
         """Maximize the ``p`` quantile of the utility; ``p`` is a number."""
-        return cls("quantile", p=_number("p", p))
+        return cls("quantile", p=_real(p, "p"))
 
     @classmethod
     def minimax_over_identified_set(cls) -> Criterion:
@@ -244,7 +237,7 @@ class Action:
     kind: ActionKind = "intervention"
 
     def __post_init__(self) -> None:
-        _text("Action.id", self.id)
+        _text(self.id, "Action.id")
         if isinstance(self.inputs, (str, bytes)) or not isinstance(self.inputs, Iterable):
             raise CausalTypeError("Action.inputs must be a sequence of ScientificQuantity")
         inputs = tuple(self.inputs)
@@ -264,7 +257,7 @@ class Action:
             )
         if self.kind not in get_args(ActionKind):
             raise CausalValueError(f"Action.kind must be one of {get_args(ActionKind)}")
-        object.__setattr__(self, "inputs", inputs)
+        coerce_fields(self, inputs=inputs)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -291,15 +284,15 @@ class Constraint:
     applies_to: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        _text("Constraint.id", self.id)
+        _text(self.id, "Constraint.id")
         if not isinstance(self.expr, Expr):
             raise CausalTypeError("Constraint.expr must be an Expr built from decision.x(i)")
-        _number("Constraint.bound", self.bound)
-        _number("Constraint.min_probability", self.min_probability)
-        _text("Constraint.units", self.units)
+        _real(self.bound, "Constraint.bound")
+        _real(self.min_probability, "Constraint.min_probability")
+        _text(self.units, "Constraint.units")
         if isinstance(self.applies_to, (str, bytes)):
             raise CausalTypeError("Constraint.applies_to must be a sequence of action ids")
-        object.__setattr__(self, "applies_to", tuple(self.applies_to))
+        coerce_fields(self, applies_to=tuple(self.applies_to))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -351,72 +344,6 @@ class Verdict:
 
 def _expr_from_wire(wire: Any) -> Expr:
     return Expr(wire)
-
-
-@dataclass(frozen=True, slots=True)
-class MeanSource:
-    """One mean per coordinate, with the provenance the decision records.
-
-    It answers only the expectation of an affine utility: any other criterion refuses
-    with ``decision_contract_unsatisfied``, because a mean is never an outcome law.
-    Build it from a native response with
-    :meth:`antecedent.program_claims.NativeClaim.as_decision_source`.
-    """
-
-    coordinates: tuple[ScientificQuantity, ...]
-    means: tuple[float, ...]
-    provider_id: str
-    snapshot_id: str
-    causal_contract_id: str
-    rng_id: str = "none:mean_grid"
-    _original_native: Any = field(default=None, repr=False, compare=False)
-    _original_effect: Any = field(default=None, repr=False, compare=False)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "coordinates", tuple(self.coordinates))
-        object.__setattr__(self, "means", tuple(float(m) for m in self.means))
-
-    def _validated_original(self):
-        if self._original_effect is not None:
-            original, value, units, population = self._original_effect
-            raw = original._raw
-            wire, refusal = raw.effect_source_json(units, population, value)
-            if refusal is not None:
-                from .external import ExternalRefusal
-
-                raise ExternalRefusal(json.loads(refusal))
-            actual = json.loads(wire)
-            actual.pop("query", None)
-            supplied = {
-                "coordinates": [q._wire() for q in self.coordinates],
-                "means": list(self.means),
-                "provider_id": self.provider_id,
-                "snapshot_id": self.snapshot_id,
-                "causal_contract_id": self.causal_contract_id,
-                "rng_id": self.rng_id,
-            }
-            if json.loads(json.dumps(supplied)) != actual:
-                raise CausalValueError(
-                    "a native effect mean source must retain its original fields"
-                )
-            return raw
-        if self._original_native is None:
-            return None
-        from . import _native
-
-        return _native.source_backed_native_mean(
-            self._original_native._native,
-            json.dumps(
-                {
-                    "coordinates": [q._wire() for q in self.coordinates],
-                    "means": list(self.means),
-                    "provider_id": self.provider_id,
-                    "snapshot_id": self.snapshot_id,
-                    "causal_contract_id": self.causal_contract_id,
-                    "rng_id": self.rng_id,
-                }
-            ),
-        )
 
 
 def _result_mean_source(
@@ -477,6 +404,7 @@ def _result_mean_source(
             causal_contract_id=fields["causal_contract_id"],
             rng_id=fields["rng_id"],
             _original_effect=(source, value, outcome_units, population),
+            trust="native_licensed",
         )
     from .results.response import CausalResponseView
 
@@ -541,8 +469,8 @@ class Contract:
         constraints = tuple(self.constraints)
         if any(not isinstance(constraint, Constraint) for constraint in constraints):
             raise CausalTypeError("Contract.constraints must hold only Constraint values")
-        _text("Contract.utility_units", self.utility_units)
-        _text("Contract.target_population", self.target_population)
+        _text(self.utility_units, "Contract.utility_units")
+        _text(self.target_population, "Contract.target_population")
         if not isinstance(self.criterion, Criterion):
             raise CausalTypeError(
                 "Contract.criterion must be a Criterion such as Criterion.expected_utility(), "
@@ -554,8 +482,8 @@ class Contract:
             raise CausalValueError(
                 f"Contract.structural_policy must be one of {get_args(StructuralPolicy)}"
             )
-        object.__setattr__(self, "actions", actions)
-        object.__setattr__(self, "constraints", constraints)
+        coerce_fields(self, actions=actions)
+        coerce_fields(self, constraints=constraints)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -571,7 +499,7 @@ class Contract:
 
     def _normalized(self) -> dict[str, Any]:
         normalized, refusal = _normalize(json.dumps(self._wire()))
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert normalized is not None
         return dict(json.loads(normalized))
 
@@ -630,6 +558,13 @@ class Contract:
         ``decision_contract_unsatisfied`` (``decision_evaluation.mean_source_insufficient``).
         Regret and EVPI are unavailable for such a decision.
         """
+        from .results.sources import adapt_mean_source, is_mean_producer
+
+        if is_mean_producer(source):
+            source = adapt_mean_source(source)
+        cohort_source = getattr(source, "_cohort_mean_source", None)
+        if cohort_source is not None:
+            source = cohort_source()
         result_source = _result_mean_source(
             self,
             source,
@@ -650,7 +585,7 @@ class Contract:
                 str(identity["snapshot_id"]),
                 str(identity["causal_contract_id"]),
             )
-            _raise(refusal)
+            raise_refusal(refusal, DecisionRefusal)
             assert result is not None
             return Decision(self, source, json.loads(result))
         if isinstance(source, MeanSource):
@@ -663,7 +598,7 @@ class Contract:
                 source.snapshot_id,
                 source.causal_contract_id,
             )
-            _raise(refusal)
+            raise_refusal(refusal, DecisionRefusal)
             assert result is not None
             return Decision(self, source, json.loads(result))
         if not isinstance(source, JointDistributionArtifact):
@@ -679,9 +614,29 @@ class Contract:
                 f"result (antecedent.analyze(...)), not {type(source).__name__}{hint}"
             )
         result, refusal = _evaluate(json.dumps(self._wire()), source._native)
-        _raise(refusal)
+        raise_refusal(refusal, DecisionRefusal)
         assert result is not None
         return Decision(self, source, json.loads(result))
+
+    def evaluate_transported(
+        self,
+        response: Any,
+        *,
+        analysis: Any,
+        demand: Literal["expected_utility", "law", "interval"] = "expected_utility",
+        support_policy: Any = None,
+    ) -> Any:
+        """Decide on a :class:`~antecedent.transported_response.TransportedResponse`.
+
+        The result is a :class:`~antecedent.transported_response.TransportedDecision` that names
+        the transport beside every number and is never presented as a decision on native
+        target data. See :func:`antecedent.transported_response.evaluate_transported`.
+        """
+        from .transported_response import evaluate_transported
+
+        return evaluate_transported(
+            self, response, analysis=analysis, demand=demand, support_policy=support_policy
+        )
 
     def export(self, *, artifact_id: str = "decision-contract") -> bytes:
         return bytes(_export_contract(json.dumps(self._wire()), artifact_id))
@@ -734,6 +689,11 @@ class Decision:
         self._contract = contract
         self._source = source
         self._body = body
+
+    @property
+    def source(self) -> Any:
+        """The immutable scientific source, including retained adapter provenance."""
+        return self._source
 
     @property
     def contract_identity(self) -> str:
@@ -840,11 +800,16 @@ class Decision:
         re-chained natively so every link, including the two appended ones, has
         its Merkle digest (Python cannot hash).
         """
-        if isinstance(self._source, BoundExternalClaim):
+        if isinstance(self._source, (BoundExternalClaim, MeanSource)) and self._source.lineage:
             decision_id = f"decision:{self.contract_identity}"
-            rows = [[link.id, link.stage, list(link.parents)] for link in self._source.lineage]
+            rows = [
+                [link["id"], link["stage"], list(link["parents"])]
+                if isinstance(link, Mapping)
+                else [link.id, link.stage, list(link.parents)]
+                for link in self._source.lineage
+            ]
             rows.append([decision_id, "decision_contract", []])
-            rows.append([RESULT_LINK_ID, "claim", ["claim", decision_id]])
+            rows.append([RESULT_LINK_ID, "claim", [rows[-2][0], decision_id]])
             return tuple(
                 LineageLink(
                     item["id"],
@@ -956,7 +921,7 @@ def replay(data: bytes, *, contract: Contract, source: JointDistributionArtifact
             f"from, not {type(source).__name__}; only a joint-draw decision replays"
         )
     result, refusal = _replay(data, json.dumps(contract._wire()), source._native)
-    _raise(refusal)
+    raise_refusal(refusal, DecisionRefusal)
     assert result is not None
     return Decision(contract, source, json.loads(result))
 

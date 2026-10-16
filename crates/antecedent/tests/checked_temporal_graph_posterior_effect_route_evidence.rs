@@ -4,6 +4,7 @@
 
 #![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
@@ -11,7 +12,7 @@ use antecedent_core::{
     CausalQuery, ExecutionContext, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_prob::InferenceDiagnostics;
 use common::fixtures::{self, B2, DBN_UNIDENTIFIED_MASS, confounded_series, heterogeneous_dbn};
 
@@ -33,9 +34,11 @@ fn cpdag_posterior() -> GraphPosterior {
         vec![0, 0],
         vec![0.0; 4],
         vec![0.0; 4],
-        1.0,
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)
@@ -57,9 +60,11 @@ fn pag_posterior() -> GraphPosterior {
         vec![visible, visible],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0,
-        InferenceDiagnostics::analytic("visible_pag_known_truth"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("visible_pag_known_truth"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Pag)
@@ -133,7 +138,7 @@ fn inference_label(inference: &InferenceMode) -> &'static str {
 
 fn point(result: &antecedent::StudyResult, inference: &InferenceMode) -> f64 {
     match inference {
-        InferenceMode::Frequentist => result.estimate.ate,
+        InferenceMode::Frequentist => result.estimate.as_effect().unwrap().ate,
         InferenceMode::Bayesian(_) => result
             .posterior
             .as_ref()
@@ -141,7 +146,7 @@ fn point(result: &antecedent::StudyResult, inference: &InferenceMode) -> f64 {
                 let column = posterior.effect_column()?;
                 posterior.summaries.mean.get(column).copied()
             })
-            .unwrap_or(result.estimate.ate),
+            .unwrap_or(result.estimate.as_effect().unwrap().ate),
     }
 }
 

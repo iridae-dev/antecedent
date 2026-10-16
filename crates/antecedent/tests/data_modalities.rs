@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::uninlined_format_args)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -13,11 +12,11 @@ mod common;
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, ClassPrior, InferenceMode, RefuteSuite, Study};
+use antecedent_contract::DataClassification;
 use antecedent_core::{
-    CausalQuery, CausalSchemaBuilder, ContinuousDomain, DataClassification, ExecutionContext,
-    GridSpec, IdentificationStatus, Lag, MeasurementSpec, ResponseFunctional, ResponseQuery,
-    RoleHint, SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, ValueType,
-    VariableId,
+    CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec,
+    IdentificationStatus, Lag, MeasurementSpec, ResponseFunctional, ResponseQuery, RoleHint,
+    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, ValueType, VariableId,
 };
 use antecedent_data::{
     DiscoveryEstimationSplit, EventData, Float64Column, OwnedColumn, OwnedColumnarStorage,
@@ -106,7 +105,11 @@ fn event_align_then_temporal_effect() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!((result.estimate.ate - 0.8).abs() < 0.08, "ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 0.8).abs() < 0.08,
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     assert_eq!(result.logical_plan.data_classification, DataClassification::Event);
 }
 
@@ -129,9 +132,13 @@ fn panel_stacked_estimate_with_cluster_se() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(2)).unwrap();
-    assert!((result.estimate.ate - 0.8).abs() < 0.08, "ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 0.8).abs() < 0.08,
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     assert_eq!(result.logical_plan.data_classification, DataClassification::Panel);
-    assert!(result.estimate.se_analytic.is_finite());
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_finite());
 }
 
 fn xy_series_with_unit_effect(n: usize, seed: f64, treat: f64, unit_eff: f64) -> TimeSeriesData {
@@ -289,19 +296,25 @@ fn prepared_panel_pulse_reuses_identification() {
         second.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
         1
     );
-    assert!((first.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-    assert!((second.estimate.ate - first.estimate.ate).abs() < 1e-12);
+    assert!(
+        (first.estimate.as_effect().unwrap().ate - fresh.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
+    assert!(
+        (second.estimate.as_effect().unwrap().ate - first.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
 
     let mismatch = PanelData::try_new(Arc::from([PanelUnit {
         unit_id: 0,
         series: xy_series_regular(80, 0.2, 2),
     }]))
     .unwrap();
-    let prior_ate = first.estimate.ate;
+    let prior_ate = first.estimate.as_effect().unwrap().ate;
     let err = prepared.refresh_panel(mismatch, &ctx).unwrap_err();
     assert!(err.to_string().contains("regularity"), "{err}");
     let still = prepared.estimate_panel(&panel, &ctx).unwrap();
-    assert!((still.estimate.ate - prior_ate).abs() < 1e-12);
+    assert!((still.estimate.as_effect().unwrap().ate - prior_ate).abs() < 1e-12);
 }
 
 fn pulse_query() -> TemporalEffectQuery {
@@ -344,7 +357,10 @@ fn prepared_panel_handle_refuses_series_and_tabular_data() {
         assert!(text.contains("estimate_panel"), "{text}");
     }
     let after = prepared.estimate_panel(&panel, &ctx).unwrap();
-    assert!((after.estimate.ate - before.estimate.ate).abs() < 1e-12);
+    assert!(
+        (after.estimate.as_effect().unwrap().ate - before.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
 }
 
 #[test]
@@ -375,7 +391,10 @@ fn prepared_series_handle_refuses_panel_data() {
         assert!(text.contains("estimate_series"), "{text}");
     }
     let after = prepared.estimate_series(&series, &ctx).unwrap();
-    assert!((after.estimate.ate - before.estimate.ate).abs() < 1e-12);
+    assert!(
+        (after.estimate.as_effect().unwrap().ate - before.estimate.as_effect().unwrap().ate).abs()
+            < 1e-12
+    );
 }
 
 #[test]
@@ -442,7 +461,7 @@ fn panel_response_curve_uses_unit_cluster_bands() {
         .run(&ExecutionContext::for_tests(2))
         .unwrap();
     assert_eq!(result.logical_plan.data_classification, DataClassification::Panel);
-    let response = result.response.as_ref().expect("panel response surface");
+    let response = result.response().expect("panel response surface");
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean, .. },
     ) = &response.estimate
@@ -452,8 +471,7 @@ fn panel_response_curve_uses_unit_cluster_bands() {
     assert!(mean.iter().all(|value| value.is_finite()));
     assert!(
         (mean[1] - mean[0] - 0.8).abs() < 0.15,
-        "unit-average pulse contrast should stay near 0.8, got {:?}",
-        mean
+        "unit-average pulse contrast should stay near 0.8, got {mean:?}"
     );
     match &response.uncertainty {
         antecedent_core::ResponseUncertainty::PointwiseBand { lower, upper, .. } => {
@@ -489,7 +507,7 @@ fn bayesian_panel_response_uses_unit_cluster_bands() {
         .unwrap()
         .run(&ExecutionContext::for_tests(3))
         .unwrap();
-    let response = result.response.as_ref().expect("Bayesian panel response surface");
+    let response = result.response().expect("Bayesian panel response surface");
     let antecedent_core::ResponseIdentification::PointIdentified(
         antecedent_core::ResponseValue::Surface { mean, .. },
     ) = &response.estimate
@@ -499,8 +517,7 @@ fn bayesian_panel_response_uses_unit_cluster_bands() {
     assert!(mean.iter().all(|value| value.is_finite()));
     assert!(
         (mean[1] - mean[0] - 0.8).abs() < 0.25,
-        "Bayesian unit-average pulse contrast should stay near 0.8, got {:?}",
-        mean
+        "Bayesian unit-average pulse contrast should stay near 0.8, got {mean:?}"
     );
 }
 
@@ -522,7 +539,11 @@ fn panel_class_pulse_uses_completion_masses() {
         .run(&ExecutionContext::for_tests(2))
         .unwrap();
     assert_eq!(result.logical_plan.data_classification, DataClassification::Panel);
-    assert!((result.estimate.ate - 0.8).abs() < 0.08, "ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 0.8).abs() < 0.08,
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     assert!(result.structural_response.is_some(), "class Pulse must publish completion masses");
     assert!(
         result.diagnostics.iter().any(|item| {
@@ -560,9 +581,16 @@ fn bayesian_panel_class_pulse_uses_completion_masses() {
         result.diagnostics.iter().any(|item| item.code.as_ref() == code)
     };
     let enumeration = run(None);
-    assert!(enumeration.estimate.ate.is_nan(), "ate={}", enumeration.estimate.ate);
+    assert!(
+        enumeration.estimate.as_effect().unwrap().ate.is_nan(),
+        "ate={}",
+        enumeration.estimate.as_effect().unwrap().ate
+    );
     assert!(enumeration.posterior.is_none());
-    assert!(enumeration.estimate.se_bootstrap.is_none(), "no frequentist bootstrap under Bayes");
+    assert!(
+        enumeration.estimate.as_effect().unwrap().se_bootstrap().is_none(),
+        "no frequentist bootstrap under Bayes"
+    );
     assert!(has(&enumeration, "estimate.temporal_class.enumeration_not_probability"));
     assert!(has(&enumeration, "estimate.temporal_effect.panel.class.bayesian_units"));
     let mixture = enumeration.structural_response.as_ref().expect("completion masses");
@@ -571,7 +599,11 @@ fn bayesian_panel_class_pulse_uses_completion_masses() {
     assert!((atom_scalar(atom) - 0.8).abs() < 0.15, "atom={:?}", atom.value);
 
     let prior = run(Some(ClassPrior::from_ordered([1.0]).unwrap()));
-    assert!((prior.estimate.ate - 0.8).abs() < 0.15, "ate={}", prior.estimate.ate);
+    assert!(
+        (prior.estimate.as_effect().unwrap().ate - 0.8).abs() < 0.15,
+        "ate={}",
+        prior.estimate.as_effect().unwrap().ate
+    );
     assert!(prior.posterior.is_some(), "a class prior mixes completion posteriors");
     assert_eq!(
         prior.structural_response.as_ref().unwrap().weight_basis,
@@ -611,9 +643,9 @@ fn bayesian_panel_class_pulse_mixes_draws_by_the_caller_class_prior() {
         assert!((values[0] - values[1]).abs() > 0.3, "completions must disagree: {values:?}");
         let expected = masses[0] * values[0] + masses[1] * values[1];
         assert!(
-            (result.estimate.ate - expected).abs() < 0.05,
+            (result.estimate.as_effect().unwrap().ate - expected).abs() < 0.05,
             "mixture {} vs class-prior mean {expected} ({values:?})",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
         let posterior = result.posterior.as_ref().expect("mixed posterior");
         let sd = posterior.summaries.sd[posterior.effect_column().unwrap()];
@@ -623,7 +655,10 @@ fn bayesian_panel_class_pulse_mixes_draws_by_the_caller_class_prior() {
             "mixture sd {sd} omits the between-completion spread {between}"
         );
     }
-    assert!((low.estimate.ate - high.estimate.ate).abs() > 0.2);
+    assert!(
+        (low.estimate.as_effect().unwrap().ate - high.estimate.as_effect().unwrap().ate).abs()
+            > 0.2
+    );
 }
 
 #[test]
@@ -646,7 +681,7 @@ fn panel_class_response_uses_completion_surfaces() {
         .unwrap()
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    let response = result.response.as_ref().expect("panel class response surface");
+    let response = result.response().expect("panel class response surface");
     let antecedent_core::ResponseIdentification::PartiallyIdentified(
         antecedent_core::ResponseValue::Envelope(envelope),
     ) = &response.estimate
@@ -690,7 +725,7 @@ fn panel_class_response_identified_set_spans_disagreeing_completions() {
         .unwrap()
         .run(&ExecutionContext::for_tests(9))
         .unwrap();
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     let antecedent_core::ResponseIdentification::PartiallyIdentified(
         antecedent_core::ResponseValue::Envelope(envelope),
     ) = &response.estimate
@@ -745,14 +780,14 @@ fn panel_class_response_covers_several_horizons() {
     let class = run(Study::panel(panel(units.clone()))
         .graph(TemporalCpdag::from_temporal_dag(&lagged_ty_dag())));
     let dag = run(Study::panel(panel(units)).graph(lagged_ty_dag()));
-    let response = class.response.as_ref().unwrap();
+    let response = class.response().unwrap();
     let antecedent_core::ResponseIdentification::PartiallyIdentified(
         antecedent_core::ResponseValue::Envelope(envelope),
     ) = &response.estimate
     else {
         panic!("expected a partially identified envelope, got {:?}", response.estimate);
     };
-    let (dag_mean, dag_grid) = match &dag.response.as_ref().unwrap().estimate {
+    let (dag_mean, dag_grid) = match &dag.response().unwrap().estimate {
         antecedent_core::ResponseIdentification::PointIdentified(
             antecedent_core::ResponseValue::Surface { mean, grid, .. },
         ) => (mean.to_vec(), grid.to_vec()),
@@ -794,7 +829,11 @@ fn panel_class_multi_step_sustained_uses_completion_masses() {
         .unwrap()
         .run(&ExecutionContext::for_tests(6))
         .unwrap();
-    assert!(result.estimate.ate.is_finite(), "ate={}", result.estimate.ate);
+    assert!(
+        result.estimate.as_effect().unwrap().ate.is_finite(),
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
     assert!(result.structural_response.is_some(), "multi-step class Sustained must publish masses");
     assert!(
         result
@@ -899,14 +938,25 @@ fn panel_class_pulse_unit_bootstrap_resamples_fresh_clusters() {
         .graph(TemporalCpdag::from_temporal_dag(&lagged_ty_dag())));
     let dag = run(Study::panel(panel(units)).graph(lagged_ty_dag()));
     for result in [&class, &dag] {
-        assert_eq!(result.estimate.bootstrap_replicates_ok, Some(199));
-        assert_eq!(result.estimate.bootstrap_replicates_failed, Some(0));
+        assert_eq!(
+            result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+            Some(199)
+        );
+        assert_eq!(
+            result.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_failed,
+            Some(0)
+        );
     }
-    let (class_se, dag_se) =
-        (class.estimate.se_bootstrap.unwrap(), dag.estimate.se_bootstrap.unwrap());
-    eprintln!("class boot={class_se} dag boot={dag_se} analytic={}", class.estimate.se_analytic);
+    let (class_se, dag_se) = (
+        class.estimate.as_effect().unwrap().se_bootstrap().unwrap(),
+        dag.estimate.as_effect().unwrap().se_bootstrap().unwrap(),
+    );
+    eprintln!(
+        "class boot={class_se} dag boot={dag_se} analytic={}",
+        class.estimate.as_effect().unwrap().se_analytic()
+    );
     assert!((class_se / dag_se - 1.0).abs() < 0.2, "class={class_se} dag={dag_se}");
-    let analytic = class.estimate.se_analytic;
+    let analytic = class.estimate.as_effect().unwrap().se_analytic();
     assert!(
         class_se > 0.5 * analytic && class_se < 2.0 * analytic,
         "bootstrap={class_se} analytic={analytic}"
@@ -916,8 +966,8 @@ fn panel_class_pulse_unit_bootstrap_resamples_fresh_clusters() {
     // replicate refits both completions.
     let units: Vec<_> = (0..4).map(|i| confounded_unit(200, 11 + i)).collect();
     let two = run(Study::panel(panel(units)).graph(cpdag_two()));
-    assert_eq!(two.estimate.bootstrap_replicates_ok, Some(199));
-    let se = two.estimate.se_bootstrap.unwrap();
+    assert_eq!(two.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok, Some(199));
+    let se = two.estimate.as_effect().unwrap().se_bootstrap().unwrap();
     eprintln!("two-completion boot={se}");
     assert!(se > 1e-3, "two-completion bootstrap SE={se}");
 }
@@ -962,7 +1012,7 @@ fn panel_response_band_is_the_between_unit_t_interval() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(2))
                 .unwrap();
-            point_surface(result.response.as_ref().unwrap())
+            point_surface(result.response().unwrap())
         })
         .collect();
     for boot in [0, 199] {
@@ -975,7 +1025,7 @@ fn panel_response_band_is_the_between_unit_t_interval() {
             .unwrap()
             .run(&ExecutionContext::for_tests(2))
             .unwrap();
-        let response = result.response.as_ref().unwrap();
+        let response = result.response().unwrap();
         let mean = point_surface(response);
         let antecedent_core::ResponseUncertainty::PointwiseBand { level, lower, upper, .. } =
             &response.uncertainty
@@ -1023,16 +1073,22 @@ fn panel_class_sequential_se_is_the_between_unit_t_se() {
             .run(&ExecutionContext::for_tests(6))
             .unwrap()
     };
-    let ates: Vec<f64> =
-        units.iter().map(|series| run(Study::series(series.clone())).estimate.ate).collect();
+    let ates: Vec<f64> = units
+        .iter()
+        .map(|series| run(Study::series(series.clone())).estimate.as_effect().unwrap().ate)
+        .collect();
     let pooled = run(Study::panel(panel(units)));
     let mean = ates.iter().sum::<f64>() / 3.0;
     let expected_se = sample_sd(&ates) / 3.0_f64.sqrt() * T2_975 / 1.959_963_984_540_054;
-    assert!((pooled.estimate.ate - mean).abs() < 1e-9, "{} vs {ates:?}", pooled.estimate.ate);
     assert!(
-        (pooled.estimate.se_analytic - expected_se).abs() < 1e-9,
+        (pooled.estimate.as_effect().unwrap().ate - mean).abs() < 1e-9,
+        "{} vs {ates:?}",
+        pooled.estimate.as_effect().unwrap().ate
+    );
+    assert!(
+        (pooled.estimate.as_effect().unwrap().se_analytic() - expected_se).abs() < 1e-9,
         "se={} expected={expected_se}",
-        pooled.estimate.se_analytic
+        pooled.estimate.as_effect().unwrap().se_analytic()
     );
 }
 
@@ -1062,7 +1118,7 @@ fn panel_response_support_and_assumptions_describe_every_unit() {
             .unwrap()
             .run(&ExecutionContext::for_tests(3))
             .unwrap()
-            .response
+            .into_response()
             .unwrap()
             .support
     };
@@ -1082,7 +1138,7 @@ fn panel_response_support_and_assumptions_describe_every_unit() {
         .unwrap()
         .run(&ExecutionContext::for_tests(3))
         .unwrap();
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     let support = &response.support;
     assert_eq!(dose1(support), dose1(&unit_supports[2]), "{support:?}");
     assert_ne!(support.status, SupportStatus::Supported);
@@ -1146,7 +1202,7 @@ fn bayesian_panel_response_applies_the_caller_prior_to_every_unit() {
             .unwrap()
             .run(&ExecutionContext::for_tests(3))
             .unwrap();
-        let mean = point_surface(result.response.as_ref().unwrap());
+        let mean = point_surface(result.response().unwrap());
         mean[1] - mean[0]
     };
     let prior = PriorSet {
@@ -1266,7 +1322,11 @@ fn bayesian_panel_class_multi_step_sustained_follows_the_class_prior_contract() 
         builder.build().unwrap().run(&ExecutionContext::for_tests(8)).unwrap()
     };
     let enumeration = run(None);
-    assert!(enumeration.estimate.ate.is_nan(), "ate={}", enumeration.estimate.ate);
+    assert!(
+        enumeration.estimate.as_effect().unwrap().ate.is_nan(),
+        "ate={}",
+        enumeration.estimate.as_effect().unwrap().ate
+    );
     assert!(enumeration.posterior.is_none());
     assert!(
         enumeration
@@ -1277,8 +1337,15 @@ fn bayesian_panel_class_multi_step_sustained_follows_the_class_prior_contract() 
     let mixed = run(Some(ClassPrior::from_ordered([1.0]).unwrap()));
     let atom = mixed.structural_response.as_ref().unwrap().atoms[0].clone();
     assert!(mixed.posterior.is_some());
-    assert!((mixed.estimate.ate - atom_scalar(&atom)).abs() < 0.05, "{}", mixed.estimate.ate);
-    assert!(mixed.estimate.ate.is_finite() && (mixed.estimate.ate - 0.8).abs() < 0.3);
+    assert!(
+        (mixed.estimate.as_effect().unwrap().ate - atom_scalar(&atom)).abs() < 0.05,
+        "{}",
+        mixed.estimate.as_effect().unwrap().ate
+    );
+    assert!(
+        mixed.estimate.as_effect().unwrap().ate.is_finite()
+            && (mixed.estimate.as_effect().unwrap().ate - 0.8).abs() < 0.3
+    );
 }
 
 #[derive(Default)]
@@ -1401,7 +1468,7 @@ fn panel_routes_name_their_estimand_and_refuse_short_units() {
                 && d.message.contains("pooled common-coefficient"))
     );
     assert!(
-        ids(&pulse.estimate.assumptions)
+        ids(&pulse.estimate.as_effect().unwrap().provenance.assumptions)
             .contains(&"panel.estimand.pooled_common_coefficient".to_owned())
     );
 
@@ -1414,19 +1481,23 @@ fn panel_routes_name_their_estimand_and_refuse_short_units() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-    let surface = point_surface(response.response.as_ref().unwrap());
+    let surface = point_surface(response.response().unwrap());
     let contrast = surface[1] - surface[0];
     assert!(response.diagnostics.iter().any(|d| {
         d.code.as_ref() == "estimate.temporal_response.panel.estimand"
             && d.message.contains("equal-weight average")
     }));
     assert!(
-        ids(&response.response.as_ref().unwrap().assumptions)
+        ids(&response.response().unwrap().assumptions)
             .contains(&"panel.estimand.equal_weight_unit_average".to_owned())
     );
     // The two estimands really differ on this panel: the pooled effect leans to the
     // long unit, the unit average sits midway.
-    assert!((pulse.estimate.ate - 0.2).abs() < 0.2, "pooled ate={}", pulse.estimate.ate);
+    assert!(
+        (pulse.estimate.as_effect().unwrap().ate - 0.2).abs() < 0.2,
+        "pooled ate={}",
+        pulse.estimate.as_effect().unwrap().ate
+    );
     assert!((contrast - 0.8).abs() < 0.3, "unit-average contrast={contrast}");
 
     // A unit too short to fit on its own is refused, not averaged with weight 1/N.
@@ -1473,6 +1544,8 @@ fn multi_env_pulse_pools_every_environment() {
             .run(&ExecutionContext::for_tests(2))
             .unwrap()
             .estimate
+            .as_effect()
+            .unwrap()
             .ate
     };
     let (a, b) = (one(first.clone()), one(second.clone()));
@@ -1480,15 +1553,18 @@ fn multi_env_pulse_pools_every_environment() {
     let forward = run([first.clone(), second.clone()]);
     let reversed = run([second, first]);
     assert!(
-        (forward.estimate.ate - reversed.estimate.ate).abs() < 1e-9,
+        (forward.estimate.as_effect().unwrap().ate - reversed.estimate.as_effect().unwrap().ate)
+            .abs()
+            < 1e-9,
         "argument order changed the answer: {} vs {}",
-        forward.estimate.ate,
-        reversed.estimate.ate
+        forward.estimate.as_effect().unwrap().ate,
+        reversed.estimate.as_effect().unwrap().ate
     );
     assert!(
-        forward.estimate.ate > a.min(b) + 0.2 && forward.estimate.ate < a.max(b) - 0.2,
+        forward.estimate.as_effect().unwrap().ate > a.min(b) + 0.2
+            && forward.estimate.as_effect().unwrap().ate < a.max(b) - 0.2,
         "the pooled effect must use both environments: {} (envs {a}, {b})",
-        forward.estimate.ate
+        forward.estimate.as_effect().unwrap().ate
     );
     assert_eq!(forward.logical_plan.data_classification, DataClassification::MultiEnvironment);
     assert!(
@@ -1498,5 +1574,5 @@ fn multi_env_pulse_pools_every_environment() {
         }),
         "the pooled multi-environment estimand must be named"
     );
-    assert!(forward.estimate.se_analytic.is_finite());
+    assert!(forward.estimate.as_effect().unwrap().se_analytic().is_finite());
 }

@@ -2,9 +2,11 @@
 resolver = "2"
 members = [
     "crates/antecedent-core",
+    "crates/antecedent-contract",
     "crates/antecedent-kernels",
     "crates/antecedent-data",
     "crates/antecedent-graph",
+    "crates/antecedent-io-core",
     "crates/antecedent-io",
     "crates/antecedent-expr",
     "crates/antecedent-identify",
@@ -21,13 +23,16 @@ members = [
     "crates/antecedent-state",
     "crates/antecedent",
     "crates/antecedent-discovery",
+    "crates/antecedent-test-support",
     "python",
 ]
 default-members = [
     "crates/antecedent-core",
+    "crates/antecedent-contract",
     "crates/antecedent-kernels",
     "crates/antecedent-data",
     "crates/antecedent-graph",
+    "crates/antecedent-io-core",
     "crates/antecedent-io",
     "crates/antecedent-expr",
     "crates/antecedent-identify",
@@ -43,10 +48,11 @@ default-members = [
     "crates/antecedent-state",
     "crates/antecedent",
     "crates/antecedent-discovery",
+    "crates/antecedent-test-support",
 ]
 
 [workspace.package]
-version = "2.3.0"
+version = "2.4.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -69,11 +75,38 @@ faer = { version = "0.24", default-features = false, features = ["std", "linalg"
 arrow-array = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }
 arrow-buffer = { version = "54", default-features = false }
-arrow-data = { version = "54", default-features = false }
 pyo3 = { version = "0.29", features = ["extension-module", "multiple-pymethods"] }
+pyo3-build-config = "0.29"
 numpy = { version = "0.29", default-features = false }
 criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
 realfft = "3.5"
+forust-ml = "0.5"
+smartcore = { version = "0.4", default-features = false, features = ["serde"] }
+burn = { version = "0.16", default-features = false, features = ["std", "autodiff", "ndarray"] }
+
+antecedent = { version = "2.4.0", path = "crates/antecedent" }
+antecedent-attribution = { version = "2.4.0", path = "crates/antecedent-attribution" }
+antecedent-contract = { version = "2.4.0", path = "crates/antecedent-contract" }
+antecedent-core = { version = "2.4.0", path = "crates/antecedent-core" }
+antecedent-counterfactual = { version = "2.4.0", path = "crates/antecedent-counterfactual" }
+antecedent-data = { version = "2.4.0", path = "crates/antecedent-data" }
+antecedent-design = { version = "2.4.0", path = "crates/antecedent-design" }
+antecedent-discovery = { version = "2.4.0", path = "crates/antecedent-discovery" }
+antecedent-estimate = { version = "2.4.0", path = "crates/antecedent-estimate" }
+antecedent-expr = { version = "2.4.0", path = "crates/antecedent-expr" }
+antecedent-graph = { version = "2.4.0", path = "crates/antecedent-graph" }
+antecedent-identify = { version = "2.4.0", path = "crates/antecedent-identify" }
+antecedent-io = { version = "2.4.0", path = "crates/antecedent-io" }
+antecedent-io-core = { version = "2.4.0", path = "crates/antecedent-io-core" }
+antecedent-kernels = { version = "2.4.0", path = "crates/antecedent-kernels" }
+antecedent-learn = { version = "2.4.0", path = "crates/antecedent-learn" }
+antecedent-learn-burn = { version = "2.4.0", path = "crates/antecedent-learn-burn" }
+antecedent-model = { version = "2.4.0", path = "crates/antecedent-model" }
+antecedent-prob = { version = "2.4.0", path = "crates/antecedent-prob" }
+antecedent-state = { version = "2.4.0", path = "crates/antecedent-state" }
+antecedent-stats = { version = "2.4.0", path = "crates/antecedent-stats" }
+antecedent-test-support = { version = "2.4.0", path = "crates/antecedent-test-support" }
+antecedent-validate = { version = "2.4.0", path = "crates/antecedent-validate" }
 
 [workspace.lints.rust]
 missing_docs = "warn"
@@ -99,7 +132,16 @@ similar_names = "allow"
 
 # Numerical kernels stay optimized in `cargo test` debug builds. Library crates
 # that change in the 1.x working loop stay at opt-level 0 so incremental
-# compiles stay cheap.
+# compiles stay cheap. Line tables keep panic locations without full debuginfo.
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
+# Test binaries carry no debug info: panic locations come from `#[track_caller]`, not from
+# the debug sections, and each binary links the crate under test.
+[profile.test]
+debug = false
+
 [profile.dev.package.faer]
 opt-level = 2
 
@@ -107,6 +149,9 @@ opt-level = 2
 opt-level = 2
 
 [profile.dev.package.antecedent-kernels]
+opt-level = 2
+
+[profile.dev.package.antecedent-estimate]
 opt-level = 2
 
 [profile.release]

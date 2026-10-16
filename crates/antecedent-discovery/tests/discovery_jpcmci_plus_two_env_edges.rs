@@ -24,16 +24,10 @@ use antecedent_discovery::{
     DiscoveryConstraints, DiscoveryWorkspace, JpcmciPlus, MultiDatasetConstraints,
     TemporalConstraints,
 };
-use serde_json::Value as JsonValue;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../conformance/discovery/jpcmci_plus_two_env_edges")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("discovery/jpcmci_plus_two_env_edges")
 }
 
 fn load_env(path: &str, n: usize) -> TimeSeriesData {
@@ -100,7 +94,7 @@ fn link_key(src: u32, slag: u32, tgt: u32) -> (u32, u32, u32, u32) {
 
 #[test]
 fn discovery_jpcmci_plus_two_env_edge_equality() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     assert_eq!(expected["tolerance_class"].as_str().unwrap(), "Exact");
     let tig = &expected["reference"];
     let outs = &tig["outputs"];

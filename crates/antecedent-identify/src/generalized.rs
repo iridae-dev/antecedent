@@ -31,15 +31,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -66,7 +57,8 @@ use crate::result::{
 
 /// Diagnostic code of a modifier-constrained adjustment search that spent
 /// `max_examinations` before it finished: identifiability is undecided, not refuted.
-pub const CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str = "identify.conditional.search_bounded";
+pub(crate) const CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
+    "identify.conditional.search_bounded";
 
 /// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
 /// enumeration was capped by `max_candidates` before it could search — as opposed to
@@ -157,14 +149,10 @@ impl GeneralizedAdjustmentIdentifier {
         self.pag_envelope_with(pag, |completion| {
             let mut result = identify_on_mag_completion(
                 completion,
-                t,
-                y,
-                t_d,
-                y_d,
+                MagTarget { t, y, t_d, y_d },
                 active.clone(),
                 control.clone(),
-                self.config.max_candidates,
-                self.config.max_examinations,
+                self.config.budget(),
             )?;
             result.query = CausalQuery::AverageEffect(query.clone());
             if let (Some(admg), Some(cut)) =
@@ -377,12 +365,7 @@ pub(crate) fn validate_dag_conditional_adjustment(
     if query.effect_modifiers.is_empty() {
         return Ok(());
     }
-    let mut admg = Admg::with_variables(dense_u32(dag.node_count()));
-    for edge in dag.edges() {
-        if let Some((from, to)) = edge.parent_child() {
-            admg.insert_directed(from, to)?;
-        }
-    }
+    let admg = crate::prepared::dag_to_admg(dag)?;
     let t = dag
         .nodes()
         .iter()
@@ -734,17 +717,39 @@ enum MagAdjustment {
     Failed(IdentificationResult),
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Work limits of one MAG adjustment search.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AdjustmentBudget {
+    pub max_candidates: usize,
+    pub max_examinations: u64,
+}
+
+impl GeneralizedAdjustmentConfig {
+    pub(crate) const fn budget(&self) -> AdjustmentBudget {
+        AdjustmentBudget {
+            max_candidates: self.max_candidates,
+            max_examinations: self.max_examinations,
+        }
+    }
+}
+
+/// Treatment and outcome of a MAG adjustment search, as variables and as dense nodes.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct MagTarget {
+    pub t: VariableId,
+    pub y: VariableId,
+    pub t_d: DenseNodeId,
+    pub y_d: DenseNodeId,
+}
+
 fn mag_adjustment_search(
     mag: &Pag,
-    _t: VariableId,
-    _y: VariableId,
-    t_d: DenseNodeId,
-    y_d: DenseNodeId,
+    target: MagTarget,
     query: CausalQuery,
-    max_candidates: usize,
-    max_examinations: u64,
+    budget: AdjustmentBudget,
 ) -> Result<MagAdjustment, IdentificationError> {
+    let MagTarget { t_d, y_d, .. } = target;
+    let AdjustmentBudget { max_candidates, max_examinations } = budget;
     let Some(admg) = mag_to_admg(mag) else {
         return Ok(MagAdjustment::Failed(not_identified(
             query,
@@ -855,15 +860,12 @@ fn mag_adjustment_identified(
 
 pub(crate) fn identify_on_mag_completion(
     mag: &Pag,
-    t: VariableId,
-    y: VariableId,
-    t_d: DenseNodeId,
-    y_d: DenseNodeId,
+    target: MagTarget,
     active: Value,
     control: Value,
-    max_candidates: usize,
-    max_examinations: u64,
+    budget: AdjustmentBudget,
 ) -> Result<IdentificationResult, IdentificationError> {
+    let MagTarget { t, y, .. } = target;
     let query = CausalQuery::AverageEffect(AverageEffectQuery::new(
         t,
         y,
@@ -872,16 +874,7 @@ pub(crate) fn identify_on_mag_completion(
         antecedent_core::Intervention::set(t, active.clone()),
         antecedent_core::TargetPopulation::AllObserved,
     ));
-    match mag_adjustment_search(
-        mag,
-        t,
-        y,
-        t_d,
-        y_d,
-        query.clone(),
-        max_candidates,
-        max_examinations,
-    )? {
+    match mag_adjustment_search(mag, target, query.clone(), budget)? {
         MagAdjustment::Failed(result) => Ok(result),
         MagAdjustment::Found { z_vars, examined, budget_exhausted } => {
             let mut arena = CausalExprArena::new();
@@ -901,26 +894,14 @@ pub(crate) fn identify_on_mag_completion(
 /// Single-arm MAG adjustment mean `E[Y | do(T=level)]` at the requested Set.
 pub(crate) fn identify_on_mag_completion_mean(
     mag: &Pag,
-    t: VariableId,
-    y: VariableId,
-    t_d: DenseNodeId,
-    y_d: DenseNodeId,
+    target: MagTarget,
     level: Value,
-    max_candidates: usize,
-    max_examinations: u64,
+    budget: AdjustmentBudget,
     response: &ResponseQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
+    let MagTarget { t, y, .. } = target;
     let query = CausalQuery::Response(response.clone());
-    match mag_adjustment_search(
-        mag,
-        t,
-        y,
-        t_d,
-        y_d,
-        query.clone(),
-        max_candidates,
-        max_examinations,
-    )? {
+    match mag_adjustment_search(mag, target, query.clone(), budget)? {
         MagAdjustment::Failed(result) => Ok(result),
         MagAdjustment::Found { z_vars, examined, budget_exhausted } => {
             let mut arena = CausalExprArena::new();
@@ -977,23 +958,14 @@ fn adjustment_candidates(admg: &Admg, t: DenseNodeId, y: DenseNodeId) -> Vec<Den
 
 /// Directed ancestors (or descendants) of `seeds`, seeds included.
 pub(crate) fn directed_closure(admg: &Admg, seeds: &[DenseNodeId], ancestors: bool) -> BitSet {
-    let n = admg.node_count();
     let mut ws = antecedent_graph::GraphWorkspace::default();
+    let mut out = BitSet::with_len(admg.node_count());
     if ancestors {
-        let mut seed_set = BitSet::with_len(n);
-        let mut active = BitSet::with_len(n);
-        for &s in seeds {
-            seed_set.insert(s);
-        }
-        for i in 0..n {
-            active.insert(DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")));
-        }
-        admg.ancestors_within(&seed_set, &active, None, &mut ws)
+        admg.ancestors_of(seeds, &mut out, &mut ws);
     } else {
-        let mut out = BitSet::with_len(n);
         admg.descendants_of(seeds, &mut out, &mut ws);
-        out
     }
+    out
 }
 
 pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> IdentificationResult {
@@ -1104,23 +1076,13 @@ pub(crate) fn mag_to_confounded_admg(mag: &Pag) -> Option<Admg> {
 }
 
 fn mutilate_outgoing(admg: &Admg, t: DenseNodeId) -> Admg {
-    let n = dense_u32(admg.node_count());
-    let mut out = Admg::with_variables(n);
-    for i in 0..admg.node_count() {
-        let u = DenseNodeId::from_raw(dense_u32(i));
-        for &v in admg.children(u) {
-            if u == t {
-                continue;
-            }
-            let _ = out.insert_directed(u, v);
-        }
-        for &v in admg.bidirected_neighbors(u) {
-            if v.raw() > u.raw() {
-                let _ = out.insert_bidirected(u, v);
-            }
-        }
-    }
-    out
+    admg.copy_filtered(
+        antecedent_graph::CopyLabels::StaticIndex { extra: 0 },
+        |from, _to| from != t,
+        // Outgoing surgery leaves latent arrows in place.
+        |_a, _b| true,
+    )
+    .expect("outgoing-mutilated ADMG dropped an edge")
 }
 
 #[cfg(test)]

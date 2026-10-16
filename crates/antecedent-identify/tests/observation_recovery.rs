@@ -1,4 +1,4 @@
-//! 2.2B X10: decision, refusals, budget and verification of exact binary
+//! Decision, refusals, budget and verification of exact binary
 //! observation recovery. Numerical truth lives in
 //! `antecedent-estimate/tests/observation_recovery_execution.rs`.
 
@@ -15,9 +15,10 @@ use antecedent_core::{
 use antecedent_expr::ExprNode;
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    MixedSourceQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RecoveredEffectQuery,
-    RecoveryDecision, RecoveryDetail, RecoveryLimits, decide_observation_recovery,
-    validate_mixed_source_query, verify_observation_recovery, verify_recovery_witness,
+    MixedSourceQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RECOVERY_RULE_VERSION,
+    RecoveredEffectQuery, RecoveryDecision, RecoveryDetail, RecoveryLimits, StoredRecovery,
+    decide_observation_recovery, validate_mixed_source_query, verify_observation_recovery,
+    verify_recovery_witness,
 };
 use recovery_scm::{MModel, POPULATION, v};
 
@@ -53,7 +54,7 @@ fn a_compliant_m_graph_is_recovered_with_margins_bound_to_the_named_distribution
     let model = two_partial();
     let derivation = recovered(decide(&model).unwrap());
     let record = derivation.record();
-    assert_eq!(record.rule_version, "x10.recovery.v1");
+    assert_eq!(record.rule_version, "binary_observation_recovery.v1");
     assert_eq!(record.factors.len(), 2);
     // R0's propensity conditions on O only; R1's on its partially observed parent
     // X0 through (R0, X*0), never on X0 itself.
@@ -86,7 +87,9 @@ fn a_compliant_m_graph_is_recovered_with_margins_bound_to_the_named_distribution
         matches!(&descriptor.origin, LawOrigin::Recovered { derivation: d } if d.as_ref() == derivation.identity())
     );
     assert_eq!(descriptor.measured.as_ref(), &[v(0), v(1), v(2)]);
-    assert!(descriptor.canonical_identity().contains("origin=recovered:x10.recovery.v1"));
+    assert!(
+        descriptor.canonical_identity().contains("origin=recovered:binary_observation_recovery.v1")
+    );
     assert!(record.receipt.operations_consumed > 0);
 }
 
@@ -584,9 +587,7 @@ fn a_tampered_record_or_arena_fails_verification() {
         &q,
         &c,
         Some(&effect),
-        d.record(),
-        d.arena(),
-        Some(&e_arena),
+        &StoredRecovery { record: d.record(), arena: d.arena(), effect_arena: Some(&e_arena) },
         RECOVERY_DEFAULT_LIMITS,
         &ctx(),
     )
@@ -600,9 +601,7 @@ fn a_tampered_record_or_arena_fails_verification() {
             &q,
             &c,
             Some(&effect),
-            record,
-            arena,
-            effect_arena,
+            &StoredRecovery { record, arena, effect_arena },
             RECOVERY_DEFAULT_LIMITS,
             &ctx(),
         )
@@ -639,9 +638,7 @@ fn a_tampered_record_or_arena_fails_verification() {
         &q,
         &c,
         Some(&effect),
-        &limits,
-        d.arena(),
-        Some(&e_arena),
+        &StoredRecovery { record: &limits, arena: d.arena(), effect_arena: Some(&e_arena) },
         RECOVERY_DEFAULT_LIMITS,
         &ctx(),
     )
@@ -655,14 +652,66 @@ fn a_tampered_record_or_arena_fails_verification() {
         &q,
         &other,
         Some(&effect),
-        d.record(),
-        d.arena(),
-        Some(&e_arena),
+        &StoredRecovery { record: d.record(), arena: d.arena(), effect_arena: Some(&e_arena) },
         RECOVERY_DEFAULT_LIMITS,
         &ctx(),
     )
     .unwrap_err();
     assert_eq!(error.detail, RecoveryDetail::InvalidDerivation);
+}
+
+/// A sealed derivation verifies under the same re-decision and keeps its bound
+/// identity; any other rule version or edit refuses.
+#[test]
+fn a_sealed_derivation_verifies_and_any_other_version_or_edit_refuses() {
+    let model = two_partial();
+    let effect = RecoveredEffectQuery {
+        graph: effect_graph(&model, &[(2, 0), (0, 1)]),
+        outcomes: Arc::from([v(1)]),
+        treatments: Arc::from([v(0)]),
+    };
+    let q = model.query();
+    let c = model.catalog();
+    let current = recovered(
+        decide_observation_recovery(
+            &model.graph,
+            &q,
+            &c,
+            Some(&effect),
+            RecoveryLimits::default(),
+            &ctx(),
+        )
+        .unwrap(),
+    );
+    let effect_arena = current.effect().unwrap().arena().clone();
+    let verify = |record: &antecedent_identify::RecoveryDerivationRecord| {
+        verify_observation_recovery(
+            &model.graph,
+            &q,
+            &c,
+            Some(&effect),
+            &StoredRecovery { record, arena: current.arena(), effect_arena: Some(&effect_arena) },
+            RECOVERY_DEFAULT_LIMITS,
+            &ctx(),
+        )
+    };
+    let sealed = current.record().clone();
+    assert_eq!(sealed.rule_version, RECOVERY_RULE_VERSION);
+    let verified = verify(&sealed).expect("a sealed derivation verifies");
+    assert_eq!(verified.record(), &sealed);
+    assert_eq!(verified.identity(), current.identity());
+    assert_eq!(verified.scientific_identity(), current.scientific_identity());
+    assert!(current.identity().starts_with(RECOVERY_RULE_VERSION));
+    // Another rule version is refused.
+    let mut other_version = sealed.clone();
+    other_version.rule_version = RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    assert_eq!(verify(&other_version).unwrap_err().detail, RecoveryDetail::InvalidDerivation);
+    let mut edited = sealed.clone();
+    edited.premises.push("mar".to_owned());
+    assert_eq!(verify(&edited).unwrap_err().detail, RecoveryDetail::InvalidDerivation);
+    let mut edited = sealed;
+    edited.margins[0].identity.push('x');
+    assert_eq!(verify(&edited).unwrap_err().detail, RecoveryDetail::InvalidDerivation);
 }
 
 #[test]
@@ -784,7 +833,8 @@ fn a_recovered_regime_is_excluded_from_the_mixed_source_search_as_a_recovered_la
         regime.origin = origin;
         regime
     };
-    let recovered = || LawOrigin::Recovered { derivation: Arc::from("x10.recovery.v1|d") };
+    let recovered =
+        || LawOrigin::Recovered { derivation: Arc::from("binary_observation_recovery.v1|d") };
     let catalog = EvidenceCatalog::try_new(
         [],
         [

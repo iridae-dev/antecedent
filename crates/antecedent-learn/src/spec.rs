@@ -101,7 +101,7 @@ pub struct ForestSpec {
 }
 
 /// Default minimum leaf size of a forest used as a probability (propensity) model.
-pub const FOREST_PROBABILITY_MIN_LEAF: u32 = 10;
+pub(crate) const FOREST_PROBABILITY_MIN_LEAF: u32 = 10;
 
 impl Default for ForestSpec {
     fn default() -> Self {
@@ -352,14 +352,20 @@ fn require_resolved_task(
     Ok(())
 }
 
-#[allow(clippy::unnecessary_wraps, clippy::needless_return)]
+#[cfg_attr(
+    feature = "ml-forest",
+    allow(
+        clippy::unnecessary_wraps,
+        reason = "the feature-disabled branch returns provider refusal through the shared Result API"
+    )
+)]
 fn resolve_forest(
     spec: crate::ForestSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
     #[cfg(feature = "ml-forest")]
     {
-        return Ok(Box::new(crate::forest::ForestLearner::new(spec, task)));
+        Ok(Box::new(crate::forest::ForestLearner::new(spec, task)))
     }
     #[cfg(not(feature = "ml-forest"))]
     {
@@ -373,14 +379,20 @@ fn resolve_forest(
     }
 }
 
-#[allow(clippy::unnecessary_wraps, clippy::needless_return)]
+#[cfg_attr(
+    feature = "ml-gbdt",
+    allow(
+        clippy::unnecessary_wraps,
+        reason = "the feature-disabled branch returns provider refusal through the shared Result API"
+    )
+)]
 fn resolve_gbt(
     spec: crate::GbtSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
     #[cfg(feature = "ml-gbdt")]
     {
-        return Ok(Box::new(crate::gbt::GbtLearner::new(spec, task)));
+        Ok(Box::new(crate::gbt::GbtLearner::new(spec, task)))
     }
     #[cfg(not(feature = "ml-gbdt"))]
     {
@@ -394,14 +406,20 @@ fn resolve_gbt(
     }
 }
 
-#[allow(clippy::unnecessary_wraps, clippy::needless_return)]
+#[cfg_attr(
+    feature = "ml-neural",
+    allow(
+        clippy::unnecessary_wraps,
+        reason = "the feature-disabled branch returns provider refusal through the shared Result API"
+    )
+)]
 fn resolve_neural(
     spec: crate::NeuralSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
     #[cfg(feature = "ml-neural")]
     {
-        return Ok(Box::new(crate::neural::NeuralNetLearner::new(spec, task)));
+        Ok(Box::new(crate::neural::NeuralNetLearner::new(spec, task)))
     }
     #[cfg(not(feature = "ml-neural"))]
     {
@@ -436,17 +454,4 @@ fn required_capabilities(spec: LearnerSpec) -> LearnerCapabilities {
         _ => cap.regression = true,
     }
     cap
-}
-
-/// Convenience: reject a factory that cannot serve `task` before fit.
-///
-/// # Errors
-///
-/// [`LearnError::TaskMismatch`].
-pub fn require_task(factory: &dyn LearnerFactory, task: PredictionTask) -> Result<(), LearnError> {
-    let supported = factory.task();
-    if supported != task {
-        return Err(LearnError::TaskMismatch { requested: task, supported });
-    }
-    Ok(())
 }

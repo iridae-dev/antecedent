@@ -8,7 +8,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _repo import ensure_scripts_on_path
+
+ensure_scripts_on_path()
 import calibration_groups as groups  # noqa: E402
 
 
@@ -17,7 +19,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        (self.root / "Cargo.toml").write_text('[workspace]\nmembers=["crates/*"]\n')
+        (self.root / "Cargo.toml").write_text('[workspace]\nmembers=["crates/*"]\n', encoding="utf-8", newline="\n")
         self.member("antecedent", "antecedent", ["facade_current", "facade_new"])
         # Cargo package names, rather than directory spelling, own the command.
         self.member("io-folder", "antecedent-io", ["nested_bayesian"])
@@ -32,9 +34,9 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
     def member(self, folder: str, name: str, suites: list[str], extra: str = "") -> None:
         path = self.root / "crates" / folder
         (path / "tests").mkdir(parents=True)
-        (path / "Cargo.toml").write_text(f'[package]\nname="{name}"\nversion="1.0.0"\n' + extra)
+        (path / "Cargo.toml").write_text(f'[package]\nname="{name}"\nversion="1.0.0"\n' + extra, encoding="utf-8", newline="\n")
         for suite in suites:
-            (path / "tests" / f"{suite}.rs").write_text("// record-emitting fixture\n")
+            (path / "tests" / f"{suite}.rs").write_text("// record-emitting fixture\n", encoding="utf-8", newline="\n")
 
     def candidates(self) -> list[groups.Group]:
         return [groups.Group(i, label, False, True) for i, label in enumerate([
@@ -75,7 +77,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
 
     def test_explicit_test_target_and_ambiguous_owner(self) -> None:
         self.member("custom", "custom-package", [], '\nautotests=false\n[[test]]\nname="custom_suite"\npath="oracle.rs"\n')
-        (self.root / "crates/custom/oracle.rs").write_text("// explicit integration target\n")
+        (self.root / "crates/custom/oracle.rs").write_text("// explicit integration target\n", encoding="utf-8", newline="\n")
         groups._workspace_packages.cache_clear()
         self.assertEqual(groups._suite_owner(self.root, "custom_suite"), "custom-package")
         self.member("duplicate", "duplicate-package", ["nested_bayesian"])

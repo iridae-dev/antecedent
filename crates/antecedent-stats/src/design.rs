@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::manual_memcpy)]
-
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, VariableId};
@@ -210,6 +208,7 @@ pub struct RecordedContrast {
 
 /// Spline / smooth basis kind recorded on a compiled additive design.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
 pub enum BasisKind {
     /// Cubic B-spline basis.
     CubicBSpline,
@@ -282,6 +281,10 @@ impl CompiledDesign {
     /// # Errors
     ///
     /// Length mismatches or empty data.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     pub fn linear_adjustment(
         treatment: &[f64],
         covariates: &[(VariableId, &[f64])],
@@ -314,15 +317,11 @@ impl CompiledDesign {
             matrix[r] = 1.0;
         }
         // col 1: treatment
-        for r in 0..nrows {
-            matrix[nrows + r] = treatment[r];
-        }
+        matrix[nrows..2 * nrows].copy_from_slice(&treatment[..nrows]);
         let mut roles = vec![DesignColumnRole::Intercept, DesignColumnRole::Treatment];
         for (i, (id, col)) in covariates.iter().enumerate() {
             let base = (2 + i) * nrows;
-            for r in 0..nrows {
-                matrix[base + r] = col[r];
-            }
+            matrix[base..base + nrows].copy_from_slice(&col[..nrows]);
             roles.push(DesignColumnRole::Covariate(*id));
         }
         Ok(Self {
@@ -430,7 +429,6 @@ pub fn standardize_columns(
 
 #[cfg(test)]
 #[allow(
-    clippy::float_cmp,
     clippy::cast_precision_loss,
     reason = "tests assert exactly representable values (0/1 indicators, copied inputs) and cast small fixture indices"
 )]

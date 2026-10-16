@@ -123,7 +123,7 @@ fn dense(names: &[String], name: &str) -> DenseNodeId {
         .iter()
         .position(|n| n == name)
         .unwrap_or_else(|| panic!("name `{name}` is not an observed oracle node; names={names:?}"));
-    DenseNodeId::from_raw(u32::try_from(idx).expect("node index fits u32"))
+    DenseNodeId::from_index(idx)
 }
 
 /// Parse a latent-free oracle DOT into a DAG.
@@ -167,9 +167,8 @@ pub fn admg_from_oracle_dot(dot: &str) -> (Admg, OracleGraph) {
     for (from, to) in &parsed.directed {
         full.insert_directed(dense(&all, from), dense(&all, to)).unwrap();
     }
-    let observed: Vec<DenseNodeId> = (0..parsed.observed.len())
-        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits u32")))
-        .collect();
+    let observed: Vec<DenseNodeId> =
+        (0..parsed.observed.len()).map(DenseNodeId::from_index).collect();
     let g = latent_project(&full, &observed).expect("oracle DOT latent projection");
     (g, OracleGraph { names: parsed.observed })
 }

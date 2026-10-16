@@ -1,27 +1,23 @@
 //! Retained graphless fuzzy-discontinuity and regression-kink execution.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalExprArena, CausalQuery, DerivationTrace, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, GraphClass,
+    IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteFinish, IdentifierId, InferenceMode, PhysicalExecutionPlan,
+    RandomizedTrialOperation, RandomizedTrialQuery, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, finish_identified_execute_with_context,
+};
 use antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio;
 
-#[derive(Clone)]
-pub(crate) struct CheckedLocalPolynomialRatioOperation {
-    query: antecedent_core::LocalPolynomialRatioQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-}
+pub(crate) type CheckedLocalPolynomialRatioOperation =
+    RandomizedTrialOperation<antecedent_core::LocalPolynomialRatioQuery, ()>;
 
-impl std::fmt::Debug for CheckedLocalPolynomialRatioOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedLocalPolynomialRatioOperation")
-            .field("query", &self.query)
-            .field("rows", &self.rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::LocalPolynomialRatioQuery {
+    const OPERATION: &'static str = "CheckedLocalPolynomialRatioOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "local ratio refresh requires the prepared schema and row count";
 }
 
 /// Plan id, identifier and estimator a compiled local-ratio plan records.
@@ -38,14 +34,14 @@ impl CheckedLocalPolynomialRatioOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::LocalPolynomialRatio(query) = &study.query else {
             return Err(CausalError::Compile {
                 message: "local ratio operation requires LocalPolynomialRatioQuery".into(),
             });
         };
-        query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -60,9 +56,7 @@ impl CheckedLocalPolynomialRatioOperation {
             });
         }
         for variable in [query.outcome, query.treatment, query.running] {
-            data.schema()
-                .get(variable)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+            data.schema().get(variable).map_err(CausalError::rejected)?;
             if !matches!(
                 data.column(variable).map_err(CausalError::from)?,
                 antecedent_data::ColumnView::Float64(_)
@@ -75,23 +69,14 @@ impl CheckedLocalPolynomialRatioOperation {
         let (plan_id, identifier, estimator) = local_polynomial_ratio_plan_ids(query.kink);
         if physical.logical.query != study.query
             || physical.logical.record.plan_id.as_ref() != plan_id.as_str()
-            || physical.logical.record.identifier.as_deref() != Some(identifier.as_str())
-            || physical.logical.record.estimator.as_deref() != Some(estimator.as_str())
+            || !physical.binding().names_wire(&identifier, &estimator)
         {
             return Err(CausalError::Compile {
                 message: "local ratio design differs from its compiled plan".into(),
             });
         }
         let (identification, estimand) = local_polynomial_ratio_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
-            identification,
-            estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-        })
+        Ok(Self::freeze(study, query, data, physical, identification, estimand, ()))
     }
 
     pub(crate) fn execute(
@@ -99,16 +84,7 @@ impl CheckedLocalPolynomialRatioOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "local ratio refresh requires the prepared schema and row count",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
         let column = |id| -> Result<&[f64], CausalError> {
             match data.column(id).map_err(CausalError::from)? {
                 antecedent_data::ColumnView::Float64(column) => Ok(column.values.as_slice()),
@@ -136,17 +112,7 @@ impl CheckedLocalPolynomialRatioOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate,
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedHt,
-                treatment: self.query.treatment,
-                outcome: self.query.outcome,
-                identify_cached: false,
-                extra_diagnostics: vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.treatment, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.local_ratio.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -163,33 +129,26 @@ impl CheckedLocalPolynomialRatioOperation {
                             "; no positive finite SE, interval withheld"
                         }
                     ),
-                )],
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: None,
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
+                )]),
+        );
+        result.payload = crate::result::ResultPayload::LocalPolynomialRatio(
+            crate::LocalPolynomialRatioEstimate {
+                effect: fit.estimate,
+                reduced_form: fit.reduced_form,
+                first_stage: fit.first_stage,
+                cutoff: self.query.cutoff,
+                bandwidth: self.query.bandwidth,
+                kink: self.query.kink,
+                n_left: fit.n_left,
+                n_right: fit.n_right,
+                standard_error: fit.standard_error,
+                ci_lower: interval_available.then_some(fit.ci_lower),
+                ci_upper: interval_available.then_some(fit.ci_upper),
+                reduced_form_standard_error: fit.reduced_form_standard_error,
+                first_stage_standard_error: fit.first_stage_standard_error,
+                uncertainty: Arc::from("rbc_hc0_delta_normal_fixed_bandwidth"),
             },
         );
-        result.local_polynomial_ratio = Some(crate::LocalPolynomialRatioEstimate {
-            effect: fit.estimate,
-            reduced_form: fit.reduced_form,
-            first_stage: fit.first_stage,
-            cutoff: self.query.cutoff,
-            bandwidth: self.query.bandwidth,
-            kink: self.query.kink,
-            n_left: fit.n_left,
-            n_right: fit.n_right,
-            standard_error: fit.standard_error,
-            ci_lower: interval_available.then_some(fit.ci_lower),
-            ci_upper: interval_available.then_some(fit.ci_upper),
-            reduced_form_standard_error: fit.reduced_form_standard_error,
-            first_stage_standard_error: fit.first_stage_standard_error,
-            uncertainty: Arc::from("rbc_hc0_delta_normal_fixed_bandwidth"),
-        });
         // Graphless license handshake: the estimator's own weak-first-stage and
         // bandwidth-support screens already gate `interval_available`; the license
         // only confirms the exact family/design/method and the retained local
@@ -226,7 +185,7 @@ impl Study {
     pub(super) fn execute_local_polynomial_ratio(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedLocalPolynomialRatioOperation::checked(self, data, physical)?.execute(data, ctx)

@@ -44,34 +44,11 @@ pub struct AugmentedSyntheticControlFit {
     pub ridge_penalty: f64,
 }
 
-fn solve_positive_ridge(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Result<Vec<f64>, String> {
-    let n = rhs.len();
-    for column in 0..n {
-        let mut pivot = column;
-        for row in column + 1..n {
-            if matrix[row][column].abs() > matrix[pivot][column].abs() {
-                pivot = row;
-            }
-        }
-        if !matrix[pivot][column].is_finite() || matrix[pivot][column].abs() < 1e-14 {
-            return Err("augmented synthetic-control ridge system is numerically singular".into());
-        }
-        matrix.swap(column, pivot);
-        rhs.swap(column, pivot);
-        let diagonal = matrix[column][column];
-        for row in column + 1..n {
-            let factor = matrix[row][column] / diagonal;
-            for inner in column + 1..n {
-                matrix[row][inner] -= factor * matrix[column][inner];
-            }
-            rhs[row] -= factor * rhs[column];
-        }
-    }
-    let mut solution = vec![0.0; n];
-    for row in (0..n).rev() {
-        let remainder: f64 = (row + 1..n).map(|inner| matrix[row][inner] * solution[inner]).sum();
-        solution[row] = (rhs[row] - remainder) / matrix[row][row];
-    }
+/// Solve the donor ridge system `(G + λI) c = r` (row-major flat `G`, symmetric positive
+/// definite by construction) with the shared Cholesky rule.
+fn solve_positive_ridge(gram: &[f64], rhs: &[f64]) -> Result<Vec<f64>, String> {
+    let solution = crate::util::solve_spd(gram, rhs, rhs.len())
+        .ok_or("augmented synthetic-control ridge system is numerically singular")?;
     if solution.iter().any(|value| !value.is_finite()) {
         return Err("augmented synthetic-control ridge prediction overflowed".into());
     }
@@ -125,17 +102,17 @@ pub fn fit_augmented_synthetic_control(
         .iter()
         .map(|values| values.iter().zip(&pre_mean).map(|(value, mean)| value - mean).collect())
         .collect();
-    let mut gram = vec![vec![0.0; n]; n];
+    let mut gram = vec![0.0; n * n];
     for i in 0..n {
         for j in 0..n {
-            gram[i][j] =
+            gram[i * n + j] =
                 centered[i].iter().zip(&centered[j]).map(|(left, right)| left * right).sum::<f64>()
                     / p as f64;
         }
-        gram[i][i] += ridge_penalty;
+        gram[i * n + i] += ridge_penalty;
     }
-    let coefficients =
-        solve_positive_ridge(gram, donor_post.iter().map(|value| value - post_mean).collect())?;
+    let target: Vec<f64> = donor_post.iter().map(|value| value - post_mean).collect();
+    let coefficients = solve_positive_ridge(&gram, &target)?;
     let prediction = |features: &[f64]| -> f64 {
         post_mean
             + coefficients
@@ -259,7 +236,10 @@ fn placebo_ratio(gap: f64, pre_rmse: f64) -> f64 {
 /// Fit a balanced-panel synthetic control and leave-one-donor-out placebos.
 /// No p-value or interval calibration is attached to the returned placebo rank.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "build the panel, fit the donor weights, then the effect and placebo permutation from the same donor set"
+)]
 pub fn fit_synthetic_control(
     outcome: &[f64],
     units: &[String],
@@ -721,6 +701,17 @@ mod tests {
             .is_err()
         );
     }
+
+    #[test]
+    fn ridge_system_singularity_is_scale_free() {
+        // Pivots of 1e-16 sat under the former absolute 1e-14 cutoff of a pre-period panel in
+        // small units; the system is a scaled identity and must solve.
+        let solution = solve_positive_ridge(&[1e-16, 0.0, 0.0, 4e-16], &[1e-16, 8e-16]).unwrap();
+        assert!((solution[0] - 1.0).abs() < 1e-9 && (solution[1] - 2.0).abs() < 1e-9);
+        // A rank-one system (ridge underflowed against the Gram) is still refused.
+        let e = solve_positive_ridge(&[1.0, 1.0, 1.0, 1.0], &[1.0, 1.0]).unwrap_err();
+        assert!(e.contains("numerically singular"), "{e}");
+    }
 }
 
 /// Point-only balanced-panel synthetic difference-in-differences fit.
@@ -744,7 +735,10 @@ pub struct SyntheticDidFit {
 
 /// Fit unit and time simplex weights without claiming interval calibration.
 // length reflects the estimator's fixed statistical contract; refactor would change behavior
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "build the panel, fit unit and time weights, then the effect and placebo permutation from the same donor set"
+)]
 pub fn fit_synthetic_did(
     outcome: &[f64],
     units: &[String],

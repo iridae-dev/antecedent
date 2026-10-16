@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[cfg(test)]
 use std::sync::Arc;
 
 use antecedent_core::{ComponentId, ExecutionContext};
@@ -28,6 +29,7 @@ impl ContributionMoments {
         Ok(())
     }
 
+    #[cfg(test)]
     fn mass(&self) -> f64 {
         self.0.mass()
     }
@@ -99,7 +101,8 @@ pub fn root_cause_rank(
 ///
 /// Empty collection, invalid weights, duplicate components, or nonfinite contributions.
 /// A component absent from a model has zero contribution in that model.
-pub fn aggregate_model_collection_ranks(
+#[cfg(test)]
+pub(crate) fn aggregate_model_collection_ranks(
     per_model: &[(f64, ChangeAttributionResult)],
 ) -> Result<Vec<RootCauseRank>, AttributionError> {
     if per_model.is_empty() {
@@ -141,7 +144,8 @@ pub fn aggregate_model_collection_ranks(
 /// # Errors
 ///
 /// Posterior shape errors, or a zero `block_size` ([`AttributionError::InvalidInput`]).
-pub fn posterior_contribution_ranks(
+#[cfg(test)]
+pub(crate) fn posterior_contribution_ranks(
     draws: &PosteriorDraws,
     components: &[ComponentId],
     block_size: usize,
@@ -217,7 +221,8 @@ fn rank_with_graph_uncertainty(
 /// # Errors
 ///
 /// Prob shape errors.
-pub fn contribution_posterior_from_rows(
+#[cfg(test)]
+pub(crate) fn contribution_posterior_from_rows(
     n_components: usize,
     n_draws: usize,
     values_colmajor: &[f64],

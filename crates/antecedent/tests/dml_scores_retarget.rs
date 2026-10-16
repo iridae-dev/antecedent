@@ -1,4 +1,4 @@
-//! Cross-fitted DML scores and their retarget covariance (2.2 E3 extension, work package C).
+//! Cross-fitted DML scores and their retarget covariance.
 //!
 //! The DML AIPW route keeps a row-identified per-arm score table built from its own
 //! out-of-fold nuisances, so a batch retarget reweights those scores and reports the joint
@@ -20,6 +20,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{CausalForest, DmlAte, DmlScore, DrLearner, OverlapPolicy, ScoreTable};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
+use antecedent_test_support::dot;
 
 const T1: u32 = 0;
 const T2: u32 = 1;
@@ -91,10 +92,6 @@ fn oracle(table: &ScoreTable, weights: &[f64]) -> (f64, Vec<f64>) {
     (theta, xi)
 }
 
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
 fn run(
     prepared: &antecedent::PreparedBatch,
     scores: &BatchScores,
@@ -115,7 +112,14 @@ fn a_dml_batch_retargets_its_own_scores_with_the_joint_covariance() {
     let (results, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
     assert_eq!(estimated.source(), ScoreSource::Estimated);
     for (i, result) in results.iter().enumerate() {
-        let table = result.estimate.score_table.as_ref().expect("DML keeps its scores");
+        let table = result
+            .estimate
+            .as_effect()
+            .unwrap()
+            .scores
+            .table
+            .as_ref()
+            .expect("DML keeps its scores");
         // The table names the identified estimand's ids, not the projected table's renumbering.
         assert_eq!(table.adjustment_set.to_vec(), vec![VariableId::from_raw(Z)]);
         assert_eq!(table.treatment, VariableId::from_raw(if i == 0 { T1 } else { T2 }));
@@ -126,8 +130,12 @@ fn a_dml_batch_retargets_its_own_scores_with_the_joint_covariance() {
         let uniform = run(&prepared, &estimated, vec![claim("u", i, vec![1.0; rows.len()])]);
         let point = uniform.claims[0].outcome.as_ref().unwrap();
         // Score-mean identity and the iid plug-in covariance of the route's own scores.
-        close(point.value, result.estimate.ate, "uniform retarget = DML ate");
-        close(point.std_error.unwrap(), result.estimate.se_analytic, "uniform se = DML se");
+        close(point.value, result.estimate.as_effect().unwrap().ate, "uniform retarget = DML ate");
+        close(
+            point.std_error.unwrap(),
+            result.estimate.as_effect().unwrap().se_analytic(),
+            "uniform se = DML se",
+        );
         assert!(point.nuisance_provenance.starts_with("dml.crossfit.v1;route=dml;"));
     }
     let rows = estimated.common_rows().unwrap().unwrap();
@@ -192,7 +200,7 @@ fn a_dml_fit_without_scores_refuses_the_retarget() {
         assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
         assert_eq!(failure.detail.as_deref(), Some("batch_retarget.scores_unavailable"));
         let (results, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
-        assert!(results[0].estimate.score_table.is_none());
+        assert!(results[0].estimate.as_effect().unwrap().scores.table.is_none());
         let report = prepared.retarget(&estimated, &request(rows), &ctx).unwrap();
         let failure = report.claims[0].outcome.as_ref().unwrap_err();
         assert_eq!(failure.reason_code.as_deref(), Some("score_table_unavailable"));
@@ -211,14 +219,29 @@ fn assert_marginal_scores_retarget(spec: EstimatorSpec, route: &str) {
     let ctx = ExecutionContext::for_tests(93);
     let prepared = batch(&fx, spec).prepare(&[ate(T1)], &ctx).unwrap();
     let (results, estimated) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
-    let table = results[0].estimate.score_table.as_ref().expect("marginal scores kept");
+    let table = results[0]
+        .estimate
+        .as_effect()
+        .unwrap()
+        .scores
+        .table
+        .as_ref()
+        .expect("marginal scores kept");
     assert!(table.nuisance_provenance.contains(route), "{}", table.nuisance_provenance);
     assert_eq!(prepared.prepared_scores().table(0), Some(table));
     let rows = estimated.common_rows().unwrap().unwrap();
     let report = run(&prepared, &estimated, vec![claim("u", 0, vec![1.0; rows.len()])]);
     let point = report.claims[0].outcome.as_ref().unwrap();
-    close(point.value, results[0].estimate.ate, "uniform retarget = reported ATE");
-    close(point.std_error.unwrap(), results[0].estimate.se_analytic, "uniform se");
+    close(
+        point.value,
+        results[0].estimate.as_effect().unwrap().ate,
+        "uniform retarget = reported ATE",
+    );
+    close(
+        point.std_error.unwrap(),
+        results[0].estimate.as_effect().unwrap().se_analytic(),
+        "uniform se",
+    );
 }
 
 /// `DrLearner` keeps the marginal AIPW score table of the ATE it reports, never a score

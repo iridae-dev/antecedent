@@ -1,5 +1,5 @@
 //! Independent artifact for the semantic refresh of a prepared horizon-two result
-//! onto a new observation period (2.3A, X5 `new_period_refresh`).
+//! onto a new observation period (`new_period_refresh`).
 //!
 //! Format version 1. The artifact records the old and the new window identity (graph,
 //! horizon, lag alignment, intervention history, selection targets, regimes,
@@ -36,7 +36,7 @@ pub const TEMPORAL_REFRESH_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TEMPORAL_REFRESH_ARTIFACT_FEATURE: &str = "temporal_new_period_refresh_v1";
 /// The artifact kind; a different kind is a different artifact.
-pub const TEMPORAL_REFRESH_ARTIFACT_KIND: &str = "temporal_new_period_refresh";
+pub const TEMPORAL_REFRESH_ARTIFACT_KIND: &str = crate::artifact_kinds::TEMPORAL_NEW_PERIOD_REFRESH;
 
 const PREFIX: &str = "temporal_refresh_artifact";
 const REUSABLE: &str = "reusable";
@@ -328,11 +328,6 @@ pub struct TemporalRefreshArtifactWire {
     pub seal: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
-
 /// The wire spelling of a decision.
 fn decision_labels(decision: RefreshDecision) -> (String, Option<String>) {
     match decision {
@@ -416,11 +411,7 @@ impl TemporalRefreshArtifactWire {
     pub fn compute_seal(&self) -> Result<String, IoError> {
         let mut body = self.clone();
         body.seal = String::new();
-        Ok(crate::identity::digest_wire(
-            IdentityDomain::TransportCertificate,
-            &("temporal_refresh_seal_v1", body),
-        )?
-        .to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &("temporal_refresh_seal_v1", body))
     }
 
     /// Encode as CBOR.
@@ -436,11 +427,13 @@ impl TemporalRefreshArtifactWire {
     /// # Errors
     /// An unsupported version, a decoding failure, or a foreign feature or kind.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != TEMPORAL_REFRESH_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == TEMPORAL_REFRESH_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         if wire.required_features != [TEMPORAL_REFRESH_ARTIFACT_FEATURE]
             || wire.kind != TEMPORAL_REFRESH_ARTIFACT_KIND
         {

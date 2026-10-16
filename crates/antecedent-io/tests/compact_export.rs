@@ -1,4 +1,4 @@
-//! B4 compact runtime export: hand-computed point/SE values, support and mask
+//! Compact runtime export: hand-computed point/SE values, support and mask
 //! refusals, tamper and reseal refusals, bounded decode and canonical identity.
 
 use std::io::Cursor;
@@ -177,7 +177,7 @@ fn assert_tamper_refused(
 }
 
 #[test]
-fn b4_compact_quadratic_point_and_se_match_hand_values() {
+fn compact_quadratic_point_and_se_match_hand_values() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     // x = 2: phi = (1, 2, 4); b'phi = 1 + 4 - 2 = 3.
     // phi'V phi = 0.04 + 0.01*4 + 0.0004*16 + 2*(-0.002)*4 = 0.0704 = 0.0064 * 11.
@@ -196,7 +196,7 @@ fn b4_compact_quadratic_point_and_se_match_hand_values() {
 }
 
 #[test]
-fn b4_compact_scope_states_point_and_model_based_se_only() {
+fn compact_scope_states_point_and_model_based_se_only() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     let result = export.evaluate(&x_query(2.0)).unwrap();
     assert_eq!(result.se_basis, SE_BASIS);
@@ -214,7 +214,7 @@ fn b4_compact_scope_states_point_and_model_based_se_only() {
 }
 
 #[test]
-fn b4_compact_one_hot_terms_select_the_level_with_hand_values() {
+fn compact_one_hot_terms_select_the_level_with_hand_values() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     // g = b: phi = (1, 1, 1, 0); point 1 + 2 + 0.5 = 3.5;
     // phi'V phi = 0.04 + 0.01 + 0.09 + 2*0.01 = 0.16, se 0.4.
@@ -237,7 +237,7 @@ fn b4_compact_one_hot_terms_select_the_level_with_hand_values() {
 }
 
 #[test]
-fn b4_compact_out_of_support_queries_refuse_with_exact_details() {
+fn compact_out_of_support_queries_refuse_with_exact_details() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     let expect = |query: ExportQuery, detail: &'static str, subject: &str| {
         let err = export.evaluate(&query).unwrap_err();
@@ -264,7 +264,7 @@ fn b4_compact_out_of_support_queries_refuse_with_exact_details() {
 }
 
 #[test]
-fn b4_compact_masked_region_refuses_even_inside_the_support() {
+fn compact_masked_region_refuses_even_inside_the_support() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     let masked = ExportRefusal {
         code: "cell_not_licensed",
@@ -280,7 +280,7 @@ fn b4_compact_masked_region_refuses_even_inside_the_support() {
 }
 
 #[test]
-fn b4_compact_verifier_round_trip_matches_the_producer() {
+fn compact_verifier_round_trip_matches_the_producer() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     let bytes = export.to_bytes("round-trip").unwrap();
     let consumed = CompactExport::consume(&bytes, &limits(), export.identity()).unwrap();
@@ -305,7 +305,7 @@ fn b4_compact_verifier_round_trip_matches_the_producer() {
 }
 
 #[test]
-fn b4_compact_wrong_expected_identity_refused() {
+fn compact_wrong_expected_identity_refused() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     let bytes = export.to_bytes("expected").unwrap();
     let err = refusal(CompactExport::consume(&bytes, &limits(), "deadbeef"));
@@ -322,7 +322,7 @@ fn b4_compact_wrong_expected_identity_refused() {
 }
 
 #[test]
-fn b4_compact_tampered_coefficient_refused_even_when_resealed() {
+fn compact_tampered_coefficient_refused_even_when_resealed() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     assert_tamper_refused(
         &export,
@@ -332,7 +332,7 @@ fn b4_compact_tampered_coefficient_refused_even_when_resealed() {
 }
 
 #[test]
-fn b4_compact_tampered_covariance_refused_even_when_resealed() {
+fn compact_tampered_covariance_refused_even_when_resealed() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     // Shrinking a variance keeps the matrix valid, so only the identity catches it.
     assert_tamper_refused(
@@ -343,7 +343,7 @@ fn b4_compact_tampered_covariance_refused_even_when_resealed() {
 }
 
 #[test]
-fn b4_compact_tampered_support_refused_even_when_resealed() {
+fn compact_tampered_support_refused_even_when_resealed() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     assert_tamper_refused(
         &export,
@@ -353,7 +353,7 @@ fn b4_compact_tampered_support_refused_even_when_resealed() {
 }
 
 #[test]
-fn b4_compact_tampered_mask_refused_even_when_resealed() {
+fn compact_tampered_mask_refused_even_when_resealed() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     // Dropping the refusal region would silently license a refused query.
     assert_tamper_refused(
@@ -369,7 +369,7 @@ fn b4_compact_tampered_mask_refused_even_when_resealed() {
 }
 
 #[test]
-fn b4_compact_tampered_units_scope_and_term_spec_refused_even_when_resealed() {
+fn compact_tampered_units_scope_and_term_spec_refused_even_when_resealed() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     assert_tamper_refused(
         &export,
@@ -389,7 +389,7 @@ fn b4_compact_tampered_units_scope_and_term_spec_refused_even_when_resealed() {
 }
 
 #[test]
-fn b4_compact_tampered_identity_string_refused() {
+fn compact_tampered_identity_string_refused() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     let bytes = export.to_bytes("identity").unwrap();
     let forged = forge(&bytes, false, |body| body.identity = "0".repeat(64));
@@ -402,7 +402,7 @@ fn b4_compact_tampered_identity_string_refused() {
 }
 
 #[test]
-fn b4_compact_resealed_forgery_passes_only_under_the_forgers_own_identity() {
+fn compact_resealed_forgery_passes_only_under_the_forgers_own_identity() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     let bytes = export.to_bytes("pin").unwrap();
     let forged = forge(&bytes, true, |body| body.coefficients[0] = 9.0);
@@ -415,7 +415,7 @@ fn b4_compact_resealed_forgery_passes_only_under_the_forgers_own_identity() {
 }
 
 #[test]
-fn b4_compact_verifier_validates_semantics_even_when_identity_is_pinned() {
+fn compact_verifier_validates_semantics_even_when_identity_is_pinned() {
     type Case = (fn(&mut CompactExportBody), &'static str);
     let export = CompactExport::build(quadratic_spec()).unwrap();
     let bytes = export.to_bytes("semantics").unwrap();
@@ -434,7 +434,7 @@ fn b4_compact_verifier_validates_semantics_even_when_identity_is_pinned() {
 }
 
 #[test]
-fn b4_compact_unknown_versions_refused() {
+fn compact_unknown_versions_refused() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     let bytes = export.to_bytes("version").unwrap();
     // Body version, resealed with recomputed digests and a fresh checksum.
@@ -451,7 +451,7 @@ fn b4_compact_unknown_versions_refused() {
 }
 
 #[test]
-fn b4_compact_oversized_claim_refused_before_decode() {
+fn compact_oversized_claim_refused_before_decode() {
     let export = CompactExport::build(quadratic_spec()).unwrap();
     let bytes = export.to_bytes("oversized").unwrap();
     let (mut manifest, body) = read_body(&bytes);
@@ -479,7 +479,7 @@ fn b4_compact_oversized_claim_refused_before_decode() {
 }
 
 #[test]
-fn b4_compact_limits_bound_bytes_and_counts() {
+fn compact_limits_bound_bytes_and_counts() {
     let export = CompactExport::build(one_hot_spec()).unwrap();
     let bytes = export.to_bytes("limits").unwrap();
     let id = export.identity();
@@ -512,7 +512,7 @@ fn b4_compact_limits_bound_bytes_and_counts() {
 }
 
 #[test]
-fn b4_compact_term_order_permutation_has_one_canonical_identity() {
+fn compact_term_order_permutation_has_one_canonical_identity() {
     let canonical = CompactExport::build(quadratic_spec()).unwrap();
     // Given order (Power, Intercept, Linear) is canonical indices [2, 0, 1].
     let order = [2usize, 0, 1];
@@ -559,7 +559,7 @@ fn b4_compact_term_order_permutation_has_one_canonical_identity() {
 }
 
 #[test]
-fn b4_compact_build_refuses_malformed_specifications() {
+fn compact_build_refuses_malformed_specifications() {
     let detail = |spec: ExportSpec| CompactExport::build(spec).unwrap_err().detail;
 
     let mut spec = quadratic_spec();

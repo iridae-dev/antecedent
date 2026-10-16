@@ -4,6 +4,10 @@
 
 use antecedent_core::CausalRng;
 
+use crate::view::ViewError;
+
+const _: () = assert!(usize::BITS <= u64::BITS);
+
 /// One standard-normal draw via Box–Muller (cosine component only).
 #[must_use]
 pub fn standard_normal(rng: &mut CausalRng) -> f64 {
@@ -16,7 +20,7 @@ pub fn standard_normal(rng: &mut CausalRng) -> f64 {
 /// Prefer [`fill_standard_normal`] when filling a buffer — it uses both
 /// components and halves RNG consumption vs repeated [`standard_normal`].
 #[must_use]
-pub fn standard_normal_pair(rng: &mut CausalRng) -> (f64, f64) {
+pub(crate) fn standard_normal_pair(rng: &mut CausalRng) -> (f64, f64) {
     let u1 = rng.next_f64();
     let u2 = rng.next_f64();
     box_muller(u1, u2)
@@ -33,10 +37,35 @@ const UNIFORM_RESOLUTION: f64 = 1.0 / 9_007_199_254_740_992.0;
 /// truncated at `|z| <= sqrt(2 * 53 * ln 2) ~ 8.57`, the point the generator's own
 /// resolution cannot reach anyway.
 #[must_use]
-pub fn box_muller(u1: f64, u2: f64) -> (f64, f64) {
+pub(crate) fn box_muller(u1: f64, u2: f64) -> (f64, f64) {
     let r = (-2.0 * u1.max(UNIFORM_RESOLUTION).ln()).sqrt();
     let theta = std::f64::consts::TAU * u2;
     (r * theta.cos(), r * theta.sin())
+}
+
+/// One standard exponential draw `-ln U`, with `U` floored at `f64::MIN_POSITIVE`
+/// so an exact-zero uniform yields a large finite value instead of `+∞`.
+#[must_use]
+pub(crate) fn exp1(rng: &mut CausalRng) -> f64 {
+    -rng.next_f64().max(f64::MIN_POSITIVE).ln()
+}
+
+/// `n` Bayesian-bootstrap (Dirichlet(1,…,1) up to scale) weights from [`exp1`] draws.
+///
+/// With `normalize == false` the raw exponentials are returned. With
+/// `normalize == true` they are rescaled to mean one, `wᵢ *= n / Σw` (the
+/// unguarded `n as f64 / total` of the call sites this replaces: a zero or
+/// non-finite total is left to the caller to check on the raw variant).
+#[must_use]
+pub fn bayesian_bootstrap_weights(rng: &mut CausalRng, n: usize, normalize: bool) -> Vec<f64> {
+    let mut weights: Vec<f64> = (0..n).map(|_| exp1(rng)).collect();
+    if normalize {
+        let total: f64 = weights.iter().sum();
+        for w in &mut weights {
+            *w *= n as f64 / total;
+        }
+    }
+    weights
 }
 
 /// Fill `out` with i.i.d. standard normals, emitting both Box–Muller components.
@@ -61,13 +90,14 @@ pub fn fill_standard_normal(rng: &mut CausalRng, out: &mut [f64]) {
 #[must_use]
 pub fn unbiased_index(rng: &mut CausalRng, n: usize) -> usize {
     assert!(n > 0, "unbiased_index requires n > 0");
+    // The module-level width assertion proves this conversion cannot fail.
+    let n64 = u64::try_from(n).expect("usize fits into u64");
     // Largest multiple of n that fits in u64.
-    let n64 = u64::try_from(n).expect("usize fits u64");
     let limit = u64::MAX - (u64::MAX % n64);
     loop {
         let v = rng.next_u64();
         if v < limit {
-            return usize::try_from(v % n64).expect("remainder < n fits usize");
+            return usize::try_from(v % n64).expect("remainder is less than usize n");
         }
     }
 }
@@ -91,28 +121,32 @@ pub fn shuffle<T>(rng: &mut CausalRng, items: &mut [T]) {
 /// dealt round-robin across the folds and each fold's training rows retain
 /// every stratum that has at least `folds` members.
 ///
-/// # Panics
+/// # Errors
 ///
-/// When `folds == 0` or `strata` has a length other than `n`.
-#[must_use]
+/// [`ViewError::InvalidShape`] when `folds == 0` or `strata` has a length other
+/// than `n`. Those checks run before the shuffle, so a refused call draws nothing.
 pub fn shuffled_fold_assignment(
     rng: &mut CausalRng,
     n: usize,
     folds: usize,
     strata: Option<&[u32]>,
-) -> Vec<usize> {
-    assert!(folds > 0, "fold count must be positive");
+) -> Result<Vec<usize>, ViewError> {
+    if folds == 0 {
+        return Err(ViewError::InvalidShape { message: "fold count must be positive" });
+    }
+    if strata.is_some_and(|s| s.len() != n) {
+        return Err(ViewError::InvalidShape { message: "strata must align with rows" });
+    }
     let mut order: Vec<usize> = (0..n).collect();
     shuffle(rng, &mut order);
     if let Some(strata) = strata {
-        assert_eq!(strata.len(), n, "strata must align with rows");
         order.sort_by_key(|&row| strata[row]);
     }
     let mut assignment = vec![0usize; n];
     for (rank, &row) in order.iter().enumerate() {
         assignment[row] = rank % folds;
     }
-    assignment
+    Ok(assignment)
 }
 
 /// A weight counts only if it is finite and positive; NaN, negative and infinite
@@ -324,7 +358,7 @@ mod fold_tests {
         let n = 40;
         let strata: Vec<u32> = (0..n).map(|i| u32::from(i % 2 == 0)).collect();
         let mut rng = CausalRng::from_seed(5);
-        let fold = shuffled_fold_assignment(&mut rng, n, 2, Some(&strata));
+        let fold = shuffled_fold_assignment(&mut rng, n, 2, Some(&strata)).unwrap();
         for class in 0..2u32 {
             for f in 0..2usize {
                 let count = (0..n).filter(|&i| strata[i] == class && fold[i] == f).count();
@@ -339,11 +373,47 @@ mod fold_tests {
     fn unstratified_shuffled_folds_are_balanced_and_not_periodic() {
         let n = 103;
         let mut rng = CausalRng::from_seed(9);
-        let fold = shuffled_fold_assignment(&mut rng, n, 5, None);
+        let fold = shuffled_fold_assignment(&mut rng, n, 5, None).unwrap();
         for f in 0..5usize {
             let size = fold.iter().filter(|&&g| g == f).count();
             assert!(size == 20 || size == 21, "fold {f} has {size} rows");
         }
         assert!((0..n).any(|i| fold[i] != i % 5));
+    }
+
+    /// A zero fold count or a short stratum vector is refused before any draw.
+    #[test]
+    fn fold_assignment_refuses_before_drawing() {
+        let mut rng = CausalRng::from_seed(3);
+        let mut twin = CausalRng::from_seed(3);
+        assert_eq!(
+            shuffled_fold_assignment(&mut rng, 4, 0, None).unwrap_err(),
+            ViewError::InvalidShape { message: "fold count must be positive" }
+        );
+        assert_eq!(
+            shuffled_fold_assignment(&mut rng, 4, 2, Some(&[1])).unwrap_err(),
+            ViewError::InvalidShape { message: "strata must align with rows" }
+        );
+        assert_eq!(rng.next_u64(), twin.next_u64());
+    }
+
+    /// The helper reproduces the inline `-ln(max(u, MIN_POSITIVE))` loop and the
+    /// mean-one rescale bit for bit.
+    #[test]
+    fn bootstrap_weights_match_inline_loop() {
+        let n = 17;
+        let mut a = CausalRng::from_seed(11);
+        let mut b = CausalRng::from_seed(11);
+        let raw: Vec<f64> = (0..n).map(|_| -a.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let got_raw = bayesian_bootstrap_weights(&mut b, n, false);
+        assert!(raw.iter().zip(&got_raw).all(|(x, y)| x.to_bits() == y.to_bits()));
+        let mut norm = raw.clone();
+        let total: f64 = norm.iter().sum();
+        for w in &mut norm {
+            *w *= n as f64 / total;
+        }
+        let mut c = CausalRng::from_seed(11);
+        let got = bayesian_bootstrap_weights(&mut c, n, true);
+        assert!(norm.iter().zip(&got).all(|(x, y)| x.to_bits() == y.to_bits()));
     }
 }

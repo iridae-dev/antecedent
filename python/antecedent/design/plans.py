@@ -19,19 +19,19 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Literal
 
+from .._columns import coerce_fields
+from .._validate import count, text
 from ..errors import CausalTypeError, CausalValueError
 
 PlanKind = Literal["measure", "intervene", "observe_environment", "increase_sampling_rate"]
 
 
-def _count(value: object, what: str, *, minimum: int = 0) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise CausalTypeError(f"{what} must be an integer, not {type(value).__name__}")
-    if value < minimum:
-        raise CausalValueError(f"{what} must be at least {minimum}, got {value}")
-    return value
+_count = partial(
+    count, minimum=0, types=(int,), type_message="{what} must be an integer, not {got}"
+)
 
 
 def _ids(values: Sequence[int], what: str) -> tuple[int, ...]:
@@ -52,13 +52,13 @@ def _cost(value: object) -> float:
 
 
 def _label(value: object) -> str | None:
-    if value is not None and not isinstance(value, str):
-        raise CausalTypeError("id must be a string or None")
-    return value
+    if value is None:
+        return None
+    return text(value, "id", type_message="id must be a string or None")
 
 
 def _common(plan: Any) -> None:
-    object.__setattr__(plan, "cost", _cost(plan.cost))
+    coerce_fields(plan, cost=_cost(plan.cost))
     _count(plan.sample_budget, "sample_budget")
     if plan.tag is not None:
         _count(plan.tag, "tag")
@@ -87,7 +87,7 @@ class Measurement:
     kind = "measure"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "variables", _ids(self.variables, "variables"))
+        coerce_fields(self, variables=_ids(self.variables, "variables"))
         _common(self)
 
     def _wire(self, index: int) -> dict[str, Any]:
@@ -107,7 +107,7 @@ class Experiment:
     kind = "intervene"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "targets", _ids(self.targets, "targets"))
+        coerce_fields(self, targets=_ids(self.targets, "targets"))
         _common(self)
 
     def _wire(self, index: int) -> dict[str, Any]:
@@ -203,19 +203,19 @@ class StructurePrior:
         keys = tuple(_count(k, "keys entry") for k in self.keys)
         if len(identified) != n or len(keys) != n:
             raise CausalValueError("weights, identified and keys must have the same length")
-        object.__setattr__(self, "weights", weights)
-        object.__setattr__(self, "identified", identified)
-        object.__setattr__(self, "keys", keys)
+        coerce_fields(self, weights=weights)
+        coerce_fields(self, identified=identified)
+        coerce_fields(self, keys=keys)
         if self.identified_under_intervention is not None:
             under = tuple(bool(v) for v in self.identified_under_intervention)
             if len(under) != n:
                 raise CausalValueError("identified_under_intervention must match weights")
-            object.__setattr__(self, "identified_under_intervention", under)
+            coerce_fields(self, identified_under_intervention=under)
         if self.features is not None:
             features = tuple(_count(f, "features entry") for f in self.features)
             if len(features) != n:
                 raise CausalValueError("features must match weights")
-            object.__setattr__(self, "features", features)
+            coerce_fields(self, features=features)
 
     @classmethod
     def uniform(cls, identified: Sequence[bool]) -> StructurePrior:

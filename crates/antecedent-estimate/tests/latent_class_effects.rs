@@ -1,4 +1,4 @@
-//! B4 latent-class (finite mixture) regime effects.
+//! Latent-class (finite mixture) regime effects.
 //!
 //! Oracle: a deterministic, exactly balanced two-class design whose classes are so far apart that
 //! every posterior responsibility is exactly 0 or 1 at the generating parameters. At such a
@@ -103,7 +103,7 @@ fn assert_canonical_equal(left: &LatentClassResult, right: &LatentClassResult, t
 }
 
 #[test]
-fn b4_latent_recovers_hand_derived_two_class_fixed_point() {
+fn latent_recovers_hand_derived_two_class_fixed_point() {
     let data = build();
     let result = fit(&data, &config(11)).expect("well-separated fit");
     // Canonical order is ascending tau: Q then P.
@@ -128,7 +128,7 @@ fn b4_latent_recovers_hand_derived_two_class_fixed_point() {
 }
 
 #[test]
-fn b4_latent_responsibilities_are_the_exact_class_indicators() {
+fn latent_responsibilities_are_the_exact_class_indicators() {
     let data = build();
     let result = fit(&data, &config(3)).expect("fit");
     assert_eq!(result.responsibilities.len(), data.y.len());
@@ -142,7 +142,7 @@ fn b4_latent_responsibilities_are_the_exact_class_indicators() {
 }
 
 #[test]
-fn b4_latent_log_likelihood_is_non_decreasing_across_iterations() {
+fn latent_log_likelihood_is_non_decreasing_across_iterations() {
     let data = build();
     // Start from a contaminated labelling (every fourth unit mislabelled) so EM has to walk.
     let labels: Vec<usize> =
@@ -161,7 +161,7 @@ fn b4_latent_log_likelihood_is_non_decreasing_across_iterations() {
 }
 
 #[test]
-fn b4_latent_label_permutation_gives_identical_canonical_output() {
+fn latent_label_permutation_gives_identical_canonical_output() {
     let data = build();
     let truth = data.class.clone();
     let swapped: Vec<usize> = truth.iter().map(|&c| 1 - c).collect();
@@ -183,7 +183,7 @@ fn b4_latent_label_permutation_gives_identical_canonical_output() {
 }
 
 #[test]
-fn b4_latent_seeds_and_row_order_do_not_change_the_canonical_result() {
+fn latent_seeds_and_row_order_do_not_change_the_canonical_result() {
     let data = build();
     let baseline = fit(&data, &config(1)).expect("seed 1");
     for seed in [2_u64, 3, 7, 12345] {
@@ -202,7 +202,7 @@ fn b4_latent_seeds_and_row_order_do_not_change_the_canonical_result() {
 }
 
 #[test]
-fn b4_latent_mixture_average_is_the_weighted_sum_of_class_effects() {
+fn latent_mixture_average_is_the_weighted_sum_of_class_effects() {
     let data = build();
     let result = fit(&data, &config(2)).expect("fit");
     let weighted: f64 = result.classes.iter().map(|c| c.weight * c.effect).sum();
@@ -212,7 +212,7 @@ fn b4_latent_mixture_average_is_the_weighted_sum_of_class_effects() {
 }
 
 #[test]
-fn b4_latent_deterministic_replay_given_seed_and_bootstrap_uncertainty() {
+fn latent_deterministic_replay_given_seed_and_bootstrap_uncertainty() {
     let data = build();
     let mut cfg = config(7);
     cfg.bootstrap_replicates = 60;
@@ -254,7 +254,7 @@ fn b4_latent_deterministic_replay_given_seed_and_bootstrap_uncertainty() {
 }
 
 #[test]
-fn b4_latent_weak_class_weight_refuses() {
+fn latent_weak_class_weight_refuses() {
     let data = build();
     let mut cfg = config(1);
     cfg.min_class_weight = 0.5; // the smaller class has weight 0.4
@@ -264,7 +264,7 @@ fn b4_latent_weak_class_weight_refuses() {
 }
 
 #[test]
-fn b4_latent_overlapping_classes_are_never_reported_as_separated() {
+fn latent_overlapping_classes_are_never_reported_as_separated() {
     // Two classes whose regression surfaces differ by 0.2 on noise of sd 0.4: not separable.
     let mut data = Data { y: vec![], a: vec![], x: vec![vec![]], class: vec![] };
     for (shift, class) in [(0.0, 0_usize), (0.2, 1)] {
@@ -289,7 +289,7 @@ fn b4_latent_overlapping_classes_are_never_reported_as_separated() {
 }
 
 #[test]
-fn b4_latent_single_class_is_degenerate() {
+fn latent_single_class_is_degenerate() {
     let data = build();
     let mut one = config(1);
     one.classes = 1;
@@ -315,7 +315,7 @@ fn b4_latent_single_class_is_degenerate() {
 }
 
 #[test]
-fn b4_latent_premise_and_configuration_refusals() {
+fn latent_premise_and_configuration_refusals() {
     let data = build();
     let undeclared = LatentClassConfig::new(2, 1);
     let (code, message) = refusal(fit(&data, &undeclared));
@@ -347,4 +347,58 @@ fn b4_latent_premise_and_configuration_refusals() {
     let (code, message) = refusal(fit(&data, &not_converged));
     assert_eq!(code, "mechanism_fit_not_converged");
     assert!(message.contains("latent_class.not_converged"), "{message}");
+}
+
+#[test]
+fn latent_class_posterior_mean_stays_at_the_class_effects() {
+    let result = fit(&build(), &config(7)).expect("fit");
+    let designs: Vec<_> = result.classes.iter().map(|class| class.design.clone()).collect();
+    let effects = antecedent_estimate::posterior_mean::latent_class_effect_posterior(
+        &designs,
+        antecedent_estimate::posterior_mean::PosteriorRequest::IndependentNormal { scale: 1.0e6 },
+    )
+    .expect("posterior");
+    close(effects[0], -2.0, 1e-4);
+    close(effects[1], 1.0, 1e-4);
+    close(effects[0], result.classes[0].effect, 1e-4);
+    close(effects[1], result.classes[1].effect, 1e-4);
+}
+
+#[test]
+fn latent_class_posterior_refuses_an_external_power_prior() {
+    let result = fit(&build(), &config(7)).expect("fit");
+    let designs: Vec<_> = result.classes.iter().map(|class| class.design.clone()).collect();
+    let err = antecedent_estimate::posterior_mean::latent_class_effect_posterior(
+        &designs,
+        antecedent_estimate::posterior_mean::PosteriorRequest::ExternalPower,
+    )
+    .expect_err("power prior");
+    let EstimationError::Refused { message, .. } = err else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("latent_class_posterior.external_power_prior"), "{message}");
+}
+
+#[test]
+fn latent_class_posterior_consumer_replays_the_class_design() {
+    use antecedent_estimate::posterior_mean::{PosteriorRequest, latent_class_effect_posterior};
+    use antecedent_estimate::vector_treatment::DesignSummary;
+    let design = DesignSummary {
+        n_rows: 4,
+        first_treatment: 1,
+        gram: vec![4.0, 6.0, 6.0, 14.0],
+        xty: vec![10.0, 19.0],
+        rss: 1.8,
+    };
+    let request = PosteriorRequest::IndependentNormal { scale: 1.0 };
+    let effects = latent_class_effect_posterior(&[design], request).expect("effect");
+    let penalty = 0.9;
+    let det = 4.0 * (14.0 + penalty) - 36.0;
+    let slope = (-6.0 * 10.0 + 4.0 * 19.0) / det;
+    close(effects[0], slope, 1e-9);
+    let empty = latent_class_effect_posterior(&[], request).expect_err("empty");
+    let EstimationError::Refused { message, .. } = empty else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("latent_class_posterior.empty_design"), "{message}");
 }

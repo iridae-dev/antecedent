@@ -1,5 +1,4 @@
-//! Joint mechanism deviations for the registered surrogate z-transport formula
-//! (2.2B work package B3, workstream X3).
+//! Joint mechanism deviations for the registered surrogate z-transport formula.
 //!
 //! The formula `psi = sum_w P_W(w) [m(w, 1) - m(w, 0)]`, with
 //! `m(w, x) = sum_y y P_Y(y | w, x, do(z))`, cites two source factors: the
@@ -17,7 +16,7 @@
 //! * nested boxes give nested ranges, and `U` (`L`) is monotone in each
 //!   fraction, so a tipping frontier is bracketed by bisection.
 //!
-//! The kernel stage reuses the 2.1 [`DiscreteKernelSensitivity`] evaluator,
+//! The kernel stage reuses the one-factor [`DiscreteKernelSensitivity`] evaluator,
 //! so a single kernel factor is bit-equal to [`crate::z_transport_mechanism_sensitivity`].
 //! The law's shape is checked against the declared bounds before its cells
 //! are read; the read itself is charged one operation per parent level to one
@@ -26,14 +25,10 @@
 //! an assumption range, never a confidence interval. Sampling uncertainty is
 //! not offered by this record: its conservative composition below is compiled
 //! only under `calibration-internal` and its route is closed until its coverage
-//! is measured at the 2.2 cut (record `2.2B.X3.joint_sensitivity_uncertainty`,
-//! in progress: wired, not measured).
+//! is measured (record `sensitivity.joint_uncertainty`:
+//! wired, not yet measured).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-
-#![allow(clippy::cast_precision_loss)]
-
-use std::fmt;
 
 use antecedent_core::{
     ExecutionContext, RegimeId, SearchBudget, SearchLimits, SearchReceipt, SearchStop, reason_code,
@@ -41,6 +36,7 @@ use antecedent_core::{
 use antecedent_expr::ExactTransportData;
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::BoundZTransportFunctional;
+use thiserror::Error;
 
 use crate::mechanism_sensitivity::{
     DiscreteKernelSensitivity, DiscreteKernelSensitivityError, DiscreteKernelSensitivityResult,
@@ -63,33 +59,34 @@ pub const JOINT_SENSITIVITY_MAX_OPERATIONS: usize = 100_000;
 /// Hard cap on the depth limit (bisection iterations per bracket).
 pub const JOINT_SENSITIVITY_MAX_DEPTH: usize = 64;
 /// Default memory cap of the shared budget.
-pub const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES: u64 = 64 * 1024 * 1024;
+pub(crate) const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES: u64 = 64 * 1024 * 1024;
 /// Hard ceiling on a declared memory cap (the shared search default).
 pub const JOINT_SENSITIVITY_MAX_MEMORY_BYTES: u64 = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES;
 /// Hard cap on replicates of the (closed) endpoint bootstrap.
 pub const JOINT_SENSITIVITY_MAX_BOOTSTRAP: u32 = 2000;
 /// Smallest admitted bracketing tolerance.
-pub const JOINT_SENSITIVITY_MIN_TOLERANCE: f64 = 1e-12;
+pub const JOINT_SENSITIVITY_MIN_TOLERANCE: f64 = crate::tipping::MIN_TOLERANCE;
 /// Largest admitted bracketing tolerance.
 pub const JOINT_SENSITIVITY_MAX_TOLERANCE: f64 = 1e-2;
-/// Largest admitted `|sum - 1|` of the shared parent marginal (the 2.1
+/// Largest admitted `|sum - 1|` of the shared parent marginal (the one-factor
 /// evaluator's kernel-row tolerance).
 const JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE: f64 = 1e-10;
 /// Optimization method recorded in every receipt.
-pub const JOINT_SENSITIVITY_METHOD: &str = "box-independent epsilon contamination of the outcome kernel and the shared parent marginal; closed-form product-polytope vertex extrema (2.1 kernel stage, then the parent-simplex vertex); certified bisection brackets for the tipping frontier";
+pub(crate) const JOINT_SENSITIVITY_METHOD: &str = "box-independent epsilon contamination of the outcome kernel and the shared parent marginal; closed-form product-polytope vertex extrema (one-factor kernel stage, then the parent-simplex vertex); certified bisection brackets for the tipping frontier";
 /// Interpretation of the reported range.
-pub const JOINT_SENSITIVITY_INTERPRETATION: &str = "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval";
+pub(crate) const JOINT_SENSITIVITY_INTERPRETATION: &str = "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval";
 /// The only inference claim the range carries.
 pub const ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
 /// The one sampling composition declared for this cell (closed route).
-pub const JOINT_SENSITIVITY_SAMPLING_METHOD: &str = "conservative_endpoint_percentile_bootstrap";
+pub(crate) const JOINT_SENSITIVITY_SAMPLING_METHOD: &str =
+    "conservative_endpoint_percentile_bootstrap";
 /// The coverage target that composition is measured against.
-pub const JOINT_SENSITIVITY_COVERAGE_TARGET: &str = "one_sided: coverage of psi(delta0) at least nominal for any fixed true deviation delta0 inside the box; exactly the percentile bootstrap at the zero box";
+pub(crate) const JOINT_SENSITIVITY_COVERAGE_TARGET: &str = "one_sided: coverage of psi(delta0) at least nominal for any fixed true deviation delta0 inside the box; exactly the percentile bootstrap at the zero box";
 /// Detail of a budget stop, before the range (a refusal) or during bracketing
 /// (the frontier's unresolved reason).
-pub const JOINT_SENSITIVITY_BUDGET_DETAIL: &str = "joint_sensitivity.budget";
+pub(crate) const JOINT_SENSITIVITY_BUDGET_DETAIL: &str = "joint_sensitivity.budget";
 /// Detail of the withheld sampling interval.
-pub const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str = "joint_sensitivity.interval_withheld";
+pub(crate) const JOINT_SENSITIVITY_INTERVAL_WITHHELD: &str = "joint_sensitivity.interval_withheld";
 
 /// A mechanism factor a caller may ask to perturb.
 ///
@@ -108,7 +105,7 @@ pub enum JointFactor {
     FixedGraphParentMechanism,
     /// The fixed-graph conditional-mechanism joint problem (out of scope).
     FixedGraphConditionalMechanism,
-    /// Source-target discrepancy diagnostics (out of scope, 2.3B).
+    /// Source-target discrepancy diagnostics (out of scope).
     SourceTargetDiscrepancy,
 }
 
@@ -220,9 +217,10 @@ impl JointDeviationSpec {
 }
 
 /// Typed refusal of the joint sensitivity contract.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Error)]
 pub enum JointSensitivityError {
     /// A reason-coded refusal with its `joint_sensitivity.*` detail.
+    #[error("{detail}: {message}")]
     Refused {
         /// Registered reason code.
         code: &'static str,
@@ -232,6 +230,10 @@ pub enum JointSensitivityError {
         message: String,
     },
     /// The shared budget stopped before the range was computed.
+    #[error(
+        "{JOINT_SENSITIVITY_BUDGET_DETAIL}: the shared budget stopped before the range ({})",
+        .0.stop.code()
+    )]
     Budget(SearchReceipt),
 }
 
@@ -255,21 +257,6 @@ impl JointSensitivityError {
     }
 }
 
-impl fmt::Display for JointSensitivityError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Refused { detail, message, .. } => write!(f, "{detail}: {message}"),
-            Self::Budget(receipt) => write!(
-                f,
-                "{JOINT_SENSITIVITY_BUDGET_DETAIL}: the shared budget stopped before the range ({})",
-                receipt.stop.code()
-            ),
-        }
-    }
-}
-
-impl std::error::Error for JointSensitivityError {}
-
 fn refuse(
     code: &'static str,
     detail: &'static str,
@@ -285,7 +272,7 @@ pub struct JointSensitivityRange {
     pub minimum: f64,
     /// Maximum response over the box.
     pub maximum: f64,
-    /// Outcome vertex per `(w, x)` stratum at the minimum (2.1 kernel witness).
+    /// Outcome vertex per `(w, x)` stratum at the minimum (kernel-stage witness).
     pub minimizing_outcome_by_stratum: Vec<usize>,
     /// Outcome vertex per `(w, x)` stratum at the maximum.
     pub maximizing_outcome_by_stratum: Vec<usize>,
@@ -352,7 +339,7 @@ pub struct FrontierPoint {
 pub struct AxisTipping {
     /// The factor whose fraction is searched.
     pub factor: JointFactor,
-    /// The 2.1 one-factor analytic tipping fraction.
+    /// The one-factor analytic tipping fraction.
     pub analytic: Option<f64>,
     /// How the bracket search ended.
     pub status: TippingStatus,
@@ -426,7 +413,7 @@ pub struct JointMechanismSensitivityResult {
     pub factors: Vec<JointFactorBound>,
     /// Decision threshold.
     pub decision_threshold: Option<f64>,
-    /// Response under the unmodified source factors (the 2.1 baseline).
+    /// Response under the unmodified source factors (the baseline).
     pub baseline: f64,
     /// Exact range over the box.
     pub range: JointSensitivityRange,
@@ -445,6 +432,49 @@ pub struct JointMechanismSensitivityResult {
     pub inference_claim: &'static str,
     /// Sampling uncertainty status (withheld).
     pub uncertainty: JointSensitivityUncertainty,
+}
+
+impl From<&JointMechanismSensitivityResult>
+    for antecedent_io_core::sensitivity_artifact::JointSensitivityView
+{
+    fn from(result: &JointMechanismSensitivityResult) -> Self {
+        use antecedent_io_core::sensitivity_artifact::{
+            JointFactorView, JointSensitivityView, SourceTipping,
+        };
+        JointSensitivityView {
+            inference_claim: result.inference_claim.into(),
+            interpretation: result.interpretation.into(),
+            withheld_reason_code: result.uncertainty.reason_code.into(),
+            withheld_detail: result.uncertainty.detail.into(),
+            query_binding: result.query_binding.clone(),
+            provider_snapshot: result.provider_snapshot.clone(),
+            source_regime: result.source_regime.raw(),
+            method: result.receipt.method.into(),
+            decision_threshold: result.decision_threshold,
+            baseline: result.baseline,
+            minimum: result.range.minimum,
+            maximum: result.range.maximum,
+            factors: result
+                .factors
+                .iter()
+                .map(|bound| JointFactorView {
+                    factor: bound.factor.name().into(),
+                    max_fraction: bound.max_fraction,
+                })
+                .collect(),
+            axis_tipping: result
+                .axis_tipping
+                .iter()
+                .map(|axis| SourceTipping {
+                    factor: axis.factor.name().into(),
+                    status: axis.status.name().into(),
+                    lower: axis.bracket.map(|b| b.lower),
+                    upper: axis.bracket.map(|b| b.upper),
+                    analytic: axis.analytic,
+                })
+                .collect(),
+        }
+    }
 }
 
 /// Validated box.
@@ -679,8 +709,12 @@ fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
             "joint_sensitivity.invalid_fraction",
             error.to_string(),
         ),
+        ZTransportSensitivityError::Cancelled => refuse(
+            reason_code!("transport_budget_cancel"),
+            "joint_sensitivity.cancelled",
+            error.to_string(),
+        ),
         ZTransportSensitivityError::IncompleteKernel
-        | ZTransportSensitivityError::Cancelled
         | ZTransportSensitivityError::InvalidSensitivity(_) => refuse(
             reason_code!("transport_support_failure"),
             "joint_sensitivity.incomplete_kernel",
@@ -693,7 +727,7 @@ fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
 #[derive(Debug)]
 pub(crate) struct JointFactors {
     kernels: ZSurrogateKernels,
-    /// The 2.1 kernel stage read once: its baseline, extremal slopes and
+    /// The kernel stage read once: its baseline, extremal slopes and
     /// witnesses, evaluated at any kernel fraction without copying the kernel.
     kernel: DiscreteKernelSlopes,
     /// `Delta(w) = m(w, 1) - m(w, 0)` under the source kernel.
@@ -721,11 +755,11 @@ impl JointFactors {
             .map(|w| mean(&kernels.kernels[2 * w + 1]) - mean(&kernels.kernels[2 * w]))
             .collect();
         // Factor normalization is enforced, not repaired. Kernel rows are the
-        // law's conditionals and are re-checked by the 2.1 evaluator; the
+        // law's conditionals and are re-checked by the one-factor evaluator; the
         // shared parent marginal is the law's own mass, which a caller's loose
         // `LawTolerance` can leave far from one. The contamination class is
         // defined only on distributions, so the marginal must have unit mass
-        // within the 2.1 evaluator's row tolerance (the same sum it checks). It
+        // within the one-factor evaluator's row tolerance (the same sum it checks). It
         // is then used as read, never renormalized: the kernel stage weights it
         // as read, so the range, the frontier and both axis values share one
         // scale.
@@ -754,7 +788,7 @@ impl JointFactors {
         Ok(Self { kernels, kernel, deltas, parent, spread: high - low })
     }
 
-    /// Response under the unmodified source factors (the 2.1 baseline).
+    /// Response under the unmodified source factors (the baseline).
     fn baseline(&self) -> f64 {
         self.kernel.baseline()
     }
@@ -764,7 +798,7 @@ impl JointFactors {
         factor_bytes(self.deltas.len(), self.kernels.outcome_values.len())
     }
 
-    /// The 2.1 kernel stage at `fraction` (bit-equal to
+    /// The kernel stage at `fraction` (bit-equal to
     /// [`crate::z_transport_mechanism_sensitivity`]).
     fn kernel_stage(
         &self,
@@ -776,7 +810,7 @@ impl JointFactors {
             .map_err(|error| kernel_error(&ZTransportSensitivityError::InvalidSensitivity(error)))
     }
 
-    /// The 2.1 one-factor root-mechanism stage for the parent marginal alone.
+    /// The one-factor root-mechanism stage for the parent marginal alone.
     fn parent_stage(
         &self,
         fraction: f64,
@@ -796,11 +830,11 @@ impl JointFactors {
     /// Exact `(L, U)` at the box corner `(kernel, parent)` with the parent
     /// vertices that attain them (`None` when the parent is not perturbed).
     ///
-    /// `U = A + e_W max(max_w D+(w) - A, 0)` where `A` is the 2.1 kernel-stage
+    /// `U = A + e_W max(max_w D+(w) - A, 0)` where `A` is the kernel-stage
     /// maximum (`sum_w P_W(w) D+(w)`), which equals the closed form
     /// `(1 - e_W) A + e_W max_w D+(w)`; `max_w D+ >= A` holds exactly, so the
     /// clamp only removes rounding. At `e_W = 0` the kernel stage is returned
-    /// unchanged, which makes a single kernel factor bit-equal to 2.1. Nothing
+    /// unchanged, which makes a single kernel factor bit-equal to the one-factor result. Nothing
     /// is allocated: this is the bisection step of every frontier line.
     fn extrema_at(&self, kernel: f64, parent: f64) -> (f64, f64, Option<usize>, Option<usize>) {
         let (stage_min, stage_max) = self.kernel.extrema(kernel);
@@ -827,7 +861,7 @@ impl JointFactors {
         )
     }
 
-    /// [`Self::extrema_at`] with the 2.1 kernel witnesses.
+    /// [`Self::extrema_at`] with the kernel witnesses.
     fn bounds_at(
         &self,
         kernel: f64,
@@ -866,16 +900,6 @@ struct Bracketing<'b, 'c> {
 }
 
 impl Bracketing<'_, '_> {
-    /// Whether the response reaches the threshold at `t` along `line`, on the
-    /// same closed-form floating-point evaluation that reports the range.
-    fn reached(&self, line: Line, t: f64) -> bool {
-        let (minimum, maximum, ..) = match line {
-            Line::Kernel { parent } => self.factors.extrema_at(t, parent),
-            Line::Parent => self.factors.extrema_at(0.0, t),
-        };
-        if self.upward { maximum >= self.threshold } else { minimum <= self.threshold }
-    }
-
     /// Certified bisection of the first crossing on `[0, extent]`, charging
     /// every iteration (depth = iteration) with the cumulative live state;
     /// `Err` is the budget stop that left the line unresolved.
@@ -884,32 +908,35 @@ impl Bracketing<'_, '_> {
         line: Line,
         extent: f64,
     ) -> Result<(TippingStatus, Option<TippingBracket>), SearchStop> {
-        self.budget.charge(0, self.bytes)?;
-        if self.reached(line, 0.0) {
-            return Ok((
+        let bytes = self.bytes;
+        self.budget.charge(0, bytes)?;
+        let factors = self.factors;
+        let upward = self.upward;
+        let threshold = self.threshold;
+        let crossing = crate::tipping::first_crossing(
+            0.0,
+            extent,
+            self.tolerance,
+            usize::MAX,
+            |t| {
+                let (minimum, maximum, ..) = match line {
+                    Line::Kernel { parent } => factors.extrema_at(t, parent),
+                    Line::Parent => factors.extrema_at(0.0, t),
+                };
+                if upward { maximum >= threshold } else { minimum <= threshold }
+            },
+            |iteration| self.budget.charge(iteration, bytes),
+        )?;
+        Ok(match crossing {
+            crate::tipping::Crossing::AtOrigin => (
                 TippingStatus::ReachedAtOrigin,
                 Some(TippingBracket { lower: 0.0, upper: 0.0, iterations: 0 }),
-            ));
-        }
-        if extent <= 0.0 || !self.reached(line, extent) {
-            return Ok((TippingStatus::NotReachedInBox, None));
-        }
-        let (mut lower, mut upper) = (0.0_f64, extent);
-        let mut iterations = 0;
-        while upper - lower > self.tolerance {
-            iterations += 1;
-            self.budget.charge(iterations, self.bytes)?;
-            let middle = lower + (upper - lower) / 2.0;
-            if middle <= lower || middle >= upper {
-                break;
+            ),
+            crate::tipping::Crossing::NotInInterval => (TippingStatus::NotReachedInBox, None),
+            crate::tipping::Crossing::Bracket { lower, upper, iterations } => {
+                (TippingStatus::Bracketed, Some(TippingBracket { lower, upper, iterations }))
             }
-            if self.reached(line, middle) {
-                upper = middle;
-            } else {
-                lower = middle;
-            }
-        }
-        Ok((TippingStatus::Bracketed, Some(TippingBracket { lower, upper, iterations })))
+        })
     }
 }
 
@@ -934,10 +961,11 @@ const LINE_BYTES: u64 = std::mem::size_of::<FrontierPoint>() as u64;
 /// A typed [`JointSensitivityError`] carrying its reason code and
 /// `joint_sensitivity.*` detail.
 ///
-/// # Panics
-///
-/// Never: one bracketing outcome is recorded per stage before stages are read back.
-#[allow(clippy::too_many_lines)]
+/// A missing stage outcome is a refusal (`joint_sensitivity.stage_accounting`), not a panic.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one sensitivity grid evaluated in order; the stages share the bound transport formula"
+)]
 pub fn z_transport_joint_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,
@@ -1031,7 +1059,13 @@ pub fn z_transport_joint_mechanism_sensitivity(
         let mut outcomes = outcomes.into_iter();
         if joint_box.kernel.is_some() {
             for fraction in &grid {
-                let (status, bracket) = outcomes.next().expect("one outcome per stage");
+                let (status, bracket) = outcomes.next().ok_or_else(|| {
+                    refuse(
+                        reason_code!("invalid_argument"),
+                        "joint_sensitivity.stage_accounting",
+                        "joint sensitivity recorded fewer bracketing outcomes than frontier stages",
+                    )
+                })?;
                 frontier.push(FrontierPoint { parent_fraction: *fraction, status, bracket });
             }
             let first = frontier[0];
@@ -1043,7 +1077,13 @@ pub fn z_transport_joint_mechanism_sensitivity(
             });
         }
         if joint_box.parent.is_some() {
-            let (status, bracket) = outcomes.next().expect("one outcome per stage");
+            let (status, bracket) = outcomes.next().ok_or_else(|| {
+                refuse(
+                    reason_code!("invalid_argument"),
+                    "joint_sensitivity.stage_accounting",
+                    "joint sensitivity recorded fewer bracketing outcomes than frontier stages",
+                )
+            })?;
             axis_tipping.push(AxisTipping {
                 factor: JointFactor::SharedParentMarginal,
                 analytic: factors.parent_stage(parent, Some(threshold))?.tipping_fraction,
@@ -1085,8 +1125,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
     })
 }
 
-/// Conservative endpoint percentile-bootstrap interval (calibration-internal).
-#[cfg(feature = "calibration-internal")]
+/// Conservative endpoint percentile-bootstrap interval.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct JointSensitivityInterval {
@@ -1116,13 +1155,10 @@ pub struct JointSensitivityInterval {
 ///
 /// For any fixed true deviation inside the box, `L*_b <= psi*_b <= U*_b`, so
 /// the interval contains the pointwise percentile interval of `psi(delta0)`.
-/// Compiled only under `calibration-internal`; no public route reaches it.
-///
 /// # Errors
 ///
 /// An invalid spec, a formula or provider refusal on the observed data, fewer
 /// than two replicates or cancellation.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn joint_sensitivity_bootstrap_interval_internal(
     diagram: &SelectionDiagram,
@@ -1215,4 +1251,17 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
         replicates_ok: ok,
         replicates_failed: failed,
     }))
+}
+
+#[cfg(test)]
+mod kernel_error_tests {
+    use super::{ZTransportSensitivityError, kernel_error};
+
+    #[test]
+    fn no_budget_cancellation_is_its_own_detail() {
+        let error = kernel_error(&ZTransportSensitivityError::Cancelled);
+        assert_eq!(error.detail(), "joint_sensitivity.cancelled");
+        assert_eq!(error.reason_code(), "transport_budget_cancel");
+        assert_ne!(error.detail(), "joint_sensitivity.incomplete_kernel");
+    }
 }

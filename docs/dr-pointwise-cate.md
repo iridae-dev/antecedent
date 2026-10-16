@@ -11,7 +11,7 @@ The estimand is the best linear projection of the CATE onto the adjustment varia
 standard error is the HC0 sandwich evaluated at that profile from the same score fit. The
 `lower_95` and `upper_95` fields are pointwise normal-approximation bounds. These bounds are
 **uncalibrated**: no coverage record or calibration claim is attached to this API. They do not
-provide simultaneous coverage across profiles. The existing rowwise `EffectEstimate::cate`,
+provide simultaneous coverage across profiles. The existing rowwise `EffectEstimate.heterogeneity.cate`,
 `cate_se`, and forest leaf dispersion remain separate outputs and must not be substituted for
 the profile result.
 

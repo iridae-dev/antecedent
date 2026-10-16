@@ -1,4 +1,4 @@
-//! 2.2 E7: descriptive raw-versus-adjusted comparison and declared reporting-scale
+//! Descriptive raw-versus-adjusted comparison and declared reporting-scale
 //! transforms, against hand-computed values and an independent finite-difference Jacobian,
 //! plus the typed refusals and typed-unavailable fields.
 
@@ -13,6 +13,9 @@ use antecedent_estimate::{
     transform_mean_pair,
 };
 
+#[path = "common/checks.rs"]
+mod checks;
+
 fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(0)
 }
@@ -25,10 +28,7 @@ fn close(actual: f64, expected: f64, what: &str) {
 }
 
 fn refused(error: EstimationError) -> (&'static str, String) {
-    let EstimationError::Refused { code, message } = error else {
-        panic!("expected a coded refusal, got {error:?}");
-    };
-    (code, message)
+    checks::coded_refusal(error)
 }
 
 /// Control `[1, 2, 3]` (mean 2, s^2 1), active `[4, 6, 8]` (mean 6, s^2 4).

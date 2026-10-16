@@ -55,12 +55,12 @@ def main() -> None:
     if len(sys.argv) != 4 or sys.argv[3] not in GROUPS:
         raise SystemExit(f"usage: {sys.argv[0]} INPUT OUTPUT {'|'.join(GROUPS)}")
     source, output, name = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
-    rows = tomllib.loads(source.read_text())["fixture_evidence"]
+    rows = tomllib.loads(source.read_text(encoding="utf-8"))["fixture_evidence"]
     groups = group_rows(rows)
     assert sum(map(len, groups.values())) == len(rows)
     selected = groups[name]
     if not selected:
-        output.write_text("")
+        output.write_text("", encoding="utf-8", newline="\n")
         print(f"promotion evidence {name}: 0/{len(rows)} rows")
         return
     output.write_text("".join(
@@ -68,7 +68,7 @@ def main() -> None:
         + "".join(f"{key} = {toml_string(str(row[key]))}\n"
                   for key in ("id", "evidence_test", "evidence_assertion"))
         + "\n" for row in selected
-    ))
+    ), encoding="utf-8", newline="\n")
     print(f"promotion evidence {name}: {len(selected)}/{len(rows)} rows")
 
 

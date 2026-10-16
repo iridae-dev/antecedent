@@ -1,4 +1,4 @@
-//! Derived-treatment declarations for joint cells (2.2 E5).
+//! Derived-treatment declarations for joint cells.
 //!
 //! A *derived treatment* is a treatment built from source columns (a joint cell of binary
 //! components, a product, a sum). Before any estimator sees it, the construction is declared:
@@ -278,6 +278,12 @@ impl DerivedTreatmentDeclaration {
                 ));
             }
         }
+        self.validate_exclusions(name)?;
+        Ok(())
+    }
+
+    /// Checks every exclusion names a declared source once, with a justification and a rule matching the column's role.
+    fn validate_exclusions(&self, name: &str) -> Result<(), CausalError> {
         for (i, exclusion) in self.exclusions.iter().enumerate() {
             let column = exclusion.column.as_str();
             let mismatch = |message: &str| {
@@ -380,26 +386,12 @@ fn derived_values(
     Ok(values)
 }
 
-/// Check a derived-treatment declaration against the table and the proposed adjustment set.
-///
-/// The returned plan names the treatment components and the adjustment set after the declared
-/// exclusions. Nothing is dropped except by a declared exclusion.
-///
-/// # Errors
-///
-/// `derived_treatment_invalid` for an invalid declaration, a constituent or forbidden
-/// descendant (or the outcome) left in the adjustment set, an undeclared exact copy of a
-/// constituent, duplicated constituents, a covariate that tracks a constituent, or an
-/// illegal observed value; `design_rank_deficient` with the dependent columns named for a
-/// rank-deficient adjustment design; `invalid_argument` for an unknown column; cancellation.
-pub fn check_derived_treatment(
-    data: &TabularData,
+/// Applies the declared exclusions to the adjustment set and refuses constituents, descendants, or the outcome left in it.
+fn screen_adjustment(
     declaration: &DerivedTreatmentDeclaration,
-    outcome: &str,
     adjustment: &[String],
-    ctx: &ExecutionContext,
-) -> Result<DerivedTreatmentPlan, CausalError> {
-    declaration.validate()?;
+    outcome: &str,
+) -> Result<(Vec<String>, Vec<String>), CausalError> {
     let label = declaration.name.as_str();
     let named = |columns: Vec<String>, detail: &str, message: &str, remedy: &str| {
         refuse(reason_code!("derived_treatment_invalid"), detail, message, label, columns, remedy)
@@ -455,6 +447,82 @@ pub fn check_derived_treatment(
             None => {}
         }
     }
+    Ok((kept, retained))
+}
+
+/// Refuses duplicated constituents, a duplicated outcome, and an undeclared copy of a constituent in the adjustment set.
+fn refuse_duplicate_groups(
+    report: &PreflightReport,
+    declaration: &DerivedTreatmentDeclaration,
+    components: &[String],
+    kept: &[String],
+    outcome: &str,
+) -> Result<(), CausalError> {
+    let label = declaration.name.as_str();
+    let named = |columns: Vec<String>, detail: &str, message: &str, remedy: &str| {
+        refuse(reason_code!("derived_treatment_invalid"), detail, message, label, columns, remedy)
+    };
+    for group in &report.duplicates {
+        let in_group = |names: &[String]| -> Vec<String> {
+            group.columns.iter().filter(|c| names.contains(c)).cloned().collect()
+        };
+        let duplicated_components = in_group(components);
+        if duplicated_components.len() >= 2 {
+            return Err(named(
+                duplicated_components,
+                "joint_cells.derived_duplicate_constituents",
+                "treatment-construction columns are exact copies of one another, so some joint \
+                 cells cannot occur and the components are not separately identified",
+                "construct the treatment from distinct components",
+            ));
+        }
+        if group.columns.iter().any(|c| c == outcome) {
+            return Err(named(
+                group.columns.clone(),
+                "joint_cells.derived_outcome_in_adjustment",
+                "the outcome is duplicated by another column",
+                "remove the copy of the outcome",
+            ));
+        }
+        if !duplicated_components.is_empty() && !in_group(kept).is_empty() {
+            return Err(named(
+                group.columns.clone(),
+                "joint_cells.derived_constituent_copy_in_adjustment",
+                "an adjustment column is an undeclared exact copy of a treatment-construction \
+                 column",
+                "remove the copy, or declare it as a source and exclude it under a causal rule",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Check a derived-treatment declaration against the table and the proposed adjustment set.
+///
+/// The returned plan names the treatment components and the adjustment set after the declared
+/// exclusions. Nothing is dropped except by a declared exclusion.
+///
+/// # Errors
+///
+/// `derived_treatment_invalid` for an invalid declaration, a constituent or forbidden
+/// descendant (or the outcome) left in the adjustment set, an undeclared exact copy of a
+/// constituent, duplicated constituents, a covariate that tracks a constituent, or an
+/// illegal observed value; `design_rank_deficient` with the dependent columns named for a
+/// rank-deficient adjustment design; `invalid_argument` for an unknown column; cancellation.
+pub fn check_derived_treatment(
+    data: &TabularData,
+    declaration: &DerivedTreatmentDeclaration,
+    outcome: &str,
+    adjustment: &[String],
+    ctx: &ExecutionContext,
+) -> Result<DerivedTreatmentPlan, CausalError> {
+    declaration.validate()?;
+    let label = declaration.name.as_str();
+    let named = |columns: Vec<String>, detail: &str, message: &str, remedy: &str| {
+        refuse(reason_code!("derived_treatment_invalid"), detail, message, label, columns, remedy)
+    };
+
+    let (kept, retained) = screen_adjustment(declaration, adjustment, outcome)?;
 
     let components: Vec<String> =
         declaration.construction().iter().map(|s| s.name.clone()).collect();
@@ -483,38 +551,7 @@ pub fn check_derived_treatment(
     };
     let report = preflight_design(&input, ctx)?;
 
-    for group in &report.duplicates {
-        let in_group = |names: &[String]| -> Vec<String> {
-            group.columns.iter().filter(|c| names.contains(c)).cloned().collect()
-        };
-        let duplicated_components = in_group(&components);
-        if duplicated_components.len() >= 2 {
-            return Err(named(
-                duplicated_components,
-                "joint_cells.derived_duplicate_constituents",
-                "treatment-construction columns are exact copies of one another, so some joint \
-                 cells cannot occur and the components are not separately identified",
-                "construct the treatment from distinct components",
-            ));
-        }
-        if group.columns.iter().any(|c| c == outcome) {
-            return Err(named(
-                group.columns.clone(),
-                "joint_cells.derived_outcome_in_adjustment",
-                "the outcome is duplicated by another column",
-                "remove the copy of the outcome",
-            ));
-        }
-        if !duplicated_components.is_empty() && !in_group(&kept).is_empty() {
-            return Err(named(
-                group.columns.clone(),
-                "joint_cells.derived_constituent_copy_in_adjustment",
-                "an adjustment column is an undeclared exact copy of a treatment-construction \
-                 column",
-                "remove the copy, or declare it as a source and exclude it under a causal rule",
-            ));
-        }
-    }
+    refuse_duplicate_groups(&report, declaration, &components, &kept, outcome)?;
     if let Some(finding) = report.findings.iter().find(|f| {
         matches!(
             f.code,

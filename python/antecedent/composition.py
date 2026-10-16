@@ -12,9 +12,11 @@ receipt, calibration and capabilities) and a per-coordinate support map::
 
 Trust is never taken from a label. An artifact that calls itself ``native`` or
 ``exact`` is stored as ``unverified`` unless the library object that produced it
-supplies the native execution record or the exact-request verification receipt:
+supplies the native execution record or the exact-request verification receipt.
 Python can state ``TrustEvidence.none()`` or an external attestation and nothing
-stronger, and a requirement of ``"native"`` refuses the label
+stronger. :meth:`DecisionInput.from_claim` carries a receipt the claim already
+retained, so a probe-verified claim can meet ``"exact_request_verified"``. A
+requirement of ``"native"`` still refuses an external claim
 (:class:`UnverifiedTrustRefusal`).
 
 Support is decided per action. An action whose coordinate is missing or too
@@ -43,6 +45,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, Literal, cast
 
 from . import _native
@@ -52,8 +55,11 @@ from ._native import composition_check_paired_draws as _check_paired
 from ._native import composition_evaluate as _evaluate
 from ._native import composition_functional as _functional
 from ._native import composition_input_from_distribution as _from_distribution
+from ._native import composition_input_from_external_claim as _from_external_claim
 from ._native import composition_input_from_means as _from_means
 from ._native import composition_input_from_scalar as _from_scalar
+from ._refusal import raise_refusal
+from ._validate import choice, text
 from .decision import ActionOutcome, ConstraintExclusion, Contract, DecisionRefusal
 from .decision_robust import SupportLabel
 from .errors import CausalTypeError, CausalValueError
@@ -65,7 +71,14 @@ Operation = Literal[
     "statistical_pooling", "bayesian_borrowing", "causal_transport", "evidence_reuse"
 ]
 AtomCombination = Literal["report_each", "worst_case", "weighted_by_declared_probabilities"]
-ProviderKind = Literal["native", "external_attested", "external_exact_request_verified"]
+ProviderKind = Literal[
+    "native",
+    "externally_attested",
+    "verified_extension",
+    # Read-compat spellings. New provenance emits the canonical wires above.
+    "external_attested",
+    "external_exact_request_verified",
+]
 OPERATIONS: tuple[Operation, ...] = (
     "statistical_pooling",
     "bayesian_borrowing",
@@ -141,25 +154,9 @@ def _refusal_type(refusal: Mapping[str, Any]) -> type[CompositionRefusal]:
     return CompositionRefusal
 
 
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        wire = json.loads(refusal)
-        raise _refusal_type(wire)(wire)
+_label = choice
 
-
-def _label(name: str, value: str, allowed: Sequence[str]) -> str:
-    if value not in allowed:
-        raise CausalValueError(f"{name} is one of {', '.join(allowed)}; got {value!r}")
-    return value
-
-
-def _text(name: str, value: object) -> str:
-    if not isinstance(value, str):
-        raise CausalTypeError(f"{name} must be a string")
-    if not value.strip():
-        raise CausalValueError(f"{name} must be non-empty")
-    return value
-
+_text = partial(text, non_empty=True)
 
 # --------------------------------------------------------------------------- trust
 
@@ -189,12 +186,12 @@ class TrustEvidence:
     @classmethod
     def attested(cls, attestor: str) -> TrustEvidence:
         """An external attestation by ``attestor``; never native, never verified."""
-        return cls(_native.TrustEvidence.attested(_text("attestor", attestor)))
+        return cls(_native.TrustEvidence.attested(_text(attestor, "attestor")))
 
     @property
     def kind(self) -> str:
         """``none``, ``externally_attested``, ``native_execution`` or
-        ``exact_request_verified``."""
+        ``verified_extension``."""
         return str(self._native_value.kind)
 
     def __repr__(self) -> str:
@@ -288,10 +285,10 @@ class DecisionInput:
         if not isinstance(artifact, JointDistributionArtifact):
             raise CausalTypeError("artifact must be a JointDistributionArtifact")
         native, refusal = _from_distribution(
-            _text("input_id", input_id),
+            _text(input_id, "input_id"),
             artifact._native,
             _evidence(evidence),
-            _label("requirement", requirement, _REQUIREMENTS),
+            _label(requirement, "requirement", _REQUIREMENTS),
         )
         return cls._built(native, refusal)
 
@@ -307,7 +304,7 @@ class DecisionInput:
         if not isinstance(claim, NativeClaim):
             raise CausalTypeError("claim must be an issued NativeClaim")
         native, refusal = _native.composition_input_from_native_claim(
-            _text("input_id", input_id), claim._native, json.dumps(contract._wire())
+            _text(input_id, "input_id"), claim._native, json.dumps(contract._wire())
         )
         return cls._built(native, refusal)
 
@@ -337,15 +334,15 @@ class DecisionInput:
             raise CausalValueError("one mean per coordinate")
         labels = _labels(support, len(quantities))
         native, refusal = _from_means(
-            _text("input_id", input_id),
+            _text(input_id, "input_id"),
             json.dumps([q._wire() for q in quantities]),
             values,
             labels,
-            _text("provider_id", provider_id),
-            _text("snapshot_id", snapshot_id),
-            _text("causal_contract_id", causal_contract_id),
+            _text(provider_id, "provider_id"),
+            _text(snapshot_id, "snapshot_id"),
+            _text(causal_contract_id, "causal_contract_id"),
             _evidence(evidence),
-            _label("requirement", requirement, _REQUIREMENTS),
+            _label(requirement, "requirement", _REQUIREMENTS),
         )
         return cls._built(native, refusal)
 
@@ -365,15 +362,15 @@ class DecisionInput:
     ) -> DecisionInput:
         """An input from one scalar claim for one coordinate."""
         native, refusal = _from_scalar(
-            _text("input_id", input_id),
+            _text(input_id, "input_id"),
             json.dumps(quantity._wire()),
             float(value),
-            _label("support", support, _SUPPORT_NAMES),
-            _text("provider_id", provider_id),
-            _text("snapshot_id", snapshot_id),
-            _text("causal_contract_id", causal_contract_id),
+            _label(support, "support", _SUPPORT_NAMES),
+            _text(provider_id, "provider_id"),
+            _text(snapshot_id, "snapshot_id"),
+            _text(causal_contract_id, "causal_contract_id"),
             _evidence(evidence),
-            _label("requirement", requirement, _REQUIREMENTS),
+            _label(requirement, "requirement", _REQUIREMENTS),
         )
         return cls._built(native, refusal)
 
@@ -385,34 +382,74 @@ class DecisionInput:
         *,
         requirement: TrustRequirement = "unrestricted",
     ) -> DecisionInput:
-        """An input from a bound external claim, as an attested mean source.
+        """An input from a bound external claim, as a mean source.
 
-        The claim's own per-coordinate support labels are kept. Its trust is carried
-        as an external attestation by its provider whatever its label: a
-        verification receipt can only come from the library, so a ``native``
-        requirement refuses it.
+        The claim's own per-coordinate support labels are kept. An attested claim
+        stays attested by its provider. A claim that retains a passing exact-request
+        verification receipt carries that receipt, so ``requirement``
+        ``"exact_request_verified"`` can be satisfied. A ``native`` requirement
+        still refuses: the numbers were not executed by Antecedent.
         """
         if not isinstance(claim, BoundExternalClaim):
             raise CausalTypeError("claim must be a BoundExternalClaim")
-        identity = claim.identity_fields
-        result = cls.from_means(
-            input_id,
-            claim.quantities,
-            [float(v) for v in claim.values],
-            provider_id=str(identity["provider_id"]),
-            snapshot_id=str(identity["snapshot_id"]),
-            causal_contract_id=str(identity["causal_contract_id"]),
-            support=cast("tuple[SupportLabel, ...]", claim.support),
-            evidence=TrustEvidence.attested(str(identity["provider_id"])),
-            requirement=requirement,
+        native, refusal = _from_external_claim(
+            _text(input_id, "input_id"),
+            claim._native,
+            _label(requirement, "requirement", _REQUIREMENTS),
         )
-
+        result = cls._built(native, refusal)
         result._native_value._retain_external_source(claim._native)
         return result
 
     @classmethod
+    def from_estimate(
+        cls,
+        input_id: str,
+        estimate: Any,
+        quantity: ScientificQuantity,
+        *,
+        support: SupportLabel | None = None,
+        requirement: TrustRequirement = "unrestricted",
+    ) -> DecisionInput:
+        """A scalar input from a caller-attested :class:`~antecedent.handoff.ExternalEstimate`.
+
+        Trust is ``externally_attested``. The estimate has no exact-request receipt,
+        so ``requirement="exact_request_verified"`` refuses it. Support defaults to
+        the label the provider declared on the estimate's bound claim, which is
+        ``missing_evidence`` when the receipt did not assess overlap.
+        """
+        from .extensibility import ProviderTrust
+        from .handoff import ExternalEstimate
+
+        if not isinstance(estimate, ExternalEstimate):
+            raise CausalTypeError("estimate must be an ExternalEstimate")
+        if estimate.trust is not ProviderTrust.EXTERNALLY_ATTESTED:
+            raise CausalValueError("an external estimate is attested, never verified or native")
+        if support is None:
+            declared = estimate.support
+            support = (
+                cast("SupportLabel", declared[0]) if len(declared) == 1 else "missing_evidence"
+            )
+        value = estimate.value
+        if value is None:
+            raise CausalValueError(
+                "an external estimate enters a decision only as a scalar labelled effect"
+            )
+        return cls.from_scalar(
+            input_id,
+            quantity,
+            value,
+            provider_id=estimate.attestor,
+            snapshot_id=estimate.snapshot_id,
+            causal_contract_id=estimate.claim_id or "external-estimate",
+            support=support,
+            evidence=TrustEvidence.attested(estimate.attestor),
+            requirement=requirement,
+        )
+
+    @classmethod
     def _built(cls, native: Any, refusal: str | None) -> DecisionInput:
-        _raise(refusal)
+        raise_refusal(refusal, _refusal_type)
         assert native is not None
         return cls(native)
 
@@ -497,8 +534,8 @@ def _evidence(evidence: TrustEvidence | None) -> _native.TrustEvidence:
 
 def _labels(support: str | Sequence[str], count: int) -> list[str]:
     if isinstance(support, str):
-        return [_label("support", support, _SUPPORT_NAMES)] * count
-    labels = [_label("support", s, _SUPPORT_NAMES) for s in support]
+        return [_label(support, "support", _SUPPORT_NAMES)] * count
+    labels = [_label(s, "support", _SUPPORT_NAMES) for s in support]
     if len(labels) != count:
         raise CausalValueError("one support label per coordinate")
     return labels
@@ -527,8 +564,8 @@ class SupportPolicy:
     weakest_support: SupportLabel = "supported"
 
     def __post_init__(self) -> None:
-        _label("unsupported", self.unsupported, ("compare_supported", "require_all"))
-        _label("weakest_support", self.weakest_support, _SUPPORT_NAMES)
+        _label(self.unsupported, "unsupported", ("compare_supported", "require_all"))
+        _label(self.weakest_support, "weakest_support", _SUPPORT_NAMES)
 
     @classmethod
     def compare_supported(cls, weakest_support: SupportLabel = "supported") -> SupportPolicy:
@@ -798,7 +835,7 @@ def evaluate_with_support(
         policy.unsupported,
         policy.weakest_support,
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert result is not None
     wire = json.loads(result)
     return _supported_from_wire(
@@ -917,12 +954,12 @@ def evaluate_functional(
         raise CausalTypeError("source must be a DecisionInput")
     result, refusal = _functional(
         json.dumps(contract._wire()),
-        _text("action_id", action_id),
+        _text(action_id, "action_id"),
         json.dumps(functional._wire()),
         source._native_value,
-        _label("weakest_support", weakest_support, _SUPPORT_NAMES),
+        _label(weakest_support, "weakest_support", _SUPPORT_NAMES),
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert result is not None
     wire = json.loads(result)
     evidence = source.source_evidence
@@ -984,12 +1021,12 @@ class EvidenceRelation:
     @classmethod
     def shared_prior(cls, prior_id: str) -> EvidenceRelation:
         """The two inputs share the prior ``prior_id``."""
-        return cls("shared_prior", (_text("prior_id", prior_id),))
+        return cls("shared_prior", (_text(prior_id, "prior_id"),))
 
     @classmethod
     def shared_fitted_model(cls, model_id: str) -> EvidenceRelation:
         """The two inputs come from the one fitted model ``model_id``."""
-        return cls("shared_fitted_model", (_text("model_id", model_id),))
+        return cls("shared_fitted_model", (_text(model_id, "model_id"),))
 
     @classmethod
     def unknown(cls) -> EvidenceRelation:
@@ -1116,9 +1153,9 @@ def check_composition(
     Raises :class:`DependenceRefusal`.
     """
     if operation is not None:
-        _label("operation", operation, OPERATIONS)
+        _label(operation, "operation", OPERATIONS)
     result, refusal = _check(_natives(inputs), _relations_wire(relations), operation)
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     return _receipt(result)
 
 
@@ -1132,7 +1169,7 @@ def check_paired_draws(
     law. Inputs that share data refuse (``shared_evidence_not_independent``).
     """
     result, refusal = _check_paired(_natives(inputs), _relations_wire(relations))
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     return _receipt(result)
 
 
@@ -1174,14 +1211,14 @@ def check_atom_combination(
     if any(not isinstance(a, StructuralAtom) for a in items):
         raise CausalTypeError("atoms must be StructuralAtom values")
     _label(
-        "combination",
         combination,
+        "combination",
         ("report_each", "worst_case", "weighted_by_declared_probabilities"),
     )
     result, refusal = _check_atoms(
         json.dumps([{"id": a.id, "probability": a.probability} for a in items]), combination
     )
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert result is not None
     wire = json.loads(result)
     return AtomPlan(wire["kind"], tuple((str(i), float(p)) for i, p in wire.get("weights", ())))

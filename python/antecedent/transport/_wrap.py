@@ -9,6 +9,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
+from .._columns import coerce_fields
 from ..errors import CausalSerializationError, CausalUnsupportedError
 from ..results import (
     AnalysisResult,
@@ -183,9 +184,9 @@ class _ExportAdapter:
 
 
 def _attach(result: Any, study: Any, specialist: Any, section: TransportSection) -> Any:
-    object.__setattr__(result, "query", getattr(study, "_query", None))
-    object.__setattr__(result, "_execution", _ExportAdapter(result))
-    object.__setattr__(result, "_prepared", study)
+    coerce_fields(result, query=getattr(study, "_query", None))
+    coerce_fields(result, _execution=_ExportAdapter(result))
+    coerce_fields(result, _prepared=study)
     return result
 
 
@@ -300,7 +301,9 @@ def _identification_snapshot(stage: Mapping[str, Any]) -> bytes | None:
         or catalog is None
     ):
         return None
-    return bytes(identified.stage.failure_snapshot(catalog))
+    from .._study_lifecycle import replay_declaration
+
+    return bytes(identified.stage.failure_snapshot(replay_declaration(catalog)))
 
 
 def _specialist_artifacts(distribution: Any) -> list[bytes]:
@@ -508,7 +511,7 @@ def decode_transport_view(encoded: bytes) -> AnalysisResult | CausalResponseView
         result = _unavailable_result(study, query, detail, shape=shape or "scalar", stage=stage)
     bindings = payload.get("bindings")
     if bindings:
-        object.__setattr__(result, "transport", replace(result.transport, bindings=tuple(bindings)))
+        coerce_fields(result, transport=replace(result.transport, bindings=tuple(bindings)))
     return result
 
 

@@ -84,7 +84,10 @@ impl LongitudinalRegimeQuery {
     /// treatment or censoring probabilities are non-finite or out of range.
     // A flat sequence of independent guard checks; splitting it would only scatter
     // the query's validity contract across helpers with no shared logic.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one validation per query field, in declaration order"
+    )]
     pub fn validate(&self) -> Result<(), QueryError> {
         let identity = [&self.rule_id, &self.rule_version, &self.rule_provenance];
         if identity.iter().any(|value| value.is_some())

@@ -75,13 +75,7 @@ impl GeneralizedAdjustmentIdentifier {
         dag: &Dag,
         query: &ResponseQuery,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let mut admg =
-            Admg::with_variables(u32::try_from(dag.node_count()).expect("node count fits"));
-        for edge in dag.edges() {
-            if let Some((from, to)) = edge.parent_child() {
-                admg.insert_directed(from, to)?;
-            }
-        }
+        let admg = crate::prepared::dag_to_admg(dag)?;
         self.identify_joint_admg_response(&admg, query)
     }
 
@@ -113,6 +107,8 @@ impl GeneralizedAdjustmentIdentifier {
 
 // A -> B is visible if a node nonadjacent to B has an arrowhead into A,
 // or reaches A along a collider path into A whose internal nodes parent B.
+// This is a marked-path search over a PAG's endpoints (collider paths whose internal nodes
+// parent `B`), not a directed closure, so it is not one of the graph crate's closure owners.
 pub(crate) fn visible(mag: &Pag, from: DenseNodeId, to: DenseNodeId) -> bool {
     let adjacent = |a, b| mag.neighbors(a).any(|(v, _, _)| v == b);
     let parent = |a, b| {
@@ -208,7 +204,7 @@ fn identify_joint(
     seeds.push(y);
     let ancestors = directed_closure(graph, &seeds, true);
     let candidates: Vec<_> = (0..graph.node_count())
-        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")))
+        .map(DenseNodeId::from_index)
         .filter(|&v| v != y && !descendants.contains(v) && ancestors.contains(v))
         .collect();
     if candidates.len() > max_candidates {
@@ -330,21 +326,14 @@ fn backdoor_graph(
     target: DenseNodeId,
     visible_edge: &impl Fn(DenseNodeId, DenseNodeId) -> bool,
 ) -> Result<Admg, IdentificationError> {
-    let mut cut = Admg::with_variables(u32::try_from(graph.node_count()).expect("node count fits"));
-    for i in 0..graph.node_count() {
-        let u = DenseNodeId::from_raw(u32::try_from(i).expect("node index fits"));
-        for &v in graph.children(u) {
-            if u != target || !visible_edge(u, v) {
-                cut.insert_directed(u, v)?;
-            }
-        }
-        for &v in graph.bidirected_neighbors(u) {
-            if u < v {
-                cut.insert_bidirected(u, v)?;
-            }
-        }
-    }
-    Ok(cut)
+    graph
+        .copy_filtered(
+            antecedent_graph::CopyLabels::StaticIndex { extra: 0 },
+            |from, to| from != target || !visible_edge(from, to),
+            // The cut removes visible directed edges. Bidirected edges stay.
+            |_a, _b| true,
+        )
+        .map_err(IdentificationError::from)
 }
 
 pub(crate) fn joint_result(

@@ -729,7 +729,7 @@ impl OwnedColumn {
 }
 
 #[cfg(test)]
-#[allow(clippy::float_cmp, clippy::cast_precision_loss)] // values are copied bit-for-bit
+#[allow(clippy::float_cmp, clippy::cast_precision_loss, reason = "values are copied bit-for-bit")]
 mod tests {
     use super::*;
 
@@ -833,13 +833,8 @@ mod tests {
     /// valid bits and observations under invalid bits, across the 8-row tail.
     #[test]
     fn fused_scan_establishes_the_invariant_on_every_row_mix() {
-        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
-        let mut next = move || {
-            state ^= state << 13;
-            state ^= state >> 7;
-            state ^= state << 17;
-            state
-        };
+        let mut rng = antecedent_core::CausalRng::from_seed(0x9E37_79B9_7F4A_7C15);
+        let mut next = move || rng.next_u64();
         for n in [0usize, 1, 7, 8, 9, 15, 16, 17, 40, 130] {
             for _case in 0..40 {
                 let mut values: Vec<f64> = (0..n).map(|i| i as f64 + 0.5).collect();

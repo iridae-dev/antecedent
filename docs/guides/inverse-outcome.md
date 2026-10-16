@@ -1,10 +1,10 @@
-# Finite-action inverse-outcome query (2.2 E6)
+# Finite-action inverse-outcome query
 
 `antecedent.inverse.inverse_outcome` asks the forward question backwards over a list
 you enumerate: *which of these interventions reach a target mean?* The goal is
 `E[Y^do(a)] >= threshold` (or `<=`) for the outcome, population and horizon of an
 existing, licensed forward response route. The claim is `point_only`. The record is
-`2.2E.E6.finite_action_inverse_outcome` in `parity/promotion_2_2.toml`.
+`decision.finite_action_inverse` in `parity/promotion.toml`.
 
 ```python
 import antecedent as ant
@@ -110,13 +110,15 @@ retain one time coordinate.
 | Reason code | Detail | When |
 | --- | --- | --- |
 | `cell_not_licensed` | `inverse.probability_target` | `ChanceConstraint`: a mean cannot establish `P(Y^do(a) >= y) >= q`; that needs a separately identified, calibrated interventional-distribution cell |
-| `cell_not_licensed` | `inverse.quantile_target` | `TargetQuantile` is unsupported by this mean-only route; the separate [functional inverse query](../2_3-decisions-breadth.md) requires a source supplying the requested functional |
+| `cell_not_licensed` | `inverse.quantile_target` | `TargetQuantile` is unsupported by this mean-only route; the separate [functional inverse query](../decisions-breadth.md) requires a source supplying the requested functional |
 | `cell_not_licensed` | `inverse.observational_scenarios` | `ObservationalScenarios` |
 | `route_not_supported` | `inverse.forward_not_mean_response` | the forward estimand is not a scalar-outcome mean curve (`ResponseCurve`) |
 | `route_not_supported` | `inverse.forward_not_point_identified` | the forward response is an identified set, a class mixture or unidentified |
 | `cell_not_licensed` | `inverse.forward_not_licensed` | the forward result is marked `allowed_unlicensed` for compatibility |
-| `route_not_supported` | `inverse.bounds_exceeded` | more than 4096 actions or 65536 forward points |
+| `route_not_supported` | `inverse.bounds_exceeded` | more than {{bound:decision.finite_action_inverse.max_actions}} actions or {{bound:decision.finite_action_inverse.max_forward_points}} forward points |
 | `invalid_argument` | `inverse.invalid_target`, `inverse.invalid_action`, `inverse.invalid_forward` | a non-finite threshold, negative tolerance or budget; an empty grid, duplicate label, wrong-dimension point, bad cost or constraint name; a repeated forward point or malformed interval |
 | `transport_budget_cancel` | `inverse.cancelled` | cancelled mid-enumeration; never a verdict |
 
 The probability, quantile and observational refusals are raised before any input is read.
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

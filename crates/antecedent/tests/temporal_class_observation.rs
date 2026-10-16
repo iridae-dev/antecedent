@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::type_complexity)]
-
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, IntoGraphInput, RefuteSuite, Study};
@@ -30,9 +28,10 @@ fn class_pin() -> serde_json::Value {
     .unwrap()
 }
 
-fn generate(
-    pin: &serde_json::Value,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+/// The six simulated columns of one pinned fixture.
+type Columns = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
+
+fn generate(pin: &serde_json::Value) -> Columns {
     let n = usize::try_from(pin["rows"].as_u64().unwrap()).unwrap();
     let seed = pin["seed"].as_u64().unwrap();
     let stream = pin["stream"].as_u64().unwrap();
@@ -265,7 +264,7 @@ fn run_pair(
 }
 
 fn carries_observation_claim(result: &antecedent::StudyResult) -> bool {
-    let response = result.response.as_ref().expect("class observation response");
+    let response = result.response().expect("class observation response");
     response.assumptions.entries.iter().any(|record| {
         matches!(
             &record.assumption,
@@ -330,7 +329,7 @@ fn licensed_observation_pairs_run_on_temporal_cpdag_and_pag() {
                 assert!(carries_observation_claim(&result), "{name} dropped observation claims");
                 assert!(
                     !matches!(
-                        result.response.as_ref().unwrap().uncertainty,
+                        result.response().unwrap().uncertainty,
                         ResponseUncertainty::PointwiseBand { .. }
                     ) || result.diagnostics.iter().any(|d| {
                         d.code.as_ref() == "estimate.temporal_class.observation_no_complete_band"
@@ -385,6 +384,10 @@ fn selected_incomplete_cpdag_matches_temporal_observation_surface() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for frequentist incomplete class uses outer block or withholds"
+)]
 fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
     let pin = pin();
     let (t, latent, selected, _, _, _) = generate(&pin);
@@ -406,7 +409,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         antecedent::GraphClass::TemporalCpdag
     );
     assert!(
-        matches!(incomplete.response.as_ref().unwrap().uncertainty, ResponseUncertainty::None),
+        matches!(incomplete.response().unwrap().uncertainty, ResponseUncertainty::None),
         "two-completion identified set withholds the class observation band"
     );
     assert!(incomplete.diagnostics.iter().any(|d| {
@@ -443,7 +446,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         antecedent::result::PERCENTILE_95_MIN_REPLICATES,
     )
     .unwrap();
-    let response = oriented.response.as_ref().unwrap();
+    let response = oriented.response().unwrap();
     // The atom-level band assertions below are about this one-completion `oriented` run, not
     // the two-completion `incomplete` run above: rebind `structural` to it (it was previously
     // left pointing at `incomplete.structural_response`, so these assertions were silently
@@ -506,10 +509,7 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         .collect();
     assert!(!atom_responses.is_empty(), "atoms carry the outer circular-block band");
     assert!(atom_responses.iter().all(|r| tuple_band_disclosed(r)));
-    assert!(!warns(
-        incomplete.response.as_ref().unwrap(),
-        "estimate.temporal_response.band_withheld"
-    ));
+    assert!(!warns(incomplete.response().unwrap(), "estimate.temporal_response.band_withheld"));
     assert!(banded(response), "the one-completion class publishes the outer band");
     assert!(tuple_band_disclosed(response));
     let note = oriented

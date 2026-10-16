@@ -10,10 +10,32 @@ handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
-The [2.3 lifecycle](2_3-lifecycle.md) connects native and external claims to
-decisions, study ranking and portable bundles; [measured scalar adapters](2_3-population-time-uncertainty.md)
+The [lifecycle](lifecycle.md) connects native and external claims to
+decisions, study ranking and portable bundles; [measured scalar adapters](population-time-uncertainty.md)
 license specified Bayesian, nested-Markov, temporal and recovery intervals under
 separate source-bound contracts, without adding arbitrary analysis-grid cells.
+
+## Python workflow and interoperability in 2.4
+
+The [notebook-to-system journey](guides/notebook-to-system.md) connects retained
+identification, staged execution and durable consumption. Studies expose
+`identification`, `inspect_plan()`, `last_result` and explicit `reprepare(...)`;
+all named design rebinding paths protect the prepared assignment and ID bindings.
+Results support deferred refutation against their retained execution snapshot.
+
+Scientific read models share immutable nested records, JSON-safe independent
+`to_dict()` exports and typed inspection. Adaptive methods return named payloads;
+reliability diagnostics expose typed records. Root and submodule imports preserve
+static typing while modules remain lazy at runtime. Callback executions retain
+session ownership and transfer through explicit export/resume.
+
+`results.MeanSource` unifies checked mean handoffs into decision and inverse queries.
+Producer-specific `as_mean_source(...)` adapters require missing scientific declarations
+and preserve point-only standing. `export()` writes bytes, `artifact()` retains typed
+expectations and export metadata, `artifacts.inspect()` reads metadata, and shared
+`load(..., expected=..., context=...)` delegates to existing scientific consumers.
+These conventions add no laws, intervals, calibration evidence or analysis-grid licenses.
+See [the migration guide](migrations/2.4-python-ux.md).
 
 ## How to read capability claims
 
@@ -101,6 +123,228 @@ known-truth checks run at that support boundary. The full-curve band and
 competing-risk or weighted contrasts do not inherit this scalar license. See
 [Survival outcomes](survival-outcomes.md).
 
+## Licensed coordinates
+
+The per-query counts and the grouped licensed coordinates are generated from the support registry.
+
+<!-- generated:query-inventory:begin -->
+Generated from `parity/support_axes.toml`, `parity/support_licensed.toml`,
+and `parity/support_n_a.toml` by `scripts/generate_claim_inventory.py`.
+Licensed coordinates are grouped only where the cell lists the full product
+of the structures, inferences, and validations shown. A coordinate that is
+not listed is n/a or refused. Refusal is the default;
+`parity/support_closed.toml` names reasons and does not create a fourth state.
+The [support matrix](support-matrix.md) is the license.
+Do not edit this block by hand.
+
+| Query | Licensed | n/a | Refused |
+|---|---:|---:|---:|
+| AnomalyAttribution | 4 | 36 | 140 |
+| AverageDerivative | 20 | 68 | 92 |
+| AverageEffect | 92 | 88 | 0 |
+| ChangeAttribution | 4 | 36 | 140 |
+| ConditionalEffect | 54 | 90 | 36 |
+| Counterfactual | 20 | 36 | 124 |
+| DirectionalDerivative | 20 | 68 | 92 |
+| Elasticity | 20 | 68 | 92 |
+| InterventionalDistribution | 36 | 36 | 108 |
+| InterventionResponse | 99 | 81 | 0 |
+| MediationEffect | 12 | 90 | 78 |
+| NestedCounterfactualEffect | 18 | 36 | 126 |
+| PathSpecificEffect | 28 | 36 | 116 |
+| PointDerivative | 20 | 68 | 92 |
+| PulseEffect | 54 | 108 | 18 |
+| ResponseCurve | 48 | 116 | 16 |
+| ResponseJacobian | 20 | 68 | 92 |
+| SemiElasticity | 20 | 68 | 92 |
+| SustainedEffect | 54 | 108 | 18 |
+| TemporalConditionalPulse | 16 | 108 | 56 |
+| TemporalConditionalSustained | 16 | 108 | 56 |
+| TemporalMediationEffect | 36 | 108 | 36 |
+| TransportQuery | 4 | 90 | 86 |
+| InterferenceQuery | 2 | 90 | 88 |
+
+717 licensed cells.
+
+| Query | Graph class | Structures | Inferences | Validations | Cells |
+|---|---|---|---|---|---:|
+| AnomalyAttribution | Dag | explicit | Frequentist, Bayesian | none | 2 |
+| AnomalyAttribution | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
+| AverageDerivative | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| AverageDerivative | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| AverageDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| AverageDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| AverageEffect | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | CoDetermined | explicit | Frequentist | none | 1 |
+| AverageEffect | Unknown | explicit | Frequentist | none | 1 |
+| ChangeAttribution | Dag | explicit | Frequentist, Bayesian | none | 2 |
+| ChangeAttribution | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
+| ConditionalEffect | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ConditionalEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ConditionalEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Counterfactual | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| Counterfactual | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| Counterfactual | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| Counterfactual | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| DirectionalDerivative | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| DirectionalDerivative | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| DirectionalDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| DirectionalDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| Elasticity | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| Elasticity | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| Elasticity | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| Elasticity | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| InterventionalDistribution | Dag | explicit, accepted | Frequentist, Bayesian | none, cheap, full | 12 |
+| InterventionalDistribution | Admg | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| InterventionalDistribution | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| InterventionalDistribution | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| InterventionalDistribution | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| InterventionalDistribution | TemporalAdmg | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| InterventionResponse | Dag | explicit | Frequentist | none | 1 |
+| InterventionResponse | Dag | explicit | Frequentist | cheap | 1 |
+| InterventionResponse | Dag | explicit | Frequentist | full | 1 |
+| InterventionResponse | Dag | explicit | Bayesian | none | 1 |
+| InterventionResponse | Dag | accepted | Frequentist | none | 1 |
+| InterventionResponse | Dag | accepted | Frequentist | cheap | 1 |
+| InterventionResponse | Dag | accepted | Frequentist | full | 1 |
+| InterventionResponse | Dag | accepted | Bayesian | none | 1 |
+| InterventionResponse | Dag | graph_posterior | Frequentist | none | 1 |
+| InterventionResponse | Dag | graph_posterior | Frequentist | cheap | 1 |
+| InterventionResponse | Dag | graph_posterior | Frequentist | full | 1 |
+| InterventionResponse | Dag | graph_posterior | Bayesian | none | 1 |
+| InterventionResponse | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionResponse | Cpdag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | Cpdag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | Cpdag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | Pag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | Pag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | Pag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalDag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalDag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | TemporalCpdag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalCpdag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalCpdag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | TemporalPag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalPag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalPag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionResponse | CoDetermined | explicit | Frequentist | none | 1 |
+| MediationEffect | Dag | explicit, accepted | Frequentist, Bayesian | none, cheap, full | 12 |
+| NestedCounterfactualEffect | Dag | explicit | Frequentist, Bayesian | none | 2 |
+| NestedCounterfactualEffect | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| NestedCounterfactualEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| NestedCounterfactualEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PathSpecificEffect | Dag | explicit, accepted | Frequentist, Bayesian | none, cheap, full | 12 |
+| PathSpecificEffect | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| PathSpecificEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PathSpecificEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PointDerivative | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| PointDerivative | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| PointDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PointDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PulseEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PulseEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PulseEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseCurve | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseJacobian | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| ResponseJacobian | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| ResponseJacobian | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseJacobian | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| SemiElasticity | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| SemiElasticity | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| SemiElasticity | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| SemiElasticity | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| SustainedEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SustainedEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SustainedEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalPulse | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| TemporalConditionalPulse | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| TemporalConditionalPulse | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| TemporalConditionalSustained | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| TemporalConditionalSustained | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| TemporalConditionalSustained | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| TemporalMediationEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalMediationEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TransportQuery | Admg | explicit | Frequentist, Bayesian | none | 2 |
+| TransportQuery | TemporalAdmg | explicit | Frequentist, Bayesian | none | 2 |
+| InterferenceQuery | Dag | explicit | Frequentist, Bayesian | none | 2 |
+<!-- generated:query-inventory:end -->
+
+## Registry claims
+
+<!-- generated:claims:begin -->
+Rendered from `parity/claims.toml` by `scripts/generate_claim_inventory.py`.
+Do not edit this block by hand.
+
+### `reusable_headline`
+
+Licensed by `parity/python_products.toml`.
+
+```text
+Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+```
+
+### `transport_not_certified_is_not_impossibility`
+
+Licensed by `parity/transport_stages.toml`.
+
+```text
+A not-certified transport outcome is a conservative refusal, not a proof of impossibility.
+```
+
+### `transport_classical_completeness_is_paper_family`
+
+Licensed by `parity/transport_stages.toml`.
+
+```text
+Classical sID completeness applies only to the paper experimental-information family, not to every catalog the API can represent.
+```
+
+### `transport_stage_support_is_not_analyze_cartesian`
+
+Licensed by `parity/transport_stages.toml`.
+
+```text
+Stage transport routes are licensed in `transport_stages.toml`; the analyze Cartesian cell remains trial-IPW `TransportQuery` on an explicit `Admg`.
+```
+
+### `calibrated_slot_means_a_current_matching_record`
+
+Licensed by `parity/coverage_records.toml`.
+
+```text
+the record still attests the current code.
+```
+
+### `exact_dag_posterior_is_enumeration`
+
+Licensed by `parity/bayesian.toml`.
+
+```text
+* exact DAG posterior;
+```
+
+### `kennedy_dr_is_a_least_squares_construction`
+
+Licensed by `parity/estimate.toml`.
+
+```text
+a local-quadratic of the doubly robust pseudo-outcome) and needs finite
+```
+<!-- generated:claims:end -->
+
 ## Graph primitives
 
 Implemented graph representations:
@@ -161,7 +405,7 @@ CBOR artifacts.
 
 ### Bayesian structure learning
 
-* exact DAG posterior;
+<!-- generated:claim:exact_dag_posterior_is_enumeration:begin -->* exact DAG posterior;<!-- generated:claim:exact_dag_posterior_is_enumeration:end -->
 * order MCMC;
 * structure MCMC;
 * CI-screened graph posterior;
@@ -453,7 +697,7 @@ Applying the first two outside their assumed regime produces a biased estimate
 with no runtime signal.
 
 `response.kennedy_dr` is also a least-squares construction (additive GAMs plus
-a local-quadratic of the doubly robust pseudo-outcome) and needs finite
+<!-- generated:claim:kennedy_dr_is_a_least_squares_construction:begin -->a local-quadratic of the doubly robust pseudo-outcome) and needs finite<!-- generated:claim:kennedy_dr_is_a_least_squares_construction:end -->
 outcome moments. Unlike the three cases above, it reports
 `response.outcome_tail_ratio` at runtime and warns
 `response.heavy_tailed_outcome` when the ratio exceeds 20. That warning does
@@ -812,6 +1056,57 @@ Multi-source meta-transport and cyclic/equilibrium models remain outside the
 current contract. Observational network exposure has a retained pointwise
 cluster interval only for known fixed propensities and measured cluster support;
 externally fitted propensities remain point-only, and the route is off-axis.
+
+### Transported claims, decisions, inverse sources and revalidation
+
+A value carried from one population to a declared target is a transported
+response: a point (or a transported law) labelled extrapolative, with a receipt
+naming the populations it was learned in and carried to, the selection-diagram
+identities and the assumptions. It is never native target data, and none of
+these routes licenses an interval, a posterior coverage statement or a
+calibration claim. Guides: [transported decisions and
+measurement](guides/transported-decisions-and-measurement.md),
+[inverse queries and decisions](guides/inverse-and-decision-reach.md),
+[assumption range and revalidation](guides/assumption-range-and-revalidation.md).
+
+* **Transported response and decision** (`antecedent.transported_response`):
+  `TransportedResponse.declared_point` / `declared_law` /
+  `from_shifted_cohort(cohort_source)` with a `TransportDeclaration`, and
+  `evaluate_transported(contract, response, analysis=, demand=, support_policy=)`
+  (also `Contract.evaluate_transported`). A mean answers an affine expected
+  utility only; a law, probability, quantile or hard constraint on a point is
+  refused, an interval is `cell_not_licensed`, and the default support policy
+  refuses the extrapolative label until the policy names it.
+* **Forward sources of an inverse query** (`antecedent.inverse_sources`):
+  `composed_forward_source`, `cohort_forward_source`,
+  `transported_forward_source`, each adapted with its own refusals and its origin
+  carried into the sealed artifact; `observational_scenarios` is associational
+  and ranks no action. A consumer that does not accept a transported input
+  refuses it as `cell_not_licensed` / `transported_not_accepted`.
+* **Assumption range** (`antecedent.transport.sensitivity`):
+  `transport_sensitivity(response, family=, bound=, grid_points=, reference=,
+  reference_value=)` returns the range at declared grid points; the bound is the
+  caller's declaration, no probability attaches to a shift.
+* **Revalidation** (`antecedent.transport.revalidation`): `TransportScene.builder`
+  declares target, sources, transported claims (with their calibration standing)
+  and decisions; `revalidate(previous, current, effects)` and
+  `TransportClaimState.observe` classify each claim `still_valid`, `recompute`
+  or `withdrawn`. Calibration established at one target is withdrawn at another.
+* **Handoff to a callback** (`antecedent.transport_handoff`): `hand_to_callback`
+  and `consume_for_callback` seal and re-derive one connection of a transported
+  claim to a callback input that declares it accepts transported claims; the
+  claim is never native target data and its calibration label is never raised.
+* **Discretized composition** (`antecedent.discretized_composition`):
+  `PreparedMechanismComposition.discretize(levels)` builds a finite model with a
+  computed mean-error bound against the closed form; point-only, exportable, and
+  re-derived bit for bit by a consumer.
+* **Whole-path uncertainty** (`CrossWorldExecution.whole_path_uncertainty`): an
+  uncalibrated spread of the finite cross-world row under a declared unit
+  sampling, verified against its execution.
+
+Policy, adaptive-trial, period-shift, synthesis, surrogate-bridge, mechanism and
+discovered-structure transport are library and facade routes without a Python
+entry; the [limits page](user-facing-limits.md) states what each does not do.
 
 ## Treatment policy evaluation
 
@@ -1232,9 +1527,13 @@ group. The caller explicitly loads it with
 Antecedent never discovers or executes installed providers. Loaded providers
 use the same externally attested result validation as direct registration;
 entry-point provenance is retained in the result. No Antecedent or Rust rebuild
-is needed to install the external package. The EconML-compatible handoff is the implemented
-adapter: Antecedent emits certified `Y`, `T`, `W`, optional `X`, and aligned
-weights; for temporal estimands it trims boundaries and reports row origins.
+is needed to install the external package. The adjustment handoff is the implemented
+adapter (`handoff.adjustment` / `AdjustmentHandoff`; `handoff.econml` is an alias).
+Antecedent emits certified `Y`, `T`, `W`, optional `X`, and aligned
+weights under `columns(layout="econml")`, or the same arrays under
+`outcome` / `treatment` / `confounders` / `modifiers` when `layout="named"`;
+for temporal estimands it trims boundaries and reports row origins. `tool`
+names the provenance adapter and defaults to the historical EconML spec string.
 The handoff does not assign or verify cross-fitting folds—the external learner
 owns them, and this is recorded as unknown to the receipt.
 
@@ -1251,6 +1550,24 @@ package can be installed or upgraded independently. The caller loads it by
 name before submitting its `ProviderQuery`; an absent or ambiguous entry point
 is refused, and no plugin can declare itself native licensed through this path.
 
+A spec may declare its `capabilities` (`ProviderCapability`: `sample`, `cdf`,
+`quantile`, `log_probability`, `mean`, `covariance`, `conditional`,
+`intervention`, `posterior_predictive`, `update`, `factor`, `evaluate_utility`)
+and `meaning` (a distribution meaning). `providers.provider_object(name,
+request)` then derives the `external.ProviderObject` for a registered provider,
+with its provider id, query family, spec digest as version, and request digest,
+and `ProviderObject.distribution_identity(...)` derives the draw identity from
+it, so none of the three identity shapes is restated by hand.
+
+A request is identified by its content. The registry's request digest is
+Rust's canonical BLAKE3 digest over the request's JSON values, with NumPy
+arrays and column tables (a dict of arrays, a pandas `DataFrame`, an Arrow
+table) entering by dtype, shape and the digest of their bytes. Two datasets
+that differ in one cell have different digests however they print. A request
+with no canonical form (an arbitrary Python object, a `NaN` in a list) is
+refused with `provider.request_not_canonical` and a remedy; it is never hashed
+by its `repr`. The result's `request_digest_method` is `canonical_json_v2`.
+
 A host can promote an externally attested provider to `verified_extension` by
 calling `ProviderRegistry.verify(name, fixtures, evidence_origin=...)`. Each
 `ProviderVerificationFixture` supplies an independent known-truth request,
@@ -1258,12 +1575,20 @@ expected estimate and uncertainty, assumptions, support label, provenance,
 and an artifact SHA-256 digest. A caller-supplied decoder can check the artifact
 round trip. The host runs every fixture through the ordinary provider runtime,
 checks declared output shape and uncertainty semantics, and replays each
-fixture when the provider declares deterministic behavior. Only after every
-check passes does the registry record a `ProviderVerificationReport` and
-promote that provider. Only requests whose canonical digest matches one of the
-verified fixtures carry `verified_extension`; every other request remains
-`externally_attested`. Verified results carry the evidence digest and origin;
-changing the provider's declared spec invalidates execution. An installed
+fixture when the provider declares deterministic behavior. Fixtures are sugar
+for the one Rust verification mechanism: each becomes an exact request with
+numeric probes (shape, known truth, optional uncertainty, replay) that Rust
+checks and seals into a single `ProviderVerificationReceipt`, the same type
+that verifies a typed `ExternalScientificObject`. Only after every
+check passes does the registry store the receipt and promote that provider.
+Only requests whose canonical digest matches one of the verified fixtures carry
+`verified_extension`; every other request remains `externally_attested`.
+Verified results carry the receipt digest and origin; changing the provider's
+declared spec invalidates execution. The receipt exports
+(`receipt.export()`), reloads only under the digest a consumer retained
+(`ProviderVerificationReceipt.load(data, expected_digest=...)`), and backs a
+composition input through `receipt.trust_evidence()` when the input's provider
+and snapshot are ones the receipt verified. An installed
 entry-point provider can use this route without rebuilding Python or Rust.
 The scientific truth and independence of the reference cases remain the
 caller's responsibility. Verification covers those cases and does not grant
@@ -1281,7 +1606,7 @@ an external estimator or turn a fixture into interval calibration.
 from antecedent.extensibility import ProviderVerificationFixture, providers
 
 providers.load_entry_point("my_provider")
-report = providers.verify(
+receipt = providers.verify(
     "my_provider",
     [ProviderVerificationFixture(
         name="known-effect-1",
@@ -1297,9 +1622,20 @@ report = providers.verify(
 )
 ```
 
-`EconMLSpec.attach` accepts a caller-fitted estimate and creates an artifact
+`AdjustmentHandoff.attach` (alias `EconMLSpec.attach`) accepts a caller-fitted estimate and creates an artifact
 binding its payload digest to the declared learner/configuration and available
-identification and data-snapshot identities. It does not rerun the learner or
+identification and data-snapshot identities. A labelled effect is also bound
+through `external.bind`: the identified contract, the learner as a provider with
+its declared `learner_version`, `support` labels, and the lineage are
+`ExternalEstimate.claim`, and a mismatch refuses with the same structured
+refusal as any foreign response. `label="ate"` binds a scalar as one
+coordinate; `label="cate"` binds a row-level effect array (one value per row of
+`columns(data)`) as one scientific quantity and a digest of the column
+(`BoundExternalColumn`), so a CATE of any length carries lineage, support counts
+and a provider version without one coordinate per row. An unlabelled payload
+stays an opaque attested payload. Every handoff refusal is a `ProviderRefusal`
+with a registered `reason_code` and a `remedy`.
+It does not rerun the learner or
 verify its provenance, fold ownership, or uncertainty calibration. Loaded
 external results start externally attested with calibration unavailable. They
 can become verified extensions only after the host runs independent fixtures;
@@ -1340,8 +1676,8 @@ Counterfactual primitives exist:
 * temporal trajectories;
 * unit-level counterfactual analysis.
 
-`analyze` licenses `Counterfactual` on an explicit or accepted DAG at
-validation `none`, Frequentist and Bayesian, as a two-world GCM ITE. Unit ITEs
+`Counterfactual` runs as a two-world GCM ITE on the licensed coordinates in
+the per-query inventory. Unit ITEs
 are exact only for invertible additive-noise mechanisms; downstream of a
 discrete or state-space mechanism a unit effect is one sampled counterfactual
 that varies with the seed. Per-unit intervals (`IteResult::unit_effect_intervals`)
@@ -1354,9 +1690,7 @@ delta-method interval would ignore selection (diagnostic
 `gcm.counterfactual.uncertainty_unavailable`). A pointwise interval for the
 conditional average effect tau(x), a different estimand, is
 [`DrLearner::fit_pointwise_profiles`](dr-pointwise-cate.md) (uncalibrated).
-Nested counterfactuals, temporal trajectories,
-graph-posterior structure, and cheap/full validation remain refused. The public license is the
-[support matrix](support-matrix.md).
+The public license is the [support matrix](support-matrix.md).
 
 ## Attribution and diagnostics
 
@@ -1404,7 +1738,7 @@ Estimate validation:
 * E-values;
 * graph refutation.
 
-The 1.2 functional suites refit path-specific effects on row subsets and compare
+The functional suites refit path-specific effects on row subsets and compare
 entire interventional-distribution tables, including conditional strata.
 Temporal mediation uses mediator-placebo and contrast-specific stability checks.
 Static `MediationEffect` cheap/full uses a mediation-native suite: placebo
@@ -1499,7 +1833,7 @@ numbers, and early stopping. Python exposes these workflows through
 `design.rank_designs`; the returned `basis` distinguishes identification,
 EVSI/net value, structural sufficiency/cost and the native model objectives.
 Model-based scores and Monte Carlo errors remain point estimates and diagnostics.
-The [design-ranking guide](2_3-design-ranking.md) states the interpretation and
+The [design-ranking guide](design-ranking.md) states the interpretation and
 source requirements for each objective, including checked Bayesian prior reuse.
 
 ## Incremental state
@@ -1557,7 +1891,7 @@ Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
 
 Durable artifact format **0.5** is current; it includes the optional
 identified-set interval on structural-mixture analysis results. Format 0.4 was
-the 1.0 wire freeze, and 0.4 artifacts migrate unchanged. Versioned artifacts
+the first frozen wire format, and 0.4 artifacts migrate unchanged. Versioned artifacts
 include:
 
 * graphs;

@@ -160,6 +160,7 @@ pub fn observe_execution<T, E>(execute: impl FnOnce() -> Result<T, E>) -> Execut
     ExecutionAttempt { result, report: counts.snapshot() }
 }
 /// Instrument one original fallible source operation, without changing its result.
+// doc(hidden): sibling crates wrap their operations in it; not for downstream code.
 #[doc(hidden)]
 pub fn run_operation<T, E>(
     operation: Operation,
@@ -174,6 +175,7 @@ pub fn run_operation<T, E>(
 }
 /// Capture source execution observation for an actual factory dispatched to a worker.
 /// This token carries counters only and cannot provide scientific execution authority.
+// doc(hidden): sibling crates and the python bindings carry it across worker threads; not for downstream code.
 #[doc(hidden)]
 #[derive(Clone, Default)]
 pub struct ObservationToken {
@@ -209,6 +211,7 @@ impl ObservationToken {
     }
 }
 /// Source-engine invocation guard; failure/unwind cannot manufacture a successful operation.
+// doc(hidden): sibling crates open an operation scope with it; not for downstream code.
 #[doc(hidden)]
 pub struct OperationGuard {
     operation: Operation,

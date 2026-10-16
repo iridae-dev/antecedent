@@ -1,4 +1,4 @@
-"""2.3 learned joint source-target transport: the closed route (Python surface).
+"""Learned joint source-target transport: the closed route (Python surface).
 
 The Rust core fits the outcome mechanism through ``antecedent-learn`` and replays through an
 independent io artifact, but its posterior claims a calibrated interval whose coverage is
@@ -37,13 +37,13 @@ def learned_kwargs(**overrides):
     return kwargs
 
 
-def test_a2_learned_route_is_closed_with_cell_not_licensed():
+def test_learned_route_is_closed_with_cell_not_licensed():
     error = refusal_of(lambda: transport.learned_joint_transport(**learned_kwargs()))
     assert_refused(error, "cell_not_licensed", "learned_joint_transport.route_frozen")
     assert "calibration evidence" in str(error)
 
 
-def test_a2_learned_adjacent_graph_refuses_before_the_frozen_route():
+def test_learned_adjacent_graph_refuses_before_the_frozen_route():
     adjacent = Admg.from_edges(["x", "a", "y"], [("x", "a"), ("a", "y")], [("x", "y")])
     error = refusal_of(lambda: transport.learned_joint_transport(**learned_kwargs(graph=adjacent)))
     assert_refused(error, "route_not_supported", "learned_joint_transport.unsupported_graph")
@@ -57,7 +57,7 @@ def test_a2_learned_adjacent_graph_refuses_before_the_frozen_route():
     assert_refused(error, "cell_not_licensed", "learned_joint_transport.route_frozen")
 
 
-def test_a2_learned_bad_basis_refuses_with_its_own_detail_first():
+def test_learned_bad_basis_refuses_with_its_own_detail_first():
     for degree in (0, 7, 100):
         error = refusal_of(
             lambda degree=degree: transport.learned_joint_transport(
@@ -88,7 +88,7 @@ def test_a2_learned_bad_basis_refuses_with_its_own_detail_first():
         assert_refused(error, "cell_not_licensed", "learned_joint_transport.route_frozen")
 
 
-def test_a2_learned_scope_refusals_carry_their_own_details():
+def test_learned_scope_refusals_carry_their_own_details():
     for draws in (0, 100_001):
         error = refusal_of(
             lambda draws=draws: transport.learned_joint_transport(**learned_kwargs(draws=draws)),
@@ -118,7 +118,7 @@ def test_a2_learned_scope_refusals_carry_their_own_details():
     assert_refused(error, "invalid_argument", "learned_joint_transport.too_many_parameters")
 
 
-def test_a2_learned_validates_its_arguments_as_typed_errors():
+def test_learned_validates_its_arguments_as_typed_errors():
     with pytest.raises(CausalTypeError):
         transport.learned_joint_transport(**learned_kwargs(sources="s1"))
     with pytest.raises(CausalTypeError):

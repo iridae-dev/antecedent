@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 2.0 transport gate: parity/transport_stages.toml drives every invocation.
+# Transport gate: parity/transport_stages.toml drives every invocation.
 #
 # The registry contract (licensed routes resolve to collected tests; each T10
 # fixture family has a positive and a counterexample) is checked statically,

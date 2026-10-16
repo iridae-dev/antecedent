@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 use antecedent::{LatencyMode, RefuteSuite, StageEvent, StageResultSink, Study};
 use antecedent_core::{ExecutionContext, ProgressSink, VariableId};
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The confounded static ATE study five suites run, in one owner.
@@ -30,13 +31,18 @@ fn interactive_vs_standard_records_mode_and_effort() {
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
 
-    assert!(interactive.estimate.ate.is_finite());
-    assert!((interactive.estimate.ate - 2.0).abs() < 0.5, "ate={}", interactive.estimate.ate);
+    assert!(interactive.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(
+        (interactive.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.5,
+        "ate={}",
+        interactive.estimate.as_effect().unwrap().ate
+    );
     assert_eq!(interactive.performance.latency_mode.as_deref(), Some("interactive"));
     assert_eq!(interactive.performance.bootstrap_replicates_requested, Some(0));
     assert!(
-        interactive.estimate.bootstrap_replicates_ok.is_none()
-            || interactive.estimate.bootstrap_replicates_ok == Some(0)
+        interactive.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok.is_none()
+            || interactive.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok
+                == Some(0)
     );
     assert!(interactive.performance.stage_timings_ns.iter().any(|(s, _)| s.as_ref() == "identify"));
 
@@ -50,13 +56,20 @@ fn interactive_vs_standard_records_mode_and_effort() {
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
 
-    assert!(standard.estimate.ate.is_finite());
-    assert!((standard.estimate.ate - 2.0).abs() < 0.5);
+    assert!(standard.estimate.as_effect().unwrap().ate.is_finite());
+    assert!((standard.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.5);
     assert_eq!(standard.performance.latency_mode.as_deref(), Some("standard"));
     assert_eq!(standard.performance.bootstrap_replicates_requested, Some(199));
-    let ok = standard.estimate.bootstrap_replicates_ok.expect("bootstrap ok count");
+    let ok = standard
+        .estimate
+        .as_effect()
+        .unwrap()
+        .uncertainty
+        .bootstrap
+        .replicates_ok
+        .expect("bootstrap ok count");
     assert!(ok >= 2, "expected bootstrap survivors, got {ok}");
-    assert!(standard.estimate.se_bootstrap.is_some());
+    assert!(standard.estimate.as_effect().unwrap().se_bootstrap().is_some());
     assert_eq!(
         format!("{:?}", interactive.identification.status),
         format!("{:?}", standard.identification.status)
@@ -89,7 +102,8 @@ fn cancel_mid_bootstrap_yields_partial_not_silent_full() {
         .unwrap()
         .run(&ExecutionContext::for_tests(3))
         .unwrap();
-    let full_ok = full.estimate.bootstrap_replicates_ok.unwrap_or(0);
+    let full_ok =
+        full.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok.unwrap_or(0);
     assert_eq!(full_ok, requested);
 
     let mut ctx = ExecutionContext::for_tests(3);
@@ -106,9 +120,12 @@ fn cancel_mid_bootstrap_yields_partial_not_silent_full() {
         .run(&ctx)
         .unwrap();
 
-    assert!(partial.estimate.ate.is_finite());
-    assert!(partial.performance.cancelled || partial.estimate.bootstrap_cancelled);
-    let ok = partial.estimate.bootstrap_replicates_ok.unwrap_or(0);
+    assert!(partial.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(
+        partial.performance.cancelled
+            || partial.estimate.as_effect().unwrap().uncertainty.bootstrap.cancelled
+    );
+    let ok = partial.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok.unwrap_or(0);
     assert!(
         ok < requested,
         "cancelled run must not report full replicates (ok={ok}, requested={requested})"
@@ -215,8 +232,11 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
         .unwrap()
         .run(&ctx_full)
         .unwrap();
-    let full_se = full.estimate.se_bootstrap.expect("full SE");
-    assert_eq!(full.estimate.bootstrap_replicates_ok, Some(max_reps));
+    let full_se = full.estimate.as_effect().unwrap().se_bootstrap().expect("full SE");
+    assert_eq!(
+        full.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+        Some(max_reps)
+    );
     assert!(!full.performance.early_stopped);
 
     // Opt-in budget: stop once the relative Monte Carlo SE of the bootstrap SE,
@@ -246,12 +266,16 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
 
     assert!(a1.performance.early_stopped, "expected MC-error-bound early-stop");
     assert_eq!(
-        a1.estimate.bootstrap_replicates_ok, a2.estimate.bootstrap_replicates_ok,
+        a1.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+        a2.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
         "fixed seed must pin early-stop replicate count"
     );
     // The stop is a function of the success count alone, so it is pinned exactly.
-    assert_eq!(a1.estimate.bootstrap_replicates_ok, Some(budget.required_replicates()));
-    let adapt_se = a1.estimate.se_bootstrap.expect("adaptive SE");
+    assert_eq!(
+        a1.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+        Some(budget.required_replicates())
+    );
+    let adapt_se = a1.estimate.as_effect().unwrap().se_bootstrap().expect("adaptive SE");
     // Two SEs with ≈10% and ≈8% relative MC error each; a 3σ band on their ratio.
     let rel = (adapt_se - full_se).abs() / full_se.abs().max(1e-12);
     assert!(rel < 0.4, "adaptive SE={adapt_se} vs full SE={full_se} rel={rel}");
@@ -270,8 +294,11 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
         .run(&ctx_loose)
         .unwrap();
     assert!(!loose.performance.early_stopped);
-    assert_eq!(loose.estimate.bootstrap_replicates_ok, Some(max_reps));
-    assert_eq!(loose.estimate.se_bootstrap, Some(full_se));
+    assert_eq!(
+        loose.estimate.as_effect().unwrap().uncertainty.bootstrap.replicates_ok,
+        Some(max_reps)
+    );
+    assert_eq!(loose.estimate.as_effect().unwrap().se_bootstrap(), Some(full_se));
 }
 
 #[test]
@@ -372,10 +399,14 @@ impl StageResultSink for RecordingStageSink {
         match event {
             StageEvent::Point { estimate } => {
                 *self.point_ate.lock().unwrap() = Some(estimate.ate);
-                assert!(estimate.se_bootstrap.is_none(), "point stage must not carry bootstrap SE");
+                assert!(
+                    estimate.se_bootstrap().is_none(),
+                    "point stage must not carry bootstrap SE"
+                );
             }
             StageEvent::Uncertainty { estimate } => {
-                *self.uncertainty_has_boot.lock().unwrap() = Some(estimate.se_bootstrap.is_some());
+                *self.uncertainty_has_boot.lock().unwrap() =
+                    Some(estimate.se_bootstrap().is_some());
             }
             _ => {}
         }
@@ -409,13 +440,13 @@ fn progressive_stages_stream_payloads_in_order() {
     );
     let point_ate = sink.point_ate.lock().unwrap().expect("point ate");
     assert!(point_ate.is_finite());
-    assert!((point_ate - result.estimate.ate).abs() < 1e-12);
+    assert!((point_ate - result.estimate.as_effect().unwrap().ate).abs() < 1e-12);
     assert_eq!(
         *sink.uncertainty_has_boot.lock().unwrap(),
         Some(true),
         "uncertainty stage must fill bootstrap SE"
     );
-    assert!(result.estimate.se_bootstrap.is_some());
+    assert!(result.estimate.as_effect().unwrap().se_bootstrap().is_some());
     let timing_ids: Vec<&str> =
         result.performance.stage_timings_ns.iter().map(|(s, _)| s.as_ref()).collect();
     assert!(

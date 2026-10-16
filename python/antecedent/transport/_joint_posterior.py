@@ -14,6 +14,7 @@ from typing import Any, Literal
 import numpy as np
 
 from .. import _native
+from .._columns import coerce_fields
 from .._data import to_f64
 from .._measured_inference import MeasuredInference, _level, _production_limits
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -135,10 +136,10 @@ class JointTransportPosterior:
     ) -> JointTransportPosterior:
         result = object.__new__(cls)
 
-        object.__setattr__(result, "kind", kind)
-        object.__setattr__(result, "_body", freeze(json.loads(payload)))
-        object.__setattr__(result, "_bytes", bytes(artifact))
-        object.__setattr__(result, "_json", "")
+        coerce_fields(result, kind=kind)
+        coerce_fields(result, _body=freeze(json.loads(payload)))
+        coerce_fields(result, _bytes=bytes(artifact))
+        coerce_fields(result, _json="")
         return result
 
     @property

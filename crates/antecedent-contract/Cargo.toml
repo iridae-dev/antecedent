@@ -1,0 +1,29 @@
+[package]
+name = "antecedent-contract"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Claim envelopes, external-evidence contracts and program bindings above the Antecedent core vocabulary; start with the `antecedent` crate"
+readme = "README.md"
+autotests = false
+
+[lints]
+workspace = true
+
+[dependencies]
+antecedent-core = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+blake3 = { workspace = true }
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

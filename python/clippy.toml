@@ -1,0 +1,8 @@
+# Binding-crate lint config. Clippy reads the nearest file and does not merge
+# it with a parent, so this stays limited to method bans. Workspace lint levels
+# live in the root Cargo.toml.
+
+disallowed-methods = [
+    { path = "pyo3::exceptions::PyValueError::new_err", reason = "use crate::value_err or crate::value_err_code; invalid input is CausalValueError" },
+    { path = "antecedent_py::CausalSerializationError::new_err", reason = "use crate::serialization_err so a reason code in the message is attached" },
+]

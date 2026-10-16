@@ -1,14 +1,17 @@
-//! F10 durable study candidates: validation, joint-law honesty, canonical
+//! Durable study candidates: validation, joint-law honesty, canonical
 //! order-independent identity and the hypothetical regimes a study proposes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
 
+use antecedent_contract::{
+    EvidenceObligation, EvidenceObligationKind, EvidenceObligationSpec, ObligationProvenance,
+    ObligationRegime, ObligationScope,
+};
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind,
-    EvidenceObligation, EvidenceObligationKind, EvidenceObligationSpec, InterventionAssignment,
-    ObligationProvenance, ObligationRegime, ObligationScope, RegimeKind, Value, VariableId,
+    InterventionAssignment, RegimeKind, Value, VariableId,
 };
 use antecedent_design::{
     CandidateDesign, DurableStudyCandidate, ExpectedEvidence, StudyCostDeclaration, StudyKind,
@@ -102,7 +105,7 @@ fn refusal(candidate: &DurableStudyCandidate) -> (&'static str, &'static str) {
 }
 
 #[test]
-fn f10_joint_candidate_validates_and_matches_the_joint_obligation() {
+fn joint_candidate_validates_and_matches_the_joint_obligation() {
     let c = candidate_c();
     c.validate().unwrap();
     assert!(c.semantic_id().starts_with("sc1:"));
@@ -114,7 +117,7 @@ fn f10_joint_candidate_validates_and_matches_the_joint_obligation() {
 }
 
 #[test]
-fn f10_candidate_observing_separate_regimes_cannot_claim_the_joint_factor() {
+fn candidate_observing_separate_regimes_cannot_claim_the_joint_factor() {
     let wrong = ("design_signal_invalid", "study_candidate.wrong_contract");
     // The study does not observe (Y, Z) together yet claims one joint law.
     let mut separate = candidate_c();
@@ -134,7 +137,7 @@ fn f10_candidate_observing_separate_regimes_cannot_claim_the_joint_factor() {
 }
 
 #[test]
-fn f10_missing_unit_timing_or_cost_semantics_refuse() {
+fn missing_unit_timing_or_cost_semantics_refuse() {
     let wrong = ("design_signal_invalid", "study_candidate.wrong_contract");
     let mut free = candidate_c();
     free.cost.units = 0;
@@ -163,7 +166,7 @@ fn f10_missing_unit_timing_or_cost_semantics_refuse() {
 }
 
 #[test]
-fn f10_reordering_preserves_semantic_identity() {
+fn reordering_preserves_semantic_identity() {
     let mut two_levels = candidate_c();
     two_levels.expected_evidence =
         Arc::from([evidence(0.0, &[Y, Z], true), evidence(1.0, &[Y, Z], true)]);
@@ -195,7 +198,7 @@ fn f10_reordering_preserves_semantic_identity() {
 }
 
 #[test]
-fn f10_proposed_regimes_are_proposed_and_tied_to_the_semantic_id() {
+fn proposed_regimes_are_proposed_and_tied_to_the_semantic_id() {
     let c = candidate_c();
     let regimes = c.proposed_regimes(5).unwrap();
     assert_eq!(regimes.len(), 1);
@@ -210,7 +213,7 @@ fn f10_proposed_regimes_are_proposed_and_tied_to_the_semantic_id() {
 }
 
 #[test]
-fn f10_design_action_bridges_to_the_existing_planners() {
+fn design_action_bridges_to_the_existing_planners() {
     let c = candidate_c();
     let CandidateDesign::Intervene(plan) = c.design_action() else {
         panic!("an experiment bridges to an intervention plan");

@@ -1,50 +1,47 @@
 //! Retained graphless randomized survival execution.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalExprArena, CausalQuery, DerivationMeta, DerivationTrace, Diagnostic,
+    DiagnosticKind, DiagnosticSeverity, DomainRef, EffectEstimate, EstimatorId, ExecutionContext,
+    ExprNode, GraphClass, IdentificationPerformanceRecord, IdentificationResult,
+    IdentifiedEstimand, IdentifiedExecuteFinish, IdentifierId, InferenceMode, OutcomeExprId,
+    OverlapPolicy, PhysicalExecutionPlan, RandomizedTrialOperation, RandomizedTrialQuery,
+    RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData, VariableId,
+    finish_identified_execute_with_context,
+};
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     SurvivalFunctional,
 };
 use antecedent_estimate::survival::{
-    SurvivalEndpoint, randomized_survival_bootstrap_difference_band,
-    randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary_with_entry,
+    KnownCensoring, RandomizedSurvivalSummary, SurvivalBootstrapIntervals, SurvivalEndpoint,
+    SurvivalRows, randomized_survival_bootstrap_difference_band,
+    randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary,
     randomized_survival_summary,
 };
 
-#[derive(Clone)]
-pub(crate) struct CheckedSurvivalOperation {
-    query: antecedent_core::SurvivalQuery,
-    schema: antecedent_core::CausalSchema,
-    rows: usize,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
-    result_context: IdentifiedResultContext,
-    bootstrap_replicates: u32,
-}
+pub(crate) type CheckedSurvivalOperation =
+    RandomizedTrialOperation<antecedent_core::SurvivalQuery, u32>;
 
-impl std::fmt::Debug for CheckedSurvivalOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CheckedSurvivalOperation")
-            .field("query", &self.query)
-            .field("rows", &self.rows)
-            .finish_non_exhaustive()
-    }
+impl RandomizedTrialQuery for antecedent_core::SurvivalQuery {
+    const OPERATION: &'static str = "CheckedSurvivalOperation";
+    const REFRESH_MISMATCH: &'static str =
+        "survival refresh requires the prepared schema and row order";
 }
 
 impl CheckedSurvivalOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Survival(query) = &study.query else {
             return Err(CausalError::Compile {
                 message: "survival operation requires SurvivalQuery".into(),
             });
         };
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if study.graph.class() != GraphClass::RandomizedTrial
             || study.structure_source != crate::support::StructureSource::RandomizedTrial
             || !matches!(study.inference, InferenceMode::Frequentist)
@@ -62,36 +59,32 @@ impl CheckedSurvivalOperation {
                 .into_iter()
                 .flatten()
         {
-            data.schema().get(id).map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            data.schema().get(id).map_err(CausalError::rejected)?;
         }
         if let Some(known) = &query.known_censoring {
             for id in known.columns.iter().copied() {
-                data.schema()
-                    .get(id)
-                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                data.schema().get(id).map_err(CausalError::rejected)?;
             }
         }
         if physical.logical.query != study.query
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::RandomizedDesign.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::RandomizedSurvivalProductLimit.as_str())
+            || !physical
+                .binding()
+                .names(IdentifierId::RandomizedDesign, EstimatorId::RandomizedSurvivalProductLimit)
         {
             return Err(CausalError::Compile {
                 message: "survival query differs from its compiled plan".into(),
             });
         }
         let (identification, estimand) = survival_identification(query);
-        Ok(Self {
-            query: query.clone(),
-            schema: data.schema().clone(),
-            rows: data.row_count(),
+        Ok(Self::freeze(
+            study,
+            query,
+            data,
+            physical,
             identification,
             estimand,
-            physical: physical.clone(),
-            result_context: IdentifiedResultContext::from_study(study),
-            bootstrap_replicates: study.bootstrap_replicates,
-        })
+            study.bootstrap_replicates,
+        ))
     }
 
     pub(crate) fn execute(
@@ -99,16 +92,74 @@ impl CheckedSurvivalOperation {
         data: &TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        if data.schema() != &self.schema || data.row_count() != self.rows {
-            return Err(CausalError::Unsupported {
-                message: "survival refresh requires the prepared schema and row order",
-            });
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled {
-                stage: super::super::stage::STAGE_ESTIMATE_POINT,
-            });
-        }
+        self.begin_execute(data, ctx)?;
+        let columns = self.survival_columns(data)?;
+        let treated_count = columns.treated.iter().filter(|&&arm| arm).count();
+        let assignment_counts = [columns.treated.len() - treated_count, treated_count];
+        let endpoint = match self.query.functional {
+            SurvivalFunctional::SurvivalAndRmst => SurvivalEndpoint::Survival,
+            SurvivalFunctional::CumulativeIncidence { target_cause } => {
+                SurvivalEndpoint::CumulativeIncidence { target_cause }
+            }
+        };
+        let rows = SurvivalRows {
+            duration: &columns.duration,
+            event_code: &columns.event,
+            treated: &columns.treated,
+            delayed_entry: columns.entry.as_deref(),
+        };
+        let (summary, minimum_censoring_survival, censoring_grid) =
+            self.point_summary(data, &rows, endpoint)?;
+        let intervals = self.bootstrap_intervals(&rows, censoring_grid.as_ref(), endpoint, ctx)?;
+        let (difference_band, band_unavailable_reason) = self.difference_band(
+            &columns,
+            censoring_grid.is_some(),
+            endpoint,
+            assignment_counts,
+            ctx,
+        );
+        let mut result = finish_identified_execute_with_context(
+            &self.result_context,
+            Some(data),
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), EffectEstimate::new(
+                    0.0,
+                    f64::NAN,
+                    self.identification.required_assumptions.clone(),
+                    OverlapPolicy::ExplicitOverride,
+                ), Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedSurvivalProductLimit), self.query.treatment, self.query.duration).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
+                    if intervals.is_some() { "estimate.survival.pointwise_bootstrap" } else { "estimate.survival.point_only" },
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    if intervals.is_some() && minimum_censoring_survival.is_some() {
+                        "arm-stratified subject bootstrap with caller-supplied censoring survival held fixed; scalar intervals are pointwise and do not include nuisance-model uncertainty"
+                    } else if intervals.is_some() {
+                        "arm-stratified subject bootstrap for RMST and restriction-horizon contrasts; scalar intervals are pointwise, not curve bands"
+                    } else if minimum_censoring_survival.is_some() {
+                        "randomized IPCW estimate using caller-supplied censoring survival; no interval is reported"
+                    } else {
+                        "randomized product-limit risk-set estimate; independent censoring and entry are declared; no interval or calibrated uncertainty is reported"
+                    },
+                )].into_iter().chain(minimum_censoring_survival.map(|minimum| Diagnostic::new(
+                    "estimate.survival.censoring_support",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    format!("minimum supplied censoring survival: {minimum:.6}"),
+                ))).collect()).bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
+        );
+        result.estimate = crate::PrimaryEstimate::NotAnEffect;
+        result.payload = crate::result::ResultPayload::Survival(self.survival_payload(
+            summary,
+            intervals.as_ref(),
+            minimum_censoring_survival,
+            assignment_counts,
+            (difference_band, band_unavailable_reason),
+        ));
+        self.license_survival_intervals(&mut result, intervals.as_ref(), assignment_counts);
+        Ok(result)
+    }
+
+    /// Reads the survival columns and validates event codes and the binary arm before any estimator runs.
+    fn survival_columns(&self, data: &TabularData) -> Result<SurvivalColumns, CausalError> {
         let duration = numeric_column(data, self.query.duration)?;
         let event_raw = numeric_column(data, self.query.event)?;
         let treatment_raw = numeric_column(data, self.query.treatment)?;
@@ -139,14 +190,17 @@ impl CheckedSurvivalOperation {
                 }),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let treated_count = treated.iter().filter(|&&arm| arm).count();
-        let assignment_counts = [treated.len() - treated_count, treated_count];
-        let endpoint = match self.query.functional {
-            SurvivalFunctional::SurvivalAndRmst => SurvivalEndpoint::Survival,
-            SurvivalFunctional::CumulativeIncidence { target_cause } => {
-                SurvivalEndpoint::CumulativeIncidence { target_cause }
-            }
-        };
+        Ok(SurvivalColumns { duration, event, treated, entry })
+    }
+
+    /// Point-only or known-censoring IPCW product-limit summary, keeping the supplied censoring grid for the bootstrap.
+    fn point_summary<'a>(
+        &'a self,
+        data: &TabularData,
+        rows: &SurvivalRows<'_>,
+        endpoint: SurvivalEndpoint,
+    ) -> Result<(RandomizedSurvivalSummary, Option<f64>, Option<CensoringGrid<'a>>), CausalError>
+    {
         let mut censoring_grid = None;
         let (summary, minimum_censoring_survival) = if let Some(known) = &self.query.known_censoring
         {
@@ -161,58 +215,75 @@ impl CheckedSurvivalOperation {
             }
             censoring_grid = Some((known.times.as_ref(), probabilities, known.minimum_probability));
             let (_, probabilities, _) = censoring_grid.as_ref().expect("just set");
-            let (summary, minimum) = randomized_survival_ipcw_summary_with_entry(
-                &duration,
-                &event,
-                &treated,
-                entry.as_deref(),
-                &known.times,
-                probabilities,
+            let (summary, minimum) = randomized_survival_ipcw_summary(
+                rows,
+                &KnownCensoring {
+                    times: &known.times,
+                    survival: probabilities,
+                    minimum_probability: known.minimum_probability,
+                },
                 self.query.tau,
-                known.minimum_probability,
                 endpoint,
             )
             .map_err(|message| CausalError::Unsupported { message })?;
             (summary, Some(minimum))
         } else {
             (
-                randomized_survival_summary(
-                    &duration,
-                    &event,
-                    &treated,
-                    entry.as_deref(),
-                    self.query.tau,
-                    endpoint,
-                )
-                .map_err(|message| CausalError::Unsupported { message })?,
+                randomized_survival_summary(rows, self.query.tau, endpoint)
+                    .map_err(|message| CausalError::Unsupported { message })?,
                 None,
             )
         };
-        let intervals = if self.bootstrap_replicates > 0 {
+        Ok((summary, minimum_censoring_survival, censoring_grid))
+    }
+
+    /// Arm-stratified subject bootstrap intervals when replicates were requested.
+    fn bootstrap_intervals(
+        &self,
+        rows: &SurvivalRows<'_>,
+        censoring_grid: Option<&CensoringGrid<'_>>,
+        endpoint: SurvivalEndpoint,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<SurvivalBootstrapIntervals>, CausalError> {
+        let bootstrap_replicates = self.extra;
+        Ok(if bootstrap_replicates > 0 {
             Some(
                 randomized_survival_bootstrap_intervals(
-                    &duration,
-                    &event,
-                    &treated,
-                    entry.as_deref(),
-                    censoring_grid.as_ref().map(|(times, probabilities, floor)| {
-                        (*times, probabilities.as_slice(), *floor)
-                    }),
+                    rows,
+                    censoring_grid
+                        .map(|(times, probabilities, floor)| KnownCensoring {
+                            times,
+                            survival: probabilities,
+                            minimum_probability: *floor,
+                        })
+                        .as_ref(),
                     self.query.tau,
                     endpoint,
-                    self.bootstrap_replicates,
+                    bootstrap_replicates,
                     ctx.rng.master_seed(),
                 )
                 .map_err(|message| CausalError::Unsupported { message })?,
             )
         } else {
             None
-        };
-        let (difference_band, band_unavailable_reason) = if self.bootstrap_replicates == 0 {
+        })
+    }
+
+    /// Simultaneous bootstrap difference band, or the reason this design cannot publish one.
+    fn difference_band(
+        &self,
+        columns: &SurvivalColumns,
+        known_censoring: bool,
+        endpoint: SurvivalEndpoint,
+        assignment_counts: [usize; 2],
+        ctx: &ExecutionContext,
+    ) -> (Option<crate::result::SurvivalDifferenceBand>, Option<Arc<str>>) {
+        let bootstrap_replicates = self.extra;
+        if bootstrap_replicates == 0 {
             (None, None)
-        } else if entry.is_some() {
+        } else if columns.entry.is_some() {
             (None, Some(Arc::from("simultaneous survival band does not cover delayed entry")))
-        } else if censoring_grid.is_some() {
+        } else if known_censoring {
             (
                 None,
                 Some(Arc::from(
@@ -221,12 +292,12 @@ impl CheckedSurvivalOperation {
             )
         } else {
             match randomized_survival_bootstrap_difference_band(
-                &duration,
-                &event,
-                &treated,
+                &columns.duration,
+                &columns.event,
+                &columns.treated,
                 self.query.tau,
                 endpoint,
-                self.bootstrap_replicates,
+                bootstrap_replicates,
                 ctx.rng.master_seed() ^ 0x5A7A_BA4D,
             ) {
                 Ok(band) => {
@@ -272,56 +343,20 @@ impl CheckedSurvivalOperation {
                 }
                 Err(reason) => (None, Some(Arc::from(reason))),
             }
-        };
-        let mut result = finish_identified_execute_with_context(
-            &self.result_context,
-            Some(data),
-            IdentifiedExecuteFinish {
-                physical: &self.physical,
-                identification: self.identification.clone(),
-                estimand: self.estimand.clone(),
-                estimate: EffectEstimate::new(
-                    0.0,
-                    f64::NAN,
-                    self.identification.required_assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                ),
-                identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: EstimatorId::RandomizedSurvivalProductLimit,
-                treatment: self.query.treatment,
-                outcome: self.query.duration,
-                identify_cached: true,
-                extra_diagnostics: vec![Diagnostic::new(
-                    if intervals.is_some() { "estimate.survival.pointwise_bootstrap" } else { "estimate.survival.point_only" },
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    if intervals.is_some() && minimum_censoring_survival.is_some() {
-                        "arm-stratified subject bootstrap with caller-supplied censoring survival held fixed; scalar intervals are pointwise and do not include nuisance-model uncertainty"
-                    } else if intervals.is_some() {
-                        "arm-stratified subject bootstrap for RMST and restriction-horizon contrasts; scalar intervals are pointwise, not curve bands"
-                    } else if minimum_censoring_survival.is_some() {
-                        "randomized IPCW estimate using caller-supplied censoring survival; no interval is reported"
-                    } else {
-                        "randomized product-limit risk-set estimate; independent censoring and entry are declared; no interval or calibrated uncertainty is reported"
-                    },
-                )].into_iter().chain(minimum_censoring_survival.map(|minimum| Diagnostic::new(
-                    "estimate.survival.censoring_support",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!("minimum supplied censoring survival: {minimum:.6}"),
-                ))).collect(),
-                refutations: Vec::new(),
-                distribution: None,
-                mediation: None,
-                wall_time_ns: 0,
-                bootstrap_replicates_ok: intervals.as_ref().map(|value| value.replicates_ok),
-                cancelled: false,
-                early_stopped: false,
-                extras: IdentifiedExecuteExtras::default(),
-            },
-        );
-        result.estimate = crate::PrimaryEstimate::NotAnEffect;
-        result.survival = Some(crate::SurvivalEstimate {
+        }
+    }
+
+    /// Assembles the retained survival estimate from the point summary, bootstrap intervals, and band.
+    fn survival_payload(
+        &self,
+        summary: RandomizedSurvivalSummary,
+        intervals: Option<&SurvivalBootstrapIntervals>,
+        minimum_censoring_survival: Option<f64>,
+        assignment_counts: [usize; 2],
+        band: (Option<crate::result::SurvivalDifferenceBand>, Option<Arc<str>>),
+    ) -> crate::SurvivalEstimate {
+        let (difference_band, band_unavailable_reason) = band;
+        crate::SurvivalEstimate {
             times: summary.times.into(),
             control: summary.control.into(),
             treated: summary.treated.into(),
@@ -338,25 +373,34 @@ impl CheckedSurvivalOperation {
             } else {
                 "point_only_no_interval"
             }),
-            rmst_difference_interval: intervals.as_ref().and_then(|value| value.rmst_difference),
-            difference_at_tau_interval: intervals.as_ref().map(|value| value.difference_at_tau),
+            rmst_difference_interval: intervals.and_then(|value| value.rmst_difference),
+            difference_at_tau_interval: intervals.map(|value| value.difference_at_tau),
             bootstrap_replicates_requested: intervals
                 .as_ref()
                 .map(|value| value.replicates_requested),
-            bootstrap_replicates_ok: intervals.as_ref().map(|value| value.replicates_ok),
+            bootstrap_replicates_ok: intervals.map(|value| value.replicates_ok),
             assignment_counts,
             censoring_survival_provenance: minimum_censoring_survival
                 .map(|_| Arc::from("caller_supplied_fixed_not_fitted_or_verified")),
             difference_band,
             band_unavailable_reason,
-        });
+        }
+    }
+
+    /// Grants the graphless scalar license when the paired RMST and horizon intervals clear their support gate.
+    fn license_survival_intervals(
+        &self,
+        result: &mut StudyResult,
+        intervals: Option<&SurvivalBootstrapIntervals>,
+        assignment_counts: [usize; 2],
+    ) {
         // The paired RMST + horizon survival intervals carry a graphless scalar
         // license once their own route clears its support gate. Delayed entry,
         // fixed-known-G IPCW, and the combined route each have a distinct
         // (design, method) key and its own known-truth coverage row; cause-specific
         // cumulative incidence has no RMST companion and stays off-axis.
         if matches!(self.query.functional, SurvivalFunctional::SurvivalAndRmst)
-            && intervals.as_ref().is_some_and(|value| value.replicates_ok >= 299)
+            && intervals.is_some_and(|value| value.replicates_ok >= 299)
         {
             let delayed = self.query.delayed_entry.is_some();
             let ipcw = self.query.known_censoring.is_some();
@@ -394,9 +438,19 @@ impl CheckedSurvivalOperation {
                 result.support_status = Some(crate::support::CellStatus::Licensed);
             }
         }
-        Ok(result)
     }
 }
+
+/// Validated survival columns the estimators and bootstrap read.
+struct SurvivalColumns {
+    duration: Vec<f64>,
+    event: Vec<i64>,
+    treated: Vec<bool>,
+    entry: Option<Vec<f64>>,
+}
+
+/// Caller-supplied censoring survival: grid times, row-major probabilities, and the probability floor.
+type CensoringGrid<'a> = (&'a [f64], Vec<f64>, f64);
 
 fn numeric_column(data: &TabularData, id: VariableId) -> Result<Vec<f64>, CausalError> {
     match data.column(id).map_err(CausalError::from)? {
@@ -419,7 +473,7 @@ impl Study {
     pub(super) fn execute_survival(
         &self,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedSurvivalOperation::checked(self, data, physical)?.execute(data, ctx)

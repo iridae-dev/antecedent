@@ -10,7 +10,7 @@
     )
 )]
 
-use antecedent_kernels::{norm_cdf, norm_sf};
+use antecedent_kernels::{log_norm_pdf, log_norm_sf, norm_cdf};
 
 use crate::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, StatsError, fit_glm,
@@ -209,7 +209,6 @@ pub struct KaplanMeierIpcw {
 ///
 /// Invalid inputs, empty risk sets, or censoring survival below `survival_floor` at an
 /// observed event.
-#[allow(clippy::float_cmp, reason = "selection indicators must be exactly the coded values 0 or 1")]
 pub fn kaplan_meier_ipcw(
     time: &[f64],
     event: &[f64],
@@ -456,34 +455,6 @@ fn require_ordered(lower: f64, upper: f64) -> Result<(), StatsError> {
     }
 }
 
-/// Standardized value from which `ln Φ̄(z)` switches from `ln(norm_sf(z))` (which underflows
-/// to `−∞` near `z ≈ 38.6`) to its asymptotic series.
-const LOG_SF_ASYMPTOTIC_FROM: f64 = 30.0;
-
-/// `ln φ(z)`, computed analytically so it stays finite (`−z²/2 − ½ ln 2π`) where `φ(z)`
-/// underflows.
-fn log_norm_pdf(z: f64) -> f64 {
-    -0.5 * z * z - 0.5 * (2.0 * std::f64::consts::PI).ln()
-}
-
-/// `ln Φ̄(z)` (log survival function) without underflow in the upper tail.
-///
-/// Beyond [`LOG_SF_ASYMPTOTIC_FROM`] it uses the Mills-ratio series
-/// `Φ̄(z) = φ(z)/z · (1 − 1/z² + 3/z⁴ − 15/z⁶ + 105/z⁸ − 945/z¹⁰ + …)`, whose truncation
-/// error there is below `2e-14`.
-fn log_norm_sf(z: f64) -> f64 {
-    if z < LOG_SF_ASYMPTOTIC_FROM {
-        return norm_sf(z).ln();
-    }
-    if z == f64::INFINITY {
-        return f64::NEG_INFINITY;
-    }
-    let inv2 = 1.0 / (z * z);
-    let series = 1.0
-        - inv2 * (1.0 - 3.0 * inv2 * (1.0 - 5.0 * inv2 * (1.0 - 7.0 * inv2 * (1.0 - 9.0 * inv2))));
-    log_norm_pdf(z) - z.ln() + series.ln()
-}
-
 /// `ln(1 − eᵈ)` for `d ≤ 0`.
 fn ln_one_minus_exp(d: f64) -> f64 {
     if d > -std::f64::consts::LN_2 { (-d.exp_m1()).ln() } else { (-d.exp()).ln_1p() }
@@ -686,11 +657,8 @@ mod tests {
     fn sorted_sweep_kaplan_meier_matches_the_brute_force_definition() {
         // Deterministic pseudo-random data with heavy ties in time and entry.
         let n = 300usize;
-        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
-        let mut next = || {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-            (state >> 33) as f64 / f64::from(1u32 << 31)
-        };
+        let mut rng = antecedent_core::CausalRng::from_seed(0x9E37_79B9_7F4A_7C15);
+        let mut next = || rng.next_f64();
         let mut time = Vec::with_capacity(n);
         let mut event = Vec::with_capacity(n);
         let mut entry = Vec::with_capacity(n);

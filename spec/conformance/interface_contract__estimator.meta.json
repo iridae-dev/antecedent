@@ -1,0 +1,387 @@
+{
+  "contract": {
+    "component": "ldl_effect_estimator",
+    "consumes": [
+      {
+        "calibration": "not_required",
+        "dependence": "declared_evidence",
+        "measurement_models": [
+          "abababababababababababababababababababababababababababababababab"
+        ],
+        "name": "observed",
+        "operations": [
+          "mean"
+        ],
+        "provenance": [
+          "data"
+        ],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "outcome",
+          "transform_id": "identity",
+          "units": "mg/dL",
+          "variable_id": "schema:ldl",
+          "variable_name": "ldl",
+          "version": 1
+        },
+        "semantic_identity": "estimand:observed_ldl",
+        "support": {
+          "kind": "interval",
+          "levels": null,
+          "lower_bits": 0,
+          "upper_bits": 4645744490609377280
+        },
+        "uncertainty": null
+      },
+      {
+        "calibration": "not_required",
+        "dependence": "disjoint_evidence",
+        "measurement_models": [],
+        "name": "policy",
+        "operations": [
+          "law"
+        ],
+        "provenance": [],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "treatment",
+          "transform_id": "identity",
+          "units": "mg",
+          "variable_id": "schema:statin_dose",
+          "variable_name": "statin_dose",
+          "version": 1
+        },
+        "semantic_identity": "estimand:dose",
+        "support": {
+          "kind": "non_negative",
+          "levels": null,
+          "lower_bits": null,
+          "upper_bits": null
+        },
+        "uncertainty": {
+          "meaning": "interventional_predictive",
+          "paradigm": "posterior"
+        }
+      },
+      {
+        "calibration": "measured",
+        "dependence": "unconstrained",
+        "measurement_models": [],
+        "name": "response",
+        "operations": [
+          "interval",
+          "posterior"
+        ],
+        "provenance": [
+          "claim"
+        ],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "outcome",
+          "transform_id": "identity",
+          "units": "mg/dL",
+          "variable_id": "schema:ldl_change",
+          "variable_name": "ldl_change",
+          "version": 1
+        },
+        "semantic_identity": "estimand:ate",
+        "support": {
+          "kind": "real",
+          "levels": null,
+          "lower_bits": null,
+          "upper_bits": null
+        },
+        "uncertainty": {
+          "meaning": "causal_functional_posterior",
+          "paradigm": "posterior"
+        }
+      }
+    ],
+    "produces": [
+      {
+        "calibration": {
+          "input": null,
+          "record_id": null,
+          "status": "point_only"
+        },
+        "evidence": {
+          "declared": true,
+          "sources": [
+            "0101010101010101010101010101010101010101010101010101010101010101"
+          ]
+        },
+        "measurement_models": [],
+        "name": "dose",
+        "operations": [
+          "point",
+          "mean"
+        ],
+        "provenance": [
+          "causal_contract"
+        ],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "treatment",
+          "transform_id": "identity",
+          "units": "mg",
+          "variable_id": "schema:statin_dose",
+          "variable_name": "statin_dose",
+          "version": 1
+        },
+        "semantic_identity": "estimand:dose",
+        "support": {
+          "kind": "non_negative",
+          "levels": null,
+          "lower_bits": null,
+          "upper_bits": null
+        },
+        "uncertainty": null
+      },
+      {
+        "calibration": {
+          "input": null,
+          "record_id": "calibration-record-0001",
+          "status": "measured"
+        },
+        "evidence": {
+          "declared": true,
+          "sources": [
+            "0202020202020202020202020202020202020202020202020202020202020202",
+            "0303030303030303030303030303030303030303030303030303030303030303"
+          ]
+        },
+        "measurement_models": [
+          "abababababababababababababababababababababababababababababababab"
+        ],
+        "name": "effect",
+        "operations": [
+          "mean",
+          "draws",
+          "interval",
+          "posterior"
+        ],
+        "provenance": [
+          "causal_contract",
+          "claim",
+          "evidence"
+        ],
+        "quantity": {
+          "conditioning": [
+            {
+              "value_id": "40_59",
+              "variable_id": "schema:age_band"
+            }
+          ],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "outcome",
+          "transform_id": "identity",
+          "units": "mg/dL",
+          "variable_id": "schema:ldl_change",
+          "variable_name": "ldl_change",
+          "version": 1
+        },
+        "semantic_identity": "estimand:ate",
+        "support": {
+          "kind": "real",
+          "levels": null,
+          "lower_bits": null,
+          "upper_bits": null
+        },
+        "uncertainty": {
+          "meaning": "causal_functional_posterior",
+          "paradigm": "posterior"
+        }
+      },
+      {
+        "calibration": {
+          "input": null,
+          "record_id": null,
+          "status": "unmeasured"
+        },
+        "evidence": {
+          "declared": false,
+          "sources": []
+        },
+        "measurement_models": [],
+        "name": "marginal",
+        "operations": [
+          "law",
+          "joint_draws"
+        ],
+        "provenance": [],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "covariate",
+          "transform_id": "identity",
+          "units": "probability",
+          "variable_id": "schema:baseline_risk",
+          "variable_name": "baseline_risk",
+          "version": 1
+        },
+        "semantic_identity": "estimand:baseline_risk",
+        "support": {
+          "kind": "interval",
+          "levels": null,
+          "lower_bits": 9223372036854775808,
+          "upper_bits": 4607182418800017408
+        },
+        "uncertainty": {
+          "meaning": "interventional_predictive",
+          "paradigm": "posterior"
+        }
+      },
+      {
+        "calibration": {
+          "input": "observed",
+          "record_id": null,
+          "status": "inherited"
+        },
+        "evidence": {
+          "declared": false,
+          "sources": []
+        },
+        "measurement_models": [],
+        "name": "mediated",
+        "operations": [
+          "covariance"
+        ],
+        "provenance": [],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "mediator",
+          "transform_id": "identity",
+          "units": "indicator",
+          "variable_id": "schema:adherence",
+          "variable_name": "adherence",
+          "version": 1
+        },
+        "semantic_identity": "estimand:adherence",
+        "support": {
+          "kind": "binary",
+          "levels": null,
+          "lower_bits": null,
+          "upper_bits": null
+        },
+        "uncertainty": {
+          "meaning": "estimator_sampling",
+          "paradigm": "sampling"
+        }
+      },
+      {
+        "calibration": {
+          "input": null,
+          "record_id": null,
+          "status": "none"
+        },
+        "evidence": {
+          "declared": false,
+          "sources": []
+        },
+        "measurement_models": [],
+        "name": "selection",
+        "operations": [
+          "point"
+        ],
+        "provenance": [],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "selection",
+          "transform_id": "identity",
+          "units": "indicator",
+          "variable_id": "schema:enrolled",
+          "variable_name": "enrolled",
+          "version": 1
+        },
+        "semantic_identity": "estimand:enrolment",
+        "support": {
+          "kind": "categorical",
+          "levels": [
+            "no",
+            "yes"
+          ],
+          "lower_bits": null,
+          "upper_bits": null
+        },
+        "uncertainty": null
+      },
+      {
+        "calibration": {
+          "input": null,
+          "record_id": null,
+          "status": "unmeasured"
+        },
+        "evidence": {
+          "declared": false,
+          "sources": []
+        },
+        "measurement_models": [],
+        "name": "utility",
+        "operations": [
+          "mean",
+          "interval"
+        ],
+        "provenance": [],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "mean",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "utility",
+          "transform_id": "identity",
+          "units": "qaly",
+          "variable_id": "schema:net_benefit",
+          "variable_name": "net_benefit",
+          "version": 1
+        },
+        "semantic_identity": "estimand:net_benefit",
+        "support": {
+          "kind": "real",
+          "levels": null,
+          "lower_bits": null,
+          "upper_bits": null
+        },
+        "uncertainty": {
+          "meaning": "bootstrap",
+          "paradigm": "resampling"
+        }
+      }
+    ]
+  },
+  "contract_identity": "d84bede10b04c4f494354711dc30551f3d3ac59a36fc99cd665a0499e7454a1e",
+  "feature": "interface_contract_v1",
+  "identity": "2626d530ea6cb37fc505707eedb8059a94f64bde261e4b670b596c58ef516fa1",
+  "required_features": [],
+  "version": 1
+}

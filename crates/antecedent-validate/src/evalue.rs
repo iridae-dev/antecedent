@@ -117,14 +117,13 @@ impl EValue {
             }
             None => (e_point, false, false),
         };
-        Ok(RefutationReport {
-            refuter: Arc::from("sensitivity.evalue"),
-            original_ate: ate,
-            refuted_ate: ate,
-            comparison: e_value,
-            informative,
-            passed,
-            failure_condition: if passed {
+        Ok(RefutationReport::builder("sensitivity.evalue")
+            .original_ate(ate)
+            .refuted_ate(ate)
+            .comparison(e_value)
+            .informative(informative)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(match e_limit {
@@ -139,9 +138,9 @@ impl EValue {
                          and cannot support a pass"
                     ),
                 }))
-            },
-            replicates: 0,
-        })
+            })
+            .replicates(0)
+            .build())
     }
 }
 
@@ -149,8 +148,7 @@ impl EValue {
 fn evalue_sample(problem: &RefutationProblem<'_>) -> Result<EvalueSample, ValidationError> {
     if problem.effect_refit.is_some() {
         // A composed estimator has no single adjustment regression to residualize on.
-        let (mask, _) =
-            complete_case_rows(problem.data, &[problem.outcome(), problem.treatment()])?;
+        let (mask, _) = complete_case_rows(problem.data, &problem.estimation_ids(false))?;
         return Ok(EvalueSample {
             outcome: problem.data.float64_masked(problem.outcome(), &mask)?,
             treatment: problem.data.float64_masked(problem.treatment(), &mask)?,
@@ -169,8 +167,7 @@ fn evalue_sample(problem: &RefutationProblem<'_>) -> Result<EvalueSample, Valida
             covariates,
         });
     }
-    let mut ids = vec![problem.treatment(), problem.outcome()];
-    ids.extend_from_slice(&problem.estimand.adjustment_set);
+    let ids = problem.estimation_ids(true);
     let (mask, _) = complete_case_rows(problem.data, &ids)?;
     let mut covariates = Vec::with_capacity(problem.estimand.adjustment_set.len());
     for &z in problem.estimand.adjustment_set.iter() {
@@ -183,7 +180,7 @@ fn evalue_sample(problem: &RefutationProblem<'_>) -> Result<EvalueSample, Valida
     })
 }
 
-#[allow(clippy::float_cmp)] // Exact 0/1 coding is the binary-outcome contract.
+#[allow(clippy::float_cmp, reason = "Exact 0/1 coding is the binary-outcome contract")]
 fn is_binary(outcome: &[f64]) -> bool {
     !outcome.is_empty() && outcome.iter().all(|&y| y == 0.0 || y == 1.0)
 }
@@ -191,7 +188,7 @@ fn is_binary(outcome: &[f64]) -> bool {
 /// Standard error of the estimate: bootstrap when present, else analytic; `None` unless
 /// finite and non-negative.
 fn usable_se(problem: &RefutationProblem<'_>) -> Option<f64> {
-    let se = problem.original.se_bootstrap.unwrap_or(problem.original.se_analytic);
+    let se = problem.original.se_bootstrap().unwrap_or(problem.original.se_analytic());
     (se.is_finite() && se >= 0.0).then_some(se)
 }
 
@@ -257,7 +254,6 @@ fn residual_sd(sample: &EvalueSample) -> Result<Option<f64>, ValidationError> {
     let fit = FaerBackend
         .least_squares(&design, n, p, &sample.outcome, &mut LeastSquaresWorkspace::default())
         .map_err(ValidationError::from)?;
-    #[allow(clippy::cast_precision_loss)]
     let sd = (fit.rss / (n - p) as f64).sqrt();
     // A residual SD at rounding-error level relative to the outcome's own spread is zero for
     // every purpose here: the ratio `ATE / sd` would be an artefact of floating point.
@@ -281,7 +277,6 @@ fn binary_risk_ratios(
         &problem.query.active,
         &problem.query.control,
     )?;
-    #[allow(clippy::cast_precision_loss)]
     let n = sample.outcome.len() as f64;
     let mean_y = sample.outcome.iter().sum::<f64>() / n;
     let mean_t = sample.treatment.iter().sum::<f64>() / n;

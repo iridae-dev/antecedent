@@ -1,4 +1,4 @@
-//! The known temporal SCM shared by the two-step sequence tests (2.2A, X5).
+//! The known temporal SCM shared by the two-step sequence tests.
 //!
 //! Coordinates in time order: `b` (baseline), `l1` (step-1 covariate), `a1`,
 //! `l2` (step-2 covariate, affected by `a1`, a time-varying confounder of `a2`
@@ -19,7 +19,7 @@
 //! The target supplies its observational law over all six coordinates.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(dead_code)]
+#![allow(dead_code, reason = "shared by several test binaries, each of which uses a subset")]
 
 use std::sync::Arc;
 

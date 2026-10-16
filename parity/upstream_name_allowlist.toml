@@ -1,0 +1,54 @@
+# Paths that may name an upstream package listed in `names`.
+# scripts/gate_upstream_names.py reads the suffixes below and nothing else.
+# Markdown is not a scan target: rewording CONTRIBUTING, ROADMAP, SECURITY,
+# or docs/guides cannot fail the gate.
+
+names = ["dowhy", "tigramite"]
+
+scan_suffixes = [".rs", ".py", ".pyi", ".toml", ".sh", ".yml", ".yaml", ".json"]
+
+exact = [
+  # These gates name the packages in order to forbid them elsewhere.
+  "scripts/gate_upstream_names.py",
+  "scripts/gate_upstream_names.sh",
+  "scripts/gate_metadata_consistency.py",
+  "scripts/gate_metadata_consistency.sh",
+  # The DoWhy interoperability guide and its runnable handoff example name the
+  # package they exchange a reviewed graph with; these files only wire that
+  # documentation into the site, the example catalog and the optional-dependency job.
+  ".github/workflows/docs.yml",
+  "examples/catalog.toml",
+  "mkdocs.yml",
+  "scripts/generate_example_catalog.py",
+  "scripts/run_optional_doc_example.py",
+]
+
+prefix = [
+  "provenance/",
+]
+
+[[match]]
+# Parity manifests name the oracle behind a row. The schema gate checks that
+# a named oracle appears in the cited fixture.
+prefix = "parity/"
+suffix = ".toml"
+
+[[match]]
+# Recorded oracle fixtures may name the baseline in reference blocks.
+prefix = "conformance/"
+contains = "/expected.json"
+
+[[match]]
+# Native frozen-oracle tests identify their baseline source.
+prefix = "crates/"
+contains = "/tests/"
+name_contains = "oracle"
+
+[[match]]
+prefix = "examples/python/"
+suffix = ".py"
+path_contains_any = ["dowhy", "pcmci"]
+
+[[match]]
+prefix = "python/tests/"
+path_contains = "dowhy"

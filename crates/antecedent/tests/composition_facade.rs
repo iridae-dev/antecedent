@@ -1,4 +1,4 @@
-//! C3 facade: a composed native-plus-external decision is built from real
+//! Composition facade: a composed native-plus-external decision is built from real
 //! artifacts, exported, and consumed independently. Hand-enumerated oracles:
 //!
 //! * joint decision over four equally likely rows: `risky = E[p * q] = 2`,
@@ -12,12 +12,13 @@ use antecedent::analysis::composition::{
     ProviderOrData, SuppliedSources, TRUST_ATTESTED, consume, export_bundle, mean_result_to_bytes,
     mean_source_of,
 };
-use antecedent_core::{
+use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
     ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
-    ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract, ProviderObjectIdentity,
-    QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
+    ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity, QuantityRole,
+    ScientificQuantity, bind_external_result,
 };
+use antecedent_core::{IdentificationStatus, SupportStatus};
 use antecedent_design::decision_artifact::{DecisionContractArtifact, DecisionResultArtifact};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
@@ -252,7 +253,7 @@ fn native_builder(n: &Native, reverse: bool) -> BundleBuilder {
 }
 
 #[test]
-fn c3_facade_a_built_bundle_is_consumed_independently_and_reports_the_decision() {
+fn facade_a_built_bundle_is_consumed_independently_and_reports_the_decision() {
     let n = native();
     let bundle = native_builder(&n, false).build().unwrap();
     let bytes = export_bundle(&bundle, "composed").unwrap();
@@ -278,7 +279,7 @@ fn c3_facade_a_built_bundle_is_consumed_independently_and_reports_the_decision()
 }
 
 #[test]
-fn c3_facade_derived_ids_are_stable_and_the_builder_refuses_malformed_graphs() {
+fn facade_derived_ids_are_stable_and_the_builder_refuses_malformed_graphs() {
     let n = native();
     let mut builder = BundleBuilder::new();
     let id = builder.add_detected_artifact(None, &n.distribution).unwrap();
@@ -314,7 +315,7 @@ fn c3_facade_derived_ids_are_stable_and_the_builder_refuses_malformed_graphs() {
 }
 
 #[test]
-fn c3_facade_external_mean_decision_is_point_only_attested_and_a_reference_needs_its_source() {
+fn facade_external_mean_decision_is_point_only_attested_and_a_reference_needs_its_source() {
     let attested = claim("req-1", "factor:z");
     let source_means = mean_source_of(&attested).unwrap();
     let result = evaluate_contract_on_means(&mean_contract(), &source_means).unwrap();
@@ -387,7 +388,7 @@ fn c3_facade_external_mean_decision_is_point_only_attested_and_a_reference_needs
 }
 
 #[test]
-fn c3_facade_refusals_name_their_stage_and_a_retained_identity_is_required() {
+fn facade_refusals_name_their_stage_and_a_retained_identity_is_required() {
     let n = native();
     let bundle = native_builder(&n, false).build().unwrap();
     let bytes = export_bundle(&bundle, "composed").unwrap();
@@ -432,7 +433,7 @@ fn c3_facade_refusals_name_their_stage_and_a_retained_identity_is_required() {
 }
 
 #[test]
-fn c3_facade_evidence_relationships_are_checked_against_the_studies_they_name() {
+fn facade_evidence_relationships_are_checked_against_the_studies_they_name() {
     let a = claim("req-a", "factor:z");
     let build = |second: &ExternalClaimArtifact| {
         let mut builder = BundleBuilder::new();

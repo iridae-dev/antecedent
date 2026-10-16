@@ -1,4 +1,4 @@
-//! Temporal extensions of the finite two-step sequence (2.3A, X5): the uncertain
+//! Temporal extensions of the finite two-step sequence: the uncertain
 //! pre-action state, the new-period refresh, and the closed dependent interval.
 //!
 //! * **Initial state** (`antecedent.transport.temporal_initial_state`, point only,
@@ -12,7 +12,7 @@
 //!   intervention history, selection targets, regimes and proof are unchanged. Anything
 //!   else is a typed invalidation. A stale interval never survives a refresh.
 //! * **Dependent interval** (`antecedent.transport.temporal_dependent_interval`): a
-//!   calibrated claim whose calibration is measured only at the release cut, so this
+//!   calibrated claim whose calibration is unmeasured, so this
 //!   route is **closed**: it validates its arguments through the core and then refuses
 //!   with `cell_not_licensed` / `temporal_interval.route_frozen`. Its replay artifact
 //!   exists at the io layer as an internal artifact.
@@ -314,33 +314,6 @@ impl TemporalInitialState {
         .export()
     }
 
-    /// The artifact of a refresh onto `panel` and `window`, whichever way it is
-    /// decided: a reusable refresh carries the re-evaluated point and receipt, an
-    /// invalidated one carries its typed reason and no result.
-    ///
-    /// # Errors
-    /// `invalid_argument` for a missing or invalid window, or an encoding failure.
-    pub fn refresh_record(
-        &self,
-        panel: &TemporalUnitPanel,
-        window: &TemporalWindow,
-        interval_existed: bool,
-    ) -> Result<Vec<u8>, IoError> {
-        let held = self.held(interval_existed)?;
-        let new_identity = identity_for(&self.premises, window, panel, self.sequence)?;
-        TemporalRefreshArtifactWire::checked(&RefreshInputs {
-            premises: &self.premises,
-            sequence: self.sequence,
-            query: &self.query,
-            old_identity: &held.identity,
-            old_panel: &self.panel,
-            new_identity: &new_identity,
-            new_panel: panel,
-            interval_invalidated: interval_existed,
-        })?
-        .export()
-    }
-
     /// The receipt a reusable refresh from this window to `new` would carry.
     #[must_use]
     pub fn expected_receipt(
@@ -508,6 +481,7 @@ fn validated_interval(
 ///
 /// # Errors
 /// Original panel/design/history refusals or failed original engine/artifact replay.
+// doc(hidden): called by the python bindings and the activation tests.
 #[doc(hidden)]
 pub fn temporal_dependent_interval_candidate(
     snapshot_id: &str,

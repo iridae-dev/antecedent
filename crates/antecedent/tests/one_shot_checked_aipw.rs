@@ -4,6 +4,7 @@
 use antecedent::{EstimatorId, EstimatorSpec, RefuteSuite, Study};
 use antecedent_core::ExecutionContext;
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use common::fixtures::confounded_scm;
@@ -87,31 +88,33 @@ fn one_shot_trimmed_aipw_is_sealed_and_matches_the_ordinary_dispatcher_bitwise()
             "replicates={replicates}"
         );
         assert_eq!(
-            one_shot.estimate.se_analytic.to_bits(),
-            clicked.estimate.se_analytic.to_bits(),
+            one_shot.estimate.as_effect().unwrap().se_analytic().to_bits(),
+            clicked.estimate.as_effect().unwrap().se_analytic().to_bits(),
             "replicates={replicates}"
         );
         assert_eq!(
-            one_shot.estimate.se_bootstrap.map(f64::to_bits),
-            clicked.estimate.se_bootstrap.map(f64::to_bits),
+            one_shot.estimate.as_effect().unwrap().se_bootstrap().map(f64::to_bits),
+            clicked.estimate.as_effect().unwrap().se_bootstrap().map(f64::to_bits),
             "replicates={replicates}"
         );
         for result in [&one_shot, &clicked] {
             assert_eq!(result.effect().to_bits(), LEGACY_ATE_BITS, "replicates={replicates}");
             assert!(
-                near_pinned_se(result.estimate.se_analytic, LEGACY_SE_BITS),
+                near_pinned_se(result.estimate.as_effect().unwrap().se_analytic(), LEGACY_SE_BITS),
                 "replicates={replicates} se {} vs {}",
-                result.estimate.se_analytic,
+                result.estimate.as_effect().unwrap().se_analytic(),
                 f64::from_bits(LEGACY_SE_BITS)
             );
             let pinned_bootstrap =
                 (replicates > 0).then_some(LEGACY_SE_BOOTSTRAP_BITS_8_REPLICATES);
             assert_eq!(
-                result.estimate.se_bootstrap.is_some(),
+                result.estimate.as_effect().unwrap().se_bootstrap().is_some(),
                 pinned_bootstrap.is_some(),
                 "replicates={replicates}"
             );
-            if let (Some(actual), Some(pinned)) = (result.estimate.se_bootstrap, pinned_bootstrap) {
+            if let (Some(actual), Some(pinned)) =
+                (result.estimate.as_effect().unwrap().se_bootstrap(), pinned_bootstrap)
+            {
                 assert!(
                     near_pinned_se(actual, pinned),
                     "replicates={replicates} bootstrap se {actual} vs {}",

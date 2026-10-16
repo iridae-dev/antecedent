@@ -1,4 +1,4 @@
-"""Readable 2.3 results: explain / to_dict / repr, results re-exports, identity keyword."""
+"""Readable results: explain / to_dict / repr, results re-exports, identity keyword."""
 
 from __future__ import annotations
 

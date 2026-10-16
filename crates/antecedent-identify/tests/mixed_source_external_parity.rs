@@ -37,7 +37,7 @@ use antecedent_core::{
 };
 use antecedent_expr::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
-    ExactTransportData, InterventionAssignment, LawTolerance,
+    ExactEvaluationSpec, ExactTransportData, InterventionAssignment, LawTolerance,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
@@ -528,13 +528,15 @@ fn assert_proof_computes_the_truth(
             )
         }));
         let plan = ExactEvaluationPlan::compile(
-            derivation.arena(),
-            derivation.root(),
+            ExactEvaluationSpec {
+                arena: derivation.arena(),
+                root: derivation.root(),
+                outcomes: case.query.outcomes.to_vec().into(),
+                request,
+                limits: ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data.clone(),
-            case.query.outcomes.to_vec(),
-            request,
-            ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap_or_else(|e| panic!("{label}: {e:?}"));

@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
 #![cfg_attr(
     test,
     allow(
@@ -63,6 +62,27 @@ impl Default for ObservationEstimatorOptions {
             crossfit_folds: 5,
         }
     }
+}
+
+/// Column roles of a recorded-outcome / censoring-time / event-indicator observation.
+#[derive(Clone, Copy)]
+struct CensoringColumns {
+    observed: VariableId,
+    censoring: VariableId,
+    event: VariableId,
+    delayed_entry: Option<VariableId>,
+}
+
+/// The values behind [`CensoringColumns`], with the conditioning covariates (`n_cov`
+/// columns, row-major) the censoring model reads.
+#[derive(Clone, Copy)]
+struct CensoringValues<'a> {
+    observed: &'a [f64],
+    censoring: &'a [f64],
+    event: &'a [f64],
+    covariates: &'a [f64],
+    n_cov: usize,
+    delayed_entry: Option<&'a [f64]>,
 }
 
 /// Out-of-fold selected-outcome nuisances, one prediction per source row.
@@ -325,16 +345,34 @@ impl ObservationMechanismEstimator {
                 }
                 self.selected(data, query, *observed, *indicator, extras, layout)
             }
-            ObservationSpec::RightCensored { observed, censoring, event, .. } => {
-                self.censored(data, query, *observed, *censoring, *event, delayed_entry, false)
-            }
+            ObservationSpec::RightCensored { observed, censoring, event, .. } => self.censored(
+                data,
+                query,
+                &CensoringColumns {
+                    observed: *observed,
+                    censoring: *censoring,
+                    event: *event,
+                    delayed_entry,
+                },
+                false,
+            ),
             ObservationSpec::LeftCensored { observed, censoring, event, .. } => {
                 if delayed_entry.is_some() {
                     return Err(EstimationError::unsupported(
                         "delayed entry is not defined for left-censoring sign reversal",
                     ));
                 }
-                self.censored(data, query, *observed, *censoring, *event, None, true)
+                self.censored(
+                    data,
+                    query,
+                    &CensoringColumns {
+                        observed: *observed,
+                        censoring: *censoring,
+                        event: *event,
+                        delayed_entry: None,
+                    },
+                    true,
+                )
             }
             ObservationSpec::Complete => Err(EstimationError::unsupported(
                 "complete outcomes do not require observation-mechanism correction",
@@ -374,6 +412,10 @@ impl ObservationMechanismEstimator {
     /// Non-curve response functionals, unsupported observation mechanisms or assumptions,
     /// selected-outcome conditioning that omits treatment/adjustment variables, and any
     /// observation or response-estimation failure are refused.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "validate the observation model, run the response estimate on the adjusted outcome, then attach the selection assumptions and weight diagnostics"
+    )]
     pub fn estimate_mean_curve(
         &self,
         response_estimator: &ContinuousResponseEstimator,
@@ -493,7 +535,7 @@ impl ObservationMechanismEstimator {
         Ok(response)
     }
 
-    /// Observation correction on a temporal curve: same 1.3 primitives, with
+    /// Observation correction on a temporal curve: same static primitives, with
     /// nonempty `IndependentGiven` / `OutcomeIndependentGiven` lag-aligned at the
     /// policy treatment offset.
     ///
@@ -690,12 +732,14 @@ impl ObservationMechanismEstimator {
                 let reverse = matches!(query.observation, ObservationSpec::LeftCensored { .. });
                 Ok(self
                     .censored_from_columns(
-                        &y,
-                        &c,
-                        &d,
-                        &covariates,
-                        conditioning.len(),
-                        None,
+                        &CensoringValues {
+                            observed: &y,
+                            censoring: &c,
+                            event: &d,
+                            covariates: &covariates,
+                            n_cov: conditioning.len(),
+                            delayed_entry: None,
+                        },
                         reverse,
                     )?
                     .values)
@@ -1060,17 +1104,19 @@ impl ObservationMechanismEstimator {
         Ok(CrossFittedSelectedNuisances { probabilities, outcome_predictions })
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn censored(
         &self,
         data: &TabularData,
         query: &ResponseQuery,
-        observed_id: VariableId,
-        censoring_id: VariableId,
-        event_id: VariableId,
-        delayed_entry: Option<VariableId>,
+        columns: &CensoringColumns,
         reverse: bool,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
+        let CensoringColumns {
+            observed: observed_id,
+            censoring: censoring_id,
+            event: event_id,
+            delayed_entry,
+        } = *columns;
         let conditioning = censoring_independence(query)?;
         if conditioning.iter().any(|v| [observed_id, censoring_id, event_id].contains(v)) {
             return Err(EstimationError::unsupported(
@@ -1101,31 +1147,29 @@ impl ObservationMechanismEstimator {
         };
         let entry_values = delayed_entry.map(|id| data.float64_values(id)).transpose()?;
         self.censored_from_columns(
-            &observed,
-            &censoring,
-            &event,
-            &covariates,
-            conditioning.len(),
-            entry_values.as_deref(),
+            &CensoringValues {
+                observed: &observed,
+                censoring: &censoring,
+                event: &event,
+                covariates: &covariates,
+                n_cov: conditioning.len(),
+                delayed_entry: entry_values.as_deref(),
+            },
             reverse,
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[allow(
         clippy::float_cmp,
         reason = "the flag column is a 0/1 coding written by the data layer, so exact comparison against those two values is the intended test"
     )]
     fn censored_from_columns(
         &self,
-        observed: &[f64],
-        censoring: &[f64],
-        event: &[f64],
-        covariates: &[f64],
-        n_cov: usize,
-        delayed_entry: Option<&[f64]>,
+        values: &CensoringValues<'_>,
         reverse: bool,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
+        let CensoringValues { observed, censoring, event, covariates, n_cov, delayed_entry } =
+            *values;
         if observed.iter().chain(censoring).any(|v| !v.is_finite()) {
             return Err(EstimationError::unsupported(
                 "censoring times and recorded outcomes must be finite",
@@ -1805,7 +1849,17 @@ mod tests {
         let true_unrestricted_mean = (0.5 + 1.5 + 2.5 + 3.5) / 4.0;
 
         let adjusted = ObservationMechanismEstimator::default()
-            .censored_from_columns(&observed, &censoring, &event, &[], 0, None, false)
+            .censored_from_columns(
+                &CensoringValues {
+                    observed: &observed,
+                    censoring: &censoring,
+                    event: &event,
+                    covariates: &[],
+                    n_cov: 0,
+                    delayed_entry: None,
+                },
+                false,
+            )
             .unwrap();
 
         // Every unit still at risk at tau=3 was censored there: the censoring survival is
@@ -1840,7 +1894,17 @@ mod tests {
         let covariate: Vec<f64> = (0..n).map(|i| ((i * 7) % 11) as f64 / 11.0).collect();
 
         let adjusted = ObservationMechanismEstimator::default()
-            .censored_from_columns(&observed, &censoring, &event, &covariate, 1, None, false)
+            .censored_from_columns(
+                &CensoringValues {
+                    observed: &observed,
+                    censoring: &censoring,
+                    event: &event,
+                    covariates: &covariate,
+                    n_cov: 1,
+                    delayed_entry: None,
+                },
+                false,
+            )
             .unwrap();
         assert_eq!(adjusted.method.as_ref(), "observation.right_censored.cox_ipcw.v1");
         assert_eq!(adjusted.tail_restriction, Some(1.0));
@@ -1861,7 +1925,17 @@ mod tests {
         let censoring = [1.0, 2.0, 3.0, 4.0];
         let event = [0.0, 1.0, 0.0, 1.0];
         let adjusted = ObservationMechanismEstimator::default()
-            .censored_from_columns(&observed, &censoring, &event, &[], 0, None, false)
+            .censored_from_columns(
+                &CensoringValues {
+                    observed: &observed,
+                    censoring: &censoring,
+                    event: &event,
+                    covariates: &[],
+                    n_cov: 0,
+                    delayed_entry: None,
+                },
+                false,
+            )
             .unwrap();
         assert_eq!(adjusted.tail_restriction, None);
     }

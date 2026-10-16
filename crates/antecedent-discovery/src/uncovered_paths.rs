@@ -8,7 +8,7 @@ use crate::orientation::PagOps;
 
 /// Edge pattern: left endpoint, right endpoint (from `from`'s perspective toward `to`).
 #[derive(Clone, Copy, Debug)]
-pub struct EndpointPattern {
+pub(crate) struct EndpointPattern {
     /// Mark at the path-forward source.
     pub at_from: Option<Endpoint>,
     /// Mark at the path-forward target (`None` = any).
@@ -82,7 +82,7 @@ fn matches_pattern(at_from: Endpoint, at_to: Endpoint, pat: EndpointPattern) -> 
 /// `max_paths` was reached, `max_len` pruned a path that had not reached `end`, or
 /// the budget was zero (`max_paths == 0`).
 #[must_use]
-pub fn uncovered_pd_paths_with_budget<G: PagOps>(
+pub(crate) fn uncovered_pd_paths_with_budget<G: PagOps>(
     graph: &G,
     start: DenseNodeId,
     end: DenseNodeId,
@@ -90,36 +90,41 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
     max_paths: usize,
     max_len: usize,
 ) -> (Vec<Vec<DenseNodeId>>, bool) {
-    let mut out = Vec::new();
-    let mut truncated = false;
     if max_paths == 0 {
-        return (out, true);
+        return (Vec::new(), true);
     }
     if start == end || max_len < 3 {
-        return (out, max_len < 3 && start != end);
+        return (Vec::new(), max_len < 3 && start != end);
     }
-    #[allow(clippy::too_many_arguments, clippy::items_after_statements)]
-    fn search<G: PagOps>(
-        graph: &G,
+
+    /// Depth-first search state: the target, the budgets and the paths found so far.
+    #[allow(clippy::items_after_statements, reason = "helper defined next to its single use")]
+    struct Search {
         end: DenseNodeId,
-        path: &mut Vec<DenseNodeId>,
-        allowed: &[EndpointPattern],
         max_paths: usize,
         max_len: usize,
-        out: &mut Vec<Vec<DenseNodeId>>,
-        truncated: &mut bool,
+        out: Vec<Vec<DenseNodeId>>,
+        truncated: bool,
+    }
+
+    #[allow(clippy::items_after_statements, reason = "helper defined next to its single use")]
+    fn search<G: PagOps>(
+        graph: &G,
+        state: &mut Search,
+        path: &mut Vec<DenseNodeId>,
+        allowed: &[EndpointPattern],
     ) {
         let cur = *path.last().expect("non-empty");
-        if cur == end {
+        if cur == state.end {
             if path.len() >= 3 {
-                out.push(path.clone());
+                state.out.push(path.clone());
             }
             return;
         }
-        if path.len() >= max_len {
+        if path.len() >= state.max_len {
             for (next, _, _) in graph.neighbors(cur) {
                 if !path.contains(&next) {
-                    *truncated = true;
+                    state.truncated = true;
                     break;
                 }
             }
@@ -127,8 +132,8 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
         }
         let nbrs: Vec<_> = graph.neighbors(cur).into_iter().map(|(n, _, _)| n).collect();
         for next in nbrs {
-            if out.len() >= max_paths {
-                *truncated = true;
+            if state.out.len() >= state.max_paths {
+                state.truncated = true;
                 return;
             }
             if path.contains(&next) {
@@ -147,25 +152,17 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
                 continue;
             }
             path.push(next);
-            search(
-                graph,
-                end,
-                path,
-                next_allowed_after(at_from, at_to),
-                max_paths,
-                max_len,
-                out,
-                truncated,
-            );
+            search(graph, state, path, next_allowed_after(at_from, at_to));
             path.pop();
         }
     }
 
+    let mut state = Search { end, max_paths, max_len, out: Vec::new(), truncated: false };
     let mut path = vec![start];
     let nbrs: Vec<_> = graph.neighbors(start).into_iter().map(|(n, _, _)| n).collect();
     for next in nbrs {
-        if out.len() >= max_paths {
-            truncated = true;
+        if state.out.len() >= max_paths {
+            state.truncated = true;
             break;
         }
         if next == end {
@@ -178,19 +175,10 @@ pub fn uncovered_pd_paths_with_budget<G: PagOps>(
             continue;
         }
         path.push(next);
-        search(
-            graph,
-            end,
-            &mut path,
-            next_allowed_after(at_from, at_to),
-            max_paths,
-            max_len,
-            &mut out,
-            &mut truncated,
-        );
+        search(graph, &mut state, &mut path, next_allowed_after(at_from, at_to));
         path.pop();
     }
-    (out, truncated)
+    (state.out, state.truncated)
 }
 
 #[cfg(test)]

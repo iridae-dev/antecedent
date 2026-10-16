@@ -3,9 +3,12 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::admg::Admg;
-use crate::dsep::{DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult};
+use crate::dsep::{
+    BayesBallGraph, DSeparationWorkspace, PathStep, SeparationCertificate, SeparationResult,
+    add_undirected,
+};
 use crate::error::GraphError;
-use crate::pag::Pag;
+use crate::pag::{ClassMembers, Pag};
 use crate::types::DenseNodeId;
 use crate::workspace::BitSet;
 
@@ -35,7 +38,48 @@ impl Admg {
         if z.iter().any(|&v| v == x || v == y) {
             return Ok(false);
         }
-        Ok(self.m_sep_bool(x, y, z, ws))
+        Ok(!self.bayes_m_connected(&[x], &[y], z, ws))
+    }
+
+    /// Whether every node in `sources` is m-separated from every node in `targets`
+    /// given `z`.
+    ///
+    /// One Bayes-ball search, the set form of the same m-separation criterion as
+    /// [`Self::is_m_separated`]. Empty `sources` or `targets` is vacuously separated.
+    /// A shared endpoint, or a conditioning node that is itself an endpoint, is not
+    /// separated, matching the pairwise query.
+    ///
+    /// # Errors
+    ///
+    /// Unknown node ids.
+    pub fn is_m_separated_sets(
+        &self,
+        sources: &[DenseNodeId],
+        targets: &[DenseNodeId],
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+    ) -> Result<bool, GraphError> {
+        for &node in sources.iter().chain(targets).chain(z) {
+            self.validate_node_pub(node)?;
+        }
+        if sources.is_empty() || targets.is_empty() {
+            return Ok(true);
+        }
+        let mut target_set = BitSet::with_len(self.node_count());
+        for &target in targets {
+            target_set.try_insert(target)?;
+        }
+        for &source in sources {
+            if target_set.contains(source) || z.iter().any(|&node| node == source) {
+                return Ok(false);
+            }
+        }
+        for &target in targets {
+            if z.iter().any(|&node| node == target) {
+                return Ok(false);
+            }
+        }
+        Ok(!self.bayes_m_connected(sources, targets, z, ws))
     }
 
     /// m-separation with witness.
@@ -73,6 +117,40 @@ impl Admg {
         }
     }
 
+    fn bayes_m_connected(
+        &self,
+        sources: &[DenseNodeId],
+        targets: &[DenseNodeId],
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+    ) -> bool {
+        crate::dsep::bayes_ball_reaches(
+            ws,
+            BayesBallGraph {
+                parents: self.parent_rows(),
+                children: self.child_rows(),
+                bidirected: self.bidirected_rows(),
+                overlay: None,
+            },
+            sources,
+            targets,
+            z,
+        )
+    }
+
+    /// Moral-graph answer for the same query [`Self::is_m_separated`] answers with Bayes-ball.
+    #[cfg(test)]
+    fn moral_m_separated(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+    ) -> bool {
+        self.m_sep_bool(x, y, z, ws)
+    }
+
+    #[cfg(test)]
     fn m_sep_bool(
         &self,
         x: DenseNodeId,
@@ -82,7 +160,7 @@ impl Admg {
     ) -> bool {
         self.build_moral_ancestral(x, y, z, ws);
         // Remove conditioning nodes from undirected graph by skipping them in BFS.
-        !self.undirected_reaches(x, y, ws, false)
+        !ws.moral_reaches(x, y, false)
     }
 
     fn m_sep_active_path(
@@ -93,7 +171,7 @@ impl Admg {
         ws: &mut DSeparationWorkspace,
     ) -> Option<Vec<PathStep>> {
         self.build_moral_ancestral(x, y, z, ws);
-        if !self.undirected_reaches(x, y, ws, true) {
+        if !ws.moral_reaches(x, y, true) {
             return None;
         }
         let mut path = Vec::new();
@@ -117,51 +195,30 @@ impl Admg {
         z: &[DenseNodeId],
         ws: &mut DSeparationWorkspace,
     ) {
+        self.build_moral_of_seeds(&[x, y], z, ws);
+    }
+
+    /// Ancestral closure of `seeds ∪ z`, then moralize directed + bidirected edges.
+    fn build_moral_of_seeds(
+        &self,
+        seeds: &[DenseNodeId],
+        z: &[DenseNodeId],
+        ws: &mut DSeparationWorkspace,
+    ) {
         let n = self.node_count();
         ws.prepare(n);
-        ws.ancestral.clear();
         ws.conditioning.clear();
         for &v in z {
             ws.conditioning.insert(v);
         }
 
-        // Seeds: x, y, z
-        ws.graph_ws.prepare(n);
-        ws.graph_ws.frontier.clear();
-        for &s in &[x, y] {
-            if !ws.ancestral.contains(s) {
-                ws.ancestral.insert(s);
-                ws.graph_ws.frontier.push(s);
-            }
-        }
-        for &s in z {
-            if !ws.ancestral.contains(s) {
-                ws.ancestral.insert(s);
-                ws.graph_ws.frontier.push(s);
-            }
-        }
-        // Walk parents (directed ancestors).
-        while let Some(u) = ws.graph_ws.frontier.pop() {
-            for &p in self.parents(u) {
-                if !ws.ancestral.contains(p) {
-                    ws.ancestral.insert(p);
-                    ws.graph_ws.frontier.push(p);
-                }
-            }
-        }
+        // Ancestral set of seeds ∪ z (directed ancestors).
+        ws.frontier.clear();
+        ws.frontier.extend_from_slice(seeds);
+        ws.frontier.extend_from_slice(z);
+        self.ancestors_of(&ws.frontier, &mut ws.ancestral, &mut ws.graph_ws);
+        ws.frontier.clear();
 
-        self.moralize_ancestral_set(ws);
-    }
-
-    /// Moralize the full ADMG (ancestral set = all nodes) for Markov blankets.
-    fn build_moral_full(&self, ws: &mut DSeparationWorkspace) {
-        let n = self.node_count();
-        ws.prepare(n);
-        ws.ancestral.clear();
-        ws.conditioning.clear();
-        for i in 0..n {
-            ws.ancestral.insert(DenseNodeId::from_raw(u32::try_from(i).expect("node fit")));
-        }
         self.moralize_ancestral_set(ws);
     }
 
@@ -170,18 +227,18 @@ impl Admg {
     fn moralize_ancestral_set(&self, ws: &mut DSeparationWorkspace) {
         let n = self.node_count();
         for i in 0..n {
-            let u = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let u = DenseNodeId::from_index(i);
             if !ws.ancestral.contains(u) {
                 continue;
             }
             for &c in self.children(u) {
                 if ws.ancestral.contains(c) {
-                    Self::add_undirected(ws, u, c);
+                    add_undirected(&mut ws.undirected, &mut ws.undirected_member, u, c);
                 }
             }
             for &b in self.bidirected_neighbors(u) {
                 if b.raw() > u.raw() && ws.ancestral.contains(b) {
-                    Self::add_undirected(ws, u, b);
+                    add_undirected(&mut ws.undirected, &mut ws.undirected_member, u, b);
                 }
             }
         }
@@ -197,8 +254,7 @@ impl Admg {
         groups.resize_with(n_districts.max(groups.len()), Vec::new);
         for (i, &label) in ws.district_label.iter().enumerate() {
             if label != u32::MAX {
-                groups[label as usize]
-                    .push(DenseNodeId::from_raw(u32::try_from(i).expect("node fit")));
+                groups[label as usize].push(DenseNodeId::from_index(i));
             }
         }
         let mut clique = core::mem::take(&mut ws.clique);
@@ -218,7 +274,7 @@ impl Admg {
             }
             for (ai, &a) in clique.iter().enumerate() {
                 for &b in &clique[ai + 1..] {
-                    Self::add_undirected(ws, a, b);
+                    add_undirected(&mut ws.undirected, &mut ws.undirected_member, a, b);
                 }
             }
             for &u in &clique {
@@ -227,92 +283,6 @@ impl Admg {
         }
         ws.clique = clique;
         ws.district_groups = groups;
-    }
-
-    /// m-separation Markov blanket of `node`: neighbors in the Richardson-moralized
-    /// undirected graph of the full ADMG (inducing-path / district closure).
-    /// Does not include `node` itself.
-    ///
-    /// # Errors
-    ///
-    /// Unknown node id.
-    pub fn markov_blanket(&self, node: DenseNodeId, out: &mut BitSet) -> Result<(), GraphError> {
-        self.validate_node_pub(node)?;
-        let n = self.node_count();
-        out.resize(n);
-        out.clear();
-        let mut ws = DSeparationWorkspace::default();
-        self.build_moral_full(&mut ws);
-        for &nbr in &ws.undirected[node.as_usize()] {
-            if nbr != node {
-                out.insert(nbr);
-            }
-        }
-        Ok(())
-    }
-
-    /// Sorted m-separation Markov blanket of `node` (excluding `node`).
-    ///
-    /// # Errors
-    ///
-    /// Unknown node id.
-    pub fn markov_blanket_nodes(&self, node: DenseNodeId) -> Result<Vec<DenseNodeId>, GraphError> {
-        let mut bits = BitSet::with_len(self.node_count());
-        self.markov_blanket(node, &mut bits)?;
-        Ok((0..self.node_count())
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node fit")))
-            .filter(|&id| bits.contains(id))
-            .collect())
-    }
-
-    fn add_undirected(ws: &mut DSeparationWorkspace, a: DenseNodeId, b: DenseNodeId) {
-        if a == b {
-            return;
-        }
-        let ai = a.as_usize();
-        let bi = b.as_usize();
-        if !ws.undirected[ai].contains(&b) {
-            ws.undirected[ai].push(b);
-        }
-        if !ws.undirected[bi].contains(&a) {
-            ws.undirected[bi].push(a);
-        }
-    }
-
-    /// Undirected reachability avoiding conditioning nodes.
-    fn undirected_reaches(
-        &self,
-        x: DenseNodeId,
-        y: DenseNodeId,
-        ws: &mut DSeparationWorkspace,
-        record_pred: bool,
-    ) -> bool {
-        let _ = self;
-        ws.visited.clear();
-        ws.frontier.clear();
-        if record_pred {
-            for p in &mut ws.pred {
-                *p = None;
-            }
-        }
-        ws.frontier.push(x);
-        ws.visited.insert(x);
-        while let Some(u) = ws.frontier.pop() {
-            if u == y {
-                return true;
-            }
-            for &v in &ws.undirected[u.as_usize()] {
-                if ws.conditioning.contains(v) || ws.visited.contains(v) {
-                    continue;
-                }
-                ws.visited.insert(v);
-                if record_pred {
-                    ws.pred[v.as_usize()] = Some(u);
-                }
-                ws.frontier.push(v);
-            }
-        }
-        false
     }
 }
 
@@ -330,6 +300,34 @@ mod tests {
             !g.is_m_separated(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), &[], &mut ws)
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn set_separation_matches_every_pair() {
+        // Collider 0 -> 2 <- 1, plus 2 -> 3. An extra descendant must not
+        // open the collider when the set query is the empty conditioning set.
+        let mut g = Admg::with_variables(4);
+        let n = |i| DenseNodeId::from_raw(i);
+        g.insert_directed(n(0), n(2)).unwrap();
+        g.insert_directed(n(1), n(2)).unwrap();
+        g.insert_directed(n(2), n(3)).unwrap();
+        let mut ws = DSeparationWorkspace::default();
+        let cases: &[(&[DenseNodeId], &[DenseNodeId], &[DenseNodeId])] = &[
+            (&[n(0)], &[n(1)], &[]),
+            (&[n(0)], &[n(1)], &[n(2)]),
+            (&[n(0), n(1)], &[n(3)], &[]),
+            (&[n(0)], &[n(3)], &[n(2)]),
+            (&[n(0)], &[n(0)], &[]),
+            (&[], &[n(1)], &[]),
+            (&[n(3)], &[], &[n(2)]),
+        ];
+        for &(sources, targets, z) in cases {
+            let sets = g.is_m_separated_sets(sources, targets, z, &mut ws).unwrap();
+            let pairwise = sources.iter().all(|&source| {
+                targets.iter().all(|&target| g.is_m_separated(source, target, z, &mut ws).unwrap())
+            });
+            assert_eq!(sets, pairwise, "sources={sources:?} targets={targets:?} z={z:?}");
+        }
     }
 
     #[test]
@@ -394,75 +392,114 @@ mod tests {
     }
 
     #[test]
-    fn markov_blanket_includes_bidirected_neighbors() {
-        // A → T ↔ U ← B  ⇒  MB(T) = {A, U, B}
-        let mut g = Admg::with_variables(4);
-        let a = DenseNodeId::from_raw(0);
-        let t = DenseNodeId::from_raw(1);
-        let u = DenseNodeId::from_raw(2);
-        let b = DenseNodeId::from_raw(3);
-        g.insert_directed(a, t).unwrap();
-        g.insert_bidirected(t, u).unwrap();
-        g.insert_directed(b, u).unwrap();
-        assert_eq!(g.markov_blanket_nodes(t).unwrap(), vec![a, u, b]);
-    }
-
-    #[test]
-    fn markov_blanket_inducing_path_closure() {
-        // X → A ↔ B ← Y  ⇒  MB(X) = {A, B, Y} (not merely {A}).
-        let mut g = Admg::with_variables(4);
-        let x = DenseNodeId::from_raw(0);
-        let a = DenseNodeId::from_raw(1);
-        let b = DenseNodeId::from_raw(2);
-        let y = DenseNodeId::from_raw(3);
-        g.insert_directed(x, a).unwrap();
-        g.insert_bidirected(a, b).unwrap();
-        g.insert_directed(y, b).unwrap();
-        assert_eq!(g.markov_blanket_nodes(x).unwrap(), vec![a, b, y]);
-    }
-
-    #[test]
-    fn markov_blanket_matches_dag_without_bidirected() {
-        // A → T ← B, T → Y ← C  ⇒  MB(T) = {A, B, Y, C}
-        let mut admg = Admg::with_variables(5);
-        let mut dag = crate::dag::Dag::with_variables(5);
-        let a = DenseNodeId::from_raw(0);
-        let t = DenseNodeId::from_raw(1);
-        let b = DenseNodeId::from_raw(2);
-        let y = DenseNodeId::from_raw(3);
-        let c = DenseNodeId::from_raw(4);
-        for (from, to) in [(a, t), (b, t), (t, y), (c, y)] {
-            admg.insert_directed(from, to).unwrap();
-            dag.insert_directed(from, to).unwrap();
-        }
-        assert_eq!(admg.markov_blanket_nodes(t).unwrap(), dag.markov_blanket_nodes(t).unwrap());
-    }
-
-    #[test]
-    fn markov_blanket_m_separates_outsiders() {
-        // X → A ↔ B ← Y; MB(X) = {A,B,Y} must m-separate X from every outsider
-        // (here there are none outside MB∪{X}, so also check MB(A)).
-        let mut g = Admg::with_variables(4);
-        let x = DenseNodeId::from_raw(0);
-        let a = DenseNodeId::from_raw(1);
-        let b = DenseNodeId::from_raw(2);
-        let y = DenseNodeId::from_raw(3);
-        g.insert_directed(x, a).unwrap();
-        g.insert_bidirected(a, b).unwrap();
-        g.insert_directed(y, b).unwrap();
-
+    fn bayes_ball_matches_moral_graph_on_fixtures() {
+        let n = |i| DenseNodeId::from_raw(i);
+        let mut fork = Admg::with_variables(3);
+        fork.insert_directed(n(1), n(0)).unwrap();
+        fork.insert_directed(n(1), n(2)).unwrap();
+        let mut collider = Admg::with_variables(3);
+        collider.insert_directed(n(0), n(1)).unwrap();
+        collider.insert_directed(n(2), n(1)).unwrap();
+        let mut chain = Admg::with_variables(4);
+        chain.insert_directed(n(0), n(2)).unwrap();
+        chain.insert_directed(n(1), n(2)).unwrap();
+        chain.insert_directed(n(2), n(3)).unwrap();
+        let mut district = Admg::with_variables(4);
+        district.insert_directed(n(0), n(1)).unwrap();
+        district.insert_bidirected(n(1), n(2)).unwrap();
+        district.insert_directed(n(3), n(2)).unwrap();
+        let mut latent = Admg::with_variables(3);
+        latent.insert_bidirected(n(0), n(1)).unwrap();
+        latent.insert_bidirected(n(1), n(2)).unwrap();
+        let graphs = [&fork, &collider, &chain, &district, &latent];
         let mut ws = DSeparationWorkspace::default();
-        for node in [x, a, b, y] {
-            let mb = g.markov_blanket_nodes(node).unwrap();
-            for i in 0..g.node_count() {
-                let w = DenseNodeId::from_raw(u32::try_from(i).unwrap());
-                if w == node || mb.contains(&w) {
-                    continue;
+        for g in graphs {
+            let count = u32::try_from(g.node_count()).unwrap();
+            for x in 0..count {
+                for y in 0..count {
+                    if x == y {
+                        continue;
+                    }
+                    let others: Vec<u32> = (0..count).filter(|&k| k != x && k != y).collect();
+                    for mask in 0..(1u32 << others.len()) {
+                        let z: Vec<DenseNodeId> = others
+                            .iter()
+                            .enumerate()
+                            .filter(|(bit, _)| (mask >> bit) & 1 == 1)
+                            .map(|(_, &k)| n(k))
+                            .collect();
+                        let moral = g.moral_m_separated(n(x), n(y), &z, &mut ws);
+                        let bayes = !g.bayes_m_connected(&[n(x)], &[n(y)], &z, &mut ws);
+                        assert_eq!(bayes, moral, "x={x} y={y} z={z:?}");
+                    }
                 }
-                assert!(
-                    g.is_m_separated(node, w, &mb, &mut ws).unwrap(),
-                    "MB({node:?}) must m-separate from outsider {w:?}"
-                );
+            }
+        }
+        let sources = [n(0), n(1)];
+        let targets = [n(3)];
+        let z = [n(2)];
+        chain.build_moral_of_seeds(&[n(0), n(1), n(3)], &z, &mut ws);
+        let mut target_set = BitSet::with_len(chain.node_count());
+        target_set.insert(n(3));
+        let moral_sets = !ws.moral_reaches_any(&sources, &target_set);
+        let bayes_sets = !chain.bayes_m_connected(&sources, &targets, &z, &mut ws);
+        assert_eq!(bayes_sets, moral_sets);
+    }
+
+    #[test]
+    fn bayes_ball_matches_moral_graph_on_all_four_node_admgs() {
+        // Every four-node DAG has a topological relabeling represented by one of
+        // these 64 forward-edge subsets. Bidirected masks cover all six possible
+        // latent-fork edges. The moral-graph implementation is a separate
+        // ancestral-moralization criterion, so this exhaustively differentially
+        // checks Bayes-ball across every pair and disjoint conditioning set.
+        let directed_edges = [(0_u32, 1_u32), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+        let bidirected_edges = [(0_u32, 1_u32), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+        let id = |raw| DenseNodeId::from_raw(raw);
+        let mut ws = DSeparationWorkspace::default();
+
+        for directed_mask in 0_u32..64 {
+            for bidirected_mask in 0_u32..64 {
+                let mut graph = Admg::with_variables(4);
+                for (bit, &(from, to)) in directed_edges.iter().enumerate() {
+                    if directed_mask & (1_u32 << bit) != 0 {
+                        graph.insert_directed(id(from), id(to)).unwrap();
+                    }
+                }
+                for (bit, &(a, b)) in bidirected_edges.iter().enumerate() {
+                    if bidirected_mask & (1_u32 << bit) != 0 {
+                        graph.insert_bidirected(id(a), id(b)).unwrap();
+                    }
+                }
+
+                for x in 0_u32..4 {
+                    for y in (x + 1)..4 {
+                        let remaining: Vec<_> =
+                            (0_u32..4).filter(|&node| node != x && node != y).collect();
+                        for conditioning_mask in 0_u32..(1_u32 << remaining.len()) {
+                            let conditioning: Vec<_> = remaining
+                                .iter()
+                                .enumerate()
+                                .filter(|(bit, _)| conditioning_mask & (1_u32 << bit) != 0)
+                                .map(|(_, &node)| id(node))
+                                .collect();
+                            let x = id(x);
+                            let y = id(y);
+                            let moral = graph.moral_m_separated(x, y, &conditioning, &mut ws);
+                            let bayes =
+                                !graph.bayes_m_connected(&[x], &[y], &conditioning, &mut ws);
+                            assert_eq!(
+                                bayes,
+                                moral,
+                                "directed={directed_mask:06b} bidirected={bidirected_mask:06b} \
+                                 x={} y={} z={:?}",
+                                x.raw(),
+                                y.raw(),
+                                conditioning.iter().map(|node| node.raw()).collect::<Vec<_>>(),
+                            );
+                        }
+                    }
+                }
             }
         }
     }
@@ -512,6 +549,7 @@ impl Pag {
         let mut capped = max_paths == 0 || max_len == 0;
         let mut definite_active = None;
         let mut possibly_active = None;
+        let mut memo = crate::pag::DescendantMemo::default();
         let cut = self.walk_simple_paths(x, y, max_len, |path| {
             if examined >= max_paths {
                 capped = true;
@@ -524,7 +562,7 @@ impl Pag {
             }
             // A definite-status path can still be open in some member only: a
             // collider's descendants need not be definite.
-            if possibly_active.is_none() && self.path_possibly_active_given(path, z) {
+            if possibly_active.is_none() && self.path_possibly_active_given(path, z, &mut memo) {
                 possibly_active = Some(path.to_vec());
             }
             true
@@ -566,15 +604,25 @@ impl Pag {
         // The marks leave it open: ask every member. The audit refuses more
         // circle endpoints than it can enumerate, and yields nothing for marks
         // no maximal ancestral graph satisfies; neither is a separation.
-        let Ok(members) = crate::completion::CompletionSampler::new(self.clone(), usize::MAX)
-        else {
-            return Ok(ClassSeparation::Undetermined);
+        let enumerated;
+        let members: &[Admg] = match self.class_members() {
+            ClassMembers::Refused => return Ok(ClassSeparation::Undetermined),
+            ClassMembers::Cached(members) => {
+                enumerated = members;
+                &enumerated
+            }
+            ClassMembers::Uncached => {
+                let Some(members) = self.build_class_members() else {
+                    return Ok(ClassSeparation::Undetermined);
+                };
+                enumerated = members.into();
+                &enumerated
+            }
         };
         let mut ws = DSeparationWorkspace::default();
         let mut verdict = None;
         for member in members {
-            let separated =
-                crate::completion::as_admg(&member.graph).is_m_separated(x, y, z, &mut ws)?;
+            let separated = member.is_m_separated(x, y, z, &mut ws)?;
             if *verdict.get_or_insert(separated) != separated {
                 return Ok(ClassSeparation::Undetermined);
             }
@@ -839,7 +887,7 @@ mod pag_msep_tests {
         }
         tally.graphs_with_members += 1;
         let mut ws = DSeparationWorkspace::default();
-        let node = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap());
+        let node = DenseNodeId::from_index;
         for x in 0..n {
             for y in (x + 1)..n {
                 let others: Vec<usize> = (0..n).filter(|&k| k != x && k != y).collect();

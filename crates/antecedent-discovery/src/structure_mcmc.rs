@@ -2,29 +2,22 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
-use antecedent_state::{GraphScoreCacheKey, GraphScoreFamily, LocalScoreCache};
+use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
-use crate::graph_mcmc::{FinishMaskPosterior, GraphMcmcSchedule, run_parallel_mask_chains};
-use crate::graph_posterior::{
-    GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, mask_is_dag, n_directed_edges,
-    set_edge,
+use crate::graph_mcmc::{
+    FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel, MaskChain, MaskChainPlan,
+    run_mask_chain, run_parallel_mask_chains,
 };
-use crate::graph_score::{initial_scored_mask, score_dag_mask, tabular_score_data};
+use crate::graph_posterior::{
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, has_edge, mask_is_dag, set_edge,
+};
+use crate::graph_score::{initial_scored_mask, score_dag_mask_with_parents, tabular_score_data};
 
 /// Structure MCMC with single-edge add / delete / reverse proposals.
 #[derive(Clone, Debug)]
@@ -102,16 +95,19 @@ impl StructureMcmc {
     /// # Errors
     ///
     /// Data/score failures or diagnostics gate refusal.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
         variables: &[VariableId],
         prior: &GraphPrior,
         score_family: GraphScoreFamily,
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        let _ = workspace;
         prior.constraints.validate()?;
         let n = variables.len();
         if n == 0 {
@@ -119,11 +115,10 @@ impl StructureMcmc {
                 "structure MCMC requires at least one variable",
             ));
         }
-        if n_directed_edges(n) > 63 {
-            return Err(DiscoveryError::unsupported(
-                "structure MCMC adjacency exceeds 63 directed edges",
-            ));
-        }
+        crate::graph_posterior::ensure_directed_mask_fits(
+            n,
+            "structure MCMC adjacency exceeds 63 directed edges",
+        )?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
             return Err(DiscoveryError::unsupported(
                 "structure MCMC currently supports GaussianBic only",
@@ -145,73 +140,33 @@ impl StructureMcmc {
 
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = pairs.len();
-        let threads = ctx.parallelism.max_threads.get().max(1) as usize;
 
         let (traces, sample_masks, rejected) =
-            run_parallel_mask_chains(n_chains, n_draws, n_params, threads, |start, end| {
-                let mut local_traces = vec![0.0f64; (end - start) * n_draws * n_params];
-                let mut local_samples = vec![Vec::new(); end - start];
-                let mut local_rej = 0u64;
-                for li in 0..(end - start) {
-                    let chain = start + li;
-                    let mut rng = ctx.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
-                    let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
-                        data_version: 1,
-                        family: score_family,
-                        var_fingerprint: n as u64,
-                        penalty_fingerprint: score_data.n_rows as u64,
-                    });
-                    let mut mask = initial_mask;
-                    let mut cur = initial_score;
-                    // Overdisperse the starts: chain 0 begins at the required-edge graph, the
-                    // others after a random walk over the feasible set. Identical starts make
-                    // R-hat blind to a chain that has not left its initial mode.
-                    if chain > 0 {
-                        for _ in 0..(4 * n_params).min(400) {
-                            let (prop, _, _) = propose_structure(mask, n, &pairs, &mut rng);
-                            if let Some(ps) =
-                                score_dag_mask(prop, n, &score_data, &mut cache, prior, variables)
-                                    .filter(|s| s.is_finite())
-                            {
-                                mask = prop;
-                                cur = ps;
-                            }
-                        }
-                    }
-                    let total_steps = n_warmup + n_draws * thin;
-                    let mut kept = 0usize;
-                    for step in 0..total_steps {
-                        if ctx.cancellation.is_cancelled() {
-                            break;
-                        }
-                        let (prop, q_ratio, rej_inc) = propose_structure(mask, n, &pairs, &mut rng);
-                        local_rej += rej_inc;
-                        let prop_score =
-                            score_dag_mask(prop, n, &score_data, &mut cache, prior, variables);
-                        let accept = match prop_score {
-                            Some(ps) if ps.is_finite() => {
-                                let log_r = ps - cur + q_ratio.ln();
-                                log_r >= 0.0 || rng.next_f64() < log_r.exp()
-                            }
-                            _ => false,
-                        };
-                        if accept {
-                            if let Some(ps) = prop_score {
-                                mask = prop;
-                                cur = ps;
-                            }
-                        }
-                        if step >= n_warmup && (step - n_warmup) % thin == 0 && kept < n_draws {
-                            for (p, &(i, j)) in pairs.iter().enumerate() {
-                                let v = if has_edge(mask, n, i, j) { 1.0 } else { 0.0 };
-                                local_traces[(li * n_draws + kept) * n_params + p] = v;
-                            }
-                            local_samples[li].push(mask);
-                            kept += 1;
-                        }
-                    }
-                }
-                (start, local_traces, local_samples, local_rej)
+            run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
+                let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
+                let mut walker = StructureWalker {
+                    n,
+                    pairs: &pairs,
+                    score_data: &score_data,
+                    cache: LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+                        score_family,
+                        n,
+                        score_data.n_rows,
+                    )),
+                    prior,
+                    variables,
+                    mask: initial_mask,
+                    cur: initial_score,
+                    pending: initial_mask,
+                    parent_scratch: Vec::with_capacity(n),
+                };
+                let run = run_mask_chain(
+                    &MaskChainPlan { chain_index: chain, n_warmup, n_draws, thin, n_params },
+                    inner,
+                    &mut rng,
+                    &mut walker,
+                )?;
+                Ok((run.traces, run.samples, run.rejected))
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -275,7 +230,93 @@ fn candidate_directed_list(n: usize, undirected: Option<&[(u32, u32)]>) -> Vec<(
     out
 }
 
-/// Propose add/delete/reverse; returns `(new_mask, q(old|new)/q(new|old), rejected)`.
+/// Hastings factor `q(old|new) / q(new|old)` for the symmetric directed-pair proposal.
+///
+/// The candidate list contains both orientations of every pair. An add has probability
+/// `1/|pairs|`; its reverse delete has the same total probability because either orientation
+/// can select the existing edge and each takes the delete branch with probability 1/2.
+/// Reversals are symmetric too, so every valid structure move has ratio 1.
+#[must_use]
+pub(crate) fn structure_kernel_ratio(_move_kind: StructureMove) -> f64 {
+    1.0
+}
+
+/// Which edit [`propose_structure`] attempted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum StructureMove {
+    /// Absent pair → one directed edge.
+    Add,
+    /// Directed edge → absent.
+    Delete,
+    /// Directed edge → the opposite direction.
+    Reverse,
+}
+
+struct StructureWalker<'a> {
+    n: usize,
+    pairs: &'a [(usize, usize)],
+    score_data: &'a GraphScoreData,
+    cache: LocalScoreCache,
+    prior: &'a GraphPrior,
+    variables: &'a [VariableId],
+    mask: u64,
+    cur: f64,
+    pending: u64,
+    parent_scratch: Vec<u32>,
+}
+
+impl MaskChain for StructureWalker<'_> {
+    type Sample = u64;
+
+    fn current_score(&self) -> f64 {
+        self.cur
+    }
+
+    fn accept_policy(&self) -> MaskAccept {
+        // Every valid move has Hastings factor 1 for the symmetric directed-pair list.
+        MaskAccept::FiniteOnly
+    }
+
+    fn cancel_policy(&self) -> MaskCancel {
+        MaskCancel::Break
+    }
+
+    fn propose(&mut self, rng: &mut CausalRng) -> u64 {
+        let (prop, _kernel_ratio, rejected) = propose_structure(self.mask, self.n, self.pairs, rng);
+        self.pending = prop;
+        rejected
+    }
+
+    fn proposed_score(&mut self) -> Option<f64> {
+        score_dag_mask_with_parents(
+            self.pending,
+            self.n,
+            self.score_data,
+            &mut self.cache,
+            self.prior,
+            self.variables,
+            &mut self.parent_scratch,
+        )
+    }
+
+    fn commit(&mut self, score: f64) {
+        self.mask = self.pending;
+        self.cur = score;
+    }
+
+    fn record(&self, row: &mut [f64]) {
+        for (p, &(i, j)) in self.pairs.iter().enumerate() {
+            row[p] = if has_edge(self.mask, self.n, i, j) { 1.0 } else { 0.0 };
+        }
+    }
+
+    fn sample(&self) -> u64 {
+        self.mask
+    }
+}
+
+/// Propose add/delete/reverse; returns `(new_mask, kernel Hastings ratio, rejected)`.
+/// `rejected` counts a proposal that is not a DAG.
 fn propose_structure(
     mask: u64,
     n: usize,
@@ -286,63 +327,58 @@ fn propose_structure(
         return (mask, 1.0, 0);
     }
     let idx = crate::indexing::bounded_index(rng.next_u64(), pairs.len());
+    let u = rng.next_f64();
+    propose_structure_at(mask, n, pairs, idx, u)
+}
+
+/// Apply a selected candidate and branch draw. Kept separate so the finite proposal
+/// kernel can be exhaustively checked on a two-node state space.
+fn propose_structure_at(
+    mask: u64,
+    n: usize,
+    pairs: &[(usize, usize)],
+    idx: usize,
+    u: f64,
+) -> (u64, f64, u64) {
     let (i, j) = pairs[idx];
     let forward = has_edge(mask, n, i, j);
     let backward = has_edge(mask, n, j, i);
-    let u = rng.next_f64();
     if !forward && !backward {
         let prop = set_edge(mask, n, i, j, true);
-        if mask_is_dag(prop, n) { (prop, 1.0, 0) } else { (mask, 1.0, 1) }
+        let ratio = structure_kernel_ratio(StructureMove::Add);
+        if mask_is_dag(prop, n) { (prop, ratio, 0) } else { (mask, ratio, 1) }
     } else if forward && !backward {
         if u < 0.5 {
-            (set_edge(mask, n, i, j, false), 1.0, 0)
+            (set_edge(mask, n, i, j, false), structure_kernel_ratio(StructureMove::Delete), 0)
         } else {
             let mut prop = set_edge(mask, n, i, j, false);
             prop = set_edge(prop, n, j, i, true);
-            if mask_is_dag(prop, n) { (prop, 1.0, 0) } else { (mask, 1.0, 1) }
+            let ratio = structure_kernel_ratio(StructureMove::Reverse);
+            if mask_is_dag(prop, n) { (prop, ratio, 0) } else { (mask, ratio, 1) }
         }
     } else if backward && !forward {
         if u < 0.5 {
-            (set_edge(mask, n, j, i, false), 1.0, 0)
+            (set_edge(mask, n, j, i, false), structure_kernel_ratio(StructureMove::Delete), 0)
         } else {
             let mut prop = set_edge(mask, n, j, i, false);
             prop = set_edge(prop, n, i, j, true);
-            if mask_is_dag(prop, n) { (prop, 1.0, 0) } else { (mask, 1.0, 1) }
+            let ratio = structure_kernel_ratio(StructureMove::Reverse);
+            if mask_is_dag(prop, n) { (prop, ratio, 0) } else { (mask, ratio, 1) }
         }
     } else {
-        (set_edge(mask, n, i, j, false), 1.0, 1)
+        (set_edge(mask, n, i, j, false), structure_kernel_ratio(StructureMove::Delete), 1)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
 
-    use antecedent_core::{
-        CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_data::TabularData;
 
     use crate::graph_posterior::GraphPrior;
 
     fn fork_data(n_rows: usize) -> (TabularData, Vec<VariableId>) {
-        let mut b = CausalSchemaBuilder::new();
-        for name in ["x", "y", "z"] {
-            b.add_variable(
-                name,
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
         let mut rng = antecedent_core::CausalRng::from_seed(11);
         let mut x = vec![0.0; n_rows];
         let mut y = vec![0.0; n_rows];
@@ -352,22 +388,9 @@ mod tests {
             y[i] = 1.4 * x[i] + 0.2 * (rng.next_f64() * 2.0 - 1.0);
             z[i] = 1.1 * x[i] + 0.2 * (rng.next_f64() * 2.0 - 1.0);
         }
-        let cols = vec![
-            OwnedColumn::Float64(
-                Float64Column::new(vars[0], Arc::from(x), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[1], Arc::from(y), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(vars[2], Arc::from(z), ValidityBitmap::all_valid(n_rows))
-                    .unwrap(),
-            ),
-        ];
-        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
-        (TabularData::new(storage), vars)
+        let data = crate::test_tables::continuous_table(&["x", "y", "z"], vec![x, y, z]);
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        (data, vars)
     }
 
     #[test]
@@ -435,5 +458,32 @@ mod tests {
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn structure_kernel_is_detailed_balanced_for_two_nodes() {
+        let pairs = candidate_directed_list(2, None);
+        assert_eq!(pairs, [(0, 1), (1, 0)]);
+        let states = [0, set_edge(0, 2, 0, 1, true), set_edge(0, 2, 1, 0, true)];
+        let mut transition_mass = [[0.0_f64; 3]; 3];
+        // Each directed-pair choice has probability 1/2, and each branch interval
+        // below represents probability 1/2 under the uniform branch draw.
+        for (from, &mask) in states.iter().enumerate() {
+            for idx in 0..pairs.len() {
+                for u in [0.25, 0.75] {
+                    let (next, _, _) = propose_structure_at(mask, 2, &pairs, idx, u);
+                    let to = states.iter().position(|&state| state == next).unwrap();
+                    transition_mass[from][to] += 0.25;
+                }
+            }
+        }
+        for i in 0..states.len() {
+            for j in 0..states.len() {
+                assert_eq!(transition_mass[i][j].to_bits(), transition_mass[j][i].to_bits());
+            }
+        }
+        assert_eq!(structure_kernel_ratio(StructureMove::Add).to_bits(), 1.0_f64.to_bits());
+        assert_eq!(structure_kernel_ratio(StructureMove::Delete).to_bits(), 1.0_f64.to_bits());
+        assert_eq!(structure_kernel_ratio(StructureMove::Reverse).to_bits(), 1.0_f64.to_bits());
     }
 }

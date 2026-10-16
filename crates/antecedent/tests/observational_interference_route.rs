@@ -68,26 +68,26 @@ fn observational_network_contrast_retains_truth_assumptions_and_artifact() {
     );
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.support_status, None);
-    assert!((result.estimate.ate - 6.0).abs() < 1e-12);
-    assert!(result.estimate.se_analytic.is_nan());
-    let observed = result.interference.as_ref().unwrap();
+    assert!((result.estimate.as_effect().unwrap().ate - 6.0).abs() < 1e-12);
+    assert!(result.estimate.as_effect().unwrap().se_analytic().is_nan());
+    let observed = result.interference().unwrap();
     assert!((observed.contrast.hajek - 6.0).abs() < 1e-12);
     assert!((observed.contrast.conservative_variance - 36.0).abs() < 1e-12);
     assert_eq!(
         observed.from_probability_method,
         antecedent_stats::ExposureProbabilityMethod::SuppliedExternallyEstimated
     );
-    assert!(result.interference_inference.as_ref().unwrap().interval.is_none());
+    assert!(result.interference_inference().unwrap().interval.is_none());
     assert!(
         result
-            .interference_inference
+            .interference_inference()
             .as_ref()
             .unwrap()
             .interval_unavailable_reason
             .unwrap()
             .contains("known, fixed")
     );
-    assert!(result.estimate.assumptions.entries.iter().any(|entry| matches!(&entry.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.network_exchangeability")));
+    assert!(result.estimate.as_effect().unwrap().provenance.assumptions.entries.iter().any(|entry| matches!(&entry.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "interference.network_exchangeability")));
     assert!(result.diagnostics.iter().any(|d| {
         d.code.as_ref() == "estimate.interference.observational_ipw"
             && d.fields
@@ -153,7 +153,7 @@ fn known_probabilities_retain_pointwise_interval_and_artifact() {
     let ctx = ExecutionContext::for_tests(353);
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let interval = result.interference_inference.as_ref().unwrap().interval.as_ref().unwrap();
+    let interval = result.interference_inference().unwrap().interval.as_ref().unwrap();
     assert!(interval.lower < 2.0 && interval.upper > 2.0);
     assert_eq!(interval.degrees_of_freedom, 59.0);
     assert_eq!(interval.first_stage_arm_clusters, [30, 30]);

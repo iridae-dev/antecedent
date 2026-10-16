@@ -2,12 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
         clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
@@ -15,7 +13,9 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, VariableId};
+#[cfg(test)]
+use antecedent_core::VariableId;
+use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, DenseNodeId, GraphWorkspace};
 use antecedent_stats::ci::{
@@ -492,20 +492,23 @@ fn falsified_bonferroni(p_values: &[f64], alpha: f64) -> bool {
 }
 
 /// Mechanism predictive check: compare observed mean to predictive mean under sampling.
+#[cfg(test)]
 #[derive(Clone, Debug)]
-pub struct MechanismPredictiveCheck {
+pub(crate) struct MechanismPredictiveCheck {
     /// Sims.
     pub n_sims: usize,
     /// Seed.
     pub seed: u64,
 }
 
+#[cfg(test)]
 impl Default for MechanismPredictiveCheck {
     fn default() -> Self {
         Self { n_sims: 50, seed: 1 }
     }
 }
 
+#[cfg(test)]
 impl MechanismPredictiveCheck {
     /// Check one variable's mean.
     ///
@@ -709,7 +712,10 @@ mod tests {
     /// with `y ≈ 5` and small `obs_std`, giving a hugely negative log-lik regardless of fit
     /// quality, while the fixed scoring reflects the (small) one-step predictive residual.
     #[test]
-    #[allow(clippy::many_single_char_names)]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn evaluate_lgssm_model_loglik_uses_predictive_mean_not_raw_value() {
         use antecedent_core::CausalRng;
         use antecedent_kernels::standard_normal;

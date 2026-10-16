@@ -29,19 +29,15 @@ use crate::prior::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 /// Floor on conjugate-scale variance after composition.
 const COMPOSE_VAR_FLOOR: f64 = 1e-12;
 
-/// Kish (1965) effective sample size: `(Σw)² / Σw²`.
+/// Kish (1965) effective sample size `(Σw)² / Σw²`, owned by
+/// [`antecedent_kernels::kish_ess`] (non-finite weights give `NaN`, zero mass
+/// gives `0.0`).
 ///
 /// A concentration-of-trust diagnostic over an importance/trust weight
-/// vector — distinct from MCMC/autocorrelation ESS and from the
+/// vector, distinct from MCMC/autocorrelation ESS and from the
 /// **prior-strength ESS** reported on [`ComposedPrior`] (precision-based, not
-/// weight-based; see the module docs). Guards `Σw² > 0`, returning `0.0`
-/// otherwise (e.g. all-zero weights).
-#[must_use]
-pub fn kish_ess(weights: &[f64]) -> f64 {
-    let sum: f64 = weights.iter().sum();
-    let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
-}
+/// weight-based; see the module docs).
+pub use antecedent_kernels::kish_ess;
 
 /// Per-source trust knobs for external prior composition.
 ///
@@ -217,6 +213,10 @@ pub fn compose_external_priors(
 /// # Errors
 ///
 /// Length mismatch, invalid weights, missing Gaussians, or dimension mismatch.
+#[allow(
+    clippy::too_many_lines,
+    reason = "power and mixture composition share the validated prior set and weights"
+)]
 pub fn compose_external_priors_with_alphas(
     sources: &[ExternalPriorSource],
     alphas_requested: &[f64],
@@ -423,6 +423,10 @@ fn validate_mixture_weights(sources: &[ExternalPriorSource]) -> Result<(), ProbE
     Ok(())
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn compose_power_add(
     baseline: &GaussianCoefficientPrior,
     sources: &[ExternalPriorSource],
@@ -438,7 +442,9 @@ fn compose_power_add(
         if alpha == 0.0 {
             continue;
         }
-        let coef = src.prior.gaussian_coefficients().expect("validated");
+        let coef = src.prior.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+            message: "external source prior missing GaussianCoefficients",
+        })?;
         let prec = coef.precision();
         for i in 0..n {
             let a_lam = alpha * prec[i];
@@ -468,15 +474,14 @@ fn dense_scale(set: &PriorSet) -> Result<(Vec<f64>, Vec<f64>), ProbError> {
         message: "external prior missing GaussianCoefficients",
     })?;
     let n = coef.len();
-    let v0 = match set.coefficient_correlation() {
-        Some(corr) => corr.scale_matrix(&coef.variance)?,
-        None => {
-            let mut v0 = vec![0.0; n * n];
-            for i in 0..n {
-                v0[i * n + i] = coef.variance[i];
-            }
-            v0
+    let v0 = if let Some(corr) = set.coefficient_correlation() {
+        corr.scale_matrix(&coef.variance)?
+    } else {
+        let mut v0 = vec![0.0; n * n];
+        for i in 0..n {
+            v0[i * n + i] = coef.variance[i];
         }
+        v0
     };
     Ok((coef.mean.to_vec(), v0))
 }
@@ -589,7 +594,9 @@ fn compose_mixture(
             // Dropped mass folds into leftover baseline.
             continue;
         }
-        let coef = src.prior.gaussian_coefficients().expect("validated");
+        let coef = src.prior.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+            message: "external source prior missing GaussianCoefficients",
+        })?;
         comps.push((w, coef, alpha));
         active_w += w;
     }

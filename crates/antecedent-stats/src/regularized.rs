@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop, clippy::too_many_lines)]
-
 use crate::error::StatsError;
 use crate::gram::{column_is_constant, form_xtx, invert_square};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSquaresWorkspace};
@@ -168,6 +166,10 @@ pub fn fit_ridge(
 ///
 /// Shape mismatch, non-finite λ, or a non-positive feature scale under standardization /
 /// centering (e.g. a constant predictor when `fit_intercept` and `standardize` are set).
+#[allow(
+    clippy::too_many_lines,
+    reason = "coordinate descent with standardization and path bookkeeping sharing one set of buffers"
+)]
 pub fn fit_lasso(
     x_colmajor: &[f64],
     nrows: usize,
@@ -915,7 +917,6 @@ mod tests {
         }
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

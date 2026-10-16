@@ -120,14 +120,14 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
     let fx = fixture(5);
     let result = study(&fx).run(&ExecutionContext::for_tests(5)).unwrap();
     let estimate = result.estimate.as_effect().unwrap();
-    assert_eq!(estimate.se_reference_df, Some(39.0));
+    assert_eq!(estimate.uncertainty.analytic.reference_df, Some(39.0));
     let published = PublishedScalarUncertainty::select(estimate);
     let t = student_t_ppf(0.975, 39.0);
     close(published.critical_value(estimate), t, "critical value");
     assert!(t > antecedent::result::reported_se_interval_z());
     let (lo, hi) = published.interval(estimate).unwrap();
-    close(lo, estimate.ate - t * estimate.se_analytic, "lower");
-    close(hi, estimate.ate + t * estimate.se_analytic, "upper");
+    close(lo, estimate.ate - t * estimate.se_analytic(), "lower");
+    close(hi, estimate.ate + t * estimate.se_analytic(), "upper");
     // An ordinary AIPW fit declares no reference and keeps the normal interval.
     let plain = Study::tabular(fx.data.clone())
         .graph(fx.graph.clone())
@@ -139,7 +139,7 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
         .run(&ExecutionContext::for_tests(5))
         .unwrap();
     let plain = plain.estimate.as_effect().unwrap();
-    assert_eq!(plain.se_reference_df, None);
+    assert_eq!(plain.uncertainty.analytic.reference_df, None);
     let published = PublishedScalarUncertainty::select(plain);
     close(published.critical_value(plain), antecedent::result::reported_se_interval_z(), "normal");
 }
@@ -158,16 +158,16 @@ fn a_single_retarget_reports_the_cluster_summed_se_with_its_reference() {
     let uniform = prepared.retarget(&vec![1.0; n], &[], &ctx).unwrap();
     let estimate = uniform.estimate.as_effect().unwrap();
     close(estimate.ate, fit.estimate.as_effect().unwrap().ate, "uniform point");
-    close(estimate.se_analytic, fit.estimate.as_effect().unwrap().se_analytic, "uniform se");
-    assert_eq!(estimate.se_reference_df, Some(39.0));
-    assert!(estimate.joint_covariance.is_some() && estimate.score_inference.is_none());
+    close(estimate.se_analytic(), fit.estimate.as_effect().unwrap().se_analytic(), "uniform se");
+    assert_eq!(estimate.uncertainty.analytic.reference_df, Some(39.0));
+    assert!(estimate.joint.covariance.is_some() && estimate.scores.inference.is_none());
 
     let weights = tilt(&fx, 1.0);
     let result = prepared.retarget(&weights, &[VariableId::from_raw(Z0)], &ctx).unwrap();
     let estimate = result.estimate.as_effect().unwrap();
     let (theta, sums) = cluster_sums(&table, &fx.cluster, &weights);
     close(estimate.ate, theta, "tilted point");
-    close(estimate.se_analytic, cov(&sums, &sums).sqrt(), "cluster se");
+    close(estimate.se_analytic(), cov(&sums, &sums).sqrt(), "cluster se");
     // The iid plug-in would be smaller: clusters share a random effect.
     let iid = {
         let total: f64 = weights.iter().sum();
@@ -178,7 +178,7 @@ fn a_single_retarget_reports_the_cluster_summed_se_with_its_reference() {
             .map(|(f, w)| (n as f64 / (n as f64 - 1.0)).sqrt() * (w / total) * (f - theta));
         xi.map(|x| x * x).sum::<f64>().sqrt()
     };
-    assert!(estimate.se_analytic > iid, "{} vs {iid}", estimate.se_analytic);
+    assert!(estimate.se_analytic() > iid, "{} vs {iid}", estimate.se_analytic());
     let published = PublishedScalarUncertainty::select(estimate);
     close(published.critical_value(estimate), student_t_ppf(0.975, 39.0), "t reference");
 }
@@ -195,7 +195,7 @@ fn a_batch_family_reports_the_cluster_summed_joint_covariance() {
         .prepare(&[query()], &ctx)
         .unwrap();
     let (results, scores) = prepared.estimate_scored(&fx.data, &ctx).unwrap();
-    let table = results[0].estimate.score_table.as_ref().unwrap().clone();
+    let table = results[0].estimate.as_effect().unwrap().scores.table.as_ref().unwrap().clone();
     assert_eq!(scores.table(0), Some(&table));
     let (plus, minus) = (tilt(&fx, 1.0), tilt(&fx, -1.0));
     let claim = |name: &str, weights: &[f64]| RetargetClaim {

@@ -1,0 +1,19 @@
+feature_id = "estimate.vector_treatment.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "The published number is the posterior mean of the joint treatment coefficients under independent normal priors on every non-intercept column, with the ordinary-least-squares residual variance plugged in. No interval is produced.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/posterior_mean_linear.rs",
+]

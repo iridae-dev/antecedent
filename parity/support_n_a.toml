@@ -2,30 +2,18 @@
 # is n/a (not refused). Omitted keys mean "any value on that axis."
 
 [[n_a]]
-queries = ["PulseEffect", "SustainedEffect", "TemporalMediationEffect"]
+queries = ["PulseEffect", "SustainedEffect", "TemporalConditionalPulse", "TemporalConditionalSustained", "TemporalMediationEffect"]
 graph_classes = ["Dag", "Admg", "Cpdag", "Pag", "CoDetermined", "Unknown"]
 reason = "Temporal contrast queries require a temporal graph class."
 
 [[n_a]]
 queries = [
-  "AnomalyAttribution",
-  "AverageDerivative",
   "AverageEffect",
-  "ChangeAttribution",
   "ConditionalEffect",
-  "Counterfactual",
-  "DirectionalDerivative",
-  "Elasticity",
-  "InterventionalDistribution",
-  "NestedCounterfactualEffect",
   "MediationEffect",
-  "PathSpecificEffect",
-  "PointDerivative",
-  "ResponseJacobian",
-  "SemiElasticity",
 ]
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
-reason = "Static queries are not a temporal-graph cell; use PulseEffect, SustainedEffect, or a temporal ResponseCurve/InterventionResponse attachment."
+reason = "Static queries do not denote on TemporalDag, TemporalCpdag, or TemporalPag. TemporalPag stays the equivalence class only for the temporal queries licensed on it. Latent confounding over time denotes on TemporalAdmg."
 
 [[n_a]]
 queries = ["TransportQuery", "InterferenceQuery"]
@@ -34,7 +22,7 @@ reason = "TransportQuery and InterferenceQuery are typed against static graphs; 
 
 [[n_a]]
 queries = ["ResponseCurve"]
-graph_classes = ["Dag", "Admg", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
+graph_classes = ["Dag", "Admg", "TemporalAdmg", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state."
@@ -63,7 +51,7 @@ reason = "Bayesian InterventionResponse has no licensed scalar-refuter state; ch
 
 [[n_a]]
 queries = ["PointDerivative", "Elasticity", "SemiElasticity", "AverageDerivative", "DirectionalDerivative", "ResponseJacobian"]
-graph_classes = ["Dag"]
+graph_classes = ["Dag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "Derivative-native validation is not implemented; ATE refuters do not apply."

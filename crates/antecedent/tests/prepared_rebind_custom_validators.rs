@@ -1,6 +1,7 @@
 //! Rebinding caller validators on a prepared handle must reach the sealed
 //! operation that runs them, not only the retained study snapshot.
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use std::sync::Arc;

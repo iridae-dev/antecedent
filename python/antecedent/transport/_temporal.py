@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .._columns import coerce_fields
 from .._native import (
     consume_temporal_transport_artifact as _consume_temporal_transport_artifact,
 )
@@ -87,11 +88,112 @@ class TemporalSequenceSpec:
         selections = tuple(self.selections)
         if len(set(selections)) != len(selections):
             raise CausalValueError("temporal selections must be distinct")
-        object.__setattr__(self, "baseline", tuple(self.baseline))
-        object.__setattr__(self, "covariates", covariates)
-        object.__setattr__(self, "actions", actions)
-        object.__setattr__(self, "coordinates", tuple(self.coordinates))
-        object.__setattr__(self, "selections", selections)
+        coerce_fields(self, baseline=tuple(self.baseline))
+        coerce_fields(self, covariates=covariates)
+        coerce_fields(self, actions=actions)
+        coerce_fields(self, coordinates=tuple(self.coordinates))
+        coerce_fields(self, selections=selections)
+
+
+@dataclass(frozen=True, slots=True)
+class UnrolledSequence:
+    """A lagged template unrolled over the horizon of two, with its places in time.
+
+    ``graph`` is the unrolled ADMG over ``names``; ``baseline``, ``covariates`` (one tuple per
+    step), ``actions`` and ``outcome`` place every coordinate. The coordinate of template
+    variable ``v`` in step ``p`` is named ``f"{v}_{p}"``; the outcome of step 1 is an ordinary
+    covariate of step 2. Declare each coordinate's domain with
+    :class:`~antecedent.transport.advanced.VariableCoordinate` and call :meth:`to_spec`.
+    """
+
+    graph: Admg
+    names: tuple[str, ...]
+    baseline: tuple[str, ...]
+    covariates: tuple[tuple[str, ...], tuple[str, ...]]
+    actions: tuple[str, str]
+    outcome: str
+
+    def to_spec(
+        self,
+        coordinates: Sequence[VariableCoordinate],
+        *,
+        selections: Sequence[str] = (),
+    ) -> TemporalSequenceSpec:
+        """The :class:`TemporalSequenceSpec` of this unrolling, with the declared domains."""
+        declared = {c.name for c in coordinates}
+        missing = [name for name in self.names if name not in declared]
+        if missing:
+            raise CausalValueError(
+                "temporal_transport.invalid_spec: declare a VariableCoordinate for every "
+                f"unrolled coordinate; missing {', '.join(missing)}",
+                reason_code="invalid_argument",
+            )
+        return TemporalSequenceSpec(
+            graph=self.graph,
+            baseline=self.baseline,
+            covariates=self.covariates,
+            actions=self.actions,
+            outcome=self.outcome,
+            coordinates=tuple(coordinates),
+            selections=tuple(selections),
+        )
+
+
+def unroll_two_slice(
+    template: Any,
+    *,
+    covariates: Sequence[str],
+    action: str,
+    outcome: str,
+    baseline: Sequence[str] = (),
+    baseline_effects: Sequence[tuple[str, str]] = (),
+    latent_pairs: Sequence[tuple[str, str]] = (),
+) -> UnrolledSequence:
+    """Unroll a lagged :class:`~antecedent.graph.TemporalDag` template over a horizon of two.
+
+    Template edges are replicated per step through the finite unfolding of the temporal DAG;
+    parents before the first step are dropped, so the initial state is fixed, not modelled. The
+    template's variables must be exactly ``covariates``, ``action`` and ``outcome``. Each
+    ``(baseline_name, variable)`` of ``baseline_effects`` adds the edge from that baseline
+    covariate to the variable in both steps; each pair of ``latent_pairs`` names two unrolled
+    coordinates (``"u_1"``, ``"y_2"``) joined by latent confounding (a bidirected edge).
+
+    Raises:
+        CausalValueError: ``temporal_transport.invalid_spec`` for a variable outside the
+            template, a role missing from or repeated in it, an unknown baseline covariate or
+            effect, or an edge that the unfolding refuses.
+    """
+    import json
+
+    from .. import _native
+    from ..graph import TemporalDag
+
+    if not isinstance(template, TemporalDag):
+        raise CausalTypeError("template must be a TemporalDag")
+    wire = json.loads(
+        _native.unroll_two_slice_template(
+            template,
+            [str(c) for c in covariates],
+            str(action),
+            str(outcome),
+            [str(b) for b in baseline],
+            [(str(b), str(v)) for b, v in baseline_effects],
+            [(str(a), str(b)) for a, b in latent_pairs],
+        )
+    )
+    graph = Admg.from_edges(
+        list(wire["names"]),
+        [tuple(edge) for edge in wire["directed"]],
+        [tuple(edge) for edge in wire["bidirected"]],
+    )
+    return UnrolledSequence(
+        graph=graph,
+        names=tuple(wire["names"]),
+        baseline=tuple(wire["baseline"]),
+        covariates=(tuple(wire["covariates"][0]), tuple(wire["covariates"][1])),
+        actions=(wire["actions"][0], wire["actions"][1]),
+        outcome=wire["outcome"],
+    )
 
 
 def prepare_temporal_transport_sequence(

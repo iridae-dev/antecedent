@@ -15,29 +15,20 @@ mod parcorr_variants;
 mod residualize;
 mod types;
 
-pub use advanced::{
-    GPDC_ROW_LIMIT, Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi,
-};
-pub use analytic::analytic_parcorr_ci;
+pub use advanced::{Gpdc, KnnDependence, MixedKnnDependence, OracleCi, SymbolicCmi};
 pub use bayes::{BayesFactorCi, PosteriorDependenceCi, PosteriorPredictiveCi};
-pub use calibration::{
-    CalibrationReport, calibrate_gsquared, calibrate_multivariate_parcorr_block,
-    calibrate_multivariate_parcorr_block_shuffle, calibrate_parcorr_like, chi2_crit_approx,
-    collect_null_pvalues_parcorr_like, type_i_within_binomial_region, type_i_within_three_se,
-    type_i_within_two_se, uniform_bin_chi2,
-};
+pub use calibration::{CalibrationReport, calibrate_parcorr_like};
 pub use factory::ci_from_name;
 pub use gsquared::{GSquared, RegressionCi};
-pub use pairwise_mv::{PairwiseMultivariateCi, pairwise_multivariate_test};
+pub use pairwise_mv::PairwiseMultivariateCi;
 pub use parcorr::PartialCorrelation;
 pub use parcorr_variants::{
-    MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
+    BlockTest, MultivariatePartialCorrelation, RobustPartialCorrelation, WeightedPartialCorrelation,
 };
 pub use types::{
-    CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
+    AttainableP, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery, CiResult, CiWorkspace,
     ConditionalIndependence, ConditionalIndependenceTest, ConfidenceMethod, KnnDependenceWorkspace,
-    PreparedCiTest, SignificanceMethod, analytic_confidence_level, ensure_alpha_resolvable,
-    nonparametric_permutation_count, permutation_min_p,
+    PreparedCiTest, SignificanceMethod, ensure_alpha_resolvable,
 };
 
 #[cfg(test)]

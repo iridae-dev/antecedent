@@ -17,14 +17,14 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.3.0", path = "../antecedent-data" }
-antecedent-graph = { version = "2.3.0", path = "../antecedent-graph" }
-antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
-antecedent-model = { version = "2.3.0", path = "../antecedent-model" }
-antecedent-counterfactual = { version = "2.3.0", path = "../antecedent-counterfactual" }
-antecedent-prob = { version = "2.3.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.3.0", path = "../antecedent-stats" }
+antecedent-core = { workspace = true }
+antecedent-data = { workspace = true }
+antecedent-graph = { workspace = true }
+antecedent-kernels = { workspace = true }
+antecedent-model = { workspace = true }
+antecedent-counterfactual = { workspace = true }
+antecedent-prob = { workspace = true }
+antecedent-stats = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
@@ -34,4 +34,8 @@ serde_json = { workspace = true }
 
 [[bench]]
 name = "shapley"
+harness = false
+
+[[bench]]
+name = "parallel_shapley"
 harness = false

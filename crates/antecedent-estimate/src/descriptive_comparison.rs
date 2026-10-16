@@ -1,4 +1,4 @@
-//! Descriptive raw-versus-adjusted comparison and declared reporting-scale transforms (2.2 E7).
+//! Descriptive raw-versus-adjusted comparison and declared reporting-scale transforms.
 //!
 //! # What this is, and is not
 //!
@@ -41,6 +41,7 @@ use antecedent_core::ExecutionContext;
 
 use crate::error::EstimationError;
 use crate::joint_if::JointCovariance;
+use crate::util::refuse;
 
 /// Tolerance for treatment codes and covariance symmetry, matching the propensity
 /// preparer's exact-binary check.
@@ -89,10 +90,6 @@ impl<T> Availability<T> {
             Self::Unavailable(reason) => Some(reason),
         }
     }
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 fn invalid_data(message: &str) -> EstimationError {

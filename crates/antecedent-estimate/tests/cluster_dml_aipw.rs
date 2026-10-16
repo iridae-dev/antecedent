@@ -1,4 +1,4 @@
-//! Cluster-aware cross-fitted AIPW (2.2 E4): whole clusters own their folds, the variance is a
+//! Cluster-aware cross-fitted AIPW: whole clusters own their folds, the variance is a
 //! sandwich over cluster sums (checked against sums written here) and is the published
 //! standard error, and few clusters, a bootstrap or SE-kind request and an out-of-scope
 //! population are refused with
@@ -24,6 +24,9 @@ use antecedent_core::{
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+};
+use antecedent_estimate::posterior_mean::{
+    PosteriorRequest, ScoreNamespace, score_contrast_posterior,
 };
 use antecedent_estimate::{
     AipwAte, AipwWorkspace, ClusterDml, EffectEstimate, EstimationError, IndependenceUnit,
@@ -213,7 +216,7 @@ fn run(est: &AipwAte, raw: &Raw, seed: u64) -> Result<EffectEstimate, Estimation
 }
 
 fn table(estimate: &EffectEstimate) -> &ScoreTable {
-    estimate.score_table.as_ref().expect("the cluster-DML route keeps its score table")
+    estimate.scores.table.as_ref().expect("the cluster-DML route keeps its score table")
 }
 
 fn code_of(error: &EstimationError, code: &str) {
@@ -265,7 +268,7 @@ fn whole_clusters_own_their_folds_and_the_point_recovers_the_truth() {
     }
     assert!(per_fold.iter().all(|&c| c == 12), "{per_fold:?}");
     // The table's folds are the public whole-cluster plan at the recorded seed.
-    let plan = cluster_fold_plan(&raw.cluster, FOLDS, a.crossfit_seed.unwrap()).unwrap();
+    let plan = cluster_fold_plan(&raw.cluster, FOLDS, a.crossfit.seed.unwrap()).unwrap();
     assert_eq!(t.fold_ids.to_vec(), plan);
 
     let again = run(&est, &raw, 5).unwrap();
@@ -319,14 +322,18 @@ fn a_cluster_dml_fit_publishes_the_cluster_sandwich_se_but_no_iid_covariance() {
     let est = declared(&raw, 10);
     let fit = run(&est, &raw, 2).unwrap();
     assert!(fit.ate.is_finite());
-    assert_eq!(fit.se_kind, Some(antecedent_estimate::AnalyticSeKind::Cluster));
+    assert_eq!(fit.uncertainty.analytic.kind, Some(antecedent_estimate::AnalyticSeKind::Cluster));
     let oracle = oracle_cluster_se(table(&fit), &raw.cluster);
-    assert!((fit.se_analytic - oracle).abs() <= 1e-12 * oracle, "{} vs {oracle}", fit.se_analytic);
-    assert!(fit.joint_covariance.is_none());
-    assert!(fit.score_inference.is_none());
-    assert!(fit.influence.is_none());
-    assert_eq!(fit.crossfit_folds, Some(FOLDS));
-    assert!(fit.crossfit_seed.is_some());
+    assert!(
+        (fit.se_analytic() - oracle).abs() <= 1e-12 * oracle,
+        "{} vs {oracle}",
+        fit.se_analytic()
+    );
+    assert!(fit.joint.covariance.is_none());
+    assert!(fit.scores.inference.is_none());
+    assert!(fit.scores.influence.is_none());
+    assert_eq!(fit.crossfit.folds, Some(FOLDS));
+    assert!(fit.crossfit.seed.is_some());
 
     let t = table(&fit);
     // The point is the score-contrast mean exactly.
@@ -378,7 +385,8 @@ fn the_cluster_sandwich_equals_hand_computed_cluster_sums() {
     assert_eq!(receipt.independence_unit, IndependenceUnit::Cluster);
     assert_eq!((receipt.n_clusters, receipt.n_rows, receipt.folds), (60, 1_200, FOLDS));
     assert_eq!(receipt.min_clusters, 20);
-    assert_eq!(receipt.unit_digest.len(), 16);
+    // A BLAKE3 digest in hex: 32 bytes, 64 characters.
+    assert_eq!(receipt.unit_digest.len(), 64);
     // The digest is a function of the label set, not of row order.
     let reversed: Vec<u32> = raw.cluster.iter().rev().copied().collect();
     let flipped = ScoreTable {
@@ -628,7 +636,7 @@ fn two_way_components_own_their_folds_and_the_point_recovers_the_truth() {
     // The components are the blocks, named by their smallest first endpoint.
     let na32 = u32::try_from(na).unwrap();
     let units: Vec<u32> = raw.cluster.iter().map(|&c| c / na32 * na32).collect();
-    let plan = cluster_fold_plan(&units, FOLDS, a.crossfit_seed.unwrap()).unwrap();
+    let plan = cluster_fold_plan(&units, FOLDS, a.crossfit.seed.unwrap()).unwrap();
     assert_eq!(t.fold_ids.to_vec(), plan);
     let mut components_per_fold = [0usize; FOLDS];
     let mut seen = std::collections::BTreeSet::new();
@@ -642,9 +650,9 @@ fn two_way_components_own_their_folds_and_the_point_recovers_the_truth() {
     assert!(t.nuisance_provenance.contains(";cluster_dml=unit=dyad;components=30;digest="));
     assert!(provenance_withholds_interval(&t.nuisance_provenance));
     assert_eq!(&ScoreTable::from_wire(t.to_wire()).unwrap(), t);
-    assert_eq!(a.se_kind, Some(antecedent_estimate::AnalyticSeKind::Multiway));
-    assert!(a.se_analytic.is_finite() && a.se_analytic > 0.0 && a.joint_covariance.is_none());
-    assert!(a.score_inference.is_none() && a.influence.is_none());
+    assert_eq!(a.uncertainty.analytic.kind, Some(antecedent_estimate::AnalyticSeKind::Multiway));
+    assert!(a.se_analytic().is_finite() && a.se_analytic() > 0.0 && a.joint.covariance.is_none());
+    assert!(a.scores.inference.is_none() && a.scores.influence.is_none());
 
     let again = run(&est, &raw, 5).unwrap();
     assert_eq!(a.ate.to_bits(), again.ate.to_bits());
@@ -991,4 +999,47 @@ fn the_cluster_covariance_diagonal_is_the_receipt_variance() {
         &spec.influence_covariance(&[&psi], &raw.cluster, Some(&shared)).unwrap_err(),
         "dyadic_dependence_not_licensed",
     );
+}
+
+#[test]
+fn clustered_posterior_mean_stays_near_the_cross_fitted_score() {
+    let raw = draw(24, 8, 5);
+    let fit = run(&declared(&raw, 10), &raw, 5).unwrap();
+    let t = table(&fit);
+    let mean = score_contrast_posterior(
+        t.column(0).unwrap(),
+        t.column(1).unwrap(),
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+        ScoreNamespace::Clustered,
+    )
+    .unwrap();
+    assert!((mean - fit.ate).abs() < 1e-6, "{mean} vs {}", fit.ate);
+}
+
+#[test]
+fn clustered_posterior_refuses_an_external_power_prior() {
+    let error = score_contrast_posterior(
+        &[0.0, 1.0],
+        &[1.0, 2.0],
+        PosteriorRequest::ExternalPower,
+        ScoreNamespace::Clustered,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("clustered_posterior.external_power_prior"), "{message}");
+}
+
+#[test]
+fn clustered_posterior_consumer_replays_the_shrunk_score_mean() {
+    let produced = score_contrast_posterior(
+        &[0.0, 1.0, 0.5],
+        &[1.0, 2.0, 2.5],
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        ScoreNamespace::Clustered,
+    )
+    .unwrap();
+    let mean = 4.0 / 3.0;
+    let variance = [1.0, 1.0, 2.0].iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / 2.0;
+    let weight = (3.0 / variance) / (3.0 / variance + 1.0);
+    assert!((produced - weight * mean).abs() < 1e-12);
 }

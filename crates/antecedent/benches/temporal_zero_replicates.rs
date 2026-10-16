@@ -10,7 +10,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(missing_docs, reason = "bench binaries are not public API")]
 
 use std::time::{Duration, Instant};
 
@@ -106,7 +106,7 @@ fn time_min(study: &Study, ctx: &ExecutionContext, repeats: usize) -> Duration {
         let started = Instant::now();
         let result = study.clone().run(ctx).unwrap();
         let elapsed = started.elapsed();
-        assert!(result.estimate.ate.is_finite());
+        assert!(result.estimate.as_effect().unwrap().ate.is_finite());
         best = best.min(elapsed);
     }
     best

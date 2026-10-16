@@ -6,8 +6,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -112,7 +110,7 @@ impl TemporalMediationIdentifier {
         // linear path-product and keep their refusal.
         let _premises = Self::adjustment_nodes(template, query)?;
         let temporal = self.identify_backdoor(template, query, horizon)?;
-        let adjustment = Self::mediation_adjustment(template, query, &temporal)?;
+        let adjustment = Self::mediation_adjustment(query, &temporal)?;
         let id = Self::mediation_result(query, horizon, &temporal, &adjustment)?;
         Ok((id, temporal))
     }
@@ -136,7 +134,6 @@ impl TemporalMediationIdentifier {
     /// Using one set in all three regressions keeps `Total = Direct + Mediated`
     /// exact in sample.
     fn mediation_adjustment(
-        template: &TemporalDag,
         query: &MediationQuery,
         temporal: &TemporalIdentificationResult,
     ) -> Result<MediationAdjustment, IdentificationError> {
@@ -145,8 +142,7 @@ impl TemporalMediationIdentifier {
                 "temporal mediation requires one mediator",
             ));
         };
-        let unfolded = template.unfold(temporal.indexer.clone())?;
-        let dag = &unfolded.dag;
+        let dag = &temporal.unfolded.dag;
         let dense = |key: TemporalNodeKey| {
             temporal
                 .indexer
@@ -226,10 +222,15 @@ impl TemporalMediationIdentifier {
             horizon_steps,
             max_history_lag: None,
             target_population: mediation.target_population.clone(),
+            effect_modifiers: std::sync::Arc::from([]),
         };
         self.temporal.identify_temporal(template, &te)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear identification pipeline whose stages share the prepared graph and workspace"
+    )]
     fn mediation_result(
         query: &MediationQuery,
         horizon: u32,
@@ -494,19 +495,31 @@ impl TemporalMediationIdentifier {
         }
         let indexer = antecedent_data::TemporalIndexer::new(variable_count, history, 1)
             .map_err(|e| IdentificationError::msg(e.to_string()))?;
-        let unfolded = template.unfold(indexer)?;
-        let dense = |key| {
-            unfolded
-                .indexer
-                .dense_id(key)
-                .map(antecedent_graph::DenseNodeId::from_raw)
-                .map_err(|e| IdentificationError::msg(e.to_string()))
-        };
+        let dense =
+            |key| indexer.dense_id(key).map_err(|e| IdentificationError::msg(e.to_string()));
         let t = dense(treatment)?;
         let m = dense(mediator_key)?;
         for &key in &adjustment {
             let z = dense(key)?;
-            if unfolded.dag.reaches(t, z) || unfolded.dag.reaches(m, z) {
+            let induced = t == z
+                || crate::temporal_window::reaches_in_window(
+                    template,
+                    treatment,
+                    key,
+                    variable_count,
+                    history,
+                    1,
+                )
+                || m == z
+                || crate::temporal_window::reaches_in_window(
+                    template,
+                    mediator_key,
+                    key,
+                    variable_count,
+                    history,
+                    1,
+                );
+            if induced {
                 return Err(IdentificationError::unsupported(
                     "treatment-induced mediation covariates require a larger path model",
                 ));

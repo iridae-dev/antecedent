@@ -36,14 +36,19 @@ from antecedent.discovery import (
 from antecedent.query import PulseEffect
 
 
-def _chain_series(n: int = 400):
-    """Lag-1 chain X -> Y -> Z; no direct X -> Z edge."""
-    t = np.arange(n, dtype=np.float64)
-    x = np.sin(t * 0.01)
+def _chain_series(n: int = 400, seed: int = 5):
+    """Lag-1 and contemporaneous chain X -> Y -> Z; no direct X -> Z edge.
+
+    Noise-driven, not a pair of smooth deterministic curves: a slowly varying sine and its
+    near-exact lagged copies make the lag-1 and lag-2 columns collinear to working precision,
+    and a conditional-independence test is rightly unable to decide on such a design.
+    """
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=n)
     y = np.zeros(n, dtype=np.float64)
     z = np.zeros(n, dtype=np.float64)
-    y[1:] = 0.8 * x[:-1] + 0.01 * np.cos(t[1:] * 0.03)
-    z[1:] = 0.8 * y[:-1] + 0.01 * np.sin(t[1:] * 0.05)
+    y[1:] = 0.8 * x[:-1] + 0.6 * x[1:] + 0.3 * rng.normal(size=n - 1)
+    z[1:] = 0.8 * y[:-1] + 0.6 * y[1:] + 0.3 * rng.normal(size=n - 1)
     return ["x", "y", "z"], [x, y, z]
 
 
@@ -182,8 +187,7 @@ def test_max_cond_size_reaches_analyze_temporal_discover_path():
     `run_temporal_discovery` (tested above) is the free-function dispatcher used by
     `AcceptedGraph` and GCM compose helpers; `analyze(..., discovery=...)` for
     PulseEffect/SustainedEffect goes through a completely separate call path
-    (`_handle_series_discover` -> `_native.analyze_temporal_discover`), so it needs its
-    own coverage — a prior bug had exactly this path silently ignoring `max_cond_size`
+    (the prepared-analysis compile route), so it needs its own coverage — a prior bug had exactly this path silently ignoring `max_cond_size`
     while `run_temporal_discovery` already forwarded it correctly.
 
     On the 5-variable system from `_pruned_conditioning_series`, capping PCMCI+'s

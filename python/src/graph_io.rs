@@ -10,102 +10,9 @@ use crate::*;
 use antecedent_graph::Dag;
 use pyo3::prelude::*;
 
-type DagWireTuple = (usize, Vec<(u32, u32)>);
-
-fn dag_to_wire_tuple(dag: &Dag) -> PyResult<DagWireTuple> {
-    let wire = antecedent_io::dag_to_wire(dag).map_err(py_err)?;
-    Ok((wire.node_count as usize, wire.edges))
-}
-
 fn dag_from_node_edges(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<Dag> {
     let wire = antecedent_io::DagWire { node_count, edges };
     antecedent_io::dag_from_wire(&wire).map_err(py_err)
-}
-
-fn parse_dag_to_wire_tuple<F, E>(parse: F) -> PyResult<DagWireTuple>
-where
-    F: FnOnce() -> Result<Dag, E>,
-    E: IntoCausalPyErr,
-{
-    catch_ffi(|| {
-        let dag = parse().map_err(py_err)?;
-        dag_to_wire_tuple(&dag)
-    })
-}
-
-fn emit_dag_from_wire<F, E>(node_count: u32, edges: Vec<(u32, u32)>, emit: F) -> PyResult<String>
-where
-    F: FnOnce(&Dag) -> Result<String, E>,
-    E: IntoCausalPyErr,
-{
-    catch_ffi(|| {
-        let dag = dag_from_node_edges(node_count, edges)?;
-        emit(&dag).map_err(py_err)
-    })
-}
-
-#[pyfunction]
-fn dag_from_dot(dot: &str) -> PyResult<DagWireTuple> {
-    parse_dag_to_wire_tuple(|| facade_dag_from_dot(dot))
-}
-
-/// Emit DOT for a numeric DAG given `node_count` and `edges`.
-#[pyfunction]
-fn dag_to_dot(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
-    emit_dag_from_wire(node_count, edges, |dag| facade_dag_to_dot(dag, None))
-}
-
-/// Parsed JSON DAG: `(node_count, edges, variable_names)`.
-type ParsedDagJson = (usize, Vec<(u32, u32)>, Option<Vec<String>>);
-
-/// Parse JSON DAG document; return `(node_count, edges, variable_names|None)`.
-#[pyfunction]
-fn dag_from_json(json: &str) -> PyResult<ParsedDagJson> {
-    catch_ffi(|| {
-        let doc = antecedent_io::dag_json_from_str(json).map_err(py_err)?;
-        let dag = antecedent_io::dag_from_wire(&doc.to_wire()).map_err(py_err)?;
-        let _ = dag;
-        Ok((doc.node_count as usize, doc.edges, doc.variable_names))
-    })
-}
-
-/// Emit JSON for a numeric DAG.
-#[pyfunction]
-fn dag_to_json(
-    node_count: u32,
-    edges: Vec<(u32, u32)>,
-    variable_names: Option<Vec<String>>,
-) -> PyResult<String> {
-    catch_ffi(|| {
-        let dag = dag_from_node_edges(node_count, edges)?;
-        facade_dag_to_json(&dag, variable_names.as_deref()).map_err(py_err)
-    })
-}
-
-/// Parse GML digraph text; return `(node_count, edges)`.
-#[pyfunction]
-fn dag_from_gml(gml: &str) -> PyResult<DagWireTuple> {
-    parse_dag_to_wire_tuple(|| antecedent::io::dag_from_gml(gml))
-}
-
-/// Emit GML for a numeric DAG.
-#[pyfunction]
-fn dag_to_gml(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
-    emit_dag_from_wire(node_count, edges, |dag| antecedent::io::dag_to_gml(dag, None))
-}
-
-/// Parse NetworkX node-link JSON; return `(node_count, edges)`.
-#[pyfunction]
-fn dag_from_networkx_node_link(json: &str) -> PyResult<DagWireTuple> {
-    parse_dag_to_wire_tuple(|| antecedent::io::dag_from_networkx_node_link(json))
-}
-
-/// Emit NetworkX node-link JSON for a numeric DAG.
-#[pyfunction]
-fn dag_to_networkx_node_link(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<String> {
-    emit_dag_from_wire(node_count, edges, |dag| {
-        antecedent::io::dag_to_networkx_node_link(dag, None)
-    })
 }
 
 /// Encode a minimal SCM model bundle (schema names + edges + mechanism slots).
@@ -191,35 +98,7 @@ fn decode_model_bundle(bytes: &[u8]) -> PyResult<ModelBundleSummary> {
     })
 }
 
-#[pyfunction]
-fn dag_from_networkx_adjacency(json: &str) -> PyResult<DagWireTuple> {
-    parse_dag_to_wire_tuple(|| facade_dag_from_networkx_adjacency(json))
-}
-
-/// Emit NetworkX adjacency JSON for a numeric DAG.
-#[pyfunction]
-fn dag_to_networkx_adjacency(
-    node_count: u32,
-    edges: Vec<(u32, u32)>,
-    variable_names: Option<Vec<String>>,
-) -> PyResult<String> {
-    catch_ffi(|| {
-        let dag = dag_from_node_edges(node_count, edges)?;
-        facade_dag_to_networkx_adjacency(&dag, variable_names.as_deref()).map_err(py_err)
-    })
-}
-
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(dag_from_dot, m)?)?;
-    m.add_function(wrap_pyfunction!(dag_to_dot, m)?)?;
-    m.add_function(wrap_pyfunction!(dag_from_json, m)?)?;
-    m.add_function(wrap_pyfunction!(dag_to_json, m)?)?;
-    m.add_function(wrap_pyfunction!(dag_from_gml, m)?)?;
-    m.add_function(wrap_pyfunction!(dag_to_gml, m)?)?;
-    m.add_function(wrap_pyfunction!(dag_from_networkx_node_link, m)?)?;
-    m.add_function(wrap_pyfunction!(dag_to_networkx_node_link, m)?)?;
-    m.add_function(wrap_pyfunction!(dag_from_networkx_adjacency, m)?)?;
-    m.add_function(wrap_pyfunction!(dag_to_networkx_adjacency, m)?)?;
     m.add_function(wrap_pyfunction!(encode_model_bundle, m)?)?;
     m.add_function(wrap_pyfunction!(decode_model_bundle, m)?)?;
     Ok(())

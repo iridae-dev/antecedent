@@ -1,0 +1,21 @@
+feature_id = "decision_reliability.selection_aware_evaluation"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "The Optimizer's Curse: Skepticism and Postdecision Surprise in Decision Analysis (Smith and Winkler, Management Science 52, 2006)", doi = "10.1287/mnsc.1050.0451", sections = ["upward bias of the maximum of noisy value estimates"] },
+  { title = "A note on data-splitting for the evaluation of significance levels (Cox, Biometrika 62, 1975)", doi = "10.1093/biomet/62.2.441", sections = ["selection on one part of the data and evaluation on the other"] },
+]
+implementation_deviations = [
+  "The winner's-curse bound is E[e_selected] <= E[max_j e_j] for Gaussian Monte Carlo errors with the estimated standard errors treated as known; the Gaussian expected maximum is exact quadrature and is used only for independent streams or when all pairwise sample covariances are nonnegative (Sudakov-Fernique), otherwise the dependence-free union bound s_max sqrt(2 ln N) is reported. It is an expectation over repetitions of the selection, not an interval for the realized one.",
+  "Candidates considered but not retained are assumed to carry the largest supplied standard error.",
+  "Sample splitting here splits draws of a simulated or posterior stream; it is not the data-splitting inference of the cited note and carries no significance-level guarantee.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/decision_reliability.rs",
+  "crates/antecedent/tests/decision_reliability_facade.rs",
+]

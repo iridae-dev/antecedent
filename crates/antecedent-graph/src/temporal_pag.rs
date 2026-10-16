@@ -13,7 +13,7 @@ use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// Temporal PAG: lagged nodes with ancestral-graph marks including circles.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TemporalPag {
     nodes: Vec<NodeRef>,
     adj: Vec<Vec<AdjEntry>>,
@@ -333,37 +333,43 @@ impl TemporalPag {
     /// View as static [`Pag`] for algorithms that only need adjacency/marks.
     ///
     /// Nodes keep their identity as [`NodeRef::Unfolded`] slots (`variable` at `-lag`), never
-    /// as schema variables — only for algorithm reuse.
-    #[must_use]
-    pub fn as_static_pag_for_alg(&self) -> Pag {
+    /// as schema variables — only for algorithm reuse. A projection the static PAG rejects
+    /// is an error, not an empty graph and not a graph that silently dropped the edge.
+    ///
+    /// # Errors
+    ///
+    /// A lag that does not fit a signed offset, or a node or edge the static PAG rejects.
+    pub fn as_static_pag_for_alg(&self) -> Result<Pag, GraphError> {
         let mut p = Pag::empty();
         for node in self.nodes() {
             let slot = match *node {
-                NodeRef::Lagged { variable, lag } => NodeRef::Unfolded {
-                    variable,
-                    offset: -i32::try_from(lag.raw()).expect("lag fits i32"),
-                },
+                NodeRef::Lagged { variable, lag } => {
+                    let magnitude =
+                        i32::try_from(lag.raw()).map_err(|_| GraphError::InvalidEndpoints {
+                            message: "lag does not fit a signed temporal offset",
+                        })?;
+                    NodeRef::Unfolded { variable, offset: -magnitude }
+                }
                 other => other,
             };
-            p.add_node(slot).expect("static-graph node");
+            p.add_node(slot)?;
         }
         for i in 0..self.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for e in &self.adj[i] {
                 if e.neighbor.raw() < a.raw() {
                     continue;
                 }
-                let edge = MarkedEdge {
+                p.insert_marked(MarkedEdge {
                     a,
                     b: e.neighbor,
                     at_a: e.at_self,
                     at_b: e.at_neighbor,
                     middle: e.middle,
-                };
-                let _ = p.insert_marked(edge);
+                })?;
             }
         }
-        p
+        Ok(p)
     }
 
     /// Convert to a [`TemporalDag`](crate::TemporalDag) when every edge is definite-directed (no circles,
@@ -375,7 +381,7 @@ impl TemporalPag {
     pub fn try_into_temporal_dag(&self) -> Result<crate::TemporalDag, GraphError> {
         use crate::TemporalDag;
         for i in 0..self.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for e in &self.adj[i] {
                 if e.neighbor.raw() < a.raw() {
                     continue;
@@ -399,8 +405,9 @@ impl TemporalPag {
         for node in &self.nodes {
             dag.add_node(*node)?;
         }
+        let mut directed = Vec::new();
         for i in 0..self.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for e in &self.adj[i] {
                 if e.neighbor.raw() < a.raw() {
                     continue;
@@ -413,10 +420,11 @@ impl TemporalPag {
                     middle: e.middle,
                 };
                 if let Some((from, to)) = edge.parent_child() {
-                    dag.insert_directed(from, to)?;
+                    directed.push((from, to));
                 }
             }
         }
+        dag.insert_directed_edges(&directed)?;
         Ok(dag)
     }
 
@@ -432,7 +440,7 @@ impl TemporalPag {
         max_paths: usize,
         max_len: usize,
     ) -> Result<crate::pag::DefiniteStatusPathSearch, GraphError> {
-        self.as_static_pag_for_alg().definite_status_paths(x, y, max_paths, max_len)
+        self.as_static_pag_for_alg()?.definite_status_paths(x, y, max_paths, max_len)
     }
 }
 
@@ -529,7 +537,7 @@ impl TemporalPagReview {
     pub fn from_pag(graph: TemporalPag, algorithm: impl Into<Arc<str>>) -> Self {
         let mut pending = Vec::new();
         for i in 0..graph.node_count() {
-            let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+            let a = DenseNodeId::from_index(i);
             for (b, at_a, at_b) in graph.neighbors(a) {
                 if b.raw() < a.raw() {
                     continue;

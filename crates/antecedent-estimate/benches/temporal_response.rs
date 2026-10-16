@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -182,7 +185,10 @@ fn wide_bayesian_series(
     (data, query, estimand, indexer)
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one benchmark group declaring every case and its budget in sequence"
+)]
 fn bench_temporal_response(c: &mut Criterion) {
     // Soft budgets (temporal_response.md); 2× headroom for gate `--test` noise on the
     // optimized `cargo bench` profile. This crate is not one of the `[profile.dev.package.*]`
@@ -209,10 +215,12 @@ fn bench_temporal_response(c: &mut Criterion) {
         let response = TemporalResponseEstimator::new()
             .estimate_bayesian(
                 &data,
-                &[(&estimand, &indexer); 6],
+                antecedent_estimate::TemporalIdentification {
+                    horizons: &[(&estimand, &indexer); 6],
+                    status: IdentificationStatus::NonparametricallyIdentified,
+                    assumptions: AssumptionSet::new(),
+                },
                 &query,
-                IdentificationStatus::NonparametricallyIdentified,
-                AssumptionSet::new(),
                 &bayes,
                 &ctx,
             )
@@ -257,15 +265,19 @@ fn bench_temporal_response(c: &mut Criterion) {
             b.iter(|| {
                 let (effect, posterior) =
                     antecedent_estimate::temporal_sequential::estimate_sustained_window(
-                        &data,
-                        &graph,
-                        &identification.indexer,
-                        &identification.result.estimands[0],
+                        &antecedent_estimate::temporal_sequential::SequentialProblem {
+                            data: &data,
+                            graph: &graph,
+                            indexer: &identification.indexer,
+                            estimand: &identification.result.estimands[0],
+                        },
                         &query,
-                        identification.result.status,
-                        identification.result.required_assumptions.clone(),
-                        if bayesian { 0 } else { 20 },
-                        bayesian.then_some(&est),
+                        antecedent_estimate::temporal_sequential::SequentialInference {
+                            status: identification.result.status,
+                            assumptions: identification.result.required_assumptions.clone(),
+                            bootstrap_replicates: if bayesian { 0 } else { 20 },
+                            bayesian: bayesian.then_some(&est),
+                        },
                         &ctx,
                     )
                     .unwrap();
@@ -288,10 +300,12 @@ fn bench_temporal_response(c: &mut Criterion) {
             let response = est
                 .estimate_bayesian(
                     &data,
-                    &[(&estimand, &indexer)],
+                    antecedent_estimate::TemporalIdentification {
+                        horizons: &[(&estimand, &indexer)],
+                        status: IdentificationStatus::NonparametricallyIdentified,
+                        assumptions: AssumptionSet::new(),
+                    },
                     &query,
-                    IdentificationStatus::NonparametricallyIdentified,
-                    AssumptionSet::new(),
                     &bayes,
                     &ctx,
                 )
@@ -319,10 +333,12 @@ fn bench_temporal_response(c: &mut Criterion) {
             let response = est
                 .estimate_bayesian(
                     &data,
-                    &[(&estimand, &indexer); 6],
+                    antecedent_estimate::TemporalIdentification {
+                        horizons: &[(&estimand, &indexer); 6],
+                        status: IdentificationStatus::NonparametricallyIdentified,
+                        assumptions: AssumptionSet::new(),
+                    },
                     &query,
-                    IdentificationStatus::NonparametricallyIdentified,
-                    AssumptionSet::new(),
                     &bayes,
                     &ctx,
                 )

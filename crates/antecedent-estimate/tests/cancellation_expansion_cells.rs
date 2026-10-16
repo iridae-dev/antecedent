@@ -1,4 +1,4 @@
-//! Cancellation of the 2.2 E-cells that loop (cost and cancellation checks): a context
+//! Cancellation of the estimation cells that loop (cost and cancellation checks): a context
 //! cancelled before the call yields the cell's typed cancellation refusal and no partial
 //! result, a context tripped in the middle of the bounded loop is observed at that loop's
 //! granularity, and the same inputs complete under a live context.
@@ -214,7 +214,7 @@ fn penalized_aipw_stops_at_a_penalty_without_a_partial_estimate() {
         assert_cancelled(&error, "cancelled_no_claim", "penalized_propensity.cancelled");
     }
     let done = fit(&est, &raw, &ExecutionContext::for_tests(5)).unwrap();
-    assert!(done.ate.is_finite() && done.score_table.is_some());
+    assert!(done.ate.is_finite() && done.scores.table.is_some());
 }
 
 fn one_way(raw: &Raw) -> AipwAte {
@@ -249,7 +249,7 @@ fn clustered_dml_stops_at_a_fold_without_a_partial_estimate() {
             assert_cancelled(&error, "cancelled_no_claim", "cluster_dml.cancelled");
         }
         let done = fit(&est, raw, &ExecutionContext::for_tests(5)).unwrap();
-        assert!(done.ate.is_finite() && done.score_table.is_some(), "{name}");
+        assert!(done.ate.is_finite() && done.scores.table.is_some(), "{name}");
     }
 }
 
@@ -439,8 +439,8 @@ fn penalized_selection_polls_equal_the_planned_penalty_candidates() {
         let est = AipwAte { bootstrap_replicates: 0, propensity, ..AipwAte::new() };
         assert_eq!(est.propensity.planned_fits_per_fold(), 3 * (3 + 1), "{name}");
         let done = fit(&est, &raw, &ExecutionContext::for_tests(5)).unwrap();
-        let folds = done.crossfit_folds.expect("a cross-fitted route records its folds");
-        assert_eq!(done.learner_provenance.len(), folds, "{name}: one selection per fold");
+        let folds = done.crossfit.folds.expect("a cross-fitted route records its folds");
+        assert_eq!(done.crossfit.learner_provenance.len(), folds, "{name}: one selection per fold");
         let planned_candidates = folds as u64 * tuning.planned_penalties();
         let measured = polls(|ctx| fit(&est, &raw, ctx));
         assert_eq!(measured as u64, planned_candidates, "{name}");
@@ -455,7 +455,7 @@ fn clustered_dml_polls_equal_the_planned_folds() {
     let two = draw_two_way(30, 3, 4, 4);
     for (est, raw) in [(one_way(&one), &one), (two_way(&two), &two)] {
         let done = fit(&est, raw, &ExecutionContext::for_tests(5)).unwrap();
-        let folds = done.crossfit_folds.expect("a cross-fitted route records its folds");
+        let folds = done.crossfit.folds.expect("a cross-fitted route records its folds");
         assert_eq!(polls(|ctx| fit(&est, raw, ctx)), folds);
     }
 }
@@ -541,7 +541,7 @@ fn plain_aipw_stops_at_a_fold_and_polling_changes_no_number() {
     let raw = draw(40, 6, 8);
     let est = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
     let live = fit(&est, &raw, &ExecutionContext::for_tests(5)).unwrap();
-    let folds = live.score_table.as_ref().map(|t| t.n_folds as usize).unwrap();
+    let folds = live.scores.table.as_ref().map(|t| t.n_folds as usize).unwrap();
     let error = fit(&est, &raw, &pre_cancelled()).unwrap_err();
     assert_cancelled(&error, "cancelled_no_claim", "aipw.cancelled");
     for checks in 0..folds {
@@ -551,5 +551,5 @@ fn plain_aipw_stops_at_a_fold_and_polling_changes_no_number() {
     assert_eq!(polls(|ctx| fit(&est, &raw, ctx)), folds);
     let spared = fit(&est, &raw, &tripping(folds)).unwrap();
     assert_eq!(spared.ate.to_bits(), live.ate.to_bits());
-    assert_eq!(spared.score_table, live.score_table);
+    assert_eq!(spared.scores.table, live.scores.table);
 }

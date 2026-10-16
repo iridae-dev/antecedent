@@ -75,7 +75,7 @@ impl TransportQuery {
     /// Compatibility catalog: supplied catalog, or one synthesized regime per
     /// listed source experiment.
     #[must_use]
-    pub fn compatibility_catalog(&self) -> EvidenceCatalog {
+    fn compatibility_catalog(&self) -> EvidenceCatalog {
         self.catalog.clone().unwrap_or_else(|| {
             EvidenceCatalog::from_source_experiments(
                 Arc::clone(&self.source_population),

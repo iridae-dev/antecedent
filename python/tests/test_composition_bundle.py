@@ -1,4 +1,4 @@
-"""C3: the portable composed result built, exported and consumed from Python.
+"""The portable composed result built, exported and consumed from Python.
 
 The decision fixture is the enumerated one of ``test_decision.py``: four equally
 likely rows, ``risky = E[P * Q] = 2`` and ``safe = max(3, 0) = 3``. The point-only
@@ -130,7 +130,7 @@ def _failed_stage(consumed: cb.ConsumedBundle, node_id: str) -> str:
 # ------------------------------------------------------------------------- tests
 
 
-def test_c3_python_built_bundle_is_consumed_in_process_and_reports_the_decision() -> None:
+def test_python_built_bundle_is_consumed_in_process_and_reports_the_decision() -> None:
     bundle = _joint_bundle()
     assert len(bundle.identity) == IDENTITY_LEN
     assert {n.id: n.kind for n in bundle.nodes} == {
@@ -162,7 +162,7 @@ def test_c3_python_built_bundle_is_consumed_in_process_and_reports_the_decision(
     assert cb.detect_kind(b"not a container") is None
 
 
-def test_c3_fresh_interpreter_consumes_the_exported_bundle(tmp_path: Path) -> None:
+def test_fresh_interpreter_consumes_the_exported_bundle(tmp_path: Path) -> None:
     bundle = _joint_bundle()
     path = tmp_path / "bundle.bin"
     path.write_bytes(bundle.export())
@@ -202,7 +202,7 @@ def test_c3_fresh_interpreter_consumes_the_exported_bundle(tmp_path: Path) -> No
     assert "expected_identity_mismatch" in refused.stderr
 
 
-def test_c3_order_invariance_and_deterministic_derived_ids() -> None:
+def test_order_invariance_and_deterministic_derived_ids() -> None:
     parts = _joint_bytes()
     forward = _joint_builder(parts).build()
     reverse = _joint_builder(parts, reverse=True).build()
@@ -269,7 +269,7 @@ def _cycle() -> None:
         ),
     ],
 )
-def test_c3_container_and_graph_refusals_are_typed_with_registered_codes(
+def test_container_and_graph_refusals_are_typed_with_registered_codes(
     case: Callable[[], None], refusal: type[cb.CompositionBundleRefusal], stage: str, code: str
 ) -> None:
     with pytest.raises(refusal) as caught:
@@ -282,7 +282,7 @@ def test_c3_container_and_graph_refusals_are_typed_with_registered_codes(
     assert_registered_refusal(error)
 
 
-def test_c3_tamper_table_names_the_failed_stage_on_the_dependent_node() -> None:
+def test_tamper_table_names_the_failed_stage_on_the_dependent_node() -> None:
     parts = _joint_bytes()
 
     # A quantity swapped upstream: the result was computed from other coordinates.
@@ -321,7 +321,7 @@ def test_c3_tamper_table_names_the_failed_stage_on_the_dependent_node() -> None:
     assert _failed_stage(_consume(alone.build()), "result") == "tampered_quantity"
 
 
-def test_c3_joint_requirement_over_a_mean_only_claim_is_unsupported_law() -> None:
+def test_joint_requirement_over_a_mean_only_claim_is_unsupported_law() -> None:
     parts = _joint_bytes()
     claim = _claim(snapshot="enumeration-1")
     builder = _joint_builder(parts).add_artifact("external_claim", claim, node_id="claim")
@@ -335,7 +335,7 @@ def test_c3_joint_requirement_over_a_mean_only_claim_is_unsupported_law() -> Non
     assert refused.value.detail == "composition_bundle.unsupported_law"
 
 
-def test_c3_external_mean_decision_is_exportable_as_a_point_only_attested_result() -> None:
+def test_external_mean_decision_is_exportable_as_a_point_only_attested_result() -> None:
     claim = _claim()
     contract = _mean_contract(claim)
     result = cb.mean_decision(contract, claim)
@@ -392,7 +392,7 @@ def test_c3_external_mean_decision_is_exportable_as_a_point_only_attested_result
     assert_registered_refusal(insufficient.value)
 
 
-def test_c3_swapped_evidence_fails_the_declared_relationship() -> None:
+def test_swapped_evidence_fails_the_declared_relationship() -> None:
     first = _claim(request="req-a", evidence="factor:z")
 
     def build(second: external.BoundExternalClaim) -> cb.ConsumedBundle:
@@ -410,7 +410,7 @@ def test_c3_swapped_evidence_fails_the_declared_relationship() -> None:
         overlapping.require_verified()
 
 
-def test_c3_reference_nodes_are_unresolved_then_resolved_and_keep_the_inspected_result() -> None:
+def test_reference_nodes_are_unresolved_then_resolved_and_keep_the_inspected_result() -> None:
     parts = _joint_bytes()
     builder = _joint_builder(parts)
     builder.add_reference(
@@ -448,7 +448,7 @@ def test_c3_reference_nodes_are_unresolved_then_resolved_and_keep_the_inspected_
     assert _failed_stage(wrong, "causal") == "graph_or_snapshot_mismatch"
 
 
-def test_c3_changed_provider_request_fails_the_supplied_reference() -> None:
+def test_changed_provider_request_fails_the_supplied_reference() -> None:
     builder = cb.Bundle.builder()
     builder.add_reference(
         "provider",
@@ -468,7 +468,7 @@ def test_c3_changed_provider_request_fails_the_supplied_reference() -> None:
         changed.require_verified()
 
 
-def test_c3_describe_reports_facts_read_from_the_decoded_artifact() -> None:
+def test_describe_reports_facts_read_from_the_decoded_artifact() -> None:
     claim = _claim()
     described = cb.describe_artifact("external_claim", claim)
     assert described.kind == "external_claim"

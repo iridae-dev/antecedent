@@ -1,6 +1,6 @@
-# Penalized propensity for AIPW (2.2 E2)
+# Penalized propensity for AIPW
 
-The tuning grid accepts at most 64 penalty candidates and at most 20 inner folds.
+The tuning grid accepts at most {{bound:estimate.penalized_propensity_aipw.max_grid}} penalty candidates and at most {{bound:estimate.penalized_propensity_aipw.max_inner_folds}} inner folds.
 
 `Aipw(propensity_penalty=PropensityPenalty(...))` (Rust:
 `AipwAte::with_propensity_nuisance(PropensityNuisance::ridge_logistic(..))` or
@@ -12,7 +12,7 @@ table, and two interval constructions whose assumptions are stated below: the cr
 influence-function SE of the out-of-fold scores, and (with `bootstrap > 0`) a refit bootstrap
 that repeats penalty selection and every nuisance fit on each resample. A declared
 GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. The
-record is `2.2E.E2.penalized_propensity_aipw` in `parity/promotion_2_2.toml`; its claim is
+record is `estimate.penalized_propensity_aipw` in `parity/promotion.toml`; its claim is
 `calibrated` at the four measured ridge/lasso 95% analytic and refit-bootstrap coordinates (see "Calibration").
 
 ```python
@@ -73,8 +73,8 @@ coverage records.
 - **Preserved.** The score table (scores, out-of-fold propensities, fold ids, row identity,
   adjustment set), the overlap report and clip, and retargeting, including the retarget
   covariance (a penalized table retargets exactly like an unpenalized one). The
-  configuration is part of the estimator identity (`canonical_key`, hashed with
-  `canonical_bytes`) and of the score table's provenance, so a different grid, fold count or
+  configuration is part of the estimator identity (`canonical_key`, digested by
+  `identity_digest`) and of the score table's provenance, so a different grid, fold count or
   fallback never shares a score-reuse identity or a batch nuisance fit; penalized fits are
   never served from the shared nuisance cache. The calibration key's functional label carries
   the nuisance (`...+propensity=ridge_logistic:k5:g...`), so an interval measured under one
@@ -174,7 +174,7 @@ otherwise no SE). A replicate that cannot be fit (a fold missing an arm, a faile
 boundary propensity) is counted as failed, never replaced; a cancelled run is reported as a
 stop (`bootstrap_cancelled`) and publishes no SE from the partial run.
 
-What is recorded beside the scalar (`EffectEstimate::penalized`, Python
+What is recorded beside the scalar (`EffectEstimate.diagnostics.penalized`, Python
 `estimate.penalized_bootstrap`): the replicates requested, successful and failed; the penalty
 every successful replicate selected on each of its folds, in replicate order (so the record
 replays from the seed under any thread count); and the cross-fitted influence-function SE for
@@ -236,7 +236,7 @@ advance and triggered only by a fit failure.
 
 | code | detail | when |
 | --- | --- | --- |
-| `invalid_argument` | `penalized_propensity.invalid_penalty` | empty or oversized grid, non-positive or non-finite penalty, inner folds outside 2 to 20 |
+| `invalid_argument` | `penalized_propensity.invalid_penalty` | empty or oversized grid, non-positive or non-finite penalty, inner folds outside 2 to {{bound:estimate.penalized_propensity_aipw.max_inner_folds}} |
 | `invalid_argument` | `penalized_propensity.fallback_with_penalty` | a fallback declared beside a penalized primary |
 | `route_not_supported` | `penalized_propensity.scope` | a ridge penalty with a non-mean functional, a population other than `AllObserved`, or trimming |
 | `selection_inference_not_licensed` | `penalized_propensity.selection_closed` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |
@@ -273,3 +273,5 @@ guard, not a record.
 No coverage record licenses the fallback interval. The estimate is a point under the identification assumptions of the
 AIPW average effect plus consistency of the penalized and OLS nuisances; none of that, and not
 (RC), is checked by the library.
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

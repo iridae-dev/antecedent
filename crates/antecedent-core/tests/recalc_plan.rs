@@ -1,4 +1,4 @@
-//! 2.3 C2 stage model: data-driven mutation tables for `RecalcPlan`.
+//! Stage model: data-driven mutation tables for `RecalcPlan`.
 //!
 //! Each mutation asserts the complete per-stage status table (stage label and status), that
 //! every reused stage keeps an identical effective identity, and that every in-process
@@ -9,8 +9,9 @@ use std::collections::BTreeMap;
 
 use antecedent_core::reason_code::is_registered;
 use antecedent_core::recalc::{
-    Boundary, Branch, ChangedDependency, MissingDependency, RecalcCapabilities, RecalcPlan,
-    RefusalReason, RequestSupport, ResumeContext, RetargetSupport, Stage, StageIdentities,
+    Boundary, Branch, CalibrationInput, ChangedDependency, CouplingInput, MissingDependency,
+    ProviderStandingInput, RecalcCapabilities, RecalcPlan, RefusalReason, RepresentationInput,
+    RequestSupport, ResumeContext, RetargetSupport, Revalidation, Stage, StageIdentities,
     StageIdentity, StageStatus,
 };
 
@@ -132,7 +133,7 @@ fn assert_reused_keep_identity(base: &RecalcPlan, plan: &RecalcPlan) {
 }
 
 #[test]
-fn c2_recalc_unchanged_request_reuses_every_stage() {
+fn recalc_unchanged_request_reuses_every_stage() {
     let v = full_versions();
     let plan = run(&v, &v, &licensed());
     assert_eq!(table(&plan), expected(&v, &[]));
@@ -141,7 +142,7 @@ fn c2_recalc_unchanged_request_reuses_every_stage() {
 }
 
 #[test]
-fn c2_recalc_first_request_has_nothing_to_reuse() {
+fn recalc_first_request_has_nothing_to_reuse() {
     let v = native_versions();
     let plan = RecalcPlan::plan(&StageIdentities::new(), &identities(&v), &licensed());
     assert!(plan.reused().is_empty());
@@ -280,7 +281,7 @@ fn input_cases() -> Vec<MutationCase> {
 }
 
 #[test]
-fn c2_recalc_mutation_tables_are_exact() {
+fn recalc_mutation_tables_are_exact() {
     let mut cases = target_cases();
     cases.extend(input_cases());
     for (name, stage, caps, overrides) in cases {
@@ -347,7 +348,7 @@ fn reidentify_overrides(stage: Stage, label: &'static str) -> Vec<(Stage, &'stat
 }
 
 #[test]
-fn c2_recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
+fn recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
     let base = full_versions();
     let changed = bump(&base, Stage::Evidence);
     let plan = run(&base, &changed, &licensed());
@@ -367,7 +368,7 @@ fn c2_recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
 }
 
 #[test]
-fn c2_recalc_external_requests_and_priors_bind_the_full_causal_request() {
+fn recalc_external_requests_and_priors_bind_the_full_causal_request() {
     let base = full_versions();
     let before = run(&base, &base, &licensed());
     for input in [
@@ -399,7 +400,7 @@ fn c2_recalc_external_requests_and_priors_bind_the_full_causal_request() {
 }
 
 #[test]
-fn c2_recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data() {
+fn recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data() {
     let base = native_versions();
     let resume = ResumeContext {
         portable_scores: true,
@@ -425,7 +426,7 @@ fn c2_recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data()
 }
 
 #[test]
-fn c2_recalc_external_study_change_leaves_unrelated_branches_identical() {
+fn recalc_external_study_change_leaves_unrelated_branches_identical() {
     let base = full_versions();
     let base_plan = run(&base, &base, &licensed());
     let changed = bump(&base, Stage::ExternalStudy(b(0)));
@@ -463,7 +464,7 @@ fn c2_recalc_external_study_change_leaves_unrelated_branches_identical() {
 }
 
 #[test]
-fn c2_recalc_added_and_removed_external_studies_reach_only_the_decision() {
+fn recalc_added_and_removed_external_studies_reach_only_the_decision() {
     let base = full_versions();
     let mut without = base.clone();
     for stage in [Stage::ExternalStudy(b(1)), Stage::ProviderRequest(b(1)), Stage::Prior(b(1))] {
@@ -484,7 +485,7 @@ fn c2_recalc_added_and_removed_external_studies_reach_only_the_decision() {
 }
 
 #[test]
-fn c2_recalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route() {
+fn recalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route() {
     let base = full_versions();
     let cases = [
         (
@@ -535,7 +536,7 @@ fn c2_recalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route()
 }
 
 #[test]
-fn c2_recalc_every_refusal_detail_is_a_namespaced_literal_with_a_registered_code() {
+fn recalc_every_refusal_detail_is_a_namespaced_literal_with_a_registered_code() {
     let reasons = [
         RefusalReason::Unavailable { missing: MissingDependency::Fit },
         RefusalReason::Unavailable { missing: MissingDependency::Data },
@@ -559,7 +560,7 @@ fn fresh(retarget: RetargetSupport, resume: ResumeContext) -> RecalcCapabilities
 }
 
 #[test]
-fn c2_recalc_an_ordinary_loaded_result_never_claims_reuse_of_a_derived_stage() {
+fn recalc_an_ordinary_loaded_result_never_claims_reuse_of_a_derived_stage() {
     let v = full_versions();
     let caps = fresh(RetargetSupport::Licensed, ResumeContext::default());
     let plan = run(&v, &v, &caps);
@@ -589,7 +590,7 @@ fn c2_recalc_an_ordinary_loaded_result_never_claims_reuse_of_a_derived_stage() {
 }
 
 #[test]
-fn c2_recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_the_decision() {
+fn recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_the_decision() {
     let v = full_versions();
     let resume = ResumeContext { supplied_data: true, ..ResumeContext::default() };
     let plan = run(&v, &v, &fresh(RetargetSupport::Licensed, resume));
@@ -622,7 +623,7 @@ fn c2_recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_
 }
 
 #[test]
-fn c2_recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_decision() {
+fn recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_decision() {
     let v = native_versions();
     let resume = ResumeContext { portable_scores: true, ..ResumeContext::default() };
     let plan = run(&v, &v, &fresh(RetargetSupport::Licensed, resume));
@@ -664,7 +665,7 @@ fn c2_recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_deci
 }
 
 #[test]
-fn c2_recalc_missing_fit_and_snapshot_name_the_specific_dependency() {
+fn recalc_missing_fit_and_snapshot_name_the_specific_dependency() {
     let v = native_versions();
     let cases = [
         (ResumeContext::default(), MissingDependency::Fit),
@@ -694,7 +695,7 @@ fn c2_recalc_missing_fit_and_snapshot_name_the_specific_dependency() {
 }
 
 #[test]
-fn c2_recalc_identity_is_canonical_and_order_independent() {
+fn recalc_identity_is_canonical_and_order_independent() {
     assert_ne!(StageIdentity::of("x", &[b"ab", b"c"]), StageIdentity::of("x", &[b"a", b"bc"]));
     assert_ne!(StageIdentity::of("x", &[b"a"]), StageIdentity::of("y", &[b"a"]));
     assert!(!StageIdentity::of("x", &[]).is_absent());
@@ -722,10 +723,228 @@ fn c2_recalc_identity_is_canonical_and_order_independent() {
 }
 
 #[test]
-fn c2_recalc_branch_indices_are_bounded() {
+fn recalc_branch_indices_are_bounded() {
     assert!(Branch::new(0).is_some());
     assert!(Branch::new(antecedent_core::recalc::MAX_EXTERNAL_BRANCHES).is_none());
     assert_eq!(Branch::new(3).unwrap().index(), 3);
     let boundary = Boundary::InProcess;
     assert_eq!(licensed().boundary, boundary);
+}
+
+/// Native branch plus one declared standing input of each kind and two providers.
+fn standing_versions() -> Versions {
+    let mut v = full_versions();
+    for stage in [
+        Stage::Calibration,
+        Stage::Representation,
+        Stage::Coupling,
+        Stage::ProviderStanding(b(0)),
+        Stage::ProviderStanding(b(1)),
+    ] {
+        v.insert(stage, "v1".to_string());
+    }
+    v
+}
+
+fn classes(plan: &RecalcPlan) -> BTreeMap<String, Revalidation> {
+    plan.entries().iter().map(|e| (e.stage.label(), e.status.revalidation())).collect()
+}
+
+fn with_class(plan: &RecalcPlan, class: Revalidation) -> Vec<String> {
+    classes(plan).into_iter().filter(|(_, c)| *c == class).map(|(s, _)| s).collect()
+}
+
+#[test]
+fn undeclared_standing_inputs_do_not_reseal_existing_identities() {
+    let ids = identities(&full_versions());
+    let effective = ids.effective(RetargetSupport::Licensed);
+    // Oracle: the law's identity is the digest of its label, own digest and exactly the two
+    // dependencies a workflow without standing inputs always had.
+    let score = effective[&Stage::ScoreArtifact];
+    let target = effective[&Stage::TargetPopulation];
+    let law_own = ids.own(Stage::Law);
+    let by_hand = StageIdentity::of(
+        "law",
+        &[
+            law_own.as_bytes(),
+            b"score_artifact",
+            score.as_bytes(),
+            b"target_population",
+            target.as_bytes(),
+        ],
+    );
+    assert_eq!(effective[&Stage::Law], by_hand);
+    // Declaring the standing input is a visible, deliberate change of the identity.
+    let mut declared = ids.clone();
+    declared.set_calibration(&CalibrationInput::PointOnly);
+    let after = declared.effective(RetargetSupport::Licensed);
+    assert_ne!(after[&Stage::Law], effective[&Stage::Law]);
+    assert_ne!(after[&Stage::Decision], effective[&Stage::Decision]);
+    assert_eq!(after[&Stage::Identification], effective[&Stage::Identification]);
+    assert_eq!(after[&Stage::ScoreArtifact], effective[&Stage::ScoreArtifact]);
+}
+
+#[test]
+fn a_changed_calibration_record_recomputes_law_and_decision_only() {
+    let prev = standing_versions();
+    let req = bump(&prev, Stage::Calibration);
+    let plan = run(&prev, &req, &licensed());
+    assert_eq!(
+        table(&plan),
+        expected(
+            &req,
+            &[
+                (Stage::Calibration, "recomputed(own:calibration:modified)"),
+                (Stage::Law, "recomputed(upstream:calibration<-calibration:modified)"),
+                (Stage::Decision, "recomputed(upstream:law<-calibration:modified)"),
+            ]
+        )
+    );
+    assert_identity_consistency(&prev, &req, &licensed(), &plan);
+    // the siblings that do not read the calibration keep their license
+    for stage in [Stage::Identification, Stage::ScoreArtifact, Stage::Prior(b(0))] {
+        assert_eq!(plan.revalidation(stage), Some(Revalidation::StillValid), "{stage}");
+    }
+    assert_eq!(plan.revalidation(Stage::Law), Some(Revalidation::Recompute));
+}
+
+#[test]
+fn a_calibration_record_that_is_gone_withdraws_what_rested_on_it() {
+    let prev = standing_versions();
+    let mut req = prev.clone();
+    req.remove(&Stage::Calibration);
+    let plan = run(&prev, &req, &licensed());
+    assert_eq!(plan.status(Stage::Calibration), None);
+    assert_eq!(
+        plan.status(Stage::Law).map(ToString::to_string).as_deref(),
+        Some("recomputed(upstream:calibration<-calibration:removed)")
+    );
+    assert_eq!(with_class(&plan, Revalidation::Withdrawn), vec!["decision", "law"]);
+    assert_eq!(plan.revalidation(Stage::ScoreArtifact), Some(Revalidation::StillValid));
+    // a numerical change of the same record is not a withdrawal
+    let changed = run(&prev, &bump(&prev, Stage::Calibration), &licensed());
+    assert!(with_class(&changed, Revalidation::Withdrawn).is_empty());
+}
+
+#[test]
+fn a_representation_version_change_flows_through_scores_law_and_decision() {
+    let prev = standing_versions();
+    let req = bump(&prev, Stage::Representation);
+    let plan = run(&prev, &req, &licensed());
+    assert_eq!(
+        table(&plan),
+        expected(
+            &req,
+            &[
+                (Stage::Representation, "recomputed(own:representation:modified)"),
+                (
+                    Stage::ScoreArtifact,
+                    "recomputed(upstream:representation<-representation:modified)"
+                ),
+                (Stage::Law, "recomputed(upstream:score_artifact<-representation:modified)"),
+                (Stage::Decision, "recomputed(upstream:law<-representation:modified)"),
+            ]
+        )
+    );
+    assert_identity_consistency(&prev, &req, &licensed(), &plan);
+    assert_eq!(plan.revalidation(Stage::Identification), Some(Revalidation::StillValid));
+}
+
+#[test]
+fn a_provider_standing_change_reaches_only_that_provider_and_the_decision() {
+    let prev = standing_versions();
+    let req = bump(&prev, Stage::ProviderStanding(b(0)));
+    let plan = run(&prev, &req, &licensed());
+    assert_eq!(
+        table(&plan),
+        expected(
+            &req,
+            &[
+                (Stage::ProviderStanding(b(0)), "recomputed(own:provider_standing.0:modified)"),
+                (
+                    Stage::ProviderRequest(b(0)),
+                    "recomputed(upstream:provider_standing.0<-provider_standing.0:modified)"
+                ),
+                (
+                    Stage::Prior(b(0)),
+                    "recomputed(upstream:provider_standing.0<-provider_standing.0:modified)"
+                ),
+                (Stage::Decision, "recomputed(upstream:prior.0<-provider_standing.0:modified)"),
+            ]
+        )
+    );
+    assert_identity_consistency(&prev, &req, &licensed(), &plan);
+    assert_eq!(plan.revalidation(Stage::ProviderRequest(b(1))), Some(Revalidation::StillValid));
+    assert_eq!(plan.revalidation(Stage::Law), Some(Revalidation::StillValid));
+}
+
+#[test]
+fn a_coupling_change_recomputes_law_and_decision() {
+    let prev = standing_versions();
+    let req = bump(&prev, Stage::Coupling);
+    let plan = run(&prev, &req, &licensed());
+    assert_eq!(plan.revalidation(Stage::Law), Some(Revalidation::Recompute));
+    assert_eq!(plan.revalidation(Stage::Decision), Some(Revalidation::Recompute));
+    assert_eq!(plan.revalidation(Stage::ScoreArtifact), Some(Revalidation::StillValid));
+    assert_eq!(plan.revalidation(Stage::Calibration), Some(Revalidation::StillValid));
+}
+
+#[test]
+fn refused_and_fresh_process_statuses_classify_in_the_same_vocabulary() {
+    let prev = standing_versions();
+    let caps =
+        RecalcCapabilities::fresh_process(RetargetSupport::Licensed, ResumeContext::default());
+    let plan = RecalcPlan::plan(&identities(&prev), &identities(&prev), &caps);
+    // nothing was supplied: the provider requests are refused, which is a withdrawal; a derived
+    // stage that merely does not exist in this process recomputes
+    assert_eq!(plan.revalidation(Stage::ProviderRequest(b(0))), Some(Revalidation::Withdrawn));
+    assert_eq!(plan.revalidation(Stage::Graph), Some(Revalidation::StillValid));
+    assert_eq!(Revalidation::from_name("withdrawn"), Some(Revalidation::Withdrawn));
+    assert_eq!(Revalidation::StillValid.worst(Revalidation::Recompute), Revalidation::Recompute);
+    let id = StageIdentity::of("x", &[b"a"]);
+    assert_eq!(id.revalidation_since(Some(id)), Revalidation::StillValid);
+    assert_eq!(id.revalidation_since(None), Revalidation::Recompute);
+    assert_eq!(
+        id.revalidation_since(Some(StageIdentity::of("x", &[b"b"]))),
+        Revalidation::Recompute
+    );
+}
+
+#[test]
+fn standing_input_identities_are_typed_and_domain_separated() {
+    let a = StageIdentity::of("record", &[b"a"]);
+    let c = StageIdentity::of("coordinate", &[b"c"]);
+    let other = StageIdentity::of("record", &[b"b"]);
+    let held = CalibrationInput::Held { record: a, coordinate: c }.identity();
+    let all = [
+        CalibrationInput::Unmeasured.identity(),
+        CalibrationInput::PointOnly.identity(),
+        held,
+        CalibrationInput::Held { record: other, coordinate: c }.identity(),
+        CalibrationInput::Held { record: a, coordinate: a }.identity(),
+        CalibrationInput::Withdrawn { record: a }.identity(),
+    ];
+    for (i, x) in all.iter().enumerate() {
+        for y in &all[i + 1..] {
+            assert_ne!(x, y);
+        }
+    }
+    assert_eq!(held, CalibrationInput::Held { record: a, coordinate: c }.identity());
+    // the same variant label in another domain is another identity
+    assert_ne!(CalibrationInput::PointOnly.identity(), CouplingInput::None.identity());
+    assert_ne!(
+        CouplingInput::SharedExogenous { source: a }.identity(),
+        CouplingInput::AlignedJoint { alignment: a }.identity()
+    );
+    assert_ne!(
+        RepresentationInput::new("ab", "c").identity(),
+        RepresentationInput::new("a", "bc").identity()
+    );
+    let verified = ProviderStandingInput::Verified { level: "attested".to_string(), receipt: a };
+    assert_ne!(verified.identity(b(0)), verified.identity(b(1)));
+    assert_ne!(verified.identity(b(0)), ProviderStandingInput::Unverified.identity(b(0)));
+    assert_ne!(
+        ProviderStandingInput::Revoked.identity(b(0)),
+        ProviderStandingInput::Unverified.identity(b(0))
+    );
 }

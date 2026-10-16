@@ -11,7 +11,19 @@ use crate::error::{EstimationError, ExactF64, RefusalFields};
 /// Library-default propensity clip: propensities are clamped into `[0.01, 0.99]` unless a
 /// policy says otherwise. Also the reference bound of the weighted-support gate, which asks how
 /// much target mass sits where a default fit would have re-weighted.
-pub const DEFAULT_PROPENSITY_CLIP: f64 = 0.01;
+pub(crate) const DEFAULT_PROPENSITY_CLIP: f64 = 0.01;
+
+/// Clamp one propensity into `[clip, 1 − clip]`.
+///
+/// This is the only propensity clip. `clip` is used as given (no `1e-6` floor). Callers that
+/// hold an [`OverlapPolicy`] have already required `clip ∈ (0, 0.5)`.
+pub(crate) fn clip_propensity(score: f64, clip: f64) -> f64 {
+    debug_assert!(
+        clip.is_finite() && clip > 0.0 && clip < 0.5,
+        "propensity clip must lie in (0, 0.5)"
+    );
+    score.clamp(clip, 1.0 - clip)
+}
 
 /// Overlap / positivity handling.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -337,13 +349,12 @@ pub(crate) fn observed_ipw_weights(
     observation_weights: Option<&[f64]>,
 ) -> Vec<f64> {
     let lo = clip;
-    let hi = 1.0 - clip;
     treatment
         .iter()
         .zip(propensities)
         .enumerate()
         .map(|(i, (&t, &p_raw))| {
-            let e = p_raw.clamp(lo, hi);
+            let e = clip_propensity(p_raw, lo);
             let mut w = target.weight(t, e);
             if let Some(ow) = observation_weights {
                 w *= ow.get(i).copied().unwrap_or(1.0);
@@ -494,8 +505,10 @@ mod tests {
         let clip = 1e-8_f64;
         let mut clipped = e.to_vec();
         for s in &mut clipped {
-            *s = s.clamp(clip, 1.0 - clip);
+            *s = clip_propensity(*s, clip);
         }
+        assert_eq!(clip_propensity(1e-12, clip).to_bits(), clip.to_bits());
+        assert_eq!(clip_propensity(1.0 - 1e-12, clip).to_bits(), (1.0 - clip).to_bits());
         let est = compute_ipw_weights(&t, &clipped, &e, IpwTarget::Ate, None);
         let diag = observed_ipw_weights(&t, &e, IpwTarget::Ate, clip, None);
         for (a, b) in est.iter().zip(&diag) {
@@ -525,7 +538,7 @@ mod tests {
         let clip = 0.05_f64;
         let mut clipped = e.to_vec();
         for s in &mut clipped {
-            *s = s.clamp(clip, 1.0 - clip);
+            *s = clip_propensity(*s, clip);
         }
         let mut est = compute_ipw_weights(&t, &clipped, &e, IpwTarget::Custom, None);
         for (w, &o) in est.iter_mut().zip(&ow) {

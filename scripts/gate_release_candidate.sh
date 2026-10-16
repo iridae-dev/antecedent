@@ -10,7 +10,7 @@
 #      the calibration attestation every PR runs: each coverage record's facets
 #      unchanged since its own calibration_sha, or attested_by_replay under a
 #      valid replay waiver)
-#   3. requires the 2.2 A and B exit gates to have no pending calibration or
+#   3. requires the composition and decision exit gates to have no pending calibration or
 #      implementation work, complete bounds documentation and final release claims
 #   4. runs Python lint/types and the full Python test suite
 #   5. builds one local wheel into a fresh directory, installs it into a fresh
@@ -59,30 +59,7 @@ self_test() {
   if ! check_ci_run "$tmp/green.json" "$head" >"$tmp/out" 2>&1; then
     echo "SELF-TEST FAIL: an all-green run on HEAD was rejected"; cat "$tmp/out"; status=1
   fi
-  python3 - "$tmp" <<'PY'
-import json, sys
-from pathlib import Path
-tmp = Path(sys.argv[1])
-green = json.loads((tmp / "green.json").read_text())
-def write(name, payload):
-    (tmp / name).write_text(json.dumps(payload))
-# One matrix leg missing (the last wheel expansion).
-wheels = [j for j in green["jobs"] if j["name"].startswith("Wheel ")]
-write("missing_leg.json", {**green, "jobs": [j for j in green["jobs"] if j is not wheels[-1]]})
-# A whole required job id absent.
-write("missing_job.json", {**green, "jobs": [j for j in green["jobs"] if j["name"] != "Domain gates"]})
-# A required job that failed.
-write("failed_job.json", {**green, "jobs": [
-    {**j, "conclusion": "failure"} if j["name"] == "Python lint and types" else j
-    for j in green["jobs"]
-]})
-# Green, but for a different commit.
-write("wrong_sha.json", {**green, "headSha": "0" * 40})
-# Jobs reported by workflow id instead of display name.
-write("ids_not_names.json", {**green, "jobs": [
-    {"name": n, "conclusion": "success"} for n in ("rust", "gates", "python-lint", "python-wheels")
-]})
-PY
+  python3 "$ROOT/scripts/gate_release_candidate.py" "$tmp"
   local case
   for case in missing_leg missing_job failed_job wrong_sha ids_not_names; do
     if check_ci_run "$tmp/$case.json" "$head" >"$tmp/out" 2>&1; then
@@ -163,15 +140,14 @@ check_ci_run "$RUN_JSON" "$(git rev-parse HEAD)"
 echo "== release candidate: PR inventory + composition + calibration attestation =="
 bash scripts/gate_release.sh
 
-echo "== release candidate: calibrated 2.2 A exit =="
-bash scripts/gate_a_exit.sh --require-calibrated
+echo "== release candidate: calibrated composition exit =="
+bash scripts/gate_composition_exit.sh --require-calibrated
 
-echo "== release candidate: complete and calibrated 2.2 B exit =="
-bash scripts/gate_b_exit.sh --release
+echo "== release candidate: complete and calibrated decision exit =="
+bash scripts/gate_decision_exit.sh --release
 
 echo "== release candidate: strict bounds and final claims =="
 python3 scripts/check_limits_agreement.py --strict
-python3 scripts/check_limits_agreement.py --release 2.3 --strict
 python3 scripts/check_release_claims.py --final
 
 echo "== release candidate: Python lint / types =="
@@ -200,17 +176,10 @@ echo "== release candidate: local wheel, full suite against the installed wheel 
   fi
   uv venv "$venv_dir/venv"
   uv pip install --python "$venv_dir/venv/bin/python" "${wheels[0]}" \
-    numpy pandas pyarrow pytest
+    numpy pandas pyarrow pytest 'mypy>=1.17.0'
   # Run outside python/ so the source tree cannot shadow the installed wheel.
   cd "$run_dir"
-  "$venv_dir/venv/bin/python" - "$venv_dir" <<'PY'
-import os
-import sys
-import antecedent
-if not os.path.realpath(antecedent.__file__).startswith(os.path.realpath(sys.argv[1])):
-    raise SystemExit(f"FAIL: antecedent imported from {antecedent.__file__}, not the wheel")
-print("installed wheel:", antecedent.__version__, antecedent.__file__)
-PY
+  "$venv_dir/venv/bin/python" "$ROOT/scripts/gate_release_candidate_2.py" "$venv_dir"
   "$venv_dir/venv/bin/python" -m pytest -q -p no:cacheprovider "$ROOT/python/tests"
 )
 

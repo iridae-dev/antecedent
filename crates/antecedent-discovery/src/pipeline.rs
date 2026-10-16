@@ -4,14 +4,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::HashMap;
 use std::hash::BuildHasher;
 use std::sync::Arc;
@@ -36,12 +28,12 @@ pub(crate) fn dense_of(
     let idx = *var_index
         .get(&v)
         .ok_or_else(|| DiscoveryError::data_msg(format!("unknown variable {v:?}")))?;
-    Ok(DenseNodeId::from_raw(u32::try_from(idx).expect("fit")))
+    Ok(DenseNodeId::from_raw(crate::indexing::dense_u32(idx)))
 }
 
 /// Map lagged `(variable, lag)` pairs — and context nodes as `(variable, 0)` — to dense ids.
 #[must_use]
-pub fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> {
+pub(crate) fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> {
     let mut node_ids = HashMap::new();
     for (i, node) in nodes.iter().enumerate() {
         match node {
@@ -69,7 +61,7 @@ pub fn lagged_node_index(nodes: &[NodeRef]) -> HashMap<(u32, u32), DenseNodeId> 
 /// inserted in sorted key order so the winning entry for a pair recorded in both
 /// directions is deterministic (`HashMap` iteration order is not).
 #[must_use]
-pub fn orientation_state_from_sepsets<S: BuildHasher>(
+pub(crate) fn orientation_state_from_sepsets<S: BuildHasher>(
     node_ids: &HashMap<(u32, u32), DenseNodeId, S>,
     sepsets: &PcSepsets,
 ) -> OrientationState {
@@ -93,12 +85,12 @@ pub fn orientation_state_from_sepsets<S: BuildHasher>(
 
 /// Build an [`AlgorithmRecord`] from id + config digest.
 #[must_use]
-pub fn algorithm_record(id: &str, config: impl Into<String>) -> AlgorithmRecord {
+pub(crate) fn algorithm_record(id: &str, config: impl Into<String>) -> AlgorithmRecord {
     AlgorithmRecord { id: Arc::from(id), config: Arc::from(config.into()) }
 }
 
 /// Append a discovery diagnostic.
-pub fn push_diagnostic(
+pub(crate) fn push_diagnostic(
     diagnostics: &mut Vec<DiscoveryDiagnostic>,
     code: &str,
     message: impl Into<String>,
@@ -109,7 +101,7 @@ pub fn push_diagnostic(
 
 /// Copy performance counters and set retained-link count.
 #[must_use]
-pub fn with_links_retained(
+pub(crate) fn with_links_retained(
     mut performance: DiscoveryPerformanceRecord,
     links_retained: usize,
 ) -> DiscoveryPerformanceRecord {

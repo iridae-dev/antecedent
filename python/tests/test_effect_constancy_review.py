@@ -1,4 +1,4 @@
-"""Original F18 evidence feeds actual downstream engines without inference promotion."""
+"""Original effect-constancy evidence feeds actual downstream engines without inference promotion."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import json
 import subprocess
 import sys
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 from antecedent.decision import Action, Contract, Criterion, const, x
@@ -26,11 +25,12 @@ from antecedent.priors import (
 )
 from antecedent.temporal import EffectEstimand, effect_constancy
 
+from _repo_text import REPO_ROOT
+
 ORACLE = json.loads(
-    (
-        Path(__file__).resolve().parents[2]
-        / "conformance/population_time/effect_constancy_consumers/expected.json"
-    ).read_text(encoding="utf-8")
+    (REPO_ROOT / "conformance/population_time/effect_constancy_consumers/expected.json").read_text(
+        encoding="utf-8"
+    )
 )
 
 
@@ -137,7 +137,7 @@ def test_original_point_policy_handles_disagreement_ties_and_semantic_refusals()
 def test_fresh_process_recomputes_original_artifact_before_policy_consumption(tmp_path):
     actual = source((-1, 2))
     artifact = tmp_path / "source.bin"
-    artifact.write_bytes(actual.artifact)
+    artifact.write_bytes(actual.export())
     payload = tmp_path / "identity.json"
     payload.write_text(json.dumps(actual.identity._wire()), encoding="utf-8")
     script = """

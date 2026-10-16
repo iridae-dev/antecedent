@@ -6,18 +6,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 /// Consistency constant turning a median absolute deviation into a Gaussian σ.
-pub const MAD_TO_SIGMA: f64 = 1.4826;
+pub(crate) const MAD_TO_SIGMA: f64 = 1.4826;
 
 /// Rule that maps a probability to a fractional rank of the sorted sample.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,15 +62,9 @@ pub fn equal_tail_interval_sorted(sorted: &[f64], level: f64, rule: QuantileRule
 }
 
 /// Median of an ascending-sorted sample; `NaN` for an empty sample.
-#[must_use]
-pub fn median_sorted(sorted: &[f64]) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return f64::NAN;
-    }
-    let mid = n / 2;
-    if n % 2 == 0 { 0.5 * (sorted[mid - 1] + sorted[mid]) } else { sorted[mid] }
-}
+///
+/// Alias of [`antecedent_kernels::median_sorted`], the one owner.
+pub use antecedent_kernels::median_sorted;
 
 /// Gaussian-consistent MAD scale `1.4826 · median(|x − median(x)|)`; `None` for an empty sample.
 #[must_use]
@@ -100,7 +84,6 @@ pub fn mad_sigma(values: &[f64]) -> Option<f64> {
 mod tests {
     use super::*;
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,
@@ -116,7 +99,6 @@ mod tests {
         assert!((quantile_sorted(&s, 0.6, QuantileRule::Interpolated) - 5.6).abs() < 1e-12);
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     #[allow(
         clippy::float_cmp,

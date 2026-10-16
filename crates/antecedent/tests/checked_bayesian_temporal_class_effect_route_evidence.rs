@@ -4,6 +4,7 @@
 
 #![allow(clippy::too_many_lines, reason = "one loop covers every licensed coordinate")]
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 use antecedent::{AcceptedGraph, BayesianConfig, ClassPrior, InferenceMode, RefuteSuite, Study};
@@ -246,9 +247,9 @@ fn bayesian_temporal_class_effect_retains_a_caller_supplied_class_mass() {
     let [unadjusted, adjusted] = fixtures::cpdag_completion_truths(0.0);
     let mixed_truth = 0.25 * unadjusted + 0.75 * adjusted;
     assert!(
-        (result.estimate.ate - mixed_truth).abs() < 0.12,
+        (result.estimate.as_effect().unwrap().ate - mixed_truth).abs() < 0.12,
         "class-mass mixture {} far from {mixed_truth}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
     assert!(result.posterior.is_some(), "a class mass licenses one mixed posterior");
 }

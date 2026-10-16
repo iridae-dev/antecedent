@@ -5,7 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines, clippy::type_complexity)]
 #![cfg_attr(
     test,
     allow(
@@ -21,8 +20,8 @@ use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{LaggedFrame, TimeSeriesData, VectorVariableGroups, column_blocks_for_frame};
 use antecedent_graph::TemporalGraphReview;
 use antecedent_stats::{
-    CiBatchRequest, CiQuery, CiWorkspace, ConditionalIndependence, ConfidenceMethod,
-    PairwiseMultivariateCi, PartialCorrelation, PreparedCiTest, SignificanceMethod,
+    CiQuery, CiWorkspace, ConditionalIndependence, PairwiseMultivariateCi, PartialCorrelation,
+    PreparedCiTest, SignificanceMethod,
 };
 
 use crate::constraints::{CompiledConstraints, DiscoveryConstraints};
@@ -32,6 +31,27 @@ use crate::result::{
     AlgorithmRecord, DagDiscoveryResult, DiscoveryIteration, DiscoveryPerformanceRecord,
     LaggedLink, PcSepsets, ScoredLink, discovery_assumptions,
 };
+
+/// A tested link and its conditioning set.
+type CiKey = (LaggedLink, Vec<(VariableId, Lag)>);
+
+/// The lagged frame and the link a scan of conditioning sets tests on it.
+#[derive(Clone, Copy)]
+pub(crate) struct CiProbe<'a> {
+    pub frame: &'a LaggedFrame,
+    pub link: LaggedLink,
+}
+
+/// CI outcomes of one run keyed by tested link and conditioning set.
+///
+/// A test is a pure function of its link, conditioning set and the frame, so a repeated one
+/// is answered from here instead of being run again.
+#[derive(Debug, Default)]
+pub(crate) struct CiMemo {
+    outcomes: HashMap<CiKey, (f64, f64)>,
+    /// Tests actually run (memo misses).
+    pub computed: u64,
+}
 
 /// Maximum columns in one CI query (X, Y, + conditioning). Stack-backed refs.
 const MAX_CI_COLS: usize = 32;
@@ -44,6 +64,21 @@ struct ParentSelectOut {
     parents: ParentSet,
     tests: u64,
     sepsets: PcSepsets,
+}
+
+/// The lagged frame, searched variables and compiled constraints one PC/MCI phase reads.
+#[derive(Clone, Copy)]
+pub(crate) struct LaggedSearch<'a> {
+    pub frame: &'a LaggedFrame,
+    pub variables: &'a [VariableId],
+    pub compiled: &'a CompiledConstraints,
+}
+
+/// One PC1 conditioning level for `target`: its current parents and the conditioning size.
+struct ParentLevel<'a> {
+    target: VariableId,
+    parents: &'a [(VariableId, Lag)],
+    cond_size: usize,
 }
 
 struct MciChunkOut {
@@ -156,6 +191,10 @@ impl PcmciEngine {
     /// # Errors
     ///
     /// Data or CI failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "PC1 levels in one loop: batch or sequential test, record outcomes, prune, re-rank; every step reads the surviving parents"
+    )]
     pub fn select_parents(
         &self,
         frame: &LaggedFrame,
@@ -188,7 +227,6 @@ impl PcmciEngine {
                 break;
             }
             if let Some(p) = &ctx.progress {
-                #[allow(clippy::cast_precision_loss)]
                 p.report(cond_size as f64 / (max_cond.max(1) as f64 + 1.0), "discovery.ci");
             }
             workspace.removed.clear();
@@ -202,16 +240,10 @@ impl PcmciEngine {
                     SignificanceMethod::BlockShuffle { .. }
                 );
             if use_batch {
-                ci_tests += self.pc_parent_level_batch(
-                    frame,
-                    target,
-                    &parents,
-                    &mut min_stat,
-                    cond_size,
-                    compiled,
-                    workspace,
-                    ctx,
-                )?;
+                let search = LaggedSearch { frame, variables, compiled };
+                let level = ParentLevel { target, parents: &parents, cond_size };
+                ci_tests +=
+                    self.pc_parent_level_batch(search, &level, &mut min_stat, workspace, ctx)?;
             } else {
                 for pi in 0..parents.len() {
                     if ctx.cancellation.is_cancelled() {
@@ -223,16 +255,13 @@ impl PcmciEngine {
                     let mut combo = std::mem::take(&mut workspace.combo);
                     combo.clear();
                     combo.extend(pc_parent_combo(&parents, pi, cond_size));
-                    let result = self.ci_statistic(
-                        frame,
-                        src,
-                        slag,
+                    let link = LaggedLink {
+                        source: src,
+                        source_lag: slag,
                         target,
-                        Lag::CONTEMPORANEOUS,
-                        &combo,
-                        workspace,
-                        ctx,
-                    );
+                        target_lag: Lag::CONTEMPORANEOUS,
+                    };
+                    let result = self.ci_statistic(frame, link, &combo, workspace, ctx);
                     let outcome = match result {
                         Ok(pair) => pair,
                         Err(e) => {
@@ -242,15 +271,12 @@ impl PcmciEngine {
                     };
                     ci_tests += 1;
                     record_pc_parent_outcome(
-                        pi,
-                        src,
-                        slag,
-                        target,
+                        link,
                         outcome,
                         &combo,
                         compiled,
                         self.constraints.alpha,
-                        &mut min_stat,
+                        &mut min_stat[pi],
                         workspace,
                     );
                     workspace.combo = combo;
@@ -294,18 +320,16 @@ impl PcmciEngine {
     }
 
     /// One PC1 conditioning level: batch every remaining candidate on a fully-valid frame.
-    #[allow(clippy::too_many_arguments)]
     fn pc_parent_level_batch(
         &self,
-        frame: &LaggedFrame,
-        target: VariableId,
-        parents: &[(VariableId, Lag)],
+        search: LaggedSearch<'_>,
+        level: &ParentLevel<'_>,
         min_stat: &mut [f64],
-        cond_size: usize,
-        compiled: &CompiledConstraints,
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<u64, DiscoveryError> {
+        let LaggedSearch { frame, .. } = search;
+        let ParentLevel { target, parents, cond_size } = *level;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
         }
@@ -338,39 +362,35 @@ impl PcmciEngine {
         }
         let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
         self.ensure_prepared_ci(frame, workspace, ctx)?;
-        let req = CiBatchRequest {
-            columns: &cols,
-            queries: &queries,
-            z_flat: &z_flat,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
+        let req =
+            crate::ci::ci_batch_request(&cols, &queries, &z_flat, self.constraints.significance);
         let prepared = workspace
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let out = self
-            .ci
-            .test_batch(prepared, &req, &mut workspace.ci, ctx)
+        let results = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
             .map_err(DiscoveryError::from)?;
-        if out.results.len() != parents.len() {
+        if results.len() != parents.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
-        for (pi, (result, combo)) in out.results.into_iter().zip(combos).enumerate() {
+        for (pi, (result, combo)) in results.into_iter().zip(combos).enumerate() {
             if !result.statistic.is_finite() || !result.p_value.is_finite() {
                 return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
             }
             let (src, slag) = parents[pi];
-            record_pc_parent_outcome(
-                pi,
-                src,
-                slag,
+            let link = LaggedLink {
+                source: src,
+                source_lag: slag,
                 target,
+                target_lag: Lag::CONTEMPORANEOUS,
+            };
+            record_pc_parent_outcome(
+                link,
                 (result.statistic, result.p_value),
                 &combo,
-                compiled,
+                search.compiled,
                 self.constraints.alpha,
-                min_stat,
+                &mut min_stat[pi],
                 workspace,
             );
         }
@@ -402,16 +422,7 @@ impl PcmciEngine {
             mci_conditioning(link, parents_target, parents_source, &mut workspace.others);
         refuse_truncated_mci(truncated)?;
         let cond = std::mem::take(&mut workspace.others);
-        let result = self.ci_statistic(
-            frame,
-            link.source,
-            link.source_lag,
-            link.target,
-            link.target_lag,
-            &cond,
-            workspace,
-            ctx,
-        );
+        let result = self.ci_statistic(frame, link, &cond, workspace, ctx);
         workspace.others = cond;
         let (stat, p) = result?;
         Ok((ScoredLink { link, statistic: stat, p_value: p, adjusted_p_value: None }, truncated))
@@ -515,12 +526,12 @@ impl PcmciEngine {
         // : prepare CI once for the lagged frame (unmasked fast path).
         if frame.is_fully_valid() {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
-            let plan = antecedent_stats::CiPreparationPlan {
-                significance: engine.constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
-            workspace.prepared_ci =
-                Some(engine.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+            workspace.prepared_ci = Some(crate::ci::prepare_ci(
+                &*engine.ci,
+                &cols,
+                engine.constraints.significance,
+                ctx,
+            )?);
         } else {
             workspace.prepared_ci = None;
             workspace.keep_cache.clear();
@@ -532,16 +543,9 @@ impl PcmciEngine {
         let mut scored = Vec::new();
         // MCI conditioning that overflows the column cap is refused (`refuse_truncated_mci`),
         // so a successful run never carries a truncated test.
-        let (mci_tests, _) = engine.mci_all(
-            frame,
-            &search_vars,
-            &compiled,
-            &all_parents,
-            &mut scored,
-            workspace,
-            ctx,
-            threads,
-        )?;
+        let search = LaggedSearch { frame, variables: &search_vars, compiled: &compiled };
+        let (mci_tests, _) =
+            engine.mci_all(search, &all_parents, &mut scored, workspace, ctx, threads)?;
         ci_tests += mci_tests;
 
         let sepsets = std::mem::take(&mut workspace.sepsets);
@@ -601,7 +605,6 @@ impl PcmciEngine {
                 });
                 all_parents.push((target, parents));
                 if let Some(p) = &ctx.progress {
-                    #[allow(clippy::cast_precision_loss)]
                     p.report(
                         all_parents.len() as f64 / variables.len().max(1) as f64,
                         "discovery.ci",
@@ -612,65 +615,30 @@ impl PcmciEngine {
         }
 
         let n = variables.len();
-        let mut slots: Vec<Option<Result<ParentSelectOut, DiscoveryError>>> =
-            (0..n).map(|_| None).collect();
-
         let prepared_ci = workspace.prepared_ci.clone();
-        let mut worker_panicked = false;
-        std::thread::scope(|scope| {
-            let mut handles = Vec::new();
-            let mut rest = slots.as_mut_slice();
-            let mut cursor = 0usize;
-            for (start, end) in chunk_ranges(n, threads) {
-                let (this, next) = rest.split_at_mut(end - start);
-                debug_assert_eq!(cursor, start);
-                let chunk_vars = &variables[start..end];
-                let engine = self;
-                let prepared_ci = prepared_ci.clone();
-                handles.push(scope.spawn(move || {
-                    let mut local_ws =
-                        DiscoveryWorkspace { prepared_ci, ..DiscoveryWorkspace::default() };
-                    for (i, &target) in chunk_vars.iter().enumerate() {
-                        this[i] = Some(
-                            engine
-                                .select_parents(
-                                    frame,
-                                    target,
-                                    variables,
-                                    compiled,
-                                    &mut local_ws,
-                                    ctx,
-                                )
-                                .map(|(parents, tests)| ParentSelectOut {
-                                    target,
-                                    parents,
-                                    tests,
-                                    sepsets: std::mem::take(&mut local_ws.sepsets),
-                                }),
-                        );
-                    }
-                }));
-                rest = next;
-                cursor = end;
+        let outs = ctx.map_indexed(n, |i, inner| {
+            if inner.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
             }
-            // A panicking worker becomes an error, not a panic across the FFI boundary.
-            for h in handles {
-                worker_panicked |= h.join().is_err();
-            }
-        });
-        if worker_panicked {
-            return Err(DiscoveryError::Unsupported {
-                message: "parent-selection worker panicked",
-            });
-        }
+            let target = variables[i];
+            let mut local_ws = DiscoveryWorkspace {
+                prepared_ci: prepared_ci.clone(),
+                ..DiscoveryWorkspace::default()
+            };
+            self.select_parents(frame, target, variables, compiled, &mut local_ws, inner).map(
+                |(parents, tests)| ParentSelectOut {
+                    target,
+                    parents,
+                    tests,
+                    sepsets: std::mem::take(&mut local_ws.sepsets),
+                },
+            )
+        })?;
 
         let mut all_parents = Vec::with_capacity(n);
         let mut iterations = Vec::with_capacity(n);
         let mut ci_tests = 0u64;
-        for (i, slot) in slots.into_iter().enumerate() {
-            let out = slot.ok_or(DiscoveryError::Unsupported {
-                message: "parallel PC worker left empty slot",
-            })??;
+        for (i, out) in outs.into_iter().enumerate() {
             debug_assert_eq!(out.target, variables[i]);
             ci_tests += out.tests;
             workspace.sepsets.extend(out.sepsets);
@@ -683,12 +651,9 @@ impl PcmciEngine {
         Ok((all_parents, iterations, ci_tests))
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn mci_all(
         &self,
-        frame: &LaggedFrame,
-        variables: &[VariableId],
-        compiled: &CompiledConstraints,
+        search: LaggedSearch<'_>,
         all_parents: &[TargetParents],
         scored: &mut Vec<ScoredLink>,
         workspace: &mut DiscoveryWorkspace,
@@ -700,9 +665,7 @@ impl PcmciEngine {
             let mut truncated = 0u64;
             for (target, parents) in all_parents {
                 let (batch, trunc) = self.mci_batch_for_target(
-                    frame,
-                    variables,
-                    compiled,
+                    search,
                     *target,
                     parents,
                     all_parents,
@@ -717,54 +680,28 @@ impl PcmciEngine {
         }
 
         let n = all_parents.len();
-        let ranges = chunk_ranges(n, threads);
-        let mut partials: Vec<Option<Result<MciChunkOut, DiscoveryError>>> =
-            Vec::with_capacity(ranges.len());
-
         let prepared_ci = workspace.prepared_ci.clone();
-        std::thread::scope(|scope| {
-            let mut handles = Vec::with_capacity(ranges.len());
-            for &(start, end) in &ranges {
-                let chunk_parents = &all_parents[start..end];
-                let engine = self;
-                let prepared_ci = prepared_ci.clone();
-                handles.push(scope.spawn(move || {
-                    let mut local_ws =
-                        DiscoveryWorkspace { prepared_ci, ..DiscoveryWorkspace::default() };
-                    let mut local_scored = Vec::new();
-                    let mut tests = 0u64;
-                    let mut truncated = 0u64;
-                    for (target, parents) in chunk_parents {
-                        let (batch, trunc) = engine.mci_batch_for_target(
-                            frame,
-                            variables,
-                            compiled,
-                            *target,
-                            parents,
-                            all_parents,
-                            &mut local_ws,
-                            ctx,
-                        )?;
-                        tests += batch.len() as u64;
-                        truncated += trunc;
-                        local_scored.extend(batch);
-                    }
-                    Ok(MciChunkOut { scored: local_scored, tests, truncated })
-                }));
-            }
-            for h in handles {
-                partials.push(Some(h.join().unwrap_or({
-                    Err(DiscoveryError::Unsupported { message: "MCI worker panicked" })
-                })));
-            }
-        });
+        let partials = ctx.map_indexed(n, |i, inner| {
+            let (target, parents) = &all_parents[i];
+            let mut local_ws = DiscoveryWorkspace {
+                prepared_ci: prepared_ci.clone(),
+                ..DiscoveryWorkspace::default()
+            };
+            let (batch, trunc) = self.mci_batch_for_target(
+                search,
+                *target,
+                parents,
+                all_parents,
+                &mut local_ws,
+                inner,
+            )?;
+            let tests = batch.len() as u64;
+            Ok::<_, DiscoveryError>(MciChunkOut { scored: batch, tests, truncated: trunc })
+        })?;
 
         let mut tests = 0u64;
         let mut truncated = 0u64;
-        for slot in partials {
-            let chunk = slot.ok_or(DiscoveryError::Unsupported {
-                message: "parallel MCI worker left empty slot",
-            })??;
+        for chunk in partials {
             tests += chunk.tests;
             truncated += chunk.truncated;
             scored.extend(chunk.scored);
@@ -780,18 +717,16 @@ impl PcmciEngine {
     ///
     /// Returns the scored links and the number of conditioning columns dropped by the
     /// `MAX_CI_COLS` cap (0 in the common case).
-    #[allow(clippy::too_many_arguments)]
     fn mci_batch_for_target(
         &self,
-        frame: &LaggedFrame,
-        variables: &[VariableId],
-        compiled: &CompiledConstraints,
+        search: LaggedSearch<'_>,
         target: VariableId,
         parents: &[(VariableId, Lag)],
         all_parents: &[TargetParents],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<ScoredLink>, u64), DiscoveryError> {
+        let LaggedSearch { frame, variables, compiled } = search;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
         }
@@ -849,26 +784,19 @@ impl PcmciEngine {
             links.push(link);
         }
 
-        let req = CiBatchRequest {
-            columns: &cols,
-            queries: &queries,
-            z_flat: &z_flat,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
+        let req =
+            crate::ci::ci_batch_request(&cols, &queries, &z_flat, self.constraints.significance);
         let prepared = workspace
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let out = self
-            .ci
-            .test_batch(prepared, &req, &mut workspace.ci, ctx)
+        let results = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
             .map_err(DiscoveryError::from)?;
-        if out.results.len() != links.len() {
+        if results.len() != links.len() {
             return Err(DiscoveryError::stats_msg("CI batch result length mismatch"));
         }
         let mut scored = Vec::with_capacity(links.len());
-        for (link, result) in links.into_iter().zip(out.results) {
+        for (link, result) in links.into_iter().zip(results) {
             if !result.statistic.is_finite() || !result.p_value.is_finite() {
                 return Err(DiscoveryError::stats_msg("non-finite CI statistic or p-value"));
             }
@@ -897,28 +825,142 @@ impl PcmciEngine {
         };
         if needs {
             let cols: Vec<&[f64]> = (0..ncols).map(|i| frame.column(i)).collect();
-            let plan = antecedent_stats::CiPreparationPlan {
-                significance: self.constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
             workspace.prepared_ci =
-                Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+                Some(crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?);
         }
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// CI tests of `link` under each conditioning set of `conds` as one (possibly threaded)
+    /// batch, or `None` when the sets cannot be batched (masked frame, oversized or unknown
+    /// columns, a failing batch). `None` sends the caller down the one-test-at-a-time path,
+    /// which reports each failure at the test that causes it.
+    fn ci_batch(
+        &self,
+        frame: &LaggedFrame,
+        link: LaggedLink,
+        conds: &[&[(VariableId, Lag)]],
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Option<Vec<antecedent_stats::CiResult>> {
+        if conds.len() < 2 || !frame.is_fully_valid() {
+            return None;
+        }
+        let xi = frame.column_index(link.source, link.source_lag)?;
+        let yi = frame.column_index(link.target, link.target_lag)?;
+        let mut queries = Vec::with_capacity(conds.len());
+        let mut z_flat = Vec::new();
+        for cond in conds {
+            if 2 + cond.len() > MAX_CI_COLS {
+                return None;
+            }
+            let z_start = z_flat.len();
+            for &(v, l) in *cond {
+                z_flat.push(frame.column_index(v, l)?);
+            }
+            queries.push(CiQuery { x: xi, y: yi, z_start, z_len: cond.len() });
+        }
+        self.ensure_prepared_ci(frame, workspace, ctx).ok()?;
+        let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
+        let req =
+            crate::ci::ci_batch_request(&cols, &queries, &z_flat, self.constraints.significance);
+        let prepared = workspace.prepared_ci.as_ref()?;
+        let results =
+            crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx).ok()?;
+        (results.len() == conds.len()).then_some(results)
+    }
+
+    /// Visit the CI outcome of `link` under each conditioning set of `sets`, in order, until
+    /// `visit` breaks.
+    ///
+    /// Equivalent to calling [`Self::ci_statistic`] on each set in turn and stopping at the
+    /// first break: upcoming sets are evaluated in speculative batches (see
+    /// [`crate::ci::ChunkSchedule`]) whose results past the break are only kept in `memo`,
+    /// and an error is reported at the set that causes it, after every earlier set was
+    /// visited.
+    ///
+    /// # Errors
+    ///
+    /// The first failing set's error (a failure of the generator counts at its position).
+    pub(crate) fn scan_ci_sets<B>(
+        &self,
+        probe: CiProbe<'_>,
+        mut sets: impl Iterator<Item = Result<Vec<(VariableId, Lag)>, DiscoveryError>>,
+        memo: &mut CiMemo,
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+        mut visit: impl FnMut(Vec<(VariableId, Lag)>, f64, f64) -> std::ops::ControlFlow<B>,
+    ) -> Result<Option<B>, DiscoveryError> {
+        let CiProbe { frame, link } = probe;
+        let mut schedule = crate::ci::ChunkSchedule::new(ctx);
+        loop {
+            let mut chunk: Vec<Vec<(VariableId, Lag)>> = Vec::new();
+            let mut pending: Option<DiscoveryError> = None;
+            for item in sets.by_ref().take(schedule.next_size()) {
+                match item {
+                    Ok(cond) => chunk.push(cond),
+                    Err(e) => {
+                        pending = Some(e);
+                        break;
+                    }
+                }
+            }
+            if chunk.is_empty() && pending.is_none() {
+                return Ok(None);
+            }
+
+            let mut missing: Vec<&[(VariableId, Lag)]> = Vec::new();
+            for cond in &chunk {
+                let known = memo.outcomes.contains_key(&(link, cond.clone()))
+                    || missing.iter().any(|m| *m == cond.as_slice());
+                if !known {
+                    missing.push(cond);
+                }
+            }
+            if let Some(results) = self.ci_batch(frame, link, &missing, workspace, ctx) {
+                for (cond, r) in missing.iter().zip(results) {
+                    // A non-finite outcome is left out so that it errors where it is visited.
+                    if r.statistic.is_finite() && r.p_value.is_finite() {
+                        memo.outcomes.insert((link, cond.to_vec()), (r.statistic, r.p_value));
+                        memo.computed += 1;
+                    }
+                }
+            }
+
+            for cond in chunk {
+                let key = (link, cond);
+                let (stat, p) = if let Some(&hit) = memo.outcomes.get(&key) {
+                    hit
+                } else {
+                    let out = self.ci_statistic(frame, link, &key.1, workspace, ctx)?;
+                    memo.outcomes.insert(key.clone(), out);
+                    memo.computed += 1;
+                    out
+                };
+                if let std::ops::ControlFlow::Break(b) = visit(key.1, stat, p) {
+                    return Ok(Some(b));
+                }
+            }
+            if let Some(e) = pending {
+                return Err(e);
+            }
+        }
+    }
+
+    /// CI test of `link.source ⊥ link.target | cond` on `frame`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "fast unmasked path, then the masked complete-case path; both share the column indexes and workspace"
+    )]
     pub(crate) fn ci_statistic(
         &self,
         frame: &LaggedFrame,
-        x: VariableId,
-        x_lag: Lag,
-        y: VariableId,
-        y_lag: Lag,
+        link: LaggedLink,
         cond: &[(VariableId, Lag)],
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(f64, f64), DiscoveryError> {
+        let LaggedLink { source: x, source_lag: x_lag, target: y, target_lag: y_lag } = link;
         if 2 + cond.len() > MAX_CI_COLS {
             return Err(DiscoveryError::Unsupported {
                 message: "conditioning set exceeds MAX_CI_COLS",
@@ -942,23 +984,18 @@ impl PcmciEngine {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
             self.ensure_prepared_ci(frame, workspace, ctx)?;
             let queries = [CiQuery { x: xi, y: yi, z_start: 0, z_len: workspace.z_flat.len() }];
-            let req = CiBatchRequest {
-                columns: &cols,
-                queries: &queries,
-                z_flat: &workspace.z_flat,
-                significance: self.constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
+            let req = crate::ci::ci_batch_request(
+                &cols,
+                &queries,
+                &workspace.z_flat,
+                self.constraints.significance,
+            );
             let prepared = workspace
                 .prepared_ci
                 .as_ref()
                 .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-            let out = self
-                .ci
-                .test_batch(prepared, &req, &mut workspace.ci, ctx)
-                .map_err(DiscoveryError::from)?;
-            let result = out
-                .results
+            let result = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
+                .map_err(DiscoveryError::from)?
                 .into_iter()
                 .next()
                 .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
@@ -1039,38 +1076,25 @@ impl PcmciEngine {
                 }
             }
         }
-        let plan = antecedent_stats::CiPreparationPlan {
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
         {
             let cols: Vec<&[f64]> = (0..n_sel)
                 .map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep])
                 .collect();
             workspace.prepared_ci =
-                Some(self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+                Some(crate::ci::prepare_ci(&*self.ci, &cols, self.constraints.significance, ctx)?);
         }
         let cols: Vec<&[f64]> =
             (0..n_sel).map(|c| &workspace.compact_values[c * n_keep..(c + 1) * n_keep]).collect();
         let z_remap: Vec<usize> = (2..2 + z_len).collect();
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len }];
-        let req = CiBatchRequest {
-            columns: &cols,
-            queries: &queries,
-            z_flat: &z_remap,
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
+        let req =
+            crate::ci::ci_batch_request(&cols, &queries, &z_remap, self.constraints.significance);
         let prepared = workspace
             .prepared_ci
             .as_ref()
             .ok_or(DiscoveryError::Unsupported { message: "CI test used before prepare()" })?;
-        let out = self
-            .ci
-            .test_batch(prepared, &req, &mut workspace.ci, ctx)
-            .map_err(DiscoveryError::from)?;
-        let result = out
-            .results
+        let result = crate::ci::run_ci_batch(&*self.ci, prepared, &req, &mut workspace.ci, ctx)
+            .map_err(DiscoveryError::from)?
             .into_iter()
             .next()
             .ok_or_else(|| DiscoveryError::stats_msg("CI batch returned no results"))?;
@@ -1089,34 +1113,32 @@ fn pc_parent_combo(
     parents.iter().enumerate().filter(|(j, _)| *j != pi).map(|(_, x)| *x).take(cond_size).collect()
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Fold one PC1 outcome for `link` into the candidate's `min_stat` slot, queueing it for
+/// removal (with `combo` as its separating set) when the test accepts independence.
 fn record_pc_parent_outcome(
-    pi: usize,
-    src: VariableId,
-    slag: Lag,
-    target: VariableId,
+    link: LaggedLink,
     outcome: (f64, f64),
     combo: &[(VariableId, Lag)],
     compiled: &CompiledConstraints,
     alpha: f64,
-    min_stat: &mut [f64],
+    min_stat: &mut f64,
     workspace: &mut DiscoveryWorkspace,
 ) {
     let (stat, p) = outcome;
     // Always record |stat| so required edges that fail independence still rank by
     // observed association (not as +∞ / strongest).
-    min_stat[pi] = min_stat[pi].min(stat.abs());
+    *min_stat = min_stat.min(stat.abs());
     // pinned baseline retains links with p <= alpha (independence when p > alpha).
-    if p > alpha {
-        let link =
-            LaggedLink { source: src, source_lag: slag, target, target_lag: Lag::CONTEMPORANEOUS };
-        if !compiled.requires(link) {
-            workspace.removed.push((src, slag));
-            workspace.sepsets.insert((src, slag, target, Lag::CONTEMPORANEOUS), Arc::from(combo));
-        }
+    if p > alpha && !compiled.requires(link) {
+        workspace.removed.push((link.source, link.source_lag));
+        workspace.sepsets.insert(
+            (link.source, link.source_lag, link.target, Lag::CONTEMPORANEOUS),
+            Arc::from(combo),
+        );
     }
 }
 
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 fn resolve_vector_ci(
     base_ci: &Arc<dyn ConditionalIndependence + Send + Sync>,
     base_blocks: &Arc<[Arc<[usize]>]>,
@@ -1260,23 +1282,6 @@ pub(crate) fn refuse_truncated_mci(dropped: u64) -> Result<(), DiscoveryError> {
              refusing a truncated test"
         )))
     }
-}
-
-/// Inclusive-exclusive index ranges for target-wise parallel work.
-fn chunk_ranges(n: usize, threads: u32) -> Vec<(usize, usize)> {
-    if n == 0 {
-        return Vec::new();
-    }
-    let n_threads = (threads as usize).min(n).max(1);
-    let chunk = n.div_ceil(n_threads);
-    let mut out = Vec::with_capacity(n_threads);
-    let mut start = 0;
-    while start < n {
-        let end = (start + chunk).min(n);
-        out.push((start, end));
-        start = end;
-    }
-    out
 }
 
 #[cfg(test)]

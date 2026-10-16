@@ -73,7 +73,7 @@ impl CompletionSampler {
     /// exhaustively, so refusal is explicit instead of silently validating a prefix.
     /// A graph too large for the *global* equivalence audit is not refused — the audit is
     /// skipped and recorded in [`CompletionValidationReport::equivalence_audit_skipped`].
-    #[allow(clippy::needless_pass_by_value)] // preserve the established constructor API
+    #[allow(clippy::needless_pass_by_value, reason = "preserve the established constructor API")]
     pub fn new(pag: Pag, max_completions: usize) -> Result<Self, GraphError> {
         Self::with_projection(&pag, max_completions, |g| Some(g.clone()))
     }
@@ -106,7 +106,11 @@ impl CompletionSampler {
                 message: "PAG completion audit supports at most 16 circle endpoints",
             });
         }
-        let total = 1u64 << sites.len();
+        let total = u32::try_from(sites.len()).ok().and_then(|exp| 1u64.checked_shl(exp)).ok_or(
+            GraphError::InvalidEndpoints {
+                message: "PAG completion audit supports at most 16 circle endpoints",
+            },
+        )?;
         // The global m-separation signature costs one d-separation query per node pair per
         // conditioning subset, so it is exponential in node count where the assignment
         // enumeration above is only exponential in circle sites. Refusing the whole graph on
@@ -278,7 +282,7 @@ fn is_ancestral_orientation(g: &Pag) -> bool {
 
 /// Whether a circle-free graph is both ancestral and maximal.
 #[must_use]
-pub fn is_maximal_ancestral_graph(g: &Pag) -> bool {
+pub(crate) fn is_maximal_ancestral_graph(g: &Pag) -> bool {
     if !is_ancestral_orientation(g) {
         return false;
     }
@@ -289,12 +293,12 @@ pub fn is_maximal_ancestral_graph(g: &Pag) -> bool {
     let n = g.node_count();
     let mut sep_ws = DSeparationWorkspace::default();
     // Ancestor sets once per candidate: `An(x) ∪ An(y)` is then a word-wise OR.
-    let ancestors = ancestor_sets(&admg);
+    let ancestors = admg.strict_ancestor_sets();
     let mut union = BitSet::with_len(n);
     for i in 0..n {
-        let x = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+        let x = DenseNodeId::from_index(i);
         for j in (i + 1)..n {
-            let y = DenseNodeId::from_raw(u32::try_from(j).expect("node fit"));
+            let y = DenseNodeId::from_index(j);
             if g.has_edge(x, y) {
                 continue;
             }
@@ -311,33 +315,10 @@ pub fn is_maximal_ancestral_graph(g: &Pag) -> bool {
     true
 }
 
-/// `An(v)` for every node `v`: the nodes with a directed path into `v`, excluding `v` itself
-/// (the graph is acyclic). One topological sweep, `O(n · (n + e) / 64)`.
-fn ancestor_sets(admg: &Admg) -> Vec<BitSet> {
-    let n = admg.node_count();
-    let id = |i: usize| DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
-    let mut ancestors: Vec<BitSet> = (0..n).map(|_| BitSet::with_len(n)).collect();
-    let mut pending: Vec<usize> = (0..n).map(|i| admg.parents(id(i)).len()).collect();
-    let mut ready: Vec<usize> = (0..n).filter(|&i| pending[i] == 0).collect();
-    while let Some(v) = ready.pop() {
-        let done = ancestors[v].clone();
-        for &c in admg.children(id(v)) {
-            let ci = c.as_usize();
-            ancestors[ci].union_with(&done);
-            ancestors[ci].insert(id(v));
-            pending[ci] -= 1;
-            if pending[ci] == 0 {
-                ready.push(ci);
-            }
-        }
-    }
-    ancestors
-}
-
 fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
     let n = pag.node_count();
     for middle_i in 0..n {
-        let middle = DenseNodeId::from_raw(u32::try_from(middle_i).expect("node fit"));
+        let middle = DenseNodeId::from_index(middle_i);
         let neighbors: Vec<_> = pag.neighbors(middle).map(|(node, mark, _)| (node, mark)).collect();
         for i in 0..neighbors.len() {
             for j in (i + 1)..neighbors.len() {
@@ -372,7 +353,7 @@ fn preserves_unshielded_colliders(pag: &Pag, mag: &Pag) -> bool {
 pub(crate) fn as_admg(g: &Pag) -> Admg {
     let mut admg = Admg::with_variables(u32::try_from(g.node_count()).expect("node count fits"));
     for i in 0..g.node_count() {
-        let a = DenseNodeId::from_raw(u32::try_from(i).expect("node fit"));
+        let a = DenseNodeId::from_index(i);
         for (b, at_a, at_b) in g.neighbors(a) {
             if b.raw() < a.raw() {
                 continue;
@@ -407,12 +388,12 @@ pub(crate) fn m_separation_signature(g: &Pag) -> Vec<bool> {
                     .iter()
                     .enumerate()
                     .filter(|(bit, _)| ((mask >> bit) & 1) == 1)
-                    .map(|(_, &k)| DenseNodeId::from_raw(u32::try_from(k).expect("node fit")))
+                    .map(|(_, &k)| DenseNodeId::from_index(k))
                     .collect();
                 signature.push(
                     admg.is_m_separated(
-                        DenseNodeId::from_raw(u32::try_from(i).expect("node fit")),
-                        DenseNodeId::from_raw(u32::try_from(j).expect("node fit")),
+                        DenseNodeId::from_index(i),
+                        DenseNodeId::from_index(j),
                         &z,
                         &mut ws,
                     )
@@ -463,7 +444,6 @@ pub fn audit_finite_mag_equivalence(graphs: &[Pag]) -> Option<bool> {
 #[allow(
     clippy::cast_possible_truncation,
     clippy::similar_names,
-    clippy::many_single_char_names,
     clippy::needless_range_loop,
     reason = "test graphs have a handful of nodes, so node indices fit u32"
 )]
@@ -533,7 +513,7 @@ mod tests {
             // Ancestor sets against Admg reachability (as_admg needs an ancestral graph).
             if is_ancestral_orientation(&g) {
                 let admg = as_admg(&g);
-                let ancestors = ancestor_sets(&admg);
+                let ancestors = admg.strict_ancestor_sets();
                 for v in 0..n {
                     for u in 0..n {
                         let (uid, vid) =
@@ -749,7 +729,7 @@ mod tests {
                 assert_eq!(c.index, i);
                 assert!(is_mag_completion(&c.graph));
                 for i in 0..c.graph.node_count() {
-                    let a = DenseNodeId::from_raw(u32::try_from(i).unwrap());
+                    let a = DenseNodeId::from_index(i);
                     for (b, at_a, at_b) in c.graph.neighbors(a) {
                         if b.raw() < a.raw() {
                             continue;

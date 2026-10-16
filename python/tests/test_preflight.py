@@ -1,4 +1,4 @@
-"""2.2 E1: fit-free preflight, fitted diagnostics, rank-drop plans and cost counts.
+"""Fit-free preflight, fitted diagnostics, rank-drop plans and cost counts.
 
 Mirrors ``crates/antecedent/tests/preflight_reproducers.rs`` through the Python surface.
 Numeric expectations are hand-derived in the test (exact column relations) or recomputed

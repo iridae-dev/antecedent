@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
 use antecedent_core::CausalQuery;
 
 use super::builder::{DataInput, RefuteSuite};
@@ -28,7 +29,7 @@ pub(crate) struct CheckedBayesianTemporalClassEffectOperation {
     config: BayesianConfig,
     validation: RefuteSuite,
     class_prior: Option<ClassPrior>,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
 }
 
 impl std::fmt::Debug for CheckedBayesianTemporalClassEffectOperation {
@@ -45,7 +46,7 @@ impl std::fmt::Debug for CheckedBayesianTemporalClassEffectOperation {
 
 impl CheckedBayesianTemporalClassEffectOperation {
     /// Whether `study` is a coordinate this operation seals: a series pulse or
-    /// sustained effect on a fixed TemporalCpdag or TemporalPag under Bayesian
+    /// sustained effect on a fixed `TemporalCpdag` or `TemporalPag` under Bayesian
     /// inference with the default point-estimate settings. The one-shot facade
     /// and the prepared sealer share this predicate.
     #[must_use]
@@ -54,12 +55,9 @@ impl CheckedBayesianTemporalClassEffectOperation {
             return false;
         };
         matches!(study.data, DataInput::Temporal(_) | DataInput::Event(_))
-            && study.graph_posterior.is_none()
-            && study.tiered.is_none()
+            && study.plain_fixed_route()
             && matches!(study.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
-            && study.fixed_structure()
             && matches!(study.inference, InferenceMode::Bayesian(_))
-            && study.custom_validators.is_empty()
             && study.point_validation()
             && query.policy.is_pulse_or_sustained()
             && study
@@ -72,10 +70,12 @@ impl CheckedBayesianTemporalClassEffectOperation {
         inference: &InferenceMode,
         validation: RefuteSuite,
         class_prior: Option<ClassPrior>,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let config = checked_settings(inference, validation)?;
-        let (identifier, _, _, _, target_validation, custom_validators) = target.procedure();
+        let procedure = target.procedure();
+        let (identifier, target_validation) = (procedure.identifier, procedure.validation);
+        let custom_validators = procedure.custom_validators;
         if target_validation != validation || !custom_validators.is_empty() {
             return Err(CausalError::Compile {
                 message:
@@ -85,9 +85,7 @@ impl CheckedBayesianTemporalClassEffectOperation {
         }
         let query = CausalQuery::TemporalEffect(target.query().clone());
         if physical.logical.query != query
-            || physical.logical.record.identifier.as_deref() != Some(identifier.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(Self::estimator_for(&target).as_str())
+            || !physical.binding().names(identifier, Self::estimator_for(&target))
         {
             return Err(CausalError::Compile {
                 message: "Bayesian temporal class physical plan disagrees with its retained proof or procedure"
@@ -157,6 +155,63 @@ fn checked_settings(
         "checked Bayesian temporal class operation requires Bayesian inference",
         "checked Bayesian temporal class operation supports none, cheap, or full validation",
     )
+}
+
+/// Read-only source graph, completion proof, and Bayesian model settings for a
+/// temporal Cpdag/Pag pulse or sustained effect.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianTemporalClassEffectInfo {
+    /// Exact policy, intervention levels, horizon, and target population.
+    pub query: antecedent_core::TemporalEffectQuery,
+    /// Source class retained with the completion proof.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Identifier fixed during preparation.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Estimator fixed during preparation.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Validation suite fixed during preparation.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Requested posterior draws.
+    pub posterior_draws: usize,
+    /// Whether a caller-supplied class mass was sealed with the operation.
+    pub class_prior_supplied: bool,
+    /// Number of completion atoms retained by the checked proof.
+    pub completion_count: usize,
+    /// Maximum number of class completions searched, when configured.
+    pub completion_limit: Option<usize>,
+    /// Identified enumeration mass retained by the proof.
+    pub identified_mass: f64,
+    /// Unidentified enumeration mass retained by the proof.
+    pub unidentified_mass: f64,
+    /// Number of completions whose enumeration was cut off.
+    pub truncated_completions: usize,
+    /// Source graph version sealed with the proof.
+    pub graph_version: u64,
+}
+
+impl Inspect for CheckedBayesianTemporalClassEffectOperation {
+    type Info = CheckedBayesianTemporalClassEffectInfo;
+
+    fn info(&self) -> CheckedBayesianTemporalClassEffectInfo {
+        let target = self.target();
+        let identifier = target.procedure().identifier;
+        let envelope = &target.bundle().envelope.envelope;
+        CheckedBayesianTemporalClassEffectInfo {
+            query: target.query().clone(),
+            graph_class: target.graph_class(),
+            identifier,
+            estimator: self.estimator(),
+            validation: self.validation(),
+            posterior_draws: self.config().n_draws,
+            class_prior_supplied: self.class_prior().is_some(),
+            completion_count: envelope.cases.len(),
+            completion_limit: target.max_completions(),
+            identified_mass: envelope.identified_weight.0,
+            unidentified_mass: envelope.unidentified_weight.0,
+            truncated_completions: envelope.truncated_completions,
+            graph_version: u64::from(target.structure_version()),
+        }
+    }
 }
 
 #[cfg(test)]

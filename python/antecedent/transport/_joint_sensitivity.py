@@ -6,13 +6,12 @@ perturb two of its factors together: the outcome kernel (``"outcome_kernel"``) a
 the shared parent marginal (``"shared_parent_marginal"``). Each is contaminated
 independently within its own fraction bound (a box, never a total budget). The
 result is the exact assumption range over that box, the axis tipping points (the
-2.1 one-factor values), and a tipping frontier with certified brackets.
+one-factor values), and a tipping frontier with certified brackets.
 
 The range is an assumption range, never a confidence interval. Sampling
-uncertainty is not offered in 2.2: its one declared composition (the
-conservative endpoint percentile bootstrap) is closed, and
-``joint_mechanism_sensitivity_interval`` (in ``_joint_sensitivity_uncertainty``)
-always refuses with ``cell_not_licensed``.
+uncertainty is a separate route: ``joint_mechanism_sensitivity_interval``
+(in ``_joint_sensitivity_uncertainty``) returns the conservative endpoint
+percentile bootstrap. This range does not carry that interval.
 """
 
 from __future__ import annotations
@@ -22,6 +21,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from .._columns import coerce_fields
 from .._native import (
     consume_z_transport_joint_sensitivity_artifact as _consume_joint_artifact,
 )
@@ -71,7 +71,7 @@ class JointDeviation:
                 "joint_sensitivity.invalid_threshold: decision_threshold must be finite",
                 reason_code="invalid_argument",
             )
-        object.__setattr__(self, "_pairs", tuple(pairs))
+        coerce_fields(self, _pairs=tuple(pairs))
 
     def _kwargs(self) -> dict[str, Any]:
         return {

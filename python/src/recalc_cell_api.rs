@@ -1,5 +1,4 @@
-//! Bounded Python bridge for the cell-AIPW recalculation session and portable score resume
-//! (2.3 C2 remainder).
+//! Bounded Python bridge for the cell-AIPW recalculation session and portable score resume.
 //!
 //! Rust owns the stage model, the planner, the instrumented executors, the receipt counts, the
 //! frozen score artifact and every refusal. Python hands over numpy columns and reads back JSON
@@ -27,8 +26,8 @@ use antecedent::analysis::recalc_receipt::{
     UtilitySpec, execute_with_receipt,
 };
 use antecedent_core::recalc::{
-    Boundary, MissingDependency, RecalcCapabilities, RecalcPlan, RefusalReason, RequestSupport,
-    ResumeContext, RetargetSupport, Stage, StageIdentities, StageIdentity,
+    Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
+    Stage, StageIdentities, StageIdentity,
 };
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::{AipwAte, CellSaturatedAipw, ScoreTable};
@@ -40,7 +39,8 @@ use antecedent_io::recalc_receipt_artifact::{
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
-use crate::{CausalSerializationError, detach_catch, py_err, py_msg, value_err, with_reason_code};
+use crate::recalc_api::refusal_json;
+use crate::{detach_catch, py_err, py_msg, value_err, with_reason_code};
 
 /// `(result json, receipt artifact bytes, refusal json)`.
 type RunPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
@@ -59,70 +59,11 @@ fn invalid(detail: &str, text: impl AsRef<str>) -> PyErr {
 
 // -- refusals -----------------------------------------------------------------------------
 
-fn refusal_json(
-    code: &str,
-    stage: &str,
-    detail: &str,
-    offending: Option<&str>,
-    remedy: Option<String>,
-    message: &str,
-    plan: Option<&RecalcPlan>,
-) -> String {
-    serde_json::json!({
-        "code": code,
-        "stage": stage,
-        "detail": detail,
-        "offending": offending,
-        "expected": serde_json::Value::Null,
-        "supplied": serde_json::Value::Null,
-        "remedy": remedy,
-        "message": message,
-        "plan": plan.map(plan_to_wire),
-    })
-    .to_string()
-}
-
 /// The refusal a refused plan carries: its first refused stage and reason.
 fn plan_refusal_json(plan: &RecalcPlan) -> String {
-    let Some((stage, reason)) = plan.first_refusal() else {
-        return refusal_json(
-            antecedent_core::reason_code!("not_executed"),
-            "",
-            "recalc.refused",
-            None,
-            None,
-            "recalculation refused",
-            Some(plan),
-        );
-    };
-    let offending = match reason {
-        RefusalReason::Blocked { by } => Some(by.label()),
-        _ => None,
-    };
-    let remedy = match reason {
-        RefusalReason::OffGrid { licensed_route: Some(route) }
-        | RefusalReason::Unsupported { licensed_route: Some(route) } => {
-            Some(format!("use the separately licensed route `{route}`"))
-        }
-        RefusalReason::Unavailable { missing } => Some(match missing {
-            MissingDependency::Fit => {
-                "supply a portable fit or scores, or the data snapshot to refit".to_owned()
-            }
-            MissingDependency::Data => {
-                "run the changed request on a live session that holds the data".to_owned()
-            }
-            MissingDependency::Provider => "supply a compatible provider callback".to_owned(),
-        }),
-        _ => None,
-    };
-    refusal_json(
-        reason.reason_code(),
-        &stage.label(),
-        reason.detail(),
-        offending.as_deref(),
-        remedy,
-        &format!("recalculation refused at {stage}: {reason}"),
-        Some(plan),
+    crate::recalc_api::plan_refusal_json_with(
+        plan,
+        "run the changed request on a live session that holds the data",
     )
 }
 
@@ -186,7 +127,7 @@ fn export_refusal(error: RecalcRunError) -> PyResult<ExportPayload> {
 fn artifact_error(error: &FrozenScoresArtifactError) -> PyErr {
     match error {
         FrozenScoresArtifactError::LimitsExceeded(what) => invalid("recalc.limits_exceeded", what),
-        other => CausalSerializationError::new_err(other.to_string()),
+        other => crate::serialization_err(other.to_string()),
     }
 }
 

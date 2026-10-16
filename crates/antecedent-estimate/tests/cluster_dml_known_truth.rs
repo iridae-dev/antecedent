@@ -150,14 +150,14 @@ fn the_cluster_sandwich_receipt_covers_the_known_effect_and_the_iid_se_does_not(
                 AssumptionSet::new(),
             )
             .unwrap();
-        let table = fit.score_table.as_ref().expect("the cluster-DML route keeps its table");
+        let table = fit.scores.table.as_ref().expect("the cluster-DML route keeps its table");
         let receipt = spec.receipt(table, &raw.cluster, None).unwrap();
         assert_eq!(receipt.n_clusters, GROUPS);
         assert_eq!(receipt.reference_df, GROUPS - 1);
         // The published SE is the receipt value.
-        assert!((fit.se_analytic - receipt.cluster_sandwich_se).abs() < 1e-12);
+        assert!((fit.se_analytic() - receipt.cluster_sandwich_se).abs() < 1e-12);
         // The published reference is the declared t_(G-1).
-        assert_eq!(fit.se_reference_df, Some((GROUPS - 1) as f64));
+        assert_eq!(fit.uncertainty.analytic.reference_df, Some((GROUPS - 1) as f64));
         // The iid SE of the same scores: the contrast of the table's arm columns ignoring clusters.
         let summary = table.summarize(None).unwrap();
         let iid = table.linear_contrast(&summary, &[-1.0, 1.0]).unwrap();

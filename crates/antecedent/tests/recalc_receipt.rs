@@ -1,4 +1,4 @@
-//! 2.3 C2: selective recalculation proven by instrumented counts.
+//! Selective recalculation proven by instrumented counts.
 //!
 //! The route is the cross-fitted AIPW average effect through `PreparedStudy`. Each mutation
 //! asserts the whole per-stage status table, the counts of work that actually ran (nuisance
@@ -182,7 +182,7 @@ fn refused_plan(error: RecalcRunError) -> antecedent_core::recalc::RecalcPlan {
 }
 
 #[test]
-fn c2_recalc_first_run_fits_and_a_rerun_in_a_fresh_session_fits_again() {
+fn recalc_first_run_fits_and_a_rerun_in_a_fresh_session_fits_again() {
     let request = request();
     let mut session = RecalcSession::new();
     let first = go(&mut session, &request, SEED);
@@ -209,7 +209,7 @@ fn c2_recalc_first_run_fits_and_a_rerun_in_a_fresh_session_fits_again() {
 }
 
 #[test]
-fn c2_recalc_utility_only_change_recomputes_the_decision_with_zero_fit_work() {
+fn recalc_utility_only_change_recomputes_the_decision_with_zero_fit_work() {
     let base = request();
     let mut session = RecalcSession::new();
     let first = go(&mut session, &base, SEED);
@@ -236,7 +236,7 @@ fn c2_recalc_utility_only_change_recomputes_the_decision_with_zero_fit_work() {
 }
 
 #[test]
-fn c2_recalc_compatible_target_weight_change_reuses_frozen_scores() {
+fn recalc_compatible_target_weight_change_reuses_frozen_scores() {
     let base = request();
     let mut session = RecalcSession::new();
     let first = go(&mut session, &base, SEED);
@@ -269,7 +269,7 @@ fn c2_recalc_compatible_target_weight_change_reuses_frozen_scores() {
 }
 
 #[test]
-fn c2_recalc_changed_folds_and_new_outcomes_refit_without_reidentifying() {
+fn recalc_changed_folds_and_new_outcomes_refit_without_reidentifying() {
     let base = request();
     let mut session = RecalcSession::new();
     let first = go(&mut session, &base, SEED);
@@ -312,7 +312,7 @@ fn c2_recalc_changed_folds_and_new_outcomes_refit_without_reidentifying() {
 }
 
 #[test]
-fn c2_recalc_graph_or_query_change_reidentifies() {
+fn recalc_graph_or_query_change_reidentifies() {
     let base = request();
     let mut session = RecalcSession::new();
     let first = go(&mut session, &base, SEED);
@@ -352,7 +352,7 @@ fn c2_recalc_graph_or_query_change_reidentifies() {
 }
 
 #[test]
-fn c2_recalc_an_undeclared_retarget_refits_instead_of_reusing_scores() {
+fn recalc_an_undeclared_retarget_refits_instead_of_reusing_scores() {
     let base = request();
     let mut session = RecalcSession::new();
     session.set_retarget_support(RetargetSupport::NotDeclared);
@@ -378,7 +378,7 @@ fn c2_recalc_an_undeclared_retarget_refits_instead_of_reusing_scores() {
 }
 
 #[test]
-fn c2_recalc_refusals_run_no_work_and_leave_the_session_untouched() {
+fn recalc_refusals_run_no_work_and_leave_the_session_untouched() {
     let base = request();
     let mut session = RecalcSession::new();
 
@@ -430,7 +430,7 @@ fn c2_recalc_refusals_run_no_work_and_leave_the_session_untouched() {
 }
 
 #[test]
-fn c2_recalc_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() {
+fn recalc_a_loaded_result_cannot_claim_cache_reuse_in_a_fresh_process() {
     let base = request();
     let mut original = RecalcSession::new();
     let first = go(&mut original, &base, SEED);
@@ -488,7 +488,7 @@ fn entry(stage: Stage, status: StageStatus, counts: StageCounts) -> ReceiptEntry
 }
 
 #[test]
-fn c2_recalc_receipt_identity_is_order_independent_and_counts_must_match_status() {
+fn recalc_receipt_identity_is_order_independent_and_counts_must_match_status() {
     let base = request();
     let first = go(&mut RecalcSession::new(), &base, SEED);
     let mut shuffled: Vec<ReceiptEntry> = first.receipt.entries().to_vec();
@@ -538,7 +538,7 @@ fn c2_recalc_receipt_identity_is_order_independent_and_counts_must_match_status(
 }
 
 #[test]
-fn c2_recalc_recorder_counts_only_fits_a_scope_actually_ran() {
+fn recalc_recorder_counts_only_fits_a_scope_actually_ran() {
     let mut recorder = ReceiptRecorder::new();
     let out = recorder.measured(|| 7);
     assert_eq!(out, 7);
@@ -547,7 +547,7 @@ fn c2_recalc_recorder_counts_only_fits_a_scope_actually_ran() {
 }
 
 #[test]
-fn c2_recalc_failed_refresh_law_and_decision_preserve_successful_state() {
+fn recalc_failed_refresh_law_and_decision_preserve_successful_state() {
     let base = request();
     let mut session = RecalcSession::new();
     let first = go(&mut session, &base, SEED);

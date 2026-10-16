@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from .._columns import coerce_fields
 from ..errors import CausalTypeError, CausalUnsupportedError
 
 Matrix3 = tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]
@@ -61,8 +62,7 @@ class NestedFisherCandidate:
             _native=native,
         )
         result = object.__new__(cls)
-        for name, value in values.items():
-            object.__setattr__(result, name, value)
+        coerce_fields(result, **values)
         return result
 
     def export(self) -> bytes:

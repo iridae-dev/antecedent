@@ -1,4 +1,4 @@
-//! 2.3 C2 remainder: cell-AIPW score reuse and portable score resume, proven by counts.
+//! Cell-AIPW score reuse and portable score resume, proven by counts.
 //!
 //! The route is the cell-saturated AIPW interaction contrast over two binary treatments. Each
 //! mutation asserts the whole per-stage status table, the work that actually ran (cell-model
@@ -148,11 +148,13 @@ fn independent(columns: &Columns, seed: u64, weights: Option<&[f64]>) -> (f64, f
         .with_fold_seed(seed)
         .fit_scores(
             &data,
-            &[VariableId::from_raw(A), VariableId::from_raw(D)],
-            VariableId::from_raw(Y),
-            &[VariableId::from_raw(Z)],
-            &OutcomeFunctional::Mean,
-            None,
+            &antecedent_estimate::CellScoreSpec {
+                treatments: &[VariableId::from_raw(A), VariableId::from_raw(D)],
+                outcome: VariableId::from_raw(Y),
+                adjustment: &[VariableId::from_raw(Z)],
+                functional: &OutcomeFunctional::Mean,
+                continuous: None,
+            },
         )
         .unwrap();
     let ones = vec![1.0; table.n_rows];
@@ -213,7 +215,7 @@ const TARGET_ONLY: [(Stage, &str); 3] = [
 ];
 
 #[test]
-fn c2_cell_first_run_counts_the_cell_fits_and_matches_an_independent_fit() {
+fn cell_first_run_counts_the_cell_fits_and_matches_an_independent_fit() {
     let request = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &request, SEED);
@@ -239,7 +241,7 @@ fn c2_cell_first_run_counts_the_cell_fits_and_matches_an_independent_fit() {
 }
 
 #[test]
-fn c2_cell_utility_only_change_recomputes_the_decision_with_zero_fits() {
+fn cell_utility_only_change_recomputes_the_decision_with_zero_fits() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -263,7 +265,7 @@ fn c2_cell_utility_only_change_recomputes_the_decision_with_zero_fits() {
 }
 
 #[test]
-fn c2_cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() {
+fn cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -290,7 +292,7 @@ fn c2_cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() {
 }
 
 #[test]
-fn c2_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() {
+fn cell_changed_folds_and_new_outcomes_refit_without_reidentifying() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -328,7 +330,7 @@ fn c2_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() {
 }
 
 #[test]
-fn c2_cell_graph_or_query_change_reidentifies_and_refits() {
+fn cell_graph_or_query_change_reidentifies_and_refits() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -364,7 +366,7 @@ fn c2_cell_graph_or_query_change_reidentifies_and_refits() {
 }
 
 #[test]
-fn c2_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() {
+fn cell_an_undeclared_retarget_refits_instead_of_reusing_scores() {
     let base = request();
     let mut session = CellSession::new();
     session.set_retarget_support(RetargetSupport::NotDeclared);
@@ -392,7 +394,7 @@ fn c2_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() {
 }
 
 #[test]
-fn c2_cell_refusals_run_no_work_and_leave_the_session_usable() {
+fn cell_refusals_run_no_work_and_leave_the_session_usable() {
     let base = request();
 
     // A descendant of a treatment is not an adjustment set: nothing is fitted or kept.
@@ -436,7 +438,7 @@ fn c2_cell_refusals_run_no_work_and_leave_the_session_usable() {
 }
 
 #[test]
-fn c2_cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fits() {
+fn cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fits() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -445,11 +447,8 @@ fn c2_cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fit
     assert_eq!(artifact.input_rows(), N as u64);
     let again = session.export_scores().unwrap();
     assert_eq!(again.identity(), identity, "an export is deterministic");
-    assert_eq!(
-        again.to_bytes("c2-cell-scores").unwrap(),
-        artifact.to_bytes("c2-cell-scores").unwrap()
-    );
-    let bytes = artifact.to_bytes("c2-cell-scores").unwrap();
+    assert_eq!(again.to_bytes("cell-scores").unwrap(), artifact.to_bytes("cell-scores").unwrap());
+    let bytes = artifact.to_bytes("cell-scores").unwrap();
 
     // In-process retarget of the live session: the reference.
     let mut changed = base.clone();
@@ -512,7 +511,7 @@ fn c2_cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fit
 }
 
 #[test]
-fn c2_cell_resume_with_an_unchanged_request_reproduces_the_first_run() {
+fn cell_resume_with_an_unchanged_request_reproduces_the_first_run() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -544,7 +543,7 @@ fn c2_cell_resume_with_an_unchanged_request_reproduces_the_first_run() {
 }
 
 #[test]
-fn c2_cell_resumed_contrast_change_reduces_scores_without_reusing_the_old_law() {
+fn cell_resumed_contrast_change_reduces_scores_without_reusing_the_old_law() {
     let base = request();
     let mut session = CellSession::new();
     go(&mut session, &base, SEED);
@@ -581,7 +580,7 @@ fn c2_cell_resumed_contrast_change_reduces_scores_without_reusing_the_old_law() 
 }
 
 #[test]
-fn c2_cell_resume_rejects_overridden_request_identities_without_changing_live_state() {
+fn cell_resume_rejects_overridden_request_identities_without_changing_live_state() {
     let base = request();
     let mut session = CellSession::new();
     go(&mut session, &base, SEED);
@@ -624,7 +623,7 @@ fn c2_cell_resume_rejects_overridden_request_identities_without_changing_live_st
 }
 
 #[test]
-fn c2_cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
+fn cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
     let base = request();
     let mut session = CellSession::new();
     go(&mut session, &base, SEED);
@@ -721,13 +720,13 @@ fn c2_cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
 }
 
 #[test]
-fn c2_cell_resume_refuses_resealed_or_foreign_artifact_bytes() {
+fn cell_resume_refuses_resealed_or_foreign_artifact_bytes() {
     let base = request();
     let mut session = CellSession::new();
     go(&mut session, &base, SEED);
     let artifact = session.export_scores().unwrap();
     let identity = artifact.identity().to_owned();
-    let bytes = artifact.to_bytes("c2-cell-scores").unwrap();
+    let bytes = artifact.to_bytes("cell-scores").unwrap();
     assert!(ScoreResumeSession::resume_from_score_bytes(&bytes, Some(&identity)).is_ok());
 
     // Another run's artifact, consistently sealed, under the identity this consumer retained.
@@ -735,7 +734,7 @@ fn c2_cell_resume_refuses_resealed_or_foreign_artifact_bytes() {
     other.columns = columns(1.0);
     let mut other_session = CellSession::new();
     go(&mut other_session, &other, SEED);
-    let foreign = other_session.export_scores().unwrap().to_bytes("c2-cell-scores").unwrap();
+    let foreign = other_session.export_scores().unwrap().to_bytes("cell-scores").unwrap();
     assert!(ScoreResumeSession::resume_from_score_bytes(&foreign, None).is_ok());
     assert!(ScoreResumeSession::resume_from_score_bytes(&foreign, Some(&identity)).is_err());
 
@@ -743,12 +742,12 @@ fn c2_cell_resume_refuses_resealed_or_foreign_artifact_bytes() {
     let mut meta = decode_parts(&bytes).unwrap();
     meta.table.scores[0] += 0.25;
     FrozenScoreTable::reseal_identity(&mut meta).unwrap();
-    let resealed = encode_parts(&meta, "c2-cell-scores").unwrap();
+    let resealed = encode_parts(&meta, "cell-scores").unwrap();
     assert!(ScoreResumeSession::resume_from_score_bytes(&resealed, Some(&identity)).is_err());
     // An unresealed edit is refused by recomputation alone.
     let mut stale = decode_parts(&bytes).unwrap();
     stale.table.scores[0] += 0.25;
-    let stale_bytes = encode_parts(&stale, "c2-cell-scores").unwrap();
+    let stale_bytes = encode_parts(&stale, "cell-scores").unwrap();
     assert!(ScoreResumeSession::resume_from_score_bytes(&stale_bytes, None).is_err());
 }
 
@@ -767,7 +766,7 @@ fn crossfit_columns() -> Columns {
 }
 
 #[test]
-fn c2_cell_crossfit_scores_resume_the_same_way() {
+fn cell_crossfit_scores_resume_the_same_way() {
     // Columns t=0, y=1, z=2; edges z->t, z->y, t->y.
     let edges = vec![(2, 0), (2, 1), (0, 1)];
     let base = RecalcRequest {
@@ -783,7 +782,7 @@ fn c2_cell_crossfit_scores_resume_the_same_way() {
     let first = execute_with_receipt(&mut session, &base, &ctx(61)).unwrap();
     assert_eq!(first.receipt.totals().fold_fits, 10);
     let artifact = freeze_crossfit_scores(&session, 600, RetargetSupport::Licensed).unwrap();
-    let bytes = artifact.to_bytes("c2-crossfit-scores").unwrap();
+    let bytes = artifact.to_bytes("crossfit-scores").unwrap();
 
     let mut changed = base.clone();
     let z = &base.columns[2].1;

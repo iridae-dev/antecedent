@@ -1,5 +1,5 @@
-//! Independent point-result artifacts for exact binary observation recovery
-//! (2.2B X10): graph-licensed recovery, not MAR/IPCW.
+//! Independent point-result artifacts for exact binary observation recovery:
+//! graph-licensed recovery, not MAR/IPCW.
 //!
 //! Format version 1. A consumer trusts nothing in the artifact. Under its own
 //! maxima (a stored limit above them refuses before any work) it re-decides the
@@ -36,7 +36,7 @@ use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
     ObservationRecoveryQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RecoveredEffectQuery,
     RecoveryDerivation, RecoveryDerivationRecord, RecoveryDetail, RecoveryError, RecoveryLimits,
-    verify_observation_recovery,
+    StoredRecovery, verify_observation_recovery,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -49,7 +49,7 @@ pub const RECOVERY_ARTIFACT_FEATURE: &str = "checked_observation_recovery_point_
 pub const RECOVERY_POINT_ONLY: &str = "point_only";
 
 /// Why a recovery artifact was refused. Every kind carries a registered reason
-/// code and the X10 detail it maps to.
+/// code and the recovery detail it maps to.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum RecoveryArtifactError {
@@ -111,6 +111,7 @@ impl From<RecoveryArtifactError> for IoError {
 
 /// Convert a route refusal into an io refusal that keeps its reason code.
 #[must_use]
+// doc(hidden): the facade maps recovery refusals through it.
 #[doc(hidden)]
 pub fn recovery_io_error(error: &RecoveryError) -> IoError {
     IoError::Refused { code: error.reason_code(), message: error.to_string() }
@@ -412,7 +413,7 @@ fn data_digest(catalog: &EvidenceCatalog, law: &ExactLawWire) -> Result<String, 
         })
         .collect::<Vec<_>>();
     bindings.sort();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &(
             "observation_recovery_data_v1",
@@ -424,8 +425,7 @@ fn data_digest(catalog: &EvidenceCatalog, law: &ExactLawWire) -> Result<String, 
             // The table's content, bit for bit: data identity is never left to replay.
             (&law.axes, law.probabilities.iter().map(|p| p.to_bits()).collect::<Vec<u64>>()),
         ),
-    )?
-    .to_hex())
+    )
 }
 
 fn request_wire(request: &Assignment) -> Vec<(u32, ValueWire)> {
@@ -434,11 +434,6 @@ fn request_wire(request: &Assignment) -> Vec<(u32, ValueWire)> {
 
 fn request_of(wire: &[(u32, ValueWire)]) -> Assignment {
     Assignment::from_pairs(wire.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())))
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
 }
 
 /// The checked premises and results an artifact is built from.
@@ -541,11 +536,7 @@ impl RecoveryArtifactWire {
     /// # Errors
     /// The premises do not encode.
     pub fn expected_premises_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
-            IdentityDomain::TransportCertificate,
-            &self.premises_view(),
-        )?
-        .to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &self.premises_view())
     }
 
     /// The data-identity digest the stored snapshot ids should carry.
@@ -609,11 +600,13 @@ impl RecoveryArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != RECOVERY_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == RECOVERY_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         wire.validate_shape()?;
         Ok(wire)
     }
@@ -650,7 +643,7 @@ impl RecoveryArtifactWire {
     /// the recovered law and every effect point. No external provider is accessed.
     ///
     /// # Errors
-    /// Any reconstruction failure, with the X10 reason code and detail.
+    /// Any reconstruction failure, with the recovery reason code and detail.
     pub fn consume_with_limits(
         bytes: &[u8],
         limits: RecoveryConsumeLimits,
@@ -664,6 +657,7 @@ impl RecoveryArtifactWire {
     ///
     /// # Errors
     /// As [`Self::consume_with_limits`].
+    // doc(hidden): the facade and the python bindings consume the typed result.
     #[doc(hidden)]
     pub fn consume_typed(
         bytes: &[u8],
@@ -676,13 +670,19 @@ impl RecoveryArtifactWire {
             other => unsupported(other),
         })?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest().map_err(unsupported)? != wire.premises_digest {
-            return Err(RecoveryArtifactError::PremisesMismatch);
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            unsupported,
+            || RecoveryArtifactError::PremisesMismatch,
+        )?;
         let catalog = wire.catalog.to_catalog().map_err(unsupported)?;
-        if data_digest(&catalog, &wire.observed_law).map_err(unsupported)? != wire.data_digest {
-            return Err(RecoveryArtifactError::DataIdentityMismatch);
-        }
+        crate::require_digest(
+            &wire.data_digest,
+            data_digest(&catalog, &wire.observed_law),
+            unsupported,
+            || RecoveryArtifactError::DataIdentityMismatch,
+        )?;
         let graph = admg_from_wire(&wire.graph).map_err(unsupported)?;
         let query = wire.query.to_query();
         let effect = wire
@@ -703,9 +703,11 @@ impl RecoveryArtifactWire {
             &query,
             &catalog,
             effect.as_ref(),
-            &wire.derivation,
-            &arena,
-            effect_arena.as_ref(),
+            &StoredRecovery {
+                record: &wire.derivation,
+                arena: &arena,
+                effect_arena: effect_arena.as_ref(),
+            },
             limits.decision,
             ctx,
         )

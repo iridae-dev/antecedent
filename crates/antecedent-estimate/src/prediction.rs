@@ -11,7 +11,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
 #![cfg_attr(
     test,
     allow(
@@ -124,13 +123,13 @@ impl TemporalLinearPredictor {
         let prep = plan.prepare(data, &mut ws, policy).map_err(EstimationError::from)?;
         let n = prep.n;
         let mut out = vec![0.0; n];
-        for i in 0..n {
+        for (i, slot) in out.iter_mut().enumerate() {
             let mut yhat = self.coefficients[0];
             for (p, parent) in self.parents.iter().enumerate() {
                 let x = if parent.variable == held_var { level } else { prep.column(1 + p)[i] };
                 yhat += self.coefficients[1 + p] * x;
             }
-            out[i] = yhat;
+            *slot = yhat;
         }
         Ok(Arc::from(out))
     }

@@ -1,6 +1,6 @@
 //! Adapters from claim types to decision inputs under a declared policy.
 //!
-//! The 2.2 claims a decision can read are point claims, graph-dependent claims
+//! The claims a decision can read are point claims, graph-dependent claims
 //! (one answer per graph, no probability), weighted graph-posterior atoms,
 //! finite supplied scenarios and identified sets. The first four become
 //! [`StructuralAtom`]s for [`evaluate_structural`]; each atom keeps the
@@ -10,6 +10,13 @@
 //! identification), reporting dominance, possibly and necessarily optimal
 //! actions, and conflicting leaders.
 //!
+//! A transported response (a value carried to a target population under a declared
+//! transport) is a point claim whose evidence is a transported law
+//! ([`adapt_transported_claim`]); a transported mean is refused here with the
+//! structural evaluators' law requirement, and the transport identity stays on
+//! the [`crate::decision_transported_source::TransportedResponse`] the claim was
+//! built from. Support is never above `Extrapolative`.
+//!
 //! Completion counts are never probabilities: `BayesOverStructures` refuses
 //! them, and every other policy drops them from the weights. Unidentified and
 //! unevaluated mass is passed through and never renormalized. A hard
@@ -18,7 +25,10 @@
 
 use std::collections::HashSet;
 
-use antecedent_core::{ExternalRefusal, IdentifiedSet, SupportStatus};
+use antecedent_contract::ExternalRefusal;
+
+use crate::signal::{RefusalBuilder, at_stage};
+use antecedent_core::{IdentifiedSet, SupportStatus};
 
 use crate::decision_contract::{
     AdmissibilityError, AdmissibleDecisionContract, DecisionAction, DecisionContract,
@@ -28,6 +38,10 @@ use crate::decision_robustness::{
     AtomSupport, ClaimProfile, RobustDecisionResult, RobustnessError, evaluate_robust,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom, StructuralDecisionResult};
+use crate::decision_transported_source::{
+    TransportedRefusal, TransportedResponse, TransportedValue,
+};
+use crate::structure_aggregator::{AggregateKind, StructureAggregator};
 
 /// What a claim says about its own probability.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -124,6 +138,8 @@ pub enum AdapterError {
     Admissibility(AdmissibilityError),
     /// The robustness assessment refused.
     Robustness(RobustnessError),
+    /// A transported response cannot be adapted to a structural claim.
+    Transported(TransportedRefusal),
 }
 
 impl AdapterError {
@@ -132,83 +148,58 @@ impl AdapterError {
     pub fn to_refusal(&self) -> ExternalRefusal {
         let invalid = antecedent_core::reason_code!("invalid_argument");
         let unsatisfied = antecedent_core::reason_code!("decision_contract_unsatisfied");
-        let build = |code, detail: &str, offending: Option<String>, remedy| ExternalRefusal {
-            code,
-            stage: "adapt",
-            detail: detail.to_owned(),
-            offending,
-            expected: None,
-            supplied: None,
-            capability: None,
-            remedy,
-        };
+        let build = |code, detail: &str| RefusalBuilder::new(code, "adapt", detail);
         match self {
-            Self::InvalidClaims(why) => ExternalRefusal {
-                expected: Some((*why).to_owned()),
-                ..build(invalid, "decision_adapters.invalid_claims", None, None)
-            },
-            Self::CompletionCountNotProbability(id) => build(
-                unsatisfied,
-                "decision_adapters.completion_count_not_probability",
-                Some(id.clone()),
-                Some("supply genuine structure probabilities, not completion counts"),
-            ),
-            Self::ProbabilitiesRequired => build(
-                unsatisfied,
-                "decision_adapters.probabilities_required",
-                None,
-                Some("supply genuine structure probabilities for Bayes over structures"),
-            ),
-            Self::GraphClaimsCarryNoProbability(id) => build(
-                invalid,
-                "decision_adapters.graph_claims_carry_no_probability",
-                Some(id.clone()),
-                Some("adapt probability-weighted graphs as weighted graph-posterior atoms"),
-            ),
-            Self::PolicyMismatch => build(
-                unsatisfied,
-                "decision_adapters.policy_mismatch",
-                None,
-                Some("adapt the claims under the contract's declared structural policy"),
-            ),
-            Self::InvalidInterval(id) => {
-                build(invalid, "decision_adapters.invalid_interval", Some(id.clone()), None)
+            Self::InvalidClaims(why) => {
+                build(invalid, "decision_adapters.invalid_claims").expected(*why).build()
             }
+            Self::CompletionCountNotProbability(id) => {
+                build(unsatisfied, "decision_adapters.completion_count_not_probability")
+                    .offending(id.clone())
+                    .remedy("supply genuine structure probabilities, not completion counts")
+                    .build()
+            }
+            Self::ProbabilitiesRequired => build(unsatisfied, "decision_adapters.probabilities_required")
+                .remedy("supply genuine structure probabilities for Bayes over structures")
+                .build(),
+            Self::GraphClaimsCarryNoProbability(id) => {
+                build(invalid, "decision_adapters.graph_claims_carry_no_probability")
+                    .offending(id.clone())
+                    .remedy("adapt probability-weighted graphs as weighted graph-posterior atoms")
+                    .build()
+            }
+            Self::PolicyMismatch => build(unsatisfied, "decision_adapters.policy_mismatch")
+                .remedy("adapt the claims under the contract's declared structural policy")
+                .build(),
+            Self::InvalidInterval(id) => build(invalid, "decision_adapters.invalid_interval")
+                .offending(id.clone())
+                .build(),
             Self::UnknownAction(id) => {
-                build(invalid, "decision_adapters.unknown_action", Some(id.clone()), None)
+                build(invalid, "decision_adapters.unknown_action").offending(id.clone()).build()
             }
             Self::DuplicateAction(id) => {
-                build(invalid, "decision_adapters.duplicate_action", Some(id.clone()), None)
+                build(invalid, "decision_adapters.duplicate_action").offending(id.clone()).build()
             }
             Self::MissingAction(id) => {
-                build(invalid, "decision_adapters.missing_action", Some(id.clone()), None)
+                build(invalid, "decision_adapters.missing_action").offending(id.clone()).build()
             }
-            Self::BayesOverIdentifiedSet => build(
-                unsatisfied,
-                "decision_adapters.bayes_over_identified_set",
-                None,
-                Some(
-                    "an identified set has no probability law; use a worst-case or invariance policy",
-                ),
-            ),
-            Self::CriterionNotLicensedForSet => build(
-                unsatisfied,
-                "decision_adapters.criterion_not_licensed_for_set",
-                None,
-                Some(
-                    "an identified set supports expected-utility, loss, worst-case and minimax regret criteria only",
-                ),
-            ),
-            Self::Admissibility(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "adapt";
-                value
+            Self::BayesOverIdentifiedSet => {
+                build(unsatisfied, "decision_adapters.bayes_over_identified_set")
+                    .remedy(
+                        "an identified set has no probability law; use a worst-case or invariance policy",
+                    )
+                    .build()
             }
-            Self::Robustness(error) => {
-                let mut value = error.to_refusal();
-                value.stage = "adapt";
-                value
+            Self::CriterionNotLicensedForSet => {
+                build(unsatisfied, "decision_adapters.criterion_not_licensed_for_set")
+                    .remedy(
+                        "an identified set supports expected-utility, loss, worst-case and minimax regret criteria only",
+                    )
+                    .build()
             }
+            Self::Admissibility(error) => at_stage(error.to_refusal(), "adapt"),
+            Self::Robustness(error) => at_stage(error.to_refusal(), "adapt"),
+            Self::Transported(error) => at_stage(error.to_refusal(), "adapt"),
         }
     }
 }
@@ -298,6 +289,41 @@ pub fn adapt_point_claim(
         support,
     };
     adapt(ClaimKind::Point, vec![claim], policy)
+}
+
+/// Adapt a transported response as one point claim.
+///
+/// A structural decision evaluates a law under each structure, so only a
+/// transported law is adapted. The claim's support is the response's own label
+/// (never `Supported`), per input status is not refined by the caller, and the
+/// claim is a point claim: its transport identity is the response's receipt,
+/// which the caller keeps with the decision it makes from the adapted claims.
+///
+/// # Errors
+/// [`TransportedRefusal::LawNotSupplied`] for a transported mean (a mean is
+/// one expectation and a structural evaluation needs a law); and the refusals
+/// of [`adapt_point_claim`].
+pub fn adapt_transported_claim(
+    id: &str,
+    response: &TransportedResponse,
+    policy: StructuralPolicy,
+) -> Result<AdaptedClaims, AdapterError> {
+    let TransportedValue::Law(law) = response.value() else {
+        return Err(AdapterError::Transported(TransportedRefusal::LawNotSupplied {
+            needed: "structural_evaluation",
+        }));
+    };
+    let status = response.receipt().support_status().ok_or_else(|| {
+        AdapterError::Transported(TransportedRefusal::SupportLabelInflated(
+            response.receipt().support.clone(),
+        ))
+    })?;
+    adapt_point_claim(
+        id,
+        AtomEvidence::Evaluated(Box::new(law.clone())),
+        AtomSupport::uniform(status),
+        policy,
+    )
 }
 
 /// Adapt graph-dependent claims: one answer per graph, no probabilities.
@@ -447,6 +473,7 @@ pub struct IdentifiedSetDecision {
     pub verdict: IdentifiedVerdict,
 }
 
+#[allow(clippy::type_complexity, reason = "one-off tuple returned from a single private helper")]
 fn enclose(expr: &UtilityExpr, inputs: &[IdentifiedSet<f64>]) -> Result<(f64, f64), AdapterError> {
     let both =
         |a: &UtilityExpr, b: &UtilityExpr| -> Result<((f64, f64), (f64, f64)), AdapterError> {
@@ -621,8 +648,7 @@ fn pick(
 
 /// The verdict over a nonempty eligible set.
 fn verdict_over(
-    base: &DecisionContract,
-    worst_case_criterion: bool,
+    aggregator: StructureAggregator,
     eligible: &[usize],
     oriented: &[(f64, f64)],
     analysis: &[Analysis],
@@ -630,11 +656,16 @@ fn verdict_over(
 ) -> IdentifiedVerdict {
     let worst_case =
         || pick(unique_best(eligible, |i| oriented[i].0), ids, IdentifiedVerdict::WorstCaseChoice);
-    if worst_case_criterion {
-        return worst_case();
+    if aggregator.scores_minimax_regret() {
+        return pick(
+            unique_best(eligible, |i| -analysis[i].max_regret.unwrap_or(f64::INFINITY)),
+            ids,
+            IdentifiedVerdict::MinimaxRegretChoice,
+        );
     }
-    match base.structural_policy {
-        StructuralPolicy::RequireInvariantBestAction => {
+    match aggregator.kind() {
+        AggregateKind::WorstCase => worst_case(),
+        AggregateKind::Invariant => {
             match eligible.iter().copied().find(|i| analysis[*i].necessarily) {
                 Some(i) => IdentifiedVerdict::NecessarilyBest(ids[i].to_owned()),
                 None => IdentifiedVerdict::NoNecessarilyBest {
@@ -646,15 +677,7 @@ fn verdict_over(
                 },
             }
         }
-        StructuralPolicy::Maximin if base.criterion == DecisionCriterion::Regret => pick(
-            unique_best(eligible, |i| -analysis[i].max_regret.unwrap_or(f64::INFINITY)),
-            ids,
-            IdentifiedVerdict::MinimaxRegretChoice,
-        ),
-        StructuralPolicy::Maximin => worst_case(),
-        StructuralPolicy::ReportOnly | StructuralPolicy::BayesOverStructures => {
-            IdentifiedVerdict::ReportOnly
-        }
+        AggregateKind::Report | AggregateKind::Bayes => IdentifiedVerdict::ReportOnly,
     }
 }
 
@@ -674,7 +697,6 @@ fn verdict_over(
 /// missing action, a non-finite or inverted interval, `BayesOverStructures`
 /// (an identified set has no probability law) and criteria that need a
 /// distribution (`ThresholdProbability`, `Quantile`, `ExpectedRegret`).
-#[allow(clippy::too_many_lines)]
 pub fn evaluate_identified_sets(
     contract: &AdmissibleDecisionContract,
     utilities: &[IdentifiedUtility],
@@ -689,24 +711,14 @@ pub fn evaluate_identified_sets(
     ) {
         return Err(AdapterError::CriterionNotLicensedForSet);
     }
-    let worst_case_criterion = matches!(
-        base.criterion,
-        DecisionCriterion::MaximinOverStructures | DecisionCriterion::MinimaxOverIdentifiedSet
-    );
-    if base.structural_policy == StructuralPolicy::BayesOverStructures && !worst_case_criterion {
+    let aggregator = StructureAggregator::new(base.criterion, base.structural_policy);
+    if aggregator.kind() == AggregateKind::Bayes {
         return Err(AdapterError::BayesOverIdentifiedSet);
     }
     let supplied = check_coverage(&base.actions, utilities)?;
-    let loss = matches!(
-        base.criterion,
-        DecisionCriterion::PosteriorExpectedLoss | DecisionCriterion::MinimaxOverIdentifiedSet
-    );
     let oriented: Vec<(f64, f64)> = supplied
         .iter()
-        .map(|u| {
-            let set = &u.utility;
-            if loss { (-set.upper, -set.lower) } else { (set.lower, set.upper) }
-        })
+        .map(|u| aggregator.orient_interval(u.utility.lower, u.utility.upper))
         .collect();
     let gates: Vec<Gate> = base
         .actions
@@ -748,7 +760,7 @@ pub fn evaluate_identified_sets(
             IdentifiedVerdict::NoAdmissibleAction
         }
     } else {
-        verdict_over(base, worst_case_criterion, &eligible, &oriented, &analysis, &ids)
+        verdict_over(aggregator, &eligible, &oriented, &analysis, &ids)
     };
 
     let actions = base

@@ -1,0 +1,664 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_state::GraphScoreFamily
+#[non_exhaustive] pub enum antecedent_state::StateError
+impl core::clone::Clone for antecedent_state::CachedResult
+impl core::clone::Clone for antecedent_state::CausalState
+impl core::clone::Clone for antecedent_state::ChangedInput
+impl core::clone::Clone for antecedent_state::ConstraintId
+impl core::clone::Clone for antecedent_state::DataBatchRef
+impl core::clone::Clone for antecedent_state::DataCatalog
+impl core::clone::Clone for antecedent_state::DataVersion
+impl core::clone::Clone for antecedent_state::GraphConstraintRecord
+impl core::clone::Clone for antecedent_state::GraphEvidenceRecord
+impl core::clone::Clone for antecedent_state::GraphEvidenceStore
+impl core::clone::Clone for antecedent_state::GraphScoreCacheKey
+impl core::clone::Clone for antecedent_state::GraphScoreData
+impl core::clone::Clone for antecedent_state::GraphScoreFamily
+impl core::clone::Clone for antecedent_state::InterventionRecord
+impl core::clone::Clone for antecedent_state::InvalidationEntry
+impl core::clone::Clone for antecedent_state::InvalidationLog
+impl core::clone::Clone for antecedent_state::InvalidationTarget
+impl core::clone::Clone for antecedent_state::LagIndexCacheEntry
+impl core::clone::Clone for antecedent_state::LagIndexCacheKey
+impl core::clone::Clone for antecedent_state::LgssmParams
+impl core::clone::Clone for antecedent_state::LinearOlsSuffStats
+impl core::clone::Clone for antecedent_state::LocalScoreCache
+impl core::clone::Clone for antecedent_state::ModelRecord
+impl core::clone::Clone for antecedent_state::ModelStore
+impl core::clone::Clone for antecedent_state::ParentSetOp
+impl core::clone::Clone for antecedent_state::ParticleFilterState
+impl core::clone::Clone for antecedent_state::PublishedLineage
+impl core::clone::Clone for antecedent_state::QueryRecord
+impl core::clone::Clone for antecedent_state::QueryStore
+impl core::clone::Clone for antecedent_state::ResultPublication
+impl core::clone::Clone for antecedent_state::ResultStore
+impl core::clone::Clone for antecedent_state::RetentionPolicy
+impl core::clone::Clone for antecedent_state::RollingMechanismDiagnostics
+impl core::clone::Clone for antecedent_state::StateError
+impl core::clone::Clone for antecedent_state::StateEvent
+impl core::clone::Clone for antecedent_state::StreamingCovariance
+impl core::clone::Clone for antecedent_state::SuffStatStore
+impl core::cmp::Eq for antecedent_state::ChangedInput
+impl core::cmp::Eq for antecedent_state::ConstraintId
+impl core::cmp::Eq for antecedent_state::DataBatchRef
+impl core::cmp::Eq for antecedent_state::DataVersion
+impl core::cmp::Eq for antecedent_state::GraphConstraintRecord
+impl core::cmp::Eq for antecedent_state::GraphEvidenceRecord
+impl core::cmp::Eq for antecedent_state::GraphScoreCacheKey
+impl core::cmp::Eq for antecedent_state::GraphScoreFamily
+impl core::cmp::Eq for antecedent_state::InterventionRecord
+impl core::cmp::Eq for antecedent_state::InvalidationEntry
+impl core::cmp::Eq for antecedent_state::InvalidationTarget
+impl core::cmp::Eq for antecedent_state::LagIndexCacheEntry
+impl core::cmp::Eq for antecedent_state::LagIndexCacheKey
+impl core::cmp::Eq for antecedent_state::ParentSetOp
+impl core::cmp::Eq for antecedent_state::PublishedLineage
+impl core::cmp::Eq for antecedent_state::RetentionPolicy
+impl core::cmp::Eq for antecedent_state::StateError
+impl core::cmp::PartialEq for antecedent_state::ChangedInput
+impl core::cmp::PartialEq for antecedent_state::ConstraintId
+impl core::cmp::PartialEq for antecedent_state::DataBatchRef
+impl core::cmp::PartialEq for antecedent_state::DataVersion
+impl core::cmp::PartialEq for antecedent_state::GraphConstraintRecord
+impl core::cmp::PartialEq for antecedent_state::GraphEvidenceRecord
+impl core::cmp::PartialEq for antecedent_state::GraphScoreCacheKey
+impl core::cmp::PartialEq for antecedent_state::GraphScoreFamily
+impl core::cmp::PartialEq for antecedent_state::InterventionRecord
+impl core::cmp::PartialEq for antecedent_state::InvalidationEntry
+impl core::cmp::PartialEq for antecedent_state::InvalidationTarget
+impl core::cmp::PartialEq for antecedent_state::LagIndexCacheEntry
+impl core::cmp::PartialEq for antecedent_state::LagIndexCacheKey
+impl core::cmp::PartialEq for antecedent_state::LgssmParams
+impl core::cmp::PartialEq for antecedent_state::LinearOlsSuffStats
+impl core::cmp::PartialEq for antecedent_state::ParentSetOp
+impl core::cmp::PartialEq for antecedent_state::ParticleFilterState
+impl core::cmp::PartialEq for antecedent_state::PublishedLineage
+impl core::cmp::PartialEq for antecedent_state::RetentionPolicy
+impl core::cmp::PartialEq for antecedent_state::StateError
+impl core::cmp::PartialEq for antecedent_state::StreamingCovariance
+impl core::default::Default for antecedent_state::CausalState
+impl core::default::Default for antecedent_state::DataCatalog
+impl core::default::Default for antecedent_state::DataVersion
+impl core::default::Default for antecedent_state::GraphEvidenceStore
+impl core::default::Default for antecedent_state::InvalidationLog
+impl core::default::Default for antecedent_state::LgssmParams
+impl core::default::Default for antecedent_state::ModelStore
+impl core::default::Default for antecedent_state::QueryStore
+impl core::default::Default for antecedent_state::ResultStore
+impl core::default::Default for antecedent_state::SuffStatStore
+impl core::error::Error for antecedent_state::StateError
+impl core::fmt::Debug for antecedent_state::CachedResult
+impl core::fmt::Debug for antecedent_state::CausalState
+impl core::fmt::Debug for antecedent_state::ChangedInput
+impl core::fmt::Debug for antecedent_state::ConstraintId
+impl core::fmt::Debug for antecedent_state::DataBatchRef
+impl core::fmt::Debug for antecedent_state::DataCatalog
+impl core::fmt::Debug for antecedent_state::DataVersion
+impl core::fmt::Debug for antecedent_state::GraphConstraintRecord
+impl core::fmt::Debug for antecedent_state::GraphEvidenceRecord
+impl core::fmt::Debug for antecedent_state::GraphEvidenceStore
+impl core::fmt::Debug for antecedent_state::GraphScoreCacheKey
+impl core::fmt::Debug for antecedent_state::GraphScoreData
+impl core::fmt::Debug for antecedent_state::GraphScoreFamily
+impl core::fmt::Debug for antecedent_state::InterventionRecord
+impl core::fmt::Debug for antecedent_state::InvalidationEntry
+impl core::fmt::Debug for antecedent_state::InvalidationLog
+impl core::fmt::Debug for antecedent_state::InvalidationTarget
+impl core::fmt::Debug for antecedent_state::LagIndexCacheEntry
+impl core::fmt::Debug for antecedent_state::LagIndexCacheKey
+impl core::fmt::Debug for antecedent_state::LgssmParams
+impl core::fmt::Debug for antecedent_state::LinearOlsSuffStats
+impl core::fmt::Debug for antecedent_state::LocalScoreCache
+impl core::fmt::Debug for antecedent_state::ModelRecord
+impl core::fmt::Debug for antecedent_state::ModelStore
+impl core::fmt::Debug for antecedent_state::ParentSetOp
+impl core::fmt::Debug for antecedent_state::ParticleFilterState
+impl core::fmt::Debug for antecedent_state::PublishedLineage
+impl core::fmt::Debug for antecedent_state::QueryRecord
+impl core::fmt::Debug for antecedent_state::QueryStore
+impl core::fmt::Debug for antecedent_state::ResultPublication
+impl core::fmt::Debug for antecedent_state::ResultStore
+impl core::fmt::Debug for antecedent_state::RetentionPolicy
+impl core::fmt::Debug for antecedent_state::RollingMechanismDiagnostics
+impl core::fmt::Debug for antecedent_state::StateError
+impl core::fmt::Debug for antecedent_state::StateEvent
+impl core::fmt::Debug for antecedent_state::StreamingCovariance
+impl core::fmt::Debug for antecedent_state::SuffStatStore
+impl core::fmt::Display for antecedent_state::StateError
+impl core::hash::Hash for antecedent_state::ConstraintId
+impl core::hash::Hash for antecedent_state::DataBatchRef
+impl core::hash::Hash for antecedent_state::DataVersion
+impl core::hash::Hash for antecedent_state::GraphScoreCacheKey
+impl core::hash::Hash for antecedent_state::GraphScoreFamily
+impl core::hash::Hash for antecedent_state::LagIndexCacheKey
+impl core::hash::Hash for antecedent_state::RetentionPolicy
+impl core::marker::Copy for antecedent_state::ChangedInput
+impl core::marker::Copy for antecedent_state::DataVersion
+impl core::marker::Copy for antecedent_state::GraphScoreFamily
+impl core::marker::Copy for antecedent_state::LgssmParams
+impl core::marker::Copy for antecedent_state::PublishedLineage
+impl core::marker::Copy for antecedent_state::ResultPublication
+impl core::marker::Copy for antecedent_state::RetentionPolicy
+impl core::marker::Freeze for antecedent_state::CachedResult [auto]
+impl core::marker::Freeze for antecedent_state::CausalState [auto]
+impl core::marker::Freeze for antecedent_state::ChangedInput [auto]
+impl core::marker::Freeze for antecedent_state::ConstraintId [auto]
+impl core::marker::Freeze for antecedent_state::DataBatchRef [auto]
+impl core::marker::Freeze for antecedent_state::DataCatalog [auto]
+impl core::marker::Freeze for antecedent_state::DataVersion [auto]
+impl core::marker::Freeze for antecedent_state::GraphConstraintRecord [auto]
+impl core::marker::Freeze for antecedent_state::GraphEvidenceRecord [auto]
+impl core::marker::Freeze for antecedent_state::GraphEvidenceStore [auto]
+impl core::marker::Freeze for antecedent_state::GraphScoreCacheKey [auto]
+impl core::marker::Freeze for antecedent_state::GraphScoreData [auto]
+impl core::marker::Freeze for antecedent_state::GraphScoreFamily [auto]
+impl core::marker::Freeze for antecedent_state::InterventionRecord [auto]
+impl core::marker::Freeze for antecedent_state::InvalidationEntry [auto]
+impl core::marker::Freeze for antecedent_state::InvalidationLog [auto]
+impl core::marker::Freeze for antecedent_state::InvalidationTarget [auto]
+impl core::marker::Freeze for antecedent_state::LagIndexCacheEntry [auto]
+impl core::marker::Freeze for antecedent_state::LagIndexCacheKey [auto]
+impl core::marker::Freeze for antecedent_state::LgssmParams [auto]
+impl core::marker::Freeze for antecedent_state::LinearOlsSuffStats [auto]
+impl core::marker::Freeze for antecedent_state::LocalScoreCache [auto]
+impl core::marker::Freeze for antecedent_state::ModelRecord [auto]
+impl core::marker::Freeze for antecedent_state::ModelStore [auto]
+impl core::marker::Freeze for antecedent_state::ParentSetOp [auto]
+impl core::marker::Freeze for antecedent_state::ParticleFilterState [auto]
+impl core::marker::Freeze for antecedent_state::PublishedLineage [auto]
+impl core::marker::Freeze for antecedent_state::QueryRecord [auto]
+impl core::marker::Freeze for antecedent_state::QueryStore [auto]
+impl core::marker::Freeze for antecedent_state::ResultPublication [auto]
+impl core::marker::Freeze for antecedent_state::ResultStore [auto]
+impl core::marker::Freeze for antecedent_state::RetentionPolicy [auto]
+impl core::marker::Freeze for antecedent_state::RollingMechanismDiagnostics [auto]
+impl core::marker::Freeze for antecedent_state::StateError [auto]
+impl core::marker::Freeze for antecedent_state::StateEvent [auto]
+impl core::marker::Freeze for antecedent_state::StreamingCovariance [auto]
+impl core::marker::Freeze for antecedent_state::SuffStatStore [auto]
+impl core::marker::Send for antecedent_state::CachedResult [auto]
+impl core::marker::Send for antecedent_state::CausalState [auto]
+impl core::marker::Send for antecedent_state::ChangedInput [auto]
+impl core::marker::Send for antecedent_state::ConstraintId [auto]
+impl core::marker::Send for antecedent_state::DataBatchRef [auto]
+impl core::marker::Send for antecedent_state::DataCatalog [auto]
+impl core::marker::Send for antecedent_state::DataVersion [auto]
+impl core::marker::Send for antecedent_state::GraphConstraintRecord [auto]
+impl core::marker::Send for antecedent_state::GraphEvidenceRecord [auto]
+impl core::marker::Send for antecedent_state::GraphEvidenceStore [auto]
+impl core::marker::Send for antecedent_state::GraphScoreCacheKey [auto]
+impl core::marker::Send for antecedent_state::GraphScoreData [auto]
+impl core::marker::Send for antecedent_state::GraphScoreFamily [auto]
+impl core::marker::Send for antecedent_state::InterventionRecord [auto]
+impl core::marker::Send for antecedent_state::InvalidationEntry [auto]
+impl core::marker::Send for antecedent_state::InvalidationLog [auto]
+impl core::marker::Send for antecedent_state::InvalidationTarget [auto]
+impl core::marker::Send for antecedent_state::LagIndexCacheEntry [auto]
+impl core::marker::Send for antecedent_state::LagIndexCacheKey [auto]
+impl core::marker::Send for antecedent_state::LgssmParams [auto]
+impl core::marker::Send for antecedent_state::LinearOlsSuffStats [auto]
+impl core::marker::Send for antecedent_state::LocalScoreCache [auto]
+impl core::marker::Send for antecedent_state::ModelRecord [auto]
+impl core::marker::Send for antecedent_state::ModelStore [auto]
+impl core::marker::Send for antecedent_state::ParentSetOp [auto]
+impl core::marker::Send for antecedent_state::ParticleFilterState [auto]
+impl core::marker::Send for antecedent_state::PublishedLineage [auto]
+impl core::marker::Send for antecedent_state::QueryRecord [auto]
+impl core::marker::Send for antecedent_state::QueryStore [auto]
+impl core::marker::Send for antecedent_state::ResultPublication [auto]
+impl core::marker::Send for antecedent_state::ResultStore [auto]
+impl core::marker::Send for antecedent_state::RetentionPolicy [auto]
+impl core::marker::Send for antecedent_state::RollingMechanismDiagnostics [auto]
+impl core::marker::Send for antecedent_state::StateError [auto]
+impl core::marker::Send for antecedent_state::StateEvent [auto]
+impl core::marker::Send for antecedent_state::StreamingCovariance [auto]
+impl core::marker::Send for antecedent_state::SuffStatStore [auto]
+impl core::marker::StructuralPartialEq for antecedent_state::ChangedInput
+impl core::marker::StructuralPartialEq for antecedent_state::ConstraintId
+impl core::marker::StructuralPartialEq for antecedent_state::DataBatchRef
+impl core::marker::StructuralPartialEq for antecedent_state::DataVersion
+impl core::marker::StructuralPartialEq for antecedent_state::GraphConstraintRecord
+impl core::marker::StructuralPartialEq for antecedent_state::GraphEvidenceRecord
+impl core::marker::StructuralPartialEq for antecedent_state::GraphScoreCacheKey
+impl core::marker::StructuralPartialEq for antecedent_state::GraphScoreFamily
+impl core::marker::StructuralPartialEq for antecedent_state::InterventionRecord
+impl core::marker::StructuralPartialEq for antecedent_state::InvalidationEntry
+impl core::marker::StructuralPartialEq for antecedent_state::InvalidationTarget
+impl core::marker::StructuralPartialEq for antecedent_state::LagIndexCacheEntry
+impl core::marker::StructuralPartialEq for antecedent_state::LagIndexCacheKey
+impl core::marker::StructuralPartialEq for antecedent_state::LgssmParams
+impl core::marker::StructuralPartialEq for antecedent_state::LinearOlsSuffStats
+impl core::marker::StructuralPartialEq for antecedent_state::ParentSetOp
+impl core::marker::StructuralPartialEq for antecedent_state::PublishedLineage
+impl core::marker::StructuralPartialEq for antecedent_state::RetentionPolicy
+impl core::marker::StructuralPartialEq for antecedent_state::StateError
+impl core::marker::StructuralPartialEq for antecedent_state::StreamingCovariance
+impl core::marker::Sync for antecedent_state::CachedResult [auto]
+impl core::marker::Sync for antecedent_state::CausalState [auto]
+impl core::marker::Sync for antecedent_state::ChangedInput [auto]
+impl core::marker::Sync for antecedent_state::ConstraintId [auto]
+impl core::marker::Sync for antecedent_state::DataBatchRef [auto]
+impl core::marker::Sync for antecedent_state::DataCatalog [auto]
+impl core::marker::Sync for antecedent_state::DataVersion [auto]
+impl core::marker::Sync for antecedent_state::GraphConstraintRecord [auto]
+impl core::marker::Sync for antecedent_state::GraphEvidenceRecord [auto]
+impl core::marker::Sync for antecedent_state::GraphEvidenceStore [auto]
+impl core::marker::Sync for antecedent_state::GraphScoreCacheKey [auto]
+impl core::marker::Sync for antecedent_state::GraphScoreData [auto]
+impl core::marker::Sync for antecedent_state::GraphScoreFamily [auto]
+impl core::marker::Sync for antecedent_state::InterventionRecord [auto]
+impl core::marker::Sync for antecedent_state::InvalidationEntry [auto]
+impl core::marker::Sync for antecedent_state::InvalidationLog [auto]
+impl core::marker::Sync for antecedent_state::InvalidationTarget [auto]
+impl core::marker::Sync for antecedent_state::LagIndexCacheEntry [auto]
+impl core::marker::Sync for antecedent_state::LagIndexCacheKey [auto]
+impl core::marker::Sync for antecedent_state::LgssmParams [auto]
+impl core::marker::Sync for antecedent_state::LinearOlsSuffStats [auto]
+impl core::marker::Sync for antecedent_state::LocalScoreCache [auto]
+impl core::marker::Sync for antecedent_state::ModelRecord [auto]
+impl core::marker::Sync for antecedent_state::ModelStore [auto]
+impl core::marker::Sync for antecedent_state::ParentSetOp [auto]
+impl core::marker::Sync for antecedent_state::ParticleFilterState [auto]
+impl core::marker::Sync for antecedent_state::PublishedLineage [auto]
+impl core::marker::Sync for antecedent_state::QueryRecord [auto]
+impl core::marker::Sync for antecedent_state::QueryStore [auto]
+impl core::marker::Sync for antecedent_state::ResultPublication [auto]
+impl core::marker::Sync for antecedent_state::ResultStore [auto]
+impl core::marker::Sync for antecedent_state::RetentionPolicy [auto]
+impl core::marker::Sync for antecedent_state::RollingMechanismDiagnostics [auto]
+impl core::marker::Sync for antecedent_state::StateError [auto]
+impl core::marker::Sync for antecedent_state::StateEvent [auto]
+impl core::marker::Sync for antecedent_state::StreamingCovariance [auto]
+impl core::marker::Sync for antecedent_state::SuffStatStore [auto]
+impl core::marker::Unpin for antecedent_state::CachedResult [auto]
+impl core::marker::Unpin for antecedent_state::CausalState [auto]
+impl core::marker::Unpin for antecedent_state::ChangedInput [auto]
+impl core::marker::Unpin for antecedent_state::ConstraintId [auto]
+impl core::marker::Unpin for antecedent_state::DataBatchRef [auto]
+impl core::marker::Unpin for antecedent_state::DataCatalog [auto]
+impl core::marker::Unpin for antecedent_state::DataVersion [auto]
+impl core::marker::Unpin for antecedent_state::GraphConstraintRecord [auto]
+impl core::marker::Unpin for antecedent_state::GraphEvidenceRecord [auto]
+impl core::marker::Unpin for antecedent_state::GraphEvidenceStore [auto]
+impl core::marker::Unpin for antecedent_state::GraphScoreCacheKey [auto]
+impl core::marker::Unpin for antecedent_state::GraphScoreData [auto]
+impl core::marker::Unpin for antecedent_state::GraphScoreFamily [auto]
+impl core::marker::Unpin for antecedent_state::InterventionRecord [auto]
+impl core::marker::Unpin for antecedent_state::InvalidationEntry [auto]
+impl core::marker::Unpin for antecedent_state::InvalidationLog [auto]
+impl core::marker::Unpin for antecedent_state::InvalidationTarget [auto]
+impl core::marker::Unpin for antecedent_state::LagIndexCacheEntry [auto]
+impl core::marker::Unpin for antecedent_state::LagIndexCacheKey [auto]
+impl core::marker::Unpin for antecedent_state::LgssmParams [auto]
+impl core::marker::Unpin for antecedent_state::LinearOlsSuffStats [auto]
+impl core::marker::Unpin for antecedent_state::LocalScoreCache [auto]
+impl core::marker::Unpin for antecedent_state::ModelRecord [auto]
+impl core::marker::Unpin for antecedent_state::ModelStore [auto]
+impl core::marker::Unpin for antecedent_state::ParentSetOp [auto]
+impl core::marker::Unpin for antecedent_state::ParticleFilterState [auto]
+impl core::marker::Unpin for antecedent_state::PublishedLineage [auto]
+impl core::marker::Unpin for antecedent_state::QueryRecord [auto]
+impl core::marker::Unpin for antecedent_state::QueryStore [auto]
+impl core::marker::Unpin for antecedent_state::ResultPublication [auto]
+impl core::marker::Unpin for antecedent_state::ResultStore [auto]
+impl core::marker::Unpin for antecedent_state::RetentionPolicy [auto]
+impl core::marker::Unpin for antecedent_state::RollingMechanismDiagnostics [auto]
+impl core::marker::Unpin for antecedent_state::StateError [auto]
+impl core::marker::Unpin for antecedent_state::StateEvent [auto]
+impl core::marker::Unpin for antecedent_state::StreamingCovariance [auto]
+impl core::marker::Unpin for antecedent_state::SuffStatStore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::CachedResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::CausalState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ChangedInput [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ConstraintId [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::DataBatchRef [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::DataCatalog [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::DataVersion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::GraphConstraintRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::GraphEvidenceRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::GraphEvidenceStore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::GraphScoreCacheKey [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::GraphScoreData [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::GraphScoreFamily [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::InterventionRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::InvalidationEntry [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::InvalidationLog [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::InvalidationTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::LagIndexCacheEntry [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::LagIndexCacheKey [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::LgssmParams [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::LinearOlsSuffStats [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::LocalScoreCache [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ModelRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ModelStore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ParentSetOp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ParticleFilterState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::PublishedLineage [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::QueryRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::QueryStore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ResultPublication [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::ResultStore [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::RetentionPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::RollingMechanismDiagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::StateError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::StateEvent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::StreamingCovariance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_state::SuffStatStore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::CachedResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::CausalState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ChangedInput [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ConstraintId [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::DataBatchRef [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::DataCatalog [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::DataVersion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::GraphConstraintRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::GraphEvidenceRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::GraphEvidenceStore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::GraphScoreCacheKey [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::GraphScoreData [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::GraphScoreFamily [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::InterventionRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::InvalidationEntry [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::InvalidationLog [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::InvalidationTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::LagIndexCacheEntry [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::LagIndexCacheKey [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::LgssmParams [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::LinearOlsSuffStats [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::LocalScoreCache [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ModelRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ModelStore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ParentSetOp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ParticleFilterState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::PublishedLineage [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::QueryRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::QueryStore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ResultPublication [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::ResultStore [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::RetentionPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::RollingMechanismDiagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StateError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StateEvent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::StreamingCovariance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_state::SuffStatStore [auto]
+pub enum antecedent_state::InvalidationTarget
+pub enum antecedent_state::ParentSetOp
+pub enum antecedent_state::RetentionPolicy
+pub enum antecedent_state::StateEvent
+pub field antecedent_state::CachedResult::bytes: u64
+pub field antecedent_state::CachedResult::computed_at: antecedent_core::ids::StateVersion
+pub field antecedent_state::CachedResult::fingerprint: u64
+pub field antecedent_state::CachedResult::query: antecedent_core::ids::QueryId
+pub field antecedent_state::CausalState::assumptions: antecedent_core::assumption::AssumptionSet
+pub field antecedent_state::CausalState::cache_budget: antecedent_core::execution::CacheBudget
+pub field antecedent_state::CausalState::cached_results: antecedent_state::ResultStore
+pub field antecedent_state::CausalState::data_catalog: antecedent_state::DataCatalog
+pub field antecedent_state::CausalState::graph_evidence: antecedent_state::GraphEvidenceStore
+pub field antecedent_state::CausalState::interventions: alloc::vec::Vec<antecedent_state::InterventionRecord>
+pub field antecedent_state::CausalState::invalidations: antecedent_state::InvalidationLog
+pub field antecedent_state::CausalState::models: antecedent_state::ModelStore
+pub field antecedent_state::CausalState::queries: antecedent_state::QueryStore
+pub field antecedent_state::CausalState::suff_stats: antecedent_state::SuffStatStore
+pub field antecedent_state::CausalState::version: antecedent_core::ids::StateVersion
+pub field antecedent_state::ChangedInput::change: antecedent_core::recalc::ChangeKind
+pub field antecedent_state::ChangedInput::identity: antecedent_core::recalc::StageIdentity
+pub field antecedent_state::ChangedInput::stage: antecedent_core::recalc::Stage
+pub field antecedent_state::ConstraintId::0: alloc::sync::Arc<str>
+pub field antecedent_state::DataBatchRef::bytes: u64
+pub field antecedent_state::DataBatchRef::id: alloc::sync::Arc<str>
+pub field antecedent_state::DataBatchRef::nrows: u64
+pub field antecedent_state::DataCatalog::batches: alloc::vec::Vec<antecedent_state::DataBatchRef>
+pub field antecedent_state::DataCatalog::retention: antecedent_state::RetentionPolicy
+pub field antecedent_state::DataCatalog::version: antecedent_state::DataVersion
+pub field antecedent_state::GraphConstraintRecord::fingerprint: u64
+pub field antecedent_state::GraphConstraintRecord::id: alloc::sync::Arc<str>
+pub field antecedent_state::GraphEvidenceRecord::bytes: u64
+pub field antecedent_state::GraphEvidenceRecord::fingerprint: u64
+pub field antecedent_state::GraphEvidenceRecord::id: alloc::sync::Arc<str>
+pub field antecedent_state::GraphEvidenceStore::constraints: alloc::vec::Vec<antecedent_state::GraphConstraintRecord>
+pub field antecedent_state::GraphEvidenceStore::evidence: alloc::vec::Vec<antecedent_state::GraphEvidenceRecord>
+pub field antecedent_state::GraphScoreCacheKey::data_version: u64
+pub field antecedent_state::GraphScoreCacheKey::family: antecedent_state::GraphScoreFamily
+pub field antecedent_state::GraphScoreCacheKey::penalty_fingerprint: u64
+pub field antecedent_state::GraphScoreCacheKey::var_fingerprint: u64
+pub field antecedent_state::GraphScoreData::n_rows: usize
+pub field antecedent_state::GraphScoreData::n_vars: usize
+pub field antecedent_state::InterventionRecord::fingerprint: u64
+pub field antecedent_state::InterventionRecord::id: alloc::sync::Arc<str>
+pub field antecedent_state::InvalidationEntry::at_version: antecedent_core::ids::StateVersion
+pub field antecedent_state::InvalidationEntry::input: core::option::Option<antecedent_state::ChangedInput>
+pub field antecedent_state::InvalidationEntry::reason: alloc::sync::Arc<str>
+pub field antecedent_state::InvalidationEntry::target: antecedent_state::InvalidationTarget
+pub field antecedent_state::InvalidationLog::entries: alloc::vec::Vec<antecedent_state::InvalidationEntry>
+pub field antecedent_state::LgssmParams::a: f64
+pub field antecedent_state::LgssmParams::obs_std: f64
+pub field antecedent_state::LgssmParams::process_std: f64
+pub field antecedent_state::LinearOlsSuffStats::n: u64
+pub field antecedent_state::LinearOlsSuffStats::ncols: usize
+pub field antecedent_state::LinearOlsSuffStats::xtx: alloc::vec::Vec<f64>
+pub field antecedent_state::LinearOlsSuffStats::xty: alloc::vec::Vec<f64>
+pub field antecedent_state::LinearOlsSuffStats::yty: f64
+pub field antecedent_state::ModelRecord::bytes: u64
+pub field antecedent_state::ModelRecord::fingerprint: u64
+pub field antecedent_state::ModelRecord::id: antecedent_core::ids::ModelId
+pub field antecedent_state::ModelRecord::retention: antecedent_state::RetentionPolicy
+pub field antecedent_state::ModelStore::models: std::collections::hash::map::HashMap<antecedent_core::ids::ModelId, antecedent_state::ModelRecord>
+pub field antecedent_state::ParticleFilterState::log_weights: alloc::vec::Vec<f64>
+pub field antecedent_state::ParticleFilterState::n_obs: u64
+pub field antecedent_state::ParticleFilterState::n_particles: usize
+pub field antecedent_state::ParticleFilterState::particles: alloc::vec::Vec<f64>
+pub field antecedent_state::PublishedLineage::data_snapshot: antecedent_core::identity::SemanticDigest
+pub field antecedent_state::PublishedLineage::data_version: antecedent_state::DataVersion
+pub field antecedent_state::PublishedLineage::identities: core::option::Option<antecedent_core::identity::ContractIdentities>
+pub field antecedent_state::PublishedLineage::lineage: antecedent_core::identity::SemanticDigest
+pub field antecedent_state::QueryRecord::id: antecedent_core::ids::QueryId
+pub field antecedent_state::QueryRecord::last_published: core::option::Option<antecedent_state::PublishedLineage>
+pub field antecedent_state::QueryRecord::pending_inputs: alloc::vec::Vec<antecedent_state::ChangedInput>
+pub field antecedent_state::QueryRecord::query: antecedent_core::query::CausalQuery
+pub field antecedent_state::QueryRecord::result_valid_at: core::option::Option<antecedent_core::ids::StateVersion>
+pub field antecedent_state::QueryStore::queries: std::collections::hash::map::HashMap<antecedent_core::ids::QueryId, antecedent_state::QueryRecord>
+pub field antecedent_state::ResultPublication::bytes: u64
+pub field antecedent_state::ResultPublication::data_snapshot: core::option::Option<antecedent_core::identity::SemanticDigest>
+pub field antecedent_state::ResultPublication::fingerprint: u64
+pub field antecedent_state::ResultPublication::identities: core::option::Option<antecedent_core::identity::ContractIdentities>
+pub field antecedent_state::ResultPublication::lineage: core::option::Option<antecedent_core::identity::SemanticDigest>
+pub field antecedent_state::ResultPublication::query: antecedent_core::ids::QueryId
+pub field antecedent_state::ResultStore::results: std::collections::hash::map::HashMap<antecedent_core::ids::QueryId, antecedent_state::CachedResult>
+pub field antecedent_state::RollingMechanismDiagnostics::beta: alloc::vec::Vec<f64>
+pub field antecedent_state::RollingMechanismDiagnostics::bytes: u64
+pub field antecedent_state::RollingMechanismDiagnostics::data_version: u64
+pub field antecedent_state::RollingMechanismDiagnostics::max_abs_cusum: core::option::Option<f64>
+pub field antecedent_state::RollingMechanismDiagnostics::mean_abs_residual: f64
+pub field antecedent_state::RollingMechanismDiagnostics::n: u64
+pub field antecedent_state::RollingMechanismDiagnostics::residual_sse: f64
+pub field antecedent_state::RollingMechanismDiagnostics::residual_var: core::option::Option<f64>
+pub field antecedent_state::RollingMechanismDiagnostics::retention: antecedent_state::RetentionPolicy
+pub field antecedent_state::RollingMechanismDiagnostics::state_version: antecedent_core::ids::StateVersion
+pub field antecedent_state::RollingMechanismDiagnostics::window: usize
+pub field antecedent_state::SuffStatStore::cov: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::StreamingCovariance>
+pub field antecedent_state::SuffStatStore::graph_scores: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::LocalScoreCache>
+pub field antecedent_state::SuffStatStore::lag_indexes: std::collections::hash::map::HashMap<antecedent_state::LagIndexCacheKey, antecedent_state::LagIndexCacheEntry>
+pub field antecedent_state::SuffStatStore::mechanism_diags: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::RollingMechanismDiagnostics>
+pub field antecedent_state::SuffStatStore::ols: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::LinearOlsSuffStats>
+pub field antecedent_state::SuffStatStore::particle_filters: std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::ParticleFilterState>
+pub fn <antecedent_state::CausalState>::fn apply(&mut self, event: antecedent_state::StateEvent) -> core::result::Result<antecedent_core::ids::StateVersion, antecedent_state::StateError>
+pub fn <antecedent_state::CausalState>::fn data_version(&self) -> antecedent_state::DataVersion
+pub fn <antecedent_state::CausalState>::fn input_identities(&self) -> antecedent_core::recalc::StageIdentities
+pub fn <antecedent_state::CausalState>::fn is_stale(&self, query: antecedent_core::ids::QueryId) -> bool
+pub fn <antecedent_state::CausalState>::fn new(cache_budget: antecedent_core::execution::CacheBudget) -> Self
+pub fn <antecedent_state::CausalState>::fn publish_results(&mut self, updates: &[antecedent_state::ResultPublication]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::CausalState>::fn publish_results_at(&mut self, expected: antecedent_core::ids::StateVersion, updates: &[antecedent_state::ResultPublication]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::CausalState>::fn refresh_results(&mut self, updates: &[(antecedent_core::ids::QueryId, u64, u64)]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::CausalState>::fn refresh_results_at(&mut self, expected: antecedent_core::ids::StateVersion, updates: &[(antecedent_core::ids::QueryId, u64, u64)]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::CausalState>::fn revalidation(&self, query: antecedent_core::ids::QueryId) -> core::option::Option<antecedent_core::recalc::Revalidation>
+pub fn <antecedent_state::CausalState>::fn stale_queries(&self) -> alloc::vec::Vec<antecedent_core::ids::QueryId>
+pub fn <antecedent_state::ChangedInput>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
+pub fn <antecedent_state::DataCatalog>::fn new() -> Self
+pub fn <antecedent_state::DataVersion>::const fn next(self) -> Self
+pub fn <antecedent_state::DataVersion>::const fn raw(self) -> u64
+pub fn <antecedent_state::GraphScoreData>::const fn fingerprint(&self) -> u64
+pub fn <antecedent_state::GraphScoreData>::fn new(n_rows: usize, n_vars: usize, columns: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_state::StateError>
+pub fn <antecedent_state::InvalidationEntry>::fn revalidation(&self) -> antecedent_core::recalc::Revalidation
+pub fn <antecedent_state::InvalidationLog>::fn new() -> Self
+pub fn <antecedent_state::InvalidationLog>::fn push(&mut self, at_version: antecedent_core::ids::StateVersion, target: antecedent_state::InvalidationTarget, reason: impl core::convert::Into<alloc::sync::Arc<str>>)
+pub fn <antecedent_state::InvalidationLog>::fn push_input(&mut self, at_version: antecedent_core::ids::StateVersion, target: antecedent_state::InvalidationTarget, reason: impl core::convert::Into<alloc::sync::Arc<str>>, input: antecedent_state::ChangedInput)
+pub fn <antecedent_state::InvalidationLog>::fn query_stale_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> bool
+pub fn <antecedent_state::InvalidationLog>::fn revalidation_since(&self, query: antecedent_core::ids::QueryId, since: antecedent_core::ids::StateVersion) -> antecedent_core::recalc::Revalidation
+pub fn <antecedent_state::LinearOlsSuffStats>::fn append_batch(&mut self, rows_rowmajor: &[f64], y: &[f64]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::LinearOlsSuffStats>::fn append_row(&mut self, row: &[f64], y: f64) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::LinearOlsSuffStats>::fn new(ncols: usize) -> Self
+pub fn <antecedent_state::LinearOlsSuffStats>::fn residual_variance(&self, beta: &[f64]) -> core::option::Option<f64>
+pub fn <antecedent_state::LinearOlsSuffStats>::fn solve_beta(&self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_state::StateError>
+pub fn <antecedent_state::LocalScoreCache>::fn clear(&mut self)
+pub fn <antecedent_state::LocalScoreCache>::fn delta_score(&mut self, data: &antecedent_state::GraphScoreData, op: antecedent_state::ParentSetOp) -> core::result::Result<(f64, f64), antecedent_state::StateError>
+pub fn <antecedent_state::LocalScoreCache>::fn local_score(&mut self, data: &antecedent_state::GraphScoreData, node: u32, parents: &alloc::sync::Arc<[u32]>) -> core::result::Result<f64, antecedent_state::StateError>
+pub fn <antecedent_state::LocalScoreCache>::fn new(key: antecedent_state::GraphScoreCacheKey) -> Self
+pub fn <antecedent_state::LocalScoreCache>::fn parents_of(&self, node: u32) -> alloc::sync::Arc<[u32]>
+pub fn <antecedent_state::LocalScoreCache>::fn score_graph(&mut self, data: &antecedent_state::GraphScoreData) -> core::result::Result<f64, antecedent_state::StateError>
+pub fn <antecedent_state::ModelStore>::fn register(&mut self, fingerprint: u64, bytes: u64) -> antecedent_core::ids::ModelId
+pub fn <antecedent_state::ParticleFilterState>::fn ess(&self) -> f64
+pub fn <antecedent_state::ParticleFilterState>::fn init(n_particles: usize, params: antecedent_state::LgssmParams, data_version: u64, seed: u64) -> core::result::Result<Self, antecedent_state::StateError>
+pub fn <antecedent_state::ParticleFilterState>::fn run_batch(observations: &[f64], n_particles: usize, params: antecedent_state::LgssmParams, data_version: u64, seed: u64) -> core::result::Result<Self, antecedent_state::StateError>
+pub fn <antecedent_state::ParticleFilterState>::fn step(&mut self, y: f64) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::ParticleFilterState>::fn weighted_mean(&self) -> f64
+pub fn <antecedent_state::QueryStore>::fn register(&mut self, query: antecedent_core::query::CausalQuery) -> antecedent_core::ids::QueryId
+pub fn <antecedent_state::ResultStore>::fn clear(&mut self, budget: &mut antecedent_core::execution::CacheBudget)
+pub fn <antecedent_state::ResultStore>::fn insert(&mut self, result: antecedent_state::CachedResult, budget: &mut antecedent_core::execution::CacheBudget) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::ResultStore>::fn remove(&mut self, query: antecedent_core::ids::QueryId, budget: &mut antecedent_core::execution::CacheBudget)
+pub fn <antecedent_state::RollingMechanismDiagnostics>::fn append_batch(&mut self, rows_rowmajor: &[f64], y: &[f64]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::RollingMechanismDiagnostics>::fn append_row(&mut self, row: &[f64], y: f64) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::RollingMechanismDiagnostics>::fn ncols(&self) -> usize
+pub fn <antecedent_state::RollingMechanismDiagnostics>::fn new(ncols: usize, window: usize) -> core::result::Result<Self, antecedent_state::StateError>
+pub fn <antecedent_state::RollingMechanismDiagnostics>::fn refresh_summaries(&mut self) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::RollingMechanismDiagnostics>::fn worst_case_bytes(&self) -> u64
+pub fn <antecedent_state::StreamingCovariance>::fn append(&mut self, x: &[f64]) -> core::result::Result<(), antecedent_state::StateError>
+pub fn <antecedent_state::StreamingCovariance>::fn dim(&self) -> usize
+pub fn <antecedent_state::StreamingCovariance>::fn m2(&self) -> &[f64]
+pub fn <antecedent_state::StreamingCovariance>::fn mean(&self) -> &[f64]
+pub fn <antecedent_state::StreamingCovariance>::fn n(&self) -> u64
+pub fn <antecedent_state::StreamingCovariance>::fn new(dim: usize) -> Self
+pub fn <antecedent_state::StreamingCovariance>::fn sample_covariance(&self) -> core::option::Option<alloc::vec::Vec<f64>>
+pub fn antecedent_state::evict_mechanism_diag(map: &mut std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::RollingMechanismDiagnostics>, key: &str, budget: &mut antecedent_core::execution::CacheBudget) -> core::option::Option<antecedent_state::RollingMechanismDiagnostics>
+pub fn antecedent_state::full_graph_score(data: &antecedent_state::GraphScoreData, family: antecedent_state::GraphScoreFamily, parents: &std::collections::hash::map::HashMap<u32, alloc::sync::Arc<[u32]>>) -> core::result::Result<f64, antecedent_state::StateError>
+pub fn antecedent_state::insert_mechanism_diag(map: &mut std::collections::hash::map::HashMap<alloc::sync::Arc<str>, antecedent_state::RollingMechanismDiagnostics>, key: alloc::sync::Arc<str>, diag: antecedent_state::RollingMechanismDiagnostics, budget: &mut antecedent_core::execution::CacheBudget) -> core::result::Result<(), antecedent_state::StateError>
+pub mod antecedent_state::error
+pub mod antecedent_state::event
+pub mod antecedent_state::graph_score
+pub mod antecedent_state::invalidation
+pub mod antecedent_state::mechanism_diag
+pub mod antecedent_state::particle_filter
+pub mod antecedent_state::retention
+pub mod antecedent_state::state
+pub mod antecedent_state::store
+pub mod antecedent_state::suff_stats
+pub struct antecedent_state::CachedResult
+pub struct antecedent_state::CausalState
+pub struct antecedent_state::ChangedInput
+pub struct antecedent_state::ConstraintId
+pub struct antecedent_state::DataBatchRef
+pub struct antecedent_state::DataCatalog
+pub struct antecedent_state::DataVersion
+pub struct antecedent_state::DataVersion has private fields
+pub struct antecedent_state::GraphConstraintRecord
+pub struct antecedent_state::GraphEvidenceRecord
+pub struct antecedent_state::GraphEvidenceStore
+pub struct antecedent_state::GraphScoreCacheKey
+pub struct antecedent_state::GraphScoreData
+pub struct antecedent_state::GraphScoreData has private fields
+pub struct antecedent_state::InterventionRecord
+pub struct antecedent_state::InvalidationEntry
+pub struct antecedent_state::InvalidationLog
+pub struct antecedent_state::LagIndexCacheEntry
+pub struct antecedent_state::LagIndexCacheEntry has private fields
+pub struct antecedent_state::LagIndexCacheKey
+pub struct antecedent_state::LagIndexCacheKey has private fields
+pub struct antecedent_state::LgssmParams
+pub struct antecedent_state::LinearOlsSuffStats
+pub struct antecedent_state::LinearOlsSuffStats has private fields
+pub struct antecedent_state::LocalScoreCache
+pub struct antecedent_state::LocalScoreCache has private fields
+pub struct antecedent_state::ModelRecord
+pub struct antecedent_state::ModelStore
+pub struct antecedent_state::ModelStore has private fields
+pub struct antecedent_state::ParticleFilterState
+pub struct antecedent_state::ParticleFilterState has private fields
+pub struct antecedent_state::PublishedLineage
+pub struct antecedent_state::QueryRecord
+pub struct antecedent_state::QueryStore
+pub struct antecedent_state::QueryStore has private fields
+pub struct antecedent_state::ResultPublication
+pub struct antecedent_state::ResultStore
+pub struct antecedent_state::RollingMechanismDiagnostics
+pub struct antecedent_state::RollingMechanismDiagnostics has private fields
+pub struct antecedent_state::StreamingCovariance
+pub struct antecedent_state::StreamingCovariance has private fields
+pub struct antecedent_state::SuffStatStore
+pub use antecedent_state::error::StateError = antecedent_state::StateError
+pub use antecedent_state::event::StateEvent = antecedent_state::StateEvent
+pub use antecedent_state::graph_score::GraphScoreCacheKey = antecedent_state::GraphScoreCacheKey
+pub use antecedent_state::graph_score::GraphScoreData = antecedent_state::GraphScoreData
+pub use antecedent_state::graph_score::GraphScoreFamily = antecedent_state::GraphScoreFamily
+pub use antecedent_state::graph_score::LocalScoreCache = antecedent_state::LocalScoreCache
+pub use antecedent_state::graph_score::ParentSetOp = antecedent_state::ParentSetOp
+pub use antecedent_state::graph_score::full_graph_score = antecedent_state::full_graph_score
+pub use antecedent_state::invalidation::ChangedInput = antecedent_state::ChangedInput
+pub use antecedent_state::invalidation::InvalidationEntry = antecedent_state::InvalidationEntry
+pub use antecedent_state::invalidation::InvalidationLog = antecedent_state::InvalidationLog
+pub use antecedent_state::invalidation::InvalidationTarget = antecedent_state::InvalidationTarget
+pub use antecedent_state::mechanism_diag::RollingMechanismDiagnostics = antecedent_state::RollingMechanismDiagnostics
+pub use antecedent_state::mechanism_diag::evict_mechanism_diag = antecedent_state::evict_mechanism_diag
+pub use antecedent_state::mechanism_diag::insert_mechanism_diag = antecedent_state::insert_mechanism_diag
+pub use antecedent_state::particle_filter::LgssmParams = antecedent_state::LgssmParams
+pub use antecedent_state::particle_filter::ParticleFilterState = antecedent_state::ParticleFilterState
+pub use antecedent_state::retention::RetentionPolicy = antecedent_state::RetentionPolicy
+pub use antecedent_state::state::CausalState = antecedent_state::CausalState
+pub use antecedent_state::state::ResultPublication = antecedent_state::ResultPublication
+pub use antecedent_state::store::CachedResult = antecedent_state::CachedResult
+pub use antecedent_state::store::ConstraintId = antecedent_state::ConstraintId
+pub use antecedent_state::store::DataBatchRef = antecedent_state::DataBatchRef
+pub use antecedent_state::store::DataCatalog = antecedent_state::DataCatalog
+pub use antecedent_state::store::DataVersion = antecedent_state::DataVersion
+pub use antecedent_state::store::GraphConstraintRecord = antecedent_state::GraphConstraintRecord
+pub use antecedent_state::store::GraphEvidenceRecord = antecedent_state::GraphEvidenceRecord
+pub use antecedent_state::store::GraphEvidenceStore = antecedent_state::GraphEvidenceStore
+pub use antecedent_state::store::InterventionRecord = antecedent_state::InterventionRecord
+pub use antecedent_state::store::ModelRecord = antecedent_state::ModelRecord
+pub use antecedent_state::store::ModelStore = antecedent_state::ModelStore
+pub use antecedent_state::store::PublishedLineage = antecedent_state::PublishedLineage
+pub use antecedent_state::store::QueryRecord = antecedent_state::QueryRecord
+pub use antecedent_state::store::QueryStore = antecedent_state::QueryStore
+pub use antecedent_state::store::ResultStore = antecedent_state::ResultStore
+pub use antecedent_state::store::SuffStatStore = antecedent_state::SuffStatStore
+pub use antecedent_state::suff_stats::LagIndexCacheEntry = antecedent_state::LagIndexCacheEntry
+pub use antecedent_state::suff_stats::LagIndexCacheKey = antecedent_state::LagIndexCacheKey
+pub use antecedent_state::suff_stats::LinearOlsSuffStats = antecedent_state::LinearOlsSuffStats
+pub use antecedent_state::suff_stats::StreamingCovariance = antecedent_state::StreamingCovariance
+pub variant antecedent_state::GraphScoreFamily::GaussianBic
+pub variant antecedent_state::InvalidationTarget::AllResults
+pub variant antecedent_state::InvalidationTarget::GraphScores
+pub variant antecedent_state::InvalidationTarget::LagIndexes
+pub variant antecedent_state::InvalidationTarget::MechanismDiagnostics
+pub variant antecedent_state::InvalidationTarget::Model(antecedent_core::ids::ModelId)
+pub variant antecedent_state::InvalidationTarget::ParticleFilters
+pub variant antecedent_state::InvalidationTarget::QueryResult(antecedent_core::ids::QueryId)
+pub variant antecedent_state::InvalidationTarget::SuffStat(alloc::sync::Arc<str>)
+pub variant antecedent_state::ParentSetOp::SetParents { node: u32, parents: alloc::sync::Arc<[u32]> }
+pub variant antecedent_state::RetentionPolicy::BoundedWindow { max_rows: u64 }
+pub variant antecedent_state::RetentionPolicy::RawHistory
+pub variant antecedent_state::RetentionPolicy::SufficientStatisticsOnly
+pub variant antecedent_state::StateError::CacheBudget { need: u64, remaining: u64 }
+pub variant antecedent_state::StateError::InvalidEvent(alloc::string::String)
+pub variant antecedent_state::StateError::Numerical(alloc::string::String)
+pub variant antecedent_state::StateError::Shape(alloc::string::String)
+pub variant antecedent_state::StateError::StaleCache(alloc::string::String)
+pub variant antecedent_state::StateError::UnknownId(alloc::string::String)
+pub variant antecedent_state::StateEvent::AddConstraint(antecedent_state::GraphConstraintRecord)
+pub variant antecedent_state::StateEvent::AddGraphEvidence(antecedent_state::GraphEvidenceRecord)
+pub variant antecedent_state::StateEvent::AppendData(antecedent_state::DataBatchRef)
+pub variant antecedent_state::StateEvent::RecordIntervention(antecedent_state::InterventionRecord)
+pub variant antecedent_state::StateEvent::RegisterQuery(antecedent_core::query::CausalQuery)
+pub variant antecedent_state::StateEvent::RemoveConstraint(antecedent_state::ConstraintId)
+pub variant antecedent_state::StateEvent::ReplaceData(antecedent_state::DataVersion)
+pub variant antecedent_state::StateEvent::UpdateAssumption(antecedent_core::assumption::AssumptionRecord)

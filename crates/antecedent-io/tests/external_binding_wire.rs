@@ -1,6 +1,6 @@
 //! The JSON binding wire the Python facade builds, exercised from Rust.
 //!
-//! Uses the same closed-form fixture as `python/tests/test_external_response_binding.py`
+//! Uses the same closed-form fixture as `python/tests/test_external_binding.py`
 //! so both surfaces assert the same values, trust, lineage and refusal fields.
 
 use antecedent_io::external_binding_wire::{ContractWire, ResponseWire, bind_response};
@@ -111,7 +111,7 @@ fn bernoulli_response(graph: &str, quantities: &Value, values: &Value) -> Respon
     .unwrap()
 }
 
-/// F3 frozen boundary: the identified binary do(A) query with supplied grid
+/// The identified binary do(A) query with supplied grid
 /// P(Y=1|do(A=0)) = 1/4 and P(Y=1|do(A=1)) = 3/4 binds with a risk difference of 1/2.
 #[test]
 fn bernoulli_risk_difference_binds_under_exact_identity() {
@@ -130,7 +130,7 @@ fn bernoulli_risk_difference_binds_under_exact_identity() {
     assert!(!artifact.metadata().native_estimation);
 }
 
-/// F3 frozen boundary: observational P(Y|A), a wrong graph, a wrong population and a
+/// Observational P(Y|A), a wrong graph, a wrong population and a
 /// missing grid coordinate all refuse before a claim exists.
 #[test]
 fn observational_wrong_graph_population_and_missing_coordinate_refuse() {
@@ -213,7 +213,7 @@ fn reload(bytes: &[u8], expected: &ExternalClaimIdentity) -> bool {
     ExternalClaimArtifact::from_bytes(bytes, expected).is_ok()
 }
 
-/// F2 frozen boundary: a fresh reader retains the law kind, operation
+/// A fresh reader retains the law kind, operation
 /// capabilities, exact request and provider identity.
 #[test]
 fn provider_contract_identity_is_retained_by_the_artifact() {
@@ -238,7 +238,7 @@ fn provider_contract_identity_is_retained_by_the_artifact() {
     assert!(!reload(&resealed, &identity));
 }
 
-/// F20 frozen boundary: the exact operation set and request fingerprint are retained.
+/// The exact operation set and request fingerprint are retained.
 #[test]
 fn capability_set_and_request_fingerprint_are_retained() {
     let mean = bind(&json!(["mean"]), "req-1", &Value::Null);
@@ -271,7 +271,7 @@ fn verified_probes() -> Value {
     )
 }
 
-/// F22 frozen boundary: a fresh reader retains the checks, object kind, fingerprint
+/// A fresh reader retains the checks, object kind, fingerprint
 /// and the verified-extension trust scope.
 #[test]
 fn verification_checks_are_retained_and_cover_only_the_fingerprint() {
@@ -305,7 +305,7 @@ fn verification_checks_are_retained_and_cover_only_the_fingerprint() {
     assert!(!reload(&bytes, &other.metadata().identity));
 }
 
-/// F23 frozen boundary: the exact trust tier and provenance chain survive a fresh
+/// The exact trust tier and provenance chain survive a fresh
 /// reader without upgrade.
 #[test]
 fn trust_tier_and_lineage_survive_without_upgrade() {
@@ -326,7 +326,7 @@ fn trust_tier_and_lineage_survive_without_upgrade() {
             .unwrap()
             .stages_behind("claim")
             .unwrap();
-        assert!(stages.contains(&antecedent_core::CompositionStage::ExternalProvider));
+        assert!(stages.contains(&antecedent_contract::CompositionStage::ExternalProvider));
     }
     // Upgrading an attested claim to verified, even with fabricated passing probes
     // and a coherent artifact, differs from the retained identity.

@@ -1,4 +1,4 @@
-"""Learned continuous-outcome trial transport with an estimator menu (2.2A cell X4)."""
+"""Learned continuous-outcome trial transport with an estimator menu."""
 
 import dataclasses
 
@@ -62,7 +62,7 @@ def test_good_overlap_point_matches_the_known_truth_under_each_design(design):
     assert result.overlap["treatment"]["probability_min"] == pytest.approx(0.5)
     assert len(result.provenance) == 9
     assert all(p["implementation"] and p["version"] for p in result.provenance)
-    assert result.folds["scheme"] == "stratified_round_robin_source_arm_and_target"
+    assert result.folds["scheme"] == "stratified_seeded_source_arm_and_target"
     assert result.certificate["formula"] == "standardize"
 
 

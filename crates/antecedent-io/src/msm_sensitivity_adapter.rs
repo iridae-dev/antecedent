@@ -1,4 +1,4 @@
-//! 2.3 B3: adapter from a marginal sensitivity model result into the F17
+//! Adapter from a marginal sensitivity model result into the
 //! [`SensitivityArtifact`].
 //!
 //! The assumption coordinate is `Lambda` (the odds-ratio bound, scale
@@ -18,7 +18,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ScientificQuantity;
+use antecedent_contract::ScientificQuantity;
 pub use antecedent_validate::{
     MsmOutcomeLaw, MsmPoint, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,
     MsmStratum, MsmTipping, MsmTippingDirection, msm_ate_bounds_at, msm_ate_sensitivity,
@@ -33,7 +33,7 @@ use crate::sensitivity_artifact::{
 };
 
 /// Producer kind recorded in the artifact's provenance.
-pub const MSM_SOURCE_KIND: &str = "msm_sensitivity_2_3";
+pub const MSM_SOURCE_KIND: &str = crate::artifact_kinds::MARGINAL_SENSITIVITY_MODEL;
 /// Coordinate identity of the perturbation.
 pub const MSM_COORDINATE_ID: &str = "msm_lambda";
 /// Coordinate scale of the perturbation.
@@ -77,7 +77,7 @@ fn surfaces(
     Ok(quantities)
 }
 
-/// Build the F17 artifact of a marginal sensitivity result.
+/// Build the sensitivity artifact of a marginal sensitivity result.
 ///
 /// `effect` is the scientific coordinate of the ATE (its units are the utility units
 /// the `actions` read). `point_quantities` are optional assumption-dependent point

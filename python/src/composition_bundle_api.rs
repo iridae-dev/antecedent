@@ -1,4 +1,4 @@
-//! Bounded Python bridge for C3: the portable composed result.
+//! Bounded Python bridge for the portable composed result.
 //!
 //! Python hands over artifact bytes, references and dependency edges; the bundle
 //! graph, the Merkle digests, every per-kind verifier and every refusal are Rust's.
@@ -9,42 +9,30 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::{check_declared_size, external_refusal_json};
 use antecedent::analysis::composition::{
     BundleBuilder, BundleError, BundleStage, ClaimLabel, CompositionBundle, ConsumedBundle,
     ConsumedNode, EvidenceRelationship, NodeKind, NodeSource, NodeStatus, ProviderOrData,
     SuppliedSources, consume, describe_artifact, detect_node_kind, export_bundle,
     mean_decision_bytes,
 };
-use antecedent_core::{ExternalRefusal, reason_code};
+use antecedent_contract::ExternalRefusal;
+use antecedent_core::reason_code;
 use antecedent_design::decision_artifact::contract_from_json_refusal;
 use antecedent_io::IoError;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// Largest declaration JSON (facts, requirement, supplied sources) accepted.
-const MAX_DECLARATION_BYTES: usize = 1024 * 1024;
+const MAX_DECLARATION_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
 
 type Refusal = Option<String>;
 
-fn refusal_json(value: &ExternalRefusal) -> String {
-    json!({
-        "code": value.code,
-        "stage": value.stage,
-        "detail": value.detail,
-        "offending": value.offending,
-        "expected": value.expected,
-        "supplied": value.supplied,
-        "remedy": value.remedy,
-    })
-    .to_string()
-}
-
 pub(crate) fn error_refusal(error: &BundleError) -> String {
     if let Some(refusal) = error.to_refusal() {
-        return refusal_json(&refusal);
+        return external_refusal_json(&refusal);
     }
     let (code, detail) = match error {
         BundleError::Container(io)
@@ -57,7 +45,7 @@ pub(crate) fn error_refusal(error: &BundleError) -> String {
         }
         _ => (reason_code!("invalid_argument"), "composition_bundle.invalid_container"),
     };
-    refusal_json(&ExternalRefusal {
+    external_refusal_json(&ExternalRefusal {
         code,
         stage: "bind",
         detail: detail.to_owned(),
@@ -78,10 +66,7 @@ fn kind_refusal(name: &str) -> String {
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_DECLARATION_BYTES {
-        return Err(PyValueError::new_err("composition declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_DECLARATION_BYTES, "composition")
 }
 
 fn requires_json(requires: &ProviderOrData) -> Value {
@@ -168,7 +153,7 @@ pub(crate) fn supplied_from(text: Option<&str>) -> PyResult<SuppliedSources> {
     };
     check_size(text)?;
     let parsed: SuppliedIn = serde_json::from_str(text)
-        .map_err(|e| PyValueError::new_err(format!("invalid supplied sources: {e}")))?;
+        .map_err(|e| crate::value_err(format!("invalid supplied sources: {e}")))?;
     let mut supplied = SuppliedSources::default();
     for p in &parsed.providers {
         supplied = supplied.with_provider(&p.provider_id, &p.snapshot_id, &p.request_fingerprint);
@@ -234,12 +219,12 @@ impl PyBundleBuilder {
             return Ok(Some(kind_refusal(kind)));
         };
         let requires: ProviderOrData = serde_json::from_str(requires_json)
-            .map_err(|e| PyValueError::new_err(format!("invalid requirement: {e}")))?;
+            .map_err(|e| crate::value_err(format!("invalid requirement: {e}")))?;
         let facts: BTreeMap<String, String> = match facts_json {
             Some(text) => {
                 check_size(text)?;
                 serde_json::from_str(text)
-                    .map_err(|e| PyValueError::new_err(format!("invalid facts: {e}")))?
+                    .map_err(|e| crate::value_err(format!("invalid facts: {e}")))?
             }
             None => BTreeMap::new(),
         };
@@ -247,7 +232,7 @@ impl PyBundleBuilder {
             Some(text) => {
                 check_size(text)?;
                 serde_json::from_str(text)
-                    .map_err(|e| PyValueError::new_err(format!("invalid inspected values: {e}")))?
+                    .map_err(|e| crate::value_err(format!("invalid inspected values: {e}")))?
             }
             None => Vec::new(),
         };
@@ -278,7 +263,7 @@ impl PyBundleBuilder {
         relationship: &str,
     ) -> PyResult<(Option<String>, Refusal)> {
         let Some(parsed) = EvidenceRelationship::from_name(relationship) else {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "`{relationship}` is not an evidence relationship"
             )));
         };
@@ -418,7 +403,7 @@ fn composition_mean_decision<'py>(
     check_size(contract_json)?;
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     Ok(match mean_decision_bytes(&contract, claim_data, artifact_id) {
         Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),

@@ -4,7 +4,7 @@
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
@@ -46,9 +46,11 @@ fn posterior() -> GraphPosterior {
         masks,
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
-        InferenceDiagnostics::analytic("bayesian_dag_ate_known_truth"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("bayesian_dag_ate_known_truth"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_algorithm("known_truth_fixture")
@@ -85,7 +87,11 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
         assert!(plan.inference.starts_with("bayesian:"));
 
         let result = prepared.estimate(&data, &context).unwrap();
-        assert!((result.estimate.ate - 2.0).abs() < 0.12, "ATE={}", result.estimate.ate);
+        assert!(
+            (result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.12,
+            "ATE={}",
+            result.estimate.as_effect().unwrap().ate
+        );
         let posterior_result = result.posterior.as_ref().expect("joint posterior retained");
         assert!(posterior_result.draws.n_draws >= 96);
         let mixture = result.structural_response.as_ref().expect("graph mass summary");
@@ -98,7 +104,12 @@ fn bayesian_dag_graph_posterior_ate_is_sealed_across_validation_lifecycle() {
         }
 
         let refreshed = prepared.refresh(data.clone(), &context).unwrap();
-        assert!((refreshed.estimate.ate - result.estimate.ate).abs() < 1e-10);
+        assert!(
+            (refreshed.estimate.as_effect().unwrap().ate
+                - result.estimate.as_effect().unwrap().ate)
+                .abs()
+                < 1e-10
+        );
         let retained = prepared.checked_bayesian_graph_posterior_ate_info().unwrap();
         assert_eq!(retained.graph_keys, plan.graph_keys);
         assert_eq!(retained.weights, plan.weights);

@@ -1,4 +1,4 @@
-"""B4 nonlinear continuous-mediator mediation: natural direct, indirect and total effects.
+"""Nonlinear continuous-mediator mediation: natural direct, indirect and total effects.
 
 A binary treatment ``A`` acts on an outcome ``Y`` directly and through a continuous mediator
 ``M``. This module estimates the **natural** effects, averaged over the observed covariate rows::
@@ -42,17 +42,24 @@ configuration, data or result is refused too.
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from functools import partial
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ._columns import coerce_fields
 from ._native import consume_nonlinear_mediation_artifact as _consume
 from ._native import evaluate_nonlinear_mediation as _evaluate
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ._refusal import raise_refusal
+from ._scientific import ScientificResult
+from ._validate import count, non_finite_refusal, real
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 
 __all__ = [
     "DEFAULT_SEED",
@@ -73,8 +80,8 @@ DEFAULT_SEED = 0x4234_4D45_4449_4154
 _MAX_COUNT = 2**32 - 1
 
 
-class MediationRefusal(CausalUnsupportedError):
-    """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
+class MediationRefusal(StructuredRefusal):
+    """A :class:`StructuredRefusal` for the structured Rust refusal fields.
 
     ``reason_code`` is the registered code; ``detail`` is the namespaced ``family.slot`` slot
     (for example ``nonlinear_mediation.confounding``,
@@ -84,23 +91,7 @@ class MediationRefusal(CausalUnsupportedError):
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
-        detail = str(refusal["detail"])
-        message = refusal.get("message")
-        text = f"{detail}: {message}" if message else detail
-        if refusal.get("offending"):
-            text = f"{text} at {refusal['offending']}"
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage.
-        self.stage: str = refusal.get("stage", "")
-        #: Namespaced ``family.slot`` detail.
-        self.detail: str = detail
-        #: Changed identity field, when a consumer refused one.
-        self.offending: str | None = refusal.get("offending")
-
-
-def _raise_refusal(payload: str | None) -> None:
-    if payload is not None:
-        raise MediationRefusal(json.loads(payload))
+        super().__init__(refusal)
 
 
 class MediationEstimand(StrEnum):
@@ -146,7 +137,7 @@ class MediationPremises:
             raise CausalTypeError("treatment_induced_confounders must be a sequence of names")
         if not all(isinstance(n, str) and n for n in names):
             raise CausalTypeError("treatment_induced_confounders must be non-empty strings")
-        object.__setattr__(self, "treatment_induced_confounders", tuple(names))
+        coerce_fields(self, treatment_induced_confounders=tuple(names))
 
     @classmethod
     def sequentially_ignorable(cls) -> MediationPremises:
@@ -233,7 +224,7 @@ class MediationIdentity:
 
 
 @dataclass(frozen=True, slots=True)
-class MediationEffects:
+class MediationEffects(ScientificResult):
     """Natural effects, their diagnostics and the portable artifact.
 
     ``natural_direct``, ``natural_indirect`` and ``total`` are the claim; ``*_se`` are bootstrap
@@ -270,11 +261,17 @@ class MediationEffects:
     inference_claim: str
     caveats: tuple[str, ...]
     identity: MediationIdentity
-    artifact: bytes
+    _artifact_bytes: bytes
+
+    def artifact(self) -> ExportedArtifact[MediationEffects]:
+        """Typed bytes envelope for shared scientific consumption."""
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self)
 
     def export(self) -> bytes:
         """The checksummed ``nonlinear_mediation_v1`` artifact."""
-        return self.artifact
+        return self._artifact_bytes
 
     def to_dict(self) -> dict[str, Any]:
         """A plain, JSON-serializable summary (no artifact bytes)."""
@@ -373,7 +370,7 @@ def _result(report_json: str, artifact: bytes) -> MediationEffects:
         inference_claim=meta["inference_claim"],
         caveats=tuple(meta["caveats"]),
         identity=MediationIdentity(**meta["identity"]),
-        artifact=artifact,
+        _artifact_bytes=artifact,
     )
 
 
@@ -414,32 +411,16 @@ def _covariate_columns(covariates: Any) -> tuple[list[str], list[np.ndarray]]:
     return names, columns
 
 
-def _count(value: object, what: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int | np.integer):
-        raise CausalTypeError(f"{what} must be an integer")
-    number = int(value)
-    if not 0 <= number <= _MAX_COUNT:
-        raise CausalValueError(
-            f"{what} must lie in 0..={_MAX_COUNT}", reason_code="invalid_argument"
-        )
-    return number
+_count = partial(count, minimum=0, maximum=_MAX_COUNT, reason_code="invalid_argument")
 
 
-def _real(value: object, what: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float | np.floating | np.integer):
-        raise CausalTypeError(f"{what} must be a real number")
-    number = float(value)
-    if not math.isfinite(number):
-        raise MediationRefusal(
-            {
-                "code": "invalid_argument",
-                "stage": "estimate",
-                "detail": "nonlinear_mediation.non_finite_option",
-                "offending": what,
-                "message": f"{what} is not finite",
-            }
-        )
-    return number
+_real = partial(
+    real,
+    finite=True,
+    non_finite=non_finite_refusal(
+        MediationRefusal, stage="estimate", detail="nonlinear_mediation.non_finite_option"
+    ),
+)
 
 
 def _seed(value: object) -> int:
@@ -530,7 +511,7 @@ def mediation_effects(
         json.dumps(config, allow_nan=False),
         "nonlinear_mediation",
     )
-    _raise_refusal(refusal)
+    raise_refusal(refusal, MediationRefusal)
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError(
             "the native mediation estimator returned neither a result nor a refusal"
@@ -565,7 +546,7 @@ def consume_mediation_artifact(
         raise CausalTypeError("expected_identity must be a MediationIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
-    _raise_refusal(refusal)
+    raise_refusal(refusal, MediationRefusal)
     if report is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return _result(report, data)

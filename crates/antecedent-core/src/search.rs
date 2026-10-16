@@ -1,4 +1,4 @@
-//! The bounded-search contract every new 2.2 search runs under.
+//! The bounded-search contract every bounded search runs under.
 //!
 //! A search cannot be built without operation and depth limits, and every
 //! charge also observes the [`ExecutionContext`]'s cancellation token and a
@@ -104,7 +104,7 @@ impl SearchReceipt {
     }
 }
 
-/// A live budget: the only way a 2.2 search charges work.
+/// A live budget: the only way a search charges work.
 #[derive(Debug)]
 pub struct SearchBudget<'a> {
     limits: SearchLimits,

@@ -2,23 +2,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(missing_docs)]
+#![allow(
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
+)]
 
 use antecedent_prob::mcmc_summary;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn fill_ar1(n_chains: usize, n_draws: usize, rho: f64, seed: u64) -> Vec<f64> {
     let n = n_chains * n_draws;
-    let mut innov = vec![0.0; n];
-    let mut state = seed;
-    for v in &mut innov {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        let u1 = ((state >> 33) as f64) / ((1u64 << 31) as f64);
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        let u2 = ((state >> 33) as f64) / ((1u64 << 31) as f64);
-        let u1 = u1.clamp(1e-12, 1.0 - 1e-12);
-        *v = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-    }
+    let mut rng = antecedent_core::CausalRng::from_seed(seed);
+    let innov: Vec<f64> = (0..n).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
     let mut samples = vec![0.0; n];
     let scale = (1.0 - rho * rho).sqrt();
     for c in 0..n_chains {

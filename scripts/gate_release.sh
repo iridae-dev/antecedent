@@ -66,21 +66,25 @@ bash scripts/gate_provenance_schema.sh
 echo "== cross-file metadata consistency =="
 bash scripts/gate_metadata_consistency.sh
 
-echo "== retained 2.2 and current 2.3 promotion evidence inventory =="
+echo "== promotion evidence inventory =="
 python3 scripts/release_evidence_report.py
 
 echo "== inherited calibration debt and current inference contract inventory =="
-python3 scripts/generate_2_3_calibration_plan.py --check
+python3 scripts/generate_calibration_plan.py --check
 
 echo "== hot-path baseline metadata =="
 bash scripts/gate_hot_path_baselines.sh
+
+# Every published crate's public surface matches parity/public_api/*.txt, so an
+# API change is a reviewed snapshot diff, not a side effect.
+echo "== public API snapshots =="
+bash scripts/gate_public_api.sh
 fi
 
 if [[ "$section" == all || "$section" == promotion ]]; then
 section_start promotion
-# Both release registries are checked; frozen or carried-forward 2.3 cells
-# remain closed until their cited evidence executes.
-echo "== 2.2 and 2.3 promotion records =="
+# Frozen or carried-forward cells remain closed until their cited evidence executes.
+echo "== promotion records =="
 bash scripts/gate_promotion.sh
 section_end promotion
 fi
@@ -144,23 +148,24 @@ bash scripts/gate_docs_support_matrix.sh
 echo "== published docs links resolve =="
 python3 scripts/check_doc_links.py
 
-# 2.2 release closure: declared bounds agree across records, docs, Rust constants and Python
+# Release closure: declared bounds agree across records, docs, Rust constants and Python
 # docstrings; the release notes describe each cell with exactly its record's claim word.
-echo "== 2.2 limits agreement (records, docs, Rust constants, Python) =="
+echo "== limits agreement (records, docs, Rust constants, Python) =="
 python3 scripts/check_limits_agreement.py
-python3 scripts/check_limits_agreement.py --release 2.3
 
-echo "== 2.3 interval ownership and candidate measurement wiring =="
-python3 scripts/check_interval_coordinates.py --release 2.3
+echo "== interval ownership and measurement wiring =="
+python3 scripts/check_interval_coordinates.py
 
-echo "== 2.2 and 2.3 release notes claim vocabulary =="
+echo "== release notes claim vocabulary =="
 python3 scripts/check_release_claims.py
-python3 scripts/check_release_claims.py --release 2.3
 
-# The calibration inventories are generated; a stale checked-in copy fails here (B8 gap closed).
+# The calibration inventories are generated; a stale checked-in copy fails here.
 echo "== calibration backlog and readiness inventories are current =="
 python3 scripts/generate_calibration_backlog.py --check
 python3 scripts/calibration_readiness.py --check
+
+echo "== conformance reference generators =="
+python3 scripts/check_conformance_references.py
 
 echo "== lint allows: no file-wide allow of lossy casts or exact float compares in library code =="
 bash scripts/gate_lint_allows.sh
@@ -220,178 +225,23 @@ fi
 if [[ "$section" == all || "$section" == features || "$section" == feature-exits ]]; then
 section_start feature_exits
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
-  # 2.2 A exit gate: six end-to-end stories (Rust and Python) plus the zero-unmeasured-interval
-  # check. PENDING_CALIBRATION (story 3 / X1 coverage records unmeasured) exits 0 here; the
-  # release-candidate cut can add --require-calibrated.
-  echo "== 2.2 A exit gate =="
-  bash scripts/gate_a_exit.sh
-  # 2.2 B exit gate scaffold: per-package table (PENDING_IMPLEMENTATION until a package registers
-  # its stories in scripts/b_exit_report.py) plus the interval check over every 2.2 record. The
-  # cut runs it with --release.
-  echo "== 2.2 B exit gate =="
-  bash scripts/gate_b_exit.sh
+  # Composition exit: six end-to-end stories (Rust and Python) plus the zero-unmeasured-interval
+  # check. PENDING_CALIBRATION (story 3 / multi-source coverage records unmeasured) exits 0 here;
+  # the release-candidate gate adds --require-calibrated.
+  echo "== composition exit stories =="
+  bash scripts/gate_composition_exit.sh
+  # Decision exit scaffold: per-story table (PENDING_IMPLEMENTATION until a story registers its
+  # tests in scripts/decision_exit_report.py) plus the interval check over every record. The
+  # release-candidate gate runs it with --release.
+  echo "== decision exit stories =="
+  bash scripts/gate_decision_exit.sh
 fi
 section_end feature_exits
 fi
 
 if [[ "$section" == all || "$section" == inventory ]]; then
 
-python3 - <<'PY'
-from pathlib import Path
-import sys
-
-sys.path.insert(0, "scripts")
-import parity_rows as pr
-
-root = Path(".")
-missing = []
-
-# Inventories: allow pending/in_progress; forbid the retired waiver status and
-# rows that never closed.
-for manifest in [
-    "parity/estimate.toml",
-    "parity/discovery.toml",
-    "parity/bayesian.toml",
-    "parity/pag.toml",
-    "parity/context.toml",
-    "parity/design_state.toml",
-    "parity/gcm.toml",
-    "parity/attribution.toml",
-    "parity/response.toml",
-    "parity/compiler.toml",
-]:
-    for c in pr.rows(manifest):
-        if c.get("status") == "intentional_deviation":
-            missing.append(f"{manifest}: {c.get('id')} still intentional_deviation (retired)")
-        if c.get("status") in ("planned", "blocked"):
-            missing.append(f"{manifest}: {c.get('id')} still {c.get('status')}")
-
-EVIDENCE = {
-    "release.parity_closure": "parity/README.md",
-    "release.graph_dot_json": "crates/antecedent-io/src/graph_gml.rs",
-    "release.artifact_schema": "crates/antecedent-io/src/migrate.rs",
-    "release.artifact_mmap_stream_skip": "crates/antecedent-io/src/reader.rs",
-    "release.wheel_matrix": ".github/workflows/ci.yml",
-    "release.conformance_docs": "docs/conformance/README.md",
-    "release.hot_path_baselines": "docs/hot_paths.md",
-    "release.security_review": "docs/security_review.md",
-    "release.ci_required_jobs": ".github/workflows/ci.yml",
-}
-
-missing += pr.honesty_problems("parity/release.toml", EVIDENCE, all_done=True)
-
-for path in [
-    "adr/0017-release-prep.md",
-    "parity/release.toml",
-    "parity/README.md",
-    "docs/artifacts.md",
-    "docs/hot_paths.md",
-    "docs/security_review.md",
-    "docs/conformance/README.md",
-    "docs/support-matrix.md",
-    "parity/support_axes.toml",
-    "parity/support_licensed.toml",
-    "parity/support_n_a.toml",
-    "parity/support_closed.toml",
-    "adr/0020-support-matrix-and-prepared-workflow.md",
-    "deny.toml",
-    "conformance/interchange/graph_dot_json/expected.json",
-    "conformance/interchange/graph_gml_networkx/expected.json",
-    "conformance/interchange/artifact_migrate/expected.json",
-    "crates/antecedent-io/src/graph_dot.rs",
-    "crates/antecedent-io/src/graph_gml.rs",
-    "crates/antecedent-io/src/graph_networkx.rs",
-    "crates/antecedent-io/src/graph_json.rs",
-    "crates/antecedent-io/src/migrate.rs",
-    "crates/antecedent-io/src/model_bundle.rs",
-    "scripts/generate_conformance_docs.py",
-]:
-    if not (root / path).exists():
-        missing.append(f"required exit artifact missing: {path}")
-
-# Semantic crates: forbid unsafe by default. antecedent-data / antecedent-io keep
-# #![deny(unsafe_code)] with scoped allows (Arrow FFI / foreign buffers / mmap).
-forbid_crates = [
-    "crates/antecedent-core",
-    "crates/antecedent-graph",
-    "crates/antecedent-expr",
-    "crates/antecedent-identify",
-    "crates/antecedent-stats",
-    "crates/antecedent-prob",
-    "crates/antecedent-estimate",
-    "crates/antecedent-validate",
-    "crates/antecedent-model",
-    "crates/antecedent-counterfactual",
-    "crates/antecedent-attribution",
-    "crates/antecedent-design",
-    "crates/antecedent-state",
-    "crates/antecedent-discovery",
-    "crates/antecedent",
-]
-deny_escape_crates = {
-    "crates/antecedent-data": ("buffer.rs", "arrow_ffi.rs"),
-    "crates/antecedent-io": ("mmap_file.rs",),
-}
-for crate in forbid_crates:
-    lib = root / crate / "src" / "lib.rs"
-    text = lib.read_text()
-    if "#![forbid(unsafe_code)]" not in text:
-        missing.append(f"{crate} missing #![forbid(unsafe_code)]")
-for crate, allow_mods in deny_escape_crates.items():
-    lib = root / crate / "src" / "lib.rs"
-    text = lib.read_text()
-    if "#![deny(unsafe_code)]" not in text:
-        missing.append(f"{crate} missing #![deny(unsafe_code)] (scoped unsafe escape)")
-    if "allow(unsafe_code)" not in text and not any(
-        "allow(unsafe_code)" in (root / crate / "src" / m).read_text()
-        for m in allow_mods
-        if (root / crate / "src" / m).exists()
-    ):
-        missing.append(f"{crate} missing allow(unsafe_code) for scoped escape modules")
-    for mod_name in allow_mods:
-        if not (root / crate / "src" / mod_name).exists():
-            missing.append(f"{crate} expected unsafe escape module missing: {mod_name}")
-
-# Baselines the release requires, and that docs/hot_paths.md must reference.
-hot = (root / "docs/hot_paths.md").read_text()
-
-required_baselines = [
-    "gather.md",
-    "kernel_reductions.md",
-    "graph_traversal.md",
-    "dseparation.md",
-    "adjustment.md",
-    "partial_correlation.md",
-    "pcmci.md",
-    "ci_orientation.md",
-    "propensity.md",
-    "matching.md",
-    "pag.md",
-    "regime_mediation.md",
-    "shapley.md",
-    "design_state.md",
-    "response_interference.md",
-    "laplace_glm.md",
-    "hmc.md",
-    "mcmc_stats.md",
-    "sample_overlay.md",
-    "counterfactual_batch.md",
-    "posterior_functional.md",
-]
-for name in required_baselines:
-    if not (root / "benches/baselines" / name).exists():
-        missing.append(f"missing baseline {name}")
-    if name not in hot:
-        missing.append(f"docs/hot_paths.md does not reference {name}")
-
-if missing:
-    print("Release gate FAILED:")
-    for m in missing:
-        print(" -", m)
-    sys.exit(1)
-
-print("Release inventory / artifact evidence map OK")
-PY
+python3 "$ROOT/scripts/gate_release.py"
 
 echo "== regenerate conformance docs (must be clean) =="
 python3 scripts/generate_conformance_docs.py
@@ -403,14 +253,14 @@ fi
 
 echo "== regenerate support-matrix docs (must be clean) =="
 python3 scripts/generate_support_matrix_docs.py
-VERSION="$(python3 -c "import tomllib; from pathlib import Path; p=Path('docs/release-notes/preparation.toml'); d=tomllib.load(open(p,'rb')) if p.is_file() else tomllib.load(open('Cargo.toml','rb'))['workspace']['package']; print(d.get('target_version', d.get('version')))" )"
+VERSION="$(python3 "$ROOT/scripts/release_notes_version.py")"
 if ! git diff --exit-code -- docs/support-matrix.md \
-    crates/antecedent/src/support_matrix_data.rs \
-    crates/antecedent-io/src/coverage_records_data.rs \
+    crates/antecedent/data/support_matrix.json \
+    crates/antecedent-io-core/data/coverage_records.json \
     "docs/release-notes/v${VERSION}.md" >/dev/null; then
   echo "support-matrix generated files are stale; commit regenerated output"
-  git diff --stat -- docs/support-matrix.md crates/antecedent/src/support_matrix_data.rs \
-    crates/antecedent-io/src/coverage_records_data.rs \
+  git diff --stat -- docs/support-matrix.md crates/antecedent/data/support_matrix.json \
+    crates/antecedent-io-core/data/coverage_records.json \
     "docs/release-notes/v${VERSION}.md"
   exit 1
 fi

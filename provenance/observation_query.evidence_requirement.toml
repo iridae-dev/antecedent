@@ -1,0 +1,29 @@
+feature_id = "observation_query.evidence_requirement"
+implementation_crate = "antecedent-model"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Bayes Factors (Kass and Raftery, J Am Stat Assoc 90:773-795)", doi = "10.1080/01621459.1995.10476572", sections = ["Posterior odds as prior odds times the Bayes factor"] },
+  { title = "Bayesian Data Analysis (3rd ed.)", doi = "10.1201/b16018", sections = ["Chapter 2: the Beta-Binomial predictive probability after n successes"] },
+]
+
+implementation_deviations = [
+  "The required Bayes factor is the exact odds ratio between the declared level and the prior. The required observation count is the minimum over integer counts of conditionally independent identical readings, found from the closed form and then verified, never rounded blindly; a level matched within 1e-12 in log-odds (probability, for the conjugate solve) counts as reached.",
+  "The solve takes one kind of reading per direction: positive readings to raise, negative readings to lower. A mixed sequence of readings is a different question and is not solved.",
+  "A level no admissible evidence reaches is a typed refusal that states the supremum (raising) or infimum (lowering) reachable: the prior when the signal does not move the probability that way, or the probability after the declared maximum observation count when only the budget is the obstacle.",
+  "The evidence solve is a statement about a declared model. It makes no statement about how often a fitted model's posterior crosses a level, and no interval or calibration claim is made.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-computed odds ratio: prior 0.2 to level 0.8 needs a Bayes factor of 16",
+  "hand-computed readings: prior 0.01, rates 0.9 and 0.05 (Bayes factor 18) reaches 0.5 in exactly two readings",
+  "closed-form Beta(1,1): (1+n)/(2+n) >= 0.9 needs n = 8; level 0.99 with a bound of 50 reaches at most 51/52",
+  "crates/antecedent-model/tests/observation_query.rs",
+  "crates/antecedent-io-core/tests/observation_query_artifact.rs",
+  "crates/antecedent/tests/observation_query_facade.rs",
+]

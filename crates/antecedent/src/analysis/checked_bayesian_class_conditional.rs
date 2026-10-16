@@ -7,12 +7,14 @@
 //! fields, so no builder state can change the procedure after preparation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::analysis::prepared::Inspect;
 use antecedent_core::{
     CausalQuery, ConditionalEffectQuery, ExecutionContext, OutcomeFunctional, TargetPopulation,
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationStatus;
+use std::sync::Arc;
 
 use super::builder::DataInput;
 use super::checked_conditional::ConditionalClassProof;
@@ -29,7 +31,7 @@ pub(crate) struct CheckedBayesianClassConditional {
     query: ConditionalEffectQuery,
     estimand: IdentifiedEstimand,
     identifier: IdentifierId,
-    physical: PhysicalExecutionPlan,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     inference: InferenceMode,
     validation: RefuteSuite,
     latency_mode: Option<super::latency::LatencyMode>,
@@ -39,7 +41,7 @@ impl CheckedBayesianClassConditional {
     pub(crate) fn prepare(
         proof: ConditionalClassProof,
         query: ConditionalEffectQuery,
-        physical: PhysicalExecutionPlan,
+        physical: std::sync::Arc<PhysicalExecutionPlan>,
         inference: InferenceMode,
         validation: RefuteSuite,
         latency_mode: Option<super::latency::LatencyMode>,
@@ -58,11 +60,10 @@ impl CheckedBayesianClassConditional {
             });
         }
         if physical.logical.query != CausalQuery::ConditionalEffect(query.clone())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::BayesianConditional.as_str())
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::GeneralizedAdjustment.as_str())
-            || !matches!(validation, RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full)
+            || !physical
+                .binding()
+                .names(IdentifierId::GeneralizedAdjustment, EstimatorId::BayesianConditional)
+            || !validation.is_point()
         {
             return Err(compile_error(
                 "checked Bayesian class conditional target, identifier, or procedure changed after identification",
@@ -112,7 +113,7 @@ impl CheckedBayesianClassConditional {
     /// identification and non-mean targets stay outside this point plan.
     pub(crate) fn seal(
         analysis: &Study,
-        plan: &PhysicalExecutionPlan,
+        plan: &std::sync::Arc<PhysicalExecutionPlan>,
     ) -> Result<Option<Self>, CausalError> {
         let CausalQuery::ConditionalEffect(query) = &analysis.query else {
             return Ok(None);
@@ -125,32 +126,26 @@ impl CheckedBayesianClassConditional {
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !matches!(
-                analysis.refute,
-                RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
-            )
+            || !analysis.refute.is_point()
             || !analysis.custom_validators.is_empty()
             || query.inner.target_population != TargetPopulation::AllObserved
             || !matches!(query.inner.outcome_functional, OutcomeFunctional::Mean)
-            || plan.logical.record.identifier.as_deref()
-                != Some(IdentifierId::GeneralizedAdjustment.as_str())
-            || plan.logical.record.estimator.as_deref()
-                != Some(EstimatorId::BayesianConditional.as_str())
+            || !plan
+                .binding()
+                .names(IdentifierId::GeneralizedAdjustment, EstimatorId::BayesianConditional)
         {
             return Ok(None);
         }
-        let proof = match analysis.graph.class() {
-            crate::GraphClass::Cpdag => {
-                let (Some(graph), Some(cache)) =
-                    (analysis.graph.as_cpdag(), analysis.cpdag_identification_cache.as_deref())
-                else {
+        let proof = match analysis.graph.graph_ref() {
+            crate::GraphRef::Cpdag(graph) => {
+                let Some(cache) = analysis.cpdag_identification_cache.as_ref() else {
                     return Ok(None);
                 };
                 ConditionalClassProof::Cpdag { graph: graph.clone(), cache: cache.clone() }
             }
-            crate::GraphClass::Pag => {
+            crate::GraphRef::Pag(_) => {
                 let (Some(graph), Some(cache)) =
-                    (plan.static_pag(), analysis.pag_identification_cache.as_deref())
+                    (plan.static_pag(), analysis.pag_identification_cache.as_ref())
                 else {
                     return Ok(None);
                 };
@@ -209,17 +204,17 @@ impl CheckedBayesianClassConditional {
         click.identifier = Some(self.identifier);
         click.estimator = Some(EstimatorId::BayesianConditional);
         click.estimator_spec =
-            Some(crate::EstimatorSpec::Default(EstimatorId::BayesianConditional));
+            Some(Arc::new(crate::EstimatorSpec::Default(EstimatorId::BayesianConditional)));
         click.refute = self.validation;
         click.latency_mode = self.latency_mode;
         click.cpdag_identification_cache = None;
         click.pag_identification_cache = None;
         match &self.proof {
             ConditionalClassProof::Cpdag { cache, .. } => {
-                click.cpdag_identification_cache = Some(std::sync::Arc::new(cache.clone()));
+                click.cpdag_identification_cache = Some(std::sync::Arc::clone(cache));
             }
             ConditionalClassProof::Pag { cache, .. } => {
-                click.pag_identification_cache = Some(std::sync::Arc::new(cache.clone()));
+                click.pag_identification_cache = Some(std::sync::Arc::clone(cache));
             }
         }
         let mut result = click.execute_class_conditional(data, &self.query, &self.physical, ctx)?;
@@ -229,5 +224,50 @@ impl CheckedBayesianClassConditional {
             &click.data,
         );
         Ok(result)
+    }
+}
+
+/// Read-only checked target and procedure for a Bayesian static class conditional effect.
+#[derive(Clone, Debug)]
+pub struct CheckedBayesianClassConditionalInfo {
+    /// Exact conditional query, including modifiers and arms.
+    pub query: antecedent_core::ConditionalEffectQuery,
+    /// Source graph class retained with the completion proof.
+    pub graph_class: crate::accepted::GraphClass,
+    /// Selected identification procedure.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Selected estimator identity.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Bayesian prior and inference settings retained by preparation.
+    pub inference: crate::inference::InferenceMode,
+    /// Prepared refutation suite.
+    pub validation: crate::analysis::builder::RefuteSuite,
+    /// Invariant adjustment variables shared by every completion.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Number of class completions checked.
+    pub completion_count: usize,
+    /// Identified completion mass for the class proof.
+    pub identified_mass: f64,
+    /// Unresolved completion mass for the class proof.
+    pub unresolved_mass: f64,
+}
+
+impl Inspect for CheckedBayesianClassConditional {
+    type Info = CheckedBayesianClassConditionalInfo;
+
+    fn info(&self) -> CheckedBayesianClassConditionalInfo {
+        let (completion_count, identified_mass, unresolved_mass) = self.proof().completion_mass();
+        CheckedBayesianClassConditionalInfo {
+            query: self.query().clone(),
+            graph_class: self.proof().graph_class(),
+            identifier: self.identifier(),
+            estimator: EstimatorId::BayesianConditional,
+            inference: self.inference().clone(),
+            validation: self.validation(),
+            adjustment_set: Arc::clone(&self.estimand().adjustment_set),
+            completion_count,
+            identified_mass,
+            unresolved_mass,
+        }
     }
 }

@@ -13,6 +13,7 @@ use antecedent_core::ExecutionContext;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte, OverlapPolicy};
 use antecedent_validate::{PlaceboTreatment, RefutationProblem};
 
+#[path = "fixtures_common/mod.rs"]
 mod common;
 
 // The confounded static ATE study five suites run, in one owner.
@@ -30,7 +31,7 @@ fn execute_static_refute_reuses_estimate_workspace() {
         .unwrap()
         .run(&ExecutionContext::for_tests(9))
         .unwrap();
-    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     assert!(!result.refutations.is_empty());
     // Placebo and RCC are OLS-powerless sampling-stability diagnostics, not
     // claim falsifiers, and report informative: false under linear adjustment
@@ -58,7 +59,7 @@ fn shared_workspace_placebo_parity_and_capacity() {
         &data,
         &estimand,
         &query,
-        &estimate,
+        estimate.as_effect().unwrap(),
         Some("linear.adjustment"),
         None,
     );
@@ -69,7 +70,12 @@ fn shared_workspace_placebo_parity_and_capacity() {
     est.overlap = OverlapPolicy::ExplicitOverride;
     let prep = est.prepare(&data, &estimand, &query).unwrap();
     let _ = est
-        .fit(&prep, &mut warmed, &ExecutionContext::for_tests(2), estimate.assumptions.clone())
+        .fit(
+            &prep,
+            &mut warmed,
+            &ExecutionContext::for_tests(2),
+            estimate.as_effect().unwrap().provenance.assumptions.clone(),
+        )
         .unwrap();
     let warmed_cap = warmed.ols.scratch.capacity() + warmed.ols.rhs.capacity();
     let warmed_grows = warmed.ols.grow_count;
@@ -93,7 +99,7 @@ fn shared_workspace_placebo_parity_and_capacity() {
 #[test]
 fn propensity_workspace_reused_estimate_into_overlap() {
     use antecedent::strategy_table::{
-        EstimatorId, StaticEstimateWorkspaces, estimate_static_effect,
+        EstimatorId, StaticEstimateInput, StaticEstimateWorkspaces, estimate_static_effect,
     };
     use antecedent::{RefuteSuite, Study};
     use antecedent_estimate::OverlapPolicy;
@@ -116,13 +122,15 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     let mut ws = StaticEstimateWorkspaces::default();
     let _ = estimate_static_effect(
         &EstimatorSpec::Default(EstimatorId::PropensityWeighting),
-        &data,
-        &estimand,
-        &query,
-        estimate.assumptions.clone(),
-        10,
-        Some(OverlapPolicy::require_diagnostics()),
-        None,
+        StaticEstimateInput {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            bootstrap_replicates: 10,
+            overlap_policy: Some(OverlapPolicy::require_diagnostics()),
+            population_registry: None,
+        },
+        estimate.as_effect().unwrap().provenance.assumptions.clone(),
         &ExecutionContext::for_tests(3),
         &mut ws,
     )
@@ -131,13 +139,13 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     let score_cap = ws.propensity.propensity.scores.capacity();
     let ols_grows = ws.propensity.propensity.ols.grow_count;
     assert!(score_grows >= 1 && score_cap > 0, "point propensity fit must warm buffers");
-    assert!(estimate.ate.is_finite());
+    assert!(estimate.as_effect().unwrap().ate.is_finite());
 
     let problem = RefutationProblem::new(
         &data,
         &estimand,
         &query,
-        &estimate,
+        estimate.as_effect().unwrap(),
         Some("propensity.weighting"),
         None,
     );
@@ -154,13 +162,15 @@ fn propensity_workspace_reused_estimate_into_overlap() {
     let mut ws2 = StaticEstimateWorkspaces::default();
     let aipw = estimate_static_effect(
         &EstimatorSpec::Default(EstimatorId::Aipw),
-        &data,
-        &estimand,
-        &query,
-        estimate.assumptions.clone(),
-        0,
-        None,
-        None,
+        StaticEstimateInput {
+            data: &data,
+            estimand: &estimand,
+            query: &query,
+            bootstrap_replicates: 0,
+            overlap_policy: None,
+            population_registry: None,
+        },
+        estimate.as_effect().unwrap().provenance.assumptions.clone(),
         &ExecutionContext::for_tests(4),
         &mut ws2,
     )

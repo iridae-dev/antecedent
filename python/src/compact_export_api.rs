@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the B4 compact runtime export.
+//! Bounded Python bridge for the compact runtime export.
 //!
 //! Python declares the coefficient vector, covariance, basis, per-input support and refusal mask
 //! as JSON; the validation, canonical ordering, the identity, the container, the independent
@@ -12,23 +12,23 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::{RefusalJson, check_declared_size};
 use antecedent::analysis::compact_export::{
     CompactExport, ExportInput, ExportLimits, ExportQuery, ExportRefusal, ExportSpec, MaskRegion,
     PointWithSe, QueryValue, TermSpec,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{detach_catch, value_err, with_reason_code};
+use crate::{detach_catch, value_err_code};
 
 /// A bounded-input error carrying the registered `invalid_argument` code.
 fn invalid_argument(message: String) -> PyErr {
-    with_reason_code(value_err(message), antecedent_core::reason_code!("invalid_argument"))
+    value_err_code(antecedent_core::reason_code!("invalid_argument"), message)
 }
 
 /// Largest declaration / query JSON accepted.
-const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 
 type BuildPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
@@ -53,16 +53,9 @@ enum QueryJson {
 }
 
 fn refusal_value(error: &ExportRefusal, stage: &'static str) -> serde_json::Value {
-    serde_json::json!({
-        "code": error.code,
-        "stage": stage,
-        "detail": error.detail,
-        "offending": error.subject,
-        "expected": serde_json::Value::Null,
-        "supplied": serde_json::Value::Null,
-        "remedy": serde_json::Value::Null,
-        "message": error.to_string(),
-    })
+    RefusalJson::new(error.code, stage, error.detail, &error.to_string())
+        .field("offending", &error.subject)
+        .value()
 }
 
 fn refusal_json(error: &ExportRefusal, stage: &'static str) -> String {
@@ -80,10 +73,7 @@ fn point_value(point: &PointWithSe) -> serde_json::Value {
 }
 
 fn check_size(text: &str) -> PyResult<()> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err("compact export declaration is too large"));
-    }
-    Ok(())
+    check_declared_size(text, MAX_JSON_BYTES, "compact export")
 }
 
 fn body_json(export: &CompactExport) -> PyResult<String> {

@@ -1,4 +1,4 @@
-"""2.2 E4: cluster-aware cross-fitted ``Aipw`` and the entity-owned screen split.
+"""Cluster-aware cross-fitted ``Aipw`` and the entity-owned screen split.
 
 The route publishes a cross-fitted point, the score table and the cluster-sandwich SE; few clusters,
 unsupported dyadic structures and cluster options on flexible-learner estimators are closed with
@@ -14,11 +14,11 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent._native import analyze_ate
 from antecedent.errors import CausalError, CausalValueError
 from antecedent.estimation import CandidateScreen, PreparedBatch, RetargetClaim
 from antecedent.estimators import Aipw, ClusterDml
 
+from _native_ate import native_ate
 from _refusal import assert_registered_refusal
 
 QUERY = ant.AverageEffect("t", "y")
@@ -218,7 +218,7 @@ def test_flexible_learners_refuse_cluster_options(estimator, option):
     names = ["z0", "z1", "t", "y"]
     columns = [data[name] for name in names]
     with pytest.raises(ValueError, match="cluster_dml.flexible_learner_closed") as error:
-        analyze_ate(
+        native_ate(
             names,
             columns,
             GRAPH,

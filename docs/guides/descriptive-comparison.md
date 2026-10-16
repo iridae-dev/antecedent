@@ -1,10 +1,10 @@
-# Descriptive raw-versus-adjusted comparison and reporting-scale transforms (2.2 E7)
+# Descriptive raw-versus-adjusted comparison and reporting-scale transforms
 
 `antecedent.descriptive` (Rust: `antecedent_estimate::descriptive_comparison`) holds two
 small computations over estimates you already have. Both are `point_only` and
 **descriptive**: they report a gap and re-express a pair of means, and neither identifies
-or decomposes a causal effect. The record is `2.2E.E7.descriptive_comparison` in
-`parity/promotion_2_2.toml`.
+or decomposes a causal effect. The record is `estimate.descriptive_comparison` in
+`parity/promotion.toml`.
 
 ```python
 from antecedent.descriptive import raw_vs_adjusted, transform_mean_pair
@@ -94,7 +94,7 @@ published.
 
 ## Limits
 
-* A transform accepts at most 4 reporting scales in one request.
+* A transform accepts at most {{bound:estimate.descriptive_comparison.max_scales}} reporting scales in one request.
 * Point only; no interval anywhere, no calibration run.
 * The comparison is for the difference-of-means coding on the all-observed population; a
   ratio-scale or subpopulation comparison needs its own adjusted estimate and is refused here.
@@ -108,3 +108,5 @@ published.
   Python `raw_vs_adjusted` and `raw_reporting_transform` take `cancel=`). A cancelled pass is
   `cancelled_no_claim` (`descriptive_comparison.cancelled`) with no contrast, never a verdict
   on the data.
+
+Implementation limits are listed in [supported input bounds](../supported-bounds.md).

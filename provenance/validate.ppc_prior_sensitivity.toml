@@ -7,8 +7,9 @@ copied_tests = false
 
 papers = [
  { title = "Sampling and Bayes' Inference in Scientific Modelling and Robustness", doi = "10.2307/2982063", sections = ["Prior predictive checking"] },
- { title = "Posterior Predictive Assessment of Model Fitness via Realized Discrepancies", doi = "10.2307/2240839", sections = ["Posterior predictive p-values"] },
- { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Ch. 6: Model checking (secondary textbook treatment)"] },
+ # Statistica Sinica 6 (1996), 733-760, with discussion through page 807.
+ # No verified DOI; the publisher and author copies identify the actual paper.
+ { title = "Posterior Predictive Assessment of Model Fitness via Realized Discrepancies", url = "https://sites.stat.columbia.edu/gelman/research/published/A6n41.pdf", sections = ["Section 2.2, equations (6)-(7): posterior predictive assessment using discrepancies", "Section 2.3: Monte Carlo computation for posterior predictive assessment"] },
 ]
 
 implementation_deviations = [
@@ -22,7 +23,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
- "crates/antecedent-validate/src/bayesian_checks.rs unit tests",
+ "crates/antecedent-validate/src/bayesian_checks/tests.rs unit tests",
  "conformance/bayesian/ppc",
  "conformance/bayesian/prior_sensitivity",
  "conformance/validate/bayesian_checks",

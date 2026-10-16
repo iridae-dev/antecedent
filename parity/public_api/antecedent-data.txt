@@ -1,0 +1,1085 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_data::DataError
+#[non_exhaustive] pub enum antecedent_data::MaskPolicy
+#[non_exhaustive] pub enum antecedent_data::PermutationScheme
+#[non_exhaustive] pub enum antecedent_data::ReferencePointPolicy
+impl !core::marker::Sync for antecedent_data::ArrowCColumn [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowLoadResult [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::EventData [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::F64Buffer [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Float64Column [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ForeignF64Buffer [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedFrame [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MultiEnvironmentData [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::NetworkData [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::OwnedColumn [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::OwnedColumnarStorage [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelData [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelUnit [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PooledLaggedFrame [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TabularData [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeSeriesData [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowLoadResult [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::EventData [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::F64Buffer [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::Float64Column [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::ForeignF64Buffer [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedFrame [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::MultiEnvironmentData [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::NetworkData [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::OwnedColumn [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::OwnedColumnarStorage [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelData [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelUnit [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::PooledLaggedFrame [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::TabularData [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeSeriesData [auto]
+impl antecedent_data::TableView for antecedent_data::EventData
+impl antecedent_data::TableView for antecedent_data::OwnedColumnarStorage
+impl antecedent_data::TableView for antecedent_data::PanelUnitView<'_>
+impl antecedent_data::TableView for antecedent_data::TabularData
+impl antecedent_data::TableView for antecedent_data::TimeSeriesData
+impl core::clone::Clone for antecedent_data::ArrowLoadResult
+impl core::clone::Clone for antecedent_data::BooleanColumn
+impl core::clone::Clone for antecedent_data::CategoricalColumn
+impl core::clone::Clone for antecedent_data::CategoryCode
+impl core::clone::Clone for antecedent_data::CategoryDomain
+impl core::clone::Clone for antecedent_data::CategoryLevel
+impl core::clone::Clone for antecedent_data::Contrast
+impl core::clone::Clone for antecedent_data::ContrastMatrix
+impl core::clone::Clone for antecedent_data::DataError
+impl core::clone::Clone for antecedent_data::DiscoveryEstimationSplit
+impl core::clone::Clone for antecedent_data::DiscreteColumn
+impl core::clone::Clone for antecedent_data::DropSummary
+impl core::clone::Clone for antecedent_data::DummyOptions
+impl core::clone::Clone for antecedent_data::EnvHoldoutSplit
+impl core::clone::Clone for antecedent_data::EventData
+impl core::clone::Clone for antecedent_data::F64Buffer
+impl core::clone::Clone for antecedent_data::FixedVectorColumn
+impl core::clone::Clone for antecedent_data::Float64Column
+impl core::clone::Clone for antecedent_data::ForeignF64Buffer
+impl core::clone::Clone for antecedent_data::IdRemap
+impl core::clone::Clone for antecedent_data::Int64Column
+impl core::clone::Clone for antecedent_data::LagMap
+impl core::clone::Clone for antecedent_data::LaggedColumn
+impl core::clone::Clone for antecedent_data::LaggedFrame
+impl core::clone::Clone for antecedent_data::LaggedFrameOptions
+impl core::clone::Clone for antecedent_data::LaggedSamplePlan
+impl core::clone::Clone for antecedent_data::LaggedSampleWorkspace
+impl core::clone::Clone for antecedent_data::MaskPolicy
+impl core::clone::Clone for antecedent_data::MissingPolicy
+impl core::clone::Clone for antecedent_data::MultiEnvironmentData
+impl core::clone::Clone for antecedent_data::NetworkData
+impl core::clone::Clone for antecedent_data::NetworkEdge
+impl core::clone::Clone for antecedent_data::OwnedColumn
+impl core::clone::Clone for antecedent_data::OwnedColumnarStorage
+impl core::clone::Clone for antecedent_data::PanelData
+impl core::clone::Clone for antecedent_data::PanelUnit
+impl core::clone::Clone for antecedent_data::PermutationScheme
+impl core::clone::Clone for antecedent_data::PooledLaggedFrame
+impl core::clone::Clone for antecedent_data::ReferencePointPolicy
+impl core::clone::Clone for antecedent_data::ResamplingPlan
+impl core::clone::Clone for antecedent_data::SamplingRegularity
+impl core::clone::Clone for antecedent_data::TabularData
+impl core::clone::Clone for antecedent_data::TimeDummyEncoding
+impl core::clone::Clone for antecedent_data::TimeIndex
+impl core::clone::Clone for antecedent_data::TimeRange
+impl core::clone::Clone for antecedent_data::TimeSeriesData
+impl core::clone::Clone for antecedent_data::TimestampColumn
+impl core::clone::Clone for antecedent_data::UnknownCategoryPolicy
+impl core::clone::Clone for antecedent_data::ValidityBitmap
+impl core::clone::Clone for antecedent_data::VectorVariableGroups
+impl core::cmp::Eq for antecedent_data::BooleanColumn
+impl core::cmp::Eq for antecedent_data::CategoricalColumn
+impl core::cmp::Eq for antecedent_data::CategoryCode
+impl core::cmp::Eq for antecedent_data::CategoryDomain
+impl core::cmp::Eq for antecedent_data::CategoryLevel
+impl core::cmp::Eq for antecedent_data::DataError
+impl core::cmp::Eq for antecedent_data::DiscoveryEstimationSplit
+impl core::cmp::Eq for antecedent_data::DropSummary
+impl core::cmp::Eq for antecedent_data::DummyOptions
+impl core::cmp::Eq for antecedent_data::EnvHoldoutSplit
+impl core::cmp::Eq for antecedent_data::Int64Column
+impl core::cmp::Eq for antecedent_data::LagMap
+impl core::cmp::Eq for antecedent_data::LaggedColumn
+impl core::cmp::Eq for antecedent_data::LaggedFrameOptions
+impl core::cmp::Eq for antecedent_data::MaskPolicy
+impl core::cmp::Eq for antecedent_data::MissingPolicy
+impl core::cmp::Eq for antecedent_data::PermutationScheme
+impl core::cmp::Eq for antecedent_data::ReferencePointPolicy
+impl core::cmp::Eq for antecedent_data::SamplingRegularity
+impl core::cmp::Eq for antecedent_data::TimeDummyEncoding
+impl core::cmp::Eq for antecedent_data::TimeIndex
+impl core::cmp::Eq for antecedent_data::TimeRange
+impl core::cmp::Eq for antecedent_data::TimestampColumn
+impl core::cmp::Eq for antecedent_data::UnknownCategoryPolicy
+impl core::cmp::Eq for antecedent_data::ValidityBitmap
+impl core::cmp::Eq for antecedent_data::VectorVariableGroups
+impl core::cmp::Ord for antecedent_data::CategoryCode
+impl core::cmp::PartialEq for antecedent_data::BooleanColumn
+impl core::cmp::PartialEq for antecedent_data::CategoricalColumn
+impl core::cmp::PartialEq for antecedent_data::CategoryCode
+impl core::cmp::PartialEq for antecedent_data::CategoryDomain
+impl core::cmp::PartialEq for antecedent_data::CategoryLevel
+impl core::cmp::PartialEq for antecedent_data::Contrast
+impl core::cmp::PartialEq for antecedent_data::ContrastMatrix
+impl core::cmp::PartialEq for antecedent_data::DataError
+impl core::cmp::PartialEq for antecedent_data::DiscoveryEstimationSplit
+impl core::cmp::PartialEq for antecedent_data::DiscreteColumn
+impl core::cmp::PartialEq for antecedent_data::DropSummary
+impl core::cmp::PartialEq for antecedent_data::DummyOptions
+impl core::cmp::PartialEq for antecedent_data::EnvHoldoutSplit
+impl core::cmp::PartialEq for antecedent_data::F64Buffer
+impl core::cmp::PartialEq for antecedent_data::FixedVectorColumn
+impl core::cmp::PartialEq for antecedent_data::Float64Column
+impl core::cmp::PartialEq for antecedent_data::Int64Column
+impl core::cmp::PartialEq for antecedent_data::LagMap
+impl core::cmp::PartialEq for antecedent_data::LaggedColumn
+impl core::cmp::PartialEq for antecedent_data::LaggedFrameOptions
+impl core::cmp::PartialEq for antecedent_data::MaskPolicy
+impl core::cmp::PartialEq for antecedent_data::MissingPolicy
+impl core::cmp::PartialEq for antecedent_data::NetworkEdge
+impl core::cmp::PartialEq for antecedent_data::PermutationScheme
+impl core::cmp::PartialEq for antecedent_data::ReferencePointPolicy
+impl core::cmp::PartialEq for antecedent_data::ResamplingPlan
+impl core::cmp::PartialEq for antecedent_data::SamplingRegularity
+impl core::cmp::PartialEq for antecedent_data::TimeDummyEncoding
+impl core::cmp::PartialEq for antecedent_data::TimeIndex
+impl core::cmp::PartialEq for antecedent_data::TimeRange
+impl core::cmp::PartialEq for antecedent_data::TimestampColumn
+impl core::cmp::PartialEq for antecedent_data::UnknownCategoryPolicy
+impl core::cmp::PartialEq for antecedent_data::ValidityBitmap
+impl core::cmp::PartialEq for antecedent_data::VectorVariableGroups
+impl core::cmp::PartialOrd for antecedent_data::CategoryCode
+impl core::convert::From<alloc::sync::Arc<[f64]>> for antecedent_data::F64Buffer
+impl core::convert::From<alloc::vec::Vec<f64>> for antecedent_data::F64Buffer
+impl core::convert::From<antecedent_core::error::SchemaError> for antecedent_data::DataError
+impl core::default::Default for antecedent_data::DropSummary
+impl core::default::Default for antecedent_data::DummyOptions
+impl core::default::Default for antecedent_data::LaggedFrameOptions
+impl core::default::Default for antecedent_data::LaggedSampleWorkspace
+impl core::default::Default for antecedent_data::MaskPolicy
+impl core::default::Default for antecedent_data::MissingPolicy
+impl core::default::Default for antecedent_data::ReferencePointPolicy
+impl core::default::Default for antecedent_data::TimeDummyEncoding
+impl core::default::Default for antecedent_data::ValidityBitmap
+impl core::default::Default for antecedent_data::VectorVariableGroups
+impl core::error::Error for antecedent_data::DataError
+impl core::fmt::Debug for antecedent_data::ArrowLoadResult
+impl core::fmt::Debug for antecedent_data::BooleanColumn
+impl core::fmt::Debug for antecedent_data::CategoricalColumn
+impl core::fmt::Debug for antecedent_data::CategoryCode
+impl core::fmt::Debug for antecedent_data::CategoryDomain
+impl core::fmt::Debug for antecedent_data::CategoryLevel
+impl core::fmt::Debug for antecedent_data::Contrast
+impl core::fmt::Debug for antecedent_data::ContrastMatrix
+impl core::fmt::Debug for antecedent_data::DataError
+impl core::fmt::Debug for antecedent_data::DiscoveryEstimationSplit
+impl core::fmt::Debug for antecedent_data::DiscreteColumn
+impl core::fmt::Debug for antecedent_data::DropSummary
+impl core::fmt::Debug for antecedent_data::DummyOptions
+impl core::fmt::Debug for antecedent_data::EnvHoldoutSplit
+impl core::fmt::Debug for antecedent_data::EventData
+impl core::fmt::Debug for antecedent_data::F64Buffer
+impl core::fmt::Debug for antecedent_data::FixedVectorColumn
+impl core::fmt::Debug for antecedent_data::Float64Column
+impl core::fmt::Debug for antecedent_data::ForeignF64Buffer
+impl core::fmt::Debug for antecedent_data::IdRemap
+impl core::fmt::Debug for antecedent_data::Int64Column
+impl core::fmt::Debug for antecedent_data::LagMap
+impl core::fmt::Debug for antecedent_data::LaggedColumn
+impl core::fmt::Debug for antecedent_data::LaggedFrame
+impl core::fmt::Debug for antecedent_data::LaggedFrameOptions
+impl core::fmt::Debug for antecedent_data::LaggedSamplePlan
+impl core::fmt::Debug for antecedent_data::LaggedSampleWorkspace
+impl core::fmt::Debug for antecedent_data::MaskPolicy
+impl core::fmt::Debug for antecedent_data::MissingPolicy
+impl core::fmt::Debug for antecedent_data::MultiEnvironmentData
+impl core::fmt::Debug for antecedent_data::NetworkData
+impl core::fmt::Debug for antecedent_data::NetworkEdge
+impl core::fmt::Debug for antecedent_data::OwnedColumn
+impl core::fmt::Debug for antecedent_data::OwnedColumnarStorage
+impl core::fmt::Debug for antecedent_data::PanelData
+impl core::fmt::Debug for antecedent_data::PanelUnit
+impl core::fmt::Debug for antecedent_data::PermutationScheme
+impl core::fmt::Debug for antecedent_data::PooledLaggedFrame
+impl core::fmt::Debug for antecedent_data::ReferencePointPolicy
+impl core::fmt::Debug for antecedent_data::ResamplingPlan
+impl core::fmt::Debug for antecedent_data::SamplingRegularity
+impl core::fmt::Debug for antecedent_data::TabularData
+impl core::fmt::Debug for antecedent_data::TimeDummyEncoding
+impl core::fmt::Debug for antecedent_data::TimeIndex
+impl core::fmt::Debug for antecedent_data::TimeRange
+impl core::fmt::Debug for antecedent_data::TimeSeriesData
+impl core::fmt::Debug for antecedent_data::TimestampColumn
+impl core::fmt::Debug for antecedent_data::UnknownCategoryPolicy
+impl core::fmt::Debug for antecedent_data::ValidityBitmap
+impl core::fmt::Debug for antecedent_data::VectorVariableGroups
+impl core::fmt::Display for antecedent_data::DataError
+impl core::hash::Hash for antecedent_data::CategoryCode
+impl core::hash::Hash for antecedent_data::DiscoveryEstimationSplit
+impl core::hash::Hash for antecedent_data::LaggedColumn
+impl core::hash::Hash for antecedent_data::LaggedFrameOptions
+impl core::hash::Hash for antecedent_data::MaskPolicy
+impl core::hash::Hash for antecedent_data::MissingPolicy
+impl core::hash::Hash for antecedent_data::PermutationScheme
+impl core::hash::Hash for antecedent_data::ReferencePointPolicy
+impl core::hash::Hash for antecedent_data::TimeDummyEncoding
+impl core::hash::Hash for antecedent_data::TimeRange
+impl core::hash::Hash for antecedent_data::UnknownCategoryPolicy
+impl core::marker::Copy for antecedent_data::CategoryCode
+impl core::marker::Copy for antecedent_data::DiscoveryEstimationSplit
+impl core::marker::Copy for antecedent_data::DropSummary
+impl core::marker::Copy for antecedent_data::DummyOptions
+impl core::marker::Copy for antecedent_data::LaggedColumn
+impl core::marker::Copy for antecedent_data::LaggedFrameOptions
+impl core::marker::Copy for antecedent_data::MaskPolicy
+impl core::marker::Copy for antecedent_data::MissingPolicy
+impl core::marker::Copy for antecedent_data::NetworkEdge
+impl core::marker::Copy for antecedent_data::PermutationScheme
+impl core::marker::Copy for antecedent_data::ReferencePointPolicy
+impl core::marker::Copy for antecedent_data::ResamplingPlan
+impl core::marker::Copy for antecedent_data::TimeDummyEncoding
+impl core::marker::Copy for antecedent_data::TimeRange
+impl core::marker::Copy for antecedent_data::UnknownCategoryPolicy
+impl core::marker::Freeze for antecedent_data::ArrowCColumn [auto]
+impl core::marker::Freeze for antecedent_data::ArrowLoadResult [auto]
+impl core::marker::Freeze for antecedent_data::BooleanColumn [auto]
+impl core::marker::Freeze for antecedent_data::CategoricalColumn [auto]
+impl core::marker::Freeze for antecedent_data::CategoryCode [auto]
+impl core::marker::Freeze for antecedent_data::CategoryDomain [auto]
+impl core::marker::Freeze for antecedent_data::CategoryLevel [auto]
+impl core::marker::Freeze for antecedent_data::Contrast [auto]
+impl core::marker::Freeze for antecedent_data::ContrastMatrix [auto]
+impl core::marker::Freeze for antecedent_data::DataError [auto]
+impl core::marker::Freeze for antecedent_data::DiscoveryEstimationSplit [auto]
+impl core::marker::Freeze for antecedent_data::DiscreteColumn [auto]
+impl core::marker::Freeze for antecedent_data::DropSummary [auto]
+impl core::marker::Freeze for antecedent_data::DummyOptions [auto]
+impl core::marker::Freeze for antecedent_data::EnvHoldoutSplit [auto]
+impl core::marker::Freeze for antecedent_data::EventData [auto]
+impl core::marker::Freeze for antecedent_data::F64Buffer [auto]
+impl core::marker::Freeze for antecedent_data::FixedVectorColumn [auto]
+impl core::marker::Freeze for antecedent_data::Float64Column [auto]
+impl core::marker::Freeze for antecedent_data::ForeignF64Buffer [auto]
+impl core::marker::Freeze for antecedent_data::IdRemap [auto]
+impl core::marker::Freeze for antecedent_data::Int64Column [auto]
+impl core::marker::Freeze for antecedent_data::LagMap [auto]
+impl core::marker::Freeze for antecedent_data::LaggedColumn [auto]
+impl core::marker::Freeze for antecedent_data::LaggedFrame [auto]
+impl core::marker::Freeze for antecedent_data::LaggedFrameOptions [auto]
+impl core::marker::Freeze for antecedent_data::LaggedSamplePlan [auto]
+impl core::marker::Freeze for antecedent_data::LaggedSampleWorkspace [auto]
+impl core::marker::Freeze for antecedent_data::MaskPolicy [auto]
+impl core::marker::Freeze for antecedent_data::MissingPolicy [auto]
+impl core::marker::Freeze for antecedent_data::MultiEnvironmentData [auto]
+impl core::marker::Freeze for antecedent_data::NetworkData [auto]
+impl core::marker::Freeze for antecedent_data::NetworkEdge [auto]
+impl core::marker::Freeze for antecedent_data::OwnedColumn [auto]
+impl core::marker::Freeze for antecedent_data::OwnedColumnarStorage [auto]
+impl core::marker::Freeze for antecedent_data::PanelData [auto]
+impl core::marker::Freeze for antecedent_data::PanelUnit [auto]
+impl core::marker::Freeze for antecedent_data::PermutationScheme [auto]
+impl core::marker::Freeze for antecedent_data::PooledLaggedFrame [auto]
+impl core::marker::Freeze for antecedent_data::ReferencePointPolicy [auto]
+impl core::marker::Freeze for antecedent_data::ResamplingPlan [auto]
+impl core::marker::Freeze for antecedent_data::SamplingRegularity [auto]
+impl core::marker::Freeze for antecedent_data::TabularData [auto]
+impl core::marker::Freeze for antecedent_data::TimeDummyEncoding [auto]
+impl core::marker::Freeze for antecedent_data::TimeIndex [auto]
+impl core::marker::Freeze for antecedent_data::TimeRange [auto]
+impl core::marker::Freeze for antecedent_data::TimeSeriesData [auto]
+impl core::marker::Freeze for antecedent_data::TimestampColumn [auto]
+impl core::marker::Freeze for antecedent_data::UnknownCategoryPolicy [auto]
+impl core::marker::Freeze for antecedent_data::ValidityBitmap [auto]
+impl core::marker::Freeze for antecedent_data::VectorVariableGroups [auto]
+impl core::marker::Send for antecedent_data::ArrowCColumn [auto]
+impl core::marker::Send for antecedent_data::ArrowLoadResult [auto]
+impl core::marker::Send for antecedent_data::BooleanColumn [auto]
+impl core::marker::Send for antecedent_data::CategoricalColumn [auto]
+impl core::marker::Send for antecedent_data::CategoryCode [auto]
+impl core::marker::Send for antecedent_data::CategoryDomain [auto]
+impl core::marker::Send for antecedent_data::CategoryLevel [auto]
+impl core::marker::Send for antecedent_data::Contrast [auto]
+impl core::marker::Send for antecedent_data::ContrastMatrix [auto]
+impl core::marker::Send for antecedent_data::DataError [auto]
+impl core::marker::Send for antecedent_data::DiscoveryEstimationSplit [auto]
+impl core::marker::Send for antecedent_data::DiscreteColumn [auto]
+impl core::marker::Send for antecedent_data::DropSummary [auto]
+impl core::marker::Send for antecedent_data::DummyOptions [auto]
+impl core::marker::Send for antecedent_data::EnvHoldoutSplit [auto]
+impl core::marker::Send for antecedent_data::EventData [auto]
+impl core::marker::Send for antecedent_data::F64Buffer [auto]
+impl core::marker::Send for antecedent_data::FixedVectorColumn [auto]
+impl core::marker::Send for antecedent_data::Float64Column [auto]
+impl core::marker::Send for antecedent_data::ForeignF64Buffer
+impl core::marker::Send for antecedent_data::IdRemap [auto]
+impl core::marker::Send for antecedent_data::Int64Column [auto]
+impl core::marker::Send for antecedent_data::LagMap [auto]
+impl core::marker::Send for antecedent_data::LaggedColumn [auto]
+impl core::marker::Send for antecedent_data::LaggedFrame [auto]
+impl core::marker::Send for antecedent_data::LaggedFrameOptions [auto]
+impl core::marker::Send for antecedent_data::LaggedSamplePlan [auto]
+impl core::marker::Send for antecedent_data::LaggedSampleWorkspace [auto]
+impl core::marker::Send for antecedent_data::MaskPolicy [auto]
+impl core::marker::Send for antecedent_data::MissingPolicy [auto]
+impl core::marker::Send for antecedent_data::MultiEnvironmentData [auto]
+impl core::marker::Send for antecedent_data::NetworkData [auto]
+impl core::marker::Send for antecedent_data::NetworkEdge [auto]
+impl core::marker::Send for antecedent_data::OwnedColumn [auto]
+impl core::marker::Send for antecedent_data::OwnedColumnarStorage [auto]
+impl core::marker::Send for antecedent_data::PanelData [auto]
+impl core::marker::Send for antecedent_data::PanelUnit [auto]
+impl core::marker::Send for antecedent_data::PermutationScheme [auto]
+impl core::marker::Send for antecedent_data::PooledLaggedFrame [auto]
+impl core::marker::Send for antecedent_data::ReferencePointPolicy [auto]
+impl core::marker::Send for antecedent_data::ResamplingPlan [auto]
+impl core::marker::Send for antecedent_data::SamplingRegularity [auto]
+impl core::marker::Send for antecedent_data::TabularData [auto]
+impl core::marker::Send for antecedent_data::TimeDummyEncoding [auto]
+impl core::marker::Send for antecedent_data::TimeIndex [auto]
+impl core::marker::Send for antecedent_data::TimeRange [auto]
+impl core::marker::Send for antecedent_data::TimeSeriesData [auto]
+impl core::marker::Send for antecedent_data::TimestampColumn [auto]
+impl core::marker::Send for antecedent_data::UnknownCategoryPolicy [auto]
+impl core::marker::Send for antecedent_data::ValidityBitmap [auto]
+impl core::marker::Send for antecedent_data::VectorVariableGroups [auto]
+impl core::marker::StructuralPartialEq for antecedent_data::BooleanColumn
+impl core::marker::StructuralPartialEq for antecedent_data::CategoricalColumn
+impl core::marker::StructuralPartialEq for antecedent_data::CategoryCode
+impl core::marker::StructuralPartialEq for antecedent_data::CategoryDomain
+impl core::marker::StructuralPartialEq for antecedent_data::CategoryLevel
+impl core::marker::StructuralPartialEq for antecedent_data::Contrast
+impl core::marker::StructuralPartialEq for antecedent_data::ContrastMatrix
+impl core::marker::StructuralPartialEq for antecedent_data::DataError
+impl core::marker::StructuralPartialEq for antecedent_data::DiscoveryEstimationSplit
+impl core::marker::StructuralPartialEq for antecedent_data::DiscreteColumn
+impl core::marker::StructuralPartialEq for antecedent_data::DropSummary
+impl core::marker::StructuralPartialEq for antecedent_data::DummyOptions
+impl core::marker::StructuralPartialEq for antecedent_data::EnvHoldoutSplit
+impl core::marker::StructuralPartialEq for antecedent_data::FixedVectorColumn
+impl core::marker::StructuralPartialEq for antecedent_data::Float64Column
+impl core::marker::StructuralPartialEq for antecedent_data::Int64Column
+impl core::marker::StructuralPartialEq for antecedent_data::LagMap
+impl core::marker::StructuralPartialEq for antecedent_data::LaggedColumn
+impl core::marker::StructuralPartialEq for antecedent_data::LaggedFrameOptions
+impl core::marker::StructuralPartialEq for antecedent_data::MaskPolicy
+impl core::marker::StructuralPartialEq for antecedent_data::MissingPolicy
+impl core::marker::StructuralPartialEq for antecedent_data::NetworkEdge
+impl core::marker::StructuralPartialEq for antecedent_data::PermutationScheme
+impl core::marker::StructuralPartialEq for antecedent_data::ReferencePointPolicy
+impl core::marker::StructuralPartialEq for antecedent_data::ResamplingPlan
+impl core::marker::StructuralPartialEq for antecedent_data::SamplingRegularity
+impl core::marker::StructuralPartialEq for antecedent_data::TimeDummyEncoding
+impl core::marker::StructuralPartialEq for antecedent_data::TimeIndex
+impl core::marker::StructuralPartialEq for antecedent_data::TimeRange
+impl core::marker::StructuralPartialEq for antecedent_data::TimestampColumn
+impl core::marker::StructuralPartialEq for antecedent_data::UnknownCategoryPolicy
+impl core::marker::StructuralPartialEq for antecedent_data::VectorVariableGroups
+impl core::marker::Sync for antecedent_data::ArrowLoadResult [auto]
+impl core::marker::Sync for antecedent_data::BooleanColumn [auto]
+impl core::marker::Sync for antecedent_data::CategoricalColumn [auto]
+impl core::marker::Sync for antecedent_data::CategoryCode [auto]
+impl core::marker::Sync for antecedent_data::CategoryDomain [auto]
+impl core::marker::Sync for antecedent_data::CategoryLevel [auto]
+impl core::marker::Sync for antecedent_data::Contrast [auto]
+impl core::marker::Sync for antecedent_data::ContrastMatrix [auto]
+impl core::marker::Sync for antecedent_data::DataError [auto]
+impl core::marker::Sync for antecedent_data::DiscoveryEstimationSplit [auto]
+impl core::marker::Sync for antecedent_data::DiscreteColumn [auto]
+impl core::marker::Sync for antecedent_data::DropSummary [auto]
+impl core::marker::Sync for antecedent_data::DummyOptions [auto]
+impl core::marker::Sync for antecedent_data::EnvHoldoutSplit [auto]
+impl core::marker::Sync for antecedent_data::EventData [auto]
+impl core::marker::Sync for antecedent_data::F64Buffer [auto]
+impl core::marker::Sync for antecedent_data::FixedVectorColumn [auto]
+impl core::marker::Sync for antecedent_data::Float64Column [auto]
+impl core::marker::Sync for antecedent_data::ForeignF64Buffer
+impl core::marker::Sync for antecedent_data::IdRemap [auto]
+impl core::marker::Sync for antecedent_data::Int64Column [auto]
+impl core::marker::Sync for antecedent_data::LagMap [auto]
+impl core::marker::Sync for antecedent_data::LaggedColumn [auto]
+impl core::marker::Sync for antecedent_data::LaggedFrame [auto]
+impl core::marker::Sync for antecedent_data::LaggedFrameOptions [auto]
+impl core::marker::Sync for antecedent_data::LaggedSamplePlan [auto]
+impl core::marker::Sync for antecedent_data::LaggedSampleWorkspace [auto]
+impl core::marker::Sync for antecedent_data::MaskPolicy [auto]
+impl core::marker::Sync for antecedent_data::MissingPolicy [auto]
+impl core::marker::Sync for antecedent_data::MultiEnvironmentData [auto]
+impl core::marker::Sync for antecedent_data::NetworkData [auto]
+impl core::marker::Sync for antecedent_data::NetworkEdge [auto]
+impl core::marker::Sync for antecedent_data::OwnedColumn [auto]
+impl core::marker::Sync for antecedent_data::OwnedColumnarStorage [auto]
+impl core::marker::Sync for antecedent_data::PanelData [auto]
+impl core::marker::Sync for antecedent_data::PanelUnit [auto]
+impl core::marker::Sync for antecedent_data::PermutationScheme [auto]
+impl core::marker::Sync for antecedent_data::PooledLaggedFrame [auto]
+impl core::marker::Sync for antecedent_data::ReferencePointPolicy [auto]
+impl core::marker::Sync for antecedent_data::ResamplingPlan [auto]
+impl core::marker::Sync for antecedent_data::SamplingRegularity [auto]
+impl core::marker::Sync for antecedent_data::TabularData [auto]
+impl core::marker::Sync for antecedent_data::TimeDummyEncoding [auto]
+impl core::marker::Sync for antecedent_data::TimeIndex [auto]
+impl core::marker::Sync for antecedent_data::TimeRange [auto]
+impl core::marker::Sync for antecedent_data::TimeSeriesData [auto]
+impl core::marker::Sync for antecedent_data::TimestampColumn [auto]
+impl core::marker::Sync for antecedent_data::UnknownCategoryPolicy [auto]
+impl core::marker::Sync for antecedent_data::ValidityBitmap [auto]
+impl core::marker::Sync for antecedent_data::VectorVariableGroups [auto]
+impl core::marker::Unpin for antecedent_data::ArrowCColumn [auto]
+impl core::marker::Unpin for antecedent_data::ArrowLoadResult [auto]
+impl core::marker::Unpin for antecedent_data::BooleanColumn [auto]
+impl core::marker::Unpin for antecedent_data::CategoricalColumn [auto]
+impl core::marker::Unpin for antecedent_data::CategoryCode [auto]
+impl core::marker::Unpin for antecedent_data::CategoryDomain [auto]
+impl core::marker::Unpin for antecedent_data::CategoryLevel [auto]
+impl core::marker::Unpin for antecedent_data::Contrast [auto]
+impl core::marker::Unpin for antecedent_data::ContrastMatrix [auto]
+impl core::marker::Unpin for antecedent_data::DataError [auto]
+impl core::marker::Unpin for antecedent_data::DiscoveryEstimationSplit [auto]
+impl core::marker::Unpin for antecedent_data::DiscreteColumn [auto]
+impl core::marker::Unpin for antecedent_data::DropSummary [auto]
+impl core::marker::Unpin for antecedent_data::DummyOptions [auto]
+impl core::marker::Unpin for antecedent_data::EnvHoldoutSplit [auto]
+impl core::marker::Unpin for antecedent_data::EventData [auto]
+impl core::marker::Unpin for antecedent_data::F64Buffer [auto]
+impl core::marker::Unpin for antecedent_data::FixedVectorColumn [auto]
+impl core::marker::Unpin for antecedent_data::Float64Column [auto]
+impl core::marker::Unpin for antecedent_data::ForeignF64Buffer [auto]
+impl core::marker::Unpin for antecedent_data::IdRemap [auto]
+impl core::marker::Unpin for antecedent_data::Int64Column [auto]
+impl core::marker::Unpin for antecedent_data::LagMap [auto]
+impl core::marker::Unpin for antecedent_data::LaggedColumn [auto]
+impl core::marker::Unpin for antecedent_data::LaggedFrame [auto]
+impl core::marker::Unpin for antecedent_data::LaggedFrameOptions [auto]
+impl core::marker::Unpin for antecedent_data::LaggedSamplePlan [auto]
+impl core::marker::Unpin for antecedent_data::LaggedSampleWorkspace [auto]
+impl core::marker::Unpin for antecedent_data::MaskPolicy [auto]
+impl core::marker::Unpin for antecedent_data::MissingPolicy [auto]
+impl core::marker::Unpin for antecedent_data::MultiEnvironmentData [auto]
+impl core::marker::Unpin for antecedent_data::NetworkData [auto]
+impl core::marker::Unpin for antecedent_data::NetworkEdge [auto]
+impl core::marker::Unpin for antecedent_data::OwnedColumn [auto]
+impl core::marker::Unpin for antecedent_data::OwnedColumnarStorage [auto]
+impl core::marker::Unpin for antecedent_data::PanelData [auto]
+impl core::marker::Unpin for antecedent_data::PanelUnit [auto]
+impl core::marker::Unpin for antecedent_data::PermutationScheme [auto]
+impl core::marker::Unpin for antecedent_data::PooledLaggedFrame [auto]
+impl core::marker::Unpin for antecedent_data::ReferencePointPolicy [auto]
+impl core::marker::Unpin for antecedent_data::ResamplingPlan [auto]
+impl core::marker::Unpin for antecedent_data::SamplingRegularity [auto]
+impl core::marker::Unpin for antecedent_data::TabularData [auto]
+impl core::marker::Unpin for antecedent_data::TimeDummyEncoding [auto]
+impl core::marker::Unpin for antecedent_data::TimeIndex [auto]
+impl core::marker::Unpin for antecedent_data::TimeRange [auto]
+impl core::marker::Unpin for antecedent_data::TimeSeriesData [auto]
+impl core::marker::Unpin for antecedent_data::TimestampColumn [auto]
+impl core::marker::Unpin for antecedent_data::UnknownCategoryPolicy [auto]
+impl core::marker::Unpin for antecedent_data::ValidityBitmap [auto]
+impl core::marker::Unpin for antecedent_data::VectorVariableGroups [auto]
+impl core::ops::deref::Deref for antecedent_data::F64Buffer
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ArrowCColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::BooleanColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoricalColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoryCode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoryDomain [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoryLevel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Contrast [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ContrastMatrix [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DataError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DiscoveryEstimationSplit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DiscreteColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DropSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::DummyOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::EnvHoldoutSplit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::FixedVectorColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::IdRemap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Int64Column [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LagMap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedFrameOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedSamplePlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedSampleWorkspace [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MaskPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::MissingPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::NetworkEdge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PermutationScheme [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ReferencePointPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ResamplingPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::SamplingRegularity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeDummyEncoding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeIndex [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimeRange [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::TimestampColumn [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::UnknownCategoryPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ValidityBitmap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::VectorVariableGroups [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ArrowCColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::BooleanColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoricalColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoryCode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoryDomain [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoryLevel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::Contrast [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ContrastMatrix [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DataError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DiscoveryEstimationSplit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DiscreteColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DropSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::DummyOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::EnvHoldoutSplit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::FixedVectorColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::IdRemap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::Int64Column [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LagMap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedFrameOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedSamplePlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedSampleWorkspace [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MaskPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::MissingPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::NetworkEdge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::PermutationScheme [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ReferencePointPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ResamplingPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::SamplingRegularity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeDummyEncoding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeIndex [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimeRange [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::TimestampColumn [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::UnknownCategoryPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ValidityBitmap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::VectorVariableGroups [auto]
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ColumnView<'a> [auto]
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_data::ColumnView<'a> [auto]
+impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> core::clone::Clone for antecedent_data::CategoricalView<'a>
+impl<'a> core::clone::Clone for antecedent_data::ColumnView<'a>
+impl<'a> core::clone::Clone for antecedent_data::LaggedPreparedSample<'a>
+impl<'a> core::fmt::Debug for antecedent_data::CategoricalView<'a>
+impl<'a> core::fmt::Debug for antecedent_data::ColumnView<'a>
+impl<'a> core::fmt::Debug for antecedent_data::LaggedPreparedSample<'a>
+impl<'a> core::marker::Copy for antecedent_data::CategoricalView<'a>
+impl<'a> core::marker::Copy for antecedent_data::ColumnView<'a>
+impl<'a> core::marker::Copy for antecedent_data::LaggedPreparedSample<'a>
+impl<'a> core::marker::Freeze for antecedent_data::CategoricalView<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_data::ColumnView<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_data::LaggedPreparedSample<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_data::CategoricalView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_data::ColumnView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_data::LaggedPreparedSample<'a> [auto]
+impl<'a> core::marker::Send for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_data::CategoricalView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_data::ColumnView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_data::LaggedPreparedSample<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_data::CategoricalView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_data::ColumnView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_data::LaggedPreparedSample<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_data::PanelUnitView<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoricalView<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoricalView<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
+pub const <antecedent_data::DiscreteColumn>::MISSING: u32
+pub const antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS: usize
+pub enum antecedent_data::ColumnView<'a>
+pub enum antecedent_data::Contrast
+pub enum antecedent_data::MissingPolicy
+pub enum antecedent_data::OwnedColumn
+pub enum antecedent_data::ResamplingPlan
+pub enum antecedent_data::SamplingRegularity
+pub enum antecedent_data::TimeDummyEncoding
+pub enum antecedent_data::UnknownCategoryPolicy
+pub field antecedent_data::ArrowCColumn::name: alloc::string::String
+pub field antecedent_data::ArrowLoadResult::bytes_borrowed: u64
+pub field antecedent_data::ArrowLoadResult::bytes_copied: u64
+pub field antecedent_data::ArrowLoadResult::data: antecedent_data::TabularData
+pub field antecedent_data::ArrowLoadResult::diagnostics: antecedent_core::diagnostic::DiagnosticSet
+pub field antecedent_data::BooleanColumn::id: antecedent_core::ids::VariableId
+pub field antecedent_data::BooleanColumn::validity: antecedent_data::ValidityBitmap
+pub field antecedent_data::BooleanColumn::values: alloc::sync::Arc<[u8]>
+pub field antecedent_data::CategoricalColumn::codes: alloc::sync::Arc<[antecedent_data::CategoryCode]>
+pub field antecedent_data::CategoricalColumn::domain: alloc::sync::Arc<antecedent_data::CategoryDomain>
+pub field antecedent_data::CategoricalColumn::id: antecedent_core::ids::VariableId
+pub field antecedent_data::CategoricalColumn::n_remapped_unknown: usize
+pub field antecedent_data::CategoricalColumn::validity: antecedent_data::ValidityBitmap
+pub field antecedent_data::CategoricalView::codes: &'a [antecedent_data::CategoryCode]
+pub field antecedent_data::CategoricalView::domain: &'a antecedent_data::CategoryDomain
+pub field antecedent_data::CategoricalView::validity: &'a antecedent_data::ValidityBitmap
+pub field antecedent_data::CategoryDomain::id: antecedent_core::ids::CategoryDomainId
+pub field antecedent_data::CategoryDomain::levels: alloc::sync::Arc<[antecedent_data::CategoryLevel]>
+pub field antecedent_data::CategoryDomain::ordered: bool
+pub field antecedent_data::CategoryDomain::reference: core::option::Option<antecedent_data::CategoryCode>
+pub field antecedent_data::CategoryDomain::unknown_policy: antecedent_data::UnknownCategoryPolicy
+pub field antecedent_data::CategoryLevel::label: alloc::sync::Arc<str>
+pub field antecedent_data::ContrastMatrix::n_columns: usize
+pub field antecedent_data::ContrastMatrix::n_levels: usize
+pub field antecedent_data::ContrastMatrix::values: alloc::sync::Arc<[f64]>
+pub field antecedent_data::DiscoveryEstimationSplit::discovery: antecedent_data::TimeRange
+pub field antecedent_data::DiscoveryEstimationSplit::estimation: antecedent_data::TimeRange
+pub field antecedent_data::DiscoveryEstimationSplit::gap: usize
+pub field antecedent_data::DiscoveryEstimationSplit::series_len: usize
+pub field antecedent_data::DiscreteColumn::codes: alloc::vec::Vec<u32>
+pub field antecedent_data::DiscreteColumn::levels: alloc::vec::Vec<antecedent_core::value::Value>
+pub field antecedent_data::DropSummary::requested: usize
+pub field antecedent_data::DropSummary::retained: usize
+pub field antecedent_data::DummyOptions::include_space_dummy: bool
+pub field antecedent_data::DummyOptions::include_time_dummy: bool
+pub field antecedent_data::DummyOptions::max_time_one_hot_levels: usize
+pub field antecedent_data::DummyOptions::time_dummy_encoding: antecedent_data::TimeDummyEncoding
+pub field antecedent_data::EnvHoldoutSplit::discovery_envs: alloc::sync::Arc<[usize]>
+pub field antecedent_data::EnvHoldoutSplit::estimation_envs: alloc::sync::Arc<[usize]>
+pub field antecedent_data::FixedVectorColumn::dim: usize
+pub field antecedent_data::FixedVectorColumn::id: antecedent_core::ids::VariableId
+pub field antecedent_data::FixedVectorColumn::validity: antecedent_data::ValidityBitmap
+pub field antecedent_data::FixedVectorColumn::values: alloc::sync::Arc<[f64]>
+pub field antecedent_data::Float64Column::id: antecedent_core::ids::VariableId
+pub field antecedent_data::Float64Column::validity: antecedent_data::ValidityBitmap
+pub field antecedent_data::Float64Column::values: antecedent_data::F64Buffer
+pub field antecedent_data::Int64Column::id: antecedent_core::ids::VariableId
+pub field antecedent_data::Int64Column::validity: antecedent_data::ValidityBitmap
+pub field antecedent_data::Int64Column::values: alloc::sync::Arc<[i64]>
+pub field antecedent_data::LaggedColumn::lag: antecedent_core::ids::Lag
+pub field antecedent_data::LaggedColumn::variable: antecedent_core::ids::VariableId
+pub field antecedent_data::LaggedFrameOptions::mask: antecedent_data::MaskPolicy
+pub field antecedent_data::LaggedFrameOptions::missing: antecedent_data::MissingPolicy
+pub field antecedent_data::LaggedPreparedSample::columns: &'a [antecedent_data::LaggedColumn]
+pub field antecedent_data::LaggedPreparedSample::dropped: antecedent_data::DropSummary
+pub field antecedent_data::LaggedPreparedSample::n: usize
+pub field antecedent_data::LaggedPreparedSample::ncols: usize
+pub field antecedent_data::LaggedPreparedSample::values: &'a [f64]
+pub field antecedent_data::LaggedSampleWorkspace::row_indexes: alloc::vec::Vec<usize>
+pub field antecedent_data::LaggedSampleWorkspace::values: alloc::vec::Vec<f64>
+pub field antecedent_data::NetworkEdge::from: u32
+pub field antecedent_data::NetworkEdge::to: u32
+pub field antecedent_data::NetworkEdge::weight: f64
+pub field antecedent_data::PanelUnit::series: antecedent_data::TimeSeriesData
+pub field antecedent_data::PanelUnit::unit_id: u32
+pub field antecedent_data::PooledLaggedFrame::env_effective_rows: alloc::sync::Arc<[usize]>
+pub field antecedent_data::PooledLaggedFrame::frame: antecedent_data::LaggedFrame
+pub field antecedent_data::PooledLaggedFrame::observed_variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_data::PooledLaggedFrame::space_dummy_variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_data::PooledLaggedFrame::time_dummy_variables: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_data::TimeIndex::length: usize
+pub field antecedent_data::TimeIndex::regularity: antecedent_data::SamplingRegularity
+pub field antecedent_data::TimeRange::end: usize
+pub field antecedent_data::TimeRange::start: usize
+pub field antecedent_data::TimestampColumn::id: antecedent_core::ids::VariableId
+pub field antecedent_data::TimestampColumn::validity: antecedent_data::ValidityBitmap
+pub field antecedent_data::TimestampColumn::values_ns: alloc::sync::Arc<[i64]>
+pub fn <antecedent_data::ArrowCColumn>::fn from_arrow_array(name: impl core::convert::Into<alloc::string::String>, array: &dyn arrow_array::array::Array) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowCColumn>::fn into_array(self) -> core::result::Result<arrow_array::array::ArrayRef, antecedent_data::DataError>
+pub fn <antecedent_data::ArrowCColumn>::unsafe fn from_ffi(name: impl core::convert::Into<alloc::string::String>, array: arrow_data::ffi::FFI_ArrowArray, schema: arrow_schema::ffi::FFI_ArrowSchema) -> Self
+pub fn <antecedent_data::BooleanColumn>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::BooleanColumn>::fn len(&self) -> usize
+pub fn <antecedent_data::BooleanColumn>::fn new(id: antecedent_core::ids::VariableId, values: impl core::convert::Into<alloc::sync::Arc<[u8]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::CategoricalColumn>::fn as_view(&self) -> antecedent_data::CategoricalView<'_>
+pub fn <antecedent_data::CategoricalColumn>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::CategoricalColumn>::fn len(&self) -> usize
+pub fn <antecedent_data::CategoricalColumn>::fn try_new(id: antecedent_core::ids::VariableId, codes: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::CategoryCode]>>, validity: antecedent_data::ValidityBitmap, domain: alloc::sync::Arc<antecedent_data::CategoryDomain>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::CategoryCode>::const fn as_usize(self) -> usize
+pub fn <antecedent_data::CategoryCode>::const fn from_raw(raw: u32) -> Self
+pub fn <antecedent_data::CategoryCode>::const fn raw(self) -> u32
+pub fn <antecedent_data::CategoryDomain>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::CategoryDomain>::fn len(&self) -> usize
+pub fn <antecedent_data::CategoryDomain>::fn try_new(id: antecedent_core::ids::CategoryDomainId, levels: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::CategoryLevel]>>, ordered: bool, reference: core::option::Option<antecedent_data::CategoryCode>, unknown_policy: antecedent_data::UnknownCategoryPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ColumnView<'a>>::fn id(self) -> antecedent_core::ids::VariableId
+pub fn <antecedent_data::ColumnView<'a>>::fn is_empty(self) -> bool
+pub fn <antecedent_data::ColumnView<'a>>::fn len(self) -> usize
+pub fn <antecedent_data::ColumnView<'a>>::fn validity(self) -> &'a antecedent_data::ValidityBitmap
+pub fn <antecedent_data::ContrastMatrix>::fn try_new(n_levels: usize, n_columns: usize, values: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::DiscoveryEstimationSplit>::fn from_fraction(series_len: usize, discovery_frac: f64, gap: usize) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::DiscoveryEstimationSplit>::fn from_sizes(series_len: usize, discovery_len: usize, gap: usize, estimation_len: usize) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::DiscoveryEstimationSplit>::fn try_new(series_len: usize, discovery: antecedent_data::TimeRange, estimation: antecedent_data::TimeRange) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::DiscreteColumn>::fn value(&self, row: usize) -> core::option::Option<&antecedent_core::value::Value>
+pub fn <antecedent_data::EnvHoldoutSplit>::fn try_prefix(n_env: usize, n_discovery: usize) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::EventData>::const fn regularity(&self) -> antecedent_data::SamplingRegularity
+pub fn <antecedent_data::EventData>::fn align_to_grid(&self, interval_ns: u64) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn <antecedent_data::EventData>::fn event_times_ns(&self) -> &[i64]
+pub fn <antecedent_data::EventData>::fn reject_integer_lag_planning(&self) -> core::result::Result<(), antecedent_data::DataError>
+pub fn <antecedent_data::EventData>::fn storage(&self) -> &antecedent_data::OwnedColumnarStorage
+pub fn <antecedent_data::EventData>::fn try_new(storage: antecedent_data::OwnedColumnarStorage, event_times_ns: impl core::convert::Into<alloc::sync::Arc<[i64]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::F64Buffer>::const fn is_foreign(&self) -> bool
+pub fn <antecedent_data::F64Buffer>::const fn is_nan_free(&self) -> bool
+pub fn <antecedent_data::F64Buffer>::fn as_slice(&self) -> &[f64]
+pub fn <antecedent_data::F64Buffer>::fn foreign(buf: antecedent_data::ForeignF64Buffer) -> Self
+pub fn <antecedent_data::F64Buffer>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::F64Buffer>::fn len(&self) -> usize
+pub fn <antecedent_data::F64Buffer>::fn nbytes(&self) -> u64
+pub fn <antecedent_data::F64Buffer>::fn owned(values: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> Self
+pub fn <antecedent_data::FixedVectorColumn>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::FixedVectorColumn>::fn len(&self) -> usize
+pub fn <antecedent_data::FixedVectorColumn>::fn new(id: antecedent_core::ids::VariableId, dim: usize, values: impl core::convert::Into<alloc::sync::Arc<[f64]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::Float64Column>::fn as_f64_view(&self) -> antecedent_kernels::view::F64VectorView<'_>
+pub fn <antecedent_data::Float64Column>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::Float64Column>::fn len(&self) -> usize
+pub fn <antecedent_data::Float64Column>::fn new(id: antecedent_core::ids::VariableId, values: impl core::convert::Into<antecedent_data::F64Buffer>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ForeignF64Buffer>::const fn is_empty(&self) -> bool
+pub fn <antecedent_data::ForeignF64Buffer>::const fn len(&self) -> usize
+pub fn <antecedent_data::ForeignF64Buffer>::fn as_slice(&self) -> &[f64]
+pub fn <antecedent_data::ForeignF64Buffer>::unsafe fn new(owner: alloc::sync::Arc<dyn antecedent_data::ForeignBufferOwner>, ptr: *const f64, len: usize) -> Self
+pub fn <antecedent_data::IdRemap>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::IdRemap>::fn len(&self) -> usize
+pub fn <antecedent_data::IdRemap>::fn map(&self, old: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_core::ids::VariableId, antecedent_data::DataError>
+pub fn <antecedent_data::Int64Column>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::Int64Column>::fn len(&self) -> usize
+pub fn <antecedent_data::Int64Column>::fn new(id: antecedent_core::ids::VariableId, values: impl core::convert::Into<alloc::sync::Arc<[i64]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LagMap>::const fn max_lag(&self) -> u32
+pub fn <antecedent_data::LagMap>::const fn n_effective(&self) -> usize
+pub fn <antecedent_data::LagMap>::const fn reference(&self) -> antecedent_data::ReferencePointPolicy
+pub fn <antecedent_data::LagMap>::const fn series_len(&self) -> usize
+pub fn <antecedent_data::LagMap>::fn fill_row_indexes(&self, lag: antecedent_core::ids::Lag, out: &mut [usize]) -> core::result::Result<(), antecedent_data::DataError>
+pub fn <antecedent_data::LagMap>::fn new(series_len: usize, max_lag: u32) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LagMap>::fn row_index(&self, lag: antecedent_core::ids::Lag, sample_i: usize) -> usize
+pub fn <antecedent_data::LagMap>::fn with_reference(series_len: usize, max_lag: u32, reference: antecedent_data::ReferencePointPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::const fn max_lag(&self) -> u32
+pub fn <antecedent_data::LaggedFrame>::const fn n_effective(&self) -> usize
+pub fn <antecedent_data::LaggedFrame>::fn append_constant_lag_columns(&self, columns: &[(antecedent_core::ids::VariableId, alloc::vec::Vec<f64>)]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn column(&self, idx: usize) -> &[f64]
+pub fn <antecedent_data::LaggedFrame>::fn column_index(&self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::option::Option<usize>
+pub fn <antecedent_data::LaggedFrame>::fn column_valid(&self, idx: usize) -> &antecedent_data::ValidityBitmap
+pub fn <antecedent_data::LaggedFrame>::fn from_panel(units: &[antecedent_data::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], max_lag: u32, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn from_series(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn from_series_with_options(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, reference: antecedent_data::ReferencePointPolicy, options: antecedent_data::LaggedFrameOptions, _policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn from_series_with_reference(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, reference: antecedent_data::ReferencePointPolicy, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn is_fully_valid(&self) -> bool
+pub fn <antecedent_data::LaggedFrame>::fn keep_mask_for_columns(&self, cols: &[usize]) -> core::result::Result<alloc::vec::Vec<bool>, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn ncols(&self) -> usize
+pub fn <antecedent_data::LaggedFrame>::fn retain_effective(&self, keep: &[bool]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn stack(frames: &[Self]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn values_bytes(&self) -> u64
+pub fn <antecedent_data::LaggedFrame>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent_data::LaggedPreparedSample<'_>>::fn column(&self, c: usize) -> &[f64]
+pub fn <antecedent_data::LaggedSamplePlan>::fn columns(&self) -> &[antecedent_data::LaggedColumn]
+pub fn <antecedent_data::LaggedSamplePlan>::fn columns_arc(&self) -> &alloc::sync::Arc<[antecedent_data::LaggedColumn]>
+pub fn <antecedent_data::LaggedSamplePlan>::fn lag_map(&self) -> &antecedent_data::LagMap
+pub fn <antecedent_data::LaggedSamplePlan>::fn lag_map_arc(&self) -> &alloc::sync::Arc<antecedent_data::LagMap>
+pub fn <antecedent_data::LaggedSamplePlan>::fn n_effective(&self) -> usize
+pub fn <antecedent_data::LaggedSamplePlan>::fn new(series_len: usize, max_lag: u32, columns: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::LaggedColumn]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedSamplePlan>::fn prepare<'a>(self: &'a Self, data: &antecedent_data::TimeSeriesData, workspace: &'a mut antecedent_data::LaggedSampleWorkspace, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::LaggedPreparedSample<'a>, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedSamplePlan>::fn with_reference(series_len: usize, max_lag: u32, reference: antecedent_data::ReferencePointPolicy, columns: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::LaggedColumn]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedSamplePlan>::fn with_shared(lag_map: alloc::sync::Arc<antecedent_data::LagMap>, columns: alloc::sync::Arc<[antecedent_data::LaggedColumn]>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedSampleWorkspace>::const fn capacity_cols(&self) -> usize
+pub fn <antecedent_data::LaggedSampleWorkspace>::const fn capacity_n(&self) -> usize
+pub fn <antecedent_data::LaggedSampleWorkspace>::fn prepare(&mut self, n: usize, ncols: usize)
+pub fn <antecedent_data::MultiEnvironmentData>::fn env_count(&self) -> usize
+pub fn <antecedent_data::MultiEnvironmentData>::fn environment(&self, i: usize) -> core::result::Result<&antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn <antecedent_data::MultiEnvironmentData>::fn environments(&self) -> &[antecedent_data::TimeSeriesData]
+pub fn <antecedent_data::MultiEnvironmentData>::fn schema(&self) -> &antecedent_core::schema::CausalSchema
+pub fn <antecedent_data::MultiEnvironmentData>::fn try_new(environments: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::TimeSeriesData]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::NetworkData>::const fn units(&self) -> &antecedent_data::TabularData
+pub fn <antecedent_data::NetworkData>::fn edges(&self) -> &[antecedent_data::NetworkEdge]
+pub fn <antecedent_data::NetworkData>::fn incoming(&self, unit: usize) -> core::result::Result<&[antecedent_data::NetworkEdge], antecedent_data::DataError>
+pub fn <antecedent_data::NetworkData>::fn try_new(units: antecedent_data::TabularData, edges: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::NetworkEdge]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::OwnedColumn>::fn as_view(&self) -> antecedent_data::ColumnView<'_>
+pub fn <antecedent_data::OwnedColumn>::fn id(&self) -> antecedent_core::ids::VariableId
+pub fn <antecedent_data::OwnedColumn>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::OwnedColumn>::fn len(&self) -> usize
+pub fn <antecedent_data::OwnedColumn>::fn with_id(&self, id: antecedent_core::ids::VariableId) -> Self
+pub fn <antecedent_data::OwnedColumnarStorage>::fn analysis_mask(&self) -> core::option::Option<&antecedent_data::ValidityBitmap>
+pub fn <antecedent_data::OwnedColumnarStorage>::fn columns(&self) -> &[antecedent_data::OwnedColumn]
+pub fn <antecedent_data::OwnedColumnarStorage>::fn columns_arc(&self) -> &alloc::sync::Arc<[antecedent_data::OwnedColumn]>
+pub fn <antecedent_data::OwnedColumnarStorage>::fn content_digest(&self) -> [u8; 32]
+pub fn <antecedent_data::OwnedColumnarStorage>::fn try_new(schema: antecedent_core::schema::CausalSchema, columns: alloc::vec::Vec<antecedent_data::OwnedColumn>, analysis_mask: core::option::Option<antecedent_data::ValidityBitmap>, weights: core::option::Option<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::OwnedColumnarStorage>::fn weights(&self) -> core::option::Option<&[f64]>
+pub fn <antecedent_data::PanelData>::fn as_multi_env(&self) -> core::result::Result<antecedent_data::MultiEnvironmentData, antecedent_data::DataError>
+pub fn <antecedent_data::PanelData>::fn schema(&self) -> &antecedent_core::schema::CausalSchema
+pub fn <antecedent_data::PanelData>::fn total_rows(&self) -> usize
+pub fn <antecedent_data::PanelData>::fn try_new(units: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::PanelUnit]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::PanelData>::fn unit(&self, i: usize) -> core::result::Result<&antecedent_data::PanelUnit, antecedent_data::DataError>
+pub fn <antecedent_data::PanelData>::fn unit_count(&self) -> usize
+pub fn <antecedent_data::PanelData>::fn units(&self) -> &[antecedent_data::PanelUnit]
+pub fn <antecedent_data::PanelUnitView<'a>>::fn new(unit: &'a antecedent_data::PanelUnit) -> Self
+pub fn <antecedent_data::PooledLaggedFrame>::fn all_variables(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_data::PooledLaggedFrame>::fn is_dummy(&self, v: antecedent_core::ids::VariableId) -> bool
+pub fn <antecedent_data::ReferencePointPolicy>::fn base_and_n(self, series_len: usize, max_lag: u32) -> core::result::Result<(usize, usize), antecedent_data::DataError>
+pub fn <antecedent_data::ResamplingPlan>::const fn is_weight_plan(self) -> bool
+pub fn <antecedent_data::ResamplingPlan>::const fn needs_clusters(self) -> bool
+pub fn <antecedent_data::TabularData>::fn complete_case_mask(&self, ids: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<bool>, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn complete_case_mask_into(&self, ids: &[antecedent_core::ids::VariableId], out: &mut alloc::vec::Vec<bool>) -> core::result::Result<(), antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn discrete_column(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_data::DiscreteColumn, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn float64_masked(&self, id: antecedent_core::ids::VariableId, keep: &[bool]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn from_f64_columns<'a, S>(columns: impl core::iter::traits::collect::IntoIterator<Item = (S, &'a [f64])>) -> core::result::Result<Self, antecedent_data::DataError> where S: core::convert::Into<alloc::sync::Arc<str>>
+pub fn <antecedent_data::TabularData>::fn new(storage: antecedent_data::OwnedColumnarStorage) -> Self
+pub fn <antecedent_data::TabularData>::fn project(&self, ids: &[antecedent_core::ids::VariableId]) -> core::result::Result<(Self, antecedent_data::IdRemap), antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn storage(&self) -> &antecedent_data::OwnedColumnarStorage
+pub fn <antecedent_data::TabularData>::fn try_from_schema_f64<'a>(schema: antecedent_core::schema::CausalSchema, columns: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, &'a [f64])>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn with_analysis_mask(&self, mask: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn with_appended_float(&self, name: &str, values: alloc::sync::Arc<[f64]>) -> core::result::Result<(Self, antecedent_core::ids::VariableId), antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn with_replaced_float(&self, id: antecedent_core::ids::VariableId, values: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TabularData>::fn with_replaced_floats(&self, replacements: &[(antecedent_core::ids::VariableId, alloc::sync::Arc<[f64]>)]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TimeRange>::const fn is_empty(self) -> bool
+pub fn <antecedent_data::TimeRange>::const fn len(self) -> usize
+pub fn <antecedent_data::TimeSeriesData>::fn from_f64_columns<'a, S>(columns: impl core::iter::traits::collect::IntoIterator<Item = (S, &'a [f64])>, interval_ns: u64) -> core::result::Result<Self, antecedent_data::DataError> where S: core::convert::Into<alloc::sync::Arc<str>>
+pub fn <antecedent_data::TimeSeriesData>::fn plan_lagged_sample(&self, max_lag: u32, columns: impl core::convert::Into<alloc::sync::Arc<[antecedent_data::LaggedColumn]>>) -> core::result::Result<antecedent_data::LaggedSamplePlan, antecedent_data::DataError>
+pub fn <antecedent_data::TimeSeriesData>::fn storage(&self) -> &antecedent_data::OwnedColumnarStorage
+pub fn <antecedent_data::TimeSeriesData>::fn time_index(&self) -> &antecedent_data::TimeIndex
+pub fn <antecedent_data::TimeSeriesData>::fn try_new(storage: antecedent_data::OwnedColumnarStorage, time_index: antecedent_data::TimeIndex) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TimeSeriesData>::fn with_analysis_mask(&self, mask: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TimeSeriesData>::fn with_replaced_float(&self, id: antecedent_core::ids::VariableId, values: alloc::sync::Arc<[f64]>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::TimestampColumn>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::TimestampColumn>::fn len(&self) -> usize
+pub fn <antecedent_data::TimestampColumn>::fn new(id: antecedent_core::ids::VariableId, values_ns: impl core::convert::Into<alloc::sync::Arc<[i64]>>, validity: antecedent_data::ValidityBitmap) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::const fn is_empty(&self) -> bool
+pub fn <antecedent_data::ValidityBitmap>::const fn len(&self) -> usize
+pub fn <antecedent_data::ValidityBitmap>::fn all_valid(len: usize) -> Self
+pub fn <antecedent_data::ValidityBitmap>::fn as_mask_view(&self) -> core::result::Result<antecedent_kernels::view::BitMaskView<'_>, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::fn compact(&self, keep: &[bool]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::fn concat(parts: &[&Self]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::fn from_bytes(bytes: impl core::convert::Into<alloc::sync::Arc<[u8]>>, len: usize) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::fn gather(&self, row_map: &[u32]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::fn gather_rows(&self, row_map: &[usize]) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::ValidityBitmap>::fn is_all_valid(&self) -> bool
+pub fn <antecedent_data::ValidityBitmap>::fn is_valid(&self, i: usize) -> bool
+pub fn <antecedent_data::VectorVariableGroups>::fn empty() -> Self
+pub fn <antecedent_data::VectorVariableGroups>::fn filter_search_variables(&self, variables: &[antecedent_core::ids::VariableId]) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_data::VectorVariableGroups>::fn groups(&self) -> &[alloc::sync::Arc<[antecedent_core::ids::VariableId]>]
+pub fn <antecedent_data::VectorVariableGroups>::fn is_empty(&self) -> bool
+pub fn <antecedent_data::VectorVariableGroups>::fn logical_ids(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_data::VectorVariableGroups>::fn secondary_component_ids(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_data::VectorVariableGroups>::fn try_new(groups: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>]>>) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn antecedent_data::arrow_adapter::tabular_from_arrow_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
+pub fn antecedent_data::arrow_adapter::tabular_from_record_batch(batch: &arrow_array::record_batch::RecordBatch) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
+pub fn antecedent_data::categorical::compile_contrast_matrix(domain: &antecedent_data::CategoryDomain, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::ContrastMatrix, antecedent_data::DataError>
+pub fn antecedent_data::circular_block_length(structural_span: usize, n: usize) -> usize
+pub fn antecedent_data::column_blocks_for_frame(groups: &antecedent_data::VectorVariableGroups, frame: &antecedent_data::LaggedFrame) -> core::result::Result<alloc::sync::Arc<[alloc::sync::Arc<[usize]>]>, antecedent_data::DataError>
+pub fn antecedent_data::dedupe_variable_ids(ids: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::ids::VariableId>) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn antecedent_data::fill_circular_block_indexes(n: usize, length: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut [usize]) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_resample_index_batch(plan: antecedent_data::ResamplingPlan, n: usize, n_replicates: usize, cluster_ids: core::option::Option<&[u32]>, ctx: &antecedent_core::execution::ExecutionContext, stream_base: u64, out: &mut [u32]) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::fill_resample_indexes(plan: antecedent_data::ResamplingPlan, n: usize, rng: &mut antecedent_core::execution::CausalRng, out: &mut alloc::vec::Vec<u32>) -> core::result::Result<(), antecedent_data::DataError>
+pub fn antecedent_data::pool_multi_env_lagged_frame(data: &antecedent_data::MultiEnvironmentData, variables: &[antecedent_core::ids::VariableId], frame_depth: u32, dummies: antecedent_data::DummyOptions, policy: &antecedent_core::execution::KernelPolicy) -> core::result::Result<antecedent_data::PooledLaggedFrame, antecedent_data::DataError>
+pub fn antecedent_data::resample::resample_timeseries(data: &antecedent_data::TimeSeriesData, plan: antecedent_data::ResamplingPlan, rng: &mut antecedent_core::execution::CausalRng, index_scratch: &mut alloc::vec::Vec<u32>) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn antecedent_data::surrogate::surrogate_permute_columns(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub fn antecedent_data::surrogate::surrogate_phase_randomize(data: &antecedent_data::TimeSeriesData, rng: &mut antecedent_core::execution::CausalRng) -> core::result::Result<antecedent_data::TimeSeriesData, antecedent_data::DataError>
+pub mod antecedent_data::aligned_buffer
+pub mod antecedent_data::arrow_adapter
+pub mod antecedent_data::arrow_ffi
+pub mod antecedent_data::buffer
+pub mod antecedent_data::categorical
+pub mod antecedent_data::column
+pub mod antecedent_data::dataset
+pub mod antecedent_data::discrete
+pub mod antecedent_data::error
+pub mod antecedent_data::event
+pub mod antecedent_data::lagged_frame
+pub mod antecedent_data::materialize
+pub mod antecedent_data::multi_env
+pub mod antecedent_data::network
+pub mod antecedent_data::panel
+pub mod antecedent_data::pooled_frame
+pub mod antecedent_data::project
+pub mod antecedent_data::reference
+pub mod antecedent_data::resample
+pub mod antecedent_data::sample
+pub mod antecedent_data::sample_policy
+pub mod antecedent_data::selection
+pub mod antecedent_data::split
+pub mod antecedent_data::storage
+pub mod antecedent_data::surrogate
+pub mod antecedent_data::table
+pub mod antecedent_data::temporal
+pub mod antecedent_data::vector_vars
+pub struct antecedent_data::ArrowCColumn
+pub struct antecedent_data::ArrowCColumn has private fields
+pub struct antecedent_data::ArrowLoadResult
+pub struct antecedent_data::BooleanColumn
+pub struct antecedent_data::CategoricalColumn
+pub struct antecedent_data::CategoricalView<'a>
+pub struct antecedent_data::CategoryCode
+pub struct antecedent_data::CategoryCode has private fields
+pub struct antecedent_data::CategoryDomain
+pub struct antecedent_data::CategoryLevel
+pub struct antecedent_data::ContrastMatrix
+pub struct antecedent_data::DiscoveryEstimationSplit
+pub struct antecedent_data::DiscreteColumn
+pub struct antecedent_data::DropSummary
+pub struct antecedent_data::DummyOptions
+pub struct antecedent_data::EnvHoldoutSplit
+pub struct antecedent_data::EventData
+pub struct antecedent_data::EventData has private fields
+pub struct antecedent_data::F64Buffer
+pub struct antecedent_data::F64Buffer has private fields
+pub struct antecedent_data::FixedVectorColumn
+pub struct antecedent_data::Float64Column
+pub struct antecedent_data::ForeignF64Buffer
+pub struct antecedent_data::ForeignF64Buffer has private fields
+pub struct antecedent_data::IdRemap
+pub struct antecedent_data::IdRemap has private fields
+pub struct antecedent_data::Int64Column
+pub struct antecedent_data::LagMap
+pub struct antecedent_data::LagMap has private fields
+pub struct antecedent_data::LaggedColumn
+pub struct antecedent_data::LaggedFrame
+pub struct antecedent_data::LaggedFrame has private fields
+pub struct antecedent_data::LaggedFrameOptions
+pub struct antecedent_data::LaggedPreparedSample<'a>
+pub struct antecedent_data::LaggedSamplePlan
+pub struct antecedent_data::LaggedSamplePlan has private fields
+pub struct antecedent_data::LaggedSampleWorkspace
+pub struct antecedent_data::LaggedSampleWorkspace has private fields
+pub struct antecedent_data::MultiEnvironmentData
+pub struct antecedent_data::MultiEnvironmentData has private fields
+pub struct antecedent_data::NetworkData
+pub struct antecedent_data::NetworkData has private fields
+pub struct antecedent_data::NetworkEdge
+pub struct antecedent_data::OwnedColumnarStorage
+pub struct antecedent_data::OwnedColumnarStorage has private fields
+pub struct antecedent_data::PanelData
+pub struct antecedent_data::PanelData has private fields
+pub struct antecedent_data::PanelUnit
+pub struct antecedent_data::PanelUnitView has private fields
+pub struct antecedent_data::PanelUnitView<'a>
+pub struct antecedent_data::PooledLaggedFrame
+pub struct antecedent_data::TabularData
+pub struct antecedent_data::TabularData has private fields
+pub struct antecedent_data::TimeIndex
+pub struct antecedent_data::TimeRange
+pub struct antecedent_data::TimeSeriesData
+pub struct antecedent_data::TimeSeriesData has private fields
+pub struct antecedent_data::TimestampColumn
+pub struct antecedent_data::ValidityBitmap
+pub struct antecedent_data::ValidityBitmap has private fields
+pub struct antecedent_data::VectorVariableGroups
+pub struct antecedent_data::VectorVariableGroups has private fields
+pub trait antecedent_data::ForeignBufferOwner: core::marker::Send + core::marker::Sync + core::fmt::Debug
+pub trait antecedent_data::TableView
+pub trait fn fn antecedent_data::TableView::column(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_data::ColumnView<'_>, antecedent_data::DataError>
+pub trait fn fn antecedent_data::TableView::float64_cow(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<alloc::borrow::Cow<'_, [f64]>, antecedent_data::DataError> {default}
+pub trait fn fn antecedent_data::TableView::float64_slice(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<&[f64], antecedent_data::DataError> {default}
+pub trait fn fn antecedent_data::TableView::float64_values(&self, id: antecedent_core::ids::VariableId) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_data::DataError> {default}
+pub trait fn fn antecedent_data::TableView::row_count(&self) -> usize
+pub trait fn fn antecedent_data::TableView::schema(&self) -> &antecedent_core::schema::CausalSchema
+pub use antecedent_data::FfiArrowArray = arrow_ffi::FfiArrowArray
+pub use antecedent_data::FfiArrowSchema = arrow_ffi::FfiArrowSchema
+pub use antecedent_data::TemporalIndexer = temporal::TemporalIndexer
+pub use antecedent_data::TemporalNodeKey = temporal::TemporalNodeKey
+pub use antecedent_data::arrow_adapter::ArrowLoadResult = antecedent_data::ArrowLoadResult
+pub use antecedent_data::arrow_ffi::ArrowCColumn = antecedent_data::ArrowCColumn
+pub use antecedent_data::arrow_ffi::FfiArrowArray = arrow_array::ffi::FFI_ArrowArray
+pub use antecedent_data::arrow_ffi::FfiArrowSchema = arrow_schema::ffi::FFI_ArrowSchema
+pub use antecedent_data::buffer::F64Buffer = antecedent_data::F64Buffer
+pub use antecedent_data::buffer::ForeignBufferOwner = antecedent_data::ForeignBufferOwner
+pub use antecedent_data::buffer::ForeignF64Buffer = antecedent_data::ForeignF64Buffer
+pub use antecedent_data::categorical::CategoricalColumn = antecedent_data::CategoricalColumn
+pub use antecedent_data::categorical::CategoricalView = antecedent_data::CategoricalView
+pub use antecedent_data::categorical::CategoryCode = antecedent_data::CategoryCode
+pub use antecedent_data::categorical::CategoryDomain = antecedent_data::CategoryDomain
+pub use antecedent_data::categorical::CategoryLevel = antecedent_data::CategoryLevel
+pub use antecedent_data::categorical::Contrast = antecedent_data::Contrast
+pub use antecedent_data::categorical::ContrastMatrix = antecedent_data::ContrastMatrix
+pub use antecedent_data::categorical::UnknownCategoryPolicy = antecedent_data::UnknownCategoryPolicy
+pub use antecedent_data::column::BooleanColumn = antecedent_data::BooleanColumn
+pub use antecedent_data::column::ColumnView = antecedent_data::ColumnView
+pub use antecedent_data::column::FixedVectorColumn = antecedent_data::FixedVectorColumn
+pub use antecedent_data::column::Float64Column = antecedent_data::Float64Column
+pub use antecedent_data::column::Int64Column = antecedent_data::Int64Column
+pub use antecedent_data::column::OwnedColumn = antecedent_data::OwnedColumn
+pub use antecedent_data::column::TimestampColumn = antecedent_data::TimestampColumn
+pub use antecedent_data::column::ValidityBitmap = antecedent_data::ValidityBitmap
+pub use antecedent_data::compile_contrast_matrix = antecedent_data::categorical::compile_contrast_matrix
+pub use antecedent_data::dataset::TabularData = antecedent_data::TabularData
+pub use antecedent_data::dataset::TimeSeriesData = antecedent_data::TimeSeriesData
+pub use antecedent_data::discrete::DiscreteColumn = antecedent_data::DiscreteColumn
+pub use antecedent_data::error::DataError = antecedent_data::DataError
+pub use antecedent_data::event::EventData = antecedent_data::EventData
+pub use antecedent_data::lagged_frame::LaggedFrame = antecedent_data::LaggedFrame
+pub use antecedent_data::lagged_frame::LaggedFrameOptions = antecedent_data::LaggedFrameOptions
+pub use antecedent_data::multi_env::MultiEnvironmentData = antecedent_data::MultiEnvironmentData
+pub use antecedent_data::network::NetworkData = antecedent_data::NetworkData
+pub use antecedent_data::network::NetworkEdge = antecedent_data::NetworkEdge
+pub use antecedent_data::panel::PanelData = antecedent_data::PanelData
+pub use antecedent_data::panel::PanelUnit = antecedent_data::PanelUnit
+pub use antecedent_data::panel::PanelUnitView = antecedent_data::PanelUnitView
+pub use antecedent_data::pooled_frame::DEFAULT_MAX_TIME_ONE_HOT_LEVELS = antecedent_data::DEFAULT_MAX_TIME_ONE_HOT_LEVELS
+pub use antecedent_data::pooled_frame::DummyOptions = antecedent_data::DummyOptions
+pub use antecedent_data::pooled_frame::PooledLaggedFrame = antecedent_data::PooledLaggedFrame
+pub use antecedent_data::pooled_frame::TimeDummyEncoding = antecedent_data::TimeDummyEncoding
+pub use antecedent_data::pooled_frame::pool_multi_env_lagged_frame = antecedent_data::pool_multi_env_lagged_frame
+pub use antecedent_data::project::IdRemap = antecedent_data::IdRemap
+pub use antecedent_data::project::dedupe_variable_ids = antecedent_data::dedupe_variable_ids
+pub use antecedent_data::reference::ReferencePointPolicy = antecedent_data::ReferencePointPolicy
+pub use antecedent_data::resample::PermutationScheme = antecedent_data::PermutationScheme
+pub use antecedent_data::resample::ResamplingPlan = antecedent_data::ResamplingPlan
+pub use antecedent_data::resample::circular_block_length = antecedent_data::circular_block_length
+pub use antecedent_data::resample::fill_circular_block_indexes = antecedent_data::fill_circular_block_indexes
+pub use antecedent_data::resample::fill_resample_index_batch = antecedent_data::fill_resample_index_batch
+pub use antecedent_data::resample::fill_resample_indexes = antecedent_data::fill_resample_indexes
+pub use antecedent_data::resample_timeseries = antecedent_data::resample::resample_timeseries
+pub use antecedent_data::sample::DropSummary = antecedent_data::DropSummary
+pub use antecedent_data::sample::LagMap = antecedent_data::LagMap
+pub use antecedent_data::sample::LaggedColumn = antecedent_data::LaggedColumn
+pub use antecedent_data::sample::LaggedPreparedSample = antecedent_data::LaggedPreparedSample
+pub use antecedent_data::sample::LaggedSamplePlan = antecedent_data::LaggedSamplePlan
+pub use antecedent_data::sample::LaggedSampleWorkspace = antecedent_data::LaggedSampleWorkspace
+pub use antecedent_data::sample_policy::MaskPolicy = antecedent_data::MaskPolicy
+pub use antecedent_data::sample_policy::MissingPolicy = antecedent_data::MissingPolicy
+pub use antecedent_data::split::DiscoveryEstimationSplit = antecedent_data::DiscoveryEstimationSplit
+pub use antecedent_data::split::EnvHoldoutSplit = antecedent_data::EnvHoldoutSplit
+pub use antecedent_data::split::TimeRange = antecedent_data::TimeRange
+pub use antecedent_data::storage::OwnedColumnarStorage = antecedent_data::OwnedColumnarStorage
+pub use antecedent_data::surrogate_permute_columns = antecedent_data::surrogate::surrogate_permute_columns
+pub use antecedent_data::surrogate_phase_randomize = antecedent_data::surrogate::surrogate_phase_randomize
+pub use antecedent_data::table::TableView = antecedent_data::TableView
+pub use antecedent_data::tabular_from_arrow_c_columns = antecedent_data::arrow_adapter::tabular_from_arrow_c_columns
+pub use antecedent_data::tabular_from_record_batch = antecedent_data::arrow_adapter::tabular_from_record_batch
+pub use antecedent_data::temporal::SamplingRegularity = antecedent_data::SamplingRegularity
+pub use antecedent_data::temporal::TemporalIndexError = antecedent_core::TemporalIndexError
+pub use antecedent_data::temporal::TemporalIndexer = antecedent_core::TemporalIndexer
+pub use antecedent_data::temporal::TemporalNodeKey = antecedent_core::TemporalNodeKey
+pub use antecedent_data::temporal::TimeIndex = antecedent_data::TimeIndex
+pub use antecedent_data::vector_vars::VectorVariableGroups = antecedent_data::VectorVariableGroups
+pub use antecedent_data::vector_vars::column_blocks_for_frame = antecedent_data::column_blocks_for_frame
+pub variant antecedent_data::ColumnView::Boolean(&'a antecedent_data::BooleanColumn)
+pub variant antecedent_data::ColumnView::Categorical(&'a antecedent_data::CategoricalColumn)
+pub variant antecedent_data::ColumnView::FixedVector(&'a antecedent_data::FixedVectorColumn)
+pub variant antecedent_data::ColumnView::Float64(&'a antecedent_data::Float64Column)
+pub variant antecedent_data::ColumnView::Int64(&'a antecedent_data::Int64Column)
+pub variant antecedent_data::ColumnView::Timestamp(&'a antecedent_data::TimestampColumn)
+pub variant antecedent_data::Contrast::Custom(antecedent_data::ContrastMatrix)
+pub variant antecedent_data::Contrast::FullRankIndicator
+pub variant antecedent_data::Contrast::Helmert
+pub variant antecedent_data::Contrast::Polynomial
+pub variant antecedent_data::Contrast::SumToZero
+pub variant antecedent_data::Contrast::Treatment { reference: antecedent_data::CategoryCode }
+pub variant antecedent_data::DataError::Cancelled
+pub variant antecedent_data::DataError::EmptySelection { context: &'static str }
+pub variant antecedent_data::DataError::IncompleteSeries { id: core::option::Option<antecedent_core::ids::VariableId>, message: &'static str }
+pub variant antecedent_data::DataError::InvalidArgument { message: alloc::string::String }
+pub variant antecedent_data::DataError::InvalidValidity { message: &'static str }
+pub variant antecedent_data::DataError::InvalidWeights { index: core::option::Option<usize>, reason: &'static str }
+pub variant antecedent_data::DataError::LengthMismatch { expected: usize, actual: usize, context: &'static str }
+pub variant antecedent_data::DataError::Schema(alloc::string::String)
+pub variant antecedent_data::DataError::TypeMismatch { id: antecedent_core::ids::VariableId, expected: &'static str }
+pub variant antecedent_data::DataError::UnknownVariable { id: antecedent_core::ids::VariableId }
+pub variant antecedent_data::MaskPolicy::Honor
+pub variant antecedent_data::MaskPolicy::Ignore
+pub variant antecedent_data::MissingPolicy::CompleteCase
+pub variant antecedent_data::MissingPolicy::ErrorOnMissing
+pub variant antecedent_data::OwnedColumn::Boolean(antecedent_data::BooleanColumn)
+pub variant antecedent_data::OwnedColumn::Categorical(antecedent_data::CategoricalColumn)
+pub variant antecedent_data::OwnedColumn::FixedVector(antecedent_data::FixedVectorColumn)
+pub variant antecedent_data::OwnedColumn::Float64(antecedent_data::Float64Column)
+pub variant antecedent_data::OwnedColumn::Int64(antecedent_data::Int64Column)
+pub variant antecedent_data::OwnedColumn::Timestamp(antecedent_data::TimestampColumn)
+pub variant antecedent_data::PermutationScheme::Full
+pub variant antecedent_data::PermutationScheme::WithinCluster
+pub variant antecedent_data::ReferencePointPolicy::AbsoluteOrigin { origin_row: usize }
+pub variant antecedent_data::ReferencePointPolicy::SeriesOrigin
+pub variant antecedent_data::ResamplingPlan::BayesianBootstrap
+pub variant antecedent_data::ResamplingPlan::CircularBlock { length: usize }
+pub variant antecedent_data::ResamplingPlan::ClusterBootstrap { cluster: antecedent_core::ids::VariableId }
+pub variant antecedent_data::ResamplingPlan::IidBootstrap
+pub variant antecedent_data::ResamplingPlan::MovingBlock { length: usize }
+pub variant antecedent_data::ResamplingPlan::Permutation(antecedent_data::PermutationScheme)
+pub variant antecedent_data::ResamplingPlan::StationaryBlock { expected_length: f64 }
+pub variant antecedent_data::SamplingRegularity::Irregular
+pub variant antecedent_data::SamplingRegularity::Regular { interval_ns: u64 }
+pub variant antecedent_data::TimeDummyEncoding::IntegerIndex
+pub variant antecedent_data::TimeDummyEncoding::OneHot
+pub variant antecedent_data::UnknownCategoryPolicy::Fail
+pub variant antecedent_data::UnknownCategoryPolicy::MapToOther { other: antecedent_data::CategoryCode }

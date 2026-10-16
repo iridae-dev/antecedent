@@ -15,9 +15,16 @@
 //! The same sweep shows the check can fail: ID on the MAG read as an
 //! unconfounded ADMG returns functionals that miss the truth.
 //!
+//! # Independent oracle
+//!
+//! The bitmask ancestry and d-separation here are deliberately separate from the graph
+//! crate's closure and separation owners, and from the other two independent
+//! m-separation implementations (`selection_separation::independently_separated` and
+//! the mixed-source `Checker`): three encodings that can check one another. Do not
+//! replace them with the shared owners.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::precedence)]
 #![cfg_attr(
     test,
     allow(
@@ -66,11 +73,11 @@ impl SmallDag {
     }
 
     fn observed(&self) -> Vec<usize> {
-        (0..self.n).filter(|&j| self.latent >> j & 1 == 0).collect()
+        (0..self.n).filter(|&j| (self.latent >> j) & 1 == 0).collect()
     }
 
     fn children(&self, v: usize) -> u8 {
-        (0..self.n).filter(|&c| self.parents[c] >> v & 1 == 1).fold(0, |m, c| m | 1 << c)
+        (0..self.n).filter(|&c| (self.parents[c] >> v) & 1 == 1).fold(0, |m, c| m | (1 << c))
     }
 
     /// Reflexive ancestor masks.
@@ -79,7 +86,7 @@ impl SmallDag {
         for j in 0..self.n {
             anc[j] = 1 << j;
             for p in 0..j {
-                if self.parents[j] >> p & 1 == 1 {
+                if (self.parents[j] >> p) & 1 == 1 {
                     anc[j] |= anc[p];
                 }
             }
@@ -91,18 +98,18 @@ impl SmallDag {
     fn d_separated(&self, anc: [u8; MAX_NODES], x: usize, y: usize, z: u8) -> bool {
         let mut keep = anc[x] | anc[y];
         for (j, a) in anc.iter().enumerate().take(self.n) {
-            if z >> j & 1 == 1 {
+            if (z >> j) & 1 == 1 {
                 keep |= a;
             }
         }
         let mut adj = [0u8; MAX_NODES];
         for c in 0..self.n {
-            if keep >> c & 1 == 0 {
+            if (keep >> c) & 1 == 0 {
                 continue;
             }
             let pa = self.parents[c];
             for p in 0..self.n {
-                if pa >> p & 1 == 1 {
+                if (pa >> p) & 1 == 1 {
                     adj[p] |= (1 << c) | (pa & !(1 << p));
                     adj[c] |= 1 << p;
                 }
@@ -117,7 +124,7 @@ impl SmallDag {
             seen |= next;
             frontier |= next;
         }
-        seen >> y & 1 == 0
+        (seen >> y) & 1 == 0
     }
 
     /// Observed nodes reachable from each node along directed paths whose
@@ -127,8 +134,8 @@ impl SmallDag {
         for v in (0..self.n).rev() {
             let ch = self.children(v);
             for c in 0..self.n {
-                if ch >> c & 1 == 1 {
-                    reach[v] |= if self.latent >> c & 1 == 1 { reach[c] } else { 1 << c };
+                if (ch >> c) & 1 == 1 {
+                    reach[v] |= if (self.latent >> c) & 1 == 1 { reach[c] } else { 1 << c };
                 }
             }
         }
@@ -153,14 +160,14 @@ fn mag_of(dag: &SmallDag) -> PairMarks {
                 let z = others
                     .iter()
                     .enumerate()
-                    .filter(|(bit, _)| mask >> bit & 1 == 1)
-                    .fold(0u8, |m, (_, &o)| m | 1 << o);
+                    .filter(|(bit, _)| (mask >> bit) & 1 == 1)
+                    .fold(0u8, |m, (_, &o)| m | (1 << o));
                 !dag.d_separated(anc, a, b, z)
             });
             if inseparable {
-                let code = if anc[b] >> a & 1 == 1 {
+                let code = if (anc[b] >> a) & 1 == 1 {
                     1
-                } else if anc[a] >> b & 1 == 1 {
+                } else if (anc[a] >> b) & 1 == 1 {
                     2
                 } else {
                     3
@@ -198,8 +205,8 @@ fn projection_of(dag: &SmallDag) -> (Pairs, Pairs) {
     let mut directed = Vec::new();
     let mut bidirected = Vec::new();
     for (v, reached) in reach.iter().enumerate().take(dag.n) {
-        let targets: Vec<usize> = (0..dag.n).filter(|&c| reached >> c & 1 == 1).collect();
-        if dag.latent >> v & 1 == 0 {
+        let targets: Vec<usize> = (0..dag.n).filter(|&c| (reached >> c) & 1 == 1).collect();
+        if (dag.latent >> v) & 1 == 0 {
             directed.extend(targets.iter().map(|&c| (id_of(v), id_of(c))));
         } else {
             for (i, &a) in targets.iter().enumerate() {
@@ -273,7 +280,7 @@ impl DistributionProvider for ObservedLaw {
         assert!(vars.iter().all(|v| (v.raw() as usize) < self.k));
         Ok((0..1usize << vars.len())
             .map(|row| {
-                (0..vars.len()).map(|i| Value::f64((row >> i & 1) as f64)).collect::<Arc<[_]>>()
+                (0..vars.len()).map(|i| Value::f64(((row >> i) & 1) as f64)).collect::<Arc<[_]>>()
             })
             .collect())
     }
@@ -316,13 +323,13 @@ impl ExactScm {
         let mut config = 0;
         let mut slot = 0;
         for p in 0..self.dag.n {
-            if self.dag.parents[j] >> p & 1 == 1 {
-                config |= (world >> p & 1) << slot;
+            if (self.dag.parents[j] >> p) & 1 == 1 {
+                config |= ((world >> p) & 1) << slot;
                 slot += 1;
             }
         }
         let p1 = self.cpt[j][config];
-        if world >> j & 1 == 1 { p1 } else { 1.0 - p1 }
+        if (world >> j) & 1 == 1 { p1 } else { 1.0 - p1 }
     }
 
     fn observed_law(&self) -> ObservedLaw {
@@ -330,7 +337,7 @@ impl ExactScm {
         let mut pmf = vec![0.0; 1 << obs.len()];
         for world in 0..1usize << self.dag.n {
             let p: f64 = (0..self.dag.n).map(|j| self.factor(j, world)).product();
-            let cell = obs.iter().enumerate().fold(0, |m, (i, &o)| m | (world >> o & 1) << i);
+            let cell = obs.iter().enumerate().fold(0, |m, (i, &o)| m | (((world >> o) & 1) << i));
             pmf[cell] += p;
         }
         ObservedLaw { k: obs.len(), pmf }
@@ -339,7 +346,7 @@ impl ExactScm {
     /// `E[Y | do(T = 1)]` by the truncated factorisation.
     fn mean_under_do_one(&self, t: usize, y: usize) -> f64 {
         (0..1usize << self.dag.n)
-            .filter(|world| world >> t & 1 == 1 && world >> y & 1 == 1)
+            .filter(|world| (world >> t) & 1 == 1 && (world >> y) & 1 == 1)
             .map(|world| {
                 (0..self.dag.n).filter(|&j| j != t).map(|j| self.factor(j, world)).product::<f64>()
             })
@@ -375,7 +382,7 @@ fn worst_error(result: &IdentificationResult, law: &ObservedLaw, truth: f64) -> 
     (0..1usize << free.len())
         .map(|row| {
             let env = Assignment::from_pairs(
-                free.iter().enumerate().map(|(i, &v)| (v, Value::f64((row >> i & 1) as f64))),
+                free.iter().enumerate().map(|(i, &v)| (v, Value::f64(((row >> i) & 1) as f64))),
             );
             let value =
                 plan.evaluate_with(&result.arena, law, &EvalContext::default(), &env).unwrap();
@@ -455,7 +462,7 @@ fn check(
                 tally.numeric_checks += 1;
                 if result.estimands[0].method.as_ref() == "general.id" {
                     tally.identified_beyond_adjustment += 1;
-                    if anc[obs[y]] >> obs[t] & 1 == 1 {
+                    if (anc[obs[y]] >> obs[t]) & 1 == 1 {
                         tally.causal_beyond_adjustment += 1;
                     }
                 } else {
@@ -484,7 +491,7 @@ fn check(
 }
 
 fn useless_latent(dag: &SmallDag) -> bool {
-    (0..dag.n).any(|v| dag.latent >> v & 1 == 1 && dag.children(v).count_ones() < 2)
+    (0..dag.n).any(|v| (dag.latent >> v) & 1 == 1 && dag.children(v).count_ones() < 2)
 }
 
 /// Sweep every DAG with `k` observed and `l` latent nodes (latents with fewer
@@ -536,7 +543,7 @@ fn cross_check_library_projection(
     let mut g = Dag::with_variables(dag.n as u32);
     for c in 0..dag.n {
         for p in 0..dag.n {
-            if dag.parents[c] >> p & 1 == 1 {
+            if (dag.parents[c] >> p) & 1 == 1 {
                 g.insert_directed(node(p), node(c)).unwrap();
             }
         }

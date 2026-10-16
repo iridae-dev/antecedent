@@ -12,12 +12,13 @@ keywords.workspace = true
 categories.workspace = true
 description = "Causal graph types (DAG, ADMG, CPDAG, PAG, temporal), separation queries, and traversal workspaces for the Antecedent engine; start with the `antecedent` crate"
 readme = "README.md"
+autotests = false
 
 [lints]
 workspace = true
 
 [dependencies]
-antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
+antecedent-core = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
@@ -35,3 +36,15 @@ harness = false
 [[bench]]
 name = "mseparation"
 harness = false
+
+[[bench]]
+name = "surgery"
+harness = false
+
+[[bench]]
+name = "unfold"
+harness = false
+
+[[test]]
+name = "suite_01"
+path = "tests/suite_01.rs"

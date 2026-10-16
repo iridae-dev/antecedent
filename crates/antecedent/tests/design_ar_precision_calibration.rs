@@ -15,9 +15,10 @@ use antecedent::analysis::recalc_receipt::UtilitySpec;
 use antecedent_core::ExecutionContext;
 use antecedent_stats::fit_counts::count_least_squares_solves;
 use antecedent_stats::{
-    FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, anderson_rubin_confidence_set,
-    anderson_rubin_kf_critical,
+    FaerBackend, FirstStageDiagnostics, IvBlocks, LeastSquaresWorkspace,
+    anderson_rubin_confidence_set, anderson_rubin_kf_critical,
 };
+use antecedent_test_support::dot;
 use calibration::{grid_n, grid_seed, map_replicates, n_sim};
 
 fn request(n: usize, seed: u64, strength: f64) -> DesignRequest {
@@ -45,9 +46,6 @@ fn request(n: usize, seed: u64, strength: f64) -> DesignRequest {
 fn centered(value: &[f64]) -> Vec<f64> {
     let mean = value.iter().sum::<f64>() / value.len() as f64;
     value.iter().map(|a| a - mean).collect()
-}
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(a, b)| a * b).sum()
 }
 struct Oracle {
     quadratic: [f64; 3],
@@ -88,13 +86,15 @@ fn inspect(r: &DesignRequest, diagnostics: &FirstStageDiagnostics, critical: f64
     let z = &r.columns[2].1;
     let exogenous = vec![1.; n];
     let original = anderson_rubin_confidence_set(
+        &IvBlocks {
+            nrows: n,
+            instruments_colmajor: z,
+            z_ncols: 1,
+            exogenous_colmajor: &exogenous,
+            x_ncols: 1,
+        },
         &r.columns[1].1,
         &r.columns[0].1,
-        z,
-        n,
-        1,
-        &exogenous,
-        1,
         0.95,
         &FaerBackend,
         &mut LeastSquaresWorkspace::default(),
@@ -138,7 +138,8 @@ fn execute_one(r: &DesignRequest, seed: u64, critical: f64, check_replay: bool) 
                 .estimate
                 .as_effect()
                 .unwrap()
-                .first_stage_diagnostics
+                .diagnostics
+                .first_stage
                 .clone()
                 .unwrap();
             assert!(
@@ -161,7 +162,8 @@ fn execute_one(r: &DesignRequest, seed: u64, critical: f64, check_replay: bool) 
                         .estimate
                         .as_effect()
                         .unwrap()
-                        .first_stage_diagnostics
+                        .diagnostics
+                        .first_stage
                         .as_ref()
                         .unwrap(),
                     &diagnostic

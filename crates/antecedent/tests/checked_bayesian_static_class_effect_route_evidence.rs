@@ -9,8 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_lines)]
-
 use antecedent::{
     AcceptedGraph, BayesianConfig, EstimatorId, GraphClass, IdentifierId, InferenceMode,
     RefuteSuite, Study,
@@ -193,6 +191,10 @@ fn assert_validation(result: &antecedent::StudyResult, suite: RefuteSuite, label
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for bayesian static class effect executes from retained plan after builder is dropped"
+)]
 fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped() {
     run_on_large_stack(|| {
         for fixture in fixtures() {
@@ -277,9 +279,10 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
 
                     let result = prepared.estimate(&data, &ctx).unwrap();
                     assert!(
-                        (result.estimate.ate - fixture.expected_ate).abs() < 1e-9,
+                        (result.estimate.as_effect().unwrap().ate - fixture.expected_ate).abs()
+                            < 1e-9,
                         "{coordinate}: envelope posterior mean {} vs pin {}",
-                        result.estimate.ate,
+                        result.estimate.as_effect().unwrap().ate,
                         fixture.expected_ate
                     );
                     assert_eq!(result.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
@@ -302,8 +305,8 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
 
                     // The one-shot facade executes the same retained plan.
                     assert_eq!(
-                        one_shot.estimate.ate.to_bits(),
-                        result.estimate.ate.to_bits(),
+                        one_shot.estimate.as_effect().unwrap().ate.to_bits(),
+                        result.estimate.as_effect().unwrap().ate.to_bits(),
                         "{coordinate}: one-shot and prepared clicks must agree bitwise"
                     );
                     assert!(
@@ -315,7 +318,10 @@ fn bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dro
                     );
 
                     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-                    assert_eq!(refreshed.estimate.ate.to_bits(), result.estimate.ate.to_bits());
+                    assert_eq!(
+                        refreshed.estimate.as_effect().unwrap().ate.to_bits(),
+                        result.estimate.as_effect().unwrap().ate.to_bits()
+                    );
                     let rebound = prepared.checked_static_class_effect_info().unwrap();
                     assert_eq!(rebound.query, plan.query);
                     assert_eq!(rebound.inference, plan.inference);

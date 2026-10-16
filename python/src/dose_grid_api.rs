@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the 2.3 B1 dose-grid functional row.
+//! Bounded Python bridge for the dose-grid functional row.
 //!
 //! Python declares the request (design, one named functional, grid, bandwidth and its
 //! range, minimum local effective sample size, claims) and passes the dose/outcome table.
@@ -8,6 +8,7 @@
 //! to raise as its own exception type; corruption and unknown versions raise
 //! `CausalSerializationError`.
 
+use crate::bridge::{RefusalJson, check_declared_size, serialization};
 use antecedent::analysis::dose_grid_functional::{
     DoseGridArtifactError, DoseGridConsumeLimits, DoseGridFunctional, DoseGridRequestWire,
     dose_support_table,
@@ -15,10 +16,10 @@ use antecedent::analysis::dose_grid_functional::{
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use crate::{CausalSerializationError, detach_catch, value_err};
+use crate::{detach_catch, value_err};
 
 /// Largest request JSON accepted (the table travels separately).
-const MAX_JSON_BYTES: usize = 8 * 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_SPEC_DECLARATION_BYTES;
 
 type EvaluatePayload = (Option<String>, Option<Py<PyBytes>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
@@ -32,30 +33,14 @@ fn refusal_json(error: &DoseGridArtifactError, stage: &'static str) -> Option<St
         DoseGridArtifactError::Refused { message, .. } => message.clone(),
         other => other.to_string(),
     };
-    Some(
-        serde_json::json!({
-            "code": code,
-            "stage": stage,
-            "detail": detail,
-            "offending": serde_json::Value::Null,
-            "expected": serde_json::Value::Null,
-            "supplied": serde_json::Value::Null,
-            "remedy": serde_json::Value::Null,
-            "message": message,
-        })
-        .to_string(),
-    )
-}
-
-fn serialization(error: &DoseGridArtifactError) -> PyErr {
-    CausalSerializationError::new_err(error.to_string())
+    Some(RefusalJson::new(code, stage, &detail, &message).json())
 }
 
 /// The report: the premises with the table elided (its length is `result.n_rows`), the
 /// result and both digests.
 fn report_json(done: &DoseGridFunctional) -> PyResult<String> {
     let mut request = serde_json::to_value(done.request())
-        .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+        .map_err(|e| crate::serialization_err(e.to_string()))?;
     if let Some(map) = request.as_object_mut() {
         map.remove("dose");
         map.remove("outcome");
@@ -81,9 +66,7 @@ fn evaluate_dose_grid_functional(
     dose: Vec<f64>,
     outcome: Vec<f64>,
 ) -> PyResult<EvaluatePayload> {
-    if request_json.len() > MAX_JSON_BYTES {
-        return Err(value_err("dose_grid.invalid_request: the declaration is too large"));
-    }
+    check_declared_size(request_json, MAX_JSON_BYTES, "dose grid")?;
     let mut request: DoseGridRequestWire = serde_json::from_str(request_json)
         .map_err(|e| value_err(format!("dose_grid.invalid_request: {e}")))?;
     request.dose = dose;
@@ -134,7 +117,7 @@ fn dose_support_labels(
         match dose_support_table(&dose, &points, bandwidth, minimum_local_ess) {
             Ok(table) => {
                 let json = serde_json::to_string(&table)
-                    .map_err(|e| CausalSerializationError::new_err(e.to_string()))?;
+                    .map_err(|e| crate::serialization_err(e.to_string()))?;
                 Ok((Some(json), None))
             }
             Err(error) => match refusal_json(&error, "dose_grid") {

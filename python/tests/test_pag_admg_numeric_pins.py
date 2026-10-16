@@ -7,16 +7,15 @@ every explicit/accepted and validation variant licensed in ``support_licensed.to
 
 from __future__ import annotations
 
-import pathlib
 from typing import Any
 
 import antecedent
 import numpy as np
 import pytest
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 
 
 def _load_pin(name: str) -> dict[str, Any]:
@@ -344,7 +343,7 @@ def test_admg_interventional_distribution_refuses_cheap_full(refute: str) -> Non
     query = antecedent.InterventionalDistribution("y", interventions={"t": 1.0})
     with pytest.raises(
         CausalUnsupportedError,
-        match="ADMG InterventionalDistribution is licensed at validation none",
+        match="ADMG and TemporalAdmg InterventionalDistribution are licensed at validation none",
     ):
         antecedent.analyze(data, graph=graph, query=query, refute=refute)
 

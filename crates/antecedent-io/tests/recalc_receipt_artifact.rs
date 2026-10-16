@@ -1,4 +1,4 @@
-//! 2.3 C2: the portable selective-recalculation receipt.
+//! The portable selective-recalculation receipt.
 //!
 //! The consumer recomputes the plan from the stored previous and requested digests and the
 //! stored capabilities and requires the stored table, counts, totals and identities to match;
@@ -138,7 +138,7 @@ fn consume(meta: &RecalcReceiptMeta) -> Result<RecalcReceiptArtifact, RecalcRece
 }
 
 #[test]
-fn c2_artifact_round_trip_preserves_table_counts_and_identities() {
+fn artifact_round_trip_preserves_table_counts_and_identities() {
     let artifact = utility_only();
     let reused = |dep: &str| format!("reused({dep})");
     let expected: Vec<(String, String)> = [
@@ -189,7 +189,7 @@ fn c2_artifact_round_trip_preserves_table_counts_and_identities() {
 }
 
 #[test]
-fn c2_artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilities() {
+fn artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilities() {
     let caps = RecalcCapabilities {
         retarget: RetargetSupport::NotDeclared,
         request: RequestSupport::OffGrid { licensed_route: Some("transport.smoothed_dose") },
@@ -220,7 +220,7 @@ fn c2_artifact_off_grid_route_and_a_changed_boundary_round_trip_in_the_capabilit
 }
 
 #[test]
-fn c2_artifact_resealed_mutation_is_refused() {
+fn artifact_resealed_mutation_is_refused() {
     let artifact = utility_only();
     let base = artifact.meta().clone();
     let at = |stage: &str| base.entries.iter().position(|e| e.stage == stage).unwrap();
@@ -331,7 +331,7 @@ fn c2_artifact_resealed_mutation_is_refused() {
 }
 
 #[test]
-fn c2_artifact_a_consistently_resealed_other_run_is_refused_against_a_retained_identity() {
+fn artifact_a_consistently_resealed_other_run_is_refused_against_a_retained_identity() {
     let first = utility_only();
     // Another run sealed consistently from scratch: new utility, different counts.
     let other = RecalcReceiptArtifact::seal(
@@ -351,7 +351,7 @@ fn c2_artifact_a_consistently_resealed_other_run_is_refused_against_a_retained_i
 }
 
 #[test]
-fn c2_artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
+fn artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
     let previous = workflow("u1", "seed1");
     let requested = workflow("u1", "seed1");
     let first_run = [
@@ -438,7 +438,7 @@ fn c2_artifact_a_loaded_receipt_never_claims_reuse_in_a_fresh_process() {
 }
 
 #[test]
-fn c2_artifact_identity_is_order_independent() {
+fn artifact_identity_is_order_independent() {
     // Declarations built in opposite orders are the same workflow.
     let forward = workflow("u1", "seed1");
     let mut backward = StageIdentities::new();
@@ -476,7 +476,7 @@ fn c2_artifact_identity_is_order_independent() {
 }
 
 #[test]
-fn c2_artifact_is_bounded_and_versioned() {
+fn artifact_is_bounded_and_versioned() {
     let artifact = utility_only();
     let bytes = artifact.to_bytes(ID).unwrap();
     assert!(artifact.to_bytes("  ").is_err());
@@ -510,7 +510,7 @@ fn c2_artifact_is_bounded_and_versioned() {
 }
 
 #[test]
-fn c2_artifact_model_fits_are_bound_and_legacy_counts_remain_unchanged() {
+fn artifact_model_fits_are_bound_and_legacy_counts_remain_unchanged() {
     let legacy = utility_only();
     let wire = serde_json::to_string(legacy.meta()).unwrap();
     assert!(!wire.contains("model_fits"));
@@ -602,7 +602,7 @@ fn c2_artifact_model_fits_are_bound_and_legacy_counts_remain_unchanged() {
 }
 
 #[test]
-fn c2_factor_work_counts_bind_identity_and_refuse_incomplete_or_mixed_families() {
+fn factor_work_counts_bind_identity_and_refuse_incomplete_or_mixed_families() {
     let legacy = serde_json::to_string(utility_only().meta()).unwrap();
     assert!(!legacy.contains("factor_builds") && !legacy.contains("provider_calls"));
     let artifact = RecalcReceiptArtifact::seal(
@@ -691,7 +691,7 @@ fn c2_factor_work_counts_bind_identity_and_refuse_incomplete_or_mixed_families()
 }
 
 #[test]
-fn c2_posterior_draw_counts_preserve_legacy_identity_and_enforce_stage_family() {
+fn posterior_draw_counts_preserve_legacy_identity_and_enforce_stage_family() {
     assert!(!serde_json::to_string(utility_only().meta()).unwrap().contains("posterior_draws"));
     let artifact = RecalcReceiptArtifact::seal(
         &workflow("u1", "seed1"),
@@ -759,7 +759,7 @@ fn c2_posterior_draw_counts_preserve_legacy_identity_and_enforce_stage_family() 
 }
 
 #[test]
-fn c2_external_invocations_bind_branch_work_and_preserve_zero_extension_identity() {
+fn external_invocations_bind_branch_work_and_preserve_zero_extension_identity() {
     assert!(
         !serde_json::to_string(utility_only().meta()).unwrap().contains("external_invocations")
     );

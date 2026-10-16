@@ -9,12 +9,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss)]
+use std::collections::{BTreeMap, BTreeSet};
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
-};
+use thiserror::Error;
 
 use antecedent_core::{EvidenceKind, RegimeId, VariableId};
 use antecedent_expr::ExactTransportData;
@@ -76,34 +73,21 @@ pub struct DiscreteKernelSensitivityResult {
 }
 
 /// Invalid finite-kernel sensitivity inputs.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum DiscreteKernelSensitivityError {
     /// No strata or categories were supplied, or dimensions disagree.
+    #[error("kernel, outcome, and stratum dimensions must agree and be nonempty")]
     InvalidDimensions,
     /// Probabilities or response values are nonfinite, or a kernel row is not a distribution.
+    #[error("source kernel rows must be finite probability distributions")]
     InvalidKernel,
     /// The contamination fraction is outside `[0, 1]`.
+    #[error("maximum contamination fraction must be in [0, 1]")]
     InvalidFraction,
     /// A contrast weight or decision threshold is nonfinite.
+    #[error("contrast weights, outcome values, and threshold must be finite")]
     InvalidContrast,
 }
-
-impl fmt::Display for DiscreteKernelSensitivityError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::InvalidDimensions => {
-                "kernel, outcome, and stratum dimensions must agree and be nonempty"
-            }
-            Self::InvalidKernel => "source kernel rows must be finite probability distributions",
-            Self::InvalidFraction => "maximum contamination fraction must be in [0, 1]",
-            Self::InvalidContrast => {
-                "contrast weights, outcome values, and threshold must be finite"
-            }
-        })
-    }
-}
-
-impl std::error::Error for DiscreteKernelSensitivityError {}
 
 /// One source outcome-kernel row indexed by the outcome's ordered graph parents.
 #[derive(Clone, Debug)]
@@ -272,47 +256,33 @@ pub struct ZTransportMechanismSensitivityResult {
 }
 
 /// Refusal from the narrow z outcome-kernel sensitivity contract.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum ZTransportSensitivityError {
     /// Proof does not independently verify against the supplied diagram.
+    #[error("z-transport derivation failed independent verification")]
     InvalidProof,
     /// The execution context was cancelled before the range was computed.
+    #[error("z sensitivity cancelled")]
     Cancelled,
     /// Formula is not a checked outcome conditional times its shared parent marginal.
+    #[error("z formula does not expose one shared outcome-kernel factor")]
     IncompatibleFormula,
     /// Exact source provider does not match the formula's population, regime, world, or snapshot.
+    #[error("source provider does not match the checked z formula binding")]
     ProviderMismatch,
     /// Outcome, treatment, or shared parent has unsupported finite numeric support.
+    #[error("z sensitivity requires finite numeric outcome and binary treatment domains")]
     UnsupportedDomain,
     /// Source law cannot supply every outcome kernel stratum, or its shared
     /// parent marginal does not have unit mass.
+    #[error(
+        "source law has an empty outcome-kernel stratum or a parent marginal without unit mass"
+    )]
     IncompleteKernel,
     /// Contamination fraction or response threshold is invalid.
+    #[error("{0}")]
     InvalidSensitivity(DiscreteKernelSensitivityError),
 }
-
-impl fmt::Display for ZTransportSensitivityError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::InvalidProof => "z-transport derivation failed independent verification",
-            Self::IncompatibleFormula => {
-                "z formula does not expose one shared outcome-kernel factor"
-            }
-            Self::ProviderMismatch => {
-                "source provider does not match the checked z formula binding"
-            }
-            Self::UnsupportedDomain => {
-                "z sensitivity requires finite numeric outcome and binary treatment domains"
-            }
-            Self::IncompleteKernel => {
-                "source law has an empty outcome-kernel stratum or a parent marginal without unit mass"
-            }
-            Self::Cancelled => "z sensitivity cancelled",
-            Self::InvalidSensitivity(error) => return write!(f, "{error}"),
-        })
-    }
-}
-impl std::error::Error for ZTransportSensitivityError {}
 
 /// Largest admitted `|sum - 1|` of the shared parent marginal (the
 /// evaluator's kernel-row tolerance).
@@ -396,7 +366,7 @@ impl<E> From<ZTransportSensitivityError> for ScanStop<E> {
     }
 }
 
-/// [`z_surrogate_kernels_metered`] with no hooks: the 2.1 one-factor route.
+/// [`z_surrogate_kernels_metered`] with no hooks: the one-factor route.
 pub(crate) fn z_surrogate_kernels(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,
@@ -427,7 +397,10 @@ pub(crate) fn z_surrogate_kernels(
 /// Either hook's error stops the read as [`ScanStop::Hook`].
 // Keep the checked binding and factor validation together so a sensitivity
 // result is built only after the complete proof/provider contract passes.
-#[allow(clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "metered evaluation of every surrogate kernel; the stages share the meter and the formula"
+)]
 pub(crate) fn z_surrogate_kernels_metered<E>(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,
@@ -607,48 +580,33 @@ pub(crate) fn z_surrogate_kernels_metered<E>(
 }
 
 /// Typed refusal for the fixed-graph sensitivity route.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
 pub enum FixedGraphSensitivityError {
     /// Query does not name one outcome and one treatment parent.
+    #[error("requires one outcome and one treatment parent")]
     InvalidQuery,
     /// Graph is outside the fixed fully observed DAG contract.
+    #[error("requires a fixed fully observed discrete DAG")]
     UnsupportedGraph,
     /// Checked transport proof does not match the supplied query and graph.
+    #[error("transport proof does not check against the declared graph and query")]
     InvalidTransportProof,
     /// Checked expression does not use the declared source outcome factor.
+    #[error("checked transport expression does not bind the declared source outcome factor")]
     UnboundOutcomeFactor,
     /// Numerical snapshots do not match available catalog bindings.
+    #[error("declared numerical snapshot does not match an available catalog binding")]
     SnapshotMismatch,
     /// Parent support, kernel, or target laws are incomplete or invalid.
+    #[error("kernel or target parent laws are incomplete or invalid")]
     InvalidParentLaw,
     /// The finite kernel calculation rejected its parameters.
+    #[error("{0}")]
     Kernel(DiscreteKernelSensitivityError),
 }
 
 /// Maximum parent-stratum product support for the explicit discrete route.
-pub const FIXED_GRAPH_SENSITIVITY_MAX_STRATA: usize = 1_000_000;
-
-impl fmt::Display for FixedGraphSensitivityError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::InvalidQuery => "requires one outcome and one treatment parent",
-            Self::UnsupportedGraph => "requires a fixed fully observed discrete DAG",
-            Self::InvalidTransportProof => {
-                "transport proof does not check against the declared graph and query"
-            }
-            Self::UnboundOutcomeFactor => {
-                "checked transport expression does not bind the declared source outcome factor"
-            }
-            Self::SnapshotMismatch => {
-                "declared numerical snapshot does not match an available catalog binding"
-            }
-            Self::InvalidParentLaw => "kernel or target parent laws are incomplete or invalid",
-            Self::Kernel(error) => return write!(f, "{error}"),
-        })
-    }
-}
-
-impl std::error::Error for FixedGraphSensitivityError {}
+pub(crate) const FIXED_GRAPH_SENSITIVITY_MAX_STRATA: usize = 1_000_000;
 
 /// Evaluate outcome-kernel contamination around a checked transport result.
 ///
@@ -661,7 +619,6 @@ impl std::error::Error for FixedGraphSensitivityError {}
 /// incomplete finite support, and invalid probabilities.
 // This staged validation derives the target contrast from checked graph,
 // kernel, population, and snapshot evidence before optimizing the range.
-#[allow(clippy::too_many_lines)]
 pub fn fixed_graph_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -695,10 +652,41 @@ pub fn fixed_graph_treatment_level_sensitivity(
     )
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "single contamination-extremal evaluation over the outcome kernel; the shared stratum bookkeeping does not factor cleanly"
-)]
+fn static_dense(
+    graph: &antecedent_graph::Admg,
+    variable: VariableId,
+) -> Result<DenseNodeId, FixedGraphSensitivityError> {
+    graph
+        .nodes()
+        .iter()
+        .position(|node| *node == NodeRef::Static(variable))
+        .and_then(|i| u32::try_from(i).ok())
+        .map(DenseNodeId::from_raw)
+        .ok_or(FixedGraphSensitivityError::UnsupportedGraph)
+}
+
+/// Parents, strata, and cardinalities of one checked outcome mechanism.
+struct OutcomeParentFrame {
+    outcome: VariableId,
+    parents: Vec<VariableId>,
+    treatment_position: usize,
+    other_positions: Vec<usize>,
+    other_cardinalities: Vec<usize>,
+    other_strata: Vec<Vec<usize>>,
+    all_strata: Vec<Vec<usize>>,
+}
+
+struct KernelContaminationInput<'a> {
+    frame: &'a OutcomeParentFrame,
+    query: &'a ClassicalTransportQuery,
+    functional: &'a BoundTransportFunctional,
+    spec: &'a FixedGraphMechanismSensitivitySpec,
+    kernels: &'a BTreeMap<Vec<usize>, Vec<f64>>,
+    weights: &'a [f64],
+    indices: &'a BTreeMap<Vec<usize>, usize>,
+    perturbed_treatment_level: Option<usize>,
+}
+
 fn fixed_graph_mechanism_sensitivity_inner(
     diagram: &SelectionDiagram,
     query: &ClassicalTransportQuery,
@@ -707,6 +695,29 @@ fn fixed_graph_mechanism_sensitivity_inner(
     perturbed_treatment_level: Option<usize>,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<FixedGraphMechanismSensitivityResult, FixedGraphSensitivityError> {
+    let frame = outcome_parent_frame(diagram, query, functional, spec, ctx)?;
+    let kernels = source_outcome_kernels(&frame, spec)?;
+    let contrast = contrast_weights(&frame, spec)?;
+    agree_parent_laws(&frame, spec, &contrast.control, &contrast.active)?;
+    evaluate_kernel_contamination(&KernelContaminationInput {
+        frame: &frame,
+        query,
+        functional,
+        spec,
+        kernels: &kernels,
+        weights: &contrast.weights,
+        indices: &contrast.indices,
+        perturbed_treatment_level,
+    })
+}
+
+fn outcome_parent_frame(
+    diagram: &SelectionDiagram,
+    query: &ClassicalTransportQuery,
+    functional: &BoundTransportFunctional,
+    spec: &FixedGraphMechanismSensitivitySpec,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<OutcomeParentFrame, FixedGraphSensitivityError> {
     if query.outcomes.len() != 1 || query.treatments.len() != 1 {
         return Err(FixedGraphSensitivityError::InvalidQuery);
     }
@@ -721,20 +732,8 @@ fn fixed_graph_mechanism_sensitivity_inner(
     }
     verify_classical_transport(diagram, query, functional.derivation(), SidLimits::default(), ctx)
         .map_err(|_| FixedGraphSensitivityError::InvalidTransportProof)?;
-    let dense = graph
-        .nodes()
-        .iter()
-        .position(|node| *node == NodeRef::Static(outcome))
-        .and_then(|i| u32::try_from(i).ok())
-        .map(DenseNodeId::from_raw)
-        .ok_or(FixedGraphSensitivityError::UnsupportedGraph)?;
-    let treatment_dense = graph
-        .nodes()
-        .iter()
-        .position(|node| *node == NodeRef::Static(treatment))
-        .and_then(|i| u32::try_from(i).ok())
-        .map(DenseNodeId::from_raw)
-        .ok_or(FixedGraphSensitivityError::UnsupportedGraph)?;
+    let dense = static_dense(graph, outcome)?;
+    let treatment_dense = static_dense(graph, treatment)?;
     let mut parents: Vec<_> = graph
         .parents(dense)
         .iter()
@@ -774,12 +773,7 @@ fn fixed_graph_mechanism_sensitivity_inner(
         .filter_map(|(i, parent)| (*parent != treatment).then_some(i))
         .collect();
     if parents.iter().filter(|parent| **parent != treatment).any(|parent| {
-        let parent_dense = graph
-            .nodes()
-            .iter()
-            .position(|node| *node == NodeRef::Static(*parent))
-            .and_then(|i| u32::try_from(i).ok())
-            .map(DenseNodeId::from_raw);
+        let parent_dense = static_dense(graph, *parent).ok();
         parent_dense.is_some_and(|parent_dense| graph.reaches(treatment_dense, parent_dense))
     }) {
         return Err(FixedGraphSensitivityError::UnsupportedGraph);
@@ -793,9 +787,24 @@ fn fixed_graph_mechanism_sensitivity_inner(
         .ok_or(FixedGraphSensitivityError::InvalidQuery)?;
     let mut all_strata = cartesian_levels(&spec.parent_cardinalities)?;
     all_strata.retain(|stratum| spec.treatment_levels.contains(&stratum[treatment_position]));
+    Ok(OutcomeParentFrame {
+        outcome,
+        parents,
+        treatment_position,
+        other_positions,
+        other_cardinalities,
+        other_strata,
+        all_strata,
+    })
+}
+
+fn source_outcome_kernels(
+    frame: &OutcomeParentFrame,
+    spec: &FixedGraphMechanismSensitivitySpec,
+) -> Result<BTreeMap<Vec<usize>, Vec<f64>>, FixedGraphSensitivityError> {
     let mut kernels = BTreeMap::<Vec<usize>, Vec<f64>>::new();
     for row in &spec.source_kernel {
-        if row.parent_levels.len() != parents.len()
+        if row.parent_levels.len() != frame.parents.len()
             || row.parent_levels.iter().zip(&spec.parent_cardinalities).any(|(x, n)| x >= n)
             || row.outcome_probabilities.len() != spec.outcome_values.len()
             || row.outcome_probabilities.iter().any(|p| !p.is_finite() || *p < 0.0)
@@ -807,16 +816,30 @@ fn fixed_graph_mechanism_sensitivity_inner(
             return Err(FixedGraphSensitivityError::InvalidParentLaw);
         }
     }
-    if kernels.len() != all_strata.len()
-        || all_strata.iter().any(|stratum| !kernels.contains_key(stratum))
+    if kernels.len() != frame.all_strata.len()
+        || frame.all_strata.iter().any(|stratum| !kernels.contains_key(stratum))
     {
         return Err(FixedGraphSensitivityError::InvalidParentLaw);
     }
+    Ok(kernels)
+}
+
+struct ContrastWeights {
+    weights: Vec<f64>,
+    indices: BTreeMap<Vec<usize>, usize>,
+    control: BTreeMap<Vec<usize>, f64>,
+    active: BTreeMap<Vec<usize>, f64>,
+}
+
+fn contrast_weights(
+    frame: &OutcomeParentFrame,
+    spec: &FixedGraphMechanismSensitivitySpec,
+) -> Result<ContrastWeights, FixedGraphSensitivityError> {
     let mut target_arms = BTreeMap::<usize, BTreeMap<Vec<usize>, f64>>::new();
     for row in &spec.target_parent_law {
         if !spec.treatment_levels.contains(&row.treatment_level)
-            || row.parent_levels.len() != other_positions.len()
-            || row.parent_levels.iter().zip(&other_cardinalities).any(|(x, n)| x >= n)
+            || row.parent_levels.len() != frame.other_positions.len()
+            || row.parent_levels.iter().zip(&frame.other_cardinalities).any(|(x, n)| x >= n)
             || !row.probability.is_finite()
             || row.probability < 0.0
         {
@@ -831,35 +854,53 @@ fn fixed_graph_mechanism_sensitivity_inner(
             return Err(FixedGraphSensitivityError::InvalidParentLaw);
         }
     }
-    let indices: BTreeMap<_, _> =
-        all_strata.iter().cloned().enumerate().map(|(index, stratum)| (stratum, index)).collect();
-    let mut weights = vec![0.0; all_strata.len()];
+    let indices: BTreeMap<_, _> = frame
+        .all_strata
+        .iter()
+        .cloned()
+        .enumerate()
+        .map(|(index, stratum)| (stratum, index))
+        .collect();
+    let mut weights = vec![0.0; frame.all_strata.len()];
     for (arm_index, treatment_level) in spec.treatment_levels.iter().copied().enumerate() {
         let arm = target_arms
             .get(&treatment_level)
             .ok_or(FixedGraphSensitivityError::InvalidParentLaw)?;
-        if arm.len() != other_strata.len()
-            || other_strata.iter().any(|stratum| !arm.contains_key(stratum))
+        if arm.len() != frame.other_strata.len()
+            || frame.other_strata.iter().any(|stratum| !arm.contains_key(stratum))
             || (arm.values().sum::<f64>() - 1.0).abs() > 1e-10
         {
             return Err(FixedGraphSensitivityError::InvalidParentLaw);
         }
-        for stratum in &other_strata {
-            let mut full = vec![0; parents.len()];
-            for (position, level) in other_positions.iter().zip(stratum) {
+        for stratum in &frame.other_strata {
+            let mut full = vec![0; frame.parents.len()];
+            for (position, level) in frame.other_positions.iter().zip(stratum) {
                 full[*position] = *level;
             }
-            full[treatment_position] = treatment_level;
+            full[frame.treatment_position] = treatment_level;
             let index = indices.get(&full).ok_or(FixedGraphSensitivityError::InvalidParentLaw)?;
             weights[*index] += if arm_index == 0 { -arm[stratum] } else { arm[stratum] };
         }
     }
-    let control = target_arms.get(&spec.treatment_levels[0]).expect("validated control arm");
-    let active = target_arms.get(&spec.treatment_levels[1]).expect("validated active arm");
+    let control = target_arms
+        .remove(&spec.treatment_levels[0])
+        .ok_or(FixedGraphSensitivityError::InvalidParentLaw)?;
+    let active = target_arms
+        .remove(&spec.treatment_levels[1])
+        .ok_or(FixedGraphSensitivityError::InvalidParentLaw)?;
+    Ok(ContrastWeights { weights, indices, control, active })
+}
+
+fn agree_parent_laws(
+    frame: &OutcomeParentFrame,
+    spec: &FixedGraphMechanismSensitivitySpec,
+    control: &BTreeMap<Vec<usize>, f64>,
+    active: &BTreeMap<Vec<usize>, f64>,
+) -> Result<(), FixedGraphSensitivityError> {
     let mut source_parent_law = BTreeMap::<Vec<usize>, f64>::new();
     for row in &spec.source_parent_law {
-        if row.parent_levels.len() != other_positions.len()
-            || row.parent_levels.iter().zip(&other_cardinalities).any(|(x, n)| x >= n)
+        if row.parent_levels.len() != frame.other_positions.len()
+            || row.parent_levels.iter().zip(&frame.other_cardinalities).any(|(x, n)| x >= n)
             || !row.probability.is_finite()
             || row.probability < 0.0
             || source_parent_law.insert(row.parent_levels.clone(), row.probability).is_some()
@@ -867,30 +908,46 @@ fn fixed_graph_mechanism_sensitivity_inner(
             return Err(FixedGraphSensitivityError::InvalidParentLaw);
         }
     }
-    if source_parent_law.len() != other_strata.len()
-        || other_strata.iter().any(|stratum| !source_parent_law.contains_key(stratum))
+    if source_parent_law.len() != frame.other_strata.len()
+        || frame.other_strata.iter().any(|stratum| !source_parent_law.contains_key(stratum))
         || (source_parent_law.values().sum::<f64>() - 1.0).abs() > 1e-10
-        || other_strata.iter().any(|stratum| {
+        || frame.other_strata.iter().any(|stratum| {
             (control[stratum] - active[stratum]).abs() > 1e-10
                 || (control[stratum] - source_parent_law[stratum]).abs() > 1e-10
         })
     {
         return Err(FixedGraphSensitivityError::InvalidParentLaw);
     }
+    Ok(())
+}
 
-    validate_sensitivity_bindings(functional, query, outcome, &parents, spec)?;
+fn evaluate_kernel_contamination(
+    input: &KernelContaminationInput<'_>,
+) -> Result<FixedGraphMechanismSensitivityResult, FixedGraphSensitivityError> {
+    let KernelContaminationInput {
+        frame,
+        query,
+        functional,
+        spec,
+        kernels,
+        weights,
+        indices,
+        perturbed_treatment_level,
+    } = input;
+    let outcome = frame.outcome;
+    validate_sensitivity_bindings(functional, query, outcome, &frame.parents, spec)?;
     if !expression_uses_source_outcome_factor(functional, query, outcome, spec.source_kernel_regime)
     {
         return Err(FixedGraphSensitivityError::UnboundOutcomeFactor);
     }
-    let mut sensitivity_weights = weights.clone();
+    let mut sensitivity_weights = weights.to_vec();
     let mut fixed_contribution = 0.0;
     if let Some(perturbed_level) = perturbed_treatment_level {
-        if !spec.treatment_levels.contains(&perturbed_level) {
+        if !spec.treatment_levels.contains(perturbed_level) {
             return Err(FixedGraphSensitivityError::InvalidQuery);
         }
-        for (stratum, weight) in all_strata.iter().zip(&mut sensitivity_weights) {
-            if stratum[treatment_position] != perturbed_level {
+        for (stratum, weight) in frame.all_strata.iter().zip(&mut sensitivity_weights) {
+            if stratum[frame.treatment_position] != *perturbed_level {
                 *weight = 0.0;
                 let mean = kernels[stratum]
                     .iter()
@@ -902,7 +959,7 @@ fn fixed_graph_mechanism_sensitivity_inner(
         }
     }
     let mut response = DiscreteKernelSensitivity {
-        source_kernel: all_strata.iter().map(|s| kernels[s].clone()).collect(),
+        source_kernel: frame.all_strata.iter().map(|s| kernels[s].clone()).collect(),
         outcome_values: spec.outcome_values.clone(),
         stratum_contrast_weights: sensitivity_weights,
         max_fraction: spec.max_fraction,
@@ -921,7 +978,7 @@ fn fixed_graph_mechanism_sensitivity_inner(
                 .unwrap_or_default()
         ),
         outcome,
-        parents,
+        parents: frame.parents.clone(),
         source_population: query.source.to_string(),
         target_population: query.target.to_string(),
         source_kernel_binding: (spec.source_kernel_regime, spec.source_kernel_snapshot.clone()),
@@ -1361,13 +1418,9 @@ pub fn fixed_graph_conditional_mechanism_sensitivity(
             Some(0.0)
         } else {
             let slope = if threshold < baseline { min_slope } else { max_slope };
-            if slope == 0.0 {
-                None
-            } else {
-                let fraction = (threshold - baseline) / slope;
-                (fraction >= 0.0 && fraction <= spec.max_fraction + 1e-12)
-                    .then_some(fraction.clamp(0.0, spec.max_fraction))
-            }
+            crate::tipping::slope_fraction(baseline, threshold, slope).and_then(|fraction| {
+                crate::tipping::fraction_in_sloppy_domain(fraction, spec.max_fraction)
+            })
         }
     });
     Ok(FixedGraphConditionalMechanismSensitivityResult {
@@ -1575,8 +1628,9 @@ impl DiscreteKernelSlopes {
                 return Some(0.0);
             }
             let slope = if threshold < baseline { self.low_slope } else { self.high_slope };
-            let fraction = (threshold - baseline) / slope;
-            (fraction >= 0.0 && fraction <= max_fraction).then_some(fraction)
+            crate::tipping::slope_fraction(baseline, threshold, slope).and_then(|fraction| {
+                crate::tipping::fraction_in_closed_domain(fraction, max_fraction)
+            })
         });
 
         Ok(DiscreteKernelSensitivityResult {
@@ -1730,7 +1784,6 @@ mod tests {
 
     // The zero-contamination contract requires the extrema to equal baseline
     // exactly; a tolerance could hide an unintended perturbation.
-    #[allow(clippy::float_cmp, reason = "tests pin bitwise-identical replayed values")]
     fn assert_exact_float_eq(actual: f64, expected: f64) {
         assert_eq!(actual, expected);
     }
@@ -1759,7 +1812,10 @@ mod tests {
     #[test]
     // Keep construction, provider binding, and changed-input checks together
     // because they jointly verify this single staged z-route contract.
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
     fn checked_z_formula_sensitivity_binds_its_provider_and_delta_domain() {
         use antecedent_expr::{
             DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance,

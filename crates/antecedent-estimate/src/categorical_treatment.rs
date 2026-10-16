@@ -1,4 +1,4 @@
-//! B4 categorical treatments: ordered and unordered regimes, a declared reference level,
+//! Categorical treatments: ordered and unordered regimes, a declared reference level,
 //! per-level and requested pairwise contrasts with the covariance of the dummy-coded
 //! regression, Holm multiplicity over the declared family, and a declared monotonicity test for
 //! ordered levels.
@@ -49,14 +49,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::reason_code;
-use antecedent_kernels::erfc;
 
 use crate::effect_constancy::{CalibrationStatus, holm_adjust};
 use crate::error::EstimationError;
+use crate::util::{count, refuse};
 use crate::vector_treatment::{
     CoefficientEstimate, Contrast, ContrastEstimate, DesignSummary, JointWald, NamedColumn,
     TreatmentColumn, VectorCovariance, VectorTreatmentFit, VectorTreatmentInput,
-    VectorTreatmentOptions, count, fit_joint, fit_joint_from_summary, refuse, summarize_joint,
+    VectorTreatmentOptions, fit_joint, fit_joint_from_summary, summarize_joint,
 };
 
 /// Null of the non-decreasing monotonicity test.
@@ -410,10 +410,6 @@ fn declared_contrasts(
     (contrasts, n_levels, n_pairs)
 }
 
-fn normal_cdf(t: f64) -> f64 {
-    0.5 * erfc(-t / std::f64::consts::SQRT_2)
-}
-
 fn monotonicity_result(
     direction: MonotonicityDirection,
     order: &[String],
@@ -439,7 +435,7 @@ fn monotonicity_result(
         })
         .collect();
     let statistic = steps.iter().map(|s| sign * s.z).fold(f64::INFINITY, f64::min);
-    let p_value = (count(steps.len()) * normal_cdf(statistic)).min(1.0);
+    let p_value = (count(steps.len()) * antecedent_kernels::norm_cdf(statistic)).min(1.0);
     MonotonicityResult {
         direction,
         null,

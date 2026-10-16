@@ -1,6 +1,7 @@
 //! Retained, native-issued Bayesian posterior projections under the shared planner.
 //! Calibrated joint-transport publication remains a separate closed route.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use super::recalc_common::{Fields, dag_from_edges, float_bytes, literal, table_from_columns};
 use super::recalc_receipt::{DecisionValue, RecalcReceipt, RecalcRunError, UtilitySpec};
 use crate::BayesianConfig;
 use antecedent_core::{VariableId, recalc::RecalcPlan};
@@ -121,10 +122,8 @@ pub(super) fn summarize_issued_values(
                 return Err(RecalcRunError::Request("recalc.bayesian_effect_unavailable"));
             }
             let n = values.len() as f64;
-            let anchor = values[0];
-            let mean = anchor + values.iter().map(|v| v - anchor).sum::<f64>() / n;
-            let standard_deviation =
-                (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
+            let mean = antecedent_kernels::mean(values);
+            let standard_deviation = antecedent_kernels::sample_std(values);
             if !mean.is_finite() || !standard_deviation.is_finite() {
                 return Err(RecalcRunError::Request("recalc.bayesian_effect_unavailable"));
             }
@@ -158,30 +157,11 @@ fn empirical_quantile(ordered: &[f64], probability: f64) -> f64 {
 
 impl BayesianRequest {
     fn data(&self) -> Result<antecedent_data::TabularData, RecalcRunError> {
-        antecedent_data::TabularData::from_f64_columns(
-            self.columns
-                .iter()
-                .map(|(name, values)| (name.as_str(), values.as_slice()))
-                .collect::<Vec<_>>(),
-        )
-        .map_err(|_| RecalcRunError::Request("recalc.bayesian_invalid_data"))
+        table_from_columns(&self.columns)
+            .map_err(|_| RecalcRunError::Request("recalc.bayesian_invalid_data"))
     }
     fn graph(&self) -> Result<antecedent_graph::Dag, RecalcRunError> {
-        let n = u32::try_from(self.columns.len())
-            .map_err(|_| RecalcRunError::Request("recalc.bayesian_invalid_graph"))?;
-        let mut graph = antecedent_graph::Dag::with_variables(n);
-        let mut edges = self.edges.clone();
-        edges.sort_unstable();
-        edges.dedup();
-        for (from, to) in edges {
-            graph
-                .insert_directed(
-                    antecedent_graph::DenseNodeId::from_raw(from),
-                    antecedent_graph::DenseNodeId::from_raw(to),
-                )
-                .map_err(|_| RecalcRunError::Request("recalc.bayesian_invalid_graph"))?;
-        }
-        Ok(graph)
+        dag_from_edges(self.columns.len(), &self.edges, "recalc.bayesian_invalid_graph")
     }
     fn study(&self, data: antecedent_data::TabularData) -> Result<crate::Study, RecalcRunError> {
         let builder = crate::Study::tabular(data)
@@ -372,8 +352,13 @@ impl BayesianSession {
     }
 }
 
-fn bayesian_literal(label: &str, text: &str) -> antecedent_core::recalc::StageIdentity {
-    antecedent_core::recalc::StageIdentity::of(label, &[text.as_bytes()])
+impl BayesianModel {
+    const fn tag(self) -> &'static str {
+        match self {
+            Self::Gaussian => "gaussian",
+            Self::QuadraticBasis => "quadratic_basis",
+        }
+    }
 }
 impl BayesianRequest {
     /// Semantic identity of the causal claim, actual input, posterior and draw projection.
@@ -391,17 +376,14 @@ impl BayesianRequest {
         ids.set(Stage::Graph, StageIdentity::of("bayesian.graph_schema.v1", &graph_parts));
         ids.set(
             Stage::Query,
-            bayesian_literal(
-                "bayesian.query.v1",
-                &format!(
-                    "binary.mean:{}:{}:{:?}",
-                    self.treatment.raw(),
-                    self.outcome.raw(),
-                    self.model,
-                ),
-            ),
+            Fields::new()
+                .text("binary.mean")
+                .word(u64::from(self.treatment.raw()))
+                .word(u64::from(self.outcome.raw()))
+                .text(self.model.tag())
+                .identity("bayesian.query.v1"),
         );
-        ids.set(Stage::Regime, bayesian_literal("bayesian.regime.v1", "static.binary.0_1"));
+        ids.set(Stage::Regime, literal("bayesian.regime.v1", "static.binary.0_1"));
         ids.set(
             Stage::Evidence,
             StageIdentity::of(
@@ -412,14 +394,14 @@ impl BayesianRequest {
                 ],
             ),
         );
-        ids.set(Stage::SourcePopulation, bayesian_literal("bayesian.source.v1", "all_observed"));
-        ids.set(Stage::TargetPopulation, bayesian_literal("bayesian.target.v1", "all_observed"));
-        ids.set(Stage::RowDesign, bayesian_literal("bayesian.rows.v1", "checked.complete_cases"));
-        ids.set(Stage::TreatmentGrid, bayesian_literal("bayesian.grid.v1", "binary.0_1"));
+        ids.set(Stage::SourcePopulation, literal("bayesian.source.v1", "all_observed"));
+        ids.set(Stage::TargetPopulation, literal("bayesian.target.v1", "all_observed"));
+        ids.set(Stage::RowDesign, literal("bayesian.rows.v1", "checked.complete_cases"));
+        ids.set(Stage::TreatmentGrid, literal("bayesian.grid.v1", "binary.0_1"));
         let mut raw = Vec::new();
         for (name, values) in &self.columns {
             raw.push(name.as_bytes().to_vec());
-            raw.push(values.iter().flat_map(|value| value.to_bits().to_le_bytes()).collect());
+            raw.push(float_bytes(values));
         }
         ids.set(
             Stage::DataSnapshot,
@@ -428,43 +410,45 @@ impl BayesianRequest {
                 &raw.iter().map(Vec::as_slice).collect::<Vec<_>>(),
             ),
         );
-        // Prior artifact bytes are hashed directly instead of Debug-formatting
-        // an arbitrarily large hexadecimal representation.
-        let config = format!(
-            "{:?}:{:?}:{}:{}:{}:{:?}:{:?}:{:?}:{}:{:?}:{:?}",
-            self.inference.backend,
-            self.inference.likelihood,
-            self.inference.n_draws,
-            self.inference.n_draws_explicit,
-            self.inference.prior_scale.to_bits(),
-            self.inference.prior,
-            self.inference.prior_mapping,
-            self.inference.external_compose,
-            self.inference.prior_artifact.is_some(),
-            ctx.rng.master_seed(),
-            ctx.adaptive_draws,
-        );
+        // The binding digests the prior artifact's bytes and the resolved prior contents;
+        // the artifact bytes themselves are also a separate part.
+        let adaptive = ctx.adaptive_draws;
+        let config = Fields::new()
+            .wire(&super::contract_identity::bayesian_binding(&self.inference))
+            .flag(self.inference.n_draws_explicit)
+            .real(self.inference.prior_scale)
+            .flag(self.inference.prior_artifact.is_some())
+            .word(ctx.rng.master_seed())
+            .flag(adaptive.enabled)
+            .len(adaptive.min_draws)
+            .real(adaptive.quantile_width_rel_epsilon)
+            .real(adaptive.ess_target)
+            .into_bytes();
         ids.set(
             Stage::LearnerFoldsRng,
             StageIdentity::of(
                 "bayesian.inference.v1",
-                &[config.as_bytes(), self.inference.prior_artifact.as_deref().unwrap_or(&[])],
+                &[config.as_slice(), self.inference.prior_artifact.as_deref().unwrap_or(&[])],
             ),
         );
-        ids.set(Stage::Identification, bayesian_literal("bayesian.proof.v1", "checked.backdoor"));
-        ids.set(
-            Stage::ScoreArtifact,
-            bayesian_literal("bayesian.posterior.v1", "native.issued.aligned"),
-        );
+        ids.set(Stage::Identification, literal("bayesian.proof.v1", "checked.backdoor"));
+        ids.set(Stage::ScoreArtifact, literal("bayesian.posterior.v1", "native.issued.aligned"));
         ids.set(
             Stage::Law,
-            bayesian_literal("bayesian.summary.v1", &format!("{:?}", self.summary)),
+            Fields::new()
+                .real(self.summary.lower_probability)
+                .real(self.summary.upper_probability)
+                .real(self.summary.threshold)
+                .identity("bayesian.summary.v1"),
         );
         ids.set(Stage::Utility, super::recalc_cell::utility_identity(self.utility));
-        ids.set(
-            Stage::Decision,
-            bayesian_literal("bayesian.decision.v1", "net_benefit.posterior_mean"),
-        );
+        ids.set(Stage::Decision, literal("bayesian.decision.v1", "net_benefit.posterior_mean"));
+        // The posterior probabilities and quantiles state an uncertainty claim for which no
+        // calibration record exists (the whole method has not been measured), and the single
+        // posterior forms no joint statement with another stream. Both are declared, so a
+        // record appearing later is a visible change of the law and the decision.
+        ids.set_calibration(&antecedent_core::recalc::CalibrationInput::Unmeasured);
+        ids.set_coupling(&antecedent_core::recalc::CouplingInput::None);
         ids
     }
 }
@@ -552,31 +536,27 @@ impl BayesianSession {
         )
     }
 }
-/// Execute the original checked Bayesian study engine or project its retained native draws.
-/// # Errors
-/// Unsupported inference, invalid data/graph/prior, ownership double use, budgets, or receipts.
-pub fn execute_bayesian_with_receipt(
-    session: &mut BayesianSession,
+/// Prepared study, retained result, producing context and verified prior of one Bayesian stage.
+type BayesianStage = (
+    std::sync::Arc<crate::PreparedStudy>,
+    std::sync::Arc<crate::StudyResult>,
+    antecedent_core::ExecutionContext,
+    Option<std::sync::Arc<VerifiedBayesianPrior>>,
+);
+
+/// Fits the checked Bayesian study, or projects the retained draws, verifying a bound prior artifact once per likelihood.
+fn bayesian_stage(
     request: &BayesianRequest,
+    plan: &antecedent_core::recalc::RecalcPlan,
+    old: Option<&BayesianLive>,
+    recorder: &mut super::recalc_receipt::ReceiptRecorder,
     ctx: &antecedent_core::ExecutionContext,
-) -> Result<BayesianRecalcOutcome, RecalcRunError> {
-    use super::recalc_receipt::{Counter, LawValue, ReceiptRecorder, decide};
-    use antecedent_core::recalc::{Boundary, Stage};
-    use antecedent_expr::execution_counts::{StaticWork, count_static_work, note_static_work};
+) -> Result<BayesianStage, RecalcRunError> {
+    use super::recalc_receipt::Counter;
+    use antecedent_core::recalc::Stage;
     use antecedent_identify::execution_counts::count_checked_identifications;
     use antecedent_prob::fit_counts::count_bayesian_work;
-    request.validate()?;
-    let identities = request.identities(ctx);
-    let plan = bayesian_plan(&session.previous, &identities, session.boundary, true);
-    if !plan.is_executable() {
-        return Err(RecalcRunError::Refused(Box::new(plan)));
-    }
-    if ctx.cancellation.is_cancelled() {
-        return Err(RecalcRunError::Request("recalc.cancelled"));
-    }
-    let old = session.live.as_ref();
-    let mut recorder = ReceiptRecorder::new();
-    let (prepared, result, context, verified_prior) = if recomputed(&plan, Stage::ScoreArtifact) {
+    Ok(if recomputed(plan, Stage::ScoreArtifact) {
         request.fit_workspace_guard(ctx)?;
         let ((execution, checks), work) = count_bayesian_work(|| {
             count_checked_identifications(|| -> Result<_, RecalcRunError> {
@@ -602,7 +582,7 @@ pub fn execute_bayesian_with_receipt(
                 let mut execution_request = request.clone();
                 execution_request.inference.prior_artifact =
                     verified_prior.as_ref().map(|prior| std::sync::Arc::clone(&prior.posterior));
-                if recomputed(&plan, Stage::Identification) {
+                if recomputed(plan, Stage::Identification) {
                     let prepared = execution_request.study(data)?.prepare(ctx)?;
                     let result = prepared.estimate_retained(ctx)?;
                     Ok((prepared, result, verified_prior))
@@ -629,7 +609,33 @@ pub fn execute_bayesian_with_receipt(
             retained.context.clone(),
             retained.verified_prior.as_ref().map(std::sync::Arc::clone),
         )
-    };
+    })
+}
+
+/// Execute the original checked Bayesian study engine or project its retained native draws.
+/// # Errors
+/// Unsupported inference, invalid data/graph/prior, ownership double use, budgets, or receipts.
+pub fn execute_bayesian_with_receipt(
+    session: &mut BayesianSession,
+    request: &BayesianRequest,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<BayesianRecalcOutcome, RecalcRunError> {
+    use super::recalc_receipt::{Counter, LawValue, ReceiptRecorder, decide};
+    use antecedent_core::recalc::{Boundary, Stage};
+    use antecedent_expr::execution_counts::{StaticWork, count_static_work, note_static_work};
+    request.validate()?;
+    let identities = request.identities(ctx);
+    let plan = bayesian_plan(&session.previous, &identities, session.boundary, true);
+    if !plan.is_executable() {
+        return Err(RecalcRunError::Refused(Box::new(plan)));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(RecalcRunError::Request("recalc.cancelled"));
+    }
+    let old = session.live.as_ref();
+    let mut recorder = ReceiptRecorder::new();
+    let (prepared, result, context, verified_prior) =
+        bayesian_stage(request, &plan, old, &mut recorder, ctx)?;
     let law = if recomputed(&plan, Stage::Law) {
         let (law, work) = count_static_work(|| {
             let posterior = result
@@ -879,11 +885,7 @@ fn verify_bound_bayesian_prior(
     );
     meta.provenance.insert(
         "bayesian.verified_source_snapshot.v1".into(),
-        source_snapshot.iter().fold(String::with_capacity(64), |mut text, byte| {
-            use std::fmt::Write;
-            write!(text, "{byte:02x}").expect("writing to a String cannot fail");
-            text
-        }),
+        antecedent_core::to_hex(&source_snapshot),
     );
     let artifact = antecedent_io::attach_prior_source_meta(artifact, &meta)
         .map_err(crate::CausalError::Serialization)?;

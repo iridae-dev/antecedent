@@ -3,7 +3,7 @@
 //! This route intentionally has a separate state type from classical transport.
 //! It evaluates whichever formula the bounded z-transport derivation checked and
 //! bound to the catalog: the registered surrogate formula, a direct source joint
-//! under the declared experiment, or a recursive TRz formula whose factors cite
+//! under the declared experiment, or a recursive `TRz` formula whose factors cite
 //! source experiments and the target's observational joint. The search runs
 //! under the z-transport contract's observed-variable and controllable bounds;
 //! it is not an unbounded sIDz decision procedure. Separately prepared factors
@@ -11,7 +11,6 @@
 //! points.
 use super::StudyBuilder;
 use antecedent_core::{ExecutionContext, TheoremScope};
-use antecedent_estimate::ReplicatePolicy;
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData,
     FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable,
@@ -22,11 +21,7 @@ use antecedent_io::IoError;
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
 use std::sync::Arc;
 
-use super::transport_common::{err, estimate_err};
-
-/// The facade's licensing floor for a nominal-0.95 posterior interval.
-const PERCENTILE_FLOOR: ReplicatePolicy =
-    ReplicatePolicy::percentile_floor(crate::result::PERCENTILE_95_MIN_REPLICATES);
+use super::transport_common::{PERCENTILE_FLOOR, err, estimate_err};
 
 /// Prepared exact or empirical evaluation of a checked z-transport formula.
 #[derive(Clone, Debug)]
@@ -457,13 +452,18 @@ impl PreparedZTransport {
     }
 }
 
+fn dense_bound(raw: usize) -> Option<antecedent_graph::DenseNodeId> {
+    u32::try_from(raw).ok().map(antecedent_graph::DenseNodeId::from_raw)
+}
+
 fn same_causal_graph(left: &SelectionDiagram, right: &SelectionDiagram) -> bool {
     let left_graph = left.causal_graph();
     let right_graph = right.causal_graph();
     left_graph.nodes() == right_graph.nodes()
         && (0..left_graph.node_count()).all(|raw| {
-            let id =
-                antecedent_graph::DenseNodeId::from_raw(u32::try_from(raw).expect("graph bound"));
+            let Some(id) = dense_bound(raw) else {
+                return false;
+            };
             left_graph.children(id) == right_graph.children(id)
                 && left_graph.parents(id) == right_graph.parents(id)
                 && left_graph.bidirected_neighbors(id) == right_graph.bidirected_neighbors(id)
@@ -482,8 +482,9 @@ fn queries_are_disconnected_components(
         if labels[root] != usize::MAX {
             continue;
         }
-        let root_id =
-            antecedent_graph::DenseNodeId::from_raw(u32::try_from(root).expect("graph bound"));
+        let Some(root_id) = dense_bound(root) else {
+            return false;
+        };
         labels[root] = label;
         let mut stack = vec![root_id];
         while let Some(node) = stack.pop() {
@@ -533,7 +534,7 @@ fn queries_factorize_under_intervention(
     (left, left_request): (&antecedent_identify::ZTransportQuery, &Assignment),
     (right, right_request): (&antecedent_identify::ZTransportQuery, &Assignment),
 ) -> bool {
-    use antecedent_graph::{DSeparationWorkspace, DenseNodeId, NodeRef};
+    use antecedent_graph::{DSeparationWorkspace, NodeRef};
     // A treatment both components intervene on must be requested at one level;
     // the identify-side factorization applies the same level rule.
     let levels = |query: &antecedent_identify::ZTransportQuery, request: &Assignment| {
@@ -569,7 +570,7 @@ fn queries_factorize_under_intervention(
             .nodes()
             .iter()
             .position(|node| matches!(node, NodeRef::Static(v) if *v == variable))
-            .map(|index| DenseNodeId::from_raw(u32::try_from(index).expect("graph bound")))
+            .and_then(dense_bound)
     };
     let union = left.treatments.iter().chain(right.treatments.iter()).copied().collect::<Vec<_>>();
     let mut treated_ids = Vec::new();
@@ -669,7 +670,7 @@ impl StudyBuilder {
     ///
     /// This entry point accepts exact laws or empirical plugin tables. It does
     /// not license a general bounded sIDz search, interval estimates, or a
-    /// PreparedStudy artifact/replay contract.
+    /// `PreparedStudy` artifact/replay contract.
     ///
     /// # Errors
     ///
@@ -752,6 +753,10 @@ mod tests {
 
     /// `dual_environments` declares the same coordinates for the target
     /// population too, the natural catalog shape.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "builds the catalog, selection diagram and exact laws of one fixture variant, each depending on the environment flags"
+    )]
     fn fixture_with_environments(
         empirical: bool,
         dual_environments: bool,
@@ -981,6 +986,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "enumerates the exact disconnected SCM, executes the complementary sources and compares the joint target effect with the enumeration"
+    )]
     fn complementary_source_components_execute_the_exact_joint_target_effect() {
         // Exact disconnected SCM: U1,U2 are independent Uniform(0,1),
         // Z=1[U1 < 0.25 + 0.45 W], Y=1[U2 < 0.60 - 0.20 X].
@@ -1159,7 +1168,10 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::too_many_lines)]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one enumerated structural model (W to Z, X to Y, W with X confounded) built, executed and checked against its exact joint law"
+    )]
     fn connected_complementary_sources_execute_the_enumerated_joint_target_effect() {
         // One connected graph W→Z, X→Y, W↔X (a single component). The arc W↔X is
         // a shared latent that confounds W and X observationally but is cut by

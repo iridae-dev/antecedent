@@ -1,6 +1,6 @@
-"""Consume an assumption-sensitivity result in a durable decision (F17).
+"""Consume an assumption-sensitivity result in a durable decision.
 
-A 2.2 joint mechanism sensitivity answers "what could the effect be if the
+A joint mechanism sensitivity answers "what could the effect be if the
 assumption holds anywhere inside this declared range?". This module carries that
 answer into a decision: the surface becomes a :class:`SensitivityArtifact`
 (assumption coordinate, effect surface, tipping coordinates, coordinate support,
@@ -44,12 +44,14 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
+from ._columns import coerce_fields
 from ._native import SensitivityArtifact as _NativeSensitivityArtifact
 from ._native import composition_lineage as _composition_lineage
 from ._native import sensitivity_artifact_from_surface as _from_surface
 from ._native import sensitivity_artifact_from_z_joint as _from_z_joint
 from ._native import sensitivity_contract as _contract
 from ._native import sensitivity_decide as _decide
+from ._refusal import raise_refusal
 from .decision import Contract, StructuralPolicy, _leaf_kinds
 from .decision import Expr as _Expr
 from .decision import const as _const
@@ -88,11 +90,6 @@ class SensitivityRefusal(StructuredRefusal):
         text = str(refusal["detail"]) + (f": {message}" if message else "")
         super().__init__(refusal, text=text)
         self.message = str(message)
-
-
-def _raise(refusal: str | None) -> None:
-    if refusal is not None:
-        raise SensitivityRefusal(json.loads(refusal))
 
 
 # --------------------------------------------------------------------------- terms
@@ -183,11 +180,9 @@ class SurfaceQuantity:
 
     def __post_init__(self) -> None:
         lower = tuple(float(v) for v in self.lower)
-        object.__setattr__(self, "lower", lower)
-        object.__setattr__(
-            self,
-            "upper",
-            lower if self.upper is None else tuple(float(v) for v in self.upper),
+        coerce_fields(self, lower=lower)
+        coerce_fields(
+            self, upper=lower if self.upper is None else tuple(float(v) for v in self.upper)
         )
 
     @property
@@ -535,7 +530,7 @@ class SensitivityArtifact:
             "provenance": provenance._wire(),
         }
         native, refusal = _from_surface(json.dumps(surface))
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert native is not None
         return cls(native)
 
@@ -552,7 +547,7 @@ class SensitivityArtifact:
         memory_bytes: int | None = None,
         cancel: Any = None,
     ) -> SensitivityArtifact:
-        """Adapt the 2.2 joint mechanism sensitivity of a prepared z stage.
+        """Adapt the joint mechanism sensitivity of a prepared z stage.
 
         ``stage`` and ``deviation`` are exactly what
         :func:`antecedent.transport.joint_mechanism_sensitivity` takes (a prepared
@@ -560,7 +555,7 @@ class SensitivityArtifact:
         exact range is evaluated on the stage's retained laws and filled on
         ``grid_points`` equally spaced contamination fractions (one declared factor,
         default 9) or at the two exact points of the declared box (two factors,
-        which must use 2). The 2.2 withheld sampling status is carried unchanged: the
+        which must use 2). The withheld sampling status is carried unchanged: the
         range stays an assumption range, never a confidence interval.
         """
         from .transport._impl import _optional_non_negative
@@ -582,7 +577,7 @@ class SensitivityArtifact:
             memory_bytes=_optional_non_negative("memory_bytes", memory_bytes),
             cancel=cancel,
         )
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert native is not None
         return cls(native)
 
@@ -602,7 +597,7 @@ class SensitivityArtifact:
         native, refusal = _NativeSensitivityArtifact.consume(
             data, None if expected_identity is None else json.dumps(dict(expected_identity))
         )
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert native is not None
         return cls(native)
 
@@ -746,14 +741,14 @@ class SensitivityArtifact:
         """Recompute the classification over an inclusive coordinate sub-range from the
         surface and the declared action utilities alone (no contract needed)."""
         text, refusal = self._native.outcome_json(None if range is None else _range(range))
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert text is not None
         return Outcome._from_wire(json.loads(text))
 
     def contract(self, policy: StructuralPolicy = "require_invariant_best_action") -> Contract:
         """The :class:`~antecedent.decision.Contract` the artifact's own declared actions define."""
         text, refusal = _contract(self._native, policy)
-        _raise(refusal)
+        raise_refusal(refusal, SensitivityRefusal)
         assert text is not None
         return Contract._from_wire(json.loads(text))
 
@@ -928,7 +923,7 @@ def decide(
         "sampling_composition": sampling_composition,
     }
     text, refusal = _decide(json.dumps(contract._wire()), artifact._native, json.dumps(spec))
-    _raise(refusal)
+    raise_refusal(refusal, SensitivityRefusal)
     assert text is not None
     return SensitivityDecision(contract, artifact, json.loads(text))
 

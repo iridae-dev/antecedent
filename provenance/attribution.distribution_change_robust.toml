@@ -10,7 +10,8 @@ papers = [
 ]
 
 implementation_deviations = [
- "Uses deterministic structural-mean payoffs—OLS recursion for linear mechanisms and zero-noise evaluation for nonlinear mechanisms—instead of the cited paper's sampled hybrid marginal distributions.",
+ "For mean-difference attribution with exclusively affine Gaussian or constant mechanisms, propagates fitted structural means exactly. Other supported mechanism families use ancestral Monte Carlo hybrid marginal distributions under the caller's declared sample budget and seed; other change measures are refused.",
+ "Monte Carlo coalitions restart a stream per dense node id and declared seed. Changing one node's mechanism or its draw count cannot shift the noise of unchanged nodes. This variance-reduction coupling does not identify the fitted mechanisms from data or establish general sampling coverage.",
 ]
 
 upstream_implementations_observed = [
@@ -19,5 +20,6 @@ upstream_implementations_observed = [
 
 test_sources = [
  "crates/antecedent-attribution/src/robust.rs (in-module unit tests: OLS fast path vs distribution_change agreement)",
+ "crates/antecedent-attribution/src/robust.rs::tests::robust_node_noise_is_stable_when_another_family_changes_draw_count (zero-effect Gaussian structural oracle for cross-coalition noise stability)",
  "crates/antecedent/tests/attribution.rs",
 ]

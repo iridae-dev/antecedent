@@ -91,7 +91,7 @@ def test_model_payload_mutation_cannot_reuse_parent_claim():
 
     result = analyze(DRLearner(final_learner=Linear()))
     artifact = loads(result.export())
-    payload = dict(artifact.payload)
+    payload = artifact.to_dict()["payload"]
     payload["fitted_effect"]["predictor"]["model"]["coefficients"][0] += 1
     forged = dumps(
         "analysis_result", payload, variable_names=artifact.variable_names, artifact_id="forged"

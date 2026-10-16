@@ -8,7 +8,6 @@ use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use std::sync::Arc;
 
-#[allow(clippy::cast_precision_loss)]
 fn identified_active_and_control(level: f64) -> (String, String) {
     let n = 120;
     let x = (0..n).map(|i| (i as f64 * 0.7).sin()).collect::<Vec<_>>();

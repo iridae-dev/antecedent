@@ -1,4 +1,4 @@
-//! Tier-aware overlap and E-value diagnostics of an executed tiered result (2.2 E7).
+//! Tier-aware overlap and E-value diagnostics of an executed tiered result.
 //!
 //! A tiered study (`.tiered_background(..)`) runs one of two licensed average-effect cells:
 //!
@@ -20,7 +20,7 @@
 //!   report (a propensity-based estimator). Typed unavailable for `Unknown`, and for a
 //!   `CoDetermined` result whose estimator fits no propensity.
 //! * **E-value, point.** The `CoDetermined` cell attaches a point E-value from the
-//!   effect and the outcome SD (`RR ~ exp(0.91 d)`, VanderWeele and Ding). It is reported
+//!   effect and the outcome SD (`RR ~ exp(0.91 d)`, `VanderWeele` and Ding). It is reported
 //!   with its method. When the E-value on the result instead came from the E-value
 //!   refuter (which reports the smaller of a point and a converted interval-limit
 //!   E-value, one number), it embeds a converted endpoint and is not reported as a point
@@ -180,14 +180,14 @@ pub fn tier_diagnostics(
         result.identification.derivation.steps.iter().any(|step| step.rule.as_ref() == rule)
     };
     let effect = result.estimate.as_effect().ok_or_else(not_tiered)?;
-    if derived(CLOSURE_RULE) && effect.scenario_effects.is_none() && effect.ate.is_finite() {
+    if derived(CLOSURE_RULE) && effect.scenarios.effects.is_none() && effect.ate.is_finite() {
         observe(ctx)?;
         let design = TierDesign::CoDeterminedClosure {
             adjustment: result.estimand.adjustment_set.to_vec(),
-            rows: effect.n_obs,
-            propensity_scored: effect.overlap_report.is_some(),
+            rows: effect.provenance.n_obs,
+            propensity_scored: effect.diagnostics.overlap_report.is_some(),
         };
-        let overlap = effect.overlap_report.clone().map_or_else(
+        let overlap = effect.diagnostics.overlap_report.clone().map_or_else(
             || {
                 Availability::Unavailable(unavailable(
                     "tier_diagnostics.overlap_not_carried",
@@ -203,7 +203,7 @@ pub fn tier_diagnostics(
     }
     if derived(UNKNOWN_RULE) {
         observe(ctx)?;
-        let effects = effect.scenario_effects.as_deref().ok_or_else(not_tiered)?;
+        let effects = effect.scenarios.effects.as_deref().ok_or_else(not_tiered)?;
         let estimands = &result.identification.estimands;
         if effects.len() != estimands.len() || effects.is_empty() {
             return Err(not_tiered());
@@ -248,7 +248,7 @@ fn point_evalue(result: &StudyResult) -> Availability<TierPointEvalue> {
         ));
     };
     let attached = result.diagnostics.iter().find(|d| d.code.as_ref() == POINT_EVALUE_DIAGNOSTIC);
-    match (effect.evalue, effect.evalue_threshold, attached) {
+    match (effect.diagnostics.evalue, effect.diagnostics.evalue_threshold, attached) {
         (Some(value), None, Some(diagnostic)) if value.is_finite() && value >= 1.0 => {
             let method =
                 diagnostic.fields.iter().find(|(key, _)| key.as_ref() == "method").map_or_else(

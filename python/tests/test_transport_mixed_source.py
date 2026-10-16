@@ -145,7 +145,7 @@ def test_complementary_studies_identify_what_no_single_study_can():
     stage = decide(chain_graph(), CHAIN_STUDIES)
     assert stage.outcome == "identified", stage.decision()
     decision = stage.decision()
-    assert decision["rule_set"] == "x9.rules.v1"
+    assert decision["rule_set"] == "mixed_source_proof_rules.v1"
     assert decision["stages"] == [{"stage": "target_first_sid", "outcome": "missing_evidence"}]
     # Every step records its premises; the leaves name the study and regime that supply them.
     steps = decision["steps"]
@@ -337,7 +337,7 @@ def test_exported_result_is_recomputed_by_an_independent_consumer():
     artifact = prepared.export()
     consumed = json.loads(transport.consume_mixed_source_artifact(artifact))
     assert consumed["probabilities"] == live["probabilities"]
-    assert consumed["proof"]["rule_set"] == "x9.rules.v1"
+    assert consumed["proof"]["rule_set"] == "mixed_source_proof_rules.v1"
     assert {s["study"] for s in consumed["cited_sources"]} == {"observational", "trial"}
     assert consumed["premises_digest"] and consumed["data_digest"]
     with pytest.raises(CausalSerializationError):
@@ -397,7 +397,9 @@ def test_prepare_exact_compiles_a_checked_plan_after_builder_disposal():
     del builder
     plan = prepared.plan()
     assert plan["compiled_plans"] == 2 and plan["requests"] == [{"x": 0.0}, {"x": 1.0}]
-    assert plan["cited_regimes"] == ["s1", "s2"] and plan["rule_set"] == "x9.rules.v1"
+    assert (
+        plan["cited_regimes"] == ["s1", "s2"] and plan["rule_set"] == "mixed_source_proof_rules.v1"
+    )
     result = json.loads(prepared.estimate())
     assert [risk(r) for r in result["requests"]] == pytest.approx(
         [truth(CHAIN, 0), truth(CHAIN, 1)], abs=1e-12
@@ -427,7 +429,7 @@ def test_mixed_source_identification_executes_its_plan_after_query_disposal():
     program = builder.decision()
     prepared = builder.prepare_exact(laws(CHAIN, CHAIN_STUDIES), {"x": 1.0})
     del builder
-    assert program["rule_set"] == "x9.rules.v1" and program["steps"]
+    assert program["rule_set"] == "mixed_source_proof_rules.v1" and program["steps"]
     assert prepared.plan()["cited_regimes"] == program["cited_regimes"]
     assert risk(json.loads(prepared.estimate())) == pytest.approx(truth(CHAIN, 1), abs=1e-12)
 

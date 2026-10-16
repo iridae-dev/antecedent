@@ -14,7 +14,7 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance};
 
-use super::matching::matching_contrast;
+use super::matching::{MatchingSample, matching_contrast};
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap, gather_optional_multiway, gather_optional_row_labels,
@@ -24,7 +24,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
-use crate::se::AnalyticSeKind;
+use crate::se::{AnalyticSeKind, SeSpec};
 
 /// Distance matching on z-scored adjustment covariates (Euclidean), not the propensity score.
 ///
@@ -32,7 +32,7 @@ use crate::se::AnalyticSeKind;
 /// unit-dependent. A caliper, when set, is in that standardized Euclidean metric.
 ///
 /// A propensity model is still fit to populate mandatory positivity diagnostics
-/// ([`EffectEstimate::overlap_report`]) and — when the overlap policy sets a trim threshold —
+/// ([`crate::EstimateDiagnostics::overlap_report`]) and — when the overlap policy sets a trim threshold —
 /// to restrict matching to common-support rows; it does not otherwise influence the
 /// covariate-space matched contrast. Positivity is mandatory:
 /// [`OverlapPolicy::ExplicitOverride`] is refused.
@@ -208,7 +208,7 @@ impl DistanceMatching {
         // rows (raw scores) — it does not otherwise influence the covariate-space contrast.
         let diag = PropensityModel::fit(
             problem,
-            &self.backend,
+            self.backend,
             &mut workspace.propensity,
             &self.glm_options,
         )?;
@@ -243,19 +243,23 @@ impl DistanceMatching {
             retained.as_deref(),
         )?;
         let result = matching_contrast(
-            &t_used,
-            &y_used,
-            &f_used,
-            dim,
-            MatchingDistance::Euclidean,
+            MatchingSample {
+                treatment: &t_used,
+                outcome: &y_used,
+                features: &f_used,
+                dim,
+                distance: MatchingDistance::Euclidean,
+            },
             &problem.target_population,
             self.caliper,
             workspace,
-            self.se_kind,
-            clusters_used.as_deref(),
+            SeSpec {
+                kind: self.se_kind,
+                cluster_ids: clusters_used.as_deref(),
+                multiway_ids: multiway_used.as_deref(),
+                panel_times: times_used.as_deref(),
+            },
             tw_used.as_deref(),
-            multiway_used.as_ref(),
-            times_used.as_deref(),
         )?;
 
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
@@ -327,7 +331,7 @@ mod tests {
         for i in 0..n {
             let zi = standard_normal(&mut rng);
             let logit = -0.5 + zi;
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             z[i] = zi;
@@ -412,13 +416,13 @@ mod tests {
         let effect =
             est.fit(&prep, &mut ws, &ExecutionContext::for_tests(7), AssumptionSet::new()).unwrap();
         assert!(
-            effect.se_bootstrap.is_none(),
+            effect.se_bootstrap().is_none(),
             "NN matching must not store the invalid bootstrap SE"
         );
         assert!(
-            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
+            effect.se_analytic().is_finite() && effect.se_analytic() > 0.0,
             "se_analytic={}",
-            effect.se_analytic
+            effect.se_analytic()
         );
     }
 }

@@ -17,6 +17,7 @@ from typing import Any
 
 import numpy as np
 
+from ._columns import coerce_fields
 from ._data import as_columns
 from ._native import randomized_cumulative_incidence_ipcw as _randomized_cumulative_incidence_ipcw
 from ._native import randomized_survival_ipcw as _randomized_survival_ipcw
@@ -89,8 +90,8 @@ class KnownCensoringSurvival:
             raise CausalValueError(
                 "known censoring requires aligned increasing times, distinct columns, and a positive probability floor"
             )
-        object.__setattr__(self, "times", times)
-        object.__setattr__(self, "columns", columns)
+        coerce_fields(self, times=times)
+        coerce_fields(self, columns=columns)
 
 
 @dataclass(frozen=True, slots=True)
@@ -390,7 +391,7 @@ def estimate_survival_ipcw(
             duration,
             events,
             treatment,
-            grid.tolist(),
+            grid if grid.ndim == 1 else grid.tolist(),
             g,
             float(query.tau),
             float(minimum_probability),
@@ -480,7 +481,7 @@ def estimate_cumulative_incidence_ipcw(
                 duration,
                 causes,
                 treatment,
-                grid.tolist(),
+                grid if grid.ndim == 1 else grid.tolist(),
                 g,
                 float(query.tau),
                 int(query.target_cause),

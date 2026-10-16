@@ -11,7 +11,7 @@ use antecedent_core::{CacheBudget, ContractIdentities, QueryId, SemanticDigest, 
 use crate::error::CausalError;
 
 pub use antecedent_state::{
-    CachedResult, CausalState, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
+    CachedResult, CausalState, ChangedInput, ConstraintId, DataBatchRef, DataCatalog, DataVersion,
     GraphConstraintRecord, GraphEvidenceRecord, GraphEvidenceStore, GraphScoreCacheKey,
     GraphScoreData, GraphScoreFamily, InterventionRecord, InvalidationEntry, InvalidationLog,
     InvalidationTarget, LagIndexCacheEntry, LagIndexCacheKey, LgssmParams, LinearOlsSuffStats,
@@ -47,12 +47,11 @@ pub fn apply_state_event(
 /// bootstrap budgets never share a lineage key.
 #[must_use]
 pub fn result_lineage_fingerprint(identities: &ContractIdentities) -> SemanticDigest {
-    let mut bytes = Vec::new();
+    let mut stream = antecedent_core::CanonicalWriter::new("antecedent.state.result_lineage.v1");
     for reference in identities.refs().iter() {
-        bytes.extend_from_slice(reference.domain.as_str().as_bytes());
-        bytes.extend_from_slice(reference.digest.as_bytes());
+        stream.text(reference.domain.as_str()).bytes(reference.digest.as_bytes());
     }
-    SemanticDigest::from_bytes(antecedent_io::payload_digest("state.result_lineage", &bytes))
+    SemanticDigest::from_bytes(stream.finish())
 }
 
 /// Leading bytes of a lineage digest, for the store's `u64` key slot.
@@ -69,12 +68,19 @@ fn store_fingerprint(lineage: &SemanticDigest) -> u64 {
 /// recomputed contract. A version that advanced during recompute, a failed or
 /// cancelled recompute that never reaches this function, and a republication
 /// of the data snapshot recorded before the latest data event are all refused:
-/// nothing here can mark an uncomputed result fresh.
+/// nothing here can mark an uncomputed result fresh. A stage input that changed
+/// since the previous publication (data, graph evidence, a constraint, an
+/// assumption, a recorded intervention) must show in the identity layer that
+/// reads it, so a premise event answered by an identical lineage is refused too.
+/// The result's three-state class is [`CausalState::revalidation`].
+///
+/// A query published here is lineage-bound: the unchecked
+/// `CausalState::refresh_results` path refuses it.
 ///
 /// # Errors
 ///
-/// Stale expected version, a snapshot that predates the latest data event,
-/// unknown query, or cache budget refusal.
+/// Stale expected version, a snapshot or identity layer that predates a
+/// changed stage input, unknown query, or cache budget refusal.
 pub fn publish_recomputed_results(
     state: &mut CausalState,
     expected: StateVersion,
@@ -90,8 +96,47 @@ pub fn publish_recomputed_results(
                 bytes,
                 lineage: Some(lineage),
                 data_snapshot: Some(identities.data_snapshot),
+                identities: Some(*identities),
             }
         })
         .collect();
     state.publish_results_at(expected, &updates).map_err(CausalError::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::ContractIdentities;
+
+    use super::*;
+
+    fn digest(byte: u8) -> SemanticDigest {
+        SemanticDigest::from_bytes([byte; 32])
+    }
+
+    #[test]
+    fn the_lineage_fingerprint_is_a_pinned_golden_vector_over_every_layer() {
+        let identities = ContractIdentities::new(
+            digest(1),
+            digest(2),
+            Some(digest(3)),
+            Some(digest(4)),
+            digest(5),
+            digest(6),
+            digest(7),
+        );
+        assert_eq!(
+            result_lineage_fingerprint(&identities).to_hex(),
+            "752044c4ff36b8e2237c59563c505fafb619f4eb7b3bce86a10e9d3bc04f7dca"
+        );
+        let moved = ContractIdentities::new(
+            digest(1),
+            digest(2),
+            Some(digest(3)),
+            Some(digest(4)),
+            digest(5),
+            digest(6),
+            digest(8),
+        );
+        assert_ne!(result_lineage_fingerprint(&moved), result_lineage_fingerprint(&identities));
+    }
 }

@@ -7,21 +7,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_graph::{DenseNodeId, Endpoint, MarkedEdge};
 
 use crate::orientation::PagOps;
 
 /// A discriminating path `⟨a, …, c, b⟩` used by FCI / LPCMCI orientation rules.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DiscriminatingPath {
+pub(crate) struct DiscriminatingPath {
     /// Path nodes from `a` to `b` inclusive (`len >= 4`).
     pub nodes: Vec<DenseNodeId>,
 }
@@ -77,7 +69,7 @@ impl Default for DiscriminatingPathBudget {
 /// Returns `(paths, truncated)`; `truncated` means the budget stopped the enumeration, so the
 /// paths returned are valid but possibly incomplete.
 #[must_use]
-pub fn find_discriminating_paths_for_edge<G: PagOps>(
+pub(crate) fn find_discriminating_paths_for_edge<G: PagOps>(
     pag: &G,
     b: DenseNodeId,
     c: DenseNodeId,
@@ -96,7 +88,8 @@ pub fn find_discriminating_paths_for_edge<G: PagOps>(
 ///
 /// Returns `(paths, truncated)` when `max_paths` / `max_len` stopped further enumeration.
 #[must_use]
-pub fn find_discriminating_paths_with_budget<G: PagOps>(
+#[cfg(test)]
+pub(crate) fn find_discriminating_paths_with_budget<G: PagOps>(
     pag: &G,
     max_paths: usize,
     max_len: usize,
@@ -210,7 +203,8 @@ fn collect_edge_paths<G: PagOps>(
 
 /// Find discriminating paths ending at edge `{c,b}` with a circle at `c`, bounded.
 #[must_use]
-pub fn find_discriminating_paths<G: PagOps>(
+#[cfg(test)]
+pub(crate) fn find_discriminating_paths<G: PagOps>(
     pag: &G,
     max_paths: usize,
     max_len: usize,
@@ -220,7 +214,7 @@ pub fn find_discriminating_paths<G: PagOps>(
 
 /// Whether `path` is a Zhang discriminating path for `c = path[n-2]` between `a` and `b`.
 #[must_use]
-pub fn is_discriminating_path<G: PagOps>(pag: &G, path: &[DenseNodeId]) -> bool {
+pub(crate) fn is_discriminating_path<G: PagOps>(pag: &G, path: &[DenseNodeId]) -> bool {
     if path.len() < 4 {
         return false;
     }
@@ -259,7 +253,7 @@ pub fn is_discriminating_path<G: PagOps>(pag: &G, path: &[DenseNodeId]) -> bool 
 ///
 /// `c_in_sepset_ab` is whether **`c ∈ Sep(a,b)`** (the non-adjacent endpoints).
 #[must_use]
-pub fn discriminating_implies_collider(c_in_sepset_ab: bool) -> bool {
+pub(crate) fn discriminating_implies_collider(c_in_sepset_ab: bool) -> bool {
     !c_in_sepset_ab
 }
 

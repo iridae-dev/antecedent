@@ -1,0 +1,2523 @@
+# Hot-path baseline facts.
+# benches/baselines/*.md is generated from this file (scripts/gate_hot_path_baselines.py --write).
+# The gate reads these records. It does not scrape the generated notes.
+schema = 1
+
+[[baseline]]
+id = "adjustment"
+title = "Adjustment search benchmark baseline"
+required = true
+established = "2026-07-21"
+machine_class = "Apple M1 Max (arm64), 64 GB"
+commit = "e4dfb921"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Adjustment search benchmark baseline
+
+Commit: e4dfb921 (the commit that added this file; the measured commit was not written down)
+
+Workload: `backdoor_minimal_n8_cov` — T→Y with 8 common causes; enumerate
+minimal backdoor sets.
+
+Established: 2026-07-21
+Machine class: Apple M1 Max (arm64), 64 GB
+Criterion sample size: 40
+Regression budget: 20%.
+
+## Accepted measurement
+
+| Metric | Value |
+|--------|-------|
+| mean wall time | **188.7 µs** |
+| CI (lower / upper) | 188.3 µs / 189.2 µs |
+
+Gate: mean ≤ **226.4 µs** (20% over 188.7 µs).
+
+```bash
+cargo +1.85 bench -p antecedent-identify --bench adjustment
+```
+'''
+
+[[baseline.gates]]
+workload = "*"
+value = "226.4"
+unit = "µs"
+
+[[baseline.timings]]
+value = "188.7"
+unit = "µs"
+kind = "measurement"
+context = "| mean wall time | **188.7 µs** |"
+
+[[baseline.timings]]
+value = "188.3"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 188.3 µs / 189.2 µs |"
+
+[[baseline.timings]]
+value = "189.2"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 188.3 µs / 189.2 µs |"
+
+[[baseline.timings]]
+value = "226.4"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **226.4 µs** (20% over 188.7 µs)."
+
+[[baseline.timings]]
+value = "188.7"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **226.4 µs** (20% over 188.7 µs)."
+
+[[baseline]]
+id = "ci_orientation"
+title = "CI / orientation / kNN baselines"
+required = true
+established = "2026-07-21"
+machine_class = "Apple M1 (arm64), 64 GB"
+commit = "ab88e55b"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# CI / orientation / kNN baselines
+
+Commit: ab88e55b (the commit that added this file; the measured commit was not written down)
+
+Established: 2026-07-21
+Machine class: Apple M1 (arm64), 64 GB
+Criterion: `--quick` sample (refresh with full Criterion for gate decisions)
+
+## CI batch (`antecedent-stats` bench `ci_framework`)
+
+Workload: analytic CI batches on `n=400` (kNN `n=120`), conditioning sizes as
+noted, with full sample and 20% mask-based complete-case drop (`missing20`).
+
+Groups: `ci_batch_parcorr`, `ci_batch_robust`, `ci_batch_gsquared`, `ci_batch_knn`.
+
+| Workload | mean wall time |
+|----------|----------------|
+| parcorr z0_full | **~0.7 µs** |
+| parcorr z1_full | **~5 µs** |
+| parcorr z4_full | **~17 µs** |
+| robust z1_full | **~14 µs** |
+| gsquared z1_full | **~11 µs** |
+| knn z1_full | **~8 ms** |
+
+```bash
+cargo +1.85 bench -p antecedent-stats --bench ci_framework
+```
+
+Acceptance: no unexplained >20% regression vs last accepted Criterion mean on
+the same machine class.
+
+## kNN index reuse
+
+Workload: `knn_dependence_reuse_batch8` — eight identical kNN dependence queries; after warmup,
+`CiWorkspace.knn.index_generation` must stay constant (asserted inside the
+bench). Gate also covered by unit test
+`knn_reuses_permutation_plan_across_queries`.
+
+| Workload | mean wall time |
+|----------|----------------|
+| knn_dependence_reuse_batch8 | **2.18 ms** |
+
+```bash
+cargo +1.85 bench -p antecedent-stats --bench ci_framework -- knn_dependence_reuse
+```
+
+## Orientation local-delta vs global rescan (`antecedent-discovery` bench `orientation`)
+
+Workload: chain CPDAG of size `n∈{16,64,128}`; rules =
+`OrientCollider + Meek R1–R4`. `local_delta_*` uses
+`run_orientation_to_fixed_point` (neighbor enqueue); `global_rescan_*` reseeds
+the full node set every rule application.
+
+| Workload | mean wall time |
+|----------|----------------|
+| local_delta_n16 | **21.7 µs** |
+| global_rescan_n16 | **29.4 µs** |
+| local_delta_n64 | **168 µs** |
+| global_rescan_n64 | **194 µs** |
+| local_delta_n128 | **509 µs** |
+| global_rescan_n128 | **558 µs** |
+
+Local-delta remains clearly faster than global rescan at each size (~15–25% win).
+
+```bash
+cargo +1.85 bench -p antecedent-discovery --bench orientation
+```
+
+## Calibration suite
+
+Unit gate: `calibrate_parcorr_like` Type I < 0.20 and power > 0.50 at α=0.05
+(`antecedent-stats` `ci::calibration` tests).
+'''
+
+[[baseline.timings]]
+value = "0.7"
+unit = "µs"
+kind = "approx"
+context = "| parcorr z0_full | **~0.7 µs** |"
+
+[[baseline.timings]]
+value = "5"
+unit = "µs"
+kind = "approx"
+context = "| parcorr z1_full | **~5 µs** |"
+
+[[baseline.timings]]
+value = "17"
+unit = "µs"
+kind = "approx"
+context = "| parcorr z4_full | **~17 µs** |"
+
+[[baseline.timings]]
+value = "14"
+unit = "µs"
+kind = "approx"
+context = "| robust z1_full | **~14 µs** |"
+
+[[baseline.timings]]
+value = "11"
+unit = "µs"
+kind = "approx"
+context = "| gsquared z1_full | **~11 µs** |"
+
+[[baseline.timings]]
+value = "8"
+unit = "ms"
+kind = "approx"
+context = "| knn z1_full | **~8 ms** |"
+
+[[baseline.timings]]
+value = "2.18"
+unit = "ms"
+kind = "measurement"
+context = "| knn_dependence_reuse_batch8 | **2.18 ms** |"
+
+[[baseline.timings]]
+value = "21.7"
+unit = "µs"
+kind = "measurement"
+context = "| local_delta_n16 | **21.7 µs** |"
+
+[[baseline.timings]]
+value = "29.4"
+unit = "µs"
+kind = "measurement"
+context = "| global_rescan_n16 | **29.4 µs** |"
+
+[[baseline.timings]]
+value = "168"
+unit = "µs"
+kind = "measurement"
+context = "| local_delta_n64 | **168 µs** |"
+
+[[baseline.timings]]
+value = "194"
+unit = "µs"
+kind = "measurement"
+context = "| global_rescan_n64 | **194 µs** |"
+
+[[baseline.timings]]
+value = "509"
+unit = "µs"
+kind = "measurement"
+context = "| local_delta_n128 | **509 µs** |"
+
+[[baseline.timings]]
+value = "558"
+unit = "µs"
+kind = "measurement"
+context = "| global_rescan_n128 | **558 µs** |"
+
+[[baseline]]
+id = "counterfactual_batch"
+title = "Linear-Gaussian counterfactual baselines"
+required = true
+established = "2026-08-18"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "59295cec"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Linear-Gaussian counterfactual baselines
+
+Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 59295cec (the commit that added this file; the measured commit was not written down)
+
+Owner: `antecedent-counterfactual` / `CounterfactualEngine::predict`
+
+## Criteria
+
+- Two-node linear-Gaussian SCM, n=100, abduct then predict `do(T := 1)` on Y.
+  Streaming output must match retained (`streaming_matches_retained`).
+- Bench targets:
+  - `counterfactual_predict_n100` — `unit_rows: None` (full column).
+  - `counterfactual_predict_n100_unit_rows` — `unit_rows: [0..10]`. Nested CF /
+    LGSSM is out of scope (separate P1).
+
+## Measured mean
+
+- `counterfactual_predict_n100`: **0.985 µs** (Criterion mean, CI 0.983–0.986 µs).
+- `counterfactual_predict_n100_unit_rows`: **1.159 µs** (Criterion mean, CI 1.153–1.164 µs).
+- Established: 2026-08-18. Machine class: Apple M1 Max.
+
+## How to refresh
+
+```bash
+cargo bench -p antecedent-counterfactual --bench counterfactual_batch
+```
+
+Record the Criterion means and update this file with the run date and machine class.
+
+Gates (mean ≤ 1.20×):
+
+| Workload | Gate |
+|----------|------|
+| counterfactual_predict_n100 | ≤ **1.18 µs** |
+| counterfactual_predict_n100_unit_rows | ≤ **1.39 µs** |
+'''
+
+[[baseline.gates]]
+workload = "counterfactual_predict_n100"
+value = "1.18"
+unit = "µs"
+
+[[baseline.gates]]
+workload = "counterfactual_predict_n100_unit_rows"
+value = "1.39"
+unit = "µs"
+
+[[baseline.timings]]
+value = "0.985"
+unit = "µs"
+kind = "measurement"
+context = "- `counterfactual_predict_n100`: **0.985 µs** (Criterion mean, CI 0.983–0.986 µs)."
+
+[[baseline.timings]]
+value = "0.986"
+unit = "µs"
+kind = "measurement"
+context = "- `counterfactual_predict_n100`: **0.985 µs** (Criterion mean, CI 0.983–0.986 µs)."
+
+[[baseline.timings]]
+value = "1.159"
+unit = "µs"
+kind = "measurement"
+context = "- `counterfactual_predict_n100_unit_rows`: **1.159 µs** (Criterion mean, CI 1.153–1.164 µs)."
+
+[[baseline.timings]]
+value = "1.164"
+unit = "µs"
+kind = "measurement"
+context = "- `counterfactual_predict_n100_unit_rows`: **1.159 µs** (Criterion mean, CI 1.153–1.164 µs)."
+
+[[baseline.timings]]
+value = "1.18"
+unit = "µs"
+kind = "measurement"
+context = "| counterfactual_predict_n100 | ≤ **1.18 µs** |"
+
+[[baseline.timings]]
+value = "1.39"
+unit = "µs"
+kind = "measurement"
+context = "| counterfactual_predict_n100_unit_rows | ≤ **1.39 µs** |"
+
+[[baseline]]
+id = "design_state"
+title = "design / state baselines"
+required = true
+established = "2026-07-14"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "2ef9a173"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# design / state baselines
+
+Established: 2026-07-14 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 2ef9a173 (the commit that added this file; the measured commit was not written down)
+
+Criterion smokes (gated with `--test`):
+
+- `antecedent-design` / `design_rank` — `design_rank_eig_8_candidates`
+- `antecedent-state` / `state_append` — `state_append_invalidate_ols`
+
+**Budgets (local regression, Apple M1 class):**
+
+| Case | Soft latency budget |
+|------|---------------------|
+| design_rank_eig_8_candidates | < 50 ms / iter |
+| state_append_invalidate_ols | < 20 ms / iter |
+
+Ranking always reports `MonteCarloBudget` + per-candidate stderr. State caches
+refuse inserts over `CacheBudget` without changing semantics.
+'''
+
+[[baseline.timings]]
+value = "50"
+unit = "ms"
+kind = "soft"
+context = "| design_rank_eig_8_candidates | < 50 ms / iter |"
+
+[[baseline.timings]]
+value = "20"
+unit = "ms"
+kind = "soft"
+context = "| state_append_invalidate_ols | < 20 ms / iter |"
+
+[[baseline]]
+id = "dseparation"
+title = "d-separation benchmark baseline"
+required = true
+established = "2026-07-21"
+machine_class = "Apple M1 Max (arm64), 64 GB"
+commit = "6b309cd2"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# d-separation benchmark baseline
+
+Commit: 6b309cd2 (the commit that added this file; the measured commit was not written down)
+
+Workloads:
+
+- `dsep_sparse_chain_200` — chain of 200 nodes, condition on middle
+- `dsep_dense_n80` — denser DAG (edges to next 5 nodes), condition on two nodes
+
+Established: 2026-07-21
+Machine class: Apple M1 Max (arm64), 64 GB
+Criterion sample size: 40
+Regression budget: 20% wall-time on the same machine class.
+
+## Accepted measurements
+
+| Workload | Mean | CI | Gate (≤ +20%) |
+|----------|------|----|----------------|
+| `dsep_sparse_chain_200` | **2.69 µs** | 2.63–2.77 µs | **3.23 µs** |
+| `dsep_dense_n80` | **8.30 µs** | 8.28–8.31 µs | **9.96 µs** |
+
+```bash
+cargo +1.85 bench -p antecedent-graph --bench dseparation
+```
+'''
+
+[[baseline.timings]]
+value = "2.69"
+unit = "µs"
+kind = "measurement"
+context = "| `dsep_sparse_chain_200` | **2.69 µs** | 2.63–2.77 µs | **3.23 µs** |"
+
+[[baseline.timings]]
+value = "2.77"
+unit = "µs"
+kind = "measurement"
+context = "| `dsep_sparse_chain_200` | **2.69 µs** | 2.63–2.77 µs | **3.23 µs** |"
+
+[[baseline.timings]]
+value = "3.23"
+unit = "µs"
+kind = "measurement"
+context = "| `dsep_sparse_chain_200` | **2.69 µs** | 2.63–2.77 µs | **3.23 µs** |"
+
+[[baseline.timings]]
+value = "8.30"
+unit = "µs"
+kind = "measurement"
+context = "| `dsep_dense_n80` | **8.30 µs** | 8.28–8.31 µs | **9.96 µs** |"
+
+[[baseline.timings]]
+value = "8.31"
+unit = "µs"
+kind = "measurement"
+context = "| `dsep_dense_n80` | **8.30 µs** | 8.28–8.31 µs | **9.96 µs** |"
+
+[[baseline.timings]]
+value = "9.96"
+unit = "µs"
+kind = "measurement"
+context = "| `dsep_dense_n80` | **8.30 µs** | 8.28–8.31 µs | **9.96 µs** |"
+
+[[baseline]]
+id = "gather"
+title = "Sample gather benchmark baseline"
+required = true
+established = "2026-07-21"
+machine_class = "Apple M1 Max (arm64), 64 GB"
+commit = "c9db53a0"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Sample gather benchmark baseline
+
+Commit: c9db53a0 (the commit that added this file; the measured commit was not written down)
+
+Workload: `gather_stride10_n100k` — gather every 10th index from a contiguous
+`f64` vector of length 100_000 via the public dispatch entry.
+
+Established: 2026-07-21
+Machine class: Apple M1 Max (arm64), 64 GB
+Policy: default (portable-optimized allowed via KernelPolicy)
+Criterion sample size: 50
+
+## Accepted measurement
+
+| Metric | Value |
+|--------|-------|
+| mean wall time | **8.37 µs** |
+| CI (lower / upper) | 8.25 µs / 8.56 µs |
+
+## Acceptance
+
+Regressions exceeding **20%** wall-time vs the last accepted Criterion run on
+the same machine class require an approved explanation and replacement baseline
+. Gate: mean ≤ **10.04 µs** (20% over 8.37 µs).
+
+## How to refresh
+
+```bash
+cargo +1.85 bench -p antecedent-kernels --bench gather
+```
+
+Record mean time and commit an update to this file with hardware notes.
+'''
+
+[[baseline.gates]]
+workload = "*"
+value = "10.04"
+unit = "µs"
+
+[[baseline.timings]]
+value = "8.37"
+unit = "µs"
+kind = "measurement"
+context = "| mean wall time | **8.37 µs** |"
+
+[[baseline.timings]]
+value = "8.25"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 8.25 µs / 8.56 µs |"
+
+[[baseline.timings]]
+value = "8.56"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 8.25 µs / 8.56 µs |"
+
+[[baseline.timings]]
+value = "10.04"
+unit = "µs"
+kind = "measurement"
+context = ". Gate: mean ≤ **10.04 µs** (20% over 8.37 µs)."
+
+[[baseline.timings]]
+value = "8.37"
+unit = "µs"
+kind = "measurement"
+context = ". Gate: mean ≤ **10.04 µs** (20% over 8.37 µs)."
+
+[[baseline]]
+id = "graph_traversal"
+title = "Graph traversal benchmark baseline"
+required = true
+established = "2026-07-21"
+machine_class = "Apple M1 Max (arm64), 64 GB"
+commit = "88dfb155"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Graph traversal benchmark baseline
+
+Commit: 88dfb155 (the commit that added this file; the measured commit was not written down)
+
+Workload: `dag_reach_chain_5k` — directed reachability on a 5,000-node chain
+using a reusable [`GraphWorkspace`].
+
+Established: 2026-07-21
+Machine class: Apple M1 Max (arm64), 64 GB
+Criterion sample size: 40
+Regression budget: 20% wall-time on the same machine class.
+
+## Accepted measurement
+
+| Metric | Value |
+|--------|-------|
+| mean wall time | **26.26 µs** |
+| CI (lower / upper) | 26.23 µs / 26.29 µs |
+
+Gate: mean ≤ **31.51 µs** (20% over 26.26 µs).
+
+```bash
+cargo +1.85 bench -p antecedent-graph --bench traversal
+```
+'''
+
+[[baseline.gates]]
+workload = "*"
+value = "31.51"
+unit = "µs"
+
+[[baseline.timings]]
+value = "26.26"
+unit = "µs"
+kind = "measurement"
+context = "| mean wall time | **26.26 µs** |"
+
+[[baseline.timings]]
+value = "26.23"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 26.23 µs / 26.29 µs |"
+
+[[baseline.timings]]
+value = "26.29"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 26.23 µs / 26.29 µs |"
+
+[[baseline.timings]]
+value = "31.51"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **31.51 µs** (20% over 26.26 µs)."
+
+[[baseline.timings]]
+value = "26.26"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **31.51 µs** (20% over 26.26 µs)."
+
+[[baseline]]
+id = "hmc"
+title = "HMC GLM baselines"
+required = true
+established = "2026-08-18"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "59295cec"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# HMC GLM baselines
+
+Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 59295cec (the commit that added this file; the measured commit was not written down)
+
+Owner: `antecedent-prob` / `fit_hmc_glm`
+
+## Criteria
+
+- Repeated HMC fits of the same shape must reuse `LaplaceWorkspace` scratch: after a
+  warm `ws.prepare(n, dim, n_draws * n_chains)`, `ws.grow_count` must stay flat across
+  every subsequent fit (asserted in the Criterion bench after the timed loop).
+- Bench target: `hmc_gaussian_n30_p1` — n=30 intercept-only known-σ² Gaussian,
+  2 chains × 20 warmup × 40 post-warmup draws × 4 leapfrog steps. The `--test`
+  smoke is **not** a publication gate (ESS ≥ 100 / R̂ ≤ 1.01 live in unit tests).
+
+## Measured mean
+
+- `hmc_gaussian_n30_p1`: **101.24 µs** (Criterion mean, CI 100.32–102.20 µs).
+- Established: 2026-08-18. Machine class: Apple M1 Max.
+
+## How to refresh
+
+```bash
+cargo bench -p antecedent-prob --bench hmc
+```
+
+Record the Criterion mean and update this file with the run date and machine class. The
+bench aborts (assert) if the workspace grows across fits — a refresh that trips the
+assert is a reuse regression, not a new baseline.
+
+Gate: mean ≤ **121.49 µs** (20% over 101.24 µs).
+'''
+
+[[baseline.gates]]
+workload = "*"
+value = "121.49"
+unit = "µs"
+
+[[baseline.timings]]
+value = "101.24"
+unit = "µs"
+kind = "measurement"
+context = "- `hmc_gaussian_n30_p1`: **101.24 µs** (Criterion mean, CI 100.32–102.20 µs)."
+
+[[baseline.timings]]
+value = "102.20"
+unit = "µs"
+kind = "measurement"
+context = "- `hmc_gaussian_n30_p1`: **101.24 µs** (Criterion mean, CI 100.32–102.20 µs)."
+
+[[baseline.timings]]
+value = "121.49"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **121.49 µs** (20% over 101.24 µs)."
+
+[[baseline.timings]]
+value = "101.24"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **121.49 µs** (20% over 101.24 µs)."
+
+[[baseline]]
+id = "kernel_reductions"
+title = "Kernel reductions benchmark baseline"
+required = true
+established = "2026-07-22"
+machine_class = "Apple M1 Max (arm64), 64 GB"
+commit = "9deef739"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Kernel reductions benchmark baseline
+
+Commit: 9deef739 (the commit that added this file; the measured commit was not written down)
+
+Workloads (public dispatch, default `KernelPolicy` / portable-optimized):
+
+| Workload | Description |
+|----------|-------------|
+| `masked_covariance_n10k` | Population covariance, contiguous `f64` length 10_000 |
+| `standardize_inplace_n10k` | Sample-SD standardize in place, `n = 10_000` |
+| `weighted_sum_n10k` | Bootstrap weighted sum, `n = 10_000` |
+| `pairwise_l1_n256` | Pairwise L1 fill into `256×256` |
+| `accumulate_contingency_n10k` | Contingency accumulate, 8×5 levels, `n = 10_000` |
+
+Established: 2026-07-22
+Machine class: Apple M1 Max (arm64), 64 GB
+Policy: default (portable-optimized; `allow_arch_simd` wired but no `simd-runtime` path)
+Criterion sample size: 30
+
+## Accepted measurement
+
+| Metric | masked_covariance | standardize | weighted_sum | pairwise_l1 | contingency |
+|--------|-------------------|-------------|--------------|-------------|-------------|
+| mean wall time | **28.15 µs** | **21.84 µs** | **9.56 µs** | **7.66 µs** | **6.42 µs** |
+| CI (lower / upper) | 28.12 / 28.19 µs | 21.78 / 21.90 µs | 9.53 / 9.57 µs | 7.17 / 8.38 µs | 6.41 / 6.42 µs |
+
+## Arch SIMD decision
+
+Portable contiguous paths (covariance / standardize / weighted_sum / pairwise) rely on
+safe auto-vectorization. Contingency is scatter-add and shares the scalar body.
+No kernel cleared the ≥10% median win vs portable at `n ≥ 10_000` needed to justify
+`unsafe` arch SIMD + `simd-runtime`. `KernelPolicy::allow_arch_simd`
+is persisted in the execution identity but selects no kernel until one is justified.
+
+## Acceptance
+
+Regressions exceeding **10%** wall-time vs the last accepted Criterion run on the
+same machine class require an approved explanation and replacement baseline
+. Gates (mean ≤ 1.10×):
+
+| Workload | Gate |
+|----------|------|
+| masked_covariance_n10k | ≤ **30.97 µs** |
+| standardize_inplace_n10k | ≤ **24.02 µs** |
+| weighted_sum_n10k | ≤ **10.51 µs** |
+| pairwise_l1_n256 | ≤ **8.43 µs** |
+| accumulate_contingency_n10k | ≤ **7.06 µs** |
+
+## How to refresh
+
+```bash
+cargo bench -p antecedent-kernels --bench reductions -- --sample-size 30
+```
+
+Record mean times and commit an update to this file with hardware notes.
+'''
+
+[[baseline.gates]]
+workload = "masked_covariance_n10k"
+value = "30.97"
+unit = "µs"
+
+[[baseline.gates]]
+workload = "standardize_inplace_n10k"
+value = "24.02"
+unit = "µs"
+
+[[baseline.gates]]
+workload = "weighted_sum_n10k"
+value = "10.51"
+unit = "µs"
+
+[[baseline.gates]]
+workload = "pairwise_l1_n256"
+value = "8.43"
+unit = "µs"
+
+[[baseline.gates]]
+workload = "accumulate_contingency_n10k"
+value = "7.06"
+unit = "µs"
+
+[[baseline.timings]]
+value = "28.15"
+unit = "µs"
+kind = "measurement"
+context = "| mean wall time | **28.15 µs** | **21.84 µs** | **9.56 µs** | **7.66 µs** | **6.42 µs** |"
+
+[[baseline.timings]]
+value = "21.84"
+unit = "µs"
+kind = "measurement"
+context = "| mean wall time | **28.15 µs** | **21.84 µs** | **9.56 µs** | **7.66 µs** | **6.42 µs** |"
+
+[[baseline.timings]]
+value = "9.56"
+unit = "µs"
+kind = "measurement"
+context = "| mean wall time | **28.15 µs** | **21.84 µs** | **9.56 µs** | **7.66 µs** | **6.42 µs** |"
+
+[[baseline.timings]]
+value = "7.66"
+unit = "µs"
+kind = "measurement"
+context = "| mean wall time | **28.15 µs** | **21.84 µs** | **9.56 µs** | **7.66 µs** | **6.42 µs** |"
+
+[[baseline.timings]]
+value = "6.42"
+unit = "µs"
+kind = "measurement"
+context = "| mean wall time | **28.15 µs** | **21.84 µs** | **9.56 µs** | **7.66 µs** | **6.42 µs** |"
+
+[[baseline.timings]]
+value = "28.19"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 28.12 / 28.19 µs | 21.78 / 21.90 µs | 9.53 / 9.57 µs | 7.17 / 8.38 µs | 6.41 / 6.42 µs |"
+
+[[baseline.timings]]
+value = "21.90"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 28.12 / 28.19 µs | 21.78 / 21.90 µs | 9.53 / 9.57 µs | 7.17 / 8.38 µs | 6.41 / 6.42 µs |"
+
+[[baseline.timings]]
+value = "9.57"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 28.12 / 28.19 µs | 21.78 / 21.90 µs | 9.53 / 9.57 µs | 7.17 / 8.38 µs | 6.41 / 6.42 µs |"
+
+[[baseline.timings]]
+value = "8.38"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 28.12 / 28.19 µs | 21.78 / 21.90 µs | 9.53 / 9.57 µs | 7.17 / 8.38 µs | 6.41 / 6.42 µs |"
+
+[[baseline.timings]]
+value = "6.42"
+unit = "µs"
+kind = "measurement"
+context = "| CI (lower / upper) | 28.12 / 28.19 µs | 21.78 / 21.90 µs | 9.53 / 9.57 µs | 7.17 / 8.38 µs | 6.41 / 6.42 µs |"
+
+[[baseline.timings]]
+value = "30.97"
+unit = "µs"
+kind = "measurement"
+context = "| masked_covariance_n10k | ≤ **30.97 µs** |"
+
+[[baseline.timings]]
+value = "24.02"
+unit = "µs"
+kind = "measurement"
+context = "| standardize_inplace_n10k | ≤ **24.02 µs** |"
+
+[[baseline.timings]]
+value = "10.51"
+unit = "µs"
+kind = "measurement"
+context = "| weighted_sum_n10k | ≤ **10.51 µs** |"
+
+[[baseline.timings]]
+value = "8.43"
+unit = "µs"
+kind = "measurement"
+context = "| pairwise_l1_n256 | ≤ **8.43 µs** |"
+
+[[baseline.timings]]
+value = "7.06"
+unit = "µs"
+kind = "measurement"
+context = "| accumulate_contingency_n10k | ≤ **7.06 µs** |"
+
+[[baseline]]
+id = "laplace_glm"
+title = "Laplace GLM baselines"
+required = true
+established = "2026-08-18"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "42eb1293"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Laplace GLM baselines
+
+Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 42eb1293 (the commit that added this file; the measured commit was not written down)
+
+Owner: `antecedent-prob` / `fit_laplace_glm`
+
+## Criteria
+
+- Repeated Laplace fits of the same shape must reuse `LaplaceWorkspace` scratch: after a
+  warm `ws.prepare(n, p + 1, n_draws)` (joint `(β, λ)` state under the default InvGamma
+  residual model), `ws.grow_count` must stay flat across every subsequent fit (asserted in
+  the Criterion bench after the timed loop).
+- Bench target: `laplace_gaussian_n500_p3` — n=500, p=3 (intercept + linear + quadratic
+  column), `BayesLikelihood::GaussianIdentity`, isotropic Gaussian coefficient prior
+  (variance 10), 256 posterior draws, `max_iter=40`, `fit_laplace_glm` end to end
+  (MAP optimization + Laplace draws).
+
+## Measured mean
+
+- `laplace_gaussian_n500_p3`: **21.22 µs** (Criterion mean, CI 21.198–21.245 µs).
+- Established: 2026-08-18. Machine class: Apple M1 Max.
+
+## How to refresh
+
+```bash
+cargo bench -p antecedent-prob --bench laplace_glm
+```
+
+Record the Criterion mean and update this file with the run date and machine class. The
+bench aborts (assert) if the workspace grows across fits — a refresh that trips the
+assert is a reuse regression, not a new baseline.
+'''
+
+[[baseline.timings]]
+value = "21.22"
+unit = "µs"
+kind = "measurement"
+context = "- `laplace_gaussian_n500_p3`: **21.22 µs** (Criterion mean, CI 21.198–21.245 µs)."
+
+[[baseline.timings]]
+value = "21.245"
+unit = "µs"
+kind = "measurement"
+context = "- `laplace_gaussian_n500_p3`: **21.22 µs** (Criterion mean, CI 21.198–21.245 µs)."
+
+[[baseline]]
+id = "matching"
+title = "Matching index baselines"
+required = true
+established = "2026-07-13"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "d798e2f1"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+waiver = "none published"
+narrative = '''
+# Matching index baselines
+
+Established: 2026-07-13 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: d798e2f1 (the commit that added this file; the measured commit was not written down)
+
+Owner: `antecedent-stats` / `MatchingIndex::exact` and
+`antecedent-estimate` / `PropensityEstimationWorkspace`
+
+## Criteria
+
+- Exact brute-force path for `n ≤ EXACT_MATCHING_ROW_LIMIT` (10_000).
+- Bench target: `matching_exact_n500_d4` — 500 donors × 500 queries, dim=4.
+- Point-estimate fits retain `MatchingIndex` across compatible donor geometries
+ (`matching_index_builds` stays flat on a second identical fit).
+- Bootstrap replicates rebuild the index whenever resampled donors change the
+ geometry key .
+
+## Notes
+
+- Larger-n approximate indexes are out of estimate matching scope.
+- Differential tests compare `nearest` against `nearest_euclidean_scalar`.
+
+Numeric wall-time gate: none published (reuse / `--test` smoke only).
+'''
+
+[[baseline]]
+id = "mcmc_stats"
+title = "MCMC diagnostics baselines"
+required = true
+established = "2026-08-18"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "59295cec"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# MCMC diagnostics baselines
+
+Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 59295cec (the commit that added this file; the measured commit was not written down)
+
+Owner: `antecedent-prob` / `mcmc_summary`
+
+## Criteria
+
+- One-pass `mcmc_summary` (max rank∪folded R̂, min bulk ESS, min tail ESS) over a
+  packed multi-chain draw buffer. Standing decision: Geyer / rank-normalized
+  statistics stay exact; no FFT autocorrelation.
+- Bench target: `mcmc_summary_c4_n256_p2` — 4 chains × 256 draws × 2 parameters,
+  AR(1) ρ=0.5 synthetic draws, column-major
+  `samples[(chain * n_draws + draw) * n_params + param]`.
+
+## Measured mean
+
+- `mcmc_summary_c4_n256_p2`: **158.26 µs** (Criterion mean, CI 153.47–167.90 µs).
+- Established: 2026-08-18. Machine class: Apple M1 Max.
+
+## How to refresh
+
+```bash
+cargo bench -p antecedent-prob --bench mcmc_stats
+```
+
+Record the Criterion mean and update this file with the run date and machine class.
+
+Gate: mean ≤ **189.91 µs** (20% over 158.26 µs).
+'''
+
+[[baseline.gates]]
+workload = "*"
+value = "189.91"
+unit = "µs"
+
+[[baseline.timings]]
+value = "158.26"
+unit = "µs"
+kind = "measurement"
+context = "- `mcmc_summary_c4_n256_p2`: **158.26 µs** (Criterion mean, CI 153.47–167.90 µs)."
+
+[[baseline.timings]]
+value = "167.90"
+unit = "µs"
+kind = "measurement"
+context = "- `mcmc_summary_c4_n256_p2`: **158.26 µs** (Criterion mean, CI 153.47–167.90 µs)."
+
+[[baseline.timings]]
+value = "189.91"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **189.91 µs** (20% over 158.26 µs)."
+
+[[baseline.timings]]
+value = "158.26"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **189.91 µs** (20% over 158.26 µs)."
+
+[[baseline]]
+id = "neural_crossfit"
+title = "Cross-fitted neural workload"
+required = false
+established = "2026-09-24"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "arm64 development host, as the measurement note below states; the chip model was not written down"
+commit = "8187f15d"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Cross-fitted neural workload
+
+Established: 2026-09-24 (the date this file was first committed; the measurement date was not written down)
+Machine class: arm64 development host, as the measurement note below states; the chip model was not written down
+Commit: 8187f15d (the commit that added this file; the measured commit was not written down)
+
+Run `cargo run --release -q -p antecedent-learn --features ml-neural --example neural_crossfit_benchmark`.
+The benchmark fixes 4,000 rows, eight covariates, three folds, and two nuisance
+models (binary propensity and continuous outcome), each with 16 hidden units
+and 20 epochs. It times fold assignment and each complete fit-and-predict pass,
+including the Burn adapter's fold materialization and prediction transfer back
+to physical row order. The synthetic design and seed are deterministic.
+
+On the local arm64 host with Rust 1.85.1, one release-mode run measured:
+
+| Stage | Time (ms) |
+| --- | ---: |
+| Fold assignment | 0.042 |
+| Propensity, all folds | 85.163 |
+| Outcome, all folds | 65.592 |
+| End to end | 150.797 |
+
+End-to-end wall time: **150.797 ms**.
+
+The shipping adapter is Burn `NdArray<f32>` on CPU. There is no GPU provider or
+host-to-device transfer in this build, so the benchmark does not establish an
+accelerator speedup. A future opt-in backend must beat this full workload,
+including fold scheduling and transfer, before its distribution and replay
+gates can be considered. This is a timing baseline, not a causal coverage test.
+'''
+
+[[baseline.timings]]
+value = "150.797"
+unit = "ms"
+kind = "measurement"
+context = "End-to-end wall time: **150.797 ms**."
+
+[[baseline]]
+id = "pag"
+title = "m-separation / PAG orientation baselines"
+required = true
+established = "2026-07-14"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "99d25765"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+waiver = "none published"
+narrative = '''
+# m-separation / PAG orientation baselines 
+
+Established: 2026-07-14 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 99d25765 (the commit that added this file; the measured commit was not written down)
+
+Sparse and stress criterion benches (run with `--test` in `gate_pag.sh`):
+
+- `antecedent-graph` bench `mseparation`: `msep_admg_sparse_200`, `msep_admg_stress_80`,
+  `msep_pag_sparse_100`, `msep_pag_stress_60`
+- `antecedent-discovery` bench `pag_orientation`: `pag_orient_sparse_40`,
+  `pag_orient_stress_120`
+
+These establish local regression baselines for exit criteria; absolute
+timings are machine-dependent.
+
+Numeric wall-time gate: none published (`--test` smoke only).
+'''
+
+[[baseline]]
+id = "partial_correlation"
+title = "Partial-correlation batch baseline"
+required = true
+established = "2026-07-21"
+machine_class = "Apple M1 Max (arm64), 64 GB"
+commit = "a0512976"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Partial-correlation batch baseline
+
+Commit: a0512976 (the commit that added this file; the measured commit was not written down)
+
+Workload: `parcorr_batch64_n2k_p8` — 64 partial-correlation queries on
+`n=2000` rows with up to 3 conditioning columns drawn from 8 series columns,
+via the batch API with reusable [`ParCorrWorkspace`].
+
+Established: 2026-07-21
+Machine class: Apple M1 Max (arm64), 64 GB
+Path: portable
+Criterion sample size: 20
+
+## Accepted measurement
+
+| Metric | Value |
+|--------|-------|
+| mean wall time | **3.06 ms** |
+| CI (lower / upper) | 3.03 ms / 3.12 ms |
+
+## Acceptance
+
+Regressions exceeding **20%** wall-time vs the last accepted Criterion run on
+the same machine class require an approved explanation and replacement baseline
+. Gate: mean ≤ **3.68 ms** (20% over 3.06 ms).
+
+## How to refresh
+
+```bash
+cargo +1.85 bench -p antecedent-kernels --bench partial_correlation
+```
+'''
+
+[[baseline.gates]]
+workload = "*"
+value = "3.68"
+unit = "ms"
+
+[[baseline.timings]]
+value = "3.06"
+unit = "ms"
+kind = "measurement"
+context = "| mean wall time | **3.06 ms** |"
+
+[[baseline.timings]]
+value = "3.03"
+unit = "ms"
+kind = "measurement"
+context = "| CI (lower / upper) | 3.03 ms / 3.12 ms |"
+
+[[baseline.timings]]
+value = "3.12"
+unit = "ms"
+kind = "measurement"
+context = "| CI (lower / upper) | 3.03 ms / 3.12 ms |"
+
+[[baseline.timings]]
+value = "3.68"
+unit = "ms"
+kind = "measurement"
+context = ". Gate: mean ≤ **3.68 ms** (20% over 3.06 ms)."
+
+[[baseline.timings]]
+value = "3.06"
+unit = "ms"
+kind = "measurement"
+context = ". Gate: mean ≤ **3.68 ms** (20% over 3.06 ms)."
+
+[[baseline]]
+id = "pcmci"
+title = "PCMCI benchmark baseline"
+required = true
+established = "2026-08-18"
+established_note = "(0.5.2 performance pass)"
+machine_class = "Apple M1 Max (arm64), 64 GB"
+commit = "683b42a6"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# PCMCI benchmark baseline
+
+Commit: 683b42a6 (the commit that added this file; the measured commit was not written down)
+
+Workload: `pcmci_n500_p4_lag2` — lagged PCMCI (PC parents + MCI, FDR off,
+`max_cond_size=1`, `max_lag=2`) on a synthetic 4-variable series of length 500.
+
+Established: 2026-08-18 (0.5.2 performance pass)
+Machine class: Apple M1 Max (arm64), 64 GB
+Criterion sample size: 100
+
+## Accepted measurement
+
+| Metric | Value |
+|--------|-------|
+| mean wall time | **6.73 ms** |
+| CI (lower / upper) | 6.72 ms / 6.74 ms |
+
+## Acceptance
+
+Regressions exceeding **20%** wall-time vs the last accepted Criterion run on
+the same machine class require an approved explanation and replacement baseline
+. Gate: mean ≤ **8.08 ms** (20% over 6.73 ms).
+
+**Replacement note (2026-08-18).** The previously recorded 1.59 ms baseline is
+not reproducible on the reference machine at any commit: re-running this bench
+at 9aa3ce2 (2026-07-19), 9d54254 (2026-07-25), 3acced0 (2026-07-29), and
+current HEAD measures 6.0–7.1 ms throughout. The recorded number therefore did
+not describe this workload on this machine class, and no code regression
+matches it. Measured drift over that commit range is +11% (6.07 → 6.73 ms),
+attributable to the 0.4.0 correctness fixes (bounded MCI conditioning, FDR
+fail-closed) — an explained, accepted increase.
+
+## Declared allocation budget
+
+Steady-state candidate loop (after one warmup CI):
+
+- one `LaggedFrame` per `run` (`p * (max_lag+1) * n_effective * 8` bytes);
+- `DiscoveryWorkspace` scratch (`col_idxs`, `z_flat`, `ci.parcorr`) must not
+ grow capacity across repeated CI calls;
+- no per-CI `SamplePlan` / `Arc<[LaggedColumn]>` rebuild.
+
+Gate: `ci_hot_path_no_scratch_growth` in `antecedent-discovery`.
+
+## Target-wise parallel scaling
+
+Workload: `pcmci_target_parallel/threads_{1,2,4}` on `n=400`, `p=8`, same
+algorithm knobs. Threads come from `ExecutionContext.parallelism` (scoped
+workers; no global pool).
+
+| Threads | mean wall time |
+|---------|----------------|
+| 1 | **2.98 ms** |
+| 2 | **1.75 ms** (~1.71×) |
+| 4 | **1.05 ms** (~2.84×) |
+
+(Refreshed 2026-08-18 alongside the headline baseline; the prior recorded
+numbers — 10.28 / 5.62 / 6.77 ms — came from the same unreproducible run.)
+
+Refresh after algorithm changes:
+
+```bash
+cargo +1.85 bench -p antecedent-discovery --bench pcmci -- pcmci_target_parallel
+```
+
+## How to refresh
+
+```bash
+cargo +1.85 bench -p antecedent-discovery --bench pcmci
+```
+'''
+
+[[baseline.gates]]
+workload = "*"
+value = "8.08"
+unit = "ms"
+
+[[baseline.timings]]
+value = "6.73"
+unit = "ms"
+kind = "measurement"
+context = "| mean wall time | **6.73 ms** |"
+
+[[baseline.timings]]
+value = "6.72"
+unit = "ms"
+kind = "measurement"
+context = "| CI (lower / upper) | 6.72 ms / 6.74 ms |"
+
+[[baseline.timings]]
+value = "6.74"
+unit = "ms"
+kind = "measurement"
+context = "| CI (lower / upper) | 6.72 ms / 6.74 ms |"
+
+[[baseline.timings]]
+value = "8.08"
+unit = "ms"
+kind = "measurement"
+context = ". Gate: mean ≤ **8.08 ms** (20% over 6.73 ms)."
+
+[[baseline.timings]]
+value = "6.73"
+unit = "ms"
+kind = "measurement"
+context = ". Gate: mean ≤ **8.08 ms** (20% over 6.73 ms)."
+
+[[baseline.timings]]
+value = "1.59"
+unit = "ms"
+kind = "measurement"
+context = "**Replacement note (2026-08-18).** The previously recorded 1.59 ms baseline is"
+
+[[baseline.timings]]
+value = "7.1"
+unit = "ms"
+kind = "measurement"
+context = "current HEAD measures 6.0–7.1 ms throughout. The recorded number therefore did"
+
+[[baseline.timings]]
+value = "6.73"
+unit = "ms"
+kind = "measurement"
+context = "matches it. Measured drift over that commit range is +11% (6.07 → 6.73 ms),"
+
+[[baseline.timings]]
+value = "2.98"
+unit = "ms"
+kind = "measurement"
+context = "| 1 | **2.98 ms** |"
+
+[[baseline.timings]]
+value = "1.75"
+unit = "ms"
+kind = "measurement"
+context = "| 2 | **1.75 ms** (~1.71×) |"
+
+[[baseline.timings]]
+value = "1.05"
+unit = "ms"
+kind = "measurement"
+context = "| 4 | **1.05 ms** (~2.84×) |"
+
+[[baseline.timings]]
+value = "6.77"
+unit = "ms"
+kind = "measurement"
+context = "numbers — 10.28 / 5.62 / 6.77 ms — came from the same unreproducible run.)"
+
+[[baseline]]
+id = "posterior_functional"
+title = "Posterior functional evaluation baselines"
+required = true
+established = "2026-08-18"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "42eb1293"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Posterior functional evaluation baselines
+
+Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 42eb1293 (the commit that added this file; the measured commit was not written down)
+
+Owner: `antecedent-estimate` / `GCompAteEvaluator::evaluate_batch`
+
+## Criteria
+
+- Batched posterior-functional evaluation must reuse `PosteriorEvalWorkspace` scratch:
+  after a warm `ws.prepare(n_draws, ncols)`, `ws.grow_count` must stay flat across every
+  subsequent `evaluate_batch` call over the same draw batch (asserted in the Criterion
+  bench after the timed loop). `EffectBatch` output is likewise `prepare`d once and
+  rewritten in place.
+- Bench target: `posterior_gcomp_eval_n400_d512` — n=400 rows, 3 design columns
+  (intercept, binary treatment, linear covariate), 512 posterior coefficient draws
+  (`PosteriorDraws::from_column_major`), `GlmFamily::GaussianIdentity` g-computation ATE
+  via the compiled evaluator (`GCompAteEvaluator::compile` once, then
+  `evaluate_batch` per iteration over the full 512-draw batch).
+
+## Measured mean
+
+- `posterior_gcomp_eval_n400_d512`: **1.569 ms** (Criterion mean, CI 1.5664–1.5710 ms).
+- Established: 2026-08-18. Machine class: Apple M1 Max.
+
+## How to refresh
+
+```bash
+cargo bench -p antecedent-estimate --bench posterior_functional
+```
+
+Record the Criterion mean and update this file with the run date and machine class. The
+bench aborts (assert) if the workspace grows across evaluations — a refresh that trips
+the assert is a reuse regression, not a new baseline.
+'''
+
+[[baseline.timings]]
+value = "1.569"
+unit = "ms"
+kind = "measurement"
+context = "- `posterior_gcomp_eval_n400_d512`: **1.569 ms** (Criterion mean, CI 1.5664–1.5710 ms)."
+
+[[baseline.timings]]
+value = "1.5710"
+unit = "ms"
+kind = "measurement"
+context = "- `posterior_gcomp_eval_n400_d512`: **1.569 ms** (Criterion mean, CI 1.5664–1.5710 ms)."
+
+[[baseline]]
+id = "propensity"
+title = "Propensity bootstrap baselines"
+required = true
+established = "2026-07-13"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "3ec75735"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+waiver = "none published"
+narrative = '''
+# Propensity bootstrap baselines 
+
+Established: 2026-07-13 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 3ec75735 (the commit that added this file; the measured commit was not written down)
+
+Owner: `antecedent-estimate` / `PropensityWeighting::fit`
+
+## Criteria
+
+- Bootstrap SE refits the logistic propensity model on every replicate (documented as the
+  "honest" choice in `antecedent-estimate/src/propensity.rs`), reusing
+  `PropensityEstimationWorkspace::propensity` (`antecedent_stats::PropensityWorkspace`) IRLS scratch
+  across replicates rather than reallocating it.
+- After a warm fit, `ols.grow_count` and `scores_grow_count` must stay flat across further
+  fits of the same `n` (asserted in the Criterion bench and in
+  `bootstrap_reuses_propensity_workspace_buffers`).
+- Bench target: `propensity_weighting_ipw_bootstrap50_n800` — n=800, 1 adjustment covariate,
+  50 bootstrap replicates, `PropensityWeighting::fit` end to end (propensity fit + Hajek point
+  estimate + bootstrap SE).
+- PR CI: the Rust job runs `bootstrap_reuses_propensity_workspace_buffers` and
+  `scripts/gate_named_tests.sh` fails if it is renamed away; `scripts/gate_estimate_reuse.sh`
+  runs it alone.
+
+## Notes
+
+- `PropensityMatching` / `DistanceMatching` / `PropensityStratification` bootstraps follow the
+  same refit-per-replicate pattern; only the IPW-weighting path is currently benched.
+- Matching-based bootstraps rebuild a `MatchingIndex` when resampled donors change the
+  geometry key; point estimates retain the index across compatible fits.
+
+Numeric wall-time gate: none published (reuse / `--test` smoke only).
+'''
+
+[[baseline]]
+id = "regime_mediation"
+title = "regime / mediation baselines"
+required = true
+established = "2026-09-07"
+established_note = "(the first measurement date the note below states)"
+machine_class = "macOS arm64 development host, as the measurement note below states; the chip model was not written down"
+commit = "d4494901"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# regime / mediation baselines
+
+Established: 2026-09-07 (the first measurement date the note below states)
+Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
+Commit: d4494901 (the commit that added this file; the measured commit was not written down)
+
+Criterion benches (run with `--test` in `gate_context.sh`):
+
+- `antecedent-discovery` bench `rpcmci`: `rpcmci_sparse_120`, `rpcmci_stress_240`
+- `antecedent-estimate` bench `temporal_mediation`: `mediation_sparse_200`,
+  `mediation_stress_800`
+
+**Budgets (local regression, Apple M1 class):**
+
+| Case | Soft latency budget |
+|------|---------------------|
+| rpcmci_sparse_120 | < 500 ms / iter (asserted in bench) |
+| rpcmci_stress_240 | < 2 s / iter (asserted in bench) |
+| mediation_sparse_200 | ~5 ms / iter typical; asserted gate **10 ms** (2× headroom for `--test` noise) |
+| mediation_stress_800 | ~20 ms / iter typical; asserted gate **40 ms** (2× headroom for `--test` noise) |
+
+Memory: multi-env sample plans must not clone sibling environment series
+(J-PCMCI+ emits the `jpcmci_plus.multi_env_plan` diagnostic). Soft latency budgets above are
+asserted on a single timed iteration when Criterion runs with `--test`.
+
+## Bayesian mediation reference
+
+`bayesian_mediation_n800_draws512` fits independent Gaussian mediator/outcome
+posteriors on two prepared designs and composes direct, mediated, total and
+requested effects. The posterior workspace is reused. The timed loop includes
+both fits and composition; design preparation is outside it. The retained
+payload assertion is exactly 512 × 4 values, independent of row count; this is
+an output-size check, not a peak-allocation measurement.
+
+Measured locally on macOS 26.5.2 arm64, 2026-09-07, optimized Criterion build,
+10 samples, 1 s warm-up and 1 s measurement:
+
+| Case | Mean (95% bootstrap interval) | Optional local mean gate |
+|------|-------------------------------|--------------------------|
+| bayesian_mediation_n800_draws512 | 178.4 µs (172.7–184.8 µs) | ≤ **5 ms** |
+
+The short local measurement is a regression reference, not a portable latency
+guarantee. `gate_context.sh` executes this case and its output assertion.
+`GATE_CRITERION_MEANS=1 bash scripts/gate_hot_path_baselines.sh` additionally
+checks locally available Criterion means against the declared gate.
+'''
+
+[[baseline.timings]]
+value = "500"
+unit = "ms"
+kind = "soft"
+context = "| rpcmci_sparse_120 | < 500 ms / iter (asserted in bench) |"
+
+[[baseline.timings]]
+value = "2"
+unit = "s"
+kind = "soft"
+context = "| rpcmci_stress_240 | < 2 s / iter (asserted in bench) |"
+
+[[baseline.timings]]
+value = "5"
+unit = "ms"
+kind = "approx"
+context = "| mediation_sparse_200 | ~5 ms / iter typical; asserted gate **10 ms** (2× headroom for `--test` noise) |"
+
+[[baseline.timings]]
+value = "10"
+unit = "ms"
+kind = "measurement"
+context = "| mediation_sparse_200 | ~5 ms / iter typical; asserted gate **10 ms** (2× headroom for `--test` noise) |"
+
+[[baseline.timings]]
+value = "20"
+unit = "ms"
+kind = "approx"
+context = "| mediation_stress_800 | ~20 ms / iter typical; asserted gate **40 ms** (2× headroom for `--test` noise) |"
+
+[[baseline.timings]]
+value = "40"
+unit = "ms"
+kind = "measurement"
+context = "| mediation_stress_800 | ~20 ms / iter typical; asserted gate **40 ms** (2× headroom for `--test` noise) |"
+
+[[baseline.timings]]
+value = "1"
+unit = "s"
+kind = "measurement"
+context = "10 samples, 1 s warm-up and 1 s measurement:"
+
+[[baseline.timings]]
+value = "1"
+unit = "s"
+kind = "measurement"
+context = "10 samples, 1 s warm-up and 1 s measurement:"
+
+[[baseline.timings]]
+value = "178.4"
+unit = "µs"
+kind = "measurement"
+context = "| bayesian_mediation_n800_draws512 | 178.4 µs (172.7–184.8 µs) | ≤ **5 ms** |"
+
+[[baseline.timings]]
+value = "184.8"
+unit = "µs"
+kind = "measurement"
+context = "| bayesian_mediation_n800_draws512 | 178.4 µs (172.7–184.8 µs) | ≤ **5 ms** |"
+
+[[baseline.timings]]
+value = "5"
+unit = "ms"
+kind = "measurement"
+context = "| bayesian_mediation_n800_draws512 | 178.4 µs (172.7–184.8 µs) | ≤ **5 ms** |"
+
+[[baseline]]
+id = "response_interference"
+title = "Causal-response / interference benchmark baselines"
+required = true
+established = "2026-08-18"
+established_note = "(0.5.2 performance pass); simultaneous workload"
+machine_class = "Apple M1 Max (arm64), 64 GB"
+commit = "c2671624"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Causal-response / interference benchmark baselines
+
+Commit: c2671624 (the commit that added this file; the measured commit was not written down)
+
+Workloads (`antecedent-estimate` bench `response_interference`):
+
+- `kennedy_curve_n4k_grid5` — cross-fitted Kennedy DR mean curve, n = 4 000,
+  5-point grid, 1 confounder, default options (5 folds, Silverman bandwidth).
+- `kennedy_curve_n4k_grid5_simultaneous` — same `curve_data(4000)` / 5-point
+  `MeanCurve` fixture with `bandwidth = Some(0.35)` and
+  `simultaneous_replicates = Some(100)` (explicit bandwidth required; 100 is
+  the estimator minimum).
+- `interference_cluster_n10k_2kdraws` — randomized exposure contrast under
+  cluster randomization, n = 10 000 units / 1 000 clusters, degree-4 network,
+  2 000 Monte Carlo exposure draws per level.
+
+Established: 2026-08-18 (0.5.2 performance pass); simultaneous workload
+2026-08-18 (0.6.0)
+Machine class: Apple M1 Max (arm64), 64 GB
+Criterion sample size: 100
+
+## Accepted measurement
+
+| Workload | mean wall time |
+|----------|----------------|
+| kennedy_curve_n4k_grid5 | **210 ms** |
+| kennedy_curve_n4k_grid5_simultaneous | **216 ms** |
+| interference_cluster_n10k_2kdraws | **167 ms** |
+
+## Acceptance
+
+Regressions exceeding **20%** wall-time vs the last accepted Criterion run on
+the same machine class require an approved explanation and replacement
+baseline. Additionally the bench asserts a hard soft-budget gate of
+**1 s / iter** for each workload (including `kennedy_curve_n4k_grid5_simultaneous`)
+on every invocation (including `--test` smokes) — ~5× headroom, sized so the
+pre-0.5.2 failure modes cannot return:
+
+- the O(n²) pseudo-outcome loop (≈4 s at n = 4 000; hours at n = 100 000);
+- the O(draws × n × treated_clusters) cluster-membership scan.
+
+## Scaling contract
+
+Kennedy pseudo-outcomes are O(n) per fold in GAM predictions (the additive
+covariate offset is hoisted per fold; `predict_row` is allocation-free). The
+remaining O(n²/K) term is the exact marginal-density KDE sum, which is
+definitional. Interference draws are O(n + clusters) each with reused
+assignment/exposure buffers (`AssignmentSampler`), bit-identical to the
+one-shot sampler (differential test
+`monte_carlo_sampler_reuse_is_bit_identical_to_one_shot_reference`).
+
+## How to refresh
+
+```bash
+cargo +1.85 bench -p antecedent-estimate --bench response_interference
+```
+'''
+
+[[baseline.timings]]
+value = "210"
+unit = "ms"
+kind = "measurement"
+context = "| kennedy_curve_n4k_grid5 | **210 ms** |"
+
+[[baseline.timings]]
+value = "216"
+unit = "ms"
+kind = "measurement"
+context = "| kennedy_curve_n4k_grid5_simultaneous | **216 ms** |"
+
+[[baseline.timings]]
+value = "167"
+unit = "ms"
+kind = "measurement"
+context = "| interference_cluster_n10k_2kdraws | **167 ms** |"
+
+[[baseline.timings]]
+value = "1"
+unit = "s"
+kind = "measurement"
+context = "**1 s / iter** for each workload (including `kennedy_curve_n4k_grid5_simultaneous`)"
+
+[[baseline.timings]]
+value = "4"
+unit = "s"
+kind = "measurement"
+context = "- the O(n²) pseudo-outcome loop (≈4 s at n = 4 000; hours at n = 100 000);"
+
+[[baseline]]
+id = "sample_overlay"
+title = "GCM interventional sampling baselines"
+required = true
+established = "2026-08-18"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "59295cec"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# GCM interventional sampling baselines
+
+Established: 2026-08-18 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 59295cec (the commit that added this file; the measured commit was not written down)
+
+Owner: `antecedent-model` / `sample_interventional`
+
+## Criteria
+
+- Repeated interventional draws of the same shape must reuse `MechanismWorkspace`
+  scratch: after a warm sample, `ws.grow_count` must stay flat across further
+  samples (asserted in the Criterion bench after the timed loop).
+- Bench target: `sample_interventional_n1000_overlay` — fitted two-node linear
+  Gaussian, hard `do(X := 1)`, n=1000 draws, workspace hoisted across Criterion
+  iterations.
+
+## Measured mean
+
+- `sample_interventional_n1000_overlay`: **10.14 µs** (Criterion mean, CI 10.056–10.232 µs).
+- Established: 2026-08-18. Machine class: Apple M1 Max.
+
+## How to refresh
+
+```bash
+cargo bench -p antecedent-model --bench sample_overlay
+```
+
+Record the Criterion mean and update this file with the run date and machine class. The
+bench aborts (assert) if the workspace grows across samples — a refresh that trips the
+assert is a reuse regression, not a new baseline.
+
+Gate: mean ≤ **12.16 µs** (20% over 10.14 µs).
+'''
+
+[[baseline.gates]]
+workload = "*"
+value = "12.16"
+unit = "µs"
+
+[[baseline.timings]]
+value = "10.14"
+unit = "µs"
+kind = "measurement"
+context = "- `sample_interventional_n1000_overlay`: **10.14 µs** (Criterion mean, CI 10.056–10.232 µs)."
+
+[[baseline.timings]]
+value = "10.232"
+unit = "µs"
+kind = "measurement"
+context = "- `sample_interventional_n1000_overlay`: **10.14 µs** (Criterion mean, CI 10.056–10.232 µs)."
+
+[[baseline.timings]]
+value = "12.16"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **12.16 µs** (20% over 10.14 µs)."
+
+[[baseline.timings]]
+value = "10.14"
+unit = "µs"
+kind = "measurement"
+context = "Gate: mean ≤ **12.16 µs** (20% over 10.14 µs)."
+
+[[baseline]]
+id = "shapley"
+title = "Shapley attribution baselines"
+required = true
+established = "2026-07-14"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "9a26b51a"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Shapley attribution baselines
+
+Established: 2026-07-14 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 9a26b51a (the commit that added this file; the measured commit was not written down)
+
+Criterion bench `antecedent-attribution` / `shapley` (gated with `--test`):
+
+- `shapley_mc_8p_200_cached`
+- `shapley_mc_8p_200_uncached`
+- `shapley_exact_10p_cached`
+
+**Budgets (local regression, Apple M1 class):**
+
+| Case | Soft latency budget |
+|------|---------------------|
+| shapley_mc_8p_200_cached | < 500 ms / iter |
+| shapley_exact_10p_cached | < 200 ms / iter |
+
+Cache hits must reduce coalition re-evaluation vs uncached MC on additive games
+(see unit tests in `coalition` / `shapley` modules). Exact Shapley rejects above
+`max_exact_components` unless `allow_exact_override` is set.
+'''
+
+[[baseline.timings]]
+value = "500"
+unit = "ms"
+kind = "soft"
+context = "| shapley_mc_8p_200_cached | < 500 ms / iter |"
+
+[[baseline.timings]]
+value = "200"
+unit = "ms"
+kind = "soft"
+context = "| shapley_exact_10p_cached | < 200 ms / iter |"
+
+[[baseline]]
+id = "staged_handle"
+title = "Prepared handle — 1.3.0"
+required = false
+established = "2026-09-08"
+established_note = "(the first measurement date the note below states)"
+machine_class = "macOS arm64 development host, as the measurement note below states; the chip model was not written down"
+commit = "6e60c419"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+waiver = "none published"
+narrative = '''
+# Prepared handle — 1.3.0
+
+Established: 2026-09-08 (the first measurement date the note below states)
+Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
+Commit: 6e60c419 (the commit that added this file; the measured commit was not written down)
+
+Measured 2026-09-08 on this macOS arm64 development host with the release
+profile, Criterion 10 samples, one-second warmup and measurement. Preparation
+is outside the timed loop; each iteration estimates against supplied data.
+These are local measurements, not portable CI thresholds.
+
+| Workload | Criterion estimate | 95% interval |
+|---|---|---|
+| `prepared_point_derivative_n400` | **704.31 µs** | 700.86–709.77 µs |
+| `prepared_counterfactual_n400` | **22.895 µs** | 22.822–22.961 µs |
+| `inspect_n400` | none published | smoke only |
+| `capability_n400` | none published | smoke only |
+| `metadata_only_artifact_read` | none published | smoke only |
+
+Run `cargo bench -p antecedent --bench staged_handle`. The release gate runs
+these with `--test` alongside the designated response and GCM workloads.
+Inspection and metadata-only reads must not identify; `--test` covers that
+path, not a portable wall-time gate.
+'''
+
+[[baseline.timings]]
+value = "704.31"
+unit = "µs"
+kind = "measurement"
+context = "| `prepared_point_derivative_n400` | **704.31 µs** | 700.86–709.77 µs |"
+
+[[baseline.timings]]
+value = "709.77"
+unit = "µs"
+kind = "measurement"
+context = "| `prepared_point_derivative_n400` | **704.31 µs** | 700.86–709.77 µs |"
+
+[[baseline.timings]]
+value = "22.895"
+unit = "µs"
+kind = "measurement"
+context = "| `prepared_counterfactual_n400` | **22.895 µs** | 22.822–22.961 µs |"
+
+[[baseline.timings]]
+value = "22.961"
+unit = "µs"
+kind = "measurement"
+context = "| `prepared_counterfactual_n400` | **22.895 µs** | 22.822–22.961 µs |"
+
+[[baseline]]
+id = "temporal_response"
+title = "temporal response baselines"
+required = false
+established = "2026-09-07"
+established_note = "(the first measurement date the note below states)"
+machine_class = "macOS arm64 development host, as the measurement note below states; the chip model was not written down"
+commit = "87e9a12e"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# temporal response baselines
+
+Established: 2026-09-07 (the first measurement date the note below states)
+Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
+Commit: 87e9a12e (the commit that added this file; the measured commit was not written down)
+
+Criterion benches (run with `--test` in release / feature gates):
+
+- `antecedent-estimate` bench `temporal_response`:
+  `temporal_response_multi_horizon_n800`,
+  `temporal_response_intervention_shift_n100000`
+
+**Budgets (local regression, Apple M1 class):**
+
+| Case | Soft latency budget |
+|------|---------------------|
+| temporal_response_multi_horizon_n800 | asserted gate **25 ms** (2× headroom for `--test` noise) |
+| temporal_response_intervention_shift_n100000 | asserted gate **200 ms** (measured ~10.7 ms steady state; wide headroom is deliberate — see below) |
+| bayesian_temporal_response_n2000_draws512_h6_grid5 (cold) | asserted gate **40 ms** (see below) |
+
+Allocation / memory contract: prepare-once identification + indexer are reused
+across estimate clicks on the facade `PreparedStudy::estimate_series` path;
+this bench pins the shared estimator hot path that those clicks call for a
+multi-horizon dose grid without re-unfolding identification.
+
+`temporal_response_intervention_shift_n100000` covers the `InterventionResponse`
+additive-shift path specifically, which `temporal_response_multi_horizon_n800`
+does not exercise at all (it only benches `MeanCurve`). This path was previously
+O(n^2 * p) — it averaged g-computation over every observed treatment level — and
+was collapsed to an O(n*p) closed form `mu_hat(Abar + delta)` (an O(p) evaluation
+per horizon on top of the unavoidable O(n*p) design fit). n = 100,000 is large
+enough that a reintroduced per-observation averaging loop would push wall time
+from ~10 ms to well over the 200 ms budget, while the closed-form path stays
+comfortably within it. This repo already suffered one silent O(n^2) response-curve
+regression (0.5.2, 77× fix); this bench exists so that class of regression on the
+temporal `InterventionResponse` path fails the gate instead of shipping unnoticed.
+
+`bayesian_temporal_response_n2000_draws512_h6_grid5` covers the Bayesian curve
+at six horizons and five doses on `n = 2000` rows. Every horizon is its own
+lag-aligned design, and each design's likelihood is tempered by the
+serial-dependence factor of `antecedent_estimate::serial_dependence`, whose
+REML AR(q) residual fit (Nelder–Mead over the partial autocorrelations at four
+candidate orders with a Newton polish, the projected trace, the observed
+information) is the expensive part: it is computed once per design and cached
+by row content, so the Criterion loop measures the warm path (per-dose
+quadratic forms, the score HAC bound of the driving doses, the conjugate fits)
+while the asserted cold budget runs first, before any bench has touched the
+series, and pays all six residual fits. Before the per-design fit and the
+O(q²p²) likelihood from precomputed lagged cross-products, the fit cost
+~15–30 ms per design at `n = 800`–`2000` (measured 2026-09-15 before the
+change: the n = 800 response bench at 16.9 ms, the sustained window at 70 ms,
+mediation at 32 ms, all min-of-5 interleaved); now each likelihood evaluation is O(q²p²) whatever `n`,
+and a design costs ~1–6 ms cold depending on the selected order and the
+simplex iteration count (the whole cold curve measured 18.7–21.7 ms across
+five runs, of which the six residual fits are most), which is what the 40 ms
+gate (2× headroom) protects. Warm, the curve measures ~1.7 ms and the n = 800
+response bench ~142 µs (1.5× its reference below; with tempering
+short-circuited it measures ~145 µs, so the warm tempering path is within
+noise).
+
+## Posterior and sustained-window reference
+
+Measured locally on macOS 26.5.2 arm64, 2026-09-07, optimized Criterion build,
+10 samples, 1 s warm-up and 1 s measurement. Values are Criterion means and
+95% bootstrap confidence intervals; these short local runs are regression
+references, not portable latency guarantees.
+
+| Case | Mean (95% interval) | Optional local mean gate |
+|------|---------------------|--------------------------|
+| sustained_window_n800_bootstrap20 | 443.4 µs (436.0–450.8 µs) | ≤ **5 ms** |
+| sustained_window_n800_draws512 | 187.6 µs (173.9–210.9 µs) | ≤ **5 ms** |
+| bayesian_temporal_response_n800_draws512_grid4 | 96.5 µs (93.7–100.9 µs) | ≤ **2 ms** |
+
+The window fixture intervenes at both lagged treatment times. Its Frequentist
+fit refits mechanisms on 20 shared moving-block samples; its Bayesian fit
+retains 512 composed effects. The response fixture fits one identified horizon
+and evaluates four doses. Identification/indexer construction is outside the
+timed loops; fitting and posterior composition are inside. Output assertions
+pin 512 effects or four surface means, without retaining a row-by-draw result.
+They do not measure peak working allocation. The optional mean gates use
+`GATE_CRITERION_MEANS=1 bash scripts/gate_hot_path_baselines.sh`; release smokes
+always execute the cases and their shape assertions.
+'''
+
+[[baseline.timings]]
+value = "25"
+unit = "ms"
+kind = "measurement"
+context = "| temporal_response_multi_horizon_n800 | asserted gate **25 ms** (2× headroom for `--test` noise) |"
+
+[[baseline.timings]]
+value = "200"
+unit = "ms"
+kind = "measurement"
+context = "| temporal_response_intervention_shift_n100000 | asserted gate **200 ms** (measured ~10.7 ms steady state; wide headroom is deliberate — see below) |"
+
+[[baseline.timings]]
+value = "10.7"
+unit = "ms"
+kind = "approx"
+context = "| temporal_response_intervention_shift_n100000 | asserted gate **200 ms** (measured ~10.7 ms steady state; wide headroom is deliberate — see below) |"
+
+[[baseline.timings]]
+value = "40"
+unit = "ms"
+kind = "measurement"
+context = "| bayesian_temporal_response_n2000_draws512_h6_grid5 (cold) | asserted gate **40 ms** (see below) |"
+
+[[baseline.timings]]
+value = "10"
+unit = "ms"
+kind = "approx"
+context = "from ~10 ms to well over the 200 ms budget, while the closed-form path stays"
+
+[[baseline.timings]]
+value = "200"
+unit = "ms"
+kind = "measurement"
+context = "from ~10 ms to well over the 200 ms budget, while the closed-form path stays"
+
+[[baseline.timings]]
+value = "30"
+unit = "ms"
+kind = "measurement"
+context = "~15–30 ms per design at `n = 800`–`2000` (measured 2026-09-15 before the"
+
+[[baseline.timings]]
+value = "16.9"
+unit = "ms"
+kind = "measurement"
+context = "change: the n = 800 response bench at 16.9 ms, the sustained window at 70 ms,"
+
+[[baseline.timings]]
+value = "70"
+unit = "ms"
+kind = "measurement"
+context = "change: the n = 800 response bench at 16.9 ms, the sustained window at 70 ms,"
+
+[[baseline.timings]]
+value = "32"
+unit = "ms"
+kind = "measurement"
+context = "mediation at 32 ms, all min-of-5 interleaved); now each likelihood evaluation is O(q²p²) whatever `n`,"
+
+[[baseline.timings]]
+value = "6"
+unit = "ms"
+kind = "measurement"
+context = "and a design costs ~1–6 ms cold depending on the selected order and the"
+
+[[baseline.timings]]
+value = "21.7"
+unit = "ms"
+kind = "measurement"
+context = "simplex iteration count (the whole cold curve measured 18.7–21.7 ms across"
+
+[[baseline.timings]]
+value = "40"
+unit = "ms"
+kind = "measurement"
+context = "five runs, of which the six residual fits are most), which is what the 40 ms"
+
+[[baseline.timings]]
+value = "1.7"
+unit = "ms"
+kind = "approx"
+context = "gate (2× headroom) protects. Warm, the curve measures ~1.7 ms and the n = 800"
+
+[[baseline.timings]]
+value = "142"
+unit = "µs"
+kind = "approx"
+context = "response bench ~142 µs (1.5× its reference below; with tempering"
+
+[[baseline.timings]]
+value = "145"
+unit = "µs"
+kind = "approx"
+context = "short-circuited it measures ~145 µs, so the warm tempering path is within"
+
+[[baseline.timings]]
+value = "1"
+unit = "s"
+kind = "measurement"
+context = "10 samples, 1 s warm-up and 1 s measurement. Values are Criterion means and"
+
+[[baseline.timings]]
+value = "1"
+unit = "s"
+kind = "measurement"
+context = "10 samples, 1 s warm-up and 1 s measurement. Values are Criterion means and"
+
+[[baseline.timings]]
+value = "443.4"
+unit = "µs"
+kind = "measurement"
+context = "| sustained_window_n800_bootstrap20 | 443.4 µs (436.0–450.8 µs) | ≤ **5 ms** |"
+
+[[baseline.timings]]
+value = "450.8"
+unit = "µs"
+kind = "measurement"
+context = "| sustained_window_n800_bootstrap20 | 443.4 µs (436.0–450.8 µs) | ≤ **5 ms** |"
+
+[[baseline.timings]]
+value = "5"
+unit = "ms"
+kind = "measurement"
+context = "| sustained_window_n800_bootstrap20 | 443.4 µs (436.0–450.8 µs) | ≤ **5 ms** |"
+
+[[baseline.timings]]
+value = "187.6"
+unit = "µs"
+kind = "measurement"
+context = "| sustained_window_n800_draws512 | 187.6 µs (173.9–210.9 µs) | ≤ **5 ms** |"
+
+[[baseline.timings]]
+value = "210.9"
+unit = "µs"
+kind = "measurement"
+context = "| sustained_window_n800_draws512 | 187.6 µs (173.9–210.9 µs) | ≤ **5 ms** |"
+
+[[baseline.timings]]
+value = "5"
+unit = "ms"
+kind = "measurement"
+context = "| sustained_window_n800_draws512 | 187.6 µs (173.9–210.9 µs) | ≤ **5 ms** |"
+
+[[baseline.timings]]
+value = "96.5"
+unit = "µs"
+kind = "measurement"
+context = "| bayesian_temporal_response_n800_draws512_grid4 | 96.5 µs (93.7–100.9 µs) | ≤ **2 ms** |"
+
+[[baseline.timings]]
+value = "100.9"
+unit = "µs"
+kind = "measurement"
+context = "| bayesian_temporal_response_n800_draws512_grid4 | 96.5 µs (93.7–100.9 µs) | ≤ **2 ms** |"
+
+[[baseline.timings]]
+value = "2"
+unit = "ms"
+kind = "measurement"
+context = "| bayesian_temporal_response_n800_draws512_grid4 | 96.5 µs (93.7–100.9 µs) | ≤ **2 ms** |"
+
+[[baseline]]
+id = "temporal_zero_replicates"
+title = "Temporal Pulse / Sustained without replicates — 1.9.0"
+required = false
+established = "2026-09-14"
+established_note = "(the first measurement date the note below states)"
+machine_class = "macOS arm64 development host, as the measurement note below states; the chip model was not written down"
+commit = "cb15e6c1"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Temporal Pulse / Sustained without replicates — 1.9.0
+
+Established: 2026-09-14 (the first measurement date the note below states)
+Machine class: macOS arm64 development host, as the measurement note below states; the chip model was not written down
+Commit: cb15e6c1 (the commit that added this file; the measured commit was not written down)
+
+Measured 2026-09-14 on this macOS arm64 development host with the release
+profile, min of 5 runs, three interleaved rounds against the pre-fix build
+(other workloads were running; the interleaving keeps the ratios honest, the
+absolute values are within about 10%). One `TemporalDag` (`x_{t-1} -> y_t`),
+Frequentist, `Study::run` end to end. Tiers: `I` is `LatencyMode::Interactive`
+(zero replicates, cheap validators); `B0` is zero replicates with the default
+placebo + RCC suite; `B199` is 199 replicates with that suite. These are local
+measurements, not portable CI thresholds.
+
+| Workload | Before | After |
+|---|---|---|
+| `pulse_n2000\|I` | 0.595 ms | **0.114 ms** |
+| `pulse_n2000\|B0` | 4.01 ms | **3.49 ms** |
+| `pulse_n2000\|B199` | 9.57 ms | **9.30 ms** |
+| `sustained3_n2000\|I` | 0.632 ms | **0.145 ms** |
+| `sustained3_n2000\|B0` | 21.2 ms | **5.24 ms** |
+| `sustained3_n2000\|B199` | 28.5 ms | **11.2 ms** |
+| `pulse_n100k\|I` | 178 ms | **8.9 ms** |
+| `pulse_n100k\|B0` | 379 ms | **205 ms** |
+| `pulse_n100k\|B199` | 798 ms | **730 ms** |
+| `sustained3_n100k\|I` | 178 ms | **10.4 ms** |
+| `sustained3_n100k\|B0` | 5100 ms | **317 ms** |
+| `sustained3_n100k\|B199` | 5495 ms | **785 ms** |
+
+What moved: the dependence-aware circular-block length (a refit for every
+normal-equation score plus a Politis–White scan per score, O(n^1.5) in the
+series length) was computed before the `replicates > 0` branch on the
+single-window, sequential and mediation paths, so a zero-replicate estimate
+paid for an interval it never published, and every placebo / RCC refit paid
+again. The length is now only derived when replicates are drawn (the rule
+length is reported otherwise, and the diagnostic says so), the Politis–White
+scan takes autocorrelations lag by lag as the bandwidth search asks for them
+(a short-memory score needs `K_n` lags, not `√n + K_n`), and the
+`bootstrap.ci_coverage` refuter reuses the length carried on a bootstrapped
+estimate (`EffectEstimate::block_resampling`) instead of re-deriving it.
+
+Run `cargo bench -p antecedent --bench temporal_zero_replicates`
+(`ANTECEDENT_BENCH_CELLS` selects cells, `ANTECEDENT_BENCH_REPEATS` the min-of
+count). The release gate runs it with `--test`, which times the two Interactive
+cells at n = 20 000 (`pulse_n20k|I` 1.29 ms, `sustained3_n20k|I` 1.63 ms after
+the fix) against a soft budget of 5 ms: about 3× the fixed values, and about a
+third of what the eager O(n^1.5) score scan alone costs at that length (the
+178 ms it cost at n = 100 000 scales to roughly 16 ms).
+'''
+
+[[baseline.timings]]
+value = "0.595"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n2000\\|I` | 0.595 ms | **0.114 ms** |"
+
+[[baseline.timings]]
+value = "0.114"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n2000\\|I` | 0.595 ms | **0.114 ms** |"
+
+[[baseline.timings]]
+value = "4.01"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n2000\\|B0` | 4.01 ms | **3.49 ms** |"
+
+[[baseline.timings]]
+value = "3.49"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n2000\\|B0` | 4.01 ms | **3.49 ms** |"
+
+[[baseline.timings]]
+value = "9.57"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n2000\\|B199` | 9.57 ms | **9.30 ms** |"
+
+[[baseline.timings]]
+value = "9.30"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n2000\\|B199` | 9.57 ms | **9.30 ms** |"
+
+[[baseline.timings]]
+value = "0.632"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n2000\\|I` | 0.632 ms | **0.145 ms** |"
+
+[[baseline.timings]]
+value = "0.145"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n2000\\|I` | 0.632 ms | **0.145 ms** |"
+
+[[baseline.timings]]
+value = "21.2"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n2000\\|B0` | 21.2 ms | **5.24 ms** |"
+
+[[baseline.timings]]
+value = "5.24"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n2000\\|B0` | 21.2 ms | **5.24 ms** |"
+
+[[baseline.timings]]
+value = "28.5"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n2000\\|B199` | 28.5 ms | **11.2 ms** |"
+
+[[baseline.timings]]
+value = "11.2"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n2000\\|B199` | 28.5 ms | **11.2 ms** |"
+
+[[baseline.timings]]
+value = "178"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n100k\\|I` | 178 ms | **8.9 ms** |"
+
+[[baseline.timings]]
+value = "8.9"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n100k\\|I` | 178 ms | **8.9 ms** |"
+
+[[baseline.timings]]
+value = "379"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n100k\\|B0` | 379 ms | **205 ms** |"
+
+[[baseline.timings]]
+value = "205"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n100k\\|B0` | 379 ms | **205 ms** |"
+
+[[baseline.timings]]
+value = "798"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n100k\\|B199` | 798 ms | **730 ms** |"
+
+[[baseline.timings]]
+value = "730"
+unit = "ms"
+kind = "measurement"
+context = "| `pulse_n100k\\|B199` | 798 ms | **730 ms** |"
+
+[[baseline.timings]]
+value = "178"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n100k\\|I` | 178 ms | **10.4 ms** |"
+
+[[baseline.timings]]
+value = "10.4"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n100k\\|I` | 178 ms | **10.4 ms** |"
+
+[[baseline.timings]]
+value = "5100"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n100k\\|B0` | 5100 ms | **317 ms** |"
+
+[[baseline.timings]]
+value = "317"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n100k\\|B0` | 5100 ms | **317 ms** |"
+
+[[baseline.timings]]
+value = "5495"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n100k\\|B199` | 5495 ms | **785 ms** |"
+
+[[baseline.timings]]
+value = "785"
+unit = "ms"
+kind = "measurement"
+context = "| `sustained3_n100k\\|B199` | 5495 ms | **785 ms** |"
+
+[[baseline.timings]]
+value = "1.29"
+unit = "ms"
+kind = "measurement"
+context = "cells at n = 20 000 (`pulse_n20k|I` 1.29 ms, `sustained3_n20k|I` 1.63 ms after"
+
+[[baseline.timings]]
+value = "1.63"
+unit = "ms"
+kind = "measurement"
+context = "cells at n = 20 000 (`pulse_n20k|I` 1.29 ms, `sustained3_n20k|I` 1.63 ms after"
+
+[[baseline.timings]]
+value = "5"
+unit = "ms"
+kind = "measurement"
+context = "the fix) against a soft budget of 5 ms: about 3× the fixed values, and about a"
+
+[[baseline.timings]]
+value = "178"
+unit = "ms"
+kind = "measurement"
+context = "178 ms it cost at n = 100 000 scales to roughly 16 ms)."
+
+[[baseline.timings]]
+value = "16"
+unit = "ms"
+kind = "measurement"
+context = "178 ms it cost at n = 100 000 scales to roughly 16 ms)."
+
+[[baseline]]
+id = "transport"
+title = "Transport identification, catalog, evaluation, and bootstrap"
+required = false
+established = "2026-09-21"
+machine_class = "Apple M1 Max (arm64), 64 GB"
+commit = "f5660026"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+narrative = '''
+# Transport identification, catalog, evaluation, and bootstrap
+
+Commit: f5660026 (the commit that added this file; the measured commit was not written down)
+
+Workloads in `crates/antecedent/benches/transport.rs`:
+
+- `identify_classical_3node` — X→M→Y with X↔Y, selection on Y
+- `identify_classical_6node_districts` — two disjoint frontdoor districts
+- `catalog_search_1_regime` / `catalog_search_4_regimes` — bounded catalog search after a frozen classical derivation
+- `evaluate_exact_3node_8cell` / `evaluate_exact_6node_64cell` — compile+evaluate a bound formula on a uniform joint
+- `statistical_plugin_bootstrap_0` / `statistical_plugin_bootstrap_19` — prepared empirical-table re-estimate
+
+Domain limits: classical/catalog sID on binary variables; not meta-transport completeness; not simultaneous bands; bootstrap 19 is a cost probe, not a coverage design. Grid-size cost is the 2-point statistical request vs 19-replicate outer bootstrap. Allocation snapshots for grid prepare/eval remain in `cohesion_allocations`.
+
+Established: 2026-09-21
+Machine class: Apple M1 Max (arm64), 64 GB
+Criterion sample size: 20
+Regression budget: 20%.
+
+## Accepted measurement
+
+| Workload | mean | Gate |
+|----------|------|------|
+| `identify_classical_3node` | **16.2 µs** | ≤ **19.5 µs** |
+| `identify_classical_6node_districts` | **31.7 µs** | ≤ **38.1 µs** |
+| `catalog_search_1_regime` | **20.3 µs** | ≤ **24.4 µs** |
+| `catalog_search_4_regimes` | **46.0 µs** | ≤ **55.2 µs** |
+| `evaluate_exact_3node_8cell` | **28.5 µs** | ≤ **34.2 µs** |
+| `evaluate_exact_6node_64cell` | **158 µs** | ≤ **189.6 µs** |
+| `statistical_plugin_bootstrap_0` | **4.03 µs** | ≤ **4.84 µs** |
+| `statistical_plugin_bootstrap_19` | **157 µs** | ≤ **188.7 µs** |
+
+```bash
+cargo +1.85 bench -p antecedent --bench transport
+```
+'''
+
+[[baseline.timings]]
+value = "16.2"
+unit = "µs"
+kind = "measurement"
+context = "| `identify_classical_3node` | **16.2 µs** | ≤ **19.5 µs** |"
+
+[[baseline.timings]]
+value = "19.5"
+unit = "µs"
+kind = "measurement"
+context = "| `identify_classical_3node` | **16.2 µs** | ≤ **19.5 µs** |"
+
+[[baseline.timings]]
+value = "31.7"
+unit = "µs"
+kind = "measurement"
+context = "| `identify_classical_6node_districts` | **31.7 µs** | ≤ **38.1 µs** |"
+
+[[baseline.timings]]
+value = "38.1"
+unit = "µs"
+kind = "measurement"
+context = "| `identify_classical_6node_districts` | **31.7 µs** | ≤ **38.1 µs** |"
+
+[[baseline.timings]]
+value = "20.3"
+unit = "µs"
+kind = "measurement"
+context = "| `catalog_search_1_regime` | **20.3 µs** | ≤ **24.4 µs** |"
+
+[[baseline.timings]]
+value = "24.4"
+unit = "µs"
+kind = "measurement"
+context = "| `catalog_search_1_regime` | **20.3 µs** | ≤ **24.4 µs** |"
+
+[[baseline.timings]]
+value = "46.0"
+unit = "µs"
+kind = "measurement"
+context = "| `catalog_search_4_regimes` | **46.0 µs** | ≤ **55.2 µs** |"
+
+[[baseline.timings]]
+value = "55.2"
+unit = "µs"
+kind = "measurement"
+context = "| `catalog_search_4_regimes` | **46.0 µs** | ≤ **55.2 µs** |"
+
+[[baseline.timings]]
+value = "28.5"
+unit = "µs"
+kind = "measurement"
+context = "| `evaluate_exact_3node_8cell` | **28.5 µs** | ≤ **34.2 µs** |"
+
+[[baseline.timings]]
+value = "34.2"
+unit = "µs"
+kind = "measurement"
+context = "| `evaluate_exact_3node_8cell` | **28.5 µs** | ≤ **34.2 µs** |"
+
+[[baseline.timings]]
+value = "158"
+unit = "µs"
+kind = "measurement"
+context = "| `evaluate_exact_6node_64cell` | **158 µs** | ≤ **189.6 µs** |"
+
+[[baseline.timings]]
+value = "189.6"
+unit = "µs"
+kind = "measurement"
+context = "| `evaluate_exact_6node_64cell` | **158 µs** | ≤ **189.6 µs** |"
+
+[[baseline.timings]]
+value = "4.03"
+unit = "µs"
+kind = "measurement"
+context = "| `statistical_plugin_bootstrap_0` | **4.03 µs** | ≤ **4.84 µs** |"
+
+[[baseline.timings]]
+value = "4.84"
+unit = "µs"
+kind = "measurement"
+context = "| `statistical_plugin_bootstrap_0` | **4.03 µs** | ≤ **4.84 µs** |"
+
+[[baseline.timings]]
+value = "157"
+unit = "µs"
+kind = "measurement"
+context = "| `statistical_plugin_bootstrap_19` | **157 µs** | ≤ **188.7 µs** |"
+
+[[baseline.timings]]
+value = "188.7"
+unit = "µs"
+kind = "measurement"
+context = "| `statistical_plugin_bootstrap_19` | **157 µs** | ≤ **188.7 µs** |"
+
+[[baseline]]
+id = "user_path"
+title = "User-path jobs"
+required = false
+established = "2026-09-19"
+established_note = "(the date this file was first committed; the measurement date was not written down)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "6a1a2463"
+commit_note = "(the commit that added this file; the measured commit was not written down)"
+waiver = "none published"
+narrative = '''
+# User-path jobs
+
+Established: 2026-09-19 (the date this file was first committed; the measurement date was not written down)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 6a1a2463 (the commit that added this file; the measured commit was not written down)
+
+Not a `hot_paths.md` merge blocker. Not in `scripts/gate_release.sh` Criterion smoke.
+No wall times are recorded in this file (none published); each run prints them to stderr.
+
+Harness: `crates/antecedent/benches/user_path.rs`.
+
+```text
+# CI / compile smoke (toy n)
+cargo bench -p antecedent --bench user_path -- --test
+
+# Local 10⁴ / 10⁵ (this M-series laptop)
+USER_PATH_N=10000 cargo bench -p antecedent --bench user_path -- --quick
+USER_PATH_N=100000 cargo bench -p antecedent --bench user_path -- --quick
+```
+
+Jobs (default user path: `ExecutionContext::production_default`, published interval once):
+
+| Job | What it hits |
+| --- | --- |
+| `dag_ate_frequentist` | Dag ATE, default 199-replicate bootstrap at full n |
+| `dag_ate_bayesian_laplace` | Laplace GLM + certified draws |
+| `intervention_level` | InterventionResponse level |
+| `kennedy_curve` | Kennedy-DR mean curve |
+| `graph_posterior_mixture` | Few-atom GP mixture under `ctx.parallelism` |
+| `temporal_pulse` | Pulse on a keepable series (block-length / Politis–White when B>0) |
+
+Recorded on each run (stderr): wall time, `copy_count`, `bytes_borrowed`, `exec.identify.cached` hits, `max_threads`. Peak RSS is local (`/usr/bin/time -l`).
+
+Full 10⁴ / 10⁵ numbers set the sitting-time budgets. They do not replace `hot_paths.md`.
+
+## Profile poles (local)
+
+Kennedy-DR + local-quadratic, Laplace GLM, default 199 bootstrap, Laplace draws, GP per-atom refit, GAC search, temporal block-length, pandas ingest vs Arrow CDI.
+
+P4 hunts only what those profiles name. Known leftovers after this cut:
+
+- GAC candidate enumeration is still per-call; ordinary ID already memos `SubproblemKey`. Inspect/capability must not search (pinned). User graphs that never hit the cap of 40 do not pay a memo miss.
+- `PY_DEFAULT_CACHE_MAX_BYTES` (4 MB) is on; `CacheBudget` refuses (`StateError::CacheBudget`) rather than growing into OOM.
+- No architecture-specific kernel is compiled in. No `simd-runtime` unless a profiled path matches scalar tests bit-for-bit.
+- Arrow CDI borrow is the ingest win; pandas/dict `as_columns` stays the explicit copy.
+'''

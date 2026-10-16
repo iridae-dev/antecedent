@@ -1,0 +1,19 @@
+feature_id = "transport.multi_source_limited_experiment.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "Dirichlet posterior means of the supplied finite laws, structural zeros held at zero, pushed through the multi-source identifier the frequentist record already runs. A tiny concentration stays at the target interventional truth. No TemporalAdmg. No interval.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/mz_transport_execution.rs",
+]

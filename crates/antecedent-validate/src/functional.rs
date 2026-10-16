@@ -2,8 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments)]
-
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, InterventionalDistributionQuery, PathSpecificEffectQuery};
@@ -16,7 +14,10 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationResult;
 
 use crate::ValidationError;
-use crate::common::{RefutationReport, replicate_p_value, with_row_subset};
+use crate::common::{
+    RefutationReport, STABILITY_ALPHA, STABILITY_REPLICATES, finish_p_report, map_replicates,
+    with_row_subset,
+};
 
 /// Refit the identified path functional on independent 80% row subsets.
 /// Full validation also probes 50% subsets. The path assignment and natural
@@ -42,40 +43,36 @@ pub fn refute_path(
     .iter()
     .enumerate()
     {
-        let mut values = Vec::new();
-        for replicate in 0..20_u64 {
-            if ctx.cancellation.is_cancelled() {
-                return Err(ValidationError::Cancelled);
-            }
-            let subset =
-                with_row_subset(data, fraction, ctx, subset_stream(0xF012_0000, slot, replicate))?;
-            let prepared = estimator.prepare(
-                &subset,
-                estimand,
-                &identification.arena,
-                identification.required_assumptions.clone(),
-                &extra,
-            )?;
-            values.push(
-                estimator
+        let values = map_replicates(
+            ctx,
+            STABILITY_REPLICATES,
+            || (),
+            |(), ctx, replicate| {
+                let replicate = u64::from(replicate);
+                let subset = with_row_subset(
+                    data,
+                    fraction,
+                    ctx,
+                    subset_stream(crate::streams::FUNCTIONAL_SUBSET_80, slot, replicate),
+                )?;
+                let prepared = estimator.prepare(
+                    &subset,
+                    estimand,
+                    &identification.arena,
+                    identification.required_assumptions.clone(),
+                    &extra,
+                )?;
+                Ok(estimator
                     .estimate(&prepared, &mut FunctionalDistributionWorkspace::default(), ctx)?
-                    .ate,
-            );
-        }
-        let p = replicate_p_value(&values, original)?;
+                    .ate)
+            },
+        )?;
         // Subsample refits are centred on the full-sample estimate by construction and
         // `original` is judged against single-replicate spread, so this cannot fail for a
         // wrong estimate: a pipeline stability check, not evidence for the effect.
-        reports.push(RefutationReport::new(
-            id,
-            original,
-            values.iter().sum::<f64>() / values.len() as f64,
-            p,
-            false,
-            p >= 0.05,
-            (p < 0.05).then(|| Arc::from("subsampled natural path contrast is unstable")),
-            20,
-        ));
+        reports.push(finish_p_report(id, original, &values, original, STABILITY_ALPHA, |_, _| {
+            "subsampled natural path contrast is unstable".to_owned()
+        })?);
     }
     Ok(reports)
 }
@@ -106,16 +103,19 @@ pub fn refute_distribution(
             atoms.iter().all(|a| a.probability.is_finite() && (0.0..=1.0).contains(&a.probability))
                 && (atoms.iter().map(|a| a.probability).sum::<f64>() - 1.0).abs() <= 1e-8
         });
-    let mut reports = vec![RefutationReport::new(
-        "distribution.normalization",
-        1.0,
-        f64::from(normalized),
-        f64::from(normalized),
-        true,
-        normalized,
-        (!normalized).then(|| Arc::from("invalid conditional probability table")),
-        1,
-    )];
+    let mut reports = vec![
+        RefutationReport::builder("distribution.normalization")
+            .original_ate(1.0)
+            .refuted_ate(f64::from(normalized))
+            .comparison(f64::from(normalized))
+            .informative(true)
+            .passed(normalized)
+            .failure_condition(
+                (!normalized).then(|| Arc::from("invalid conditional probability table")),
+            )
+            .replicates(1)
+            .build(),
+    ];
     let estimator = FunctionalDistribution::new();
     for (slot, &(fraction, id)) in (if full {
         &[(0.8, "distribution.subset_tv"), (0.5, "distribution.half_sample_tv")][..]
@@ -125,42 +125,51 @@ pub fn refute_distribution(
     .iter()
     .enumerate()
     {
-        let mut distances = Vec::new();
-        for replicate in 0..20_u64 {
-            if ctx.cancellation.is_cancelled() {
-                return Err(ValidationError::Cancelled);
-            }
-            let subset =
-                with_row_subset(data, fraction, ctx, subset_stream(0xF013_0000, slot, replicate))?;
-            let prepared = estimator.prepare(
-                &subset,
-                query,
-                estimand,
-                &identification.arena,
-                identification.required_assumptions.clone(),
-            )?;
-            let estimate = estimator.estimate(
-                &prepared,
-                &[],
-                &mut FunctionalDistributionWorkspace::default(),
-                ctx,
-            )?;
-            let distance = max_conditional_tv(&original.atoms, &estimate.atoms);
-            distances.push(distance);
-        }
+        let distances = map_replicates(
+            ctx,
+            STABILITY_REPLICATES,
+            || (),
+            |(), ctx, replicate| {
+                let replicate = u64::from(replicate);
+                let subset = with_row_subset(
+                    data,
+                    fraction,
+                    ctx,
+                    subset_stream(crate::streams::FUNCTIONAL_SUBSET_50, slot, replicate),
+                )?;
+                let prepared = estimator.prepare(
+                    &subset,
+                    query,
+                    estimand,
+                    &identification.arena,
+                    identification.required_assumptions.clone(),
+                )?;
+                let estimate = estimator.estimate(
+                    &prepared,
+                    &[],
+                    &mut FunctionalDistributionWorkspace::default(),
+                    ctx,
+                )?;
+                Ok(max_conditional_tv(&original.atoms, &estimate.atoms))
+            },
+        )?;
         // Descriptive robustness threshold, not a calibrated hypothesis test.
         let mean = distances.iter().sum::<f64>() / distances.len() as f64;
         let passed = mean.is_finite() && mean <= 0.1;
-        reports.push(RefutationReport::new(
-            id,
-            0.0,
-            mean,
-            mean,
-            true,
-            passed,
-            (!passed).then(|| Arc::from("mean maximum conditional total variation exceeds 0.1")),
-            20,
-        ));
+        reports.push(
+            RefutationReport::builder(id)
+                .original_ate(0.0)
+                .refuted_ate(mean)
+                .comparison(mean)
+                .informative(true)
+                .passed(passed)
+                .failure_condition(
+                    (!passed)
+                        .then(|| Arc::from("mean maximum conditional total variation exceeds 0.1")),
+                )
+                .replicates(STABILITY_REPLICATES)
+                .build(),
+        );
     }
     Ok(reports)
 }
@@ -220,8 +229,10 @@ mod tests {
     #[test]
     fn subset_fractions_draw_from_disjoint_streams() {
         // 20 replicates per fraction: no stream id is shared between the 80% and 50% slots.
-        let a: Vec<u64> = (0..20).map(|r| subset_stream(0xF012_0000, 0, r)).collect();
-        let b: Vec<u64> = (0..20).map(|r| subset_stream(0xF012_0000, 1, r)).collect();
+        let a: Vec<u64> =
+            (0..20).map(|r| subset_stream(crate::streams::FUNCTIONAL_SUBSET_80, 0, r)).collect();
+        let b: Vec<u64> =
+            (0..20).map(|r| subset_stream(crate::streams::FUNCTIONAL_SUBSET_80, 1, r)).collect();
         assert!(a.iter().all(|s| !b.contains(s)));
         // The historical 80% streams are unchanged.
         assert_eq!(a[3], 0xF012_0003);

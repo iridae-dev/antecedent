@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::manual_map, clippy::too_many_arguments)]
 #![cfg_attr(
     test,
     allow(
@@ -73,9 +72,6 @@ impl AnalyticSeKind {
         }
     }
 }
-
-/// Alias retained for existing linear-adjustment call sites.
-pub type LinearSeKind = AnalyticSeKind;
 
 /// Default ridge λ applied by propensity / GLM estimators on separation.
 ///
@@ -160,34 +156,29 @@ pub(crate) fn require_multiway(
     Ok(ids)
 }
 
+/// The SE kind together with the row labels its clustered and HAC variants require.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SeSpec<'a> {
+    pub(crate) kind: AnalyticSeKind,
+    pub(crate) cluster_ids: Option<&'a [u32]>,
+    pub(crate) multiway_ids: Option<&'a [Vec<u32>]>,
+    pub(crate) panel_times: Option<&'a [i64]>,
+}
+
 /// Coefficient SE from residual sandwich, or `None` when [`AnalyticSeKind::Homoskedastic`].
 ///
 /// # Errors
 ///
 /// Missing cluster / multiway / panel labels when required.
 pub(crate) fn residual_sandwich_coef_se(
-    kind: AnalyticSeKind,
+    spec: SeSpec<'_>,
     x: &[f64],
     nrows: usize,
     ncols: usize,
     residuals: &[f64],
     t_col: usize,
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
 ) -> Result<Option<f64>, EstimationError> {
-    sandwich_coef_se(
-        kind,
-        x,
-        nrows,
-        ncols,
-        residuals,
-        None,
-        t_col,
-        cluster_ids,
-        multiway_ids,
-        panel_times,
-    )
+    sandwich_coef_se(spec, x, nrows, ncols, residuals, None, t_col)
 }
 
 /// Treatment-coefficient SE of an M-estimator: the sandwich `A⁻¹ (Σ s_i² x_i x_iᵀ) A⁻¹` with
@@ -199,109 +190,91 @@ pub(crate) fn residual_sandwich_coef_se(
 ///
 /// Missing cluster / multiway / panel labels when required.
 pub(crate) fn score_sandwich_coef_se(
-    kind: AnalyticSeKind,
+    spec: SeSpec<'_>,
     x: &[f64],
     nrows: usize,
     ncols: usize,
     scores: &[f64],
     curvature: &[f64],
     t_col: usize,
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
 ) -> Result<Option<f64>, EstimationError> {
-    sandwich_coef_se(
-        kind,
-        x,
-        nrows,
-        ncols,
-        scores,
-        Some(curvature),
-        t_col,
-        cluster_ids,
-        multiway_ids,
-        panel_times,
-    )
+    sandwich_coef_se(spec, x, nrows, ncols, scores, Some(curvature), t_col)
 }
 
 fn sandwich_coef_se(
-    kind: AnalyticSeKind,
+    spec: SeSpec<'_>,
     x: &[f64],
     nrows: usize,
     ncols: usize,
     residuals: &[f64],
     fisher_weights: Option<&[f64]>,
     t_col: usize,
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
 ) -> Result<Option<f64>, EstimationError> {
-    if matches!(kind, AnalyticSeKind::Homoskedastic) {
-        return Ok(None);
-    }
-    let se = match kind {
-        AnalyticSeKind::Homoskedastic => unreachable!(),
-        AnalyticSeKind::Hc0 => {
-            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc0, t_col)?
-        }
-        AnalyticSeKind::Hc1 => {
-            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc1, t_col)?
-        }
-        AnalyticSeKind::Hc2 => {
-            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc2, t_col)?
-        }
-        AnalyticSeKind::Hc3 => {
-            sandwich_diag(x, nrows, ncols, residuals, fisher_weights, SandwichKind::Hc3, t_col)?
-        }
+    let input = SandwichInput { x, nrows, ncols, residuals, fisher_weights, t_col };
+    with_resolved_sandwich(spec, nrows, |kind| {
+        let Some(kind) = kind else {
+            return Ok(None);
+        };
+        Ok(Some(input.diag(kind)?))
+    })
+}
+
+/// Resolve `spec` to the stats-crate sandwich kind, or `None` for the homoskedastic formula.
+///
+/// Cluster, multiway, and panel labels are checked here. The borrowed kind is only valid
+/// inside `use_kind`, which is where the coefficient covariance is formed.
+pub(crate) fn with_resolved_sandwich<T>(
+    spec: SeSpec<'_>,
+    nrows: usize,
+    use_kind: impl FnOnce(Option<SandwichKind<'_>>) -> Result<T, EstimationError>,
+) -> Result<T, EstimationError> {
+    let SeSpec { kind, cluster_ids, multiway_ids, panel_times } = spec;
+    match kind {
+        AnalyticSeKind::Homoskedastic => use_kind(None),
+        AnalyticSeKind::Hc0 => use_kind(Some(SandwichKind::Hc0)),
+        AnalyticSeKind::Hc1 => use_kind(Some(SandwichKind::Hc1)),
+        AnalyticSeKind::Hc2 => use_kind(Some(SandwichKind::Hc2)),
+        AnalyticSeKind::Hc3 => use_kind(Some(SandwichKind::Hc3)),
         AnalyticSeKind::Cluster => {
             let groups = require_clusters(cluster_ids, nrows)?;
-            sandwich_diag(
-                x,
-                nrows,
-                ncols,
-                residuals,
-                fisher_weights,
-                SandwichKind::Cluster { groups },
-                t_col,
-            )?
+            use_kind(Some(SandwichKind::Cluster { groups }))
         }
         AnalyticSeKind::Multiway => {
             let dims = require_multiway(multiway_ids, nrows)?;
             let refs: Vec<&[u32]> = dims.iter().map(Vec::as_slice).collect();
-            sandwich_diag(
-                x,
-                nrows,
-                ncols,
-                residuals,
-                fisher_weights,
-                SandwichKind::Multiway { dimensions: &refs },
-                t_col,
-            )?
+            use_kind(Some(SandwichKind::Multiway { dimensions: &refs }))
         }
-        AnalyticSeKind::NeweyWest { lag } => sandwich_diag(
-            x,
-            nrows,
-            ncols,
-            residuals,
-            fisher_weights,
-            SandwichKind::NeweyWest { lag },
-            t_col,
-        )?,
+        AnalyticSeKind::NeweyWest { lag } => use_kind(Some(SandwichKind::NeweyWest { lag })),
         AnalyticSeKind::PanelClusterHac { lag } => {
             let groups = require_clusters(cluster_ids, nrows)?;
             let time = require_panel_times(panel_times, nrows)?;
-            sandwich_diag(
-                x,
-                nrows,
-                ncols,
-                residuals,
-                fisher_weights,
-                SandwichKind::PanelClusterHac { groups, time, lag },
-                t_col,
-            )?
+            use_kind(Some(SandwichKind::PanelClusterHac { groups, time, lag }))
         }
-    };
-    Ok(Some(se))
+    }
+}
+
+/// Design, scores, and the coefficient whose sandwich SE is requested.
+struct SandwichInput<'a> {
+    x: &'a [f64],
+    nrows: usize,
+    ncols: usize,
+    residuals: &'a [f64],
+    fisher_weights: Option<&'a [f64]>,
+    t_col: usize,
+}
+
+impl SandwichInput<'_> {
+    fn diag(&self, kind: SandwichKind<'_>) -> Result<f64, EstimationError> {
+        sandwich_diag(
+            self.x,
+            self.nrows,
+            self.ncols,
+            self.residuals,
+            self.fisher_weights,
+            kind,
+            self.t_col,
+        )
+    }
 }
 
 fn sandwich_diag(
@@ -363,11 +336,7 @@ pub(crate) fn add_nuisance_correction(
             }
         }
     }
-    let Some(alpha) = crate::propensity::weighting::solve_symmetric_posdef(
-        &mut information,
-        &mut derivative,
-        ncols,
-    ) else {
+    let Some(alpha) = crate::util::solve_spd(&information, &derivative, ncols) else {
         return Err(EstimationError::stats_msg(singular));
     };
     for i in 0..n {
@@ -523,7 +492,11 @@ pub(crate) fn newey_west_influence_se_at_times(psi: &[f64], times: &[i64], lag: 
         *by_time.entry(time).or_default() += score - mean;
     }
     let grouped: Vec<(i64, f64)> = by_time.into_iter().collect();
-    let span = grouped.last().unwrap().0.abs_diff(grouped[0].0);
+    // `n >= 2` rows were inserted, so the time map is non-empty on the success path.
+    let Some(&(end, _)) = grouped.last() else {
+        return f64::NAN;
+    };
+    let span = end.abs_diff(grouped[0].0);
     let l_eff = effective_nw_lag(lag, usize::try_from(span).unwrap_or(usize::MAX));
     let mut meat = grouped.iter().map(|&(_, score)| score * score).sum::<f64>();
     for (i, &(time, score)) in grouped.iter().enumerate() {

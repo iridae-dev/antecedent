@@ -110,6 +110,27 @@ impl NativeMeasuredInference {
                     let wire: antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire = antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
+                "sampled_counterfactual_transport" => {
+                    let wire = antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::decode(bytes).map_err(|e| { let (code, message) = e.refusal(); crate::transport_counterfactual_api::io_refusal(code, message) })?;
+                    serde_json::to_string(&wire).map_err(crate::py_msg)
+                }
+                "cohort_interval" => {
+                    let wire: antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire = antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    serde_json::to_string(&wire).map_err(crate::py_msg)
+                }
+                "count_fitted_interval" => {
+                    let wire: antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire = antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    serde_json::to_string(&wire).map_err(crate::py_msg)
+                }
+                "adaptive_interval" => {
+                    let wire = antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::decode_unchecked(bytes).map_err(|e| crate::value_err(format!("{e:?}")))?;
+                    serde_json::to_string(&wire).map_err(crate::py_msg)
+                }
+                "split_effect" => {
+                    let wire: antecedent_io::measured_inference::split_effect::SplitEffectSource =
+                        antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;
+                    serde_json::to_string(&wire).map_err(crate::py_msg)
+                }
                 _ => Err(crate::value_err("measured_inference.source_report_not_supported")),
             }
         })?;
@@ -117,6 +138,9 @@ impl NativeMeasuredInference {
         Ok(report)
     }
 }
+
+/// Fixed native overhead (16 MiB) added to every planned peak.
+const PLANNED_FIXED_OVERHEAD_BYTES: u64 = 16 * 1024 * 1024;
 
 /// Conservative peak bound includes decode, actual fit/draw replay, original wire,
 /// canonical envelope and explicit original source-report inspection.
@@ -136,7 +160,7 @@ pub(crate) fn before_work(
         .unwrap_or(u64::MAX)
         .saturating_mul(24)
         .saturating_add(u64::try_from(numerical_bytes).unwrap_or(u64::MAX).saturating_mul(16))
-        .saturating_add(16 * 1024 * 1024);
+        .saturating_add(PLANNED_FIXED_OVERHEAD_BYTES);
     if memory.is_some_and(|limit| planned > limit) {
         return Err(crate::CausalResourceError::new_err(
             "measured_inference.memory_budget_exceeded: planned native peak exceeds caller limit",

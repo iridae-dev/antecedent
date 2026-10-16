@@ -30,6 +30,8 @@ queries = [
   "ResponseJacobian",
   "SemiElasticity",
   "SustainedEffect",
+  "TemporalConditionalPulse",
+  "TemporalConditionalSustained",
   "TemporalMediationEffect",
   "TransportQuery",
   "InterferenceQuery",
@@ -77,6 +79,7 @@ graph_classes = [
   "TemporalDag",
   "TemporalCpdag",
   "TemporalPag",
+  "TemporalAdmg",
   # Classification-only extras (not GraphClass variants). A CoDetermined
   # background is a known closure ADMG; Unknown is a two-scenario envelope.
   "CoDetermined",

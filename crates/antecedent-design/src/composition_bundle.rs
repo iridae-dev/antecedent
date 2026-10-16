@@ -33,22 +33,22 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use antecedent_core::{
+use antecedent_contract::{
     CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
 };
-use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
-};
-use antecedent_io::convert::{from_cbor, to_cbor};
-use antecedent_io::error::IoError;
-use antecedent_io::reader::ArtifactReader;
-use antecedent_io::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+
+use crate::signal::RefusalBuilder;
+use antecedent_core::{CanonicalWriter, blake3_hex};
+use antecedent_io_core::convert::to_cbor;
+use antecedent_io_core::error::IoError;
+use antecedent_io_core::reader::ArtifactReader;
+use antecedent_io_core::wire::ArtifactKind;
 use serde::{Deserialize, Serialize};
 
 /// Artifact kind label of a composition bundle.
-pub const BUNDLE_KIND: &str = "composition_bundle_v1";
+pub(crate) const BUNDLE_KIND: &str = "composition_bundle_v1";
 /// Body format version this module reads and writes.
-pub const BUNDLE_VERSION: u16 = 1;
+pub(crate) const BUNDLE_VERSION: u16 = 1;
 const BODY_SECTION: &str = "bundle.body";
 
 /// Fact key: the law a node supplies or a result rests on.
@@ -218,16 +218,12 @@ impl BundleError {
     #[must_use]
     pub fn to_refusal(&self) -> Option<ExternalRefusal> {
         match self {
-            Self::Refused { stage, reason, offending } => Some(ExternalRefusal {
-                code: stage.code(),
-                stage: "bind",
-                detail: stage.detail().to_owned(),
-                offending: offending.clone(),
-                expected: None,
-                supplied: Some(reason.clone()),
-                capability: None,
-                remedy: None,
-            }),
+            Self::Refused { stage, reason, offending } => Some(
+                RefusalBuilder::new(stage.code(), "bind", stage.detail())
+                    .offending_opt(offending.clone())
+                    .supplied(reason.clone())
+                    .build(),
+            ),
             Self::Container(_) => None,
         }
     }
@@ -618,40 +614,27 @@ impl Default for BundleLimits {
 // Digests and graph derivation
 // ---------------------------------------------------------------------------
 
-fn put(hasher: &mut blake3::Hasher, text: &str) {
-    hasher.update(&(text.len() as u64).to_le_bytes());
-    hasher.update(text.as_bytes());
-}
-
 /// Digest of one node's own content (not of its upstream nodes).
 fn node_digest(node: &BundleNode) -> String {
-    let mut hasher = blake3::Hasher::new();
-    put(&mut hasher, "antecedent.composition_bundle.node.v1");
-    put(&mut hasher, &node.id);
-    put(&mut hasher, node.kind.as_str());
-    put(&mut hasher, &node.identity);
+    let mut hasher = CanonicalWriter::new("antecedent.composition_bundle.node.v1");
+    hasher.text(&node.id).text(node.kind.as_str()).text(&node.identity);
     match &node.source {
         NodeSource::Embedded { bytes } => {
-            put(&mut hasher, "embedded");
-            put(&mut hasher, blake3::hash(bytes).to_hex().as_str());
+            hasher.text("embedded").text(&blake3_hex(bytes));
         }
         NodeSource::Reference { identity, requires } => {
-            put(&mut hasher, "reference");
-            put(&mut hasher, identity);
-            put(&mut hasher, &requires.canonical());
-            hasher.update(&(node.facts.len() as u64).to_le_bytes());
+            hasher.text("reference").text(identity).text(&requires.canonical());
+            hasher.word(node.facts.len() as u64);
             for (key, value) in &node.facts {
-                put(&mut hasher, key);
-                put(&mut hasher, value);
+                hasher.text(key).text(value);
             }
-            hasher.update(&(node.inspected.len() as u64).to_le_bytes());
+            hasher.word(node.inspected.len() as u64);
             for (key, value) in &node.inspected {
-                put(&mut hasher, key);
-                hasher.update(&value.to_bits().to_le_bytes());
+                hasher.text(key).real(*value);
             }
         }
     }
-    hasher.finalize().to_hex().to_string()
+    hasher.finish_hex()
 }
 
 struct Derived {
@@ -794,21 +777,16 @@ fn derive(
 }
 
 fn bundle_identity(nodes: &[BundleNode], digests: &[String], edges: &[BundleEdge]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    put(&mut hasher, "antecedent.composition_bundle.v1");
-    hasher.update(&(nodes.len() as u64).to_le_bytes());
+    let mut hasher = CanonicalWriter::new("antecedent.composition_bundle.v1");
+    hasher.word(nodes.len() as u64);
     for (node, digest) in nodes.iter().zip(digests) {
-        put(&mut hasher, &node.id);
-        put(&mut hasher, &node_digest(node));
-        put(&mut hasher, digest);
+        hasher.text(&node.id).text(&node_digest(node)).text(digest);
     }
-    hasher.update(&(edges.len() as u64).to_le_bytes());
+    hasher.word(edges.len() as u64);
     for edge in edges {
-        put(&mut hasher, &edge.from);
-        put(&mut hasher, &edge.to);
-        put(&mut hasher, &edge.upstream_digest);
+        hasher.text(&edge.from).text(&edge.to).text(&edge.upstream_digest);
     }
-    hasher.finalize().to_hex().to_string()
+    hasher.finish_hex()
 }
 
 fn embedded_section(id: &str) -> String {
@@ -928,33 +906,45 @@ impl CompositionBundle {
             return Err(IoError::Convert("missing artifact id".into()).into());
         }
         let body = to_cbor(&self.body())?;
-        let mut descriptors = vec![section_descriptor(BODY_SECTION, "application/cbor", &body)];
-        let mut sections = vec![SectionBytes::new(BODY_SECTION, body)];
-        for node in &self.nodes {
-            if let NodeSource::Embedded { bytes } = &node.source {
-                let id = embedded_section(&node.id);
-                descriptors.push(section_descriptor(id.clone(), "application/octet-stream", bytes));
-                sections.push(SectionBytes::new(id, bytes.clone()));
-            }
+        let embedded: Vec<(String, &[u8])> = self
+            .nodes
+            .iter()
+            .filter_map(|node| match &node.source {
+                NodeSource::Embedded { bytes } => {
+                    Some((embedded_section(&node.id), bytes.as_slice()))
+                }
+                NodeSource::Reference { .. } => None,
+            })
+            .collect();
+        let mut sections = Vec::with_capacity(1 + embedded.len());
+        sections.push(antecedent_io_core::OutSection {
+            id: BODY_SECTION,
+            content_type: antecedent_io_core::CONTENT_CBOR,
+            bytes: &body,
+        });
+        for (id, bytes) in &embedded {
+            sections.push(antecedent_io_core::OutSection {
+                id,
+                content_type: antecedent_io_core::CONTENT_BYTES,
+                bytes,
+            });
         }
-        let encoded = EncodedArtifact {
-            manifest: ArtifactManifest {
-                format_version: antecedent_io::migrate::STABLE_FORMAT,
-                minimum_reader_version: antecedent_io::migrate::STABLE_FORMAT,
-                artifact_kind: ArtifactKind::Other(BUNDLE_KIND.into()),
-                library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))?,
-                artifact_id: artifact_id.into(),
-                sections: descriptors,
-                provenance: ProvenanceWire { note: "composition_bundle".into() },
+        antecedent_io_core::encode_container(
+            &antecedent_io_core::ArtifactContainer {
+                kind: BUNDLE_KIND,
+                note: "composition_bundle",
+                max_bytes: limits.max_bundle_bytes,
+                artifact_id,
+                library_version: env!("CARGO_PKG_VERSION"),
             },
-            sections,
-        };
-        let mut out = Vec::new();
-        encoded.write_to(&mut out)?;
-        if out.len() > limits.max_bundle_bytes {
-            return Err(refused(BundleStage::Oversized, "the bundle exceeds its bound", None));
-        }
-        Ok(out)
+            &sections,
+        )
+        .map_err(|error| match error {
+            antecedent_io_core::CodecError::FileTooLarge => {
+                refused(BundleStage::Oversized, "the bundle exceeds its bound", None)
+            }
+            other => other.into_io("not a composition bundle").into(),
+        })
     }
 }
 
@@ -992,11 +982,6 @@ struct BodyWire {
     nodes: Vec<NodeWire>,
     edges: Vec<EdgeWire>,
     identity: String,
-}
-
-#[derive(Deserialize)]
-struct VersionProbe {
-    version: u16,
 }
 
 fn node_to_wire(node: &BundleNode) -> NodeWire {
@@ -1091,15 +1076,17 @@ fn decode(bytes: &[u8], limits: &BundleLimits) -> Result<Decoded, BundleError> {
         return Err(refused(BundleStage::Oversized, "the bundle body exceeds its bound", None));
     }
     let body_bytes = reader.load_section(BODY_SECTION)?.as_bytes().to_vec();
-    let probe: VersionProbe = from_cbor(&body_bytes)?;
-    if probe.version != BUNDLE_VERSION {
-        return Err(refused(
-            BundleStage::IncompatibleVersion,
-            "the bundle body version is not supported",
-            None,
-        ));
-    }
-    let body: BodyWire = from_cbor(&body_bytes)?;
+    let body: BodyWire = antecedent_io_core::decode_with_version(&body_bytes, |version: u16| {
+        if version == BUNDLE_VERSION {
+            Ok(())
+        } else {
+            Err(refused(
+                BundleStage::IncompatibleVersion,
+                "the bundle body version is not supported",
+                None,
+            ))
+        }
+    })?;
     if body.nodes.len() > limits.max_nodes || body.edges.len() > limits.max_edges {
         return Err(refused(BundleStage::Oversized, "too many nodes or edges", None));
     }

@@ -1,7 +1,7 @@
-//! Ordered-response recovery of a two-variable binary m-graph (2.3 B2 / X10
-//! second row): graph decision, derivation and nonrecoverability witness.
+//! Ordered-response recovery of a two-variable binary m-graph:
+//! graph decision, derivation and nonrecoverability witness.
 //!
-//! This is a second, separate observation-recovery row. The 2.2 row
+//! This is a separate observation-recovery row. The exact binary recovery row
 //! ([`crate::recovery`]) refuses every `R -> R` edge; this row is exactly the
 //! graphs it refuses because of one response chain, and it uses a different
 //! identifying order (responses are factored sequentially, the tail response
@@ -36,7 +36,7 @@
 //! The recovered law is the complete-case cell divided by
 //! `P(R_h = 1) q(x_h)`. This order (head response, then tail response given the
 //! head) is the colluder-free case of Mohan, Pearl and Tian's sequential
-//! recoverability; unlike the 2.2 row it needs no `R_i _||_ R_j | pa(R_i)`
+//! recoverability; unlike the exact binary recovery row it needs no `R_i _||_ R_j | pa(R_i)`
 //! independence because the tail's parents include `R_h`.
 //!
 //! # Nonrecoverability
@@ -56,15 +56,15 @@
 //! # What is refused as not supported (never as nonrecoverable)
 //!
 //! Any edge outside the class: `X_t -> R_h`, a graph with no response chain (use
-//! the 2.2 row), bidirected edges, edges out of a response or proxy into a
+//! the exact binary recovery row), bidirected edges, edges out of a response or proxy into a
 //! substantive node, cross-wired proxies. These are `route_not_supported`: the
 //! row neither proves nor disproves recoverability there. A violation of
 //! positivity is `transport_support_failure`.
 //!
 //! The decision charges one [`SearchBudget`]: one operation per edge inspected
 //! and per witness configuration enumerated. Calibration of any sampled provider
-//! composed on this row is separate, measured only at the release cut, and is
-//! unmeasured and closed here: the evaluator is an exact-law evaluator.
+//! composed on this row is separate and unmeasured: the evaluator is an exact-law
+//! evaluator.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -72,14 +72,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use antecedent_core::{
-    ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
+    CanonicalWriter, ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
+    VariableId,
 };
-use antecedent_graph::{Admg, DenseNodeId, NodeRef};
+use antecedent_graph::Admg;
 
 /// Version of the ordered-response rule, bound into every plan.
-pub const CHAIN_RECOVERY_RULE_VERSION: &str = "b2.recovery_chain.v1";
+pub const CHAIN_RECOVERY_RULE_VERSION: &str = "ordered_response_recovery_chain.v1";
 /// Every witness mechanism probability is `k / CHAIN_WITNESS_SCALE`.
-pub const CHAIN_WITNESS_SCALE: u32 = 60;
+pub(crate) const CHAIN_WITNESS_SCALE: u32 = 60;
 /// Search limits of one decision.
 pub const CHAIN_RECOVERY_LIMITS: SearchLimits = SearchLimits { operations: 2_000, depth: 8 };
 
@@ -223,24 +224,22 @@ pub struct ChainRecoveryPlan {
 
 impl ChainRecoveryPlan {
     fn digest(&self) -> [u8; 32] {
-        let mut hasher = blake3::Hasher::new_derive_key("antecedent.recovery_chain.plan.v1");
+        let mut stream = CanonicalWriter::new("antecedent.recovery_chain.plan.v1");
         for part in [self.query.first, self.query.second] {
             for id in [part.variable, part.response, part.proxy] {
-                hasher.update(&id.raw().to_le_bytes());
+                stream.word(u64::from(id.raw()));
             }
         }
-        hasher.update(&(self.head as u64).to_le_bytes());
-        hasher.update(&[u8::from(self.tail_depends_on_head_variable)]);
-        for value in std::iter::once(self.rule_version)
-            .chain(self.premises.iter().map(String::as_str))
-            .chain(std::iter::once(self.formula.as_str()))
-        {
-            hasher.update(&(value.len() as u64).to_le_bytes());
-            hasher.update(value.as_bytes());
+        stream.word(self.head as u64);
+        stream.word(u64::from(self.tail_depends_on_head_variable));
+        stream.text(self.rule_version);
+        stream.word(self.premises.len() as u64);
+        for premise in &self.premises {
+            stream.text(premise);
         }
-        hasher.update(&(self.premises.len() as u64).to_le_bytes());
-        hasher.update(&(self.operations_consumed as u64).to_le_bytes());
-        *hasher.finalize().as_bytes()
+        stream.text(&self.formula);
+        stream.word(self.operations_consumed as u64);
+        stream.finish()
     }
 
     /// Whether the plan still matches the identifier's checked result.
@@ -297,25 +296,10 @@ pub enum ChainRecoveryDecision {
     NonRecoverable(Box<ChainRecoveryWitness>),
 }
 
-fn node_variable(graph: &Admg, id: DenseNodeId) -> Option<VariableId> {
-    match graph.nodes().get(id.as_usize()) {
-        Some(NodeRef::Static(v)) => Some(*v),
-        _ => None,
-    }
-}
-
 /// Every directed edge as a `(from, to)` variable pair, or `None` for a
 /// non-static node.
 fn directed_edges(graph: &Admg) -> Option<BTreeSet<(VariableId, VariableId)>> {
-    let mut edges = BTreeSet::new();
-    for i in 0..graph.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).ok()?);
-        let from_var = node_variable(graph, from)?;
-        for child in graph.children(from) {
-            edges.insert((from_var, node_variable(graph, *child)?));
-        }
-    }
-    Some(edges)
+    Some(graph.static_directed_edges_sorted()?.into_iter().collect())
 }
 
 struct Meter<'a> {
@@ -356,18 +340,14 @@ fn check_roles(graph: &Admg, query: &ChainRecoveryQuery) -> Result<(), ChainReco
             "the m-graph must have static nodes only",
         ));
     };
-    let mut nodes = BTreeSet::new();
-    for i in 0..graph.node_count() {
-        let Some(v) =
-            u32::try_from(i).ok().and_then(|raw| node_variable(graph, DenseNodeId::from_raw(raw)))
-        else {
-            return Err(refuse(
-                ChainRecoveryDetail::InvalidQuery,
-                "the m-graph must have static nodes only",
-            ));
-        };
-        nodes.insert(v);
-    }
+    let Some(nodes) =
+        graph.node_ids().map(|id| graph.static_variable(id)).collect::<Option<BTreeSet<_>>>()
+    else {
+        return Err(refuse(
+            ChainRecoveryDetail::InvalidQuery,
+            "the m-graph must have static nodes only",
+        ));
+    };
     if nodes != distinct || graph.node_count() != roles.len() {
         return Err(refuse(
             ChainRecoveryDetail::InvalidQuery,
@@ -409,7 +389,7 @@ fn chain_head(
         (false, true) => Ok(1),
         _ => Err(refuse(
             ChainRecoveryDetail::UnsupportedMechanism,
-            "this row needs exactly one response edge R -> R; a graph without it belongs to the 2.2 observation-recovery route",
+            "this row needs exactly one response edge R -> R; a graph without it belongs to the observation-recovery route",
         )),
     }
 }
@@ -531,18 +511,18 @@ pub fn decide_chain_recovery(
 }
 
 fn sorted_parents(graph: &Admg, v: VariableId) -> Option<Vec<u32>> {
-    for i in 0..graph.node_count() {
-        let id = DenseNodeId::from_raw(u32::try_from(i).ok()?);
-        if node_variable(graph, id)? == v {
-            let mut out = Vec::new();
-            for p in graph.parents(id) {
-                out.push(node_variable(graph, *p)?.raw());
-            }
-            out.sort_unstable();
-            return Some(out);
-        }
+    // Every node must be static: a non-static node anywhere refuses the whole graph.
+    if graph.node_ids().any(|id| graph.static_variable(id).is_none()) {
+        return None;
     }
-    None
+    let id = graph.dense_of_static(v)?;
+    let mut out: Vec<u32> = graph
+        .parents(id)
+        .iter()
+        .map(|p| graph.static_variable(*p).map(VariableId::raw))
+        .collect::<Option<_>>()?;
+    out.sort_unstable();
+    Some(out)
 }
 
 /// Whether bit `position` (of `n`, first most significant) of `config` is set.
@@ -568,7 +548,12 @@ fn build_witness(
             ));
         };
         let n = parents.len();
-        let configs = 1usize << n;
+        let configs = crate::pow2::checked_pow2(n).ok_or_else(|| {
+            refuse(
+                ChainRecoveryDetail::InvalidQuery,
+                "a witness mechanism has too many parents to enumerate",
+            )
+        })?;
         let (mut a, mut b) = (vec![30u32; configs], vec![30u32; configs]);
         if node == censored {
             b = vec![24u32; configs];
@@ -618,7 +603,8 @@ fn model_masses(
         let expected = sorted_parents(graph, VariableId::from_raw(m.node))
             .ok_or_else(|| bad("a mechanism names a node outside the graph"))?;
         if m.parents != expected
-            || m.numerators.len() != 1usize << expected.len()
+            || crate::pow2::checked_pow2(expected.len())
+                .is_none_or(|configs| m.numerators.len() != configs)
             || m.numerators.iter().any(|k| *k > CHAIN_WITNESS_SCALE)
             || m.parents.iter().any(|p| !order.contains(p))
         {

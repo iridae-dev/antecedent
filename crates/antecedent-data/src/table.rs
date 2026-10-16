@@ -9,10 +9,7 @@ use crate::error::DataError;
 
 /// Lossy `i64` → `f64` for the float analysis path (mantissa cannot hold all `i64`).
 fn analysis_f64_from_i64(v: i64) -> f64 {
-    #[allow(clippy::cast_precision_loss)]
-    {
-        v as f64
-    }
+    v as f64
 }
 
 /// Borrowed table access used by algorithms.

@@ -323,34 +323,19 @@ fn collect_leaves(
     if !visited.insert(id) {
         return;
     }
-    match arena.node(id) {
-        ExprNode::Distribution { .. } => out.push(id),
-        ExprNode::Kernel { body, .. } => collect_leaves(arena, *body, out, visited),
-        ExprNode::Product(list) => {
-            for &child in arena.list(*list) {
-                collect_leaves(arena, child, out, visited);
-            }
-        }
-        ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
-            collect_leaves(arena, *expr, out, visited);
-        }
-        ExprNode::Ratio { numerator, denominator } => {
-            collect_leaves(arena, *numerator, out, visited);
-            collect_leaves(arena, *denominator, out, visited);
-        }
-        ExprNode::Expectation { distribution, .. } => {
-            collect_leaves(arena, *distribution, out, visited)
-        }
-        ExprNode::Contrast { left, right, .. } => {
-            collect_leaves(arena, *left, out, visited);
-            collect_leaves(arena, *right, out, visited);
-        }
+    if matches!(arena.node(id), ExprNode::Distribution { .. }) {
+        out.push(id);
+        return;
+    }
+    for child in crate::walk::child_ids(arena, id) {
+        collect_leaves(arena, child, out, visited);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DistributionLeaf;
 
     #[test]
     fn kernel_parameters_are_free_and_rename_with_the_body() {
@@ -383,10 +368,12 @@ mod tests {
         let leaf = |arena: &mut CausalExprArena, vars, given, population: &str| {
             arena
                 .intern_distribution_tagged(
-                    vars,
-                    given,
-                    none,
-                    DomainRef::Observational,
+                    DistributionLeaf {
+                        variables: vars,
+                        conditioned_on: given,
+                        intervention: none,
+                        domain: DomainRef::Observational,
+                    },
                     population,
                     regime,
                     None,

@@ -65,7 +65,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
         return dict(self.provider_result.provenance)
 
     @property
-    def artifact(self) -> bytes | None:
+    def provider_artifact(self) -> bytes | None:
         return self.provider_result.artifact
 
     @property
@@ -130,14 +130,14 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
     def export(self, *, artifact_id: str = "analysis-result") -> bytes:
         # A provider result carries a single opaque artifact; artifact_id is
         # accepted for API parity with the analysis result but does not select.
-        if self.artifact is None:
+        if self.provider_artifact is None:
             from ..errors import CausalUnsupportedError
 
             raise CausalUnsupportedError(
                 "provider result has no portable artifact; the provider returned none",
                 reason_code="not_executed",
             )
-        return self.artifact
+        return self.provider_artifact
 
     def export_host(self) -> bytes:
         """Export the native-validated host envelope and opaque provider receipt."""

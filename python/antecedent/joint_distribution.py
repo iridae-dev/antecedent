@@ -1,4 +1,4 @@
-"""Typed, bounded 2.3 aligned distribution artifacts.
+"""Typed, bounded aligned distribution artifacts.
 
 ``numpy.asarray(artifact)`` makes one bounded copy into NumPy-owned row-major
 storage. The array never aliases the validated Rust artifact. Loading requires
@@ -9,15 +9,21 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
-from typing import Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ._native import JointDistributionArtifact as _NativeJointDistributionArtifact
+from ._scientific import ScientificResult
+from ._validate import count as _count
+
+if TYPE_CHECKING:
+    from ._artifact_protocol import ExportedArtifact
 from .errors import CausalTypeError, CausalValueError
+from .extensibility import ProviderTrust
 
 DistributionMeaning = Literal[
     "parameter_posterior",
@@ -50,6 +56,37 @@ class ScientificQuantity:
     functional_id: str
     conditioning: tuple[QuantityCondition, ...] = ()
     transform_id: str = "identity"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "horizon",
+            _count(
+                self.horizon,
+                "horizon",
+                minimum=0,
+                maximum=2**32 - 1,
+                type_error=CausalValueError,
+                reason_code="invalid_argument",
+            ),
+        )
+        object.__setattr__(self, "conditioning", tuple(self.conditioning))
+
+    @classmethod
+    def from_wire(cls, wire: Mapping[str, Any]) -> ScientificQuantity:
+        """Restore a quantity from its native descriptor without changing semantics."""
+        return cls(
+            wire["variable_id"],
+            wire["variable_name"],
+            wire["role"],
+            wire["units"],
+            wire["population_id"],
+            wire["regime_id"],
+            wire["horizon"],
+            wire["functional_id"],
+            tuple(QuantityCondition(**item) for item in wire.get("conditioning", ())),
+            wire.get("transform_id", "identity"),
+        )
 
     @classmethod
     def of(
@@ -94,8 +131,14 @@ class ScientificQuantity:
                 raise CausalValueError(f"{name}= must be a non-empty string")
         if variable_id is not None and (not isinstance(variable_id, str) or not variable_id):
             raise CausalValueError("variable_id= must be a non-empty string when given")
-        if isinstance(horizon, bool) or not isinstance(horizon, int) or horizon < 0:
-            raise CausalValueError("horizon= must be a non-negative integer")
+        horizon = _count(
+            horizon,
+            "horizon",
+            minimum=0,
+            maximum=2**32 - 1,
+            type_error=CausalValueError,
+            reason_code="invalid_argument",
+        )
         if isinstance(conditioning, (str, bytes)) or not isinstance(conditioning, Iterable):
             raise CausalTypeError("conditioning= must contain QuantityCondition values")
         conditions = tuple(conditioning)
@@ -326,8 +369,13 @@ class DistributionIdentity:
         )
 
 
-class JointDistributionArtifact:
-    """Finite draws with typed scientific coordinates and portable identity."""
+class JointDistributionArtifact(ScientificResult):
+    """Finite draws with typed scientific coordinates and portable identity.
+
+    ``claimed_trust`` is a caller label, not a grant. ``native_licensed`` and
+    ``verified_extension`` are refused here: those require retained producer state
+    or an exact-request receipt. ``trust`` is the same argument under its older name.
+    """
 
     def __init__(
         self,
@@ -337,15 +385,32 @@ class JointDistributionArtifact:
         weights: tuple[float, ...] | None = None,
         supported: tuple[bool, ...] | None = None,
         calibration: Literal["exact", "point_only", "measured", "unmeasured"] = "unmeasured",
-        trust: Literal[
-            "native_licensed", "external_attested", "verified_extension", "unverified"
-        ] = "unverified",
+        claimed_trust: str | None = None,
+        trust: str | None = None,
     ) -> None:
-        if trust == "native_licensed":
+        if claimed_trust is not None and trust is not None:
+            raise CausalValueError("pass claimed_trust once")
+        raw = (
+            "unverified"
+            if claimed_trust is None and trust is None
+            else (claimed_trust or trust or "")
+        )
+        try:
+            parsed = ProviderTrust(raw)
+        except ValueError as error:
+            raise CausalValueError(f"unknown distribution trust {raw!r}") from error
+        if parsed is ProviderTrust.NATIVE_LICENSED:
             raise CausalValueError(
                 "native_distribution.authority_required: native trust requires retained producer-issued execution state",
                 reason_code="invalid_argument",
             )
+        if parsed is ProviderTrust.VERIFIED_EXTENSION:
+            raise CausalValueError(
+                "distribution.verified_extension_requires_receipt: verified_extension is not a caller claim; it requires an exact-request verification receipt",
+                reason_code="invalid_argument",
+            )
+        # The artifact codec still stores `external_attested`; the property returns the canonical wire.
+        trust = "external_attested" if parsed is ProviderTrust.EXTERNALLY_ATTESTED else parsed.value
         if not isinstance(draws, np.ndarray) or draws.dtype != np.float64 or draws.ndim != 2:
             raise CausalValueError("draws must be a two-dimensional float64 NumPy array")
         if draws.shape[0] > 100_000 or draws.shape[1] > 1_024 or draws.size * 8 > 16 * 1024 * 1024:
@@ -432,7 +497,9 @@ class JointDistributionArtifact:
 
     @property
     def trust(self) -> str:
-        return json.loads(self._native.metadata_json)["trust"]
+        """Canonical provider-trust wire. ``external_attested`` on the artifact reads as ``externally_attested``."""
+        stored = json.loads(self._native.metadata_json)["trust"]
+        return ProviderTrust(stored).value
 
     def __array__(self, dtype: Any = None, copy: bool | None = None) -> NDArray[Any]:
         """Return a NumPy-owned copy; explicit ``copy=False`` cannot avoid it."""
@@ -440,6 +507,18 @@ class JointDistributionArtifact:
             raise CausalValueError("JointDistributionArtifact requires one bounded copy into NumPy")
         array = self._native.draws_copy()
         return np.asarray(array, dtype=dtype)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **json.loads(self._native.metadata_json),
+            "shape": list(self.shape),
+            "n_draws": self.n_draws,
+        }
+
+    def artifact(self, artifact_id: str) -> ExportedArtifact[JointDistributionArtifact]:
+        from ._artifact_protocol import exported_artifact
+
+        return exported_artifact(self, artifact_id)
 
     def export(self, artifact_id: str) -> bytes:
         return self._native.export(artifact_id)

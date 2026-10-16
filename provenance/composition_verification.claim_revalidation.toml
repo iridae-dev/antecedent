@@ -1,0 +1,30 @@
+# Algorithm provenance for composition_verification.claim_revalidation (see docs/composition-verification.md).
+
+feature_id = "composition_verification.claim_revalidation"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# No primary paper: the classification is dependency bookkeeping over a declared
+# directed acyclic graph (a topological sweep that propagates "changed" and
+# "withdrawn" marks along typed edges). It is not a statistical method and
+# implements no published estimator, so there is nothing to cite.
+papers = [
+]
+
+implementation_deviations = [
+  "The classification is relative to the declared graph: a dependence that is not declared as an edge is not detected, and a node's identity, coordinate, support, trust and calibration standing are declarations the producer supplies, not facts the library checks.",
+  "Stage reuse never proves a claim licensed. The graph layers support, provider trust and calibration standing on the planner's reuse decision and withdraws a license even when every number is reusable.",
+  "No interval, posterior or calibration record is produced or measured: a calibration declaration names a record identity and a coordinate, and the classification only checks that the record held at the claim's own coordinate is the one the claim states.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-computed dependency graphs: a change that leaves a sibling valid, a change that forces recomputation, a withdrawal of support, provider trust or calibration",
+  "the evidence ledger's own classification of results as an independent standing the graph must agree with",
+  "semantic mutation of stored classifications, graphs, effects and declared overlap by an independent artifact consumer",
+  "permutation of node declaration order over all orderings of a six-node graph",
+]

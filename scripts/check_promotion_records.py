@@ -1,4 +1,4 @@
-"""Validate a versioned promotion registry (2.2 or 2.3).
+"""Validate the scientific promotion registry.
 
 A record freezes a cell's scientific surface before implementation. A route is
 licensed only when its record carries the evidence for it: a promoted record
@@ -51,7 +51,7 @@ Optional record fields (in addition to the frozen ones):
                     appears in no cited evidence closure nor the route's entry-point
                     file). Route names stay meaningful identifiers.
   surface_exports   python files whose `__all__` names listed in owned_exports are
-                    covered likewise; owned_exports = names this workstream owns
+                    covered likewise; owned_exports = names this record owns
   surface_internal  [{ name = "...", why = "..." }]: exempt Rust/pyo3 items that
                     must be #[doc(hidden)] (or an underscore pyo3 name)
   shared_evidence   true on a fixture: it may share its test with another role
@@ -69,15 +69,15 @@ Environment overrides (gate self-tests and analysis only):
   PROMOTION_EVIDENCE_CACHE     directory caching cargo/pytest listing results
   PROMOTION_STATIC_ONLY        1: resolve evidence statically, without cargo or pytest
 """
-
 import hashlib
 import json
 import os
 import re
 import sys
+import tomllib
 from pathlib import Path
 
-import tomllib
+from _repo import REPO_ROOT as root
 from promotion_source import (
     Symbol,
     assertion_problems,
@@ -105,19 +105,17 @@ from test_evidence import (
     static_rust_test,
 )
 
-root = Path(__file__).resolve().parents[1]
-
 # Every rule the checker can report, with what it enforces. `fail("<id>", ...)` is
 # the only way to report, each message ends with `[<id>]`, and
 # scripts/promotion_selftest.py needs a case tagged with every id (and, under
 # --mutation-check, proves the case stops failing when the rule is switched off).
 RULES = {
     # registry and frozen fields
-    "registry_header": "registry is version 1, release matches its versioned filename",
+    "registry_header": "registry is version 1 and has no release field",
     "frozen_field": "every frozen field is present and non-empty",
     "duplicate_record": "record ids are unique",
     "unknown_status": "status is frozen, in_progress, promoted or carried_forward",
-    "claim_invalid": "inference_claim is a 2.2 claim (never nominal)",
+    "claim_invalid": "inference_claim is an allowed inference claim (never nominal)",
     "coverage_required": "a calibrated claim allocates coverage record ids",
     "coverage_unexpected": "coverage ids are allocated only for a calibrated claim",
     "coverage_unknown": "a promoted record's coverage ids exist in the coverage registry",
@@ -145,7 +143,7 @@ RULES = {
     "refusal_dead_const": "a detail held in a const is used by live code",
     # fixtures and evidence
     "fixture_duplicate": "fixture ids are unique",
-    "fixture_id_format": "fixture id is <workstream>.<name>.<role>",
+    "fixture_id_format": "fixture id is <capability>.<name>.<role>",
     "fixture_intent": "a fixture states its intent",
     "evidence_pair": "evidence_test and evidence_assertion come together",
     "evidence_unresolved": "a cited test resolves to a collected, non-ignored test",
@@ -160,7 +158,7 @@ RULES = {
     "route_name": "route names are present and unique",
     "route_stage": "route stage is valid",
     "route_registry": "owning registry is known",
-    "route_claim": "a route claim is a 2.2 claim",
+    "route_claim": "a route claim is an allowed inference claim",
     "route_status": "route status is closed or licensed",
     "closed_reason": "a closed route has a registered runtime reason_code",
     "closed_refusal_pair": "refusal_test and refusal_assertion come together",
@@ -218,13 +216,8 @@ if "--emit-evidence" in args:
     at = args.index("--emit-evidence")
     emit_path = Path(args[at + 1])
     del args[at : at + 2]
-registry_path = Path(args[0]) if args else root / "parity/promotion_2_2.toml"
-registry = tomllib.loads(registry_path.read_text())
-expected_release = {"promotion_2_2.toml": "2.2", "promotion_2_3.toml": "2.3"}.get(
-    registry_path.name
-)
-if expected_release is None:
-    expected_release = "2.2"  # Synthetic self-test registries retain the 2.2 contract.
+registry_path = Path(args[0]) if args else root / "parity/promotion.toml"
+registry = tomllib.loads(registry_path.read_text(encoding="utf-8"))
 
 DISABLED = {r for r in os.environ.get("PROMOTION_DISABLE_RULES", "").split(",") if r}
 STATIC_ONLY = os.environ.get("PROMOTION_STATIC_ONLY") == "1" or suggest
@@ -232,7 +225,7 @@ SYNTHETIC = os.environ.get("PROMOTION_SYNTHETIC_EVIDENCE") == "1"
 CACHE_DIR = os.environ.get("PROMOTION_EVIDENCE_CACHE")
 
 FROZEN = (
-    "id", "workstream", "milestone", "work_package", "status", "consumer_question",
+    "id", "capability", "status", "consumer_question",
     "theorem", "reference", "guarantee", "graph_class", "population_semantics",
     "evidence_family", "provider", "estimand", "inference_claim", "owners",
     "identity_inputs", "wire_changes", "compatibility", "refusals", "routes", "fixtures",
@@ -241,7 +234,7 @@ STATUSES = {"frozen", "in_progress", "promoted", "carried_forward"}
 # Statuses at which implementation exists, so refusals, details, surface and
 # search metering are checked against code.
 IMPLEMENTED = {"in_progress", "promoted"}
-# "nominal" is deliberately absent: no 2.2 interval ships unmeasured.
+# "nominal" is deliberately absent: no interval ships unmeasured.
 CLAIMS = {"point_only", "calibrated", "structural_envelope", "assumption_range", "none"}
 # The only route claims an in_progress record may license ahead of promotion.
 EARLY_CLAIMS = {"point_only", "none"}
@@ -269,7 +262,7 @@ SOURCE_GLOBS = ("crates/*/src/**/*.rs", "python/src/**/*.rs", "python/antecedent
 
 codes = {
     row["id"]: row
-    for row in tomllib.loads((root / "parity/reason_codes.toml").read_text())["code"]
+    for row in tomllib.loads((root / "parity/reason_codes.toml").read_text(encoding="utf-8"))["code"]
 }
 runtime_codes = {cid for cid, row in codes.items() if "runtime_refusal" in row.get("applies_to", [])}
 stages_path = Path(os.environ.get("PROMOTION_TRANSPORT_STAGES", root / "parity/transport_stages.toml"))
@@ -277,16 +270,16 @@ support_path = Path(os.environ.get("PROMOTION_SUPPORT_LICENSED", root / "parity/
 support_closed_path = Path(os.environ.get("PROMOTION_SUPPORT_CLOSED", root / "parity/support_closed.toml"))
 extra_sources = [Path(p) for p in os.environ.get("PROMOTION_EXTRA_SOURCES", "").split(os.pathsep) if p]
 stage_routes = {
-    row.get("route"): row for row in tomllib.loads(stages_path.read_text()).get("routes", [])
+    row.get("route"): row for row in tomllib.loads(stages_path.read_text(encoding="utf-8")).get("routes", [])
 }
-support_cells = tomllib.loads(support_path.read_text()).get("cell", [])
+support_cells = tomllib.loads(support_path.read_text(encoding="utf-8")).get("cell", [])
 # The support axes cannot name a contrast, so a closed sub-cell contrast owned by
-# a 2.2 record is a [[closed_contrast]] row (the support-matrix gates read only
+# a record is a [[closed_contrast]] row (the support-matrix gates read only
 # [[closed]]).
-support_closed_contrasts = tomllib.loads(support_closed_path.read_text()).get("closed_contrast", [])
+support_closed_contrasts = tomllib.loads(support_closed_path.read_text(encoding="utf-8")).get("closed_contrast", [])
 coverage_ids = {
     row.get("id")
-    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text()).get("record", [])
+    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text(encoding="utf-8")).get("record", [])
 }
 
 errors: list[str] = []
@@ -300,8 +293,8 @@ def fail(rule: str, message: str) -> None:
         errors.append(f"{message} [{rule}]")
 
 
-if registry.get("version") != 1 or registry.get("release") != expected_release:
-    fail("registry_header", f"promotion registry requires version 1 and release {expected_release}")
+if registry.get("version") != 1 or "release" in registry:
+    fail("registry_header", "promotion registry requires version 1 and no release field")
 
 
 # A surface_values type also covers the INHERENT methods and associated functions
@@ -379,7 +372,7 @@ def resolve(path: str, assertion: str) -> list[str]:
     if CACHE_DIR:
         cached = Path(CACHE_DIR) / hashlib.sha1(f"{path}::{assertion}".encode()).hexdigest()
         if cached.is_file():
-            return json.loads(cached.read_text())
+            return json.loads(cached.read_text(encoding="utf-8"))
     if path.endswith(".rs"):
         problems = resolve_rust_test(root / path, assertion)[1]
     elif path.endswith(".py"):
@@ -388,7 +381,7 @@ def resolve(path: str, assertion: str) -> list[str]:
         problems = [f"{path}: evidence must be a collected Rust or Python test"]
     if cached is not None:
         tmp = cached.with_suffix(f".{os.getpid()}")
-        tmp.write_text(json.dumps(problems))
+        tmp.write_text(json.dumps(problems), encoding="utf-8", newline="\n")
         tmp.replace(cached)
     return problems
 
@@ -424,7 +417,7 @@ def source_files() -> list[tuple[Path, bool]]:
 
 def raw(path: Path) -> str:
     if path not in _raw:
-        _raw[path] = path.read_text(errors="ignore") if path.is_file() else ""
+        _raw[path] = path.read_text(errors="ignore", encoding="utf-8") if path.is_file() else ""
     return _raw[path]
 
 
@@ -508,7 +501,7 @@ namespaces_in_use = {
 }
 code_details, dynamic_details = scan_details(namespaces_in_use)
 # Details each namespace's implemented records declare between them. Sibling records
-# of one workstream may share a namespace (2.2B.X3's range record and its sampling
+# of one capability family may share a namespace (the joint-sensitivity range record and its sampling
 # uncertainty record both use `joint_sensitivity`): a literal in the namespace is
 # declared when ANY implemented record declares it, while each record still emits
 # every detail it declares itself (refusal_detail_missing).
@@ -555,7 +548,7 @@ for rec in records:
     implemented = status in IMPLEMENTED
     claim = rec.get("inference_claim")
     if claim not in CLAIMS:
-        fail("claim_invalid", f"{rid}: inference_claim {claim!r} is not a 2.2 claim ({', '.join(sorted(CLAIMS))})")
+        fail("claim_invalid", f"{rid}: inference_claim {claim!r} is not an allowed inference claim ({', '.join(sorted(CLAIMS))})")
     cov = rec.get("coverage_records") or []
     if claim == "calibrated" and not cov:
         fail("coverage_required", f"{rid}: a calibrated interval must allocate its coverage record ids")
@@ -755,7 +748,11 @@ for rec in records:
                 + "|".join(map(re.escape, spellings))
                 + r")(?![A-Za-z0-9_])"
             )
-            if not any(named.search(code_of(p, c)) for p, c in files.items()):
+            # A verified closed helper proves the emitted pair at its definition;
+            # generated code need not repeat that reason token at the invocation.
+            # Unproven occurrences still require the ordinary source-name check.
+            all_codes_proven = all(lit.reason_code == code for _, _, lit in uses)
+            if not all_codes_proven and not any(named.search(code_of(p, c)) for p, c in files.items()):
                 fail(
                     "refusal_pair_code",
                     f"{rid}: refusal ({code}, {detail}): no non-test file that emits {detail} "
@@ -764,7 +761,7 @@ for rec in records:
                 )
 
     # Fixtures first: a route's license depends on which roles cite executed evidence.
-    workstream = str(rec.get("workstream", "")).lower()
+    capability = str(rec.get("capability", ""))
     roles: set[str] = set()
     evidenced: set[str] = set()
     budget_evidenced = budget_asserting = False
@@ -773,8 +770,8 @@ for rec in records:
         if fid in seen_fixtures:
             fail("fixture_duplicate", f"{rid}: duplicate fixture id {fid}")
         seen_fixtures.add(fid)
-        if not fid.startswith(f"{workstream}.") or not fid.endswith(f".{role}"):
-            fail("fixture_id_format", f"{rid}: fixture {fid} must be <workstream>.<name>.<role>")
+        if not fid.startswith(f"{capability}.") or not fid.endswith(f".{role}"):
+            fail("fixture_id_format", f"{rid}: fixture {fid} must be <capability>.<name>.<role>")
         if not fixture.get("intent"):
             fail("fixture_intent", f"{rid}: fixture {fid} needs an intent")
         roles.add(role)
@@ -849,7 +846,7 @@ for rec in records:
         permanent = route.get("permanent_in_release") is True
         route_claim = route.get("claim")
         if route_claim is not None and route_claim not in CLAIMS:
-            fail("route_claim", f"{rid}: {name}: claim {route_claim!r} is not a 2.2 claim")
+            fail("route_claim", f"{rid}: {name}: claim {route_claim!r} is not an allowed inference claim")
         route_status = route.get("status")
         licensed = route_status == "licensed"
         if route_status == "closed":
@@ -968,7 +965,7 @@ for rec in records:
             if promoted and not permanent and not licensed:
                 fail("promoted_closed_route", f"{rid}: promoted record leaves non-permanent route {name} closed")
 
-        # No nominal-only interval ships from implemented 2.2 work, anywhere.
+        # No nominal-only interval ships from implemented work, anywhere.
         if implemented:
             if licensed and carries(route, NOMINAL):
                 fail("nominal_route", f"{rid}: licensed route {name} carries {NOMINAL}")
@@ -1309,7 +1306,7 @@ if emit_path is not None:
             f'[[fixture_evidence]]\nid = "{fid}"\nevidence_test = "{path}"\nevidence_assertion = "{assertion}"\n\n'
             for fid, path, assertion in evidence_rows
         )
-    )
+    , encoding="utf-8", newline="\n")
 if errors:
     print("Promotion record gate FAILED:\n" + "\n".join(f" - {e}" for e in errors))
     sys.exit(1)

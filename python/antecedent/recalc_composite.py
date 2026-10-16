@@ -5,14 +5,15 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from . import _native
 from ._recalc_bounds import _columns
+from ._refusal import raise_refusal
 from .composition import SupportedDecision, _supported_from_wire
 from .decision import Contract
 from .design import StructuralCandidate, StructuralEntry
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .program_claims import ProgramBinding
 from .recalc import RecalcPlan, RecalcReceipt, _seed
 from .recalc_external import CallbackProvider, ExternalCallbackRefusal, ExternalCallbackRequest
@@ -67,18 +68,11 @@ def _payload(request: CompositeRequest) -> dict[str, object]:
     }
 
 
-def _raise(error: str | None) -> None:
-    if error is not None:
-        raise ExternalCallbackRefusal(json.loads(error))
-
-
-class ConditionalStudyRankingRefusal(CausalUnsupportedError):
+class ConditionalStudyRankingRefusal(StructuredRefusal):
     """A bounded policy, actual-source or independent projection refusal."""
 
-    def __init__(self, wire):
-        super().__init__(wire["message"], reason_code=wire["code"])
-        self.detail = wire["detail"]
-        self.stage = wire["stage"]
+    def __init__(self, wire: Mapping[str, Any]) -> None:
+        super().__init__(wire, text=wire["message"])
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,8 +153,7 @@ class ConditionalStudyRanking:
 
 def _conditional_result(result):
     report, data, error = result
-    if error is not None:
-        raise ConditionalStudyRankingRefusal(json.loads(error))
+    raise_refusal(error, ConditionalStudyRankingRefusal)
     assert report is not None and data is not None
     wire = json.loads(report)
     return ConditionalStudyRanking(
@@ -199,7 +192,7 @@ class CompositeSession:
 
     def plan(self, request: CompositeRequest) -> RecalcPlan:
         wire, error = self._handle.plan(_payload(request))
-        _raise(error)
+        raise_refusal(error, ExternalCallbackRefusal)
         assert wire is not None
         return RecalcPlan.from_wire(json.loads(wire))
 
@@ -223,7 +216,7 @@ class CompositeSession:
             threads=threads,
             cancel=cancel,
         )
-        _raise(error)
+        raise_refusal(error, ExternalCallbackRefusal)
         assert wire is not None and receipt is not None
         body = json.loads(wire)
         return CompositeResult(

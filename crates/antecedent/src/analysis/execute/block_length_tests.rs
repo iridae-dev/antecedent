@@ -28,7 +28,8 @@ use antecedent_data::{ColumnView, TableView, TimeSeriesData};
 use antecedent_estimate::AlignedRows;
 
 use super::{
-    circular_block_length, mixture_block_length, shared_circular_block_mixture_se_with_length,
+    BlockBootstrapPlan, circular_block_length, mixture_block_length,
+    shared_circular_block_mixture_se_with_length,
 };
 
 const B: f64 = 0.8;
@@ -44,10 +45,7 @@ fn n_sim() -> u32 {
 }
 
 fn mix_seed(seed: u64) -> u64 {
-    let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
+    antecedent_core::mix64(seed.wrapping_add(antecedent_core::GOLDEN_GAMMA))
 }
 
 fn gaussian(seed: u64) -> impl FnMut() -> f64 {
@@ -194,10 +192,12 @@ fn sensitivity(label: &str, rho: f64, n: usize, seed_base: u64) {
             let block = shared_circular_block_mixture_se_with_length(
                 &design,
                 &[1.0],
-                scaled,
-                kernel_bias,
-                REPLICATES,
-                0xB10C_0000,
+                BlockBootstrapPlan {
+                    block_length: scaled,
+                    kernel_bias,
+                    replicates: REPLICATES,
+                    stream_base: 0xB10C_0000,
+                },
                 &ctx,
                 |_, rows| slope(rows.iter().map(|&r| pairs[r])),
             );

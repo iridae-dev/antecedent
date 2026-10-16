@@ -141,14 +141,16 @@ def test_refresh_accepts_the_table_used_at_analyze():
         assert outcome_only.answer.value == pytest.approx(result.answer.value)
 
 
-def test_refresh_drops_named_design_columns_without_rereading_them():
+def test_refresh_checks_named_design_columns_without_rebinding_them():
     assign, outcome, ids = _bernoulli()
     result = ant.analyze({"y": outcome, "arm": assign, "id": ids}, query=_randomized_named_query())
     shifted = outcome + 5.0
     frozen = result.study.refresh({"y": shifted})
-    # A flipped arm column in the refresh table is dropped: the design stays frozen.
-    with_flipped_arm = result.study.refresh({"y": shifted, "arm": ~assign, "id": ids})
-    assert with_flipped_arm.answer.value == pytest.approx(frozen.answer.value)
+    with pytest.raises(ant.errors.CausalValueError, match="frozen design column.*arm"):
+        result.study.refresh({"y": shifted, "arm": ~assign, "id": ids})
+    assert result.study.last_result is frozen
+    rebound = result.study.reprepare({"y": shifted, "arm": ~assign, "id": ids}).estimate()
+    assert rebound.answer.value == pytest.approx(-frozen.answer.value)
 
 
 def test_named_design_columns_are_dropped_from_an_arrow_table():

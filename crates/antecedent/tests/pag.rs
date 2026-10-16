@@ -29,15 +29,10 @@ use antecedent_graph::{
     CompletionSampler, Dag, DenseNodeId, Endpoint, NodeRef, Pag, latent_project,
     projection_preserves_msep_sample,
 };
-use serde_json::Value as JsonValue;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 
 fn fixture_dir(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/pag").join(name)
-}
-
-fn load_expected(name: &str) -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir(name).join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse")
+    conformance_dir("pag").join(name)
 }
 
 fn tiny_series(n: usize) -> (TimeSeriesData, Vec<VariableId>) {
@@ -91,7 +86,7 @@ fn tiny_series(n: usize) -> (TimeSeriesData, Vec<VariableId>) {
 /// fixture's data is `lpcmci_chain_matches_upstream_reference_links_and_marks`.
 #[test]
 fn lpcmci_chain() {
-    let expected = load_expected("lpcmci_chain");
+    let expected = load_expected_json(&fixture_dir("lpcmci_chain"));
     let (data, vars) = tiny_series(80);
     let alg = Lpcmci::new().with_fdr(false).with_constraints(DiscoveryConstraints {
         temporal: TemporalConstraints { max_lag: Lag::from_raw(1), min_lag: Lag::CONTEMPORANEOUS },
@@ -201,7 +196,7 @@ fn endpoint_symbol(mark: Endpoint) -> char {
 /// `<source end>-<target end>` (`o-o`, `o->`, `-->` ...).
 #[test]
 fn lpcmci_chain_matches_upstream_reference_links_and_marks() {
-    let expected = load_expected("lpcmci_chain");
+    let expected = load_expected_json(&fixture_dir("lpcmci_chain"));
     let reference = &expected["reference"];
     assert_eq!(
         Some(reference["project"].as_str().expect("reference.project")),
@@ -261,7 +256,7 @@ fn lpcmci_chain_matches_upstream_reference_links_and_marks() {
 
 #[test]
 fn latent_projection_msep() {
-    let expected = load_expected("latent_projection_msep");
+    let expected = load_expected_json(&fixture_dir("latent_projection_msep"));
     let mut dag = Dag::with_variables(3);
     let l = DenseNodeId::from_raw(0);
     let x = DenseNodeId::from_raw(1);
@@ -281,7 +276,7 @@ fn latent_projection_msep() {
 
 #[test]
 fn envelope_unidentified_mass() {
-    let expected = load_expected("envelope_unidentified_mass");
+    let expected = load_expected_json(&fixture_dir("envelope_unidentified_mass"));
     let mut pag = Pag::with_variables(2);
     pag.insert_circle_arrow(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let id = GeneralizedAdjustmentIdentifier::new();
@@ -294,7 +289,7 @@ fn envelope_unidentified_mass() {
 
 #[test]
 fn dag_only_pag_reject() {
-    let expected = load_expected("dag_only_pag_reject");
+    let expected = load_expected_json(&fixture_dir("dag_only_pag_reject"));
     let pag = Pag::with_variables(2);
     let id = expected["identifier"].as_str().unwrap();
     let err = reject_dag_only_on_pag(&AcceptedGraph::pag(pag), id.parse().unwrap());

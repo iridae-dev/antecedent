@@ -1,4 +1,4 @@
-//! Nonlinear continuous-mediator mediation (B4).
+//! Nonlinear continuous-mediator mediation.
 //!
 //! Estimand (primary): the natural direct and natural indirect effects of a binary treatment
 //! `A` on `Y` through a continuous mediator `M`, averaged over the observed covariate rows:
@@ -32,14 +32,17 @@
 )]
 use crate::EstimationError;
 use crate::splitmix::{mix64, seed_mix, splitmix64};
+use crate::util::mean;
+use crate::util::{count, refuse};
+use crate::vector_treatment::DesignSummary;
 use std::f64::consts::{PI, SQRT_2};
 
-/// Calibration status of the estimator's inference. Measured only at the release cut.
+/// Calibration status of the estimator's inference. Coverage is unmeasured.
 pub const NONLINEAR_MEDIATION_CALIBRATION: &str = "unmeasured";
 /// Interval status: standard errors are reported, public intervals are closed.
 pub const NONLINEAR_MEDIATION_INTERVAL_STATUS: &str = "closed_calibration_unmeasured";
 /// Replicate-id scheme of the bootstrap.
-pub const NONLINEAR_MEDIATION_REPLICATE_SCHEME: &str = "splitmix64 stream seeded by seed_mix(seed ^ mix64(replicate_id + 1)); n row draws with replacement";
+pub(crate) const NONLINEAR_MEDIATION_REPLICATE_SCHEME: &str = "splitmix64 stream seeded by seed_mix(seed ^ mix64(replicate_id + 1)); n row draws with replacement";
 /// Largest outcome polynomial degree.
 pub const NONLINEAR_MEDIATION_MAX_DEGREE: usize = 4;
 /// Largest declared Gauss-Hermite node count (the check evaluates `2n` nodes).
@@ -57,8 +60,10 @@ pub enum NonlinearMediationEstimand {
 
 /// Declared graph premises. Every field is a declaration by the caller; the estimator checks
 /// them and refuses when one is incompatible with natural-effect identification.
-// Independent declaration flags, not a state machine.
-#[allow(clippy::struct_excessive_bools)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent declaration flags, not a state machine"
+)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NonlinearMediationPremises {
     /// An unmeasured common cause of treatment and outcome is declared.
@@ -219,27 +224,17 @@ pub struct NonlinearMediationEstimate {
     pub interval_status: &'static str,
     /// Assumption identifiers the estimate relies on.
     pub assumptions: Vec<&'static str>,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
-}
-
-fn mean(v: &[f64]) -> f64 {
-    v.iter().sum::<f64>() / count(v.len())
+    /// Ordinary-least-squares coefficients of the outcome polynomial, same column order as
+    /// [`Self::outcome_design`].
+    pub outcome_coefficients: Vec<f64>,
+    /// Sufficient statistics of the mediator regression (intercept, treatment, covariates).
+    pub mediator_design: DesignSummary,
+    /// Sufficient statistics of the outcome polynomial regression.
+    pub outcome_design: DesignSummary,
 }
 
 fn sample_sd(v: &[f64]) -> Option<f64> {
-    if v.len() < 2 {
-        return None;
-    }
-    let mu = mean(v);
-    let ss: f64 = v.iter().map(|x| (x - mu) * (x - mu)).sum();
-    Some((ss / (count(v.len()) - 1.0)).sqrt())
+    (v.len() >= 2).then(|| antecedent_stats::sample_std(v))
 }
 
 /// Owned analysis columns.
@@ -255,14 +250,20 @@ impl Columns {
         self.a.len()
     }
 
-    fn resample(&self, idx: &[usize]) -> Self {
-        let pick = |c: &[f64]| idx.iter().map(|&i| c[i]).collect::<Vec<f64>>();
-        Self {
-            a: pick(&self.a),
-            m: pick(&self.m),
-            y: pick(&self.y),
-            x: self.x.iter().map(|c| pick(c)).collect(),
+    /// Overwrite `out` with the rows `idx` names. Every column is rewritten before return.
+    fn resample_into(&self, idx: &[usize], out: &mut Self) {
+        let fill = |dst: &mut Vec<f64>, src: &[f64]| {
+            dst.clear();
+            dst.extend(idx.iter().map(|&i| src[i]));
+        };
+        fill(&mut out.a, &self.a);
+        fill(&mut out.m, &self.m);
+        fill(&mut out.y, &self.y);
+        out.x.resize_with(self.x.len(), Vec::new);
+        for (dst, src) in out.x.iter_mut().zip(&self.x) {
+            fill(dst, src);
         }
+        out.x.truncate(self.x.len());
     }
 }
 
@@ -430,18 +431,20 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
         }
         scales.push(s);
     }
-    let mut aug = vec![0.0; p * (p + 1)];
+    // Jacobi-scaled normal equations (unit-RMS columns): symmetric positive definite.
+    let mut gram = vec![0.0; p * p];
+    let mut rhs = vec![0.0; p];
     for j in 0..p {
         for k in j..p {
             let dot: f64 = cols[j].iter().zip(&cols[k]).map(|(u, v)| u * v).sum();
             let v = dot / (scales[j] * scales[k]);
-            aug[j * (p + 1) + k] = v;
-            aug[k * (p + 1) + j] = v;
+            gram[j * p + k] = v;
+            gram[k * p + j] = v;
         }
         let r: f64 = cols[j].iter().zip(y).map(|(u, v)| u * v).sum();
-        aug[j * (p + 1) + p] = r / scales[j];
+        rhs[j] = r / scales[j];
     }
-    let sol = solve(&mut aug, p, nf).ok_or_else(|| {
+    let sol = crate::util::solve_spd(&gram, &rhs, p).ok_or_else(|| {
         refuse(
             rank_code,
             "nonlinear_mediation.rank_deficient",
@@ -460,45 +463,6 @@ fn ols(cols: &[Vec<f64>], y: &[f64]) -> Result<Ols, EstimationError> {
     Ok(Ols { beta, residuals, rss })
 }
 
-/// Gauss-Jordan on an augmented `p x (p + 1)` row-major system. `None` when a pivot falls
-/// below `1e-10 * diag_scale` (the Jacobi-scaled Gram diagonal equals the row count).
-fn solve(aug: &mut [f64], p: usize, diag_scale: f64) -> Option<Vec<f64>> {
-    let w = p + 1;
-    for col in 0..p {
-        let mut best = col;
-        for r in col + 1..p {
-            if aug[r * w + col].abs() > aug[best * w + col].abs() {
-                best = r;
-            }
-        }
-        if aug[best * w + col].abs().partial_cmp(&(1e-10 * diag_scale))
-            != Some(std::cmp::Ordering::Greater)
-        {
-            return None;
-        }
-        if best != col {
-            for k in 0..w {
-                aug.swap(col * w + k, best * w + k);
-            }
-        }
-        let pivot = aug[col * w + col];
-        for r in 0..p {
-            if r == col {
-                continue;
-            }
-            let factor = aug[r * w + col] / pivot;
-            if factor.abs() > 0.0 {
-                for k in col..w {
-                    let sub = factor * aug[col * w + k];
-                    aug[r * w + k] -= sub;
-                }
-            }
-        }
-    }
-    let sol: Vec<f64> = (0..p).map(|j| aug[j * w + p] / aug[j * w + j]).collect();
-    sol.iter().all(|v| v.is_finite()).then_some(sol)
-}
-
 /// Fitted mediator and outcome models.
 struct Fit {
     med: Vec<f64>,
@@ -509,6 +473,31 @@ struct Fit {
     degree: usize,
     n_x: usize,
     residuals: Vec<f64>,
+    mediator_design: DesignSummary,
+    outcome_design: DesignSummary,
+}
+
+fn design_summary(cols: &[Vec<f64>], y: &[f64], rss: f64) -> DesignSummary {
+    let n = y.len();
+    let p = cols.len();
+    let mut gram = vec![0.0; p * p];
+    for i in 0..p {
+        for j in 0..=i {
+            let value = cols[i].iter().zip(&cols[j]).map(|(left, right)| left * right).sum();
+            gram[i * p + j] = value;
+            gram[j * p + i] = value;
+        }
+    }
+    DesignSummary {
+        n_rows: n,
+        first_treatment: 1,
+        gram,
+        xty: cols
+            .iter()
+            .map(|col| col.iter().zip(y).map(|(left, right)| left * right).sum())
+            .collect(),
+        rss,
+    }
 }
 
 fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
@@ -550,6 +539,8 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
     out_design.extend(z_cols);
     out_design.extend(interactions);
     let out = ols(&out_design, &cols.y)?;
+    let mediator_design = design_summary(&med_design, &cols.m, med.rss);
+    let outcome_design = design_summary(&out_design, &cols.y, out.rss);
     Ok(Fit {
         med: med.beta,
         sigma: sigma2.sqrt(),
@@ -559,6 +550,8 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
         degree,
         n_x: cols.x.len(),
         residuals: med.residuals,
+        mediator_design,
+        outcome_design,
     })
 }
 
@@ -750,12 +743,15 @@ fn run_bootstrap(
     let n64 = u64::try_from(n).unwrap_or(u64::MAX).max(1);
     let (mut d, mut i_, mut t) = (Vec::new(), Vec::new(), Vec::new());
     let mut failed = Vec::new();
+    let mut idx = vec![0usize; n];
+    let mut sample = Columns { a: Vec::new(), m: Vec::new(), y: Vec::new(), x: Vec::new() };
     for r in 0..config.bootstrap_replicates {
         let id = u64::from(r);
         let mut state = seed_mix(config.seed ^ mix64(id.wrapping_add(1)));
-        let idx: Vec<usize> =
-            (0..n).map(|_| usize::try_from(splitmix64(&mut state) % n64).unwrap_or(0)).collect();
-        let sample = cols.resample(&idx);
+        for slot in &mut idx {
+            *slot = usize::try_from(splitmix64(&mut state) % n64).unwrap_or(0);
+        }
+        cols.resample_into(&idx, &mut sample);
         let fitted = fit_model(&sample, config.outcome_degree);
         match fitted {
             Ok(fit) => {
@@ -910,5 +906,27 @@ pub fn estimate_nonlinear_mediation(
             "assumption:linear_gaussian_mediator",
             "assumption:polynomial_outcome_in_mediator",
         ],
+        outcome_coefficients: fit.out,
+        mediator_design: fit.mediator_design,
+        outcome_design: fit.outcome_design,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ols;
+
+    #[test]
+    fn rank_is_judged_by_the_kernel_pivot_floor() {
+        let n = 80;
+        let x1: Vec<f64> = (0..n).map(|i| (0.3 * i as f64).sin()).collect();
+        let noise: Vec<f64> = (0..n).map(|i| (1.7 * i as f64 + 0.4).cos()).collect();
+        let y: Vec<f64> = (0..n).map(|i| 1.0 + x1[i] + 0.1 * noise[i]).collect();
+        // Correlation 1 - 1e-12 after normalisation: the former relative 1e-10 pivot cutoff
+        // refused this design; its conditioning is 1e12, well inside the kernel floor.
+        let near: Vec<f64> = (0..n).map(|i| x1[i] + 1e-6 * noise[i]).collect();
+        assert!(ols(&[x1.clone(), near], &y).is_ok());
+        // An exact duplicate is rank deficient under either rule.
+        assert!(ols(&[x1.clone(), x1], &y).is_err());
+    }
 }

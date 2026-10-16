@@ -1,7 +1,14 @@
 //! Checked frequentist linear mediation on a supplied static DAG.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, CausalError, CausalQuery, Dag, EstimatorId, ExecutionContext, IdentificationStatus,
+    IdentifiedEstimand, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
+    InferenceMode, Instant, PhysicalExecutionPlan, RefuteSuite, Strategy, Study, StudyResult,
+    TableView, TabularData, VariableId, elapsed_ns, finish_identified_execute_with_context,
+};
+use crate::analysis::prepared::Inspect;
+use crate::analysis::proof_support::proof_supplies_with_mediators;
 use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVariable};
 
 /// One frozen mediation target, identification, row design, and uncertainty procedure.
@@ -9,9 +16,8 @@ use antecedent_expr::{FunctionalProgram, ProgramLimits, ProgramSchema, ProgramVa
 pub(crate) struct CheckedStaticMediationOperation {
     graph: Dag,
     query: antecedent_core::MediationQuery,
-    identification: IdentificationResult,
-    estimand: IdentifiedEstimand,
-    physical: PhysicalExecutionPlan,
+    cache: Arc<crate::analysis::prepared::CachedStaticIdentification>,
+    physical: std::sync::Arc<PhysicalExecutionPlan>,
     program: FunctionalProgram,
     schema: antecedent_core::CausalSchema,
     design_roles: Arc<[VariableId]>,
@@ -39,8 +45,8 @@ impl CheckedStaticMediationOperation {
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,
-        physical: &PhysicalExecutionPlan,
-        cache: &crate::analysis::prepared::CachedStaticIdentification,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -50,20 +56,14 @@ impl CheckedStaticMediationOperation {
         let graph = study.graph.as_dag().ok_or(CausalError::Unsupported {
             message: "checked static mediation requires a supplied DAG",
         })?;
-        query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        query.validate()?;
         if !matches!(study.inference, InferenceMode::Frequentist)
             || !matches!(
                 study.structure_source,
                 crate::support::StructureSource::Explicit
                     | crate::support::StructureSource::Accepted
             )
-            || !matches!(
-                study.refute,
-                RefuteSuite::None
-                    | RefuteSuite::Cheap
-                    | RefuteSuite::PlaceboAndRcc
-                    | RefuteSuite::Full
-            )
+            || !study.refute.is_point_or_placebo()
             || !study.custom_validators.is_empty()
             || cache.identification.query != study.query
             || !matches!(
@@ -71,16 +71,10 @@ impl CheckedStaticMediationOperation {
                 IdentificationStatus::NonparametricallyIdentified
                     | IdentificationStatus::IdentifiedUnderParametricRestrictions
             )
-            || !cache.identification.estimands.iter().any(|candidate| {
-                candidate.functional == cache.estimand.functional
-                    && candidate.method == cache.estimand.method
-                    && candidate.adjustment_set == cache.estimand.adjustment_set
-                    && candidate.mediators == cache.estimand.mediators
-            })
-            || physical.logical.record.identifier.as_deref()
-                != Some(IdentifierId::PathSpecificNatural.as_str())
-            || physical.logical.record.estimator.as_deref()
-                != Some(EstimatorId::StaticMediationLinear.as_str())
+            || !proof_supplies_with_mediators(&cache.identification, &cache.estimand)
+            || !physical
+                .binding()
+                .names(IdentifierId::PathSpecificNatural, EstimatorId::StaticMediationLinear)
         {
             return Err(CausalError::Compile { message: "mediation identification or estimator lowering does not match the checked target".into() });
         }
@@ -109,8 +103,7 @@ impl CheckedStaticMediationOperation {
         Ok(Self {
             graph: graph.clone(),
             query: query.clone(),
-            identification: cache.identification.clone(),
-            estimand: cache.estimand.clone(),
+            cache: Arc::clone(cache),
             physical: physical.clone(),
             program,
             schema: data.schema().clone(),
@@ -124,7 +117,7 @@ impl CheckedStaticMediationOperation {
 
     pub(crate) fn rebind(&self, data: &TabularData) -> Result<Self, CausalError> {
         if data.schema() != &self.schema
-            || self.program.mapping().source != self.estimand.functional
+            || self.program.mapping().source != self.cache.estimand.functional
         {
             return Err(CausalError::Compile {
                 message: "mediation refresh changed its semantic schema or target".into(),
@@ -147,7 +140,7 @@ impl CheckedStaticMediationOperation {
     ) {
         (
             &self.query,
-            &self.estimand,
+            &self.cache.estimand,
             &self.program,
             self.bootstrap_replicates,
             self.refute,
@@ -166,7 +159,7 @@ impl CheckedStaticMediationOperation {
             data,
             &bound.graph,
             &bound.query,
-            bound.identification.required_assumptions.clone(),
+            bound.cache.identification.required_assumptions.clone(),
             bound.bootstrap_replicates,
             &[],
             ctx,
@@ -184,29 +177,33 @@ impl CheckedStaticMediationOperation {
                 ctx,
             )?
         };
+        let (replicates_ok, cancelled, early_stopped) = (
+            estimate.uncertainty.bootstrap.replicates_ok,
+            estimate.uncertainty.bootstrap.cancelled,
+            estimate.uncertainty.bootstrap.early_stopped,
+        );
         Ok(finish_identified_execute_with_context(
             &bound.result_context,
             Some(data),
-            IdentifiedExecuteFinish {
-                physical: &bound.physical,
-                identification: bound.identification.clone(),
-                estimand: bound.estimand.clone(),
-                bootstrap_replicates_ok: estimate.bootstrap_replicates_ok,
-                cancelled: estimate.bootstrap_cancelled,
-                early_stopped: estimate.bootstrap_early_stopped,
+            IdentifiedExecuteFinish::new(
+                &bound.physical,
+                bound.cache.identification.clone(),
+                bound.cache.estimand.clone(),
                 estimate,
-                identifier_id: IdentifierId::PathSpecificNatural,
-                estimator_id: EstimatorId::StaticMediationLinear,
-                treatment: bound.query.treatment,
-                outcome: bound.query.outcome,
-                identify_cached: true,
-                extra_diagnostics: Vec::new(),
-                refutations,
-                distribution: None,
-                mediation: Some(mediation),
-                wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                extras: IdentifiedExecuteExtras::default(),
-            },
+                Strategy::new(
+                    IdentifierId::PathSpecificNatural,
+                    EstimatorId::StaticMediationLinear,
+                ),
+                bound.query.treatment,
+                bound.query.outcome,
+            )
+            .identify_cached(true)
+            .refutations(refutations)
+            .mediation(Some(mediation))
+            .wall_time_ns(elapsed_ns(started))
+            .bootstrap_replicates_ok(replicates_ok)
+            .cancelled(cancelled)
+            .early_stopped(early_stopped),
         ))
     }
 }
@@ -223,4 +220,44 @@ fn bind_rows(data: &TabularData, roles: &[VariableId]) -> Result<Arc<[u32]>, Cau
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Into::into)
+}
+
+/// Read-only target, graph, and procedure of a checked static mediation plan.
+#[derive(Clone, Debug)]
+pub struct CheckedStaticMediationInfo {
+    /// Complete contrast, mediators, intervention levels, and population.
+    pub query: antecedent_core::MediationQuery,
+    /// Prepare-time identifier.
+    pub identifier: crate::strategy_table::IdentifierId,
+    /// Prepare-time estimator.
+    pub estimator: crate::strategy_table::EstimatorId,
+    /// Identified adjustment roles used by the model.
+    pub adjustment_set: std::sync::Arc<[antecedent_core::VariableId]>,
+    /// Source and executable functional root identifiers.
+    pub functional_roots: (u32, u32),
+    /// Canonical supplied DAG edges.
+    pub graph_edges: std::sync::Arc<[(u32, u32)]>,
+    /// Bootstrap replicate budget, including zero for point-only execution.
+    pub bootstrap_replicates: u32,
+    /// Prepare-time validation suite.
+    pub validation: crate::analysis::builder::RefuteSuite,
+}
+
+impl Inspect for CheckedStaticMediationOperation {
+    type Info = CheckedStaticMediationInfo;
+
+    fn info(&self) -> CheckedStaticMediationInfo {
+        let (query, estimand, program, bootstrap_replicates, validation, graph) = self.inspect();
+        let edges = graph.directed_edge_pairs_sorted();
+        CheckedStaticMediationInfo {
+            query: query.clone(),
+            identifier: IdentifierId::PathSpecificNatural,
+            estimator: EstimatorId::StaticMediationLinear,
+            adjustment_set: Arc::clone(&estimand.adjustment_set),
+            functional_roots: (program.mapping().source.raw(), program.mapping().executable.raw()),
+            graph_edges: edges.into(),
+            bootstrap_replicates,
+            validation,
+        }
+    }
 }

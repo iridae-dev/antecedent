@@ -89,7 +89,7 @@ pub fn pointwise_interval_95(
     {
         return None;
     }
-    let span = antecedent_stats::normal_ppf(0.975) * effect.standard_error;
+    let span = antecedent_stats::NORMAL_Q975 * effect.standard_error;
     let bounds = [effect.effect - span, effect.effect + span];
     bounds.iter().all(|bound| bound.is_finite()).then_some(bounds)
 }
@@ -207,6 +207,157 @@ pub fn estimate(
     Ok(effects)
 }
 
+/// One post-adoption group-time contrast against never-treated units.
+///
+/// Unlike [`EventTimeEffect`], pre-adoption leads are omitted.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GroupTimeAtt {
+    /// Adoption cohort, a positive period index.
+    pub cohort: i64,
+    /// Calendar period of the contrast, at or after `cohort`.
+    pub period: i64,
+    /// Treated change minus never-treated change from the cohort baseline.
+    pub effect: f64,
+    /// Subjects in the adoption cohort.
+    pub treated_subjects: usize,
+    /// Never-treated comparison subjects.
+    pub comparison_subjects: usize,
+    /// Cluster sandwich standard error, floored at zero, without an interval.
+    pub standard_error: f64,
+    /// Distinct clusters in the treated and never-treated scores.
+    pub clusters: usize,
+}
+
+/// Balanced-panel group-time ATT for post-adoption periods only.
+///
+/// [`estimate`] also emits pre-adoption leads and uses different refusal text.
+/// This function keeps the historical group-time refusals.
+#[allow(
+    clippy::too_many_lines,
+    reason = "group-time ATT keeps the historical refusal order in one function"
+)]
+pub fn group_time_att(
+    outcomes: &[f64],
+    subjects: &[impl AsRef<str>],
+    periods: &[i64],
+    cohorts: &[i64],
+    clusters: &[impl AsRef<str>],
+) -> Result<Vec<GroupTimeAtt>, &'static str> {
+    let n = outcomes.len();
+    if n == 0
+        || subjects.len() != n
+        || periods.len() != n
+        || cohorts.len() != n
+        || clusters.len() != n
+    {
+        return Err("outcome, subject, period, and cohort vectors must have equal non-zero length");
+    }
+    if outcomes.iter().any(|value| !value.is_finite()) {
+        return Err("outcomes must be finite");
+    }
+
+    let mut units: BTreeMap<&str, (i64, &str, BTreeMap<i64, f64>)> = BTreeMap::new();
+    let mut all_periods = BTreeSet::new();
+    for i in 0..n {
+        let subject = subjects[i].as_ref();
+        if subject.is_empty() {
+            return Err("subject IDs must be non-empty strings");
+        }
+        if periods[i] <= 0 || cohorts[i] < 0 {
+            return Err("periods must be positive integers and cohort 0 denotes never treated");
+        }
+        all_periods.insert(periods[i]);
+        let cluster = clusters[i].as_ref();
+        if cluster.is_empty() {
+            return Err("cluster IDs must be non-empty strings");
+        }
+        if let Some(unit) = units.get(subject) {
+            if unit.0 != cohorts[i] {
+                return Err("adoption cohort must be constant within each subject");
+            }
+            if unit.1 != cluster {
+                return Err("cluster ID must be constant within each subject");
+            }
+        }
+        let unit = units.entry(subject).or_insert_with(|| (cohorts[i], cluster, BTreeMap::new()));
+        if unit.2.insert(periods[i], outcomes[i]).is_some() {
+            return Err("each subject must have exactly one observation per period");
+        }
+    }
+    let period_list: Vec<i64> = all_periods.into_iter().collect();
+    if period_list.len() < 2 {
+        return Err("staggered group-time ATT requires at least two periods");
+    }
+    for (_, _, unit_outcomes) in units.values() {
+        if unit_outcomes.len() != period_list.len()
+            || period_list.iter().any(|period| !unit_outcomes.contains_key(period))
+        {
+            return Err(
+                "staggered group-time ATT requires a balanced panel with the same periods for every subject",
+            );
+        }
+    }
+
+    let cohorts_present: BTreeSet<i64> = units.values().map(|unit| unit.0).collect();
+    if !cohorts_present.contains(&0) {
+        return Err("group-time ATT requires never-treated controls (cohort 0)");
+    }
+    let mut output = Vec::new();
+    for cohort in cohorts_present.iter().copied().filter(|cohort| *cohort > 0) {
+        let baseline = cohort - 1;
+        if !period_list.contains(&baseline) || !period_list.contains(&cohort) {
+            return Err(
+                "each adoption cohort needs an observed immediately pre-treatment baseline and adoption period",
+            );
+        }
+        let treated: Vec<_> = units.values().filter(|unit| unit.0 == cohort).collect();
+        let controls: Vec<_> = units.values().filter(|unit| unit.0 == 0).collect();
+        for period in period_list.iter().copied().filter(|period| *period >= cohort) {
+            let treated_change: f64 =
+                treated.iter().map(|unit| unit.2[&period] - unit.2[&baseline]).sum::<f64>()
+                    / treated.len() as f64;
+            let control_change: f64 =
+                controls.iter().map(|unit| unit.2[&period] - unit.2[&baseline]).sum::<f64>()
+                    / controls.len() as f64;
+            let mut scores: BTreeMap<&str, f64> = BTreeMap::new();
+            let mut group_clusters: [BTreeSet<&str>; 2] = Default::default();
+            for (group, selected, mean, denominator) in [
+                (1_usize, &treated, treated_change, treated.len()),
+                (0_usize, &controls, control_change, controls.len()),
+            ] {
+                for unit in selected {
+                    let change = unit.2[&period] - unit.2[&baseline];
+                    group_clusters[group].insert(unit.1);
+                    *scores.entry(unit.1).or_default() += (if group == 1 { 1.0 } else { -1.0 })
+                        * (change - mean)
+                        / denominator as f64;
+                }
+            }
+            if group_clusters.iter().any(|set| set.len() < 2) {
+                return Err(
+                    "cluster-robust standard error requires at least two clusters in each cohort/control group",
+                );
+            }
+            let cluster_count = scores.len();
+            let variance = cluster_count as f64 / (cluster_count - 1) as f64
+                * scores.values().map(|score| score * score).sum::<f64>();
+            output.push(GroupTimeAtt {
+                cohort,
+                period,
+                effect: treated_change - control_change,
+                treated_subjects: treated.len(),
+                comparison_subjects: controls.len(),
+                standard_error: variance.max(0.0).sqrt(),
+                clusters: cluster_count,
+            });
+        }
+    }
+    if output.is_empty() {
+        return Err("no supported post-adoption group-time comparisons are available");
+    }
+    Ok(output)
+}
+
 #[cfg(test)]
 mod tests {
     #![cfg_attr(
@@ -292,13 +443,13 @@ mod tests {
                     assert_eq!(supported.is_some(), clusters_per_group >= 24);
                     covered_95[target] += usize::from(
                         (fit.effect - 2.0).abs()
-                            <= antecedent_stats::normal_ppf(0.975) * fit.standard_error,
+                            <= antecedent_stats::NORMAL_Q975 * fit.standard_error,
                     );
                     if let Some(bounds) = supported {
                         assert_eq!(
                             bounds[0] <= 2.0 && 2.0 <= bounds[1],
                             (fit.effect - 2.0).abs()
-                                <= antecedent_stats::normal_ppf(0.975) * fit.standard_error
+                                <= antecedent_stats::NORMAL_Q975 * fit.standard_error
                         );
                     }
                     covered_90[target] += usize::from(

@@ -31,10 +31,14 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+import _py_closure
+import _rust_source as _rust
+from _repo import REPO_ROOT as ROOT
+from _repo import cargo_target_feature_args, test_target
 
 PARSE_MARKERS = re.compile(
     r"serde_json::from_str|serde_json::from_slice|from_str::<|json\.loads|"
@@ -55,57 +59,9 @@ class Masked:
     skeleton: str
 
 
-_LEX = re.compile(
-    r"//[^\n]*|/\*|(?<![\w])b?r(#*)\"|(?<![\w])b?\"(?:\\.|[^\"\\])*\"|'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|.)|[^\\'\n])'",
-    re.S,
-)
-
-
 def mask_rust(text: str) -> Masked:
-    code = list(text)
-    skel = list(text)
-    n = len(text)
-
-    def blank(lo: int, hi: int, *, keep_code: bool) -> None:
-        for k in range(lo, hi):
-            if text[k] != "\n":
-                skel[k] = " "
-                if not keep_code:
-                    code[k] = " "
-
-    i = 0
-    while True:
-        m = _LEX.search(text, i)
-        if not m:
-            break
-        tok = m.group(0)
-        if tok.startswith("//"):
-            blank(m.start(), m.end(), keep_code=False)
-            i = m.end()
-        elif tok == "/*":
-            depth, j = 1, m.end()
-            while j < n and depth:
-                nxt_open = text.find("/*", j)
-                nxt_close = text.find("*/", j)
-                if nxt_close == -1:
-                    j = n
-                    break
-                if nxt_open != -1 and nxt_open < nxt_close:
-                    depth, j = depth + 1, nxt_open + 2
-                else:
-                    depth, j = depth - 1, nxt_close + 2
-            blank(m.start(), j, keep_code=False)
-            i = j
-        elif m.group(1) is not None:
-            hashes = m.group(1)
-            end = text.find('"' + hashes, m.end())
-            end = n if end == -1 else end + 1 + len(hashes)
-            blank(m.end(), max(m.end(), end - 1 - len(hashes)), keep_code=True)
-            i = end
-        else:
-            blank(m.start() + (2 if tok.startswith("b") else 1), m.end() - 1, keep_code=True)
-            i = m.end()
-    return Masked("".join(code), "".join(skel))
+    parsed = _rust.lex(text)
+    return Masked(parsed.kept, parsed.kept_skeleton)
 
 
 _BRACKETS = {"{": re.compile(r"[{}]"), "(": re.compile(r"[()]"), "[": re.compile(r"[\[\]]")}
@@ -197,7 +153,7 @@ def _attrs_before(skel: str, code: str, pos: int) -> list[str]:
 
 @functools.cache
 def rust_items(path: Path) -> tuple[Masked, tuple[RustItem, ...]]:
-    text = path.read_text(errors="ignore")
+    text = path.read_text(errors="ignore", encoding="utf-8")
     masked = mask_rust(text)
     skel, code = masked.skeleton, masked.code
     items: list[RustItem] = []
@@ -289,6 +245,22 @@ def _declared_modules(path: Path) -> list[tuple[Path, bool]]:
         if any(_disabling_cfg(b.attrs) for b in around):
             continue
         test_only = _is_cfg_test(attrs) or any(_is_cfg_test(b.attrs) for b in around)
+        declared_path = _rust_path_attribute(attrs)
+        if declared_path is not None:
+            # For this reader, honor `#[path]` only on a declaration at file
+            # scope. Nested module path bases depend on Rust's inline-module
+            # directory rules; guessing from `path.parent` could attest a file
+            # the compiler did not include.
+            if around:
+                continue
+            candidate = (path.parent / declared_path).resolve()
+            try:
+                candidate.relative_to(ROOT.resolve())
+            except ValueError:
+                continue
+            if candidate.is_file():
+                out.append((candidate, test_only))
+            continue
         if path.name in ("mod.rs", "lib.rs", "main.rs") or path.parent.name == "tests":
             base = path.parent
         else:
@@ -298,6 +270,28 @@ def _declared_modules(path: Path) -> list[tuple[Path, bool]]:
                 out.append((cand.resolve(), test_only))
                 break
     return out
+
+
+def _rust_path_attribute(attrs: list[str]) -> str | None:
+    """Read a literal `#[path = "..."]`; comments and string decoys are absent from attrs."""
+    for attr in attrs:
+        match = re.fullmatch(r"#\[\s*path\s*=\s*(.*?)\s*\]", attr, re.S)
+        if not match:
+            continue
+        literal = match.group(1)
+        if literal.startswith('r'):
+            raw = re.fullmatch(r'r(#{0,})"(.*?)"\1', literal, re.S)
+            if raw:
+                return raw.group(2)
+            return None
+        if not literal.startswith('"'):
+            return None
+        try:
+            value = ast.literal_eval(literal)
+        except (SyntaxError, ValueError):
+            return None
+        return value if isinstance(value, str) else None
+    return None
 
 
 @functools.cache
@@ -328,25 +322,35 @@ def target_root(path: Path) -> tuple[Path, str, list[str]] | None:
         return None
     crate_dir = ROOT / "crates" / rel[1]
     crate = rel[1]
-    manifest = (crate_dir / "Cargo.toml").read_text(errors="ignore")
+    manifest = (crate_dir / "Cargo.toml").read_text(errors="ignore", encoding="utf-8")
     m = re.search(r'^name\s*=\s*"([^"]+)"', manifest, re.M)
     crate = m.group(1) if m else crate
     if rel[2] == "tests":
         tests_dir = crate_dir / "tests"
         if len(rel) == 4:
-            return tests_dir / rel[3], crate, ["--test", Path(rel[3]).stem]
+            # A file folded into a suite_NN aggregator is compiled as a module of the suite.
+            name, prefix = test_target(rel[1], Path(rel[3]).stem, ROOT)
+            target = ["--test", name]
+            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
+            return (tests_dir / f"{name}.rs" if prefix else tests_dir / rel[3]), crate, target
         main = tests_dir / rel[3] / "main.rs"
         if main.is_file():
-            return main, crate, ["--test", rel[3]]
+            target = ["--test", rel[3]]
+            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
+            return main, crate, target
         # A file under tests/<dir>/ is compiled only as a module of some target.
         for top in sorted(tests_dir.glob("*.rs")):
             if path in target_files(top.resolve()):
-                return top, crate, ["--test", top.stem]
+                target = ["--test", top.stem]
+                target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
+                return top, crate, target
         return None
     if rel[2] == "src":
         lib = crate_dir / "src" / "lib.rs"
         if lib.is_file():
-            return lib, crate, ["--lib"]
+            target = ["--lib"]
+            target.extend(cargo_target_feature_args(crate_dir / "Cargo.toml", target))
+            return lib, crate, target
     return None
 
 
@@ -532,7 +536,7 @@ def static_python_test(path: Path, name: str) -> list[str]:
     if not name.startswith("test"):
         problems.append(f"{name} is not a collected pytest name (test*)")
     try:
-        tree = ast.parse(path.read_text(errors="ignore"))
+        tree = ast.parse(path.read_text(errors="ignore", encoding="utf-8"))
     except SyntaxError as error:
         return problems + [f"{path} does not parse: {error.msg}"]
     funcs = [
@@ -634,6 +638,50 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
         for it in items:
             if it.kind != "mod":
                 index.setdefault(it.name, []).append((f, it))
+    # The workspace's dev-only utility crate moved fixture loading out of test
+    # targets. Follow only explicitly imported public functions, and only when
+    # the target really declares that dependency; unrelated helpers are not
+    # evidence for a test that never calls them.
+    root = target_root(root_file)
+    if root:
+        manifest = ROOT / "crates" / root_file.relative_to(ROOT).parts[1] / "Cargo.toml"
+        data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        dependency = data.get("dev-dependencies", {}).get("antecedent-test-support", {})
+        base = manifest.parent
+        if isinstance(dependency, dict) and dependency.get("workspace"):
+            dependency = (
+                tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+                .get("workspace", {})
+                .get("dependencies", {})
+                .get("antecedent-test-support", {})
+            )
+            base = ROOT
+        if isinstance(dependency, dict) and "path" in dependency:
+            support = ROOT / "crates/antecedent-test-support/src/lib.rs"
+            if (
+                base / dependency["path"] / "src/lib.rs"
+            ).resolve() == support.resolve() and support.is_file():
+                masked, items = rust_items(support)
+                public = {
+                    it.name: it
+                    for it in items
+                    if it.kind == "fn"
+                    and re.search(
+                        r"\bpub\s+(?:\#\[[^\]]+\]\s*)?$", masked.skeleton[: it.start]
+                    )
+                }
+                for f in target_files(root_file):
+                    for imported in re.findall(
+                        r"\buse\s+antecedent_test_support::([^;]+);",
+                        rust_items(f)[0].skeleton,
+                    ):
+                        for entry in imported.strip().strip("{}").split(","):
+                            names = entry.strip().split(" as ")
+                            original = names[0].strip()
+                            if original in public:
+                                index.setdefault(names[-1].strip(), []).append(
+                                    (support, public[original])
+                                )
     return index
 
 
@@ -643,6 +691,39 @@ def _rust_index(root_file: Path) -> dict[str, list[tuple[Path, RustItem]]]:
 _REF = re.compile(
     r"(?<![.:\w])([A-Za-z_]\w*)\s*(?:\(|!|::<)|\b([A-Z][A-Z0-9_]{2,})\b|(?<=[(,])\s*([a-z_]\w*)\s*(?=[,)])"
 )
+_QUALIFIED_FN = re.compile(r"(?<![.:\w])([A-Za-z_]\w*)::([A-Za-z_]\w*)\s*\(")
+
+
+def _declared_module_file(path: Path, name: str) -> Path | None:
+    """Resolve one enabled module declared directly in `path` (including `#[path]`)."""
+    masked, items = rust_items(path)
+    blocks = [it for it in items if it.kind == "mod"]
+    for match in _MOD_DECL.finditer(masked.skeleton):
+        if match.group(1) != name:
+            continue
+        attrs = _attrs_before(masked.skeleton, masked.code, match.start())
+        if _disabling_cfg(attrs):
+            continue
+        around = [b for b in blocks if b.body[0] < match.start() < b.body[1]]
+        if around:
+            continue
+        declared_path = _rust_path_attribute(attrs)
+        if declared_path is not None:
+            candidate = (path.parent / declared_path).resolve()
+            try:
+                candidate.relative_to(ROOT.resolve())
+            except ValueError:
+                return None
+            return candidate if candidate.is_file() else None
+        if path.name in ("mod.rs", "lib.rs", "main.rs") or path.parent.name == "tests":
+            base = path.parent
+        else:
+            base = path.with_suffix("")
+        for candidate in (base / f"{name}.rs", base / name / "mod.rs"):
+            if candidate.is_file():
+                return candidate.resolve()
+        return None
+    return None
 
 
 @functools.cache
@@ -675,6 +756,9 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
                 index.setdefault(it.name, []).append((path, it))
     out, skel_out, seen = [], [], set()
     todo = [(ff, it) for ff, it in index.get(name, []) if ff == path]
+    if not todo:
+        # Direct query for a helper imported by this target.
+        todo = list(index.get(name, ()))
     while todo:
         ff, it = todo.pop()
         key = (ff, it.start)
@@ -687,26 +771,43 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
         for ref in refs:
             if ref != it.name:
                 todo.extend(index.get(ref, ()))
+        # A qualified call is normally a method or associated function, so it
+        # is not followed by the unqualified identifier index above. Follow it
+        # only when its prefix is a real module declaration in this file and
+        # the module is part of the current Cargo target.
+        live = set(target_files(root_file))
+        for module_name, function_name in _QUALIFIED_FN.findall(skel):
+            module_file = _declared_module_file(ff, module_name)
+            if module_file is None or module_file not in live:
+                continue
+            module_masked, module_items = rust_items(module_file)
+            module_blocks = [child for child in module_items if child.kind == "mod"]
+            if _file_cfg_disabled(module_masked):
+                continue
+            todo.extend(
+                (module_file, child)
+                for child in module_items
+                if child.kind == "fn" and child.name == function_name
+                and not _disabling_cfg(child.attrs)
+                and not any(
+                    block.body[0] < child.start < block.body[1]
+                    for block in module_blocks
+                )
+                and not any(
+                    block.body[0] < child.start < block.body[1]
+                    and _disabling_cfg(block.attrs)
+                    for block in module_blocks
+                )
+            )
     return "\n".join(out), "\n".join(skel_out)
 
 
 @functools.cache
 def python_closure(path: Path, name: str) -> str:
-    text = _strip_python(path.read_text(errors="ignore"))
-    defs: dict[str, str] = {}
-    for m in re.finditer(r"^(?:async\s+)?def\s+(\w+)\s*\(.*?(?=^\S|\Z)", text, re.M | re.S):
-        defs[m.group(1)] = m.group(0)
-    for m in re.finditer(r"^([A-Z_][A-Z0-9_]*)\s*=.*?(?=^\S|\Z)", text, re.M | re.S):
-        defs[m.group(1)] = m.group(0)
-    out, seen, todo = [], set(), [name]
-    while todo:
-        nm = todo.pop()
-        if nm in seen or nm not in defs:
-            continue
-        seen.add(nm)
-        out.append(defs[nm])
-        todo.extend(re.findall(r"\b([A-Za-z_]\w*)\b", defs[nm]))
-    return "\n".join(out)
+    try:
+        return _py_closure.closure_source(path, name)
+    except SyntaxError:
+        return ""
 
 
 def closure(path: Path, name: str) -> str:
@@ -749,6 +850,13 @@ def names_fixture(path: Path, test_name: str, body: str, fixture: str) -> bool:
         helper = call.search(code, max(0, m.start() - 80), m.start())
         if helper and _names_category(closure(path, helper.group(1)), category):
             return True
+    # conformance_dir("category/name") joins a relative fixture path with the
+    # shared conformance root. Require the called helper's actual closure to
+    # build that root; the relative string alone proves nothing.
+    for m in re.finditer(rf"[\"']{re.escape(category + '/' + name)}[\"']", body):
+        helper = call.search(code, max(0, m.start() - 80), m.start())
+        if helper and re.search(r"conformance[\"'/)]", closure(path, helper.group(1))):
+            return True
     return False
 
 
@@ -773,7 +881,7 @@ def consumption_problems(path: Path, name: str, fixture: str) -> list[str]:
 
 @functools.cache
 def _read(path: Path) -> str:
-    return path.read_text(errors="ignore")
+    return path.read_text(errors="ignore", encoding="utf-8")
 
 
 @functools.cache
@@ -873,6 +981,15 @@ QUERY_TOKENS: dict[str, list[str]] = {
     ],
     # A MediationQuery on a temporal graph (the graph-class check binds the class).
     "TemporalMediationEffect": [r"with_horizons", r"TemporalMediation", r"MediationQuery"],
+    "TemporalConditionalPulse": [
+        r"with_effect_modifiers",
+        r"TemporalPolicy::pulse",
+        r"TemporalConditionalPulse",
+    ],
+    "TemporalConditionalSustained": [
+        r"TemporalPolicy::sustained",
+        r"TemporalConditionalSustained",
+    ],
     "AnomalyAttribution": [r"AnomalyAttribution", r"anomaly"],
     "ChangeAttribution": [r"ChangeAttribution", r"distribution_change", r"change_attribution"],
     "TransportQuery": [r"Transport"],
@@ -891,6 +1008,7 @@ GRAPH_TOKENS: dict[str, list[str]] = {
     "Admg": [r"Admg", r"admg"],
     "Cpdag": [r"(?<![A-Za-z])Cpdag(?![A-Za-z])", r"\bcpdag", r"AcceptedGraph::cpdag"],
     "Pag": [r"(?<![A-Za-z])Pag(?![A-Za-z])", r"\bpag", r"AcceptedGraph::pag", r"Mag"],
+    "TemporalAdmg": [r"TemporalAdmg", r"temporal_admg"],
     "TemporalDag": [r"TemporalDag", r"temporal_dag", r"DbnPosterior", r"dbn"],
     "TemporalCpdag": [r"TemporalCpdag", r"temporal_cpdag"],
     "TemporalPag": [r"TemporalPag", r"temporal_pag"],
@@ -992,7 +1110,12 @@ _BUILDER_DISCARDS = (
     re.compile(rf"\b{_BUILDER}\s*=\s*None\b", re.I),
 )
 _EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|interval|refresh_series|run|evaluate_exact)\s*\(")
-_INSPECTS_PLAN = re.compile(r"\b(?:program|plan|lowering)\b", re.I)
+_INSPECTS_PLAN = re.compile(
+    r"\b(?:program|plan|lowering)\b"
+    r"|\.logical_plan\b"
+    r"|\.checked_(?:temporal_response_info|temporal_mediation_info|bayesian_basis_cate_query)\b",
+    re.I,
+)
 
 
 def checked_execution_body_problems(body: str, assertion: str) -> list[str]:
@@ -1033,7 +1156,12 @@ def checked_execution_citation_problems(test_rel: str, assertion: str) -> list[s
         return ["test must be Rust or Python test code"]
     if problems:
         return [f"evidence assertion {assertion!r} is not an executing test: {p}" for p in problems]
-    return checked_execution_body_problems(closure(path, assertion), assertion)
+    body = (
+        _rust_closure_parts(path.resolve(), assertion)[1]
+        if path.suffix == ".rs"
+        else closure(path, assertion)
+    )
+    return checked_execution_body_problems(body, assertion)
 
 
 def checked_execution_problems(row: dict) -> list[str]:
@@ -1074,10 +1202,8 @@ def checked_execution_problems(row: dict) -> list[str]:
 
 def main(argv: list[str]) -> int:
     if argv[:1] == ["rows"] and len(argv) == 2:
-        import tomllib
-
         failed = 0
-        for i, row in enumerate(tomllib.loads(Path(argv[1]).read_text()).get("cell", []), 1):
+        for i, row in enumerate(tomllib.loads(Path(argv[1]).read_text(encoding="utf-8")).get("cell", []), 1):
             problems = row_evidence_problems(row)
             if "checked_execution" in row:
                 problems += checked_execution_problems(row)

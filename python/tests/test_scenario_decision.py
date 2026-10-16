@@ -1,4 +1,4 @@
-"""B: decisions over the claims of real 2.2 scenario sets and CPDAG completions.
+"""Decisions over the claims of real scenario sets and CPDAG completions.
 
 Oracles are derived by hand from the laws, as in ``crates/antecedent/tests/decision_claims.rs``.
 
@@ -477,3 +477,132 @@ def test_b_claims_cpdag_completion_counts_are_never_probabilities():
         decide_completions(result, weights={c.id: 1 / 3 for c in result.completions})
     assert weighted.value.detail == "decision_claims.unsupported_claim_shape"
     assert_registered_refusal(weighted.value)
+
+
+# ------------------------------------------------------------------ identified utilities
+
+
+def utility_ranges(utilities):
+    return {u.action_id: (u.lower, u.upper) for u in utilities}
+
+
+def utility_options(**kwargs):
+    options = {"outcomes": [sd.OutcomeBinding("y", quantity())], "causal_contract_id": CAUSAL}
+    options.update(kwargs)
+    return options
+
+
+def test_identified_utilities_are_the_envelope_of_the_identified_scenarios():
+    # Mean of y spans [0.35, 0.56]: treat = y - 0.2 -> [0.15, 0.36]; hold = 0.5 y -> [0.175, 0.28].
+    utilities = sd.identified_utilities_from_scenarios(
+        contract(0.2, "report_only"),
+        two(),
+        **utility_options(support=SUPPORTED),
+    )
+    ranges = utility_ranges(utilities)
+    near(ranges["treat"][0], STANDARDIZED - 0.2)
+    near(ranges["treat"][1], DIRECT - 0.2)
+    near(ranges["hold"][0], 0.175)
+    near(ranges["hold"][1], 0.28)
+    assert all(u.support.overall == "supported" and not u.hard_exclusions for u in utilities)
+
+    # The explicit envelope route reads the same range; an unweighted set has no weighted range.
+    envelope = sd.identified_utilities_from_scenarios(
+        contract(0.2, "report_only"), two(), **utility_options(route="envelope")
+    )
+    assert utility_ranges(envelope) == ranges
+    assert all(u.support.overall == "missing_evidence" for u in envelope)
+    with pytest.raises(sd.ScenarioDecisionRefusal) as unweighted:
+        sd.identified_utilities_from_scenarios(
+            contract(0.2, "report_only"), two(), **utility_options(route="weighted")
+        )
+    assert unweighted.value.detail == "decision_claims.range_unavailable"
+    assert_registered_refusal(unweighted.value)
+
+
+def test_an_unresolved_scenario_blocks_an_envelope_reading():
+    with pytest.raises(sd.ScenarioDecisionRefusal) as unresolved:
+        sd.identified_utilities_from_scenarios(
+            contract(0.2, "report_only"), mixed(), **utility_options()
+        )
+    assert unresolved.value.detail == "decision_claims.unresolved_scenarios"
+    assert_registered_refusal(unresolved.value)
+    with pytest.raises(CausalValueError):
+        sd.identified_utilities_from_scenarios(
+            contract(0.2, "report_only"), two(), **utility_options(route="mean")
+        )
+    with pytest.raises(CausalTypeError):
+        sd.identified_utilities_from_scenarios(
+            contract(0.2, "report_only"), {"scenarios": []}, **utility_options()
+        )
+
+
+def test_completion_utilities_span_the_completions():
+    # The mean of c is 0.8, 0.8 and 0.38 over the completions: treat = c - 0.2, hold = 0.5 c.
+    utilities = sd.identified_utilities_from_cpdag_completions(
+        contract(0.2, "report_only", variable="c", regime="do(b=1)"),
+        completion_run(),
+        outcomes=[sd.OutcomeBinding("c", quantity("c", "do(b=1)"))],
+        causal_contract_id=CAUSAL,
+        support=SUPPORTED,
+    )
+    ranges = utility_ranges(utilities)
+    near(ranges["treat"][0], 0.18)
+    near(ranges["treat"][1], 0.6)
+    near(ranges["hold"][0], 0.19)
+    near(ranges["hold"][1], 0.4)
+
+
+def interval(lower, upper, bound_lower, bound_upper, **fields):
+    wire = {
+        "level": 0.9,
+        "lower": lower,
+        "upper": upper,
+        "bound_lower": bound_lower,
+        "bound_upper": bound_upper,
+        "lower_se": 0.05,
+        "upper_se": 0.04,
+        "critical_value": 1.5,
+        "width_retained": True,
+        "completions": 2,
+        "replicates": 100,
+        "method": "imbens_manski_shared_block",
+    }
+    wire.update(fields)
+    return wire
+
+
+def test_identified_set_intervals_give_the_utility_interval_of_either_reading():
+    given = [(quantity(), interval(0.3, 0.6, 0.35, 0.56))]
+    bounds = sd.identified_utilities_from_intervals(
+        contract(0.2, "report_only"), given, support=SUPPORTED
+    )
+    ranges = utility_ranges(bounds)
+    near(ranges["treat"][0], 0.15)
+    near(ranges["treat"][1], 0.36)
+    near(ranges["hold"][0], 0.175)
+    near(ranges["hold"][1], 0.28)
+
+    coverage = sd.identified_utilities_from_intervals(
+        contract(0.2, "report_only"), given, reading="coverage_interval", support=SUPPORTED
+    )
+    ranges = utility_ranges(coverage)
+    near(ranges["treat"][0], 0.1)
+    near(ranges["treat"][1], 0.4)
+    near(ranges["hold"][0], 0.15)
+    near(ranges["hold"][1], 0.3)
+
+
+def test_interval_utilities_refuse_a_truncated_enumeration_and_a_missing_input():
+    truncated = [(quantity(), interval(0.3, 0.6, 0.35, 0.56, truncated=True))]
+    with pytest.raises(sd.ScenarioDecisionRefusal) as cut:
+        sd.identified_utilities_from_intervals(contract(0.2, "report_only"), truncated)
+    assert cut.value.detail == "decision_claims.unresolved_scenarios"
+    assert_registered_refusal(cut.value)
+
+    elsewhere = [(quantity("w"), interval(0.3, 0.6, 0.35, 0.56))]
+    with pytest.raises(sd.ScenarioDecisionRefusal) as missing:
+        sd.identified_utilities_from_intervals(contract(0.2, "report_only"), elsewhere)
+    assert missing.value.detail == "decision_claims.missing_scenario_utility"
+    with pytest.raises(CausalValueError):
+        sd.identified_utilities_from_intervals(contract(0.2, "report_only"), [], reading="midpoint")

@@ -29,6 +29,10 @@ pub struct ChangeAttribution {
     measure: DifferenceMeasure,
     n_samples: usize,
     seed: u64,
+    /// `with_sampling` was called. The robust path otherwise keeps its own
+    /// default Monte Carlo budget; copying the builder's sampling defaults
+    /// would change that budget.
+    sampling_set: bool,
 }
 
 impl Default for ChangeAttribution {
@@ -53,6 +57,7 @@ impl ChangeAttribution {
             measure: DifferenceMeasure::MeanDiff,
             n_samples: 2_000,
             seed: 0,
+            sampling_set: false,
         }
     }
 
@@ -109,6 +114,7 @@ impl ChangeAttribution {
         self.measure = measure;
         self.n_samples = n_samples;
         self.seed = seed;
+        self.sampling_set = true;
         self
     }
 
@@ -134,14 +140,26 @@ impl ChangeAttribution {
             ));
         }
         let robust = self.robust;
-        let opts = DistributionChangeOptions {
-            measure: self.measure,
-            n_samples: self.n_samples,
-            seed: self.seed,
-        };
+        let measure = self.measure;
+        let sampling_set = self.sampling_set;
+        let n_samples = self.n_samples;
+        let seed = self.seed;
+        let opts = DistributionChangeOptions { measure, n_samples, seed };
         let query = self.into_query()?;
         if robust {
-            distribution_change_robust(model, data, &query, &RobustChangeOptions::default(), ctx)
+            if measure != DifferenceMeasure::MeanDiff {
+                return Err(AttributionError::unsupported(
+                    "robust change attribution implements the mean difference only",
+                ));
+            }
+            // Without `with_sampling`, keep the robust estimator's own sample
+            // budget. Copying the builder default (2_000) would replace it.
+            let mut robust_opts = RobustChangeOptions::default();
+            if sampling_set {
+                robust_opts.n_samples = n_samples;
+                robust_opts.seed = seed;
+            }
+            distribution_change_robust(model, data, &query, &robust_opts, ctx)
         } else {
             distribution_change(model, data, &query, &opts, ctx)
         }

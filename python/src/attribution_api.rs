@@ -8,7 +8,6 @@
 
 use crate::*;
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -343,7 +342,7 @@ fn evaluate_decision_py(
     utility: Bound<'_, PyAny>,
 ) -> PyResult<gcm_api::DecisionEvaluation> {
     if !utility.is_callable() {
-        return Err(PyValueError::new_err("utility must be callable"));
+        return Err(crate::value_err("utility must be callable"));
     }
     let util = Arc::new(callbacks::PyUtility::new(utility.unbind()));
     let problem = DecisionProblem::new(actions, util, Vec::new());
@@ -428,7 +427,7 @@ fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> 
         let meta = CausalPosteriorWire {
             quantities,
             n_draws: u32::try_from(artifact.n_draws)
-                .map_err(|_| PyValueError::new_err("n_draws exceeds u32"))?,
+                .map_err(|_| crate::value_err("n_draws exceeds u32"))?,
             mean: artifact.mean.clone(),
             sd: artifact.sd.clone(),
             q025: artifact.q025.clone(),
@@ -540,10 +539,13 @@ fn attribute_feature_relevance(
         let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let features: Vec<VariableId> = (0..data.schema().len())
-            .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
-            .filter(|id| *id != y_id)
-            .collect();
+        let mut features = Vec::new();
+        for i in 0..data.schema().len() {
+            let id = VariableId::from_raw(crate::fit_u32(i)?);
+            if id != y_id {
+                features.push(id);
+            }
+        }
         let scores = facade_attribute_feature_relevance(
             &fitted.model,
             &data,
@@ -641,9 +643,10 @@ fn mechanism_change_detection(
         let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let targets: Vec<VariableId> = (0..data.schema().len())
-            .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
-            .collect();
+        let mut targets = Vec::with_capacity(data.schema().len());
+        for i in 0..data.schema().len() {
+            targets.push(VariableId::from_raw(crate::fit_u32(i)?));
+        }
         let query = MechanismChangeQuery::new(
             targets,
             PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },

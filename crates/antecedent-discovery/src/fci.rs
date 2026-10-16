@@ -9,7 +9,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::too_many_arguments, clippy::too_many_lines, clippy::zero_sized_map_values)]
 #![cfg_attr(
     test,
     allow(
@@ -24,10 +23,7 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Pag, PagReview};
-use antecedent_stats::{
-    CiPreparationPlan, ConditionalIndependence, ConfidenceMethod, FdrAdjustment,
-    PartialCorrelation, PreparedCiTest,
-};
+use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PartialCorrelation};
 
 use crate::combinations::for_each_combination_vars;
 use crate::constraints::DiscoveryConstraints;
@@ -35,7 +31,7 @@ use crate::discriminating_paths::DiscriminatingPathBudget;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::orientation::{OrientationError, OrientationState};
-use crate::pc::{collect_float_columns, edge_key, sorted_edge_pairs};
+use crate::pc::{edge_key, sorted_edge_pairs};
 use crate::possible_d_sep::{PossibleDSepBudget, possible_d_sep};
 use crate::result::{
     DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
@@ -45,8 +41,8 @@ use crate::rule_scheduling::{
     FciOrientationRule, LpcmciOrientCollider, default_fci_rules, run_fci_orientation_to_fixed_point,
 };
 use crate::static_skeleton::{
-    StaticSkeleton, StaticSkeletonInput, record_sepset, run_static_skeleton, skeleton_scored_links,
-    static_ci_test, static_edge_evidence,
+    StaticSkeleton, StaticSkeletonInput, UndirectedAdj, record_sepset, run_static_skeleton,
+    skeleton_scored_links, static_ci_test, static_edge_evidence,
 };
 
 /// Static FCI discovery result (`Pag` evidence + review).
@@ -71,17 +67,7 @@ pub struct Fci {
     pub discriminating_path_budget: DiscriminatingPathBudget,
 }
 
-impl std::fmt::Debug for Fci {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Fci")
-            .field("constraints", &self.constraints)
-            .field("ci", &"<dyn ConditionalIndependence>")
-            .field("fdr", &self.fdr)
-            .field("pds_max_nodes", &self.pds_max_nodes)
-            .field("discriminating_path_budget", &self.discriminating_path_budget)
-            .finish()
-    }
-}
+crate::debug_with_ci!(Fci, pds_max_nodes, discriminating_path_budget);
 
 impl Default for Fci {
     fn default() -> Self {
@@ -145,6 +131,10 @@ impl Fci {
     ///
     /// Data, CI, Possible-D-Sep budget, orientation failures, or an FDR configuration that
     /// cannot cover the complete multi-phase CI family.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &TabularData,
@@ -158,56 +148,33 @@ impl Fci {
                 "FCI FDR is refused until adjustment covers both adjacency and Possible-D-Sep CI tests",
             ));
         }
-        crate::ci::ensure_ci_decisions_meaningful(
-            &*self.ci,
-            self.constraints.significance,
-            self.constraints.alpha,
-            false,
-        )?;
-        if variables.is_empty() {
-            return Err(DiscoveryError::Unsupported {
-                message: "FCI requires at least one variable",
-            });
-        }
-
-        let col_owned = collect_float_columns(data, variables)?;
-        let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
-        let n = cols[0].len();
-        crate::ci::ensure_ci_fits_rows(&*self.ci, n)?;
-        if n < 3 {
-            return Err(DiscoveryError::stats_msg("insufficient rows for FCI"));
-        }
-        for c in &cols {
-            if c.len() != n {
-                return Err(DiscoveryError::data_msg("column length mismatch"));
-            }
-        }
-
-        let var_index: HashMap<VariableId, usize> =
-            variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
-
-        let plan = CiPreparationPlan {
-            significance: self.constraints.significance,
-            confidence: ConfidenceMethod::default(),
-        };
-        let prepared: PreparedCiTest =
-            self.ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?;
-        workspace.prepared_ci = Some(prepared);
-
-        let alpha = self.constraints.alpha;
-        let max_cond = self.constraints.max_cond_size;
-        let skel = run_static_skeleton(
-            &StaticSkeletonInput {
+        let (col_owned, var_index) = crate::pc::prepare_static_columns(
+            crate::pc::StaticColumnRequest {
                 ci: &*self.ci,
-                constraints: &self.constraints,
-                cols: &cols,
-                var_index: &var_index,
-                variables,
-                label: "fci.pc.depth",
+                significance: self.constraints.significance,
+                alpha: self.constraints.alpha,
+                fdr: false,
+                empty_variables: "FCI requires at least one variable",
+                insufficient_rows: "insufficient rows for FCI",
             },
+            data,
+            variables,
             workspace,
             ctx,
         )?;
+        let cols: Vec<&[f64]> = col_owned.iter().map(AsRef::as_ref).collect();
+
+        let alpha = self.constraints.alpha;
+        let max_cond = self.constraints.max_cond_size;
+        let input = StaticSkeletonInput {
+            ci: &*self.ci,
+            constraints: &self.constraints,
+            cols: &cols,
+            var_index: &var_index,
+            variables,
+            label: "fci.pc.depth",
+        };
+        let skel = run_static_skeleton(&input, workspace, ctx)?;
         let mut scored = skeleton_scored_links(&skel);
         let StaticSkeleton { mut adj, mut sepsets, mut ci_tests, mut iterations, .. } = skel;
         let mut combo_scratch = Vec::new();
@@ -235,7 +202,7 @@ impl Fci {
             if ctx.cancellation.is_cancelled() {
                 return Err(DiscoveryError::Cancelled);
             }
-            if !adj.contains_key(&edge_key(x, y)) {
+            if !adj.contains(edge_key(x, y)) {
                 continue;
             }
             if self.constraints.static_required(x, y) {
@@ -266,17 +233,7 @@ impl Fci {
                     true
                 });
                 for z in &depth_sets {
-                    let (_stat, p) = static_ci_test(
-                        &*self.ci,
-                        &self.constraints,
-                        &cols,
-                        &var_index,
-                        x,
-                        y,
-                        z,
-                        workspace,
-                        ctx,
-                    )?;
+                    let (_stat, p) = static_ci_test(&input, x, y, z, workspace, ctx)?;
                     pds_tests += 1;
                     ci_tests += 1;
                     if p > alpha {
@@ -289,11 +246,11 @@ impl Fci {
 
             if independent {
                 let key = edge_key(x, y);
-                adj.remove(&key);
+                adj.remove(key);
                 record_sepset(&mut sepsets, x, y, &best_sep);
                 let _ = pag.remove_edge(xd, yd);
                 let dense_sep: Vec<DenseNodeId> =
-                    best_sep.iter().filter_map(|v| dense_of(*v).ok()).collect();
+                    best_sep.iter().map(|v| dense_of(*v)).collect::<Result<_, _>>()?;
                 state.set_sepset(xd, yd, Arc::from(dense_sep));
             }
         }
@@ -337,7 +294,7 @@ impl Fci {
         }
 
         // Refresh scored links to surviving edges.
-        scored.retain(|s| adj.contains_key(&edge_key(s.link.source, s.link.target)));
+        scored.retain(|s| adj.contains(edge_key(s.link.source, s.link.target)));
 
         let edge_evidence = static_edge_evidence(&scored, &sepsets, "fci");
 
@@ -390,23 +347,13 @@ pub(crate) fn load_sepsets_into_state(
     dense_of: &dyn Fn(VariableId) -> Result<DenseNodeId, DiscoveryError>,
     state: &mut OrientationState,
 ) -> Result<(), DiscoveryError> {
-    for ((sx, _, ty, _), sep) in sepsets {
-        if sx.raw() > ty.raw() {
-            continue;
-        }
-        let a = dense_of(*sx)?;
-        let b = dense_of(*ty)?;
-        let dense_sep: Vec<DenseNodeId> =
-            sep.iter().filter_map(|(v, _)| dense_of(*v).ok()).collect();
-        state.set_sepset(a, b, Arc::from(dense_sep));
-    }
-    Ok(())
+    crate::pc::load_sepsets_into_state(sepsets, dense_of, state)
 }
 
 pub(crate) fn build_pag_circle_skeleton(
     variables: &[VariableId],
     var_index: &HashMap<VariableId, usize>,
-    adj: &HashMap<(u32, u32), ()>,
+    adj: &UndirectedAdj,
 ) -> Result<Pag, DiscoveryError> {
     let mut pag = Pag::with_variables(u32::try_from(variables.len()).unwrap_or(u32::MAX));
     if variables.iter().enumerate().any(|(i, v)| v.raw() as usize != i) {
@@ -415,15 +362,15 @@ pub(crate) fn build_pag_circle_skeleton(
             pag.add_node(antecedent_graph::NodeRef::Static(v)).map_err(DiscoveryError::from)?;
         }
     }
-    for &(lo, hi) in adj.keys() {
+    for (lo, hi) in adj.edge_pairs() {
         let a_idx = *var_index
             .get(&VariableId::from_raw(lo))
             .ok_or_else(|| DiscoveryError::data_msg("unknown variable in skeleton"))?;
         let b_idx = *var_index
             .get(&VariableId::from_raw(hi))
             .ok_or_else(|| DiscoveryError::data_msg("unknown variable in skeleton"))?;
-        let a = DenseNodeId::from_raw(u32::try_from(a_idx).expect("fit"));
-        let b = DenseNodeId::from_raw(u32::try_from(b_idx).expect("fit"));
+        let a = DenseNodeId::from_raw(crate::indexing::dense_u32(a_idx));
+        let b = DenseNodeId::from_raw(crate::indexing::dense_u32(b_idx));
         pag.insert_circle_circle(a, b).map_err(DiscoveryError::from)?;
     }
     Ok(pag)
@@ -433,47 +380,12 @@ pub(crate) fn build_pag_circle_skeleton(
 mod tests {
     use std::sync::Arc;
 
-    use antecedent_core::{
-        CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
-        VariableId,
-    };
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-    };
+    use antecedent_core::{ExecutionContext, VariableId};
     use antecedent_graph::Endpoint;
     use antecedent_stats::OracleCi;
 
     use super::*;
-
-    fn tabular_n(ncols: usize, nrows: usize) -> TabularData {
-        let mut b = CausalSchemaBuilder::new();
-        for i in 0..ncols {
-            b.add_variable(
-                format!("v{i}"),
-                ValueType::Continuous,
-                SmallRoleSet::from_hint(RoleHint::Context),
-                None,
-                None,
-                MeasurementSpec::default(),
-            )
-            .unwrap();
-        }
-        let schema = b.build().unwrap();
-        let owned: Vec<OwnedColumn> = (0..ncols)
-            .map(|i| {
-                OwnedColumn::Float64(
-                    Float64Column::new(
-                        VariableId::from_raw(i as u32),
-                        Arc::from(vec![0.0; nrows]),
-                        ValidityBitmap::all_valid(nrows),
-                    )
-                    .unwrap(),
-                )
-            })
-            .collect();
-        let storage = OwnedColumnarStorage::try_new(schema, owned, None, None).unwrap();
-        TabularData::new(storage)
-    }
+    use crate::test_tables::tabular_n;
 
     #[test]
     fn oracle_chain_recovers_skeleton() {

@@ -1,6 +1,6 @@
-"""2.3 B2 ordered-response recovery row through the Python facade.
+"""Ordered-response recovery row through the Python facade.
 
-The truth is the enumerated binary SCM of the Rust core tests (``b2_recovery_chain_truth.rs``):
+The truth is the enumerated binary SCM of the Rust core tests (``ordered_response_recovery_chain_truth.rs``):
 ``P(X1 = 1) = 0.37``, ``P(X2 = 1 | X1) = (0.2, 0.7)``, head response ``P(R_h = 1) = 0.65`` and
 tail response ``P(R_t = 1 | R_h, X_h) = [[0.4, 0.55], [0.3, 0.8]]`` (dependent) or
 ``P(R_t = 1 | R_h) = (0.3, 0.8)`` (independent). The pattern law and the target law are
@@ -90,18 +90,18 @@ def refused(call, detail: str, code: str) -> RecoveryChainRefusal:
 
 @pytest.mark.parametrize("head", [0, 1])
 @pytest.mark.parametrize("dependent", [True, False])
-def test_b2_chain_recovery_equals_the_enumerated_truth(head: int, dependent: bool) -> None:
+def test_chain_recovery_equals_the_enumerated_truth(head: int, dependent: bool) -> None:
     law, truth = scm(head, dependent)
     result = recover_chain(graph(head, dependent), QUERY, law)
     np.testing.assert_allclose(result.law, truth, atol=1e-12)
     assert result.plan.head == head
     assert result.plan.tail_depends_on_head_variable is dependent
-    assert result.rule_version == "b2.recovery_chain.v1"
+    assert result.rule_version == "ordered_response_recovery_chain.v1"
     assert result.law.sum() == pytest.approx(1.0, abs=1e-12)
     assert result.to_dict()["interval"] == {"available": False, "status": "point_only"}
 
 
-def test_b2_recovery_is_not_complete_case_analysis() -> None:
+def test_recovery_is_not_complete_case_analysis() -> None:
     law, truth = scm(0, True)
     complete_case = np.asarray(law.both) / np.sum(law.both)
     assert abs(complete_case[0, 0] - truth[0, 0]) > 1e-3
@@ -109,7 +109,7 @@ def test_b2_recovery_is_not_complete_case_analysis() -> None:
     np.testing.assert_allclose(result.law, truth, atol=1e-12)
 
 
-def test_b2_answer_is_invariant_to_node_order_and_labels() -> None:
+def test_answer_is_invariant_to_node_order_and_labels() -> None:
     law, truth = scm(0, True)
     reference = recover_chain(graph(0, True), QUERY, law)
     reversed_nodes = list(reversed(NAMES))
@@ -131,7 +131,7 @@ def test_b2_answer_is_invariant_to_node_order_and_labels() -> None:
     np.testing.assert_allclose(recover_chain(admg, QUERY, law).law, truth, atol=1e-12)
 
 
-def test_b2_decide_reports_the_checked_plan_without_a_law() -> None:
+def test_decide_reports_the_checked_plan_without_a_law() -> None:
     decision = decide_chain(graph(1, True), QUERY)
     assert decision.outcome == "recovered"
     assert decision.witness is None and decision.plan is not None
@@ -143,7 +143,7 @@ def test_b2_decide_reports_the_checked_plan_without_a_law() -> None:
         decision.export()
 
 
-def test_b2_self_censoring_edge_refuses_with_a_verified_exact_witness() -> None:
+def test_self_censoring_edge_refuses_with_a_verified_exact_witness() -> None:
     law, _ = scm(0, True)
     error = refused(
         lambda: recover_chain(graph(0, True, extra=[("x2", "r2")]), QUERY, law),
@@ -167,7 +167,7 @@ def test_b2_self_censoring_edge_refuses_with_a_verified_exact_witness() -> None:
     assert decision.export() == error.artifact
 
 
-def test_b2_head_self_censoring_with_an_independent_tail_is_also_witnessed() -> None:
+def test_head_self_censoring_with_an_independent_tail_is_also_witnessed() -> None:
     decision = decide_chain(graph(0, False, extra=[("x1", "r1")]), QUERY)
     assert decision.outcome == "nonrecoverable"
     assert decision.witness is not None
@@ -175,7 +175,7 @@ def test_b2_head_self_censoring_with_an_independent_tail_is_also_witnessed() -> 
     assert decision.witness.target_masses[0] != decision.witness.target_masses[1]
 
 
-def test_b2_graphs_outside_the_row_are_not_supported_never_nonrecoverable() -> None:
+def test_graphs_outside_the_row_are_not_supported_never_nonrecoverable() -> None:
     law, _ = scm(0, True)
     unsupported = "recovery_chain.unsupported_mechanism"
     # A response drives the other variable's proxy.
@@ -190,7 +190,7 @@ def test_b2_graphs_outside_the_row_are_not_supported_never_nonrecoverable() -> N
         unsupported,
         "route_not_supported",
     )
-    # No response chain: the 2.2 route's graph.
+    # No response chain: the single-response route's graph.
     no_chain = {
         "nodes": NAMES,
         "edges": [("x1", "x2"), ("x1", "p1"), ("r1", "p1"), ("x2", "p2"), ("r2", "p2")],
@@ -205,7 +205,7 @@ def test_b2_graphs_outside_the_row_are_not_supported_never_nonrecoverable() -> N
     assert error.witness is None
 
 
-def test_b2_malformed_roles_are_invalid_queries() -> None:
+def test_malformed_roles_are_invalid_queries() -> None:
     law, _ = scm(0, True)
     broken = graph(0, True)
     broken["edges"] = [e for e in broken["edges"] if e != ("r2", "p2")]
@@ -220,7 +220,7 @@ def test_b2_malformed_roles_are_invalid_queries() -> None:
         recover_chain("graph", QUERY, law)  # type: ignore[arg-type]
 
 
-def test_b2_zero_mass_cell_and_invalid_laws_refuse() -> None:
+def test_zero_mass_cell_and_invalid_laws_refuse() -> None:
     law, _ = scm(0, True)
     both = [list(row) for row in law.both]
     moved = both[1][1]
@@ -256,7 +256,7 @@ def test_b2_zero_mass_cell_and_invalid_laws_refuse() -> None:
         PatternLaw(both=[[0.1, 0.1]], only_first=[0.1, 0.1], only_second=[0.1, 0.1], neither=0.5)
 
 
-def test_b2_export_consume_round_trip_recomputes_the_recovered_law() -> None:
+def test_export_consume_round_trip_recomputes_the_recovered_law() -> None:
     law, truth = scm(1, True)
     result = recover_chain(graph(1, True), QUERY, law)
     artifact = result.export()
@@ -278,7 +278,7 @@ def test_b2_export_consume_round_trip_recomputes_the_recovered_law() -> None:
     assert recover_chain(graph(1, True), QUERY, mapping).cells == result.cells
 
 
-def test_b2_nonrecoverable_artifact_reverifies_its_witness() -> None:
+def test_nonrecoverable_artifact_reverifies_its_witness() -> None:
     law, _ = scm(0, True)
     with pytest.raises(RecoveryChainRefusal) as info:
         recover_chain(graph(0, True, extra=[("x2", "r2")]), QUERY, law)
@@ -292,7 +292,7 @@ def test_b2_nonrecoverable_artifact_reverifies_its_witness() -> None:
     assert error.witness == info.value.witness
 
 
-def test_b2_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
+def test_corrupt_truncated_and_foreign_artifacts_refuse() -> None:
     law, _ = scm(0, True)
     artifact = recover_chain(graph(0, True), QUERY, law).export()
     with pytest.raises(CausalSerializationError):

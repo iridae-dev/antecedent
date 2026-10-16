@@ -1,0 +1,1085 @@
+# Public API snapshot (rustdoc JSON, default features). Regenerate with
+#   python3 scripts/gate_public_api.py --write
+# One line per public item; do not edit by hand.
+#[non_exhaustive] pub enum antecedent_learn::FittedEffectError
+#[non_exhaustive] pub enum antecedent_learn::LearnError
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::FiniteJoint [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_learn::FiniteJoint [auto]
+impl antecedent_learn::FittedPredictor for antecedent_learn::PortablePredictor
+impl antecedent_learn::LearnerFactory for antecedent_learn::LassoLogisticLearner
+impl antecedent_learn::LearnerFactory for antecedent_learn::RidgeLogisticLearner
+impl antecedent_learn::TransformerFactory for antecedent_learn::Identity
+impl core::clone::Clone for antecedent_learn::BasisRegressionPosterior
+impl core::clone::Clone for antecedent_learn::BasisTargetPopulation
+impl core::clone::Clone for antecedent_learn::BayesianBasisEffect
+impl core::clone::Clone for antecedent_learn::BayesianBasisGComputation
+impl core::clone::Clone for antecedent_learn::BayesianBasisSpec
+impl core::clone::Clone for antecedent_learn::CrossFittedPrediction
+impl core::clone::Clone for antecedent_learn::EffectSupport
+impl core::clone::Clone for antecedent_learn::ElasticNetSpec
+impl core::clone::Clone for antecedent_learn::FeatureRange
+impl core::clone::Clone for antecedent_learn::FittedEffect
+impl core::clone::Clone for antecedent_learn::ForestSpec
+impl core::clone::Clone for antecedent_learn::GbtSpec
+impl core::clone::Clone for antecedent_learn::Identity
+impl core::clone::Clone for antecedent_learn::InformationRank
+impl core::clone::Clone for antecedent_learn::KnownVarianceBasisRegression
+impl core::clone::Clone for antecedent_learn::LassoLogisticLearner
+impl core::clone::Clone for antecedent_learn::Layout
+impl core::clone::Clone for antecedent_learn::LearnError
+impl core::clone::Clone for antecedent_learn::LearnerCapabilities
+impl core::clone::Clone for antecedent_learn::LearnerProvenance
+impl core::clone::Clone for antecedent_learn::LearnerSpec
+impl core::clone::Clone for antecedent_learn::LinearSpec
+impl core::clone::Clone for antecedent_learn::LogisticSpec
+impl core::clone::Clone for antecedent_learn::NeuralSpec
+impl core::clone::Clone for antecedent_learn::NuisanceDiagnostics
+impl core::clone::Clone for antecedent_learn::PolynomialBasis
+impl core::clone::Clone for antecedent_learn::PortablePredictor
+impl core::clone::Clone for antecedent_learn::PosteriorPrediction
+impl core::clone::Clone for antecedent_learn::PosteriorPredictionDiagnostics
+impl core::clone::Clone for antecedent_learn::PosteriorPredictionProvenance
+impl core::clone::Clone for antecedent_learn::PredictionMap
+impl core::clone::Clone for antecedent_learn::PredictionNode
+impl core::clone::Clone for antecedent_learn::PredictionTask
+impl core::clone::Clone for antecedent_learn::RidgeLogisticLearner
+impl core::clone::Clone for antecedent_learn::RidgeSpec
+impl core::clone::Clone for antecedent_learn::SupportReport
+impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Diagnostics
+impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Options
+impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Posterior
+impl core::clone::Clone for antecedent_learn::nested_markov_bayesian::Prior
+impl core::clone::Clone for antecedent_learn::transported_effect::FeatureOverlap
+impl core::clone::Clone for antecedent_learn::transported_effect::OverlapAssessment
+impl core::clone::Clone for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::clone::Clone for antecedent_learn::transported_effect::TargetCohort
+impl core::clone::Clone for antecedent_learn::transported_effect::TransportRefusal
+impl core::clone::Clone for antecedent_learn::transported_effect::TransportedCohortEffect
+impl core::clone::Clone for antecedent_learn::transported_effect::TransportedInference
+impl core::clone::Clone for antecedent_learn::transported_effect::TransportedRequest
+impl core::cmp::Eq for antecedent_learn::BasisTargetPopulation
+impl core::cmp::Eq for antecedent_learn::ForestSpec
+impl core::cmp::Eq for antecedent_learn::Layout
+impl core::cmp::Eq for antecedent_learn::LearnError
+impl core::cmp::Eq for antecedent_learn::LearnerCapabilities
+impl core::cmp::Eq for antecedent_learn::LearnerProvenance
+impl core::cmp::Eq for antecedent_learn::LinearSpec
+impl core::cmp::Eq for antecedent_learn::PolynomialBasis
+impl core::cmp::Eq for antecedent_learn::PosteriorPredictionProvenance
+impl core::cmp::Eq for antecedent_learn::PredictionTask
+impl core::cmp::Eq for antecedent_learn::SupportReport
+impl core::cmp::Eq for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::cmp::Eq for antecedent_learn::transported_effect::TransportRefusal
+impl core::cmp::Eq for antecedent_learn::transported_effect::TransportedInference
+impl core::cmp::Eq for antecedent_learn::transported_effect::TransportedRequest
+impl core::cmp::PartialEq for antecedent_learn::BasisRegressionPosterior
+impl core::cmp::PartialEq for antecedent_learn::BasisTargetPopulation
+impl core::cmp::PartialEq for antecedent_learn::BayesianBasisEffect
+impl core::cmp::PartialEq for antecedent_learn::BayesianBasisSpec
+impl core::cmp::PartialEq for antecedent_learn::EffectSupport
+impl core::cmp::PartialEq for antecedent_learn::ElasticNetSpec
+impl core::cmp::PartialEq for antecedent_learn::FeatureRange
+impl core::cmp::PartialEq for antecedent_learn::FittedEffect
+impl core::cmp::PartialEq for antecedent_learn::ForestSpec
+impl core::cmp::PartialEq for antecedent_learn::GbtSpec
+impl core::cmp::PartialEq for antecedent_learn::InformationRank
+impl core::cmp::PartialEq for antecedent_learn::Layout
+impl core::cmp::PartialEq for antecedent_learn::LearnError
+impl core::cmp::PartialEq for antecedent_learn::LearnerCapabilities
+impl core::cmp::PartialEq for antecedent_learn::LearnerProvenance
+impl core::cmp::PartialEq for antecedent_learn::LearnerSpec
+impl core::cmp::PartialEq for antecedent_learn::LinearSpec
+impl core::cmp::PartialEq for antecedent_learn::LogisticSpec
+impl core::cmp::PartialEq for antecedent_learn::NeuralSpec
+impl core::cmp::PartialEq for antecedent_learn::NuisanceDiagnostics
+impl core::cmp::PartialEq for antecedent_learn::PolynomialBasis
+impl core::cmp::PartialEq for antecedent_learn::PortablePredictor
+impl core::cmp::PartialEq for antecedent_learn::PosteriorPrediction
+impl core::cmp::PartialEq for antecedent_learn::PosteriorPredictionDiagnostics
+impl core::cmp::PartialEq for antecedent_learn::PosteriorPredictionProvenance
+impl core::cmp::PartialEq for antecedent_learn::PredictionMap
+impl core::cmp::PartialEq for antecedent_learn::PredictionNode
+impl core::cmp::PartialEq for antecedent_learn::PredictionTask
+impl core::cmp::PartialEq for antecedent_learn::RidgeSpec
+impl core::cmp::PartialEq for antecedent_learn::SupportReport
+impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Diagnostics
+impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Options
+impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Posterior
+impl core::cmp::PartialEq for antecedent_learn::nested_markov_bayesian::Prior
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::FeatureOverlap
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::OverlapAssessment
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TargetCohort
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportRefusal
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportedCohortEffect
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportedInference
+impl core::cmp::PartialEq for antecedent_learn::transported_effect::TransportedRequest
+impl core::convert::From<antecedent_prob::error::ProbError> for antecedent_learn::LearnError
+impl core::convert::From<antecedent_stats::error::StatsError> for antecedent_learn::LearnError
+impl core::default::Default for antecedent_learn::BayesianBasisGComputation
+impl core::default::Default for antecedent_learn::BayesianBasisSpec
+impl core::default::Default for antecedent_learn::ElasticNetSpec
+impl core::default::Default for antecedent_learn::ForestSpec
+impl core::default::Default for antecedent_learn::GbtSpec
+impl core::default::Default for antecedent_learn::Identity
+impl core::default::Default for antecedent_learn::KnownVarianceBasisRegression
+impl core::default::Default for antecedent_learn::LinearSpec
+impl core::default::Default for antecedent_learn::LogisticSpec
+impl core::default::Default for antecedent_learn::NeuralSpec
+impl core::default::Default for antecedent_learn::NuisanceDiagnostics
+impl core::default::Default for antecedent_learn::RidgeSpec
+impl core::default::Default for antecedent_learn::nested_markov_bayesian::Options
+impl core::default::Default for antecedent_learn::nested_markov_bayesian::Prior
+impl core::error::Error for antecedent_learn::FittedEffectError
+impl core::error::Error for antecedent_learn::LearnError
+impl core::error::Error for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::error::Error for antecedent_learn::transported_effect::TransportRefusal
+impl core::fmt::Debug for antecedent_learn::BasisRegressionPosterior
+impl core::fmt::Debug for antecedent_learn::BasisTargetPopulation
+impl core::fmt::Debug for antecedent_learn::BayesianBasisEffect
+impl core::fmt::Debug for antecedent_learn::BayesianBasisGComputation
+impl core::fmt::Debug for antecedent_learn::BayesianBasisSpec
+impl core::fmt::Debug for antecedent_learn::CrossFittedPrediction
+impl core::fmt::Debug for antecedent_learn::EffectSupport
+impl core::fmt::Debug for antecedent_learn::ElasticNetSpec
+impl core::fmt::Debug for antecedent_learn::FeatureRange
+impl core::fmt::Debug for antecedent_learn::FittedEffect
+impl core::fmt::Debug for antecedent_learn::FittedEffectError
+impl core::fmt::Debug for antecedent_learn::ForestSpec
+impl core::fmt::Debug for antecedent_learn::GbtSpec
+impl core::fmt::Debug for antecedent_learn::Identity
+impl core::fmt::Debug for antecedent_learn::InformationRank
+impl core::fmt::Debug for antecedent_learn::KnownVarianceBasisRegression
+impl core::fmt::Debug for antecedent_learn::LassoLogisticLearner
+impl core::fmt::Debug for antecedent_learn::Layout
+impl core::fmt::Debug for antecedent_learn::LearnError
+impl core::fmt::Debug for antecedent_learn::LearnerCapabilities
+impl core::fmt::Debug for antecedent_learn::LearnerProvenance
+impl core::fmt::Debug for antecedent_learn::LearnerSpec
+impl core::fmt::Debug for antecedent_learn::LinearSpec
+impl core::fmt::Debug for antecedent_learn::LogisticSpec
+impl core::fmt::Debug for antecedent_learn::NeuralSpec
+impl core::fmt::Debug for antecedent_learn::NuisanceDiagnostics
+impl core::fmt::Debug for antecedent_learn::PolynomialBasis
+impl core::fmt::Debug for antecedent_learn::PortablePredictor
+impl core::fmt::Debug for antecedent_learn::PosteriorPrediction
+impl core::fmt::Debug for antecedent_learn::PosteriorPredictionDiagnostics
+impl core::fmt::Debug for antecedent_learn::PosteriorPredictionProvenance
+impl core::fmt::Debug for antecedent_learn::PredictionMap
+impl core::fmt::Debug for antecedent_learn::PredictionNode
+impl core::fmt::Debug for antecedent_learn::PredictionTask
+impl core::fmt::Debug for antecedent_learn::RidgeLogisticLearner
+impl core::fmt::Debug for antecedent_learn::RidgeSpec
+impl core::fmt::Debug for antecedent_learn::SupportReport
+impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Diagnostics
+impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Options
+impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Posterior
+impl core::fmt::Debug for antecedent_learn::nested_markov_bayesian::Prior
+impl core::fmt::Debug for antecedent_learn::transported_effect::FeatureOverlap
+impl core::fmt::Debug for antecedent_learn::transported_effect::OverlapAssessment
+impl core::fmt::Debug for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::fmt::Debug for antecedent_learn::transported_effect::TargetCohort
+impl core::fmt::Debug for antecedent_learn::transported_effect::TransportRefusal
+impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedCohortEffect
+impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedInference
+impl core::fmt::Debug for antecedent_learn::transported_effect::TransportedRequest
+impl core::fmt::Display for antecedent_learn::FittedEffectError
+impl core::fmt::Display for antecedent_learn::LearnError
+impl core::fmt::Display for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::fmt::Display for antecedent_learn::transported_effect::TransportRefusal
+impl core::marker::Copy for antecedent_learn::BasisTargetPopulation
+impl core::marker::Copy for antecedent_learn::BayesianBasisGComputation
+impl core::marker::Copy for antecedent_learn::BayesianBasisSpec
+impl core::marker::Copy for antecedent_learn::ElasticNetSpec
+impl core::marker::Copy for antecedent_learn::FeatureRange
+impl core::marker::Copy for antecedent_learn::ForestSpec
+impl core::marker::Copy for antecedent_learn::GbtSpec
+impl core::marker::Copy for antecedent_learn::Identity
+impl core::marker::Copy for antecedent_learn::InformationRank
+impl core::marker::Copy for antecedent_learn::KnownVarianceBasisRegression
+impl core::marker::Copy for antecedent_learn::LassoLogisticLearner
+impl core::marker::Copy for antecedent_learn::Layout
+impl core::marker::Copy for antecedent_learn::LearnerCapabilities
+impl core::marker::Copy for antecedent_learn::LearnerSpec
+impl core::marker::Copy for antecedent_learn::LinearSpec
+impl core::marker::Copy for antecedent_learn::LogisticSpec
+impl core::marker::Copy for antecedent_learn::NeuralSpec
+impl core::marker::Copy for antecedent_learn::PolynomialBasis
+impl core::marker::Copy for antecedent_learn::PredictionTask
+impl core::marker::Copy for antecedent_learn::RidgeLogisticLearner
+impl core::marker::Copy for antecedent_learn::RidgeSpec
+impl core::marker::Copy for antecedent_learn::SupportReport
+impl core::marker::Copy for antecedent_learn::transported_effect::TransportedInference
+impl core::marker::Copy for antecedent_learn::transported_effect::TransportedRequest
+impl core::marker::Freeze for antecedent_learn::BasisRegressionPosterior [auto]
+impl core::marker::Freeze for antecedent_learn::BasisTargetPopulation [auto]
+impl core::marker::Freeze for antecedent_learn::BayesianBasisEffect [auto]
+impl core::marker::Freeze for antecedent_learn::BayesianBasisGComputation [auto]
+impl core::marker::Freeze for antecedent_learn::BayesianBasisSpec [auto]
+impl core::marker::Freeze for antecedent_learn::CrossFittedPrediction [auto]
+impl core::marker::Freeze for antecedent_learn::EffectSupport [auto]
+impl core::marker::Freeze for antecedent_learn::ElasticNetSpec [auto]
+impl core::marker::Freeze for antecedent_learn::FeatureRange [auto]
+impl core::marker::Freeze for antecedent_learn::FiniteJoint [auto]
+impl core::marker::Freeze for antecedent_learn::FittedEffect [auto]
+impl core::marker::Freeze for antecedent_learn::FittedEffectError [auto]
+impl core::marker::Freeze for antecedent_learn::ForestSpec [auto]
+impl core::marker::Freeze for antecedent_learn::GbtSpec [auto]
+impl core::marker::Freeze for antecedent_learn::Identity [auto]
+impl core::marker::Freeze for antecedent_learn::InformationRank [auto]
+impl core::marker::Freeze for antecedent_learn::KnownVarianceBasisRegression [auto]
+impl core::marker::Freeze for antecedent_learn::LassoLogisticLearner [auto]
+impl core::marker::Freeze for antecedent_learn::Layout [auto]
+impl core::marker::Freeze for antecedent_learn::LearnError [auto]
+impl core::marker::Freeze for antecedent_learn::LearnerCapabilities [auto]
+impl core::marker::Freeze for antecedent_learn::LearnerProvenance [auto]
+impl core::marker::Freeze for antecedent_learn::LearnerSpec [auto]
+impl core::marker::Freeze for antecedent_learn::LinearSpec [auto]
+impl core::marker::Freeze for antecedent_learn::LogisticSpec [auto]
+impl core::marker::Freeze for antecedent_learn::NeuralSpec [auto]
+impl core::marker::Freeze for antecedent_learn::NuisanceDiagnostics [auto]
+impl core::marker::Freeze for antecedent_learn::PolynomialBasis [auto]
+impl core::marker::Freeze for antecedent_learn::PortablePredictor [auto]
+impl core::marker::Freeze for antecedent_learn::PosteriorPrediction [auto]
+impl core::marker::Freeze for antecedent_learn::PosteriorPredictionDiagnostics [auto]
+impl core::marker::Freeze for antecedent_learn::PosteriorPredictionProvenance [auto]
+impl core::marker::Freeze for antecedent_learn::PredictionMap [auto]
+impl core::marker::Freeze for antecedent_learn::PredictionNode [auto]
+impl core::marker::Freeze for antecedent_learn::PredictionTask [auto]
+impl core::marker::Freeze for antecedent_learn::RidgeLogisticLearner [auto]
+impl core::marker::Freeze for antecedent_learn::RidgeSpec [auto]
+impl core::marker::Freeze for antecedent_learn::SupportReport [auto]
+impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
+impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
+impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Options [auto]
+impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Posterior [auto]
+impl core::marker::Freeze for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::marker::Freeze for antecedent_learn::transported_effect::TransportedRequest [auto]
+impl core::marker::Send for antecedent_learn::BasisRegressionPosterior [auto]
+impl core::marker::Send for antecedent_learn::BasisTargetPopulation [auto]
+impl core::marker::Send for antecedent_learn::BayesianBasisEffect [auto]
+impl core::marker::Send for antecedent_learn::BayesianBasisGComputation [auto]
+impl core::marker::Send for antecedent_learn::BayesianBasisSpec [auto]
+impl core::marker::Send for antecedent_learn::CrossFittedPrediction [auto]
+impl core::marker::Send for antecedent_learn::EffectSupport [auto]
+impl core::marker::Send for antecedent_learn::ElasticNetSpec [auto]
+impl core::marker::Send for antecedent_learn::FeatureRange [auto]
+impl core::marker::Send for antecedent_learn::FiniteJoint [auto]
+impl core::marker::Send for antecedent_learn::FittedEffect [auto]
+impl core::marker::Send for antecedent_learn::FittedEffectError [auto]
+impl core::marker::Send for antecedent_learn::ForestSpec [auto]
+impl core::marker::Send for antecedent_learn::GbtSpec [auto]
+impl core::marker::Send for antecedent_learn::Identity [auto]
+impl core::marker::Send for antecedent_learn::InformationRank [auto]
+impl core::marker::Send for antecedent_learn::KnownVarianceBasisRegression [auto]
+impl core::marker::Send for antecedent_learn::LassoLogisticLearner [auto]
+impl core::marker::Send for antecedent_learn::Layout [auto]
+impl core::marker::Send for antecedent_learn::LearnError [auto]
+impl core::marker::Send for antecedent_learn::LearnerCapabilities [auto]
+impl core::marker::Send for antecedent_learn::LearnerProvenance [auto]
+impl core::marker::Send for antecedent_learn::LearnerSpec [auto]
+impl core::marker::Send for antecedent_learn::LinearSpec [auto]
+impl core::marker::Send for antecedent_learn::LogisticSpec [auto]
+impl core::marker::Send for antecedent_learn::NeuralSpec [auto]
+impl core::marker::Send for antecedent_learn::NuisanceDiagnostics [auto]
+impl core::marker::Send for antecedent_learn::PolynomialBasis [auto]
+impl core::marker::Send for antecedent_learn::PortablePredictor [auto]
+impl core::marker::Send for antecedent_learn::PosteriorPrediction [auto]
+impl core::marker::Send for antecedent_learn::PosteriorPredictionDiagnostics [auto]
+impl core::marker::Send for antecedent_learn::PosteriorPredictionProvenance [auto]
+impl core::marker::Send for antecedent_learn::PredictionMap [auto]
+impl core::marker::Send for antecedent_learn::PredictionNode [auto]
+impl core::marker::Send for antecedent_learn::PredictionTask [auto]
+impl core::marker::Send for antecedent_learn::RidgeLogisticLearner [auto]
+impl core::marker::Send for antecedent_learn::RidgeSpec [auto]
+impl core::marker::Send for antecedent_learn::SupportReport [auto]
+impl core::marker::Send for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
+impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
+impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Options [auto]
+impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Posterior [auto]
+impl core::marker::Send for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::marker::Send for antecedent_learn::transported_effect::TransportedRequest [auto]
+impl core::marker::StructuralPartialEq for antecedent_learn::BasisRegressionPosterior
+impl core::marker::StructuralPartialEq for antecedent_learn::BasisTargetPopulation
+impl core::marker::StructuralPartialEq for antecedent_learn::BayesianBasisEffect
+impl core::marker::StructuralPartialEq for antecedent_learn::BayesianBasisSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::EffectSupport
+impl core::marker::StructuralPartialEq for antecedent_learn::ElasticNetSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::FeatureRange
+impl core::marker::StructuralPartialEq for antecedent_learn::FittedEffect
+impl core::marker::StructuralPartialEq for antecedent_learn::ForestSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::GbtSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::InformationRank
+impl core::marker::StructuralPartialEq for antecedent_learn::Layout
+impl core::marker::StructuralPartialEq for antecedent_learn::LearnError
+impl core::marker::StructuralPartialEq for antecedent_learn::LearnerCapabilities
+impl core::marker::StructuralPartialEq for antecedent_learn::LearnerProvenance
+impl core::marker::StructuralPartialEq for antecedent_learn::LearnerSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::LinearSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::LogisticSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::NeuralSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::NuisanceDiagnostics
+impl core::marker::StructuralPartialEq for antecedent_learn::PolynomialBasis
+impl core::marker::StructuralPartialEq for antecedent_learn::PortablePredictor
+impl core::marker::StructuralPartialEq for antecedent_learn::PosteriorPrediction
+impl core::marker::StructuralPartialEq for antecedent_learn::PosteriorPredictionDiagnostics
+impl core::marker::StructuralPartialEq for antecedent_learn::PosteriorPredictionProvenance
+impl core::marker::StructuralPartialEq for antecedent_learn::PredictionMap
+impl core::marker::StructuralPartialEq for antecedent_learn::PredictionNode
+impl core::marker::StructuralPartialEq for antecedent_learn::PredictionTask
+impl core::marker::StructuralPartialEq for antecedent_learn::RidgeSpec
+impl core::marker::StructuralPartialEq for antecedent_learn::SupportReport
+impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::BayesianRefusal
+impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Diagnostics
+impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Options
+impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Posterior
+impl core::marker::StructuralPartialEq for antecedent_learn::nested_markov_bayesian::Prior
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::FeatureOverlap
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::OverlapAssessment
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::SelectionShiftDeclaration
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TargetCohort
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TransportRefusal
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TransportedCohortEffect
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TransportedInference
+impl core::marker::StructuralPartialEq for antecedent_learn::transported_effect::TransportedRequest
+impl core::marker::Sync for antecedent_learn::BasisRegressionPosterior [auto]
+impl core::marker::Sync for antecedent_learn::BasisTargetPopulation [auto]
+impl core::marker::Sync for antecedent_learn::BayesianBasisEffect [auto]
+impl core::marker::Sync for antecedent_learn::BayesianBasisGComputation [auto]
+impl core::marker::Sync for antecedent_learn::BayesianBasisSpec [auto]
+impl core::marker::Sync for antecedent_learn::CrossFittedPrediction [auto]
+impl core::marker::Sync for antecedent_learn::EffectSupport [auto]
+impl core::marker::Sync for antecedent_learn::ElasticNetSpec [auto]
+impl core::marker::Sync for antecedent_learn::FeatureRange [auto]
+impl core::marker::Sync for antecedent_learn::FiniteJoint [auto]
+impl core::marker::Sync for antecedent_learn::FittedEffect [auto]
+impl core::marker::Sync for antecedent_learn::FittedEffectError [auto]
+impl core::marker::Sync for antecedent_learn::ForestSpec [auto]
+impl core::marker::Sync for antecedent_learn::GbtSpec [auto]
+impl core::marker::Sync for antecedent_learn::Identity [auto]
+impl core::marker::Sync for antecedent_learn::InformationRank [auto]
+impl core::marker::Sync for antecedent_learn::KnownVarianceBasisRegression [auto]
+impl core::marker::Sync for antecedent_learn::LassoLogisticLearner [auto]
+impl core::marker::Sync for antecedent_learn::Layout [auto]
+impl core::marker::Sync for antecedent_learn::LearnError [auto]
+impl core::marker::Sync for antecedent_learn::LearnerCapabilities [auto]
+impl core::marker::Sync for antecedent_learn::LearnerProvenance [auto]
+impl core::marker::Sync for antecedent_learn::LearnerSpec [auto]
+impl core::marker::Sync for antecedent_learn::LinearSpec [auto]
+impl core::marker::Sync for antecedent_learn::LogisticSpec [auto]
+impl core::marker::Sync for antecedent_learn::NeuralSpec [auto]
+impl core::marker::Sync for antecedent_learn::NuisanceDiagnostics [auto]
+impl core::marker::Sync for antecedent_learn::PolynomialBasis [auto]
+impl core::marker::Sync for antecedent_learn::PortablePredictor [auto]
+impl core::marker::Sync for antecedent_learn::PosteriorPrediction [auto]
+impl core::marker::Sync for antecedent_learn::PosteriorPredictionDiagnostics [auto]
+impl core::marker::Sync for antecedent_learn::PosteriorPredictionProvenance [auto]
+impl core::marker::Sync for antecedent_learn::PredictionMap [auto]
+impl core::marker::Sync for antecedent_learn::PredictionNode [auto]
+impl core::marker::Sync for antecedent_learn::PredictionTask [auto]
+impl core::marker::Sync for antecedent_learn::RidgeLogisticLearner [auto]
+impl core::marker::Sync for antecedent_learn::RidgeSpec [auto]
+impl core::marker::Sync for antecedent_learn::SupportReport [auto]
+impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
+impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
+impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Options [auto]
+impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Posterior [auto]
+impl core::marker::Sync for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::marker::Sync for antecedent_learn::transported_effect::TransportedRequest [auto]
+impl core::marker::Unpin for antecedent_learn::BasisRegressionPosterior [auto]
+impl core::marker::Unpin for antecedent_learn::BasisTargetPopulation [auto]
+impl core::marker::Unpin for antecedent_learn::BayesianBasisEffect [auto]
+impl core::marker::Unpin for antecedent_learn::BayesianBasisGComputation [auto]
+impl core::marker::Unpin for antecedent_learn::BayesianBasisSpec [auto]
+impl core::marker::Unpin for antecedent_learn::CrossFittedPrediction [auto]
+impl core::marker::Unpin for antecedent_learn::EffectSupport [auto]
+impl core::marker::Unpin for antecedent_learn::ElasticNetSpec [auto]
+impl core::marker::Unpin for antecedent_learn::FeatureRange [auto]
+impl core::marker::Unpin for antecedent_learn::FiniteJoint [auto]
+impl core::marker::Unpin for antecedent_learn::FittedEffect [auto]
+impl core::marker::Unpin for antecedent_learn::FittedEffectError [auto]
+impl core::marker::Unpin for antecedent_learn::ForestSpec [auto]
+impl core::marker::Unpin for antecedent_learn::GbtSpec [auto]
+impl core::marker::Unpin for antecedent_learn::Identity [auto]
+impl core::marker::Unpin for antecedent_learn::InformationRank [auto]
+impl core::marker::Unpin for antecedent_learn::KnownVarianceBasisRegression [auto]
+impl core::marker::Unpin for antecedent_learn::LassoLogisticLearner [auto]
+impl core::marker::Unpin for antecedent_learn::Layout [auto]
+impl core::marker::Unpin for antecedent_learn::LearnError [auto]
+impl core::marker::Unpin for antecedent_learn::LearnerCapabilities [auto]
+impl core::marker::Unpin for antecedent_learn::LearnerProvenance [auto]
+impl core::marker::Unpin for antecedent_learn::LearnerSpec [auto]
+impl core::marker::Unpin for antecedent_learn::LinearSpec [auto]
+impl core::marker::Unpin for antecedent_learn::LogisticSpec [auto]
+impl core::marker::Unpin for antecedent_learn::NeuralSpec [auto]
+impl core::marker::Unpin for antecedent_learn::NuisanceDiagnostics [auto]
+impl core::marker::Unpin for antecedent_learn::PolynomialBasis [auto]
+impl core::marker::Unpin for antecedent_learn::PortablePredictor [auto]
+impl core::marker::Unpin for antecedent_learn::PosteriorPrediction [auto]
+impl core::marker::Unpin for antecedent_learn::PosteriorPredictionDiagnostics [auto]
+impl core::marker::Unpin for antecedent_learn::PosteriorPredictionProvenance [auto]
+impl core::marker::Unpin for antecedent_learn::PredictionMap [auto]
+impl core::marker::Unpin for antecedent_learn::PredictionNode [auto]
+impl core::marker::Unpin for antecedent_learn::PredictionTask [auto]
+impl core::marker::Unpin for antecedent_learn::RidgeLogisticLearner [auto]
+impl core::marker::Unpin for antecedent_learn::RidgeSpec [auto]
+impl core::marker::Unpin for antecedent_learn::SupportReport [auto]
+impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
+impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
+impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Options [auto]
+impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Posterior [auto]
+impl core::marker::Unpin for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::marker::Unpin for antecedent_learn::transported_effect::TransportedRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BasisRegressionPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BasisTargetPopulation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BayesianBasisEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BayesianBasisGComputation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BayesianBasisSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::CrossFittedPrediction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::EffectSupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::ElasticNetSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::FeatureRange [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::FittedEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::FittedEffectError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::ForestSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::GbtSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::Identity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::InformationRank [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::KnownVarianceBasisRegression [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::LassoLogisticLearner [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::Layout [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::LearnError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::LearnerCapabilities [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::LearnerProvenance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::LearnerSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::LinearSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::LogisticSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::NeuralSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::NuisanceDiagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PolynomialBasis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PortablePredictor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PosteriorPrediction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PosteriorPredictionDiagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PosteriorPredictionProvenance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PredictionMap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PredictionNode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::PredictionTask [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RidgeLogisticLearner [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RidgeSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::SupportReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Posterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::transported_effect::TransportedRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BasisRegressionPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BasisTargetPopulation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BayesianBasisEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BayesianBasisGComputation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::BayesianBasisSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::CrossFittedPrediction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::EffectSupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::ElasticNetSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::FeatureRange [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::FittedEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::FittedEffectError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::ForestSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::GbtSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::Identity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::InformationRank [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::KnownVarianceBasisRegression [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::LassoLogisticLearner [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::Layout [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::LearnError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::LearnerCapabilities [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::LearnerProvenance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::LearnerSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::LinearSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::LogisticSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::NeuralSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::NuisanceDiagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PolynomialBasis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PortablePredictor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PosteriorPrediction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PosteriorPredictionDiagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PosteriorPredictionProvenance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PredictionMap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PredictionNode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::PredictionTask [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::RidgeLogisticLearner [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::RidgeSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::SupportReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::BayesianRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Diagnostics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Options [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Posterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::nested_markov_bayesian::Prior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::FeatureOverlap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::OverlapAssessment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::SelectionShiftDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TargetCohort [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TransportRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TransportedCohortEffect [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TransportedInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_learn::transported_effect::TransportedRequest [auto]
+impl serde_core::ser::Serialize for antecedent_learn::EffectSupport
+impl serde_core::ser::Serialize for antecedent_learn::ElasticNetSpec
+impl serde_core::ser::Serialize for antecedent_learn::FeatureRange
+impl serde_core::ser::Serialize for antecedent_learn::FittedEffect
+impl serde_core::ser::Serialize for antecedent_learn::ForestSpec
+impl serde_core::ser::Serialize for antecedent_learn::GbtSpec
+impl serde_core::ser::Serialize for antecedent_learn::LearnerProvenance
+impl serde_core::ser::Serialize for antecedent_learn::LearnerSpec
+impl serde_core::ser::Serialize for antecedent_learn::LinearSpec
+impl serde_core::ser::Serialize for antecedent_learn::LogisticSpec
+impl serde_core::ser::Serialize for antecedent_learn::NeuralSpec
+impl serde_core::ser::Serialize for antecedent_learn::PortablePredictor
+impl serde_core::ser::Serialize for antecedent_learn::PredictionMap
+impl serde_core::ser::Serialize for antecedent_learn::PredictionNode
+impl serde_core::ser::Serialize for antecedent_learn::RidgeSpec
+impl serde_core::ser::Serialize for antecedent_learn::nested_markov_bayesian::Diagnostics
+impl serde_core::ser::Serialize for antecedent_learn::nested_markov_bayesian::Options
+impl serde_core::ser::Serialize for antecedent_learn::nested_markov_bayesian::Posterior
+impl serde_core::ser::Serialize for antecedent_learn::nested_markov_bayesian::Prior
+impl<'a> core::clone::Clone for antecedent_learn::BasisData<'a>
+impl<'a> core::clone::Clone for antecedent_learn::BasisDesign<'a>
+impl<'a> core::clone::Clone for antecedent_learn::DenseDesign<'a>
+impl<'a> core::clone::Clone for antecedent_learn::DesignView<'a>
+impl<'a> core::clone::Clone for antecedent_learn::KnownVarianceBasisSpec<'a>
+impl<'a> core::clone::Clone for antecedent_learn::RowSelection<'a>
+impl<'a> core::clone::Clone for antecedent_learn::TargetView<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::BasisData<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::BasisDesign<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::DenseDesign<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::DesignView<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::KnownVarianceBasisSpec<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::RowSelection<'a>
+impl<'a> core::fmt::Debug for antecedent_learn::TargetView<'a>
+impl<'a> core::marker::Copy for antecedent_learn::BasisData<'a>
+impl<'a> core::marker::Copy for antecedent_learn::BasisDesign<'a>
+impl<'a> core::marker::Copy for antecedent_learn::DenseDesign<'a>
+impl<'a> core::marker::Copy for antecedent_learn::DesignView<'a>
+impl<'a> core::marker::Copy for antecedent_learn::KnownVarianceBasisSpec<'a>
+impl<'a> core::marker::Copy for antecedent_learn::RowSelection<'a>
+impl<'a> core::marker::Copy for antecedent_learn::TargetView<'a>
+impl<'a> core::marker::Freeze for antecedent_learn::BasisData<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::BasisDesign<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::DenseDesign<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::DesignView<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::RowSelection<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::BasisData<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::BasisDesign<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::DenseDesign<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::DesignView<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::RowSelection<'a> [auto]
+impl<'a> core::marker::Send for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::BasisData<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::BasisDesign<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::DenseDesign<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::DesignView<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::RowSelection<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::BasisData<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::BasisDesign<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::DenseDesign<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::DesignView<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::RowSelection<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BasisData<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::BasisDesign<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::DenseDesign<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::DesignView<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::RowSelection<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_learn::TargetView<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::BasisData<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::BasisDesign<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::DenseDesign<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::DesignView<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::KnownVarianceBasisSpec<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::RowSelection<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_learn::TargetView<'a> [auto]
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::EffectSupport
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::ElasticNetSpec where antecedent_learn::ElasticNetSpec: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::FeatureRange
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::FittedEffect
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::ForestSpec where antecedent_learn::ForestSpec: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::GbtSpec where antecedent_learn::GbtSpec: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::LearnerProvenance
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::LearnerSpec
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::LinearSpec where antecedent_learn::LinearSpec: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::LogisticSpec where antecedent_learn::LogisticSpec: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::NeuralSpec where antecedent_learn::NeuralSpec: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::PortablePredictor
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::PredictionMap
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::PredictionNode
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::RidgeSpec where antecedent_learn::RidgeSpec: core::default::Default
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_bayesian::Diagnostics
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_bayesian::Options
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_bayesian::Posterior
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_learn::nested_markov_bayesian::Prior
+pub const <antecedent_learn::EffectSupport>::VERSION: u32
+pub const antecedent_learn::BASIS_MAX_DEGREE: usize
+pub const antecedent_learn::nested_markov_bayesian::COORDINATES: [&str; 14]
+pub const antecedent_learn::nested_markov_bayesian::METHOD: &str
+pub const antecedent_learn::nested_markov_bayesian::OUTPUTS: usize
+pub const antecedent_learn::nested_markov_bayesian::RNG: &str
+pub const antecedent_learn::transported_effect::SELECTION_SHIFT_ASSUMPTION: &str
+pub const antecedent_learn::transported_effect::TRANSPORTED_POINT_SCOPE: &str
+pub const antecedent_learn::transported_effect::TRANSPORT_WEIGHT_SUM_TOLERANCE: f64
+pub enum antecedent_learn::BasisTargetPopulation
+pub enum antecedent_learn::Layout
+pub enum antecedent_learn::LearnerSpec
+pub enum antecedent_learn::PredictionMap
+pub enum antecedent_learn::PredictionNode
+pub enum antecedent_learn::PredictionTask
+pub enum antecedent_learn::nested_markov_bayesian::BayesianRefusal
+pub enum antecedent_learn::transported_effect::TransportedInference
+pub enum antecedent_learn::transported_effect::TransportedRequest
+pub field antecedent_learn::BasisData::covariates_colmajor: &'a [f64]
+pub field antecedent_learn::BasisData::fold_ids: core::option::Option<&'a [u16]>
+pub field antecedent_learn::BasisData::n_covariates: usize
+pub field antecedent_learn::BasisData::outcome: &'a [f64]
+pub field antecedent_learn::BasisData::row_ids: core::option::Option<&'a [u32]>
+pub field antecedent_learn::BasisData::treatment: &'a [f64]
+pub field antecedent_learn::BasisDesign::ncols: usize
+pub field antecedent_learn::BasisDesign::nrows: usize
+pub field antecedent_learn::BasisDesign::precision_weights: &'a [f64]
+pub field antecedent_learn::BasisDesign::x_colmajor: &'a [f64]
+pub field antecedent_learn::BasisDesign::y: &'a [f64]
+pub field antecedent_learn::BasisRegressionPosterior::covariance: alloc::vec::Vec<f64>
+pub field antecedent_learn::BasisRegressionPosterior::draws: alloc::sync::Arc<[f64]>
+pub field antecedent_learn::BasisRegressionPosterior::mean: alloc::vec::Vec<f64>
+pub field antecedent_learn::BasisRegressionPosterior::model_id: alloc::sync::Arc<str>
+pub field antecedent_learn::BasisRegressionPosterior::n_draws: usize
+pub field antecedent_learn::BasisRegressionPosterior::precision_condition: f64
+pub field antecedent_learn::BasisRegressionPosterior::provenance: antecedent_learn::LearnerProvenance
+pub field antecedent_learn::BayesianBasisEffect::ate_draws: alloc::sync::Arc<[f64]>
+pub field antecedent_learn::BayesianBasisEffect::ate_mean: f64
+pub field antecedent_learn::BayesianBasisEffect::predictions: antecedent_learn::PosteriorPrediction
+pub field antecedent_learn::BayesianBasisSpec::n_draws: usize
+pub field antecedent_learn::BayesianBasisSpec::prior_sd: f64
+pub field antecedent_learn::BayesianBasisSpec::seed: u64
+pub field antecedent_learn::CrossFittedPrediction::fold_assignment: alloc::vec::Vec<u16>
+pub field antecedent_learn::CrossFittedPrediction::model_provenance: alloc::vec::Vec<antecedent_learn::LearnerProvenance>
+pub field antecedent_learn::CrossFittedPrediction::predictions: alloc::vec::Vec<f64>
+pub field antecedent_learn::CrossFittedPrediction::validation: antecedent_learn::NuisanceDiagnostics
+pub field antecedent_learn::EffectSupport::ranges: alloc::vec::Vec<antecedent_learn::FeatureRange>
+pub field antecedent_learn::EffectSupport::rows: u64
+pub field antecedent_learn::EffectSupport::version: u32
+pub field antecedent_learn::ElasticNetSpec::l1_ratio: f64
+pub field antecedent_learn::ElasticNetSpec::lambda: f64
+pub field antecedent_learn::FeatureRange::hi: f64
+pub field antecedent_learn::FeatureRange::lo: f64
+pub field antecedent_learn::FittedEffect::features: alloc::vec::Vec<u32>
+pub field antecedent_learn::FittedEffect::intercept: bool
+pub field antecedent_learn::FittedEffect::predictor: antecedent_learn::PortablePredictor
+pub field antecedent_learn::FittedEffect::support: core::option::Option<antecedent_learn::EffectSupport>
+pub field antecedent_learn::FittedEffect::version: u32
+pub field antecedent_learn::ForestSpec::extra_trees: bool
+pub field antecedent_learn::ForestSpec::min_samples_leaf: core::option::Option<u32>
+pub field antecedent_learn::ForestSpec::n_trees: u32
+pub field antecedent_learn::GbtSpec::depth: u32
+pub field antecedent_learn::GbtSpec::learning_rate: f64
+pub field antecedent_learn::GbtSpec::trees: u32
+pub field antecedent_learn::InformationRank::deficient_column: core::option::Option<usize>
+pub field antecedent_learn::InformationRank::min_pivot_ratio: f64
+pub field antecedent_learn::KnownVarianceBasisSpec::n_draws: usize
+pub field antecedent_learn::KnownVarianceBasisSpec::prior_covariance: &'a [f64]
+pub field antecedent_learn::KnownVarianceBasisSpec::prior_mean: &'a [f64]
+pub field antecedent_learn::KnownVarianceBasisSpec::seed: u64
+pub field antecedent_learn::LearnerCapabilities::binary_probability: bool
+pub field antecedent_learn::LearnerCapabilities::categorical_native: bool
+pub field antecedent_learn::LearnerCapabilities::deterministic_seed: bool
+pub field antecedent_learn::LearnerCapabilities::missing_values: bool
+pub field antecedent_learn::LearnerCapabilities::parallelism_control: bool
+pub field antecedent_learn::LearnerCapabilities::regression: bool
+pub field antecedent_learn::LearnerCapabilities::sample_weights: bool
+pub field antecedent_learn::LearnerProvenance::implementation: alloc::string::String
+pub field antecedent_learn::LearnerProvenance::spec: alloc::string::String
+pub field antecedent_learn::LearnerProvenance::version: alloc::string::String
+pub field antecedent_learn::LogisticSpec::ridge_lambda: f64
+pub field antecedent_learn::NeuralSpec::epochs: u32
+pub field antecedent_learn::NeuralSpec::hidden: u32
+pub field antecedent_learn::NeuralSpec::learning_rate: f64
+pub field antecedent_learn::NuisanceDiagnostics::challenger_loss: core::option::Option<f64>
+pub field antecedent_learn::NuisanceDiagnostics::logloss: core::option::Option<f64>
+pub field antecedent_learn::NuisanceDiagnostics::r2: core::option::Option<f64>
+pub field antecedent_learn::NuisanceDiagnostics::rmse: core::option::Option<f64>
+pub field antecedent_learn::NuisanceDiagnostics::task: core::option::Option<antecedent_learn::PredictionTask>
+pub field antecedent_learn::NuisanceDiagnostics::winner: core::option::Option<&'static str>
+pub field antecedent_learn::PortablePredictor::columns: usize
+pub field antecedent_learn::PortablePredictor::model: antecedent_learn::PredictionMap
+pub field antecedent_learn::PortablePredictor::provenance: antecedent_learn::LearnerProvenance
+pub field antecedent_learn::PortablePredictor::version: u32
+pub field antecedent_learn::PosteriorPrediction::diagnostics: antecedent_learn::PosteriorPredictionDiagnostics
+pub field antecedent_learn::PosteriorPrediction::draw_count: usize
+pub field antecedent_learn::PosteriorPrediction::fold_ids: core::option::Option<alloc::sync::Arc<[u16]>>
+pub field antecedent_learn::PosteriorPrediction::provenance: antecedent_learn::PosteriorPredictionProvenance
+pub field antecedent_learn::PosteriorPrediction::row_ids: alloc::sync::Arc<[u32]>
+pub field antecedent_learn::PosteriorPrediction::target_names: alloc::sync::Arc<[alloc::sync::Arc<str>]>
+pub field antecedent_learn::PosteriorPrediction::values: alloc::sync::Arc<[f64]>
+pub field antecedent_learn::PosteriorPredictionDiagnostics::draw_count: usize
+pub field antecedent_learn::PosteriorPredictionDiagnostics::fold_count: core::option::Option<usize>
+pub field antecedent_learn::PosteriorPredictionDiagnostics::maximum: f64
+pub field antecedent_learn::PosteriorPredictionDiagnostics::minimum: f64
+pub field antecedent_learn::PosteriorPredictionDiagnostics::row_count: usize
+pub field antecedent_learn::PosteriorPredictionDiagnostics::target_count: usize
+pub field antecedent_learn::PosteriorPredictionProvenance::model: antecedent_learn::LearnerProvenance
+pub field antecedent_learn::PosteriorPredictionProvenance::model_id: alloc::sync::Arc<str>
+pub field antecedent_learn::PosteriorPredictionProvenance::prior_id: alloc::sync::Arc<str>
+pub field antecedent_learn::RidgeSpec::lambda: f64
+pub field antecedent_learn::SupportReport::first_feature: core::option::Option<usize>
+pub field antecedent_learn::SupportReport::first_row: core::option::Option<usize>
+pub field antecedent_learn::SupportReport::rows_outside: usize
+pub field antecedent_learn::nested_markov_bayesian::Diagnostics::bulk_ess: f64
+pub field antecedent_learn::nested_markov_bayesian::Diagnostics::folded_rhat: f64
+pub field antecedent_learn::nested_markov_bayesian::Diagnostics::rank_rhat: f64
+pub field antecedent_learn::nested_markov_bayesian::Diagnostics::tail_ess: f64
+pub field antecedent_learn::nested_markov_bayesian::Options::chains: usize
+pub field antecedent_learn::nested_markov_bayesian::Options::credible_mass: f64
+pub field antecedent_learn::nested_markov_bayesian::Options::draws: usize
+pub field antecedent_learn::nested_markov_bayesian::Options::max_proposals: usize
+pub field antecedent_learn::nested_markov_bayesian::Options::seed: u64
+pub field antecedent_learn::nested_markov_bayesian::Options::warmup: usize
+pub field antecedent_learn::nested_markov_bayesian::Posterior::covariance: alloc::vec::Vec<f64>
+pub field antecedent_learn::nested_markov_bayesian::Posterior::credible: [[f64; 2]; 14]
+pub field antecedent_learn::nested_markov_bayesian::Posterior::diagnostics: alloc::vec::Vec<antecedent_learn::nested_markov_bayesian::Diagnostics>
+pub field antecedent_learn::nested_markov_bayesian::Posterior::mean: [f64; 14]
+pub field antecedent_learn::nested_markov_bayesian::Posterior::proposals: usize
+pub field antecedent_learn::nested_markov_bayesian::Posterior::samples: alloc::vec::Vec<[f64; 14]>
+pub field antecedent_learn::nested_markov_bayesian::Prior::alpha: [f64; 11]
+pub field antecedent_learn::nested_markov_bayesian::Prior::beta: [f64; 11]
+pub field antecedent_learn::transported_effect::FeatureOverlap::disjoint: bool
+pub field antecedent_learn::transported_effect::FeatureOverlap::feature: alloc::string::String
+pub field antecedent_learn::transported_effect::FeatureOverlap::mass_outside: f64
+pub field antecedent_learn::transported_effect::FeatureOverlap::rows_outside: usize
+pub field antecedent_learn::transported_effect::FeatureOverlap::source_hi: f64
+pub field antecedent_learn::transported_effect::FeatureOverlap::source_lo: f64
+pub field antecedent_learn::transported_effect::FeatureOverlap::target_hi: f64
+pub field antecedent_learn::transported_effect::FeatureOverlap::target_lo: f64
+pub field antecedent_learn::transported_effect::OverlapAssessment::features: alloc::vec::Vec<antecedent_learn::transported_effect::FeatureOverlap>
+pub field antecedent_learn::transported_effect::OverlapAssessment::first_feature: core::option::Option<usize>
+pub field antecedent_learn::transported_effect::OverlapAssessment::first_row: core::option::Option<usize>
+pub field antecedent_learn::transported_effect::OverlapAssessment::mass_outside: f64
+pub field antecedent_learn::transported_effect::OverlapAssessment::rows_checked: usize
+pub field antecedent_learn::transported_effect::OverlapAssessment::rows_outside: usize
+pub field antecedent_learn::transported_effect::OverlapAssessment::source_rows: u64
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::effect_modifiers: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::selection_children: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::selection_node: alloc::string::String
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::source_population: alloc::string::String
+pub field antecedent_learn::transported_effect::SelectionShiftDeclaration::target_population: alloc::string::String
+pub field antecedent_learn::transported_effect::TargetCohort::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_learn::transported_effect::TargetCohort::features: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_learn::transported_effect::TargetCohort::population_id: alloc::string::String
+pub field antecedent_learn::transported_effect::TargetCohort::row_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_learn::transported_effect::TargetCohort::weights: alloc::vec::Vec<f64>
+pub field antecedent_learn::transported_effect::TransportRefusal::code: &'static str
+pub field antecedent_learn::transported_effect::TransportRefusal::detail: &'static str
+pub field antecedent_learn::transported_effect::TransportRefusal::remedy: &'static str
+pub field antecedent_learn::transported_effect::TransportRefusal::subject: alloc::string::String
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::cohort_digest: alloc::string::String
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::declaration: antecedent_learn::transported_effect::SelectionShiftDeclaration
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::mean_contrast: f64
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::model_identity: alloc::string::String
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::overlap: antecedent_learn::transported_effect::OverlapAssessment
+pub field antecedent_learn::transported_effect::TransportedCohortEffect::row_contrasts: alloc::vec::Vec<f64>
+pub fn <antecedent_learn::BasisRegressionPosterior>::fn draw(&self, draw: usize, coefficient: usize) -> core::option::Option<f64>
+pub fn <antecedent_learn::BasisRegressionPosterior>::fn n_coefficients(&self) -> usize
+pub fn <antecedent_learn::BayesianBasisGComputation>::const fn estimator_id(&self) -> &'static str
+pub fn <antecedent_learn::BayesianBasisGComputation>::const fn task(&self) -> antecedent_learn::PredictionTask
+pub fn <antecedent_learn::BayesianBasisGComputation>::fn fit(&self, data: &antecedent_learn::BasisData<'_>, population: antecedent_learn::BasisTargetPopulation, spec: antecedent_learn::BayesianBasisSpec, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::BayesianBasisEffect, antecedent_learn::LearnError>
+pub fn <antecedent_learn::DenseDesign<'a>>::const fn cols(self) -> usize
+pub fn <antecedent_learn::DenseDesign<'a>>::const fn layout(self) -> antecedent_learn::Layout
+pub fn <antecedent_learn::DenseDesign<'a>>::const fn rows(self) -> usize
+pub fn <antecedent_learn::DenseDesign<'a>>::const fn values(self) -> &'a [f64]
+pub fn <antecedent_learn::DenseDesign<'a>>::fn get(self, row: usize, col: usize) -> core::result::Result<f64, antecedent_learn::LearnError>
+pub fn <antecedent_learn::DenseDesign<'a>>::fn new(values: &'a [f64], rows: usize, cols: usize, layout: antecedent_learn::Layout) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::DesignView<'a>>::const fn dense(self) -> antecedent_learn::DenseDesign<'a>
+pub fn <antecedent_learn::DesignView<'a>>::const fn ncols(self) -> usize
+pub fn <antecedent_learn::DesignView<'a>>::const fn physical_nrows(self) -> usize
+pub fn <antecedent_learn::DesignView<'a>>::const fn row_selection(self) -> core::option::Option<antecedent_learn::RowSelection<'a>>
+pub fn <antecedent_learn::DesignView<'a>>::fn from_column_major(values: &'a [f64], rows: usize, cols: usize) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::DesignView<'a>>::fn from_compiled(design: &'a antecedent_stats::design::CompiledDesign) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::DesignView<'a>>::fn get(self, row: usize, col: usize) -> core::result::Result<f64, antecedent_learn::LearnError>
+pub fn <antecedent_learn::DesignView<'a>>::fn nrows(self) -> usize
+pub fn <antecedent_learn::DesignView<'a>>::fn physical_index(self, logical_row: usize) -> core::result::Result<usize, antecedent_learn::LearnError>
+pub fn <antecedent_learn::DesignView<'a>>::fn with_rows(self, rows: antecedent_learn::RowSelection<'a>) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::EffectSupport>::fn from_rows(columns: &[&[f64]], rows: core::option::Option<&[usize]>) -> core::option::Option<Self>
+pub fn <antecedent_learn::FiniteJoint>::fn counts(&self) -> &[u64]
+pub fn <antecedent_learn::FiniteJoint>::fn fit(columns: &[alloc::vec::Vec<usize>], cardinalities: &[usize], learner: antecedent_learn::LearnerSpec, max_cells: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::FiniteJoint>::fn probabilities(&self, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_learn::LearnError>
+pub fn <antecedent_learn::FittedEffect>::fn check_support(&self, columns: &[&[f64]], nrows: usize) -> core::result::Result<core::option::Option<antecedent_learn::SupportReport>, antecedent_learn::FittedEffectError>
+pub fn <antecedent_learn::FittedEffect>::fn predict(&self, features: &[antecedent_core::ids::VariableId], columns: &[&[f64]], nrows: usize, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_learn::FittedEffectError>
+pub fn <antecedent_learn::FittedEffect>::fn validate(&self) -> core::result::Result<(), antecedent_learn::FittedEffectError>
+pub fn <antecedent_learn::ForestSpec>::const fn resolved_min_samples_leaf(self, task: antecedent_learn::PredictionTask) -> u32
+pub fn <antecedent_learn::KnownVarianceBasisRegression>::const fn estimator_id(&self) -> &'static str
+pub fn <antecedent_learn::KnownVarianceBasisRegression>::fn fit(&self, design: antecedent_learn::BasisDesign<'_>, spec: &antecedent_learn::KnownVarianceBasisSpec<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::BasisRegressionPosterior, antecedent_learn::LearnError>
+pub fn <antecedent_learn::LassoLogisticLearner>::fn new(lambda: f64) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::LearnerCapabilities>::const fn none() -> Self
+pub fn <antecedent_learn::LearnerSpec>::const fn for_task(self, task: antecedent_learn::PredictionTask) -> Self
+pub fn <antecedent_learn::LearnerSpec>::const fn name(self) -> &'static str
+pub fn <antecedent_learn::LearnerSpec>::fn identity(self) -> alloc::string::String
+pub fn <antecedent_learn::LearnerSpec>::fn parse(key: &str) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::LearnerSpec>::fn validate(self) -> core::result::Result<(), antecedent_learn::LearnError>
+pub fn <antecedent_learn::PolynomialBasis>::const fn degree(&self) -> usize
+pub fn <antecedent_learn::PolynomialBasis>::const fn width(&self, n_covariates: usize) -> usize
+pub fn <antecedent_learn::PolynomialBasis>::fn evaluate(&self, x: &[f64], out: &mut alloc::vec::Vec<f64>)
+pub fn <antecedent_learn::PolynomialBasis>::fn id(&self) -> alloc::string::String
+pub fn <antecedent_learn::PolynomialBasis>::fn new(degree: usize) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::PolynomialBasis>::fn term_names(&self, covariate_names: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn <antecedent_learn::PortablePredictor>::fn validate(&self) -> core::result::Result<(), antecedent_learn::LearnError>
+pub fn <antecedent_learn::PosteriorPrediction>::fn draw_target(&self, draw: usize, target: usize) -> core::result::Result<&[f64], antecedent_learn::LearnError>
+pub fn <antecedent_learn::PosteriorPrediction>::fn new(draw_count: usize, target_names: alloc::vec::Vec<alloc::sync::Arc<str>>, row_ids: alloc::vec::Vec<u32>, fold_ids: core::option::Option<alloc::vec::Vec<u16>>, values: alloc::vec::Vec<f64>, provenance: antecedent_learn::PosteriorPredictionProvenance) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::RidgeLogisticLearner>::fn new(lambda: f64) -> core::result::Result<Self, antecedent_learn::LearnError>
+pub fn <antecedent_learn::RowSelection<'a>>::const fn indices(self) -> &'a [u32]
+pub fn <antecedent_learn::RowSelection<'a>>::const fn is_empty(self) -> bool
+pub fn <antecedent_learn::RowSelection<'a>>::const fn len(self) -> usize
+pub fn <antecedent_learn::RowSelection<'a>>::const fn new(indices: &'a [u32]) -> Self
+pub fn <antecedent_learn::TargetView<'a>>::const fn is_empty(self) -> bool
+pub fn <antecedent_learn::TargetView<'a>>::const fn len(self) -> usize
+pub fn <antecedent_learn::TargetView<'a>>::const fn new(values: &'a [f64]) -> Self
+pub fn <antecedent_learn::TargetView<'a>>::const fn values(self) -> &'a [f64]
+pub fn <antecedent_learn::transported_effect::OverlapAssessment>::fn any_disjoint(&self) -> bool
+pub fn <antecedent_learn::transported_effect::OverlapAssessment>::fn fully_covered(&self) -> bool
+pub fn <antecedent_learn::transported_effect::SelectionShiftDeclaration>::fn new(source_population: &str, target_population: &str, selection_node: &str, selection_children: &[&str], effect_modifiers: &[&str]) -> Self
+pub fn <antecedent_learn::transported_effect::TargetCohort>::fn validate(&self) -> core::result::Result<(), antecedent_learn::transported_effect::TransportRefusal>
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn assumptions(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn identity(&self) -> &str
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn inference(&self) -> antecedent_learn::transported_effect::TransportedInference
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn interval_refusal(&self) -> antecedent_learn::transported_effect::TransportRefusal
+pub fn <antecedent_learn::transported_effect::TransportedCohortEffect>::fn law_refusal(&self) -> antecedent_learn::transported_effect::TransportRefusal
+pub fn <antecedent_learn::transported_effect::TransportedRequest>::fn refusal(self) -> antecedent_learn::transported_effect::TransportRefusal
+pub fn antecedent_learn::assign_folds(n_rows: usize, folds: usize, rng: &mut antecedent_core::execution::CausalRng, strata: core::option::Option<&[u32]>) -> core::result::Result<alloc::vec::Vec<u16>, antecedent_learn::LearnError>
+pub fn antecedent_learn::bayesian_basis_regression::information_rank(design: &antecedent_learn::BasisDesign<'_>) -> core::result::Result<antecedent_learn::InformationRank, antecedent_learn::LearnError>
+pub fn antecedent_learn::cross_fit_selected(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: &[u16], eligible: &[bool], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
+pub fn antecedent_learn::cross_fit_with_folds(factory: &dyn antecedent_learn::LearnerFactory, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, fold_assignment: alloc::vec::Vec<u16>, ctx: &antecedent_core::execution::ExecutionContext, transformer: core::option::Option<&dyn antecedent_learn::TransformerFactory>) -> core::result::Result<antecedent_learn::CrossFittedPrediction, antecedent_learn::LearnError>
+pub fn antecedent_learn::crossfit::diagnose(task: antecedent_learn::PredictionTask, y: &[f64], pred: &[f64]) -> antecedent_learn::NuisanceDiagnostics
+pub fn antecedent_learn::fit_counts::count_resolved_fits<T>(operation: impl core::ops::function::FnOnce() -> T) -> (T, u64)
+pub fn antecedent_learn::fit_counts::observe_resolved_fits<T>(operation: impl core::ops::function::FnOnce() -> T) -> (T, u64)
+pub fn antecedent_learn::nested_markov_bayesian::fit(counts: &[u64; 16], prior: &antecedent_learn::nested_markov_bayesian::Prior, options: &antecedent_learn::nested_markov_bayesian::Options, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::nested_markov_bayesian::Posterior, antecedent_learn::nested_markov_bayesian::BayesianRefusal>
+pub fn antecedent_learn::nested_markov_bayesian::probabilities(p: &[f64; 11]) -> core::option::Option<[f64; 16]>
+pub fn antecedent_learn::resolve(spec: antecedent_learn::LearnerSpec) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
+pub fn antecedent_learn::resolve_for(spec: antecedent_learn::LearnerSpec, task: antecedent_learn::PredictionTask) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::LearnerFactory>, antecedent_learn::LearnError>
+pub fn antecedent_learn::transported_effect::assess_overlap(support: &antecedent_learn::EffectSupport, feature_names: &[alloc::string::String], columns: &[&[f64]], weights: &[f64]) -> core::result::Result<antecedent_learn::transported_effect::OverlapAssessment, antecedent_learn::transported_effect::TransportRefusal>
+pub fn antecedent_learn::transported_effect::transport_cohort_effect(effect: &antecedent_learn::FittedEffect, feature_names: &[alloc::string::String], model_identity: &str, model_population: &str, cohort: &antecedent_learn::transported_effect::TargetCohort, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_learn::transported_effect::TransportedCohortEffect, antecedent_learn::transported_effect::TransportRefusal>
+pub mod antecedent_learn::auto
+pub mod antecedent_learn::bayesian_basis
+pub mod antecedent_learn::bayesian_basis_regression
+pub mod antecedent_learn::categorical
+pub mod antecedent_learn::crossfit
+pub mod antecedent_learn::design
+pub mod antecedent_learn::elastic_net
+pub mod antecedent_learn::error
+pub mod antecedent_learn::fit_counts
+pub mod antecedent_learn::lasso_logistic
+pub mod antecedent_learn::learner
+pub mod antecedent_learn::linear
+pub mod antecedent_learn::logistic
+pub mod antecedent_learn::nested_markov_bayesian
+pub mod antecedent_learn::portable
+pub mod antecedent_learn::posterior_prediction
+pub mod antecedent_learn::ridge
+pub mod antecedent_learn::spec
+pub mod antecedent_learn::transform
+pub mod antecedent_learn::transported_effect
+pub struct antecedent_learn::BasisData<'a>
+pub struct antecedent_learn::BasisDesign<'a>
+pub struct antecedent_learn::BasisRegressionPosterior
+pub struct antecedent_learn::BayesianBasisEffect
+pub struct antecedent_learn::BayesianBasisGComputation
+pub struct antecedent_learn::BayesianBasisSpec
+pub struct antecedent_learn::CrossFittedPrediction
+pub struct antecedent_learn::DenseDesign has private fields
+pub struct antecedent_learn::DenseDesign<'a>
+pub struct antecedent_learn::DesignView has private fields
+pub struct antecedent_learn::DesignView<'a>
+pub struct antecedent_learn::EffectSupport
+pub struct antecedent_learn::ElasticNetSpec
+pub struct antecedent_learn::FeatureRange
+pub struct antecedent_learn::FiniteJoint
+pub struct antecedent_learn::FiniteJoint has private fields
+pub struct antecedent_learn::FittedEffect
+pub struct antecedent_learn::ForestSpec
+pub struct antecedent_learn::GbtSpec
+pub struct antecedent_learn::Identity
+pub struct antecedent_learn::InformationRank
+pub struct antecedent_learn::KnownVarianceBasisRegression
+pub struct antecedent_learn::KnownVarianceBasisSpec<'a>
+pub struct antecedent_learn::LassoLogisticLearner
+pub struct antecedent_learn::LassoLogisticLearner has private fields
+pub struct antecedent_learn::LearnerCapabilities
+pub struct antecedent_learn::LearnerProvenance
+pub struct antecedent_learn::LinearSpec
+pub struct antecedent_learn::LogisticSpec
+pub struct antecedent_learn::NeuralSpec
+pub struct antecedent_learn::NuisanceDiagnostics
+pub struct antecedent_learn::PolynomialBasis
+pub struct antecedent_learn::PolynomialBasis has private fields
+pub struct antecedent_learn::PortablePredictor
+pub struct antecedent_learn::PosteriorPrediction
+pub struct antecedent_learn::PosteriorPredictionDiagnostics
+pub struct antecedent_learn::PosteriorPredictionProvenance
+pub struct antecedent_learn::RidgeLogisticLearner
+pub struct antecedent_learn::RidgeLogisticLearner has private fields
+pub struct antecedent_learn::RidgeSpec
+pub struct antecedent_learn::RowSelection has private fields
+pub struct antecedent_learn::RowSelection<'a>
+pub struct antecedent_learn::SupportReport
+pub struct antecedent_learn::TargetView has private fields
+pub struct antecedent_learn::TargetView<'a>
+pub struct antecedent_learn::nested_markov_bayesian::Diagnostics
+pub struct antecedent_learn::nested_markov_bayesian::Options
+pub struct antecedent_learn::nested_markov_bayesian::Posterior
+pub struct antecedent_learn::nested_markov_bayesian::Prior
+pub struct antecedent_learn::transported_effect::FeatureOverlap
+pub struct antecedent_learn::transported_effect::OverlapAssessment
+pub struct antecedent_learn::transported_effect::SelectionShiftDeclaration
+pub struct antecedent_learn::transported_effect::TargetCohort
+pub struct antecedent_learn::transported_effect::TransportRefusal
+pub struct antecedent_learn::transported_effect::TransportedCohortEffect
+pub struct antecedent_learn::transported_effect::TransportedCohortEffect has private fields
+pub trait antecedent_learn::FittedPredictor: core::marker::Send + core::marker::Sync
+pub trait antecedent_learn::FittedTransformer: core::marker::Send + core::marker::Sync
+pub trait antecedent_learn::LearnerFactory: core::marker::Send + core::marker::Sync
+pub trait antecedent_learn::TransformerFactory: core::marker::Send + core::marker::Sync
+pub trait fn fn antecedent_learn::FittedPredictor::portable(&self) -> core::result::Result<antecedent_learn::PortablePredictor, antecedent_learn::LearnError> {default}
+pub trait fn fn antecedent_learn::FittedPredictor::predict(&self, x: antecedent_learn::DesignView<'_>, out: &mut [f64], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(), antecedent_learn::LearnError>
+pub trait fn fn antecedent_learn::FittedPredictor::provenance(&self) -> antecedent_learn::LearnerProvenance
+pub trait fn fn antecedent_learn::FittedTransformer::transform(&self, x: antecedent_learn::DesignView<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<(alloc::vec::Vec<f64>, usize, usize), antecedent_learn::LearnError>
+pub trait fn fn antecedent_learn::LearnerFactory::capabilities(&self) -> antecedent_learn::LearnerCapabilities
+pub trait fn fn antecedent_learn::LearnerFactory::fit(&self, x: antecedent_learn::DesignView<'_>, y: antecedent_learn::TargetView<'_>, weights: core::option::Option<&[f64]>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::FittedPredictor>, antecedent_learn::LearnError>
+pub trait fn fn antecedent_learn::LearnerFactory::task(&self) -> antecedent_learn::PredictionTask
+pub trait fn fn antecedent_learn::TransformerFactory::fit(&self, x: antecedent_learn::DesignView<'_>, rows: antecedent_learn::RowSelection<'_>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::boxed::Box<dyn antecedent_learn::FittedTransformer>, antecedent_learn::LearnError>
+pub use antecedent_learn::bayesian_basis::BasisData = antecedent_learn::BasisData
+pub use antecedent_learn::bayesian_basis::BasisTargetPopulation = antecedent_learn::BasisTargetPopulation
+pub use antecedent_learn::bayesian_basis::BayesianBasisEffect = antecedent_learn::BayesianBasisEffect
+pub use antecedent_learn::bayesian_basis::BayesianBasisGComputation = antecedent_learn::BayesianBasisGComputation
+pub use antecedent_learn::bayesian_basis::BayesianBasisSpec = antecedent_learn::BayesianBasisSpec
+pub use antecedent_learn::bayesian_basis_regression::BASIS_MAX_DEGREE = antecedent_learn::BASIS_MAX_DEGREE
+pub use antecedent_learn::bayesian_basis_regression::BasisDesign = antecedent_learn::BasisDesign
+pub use antecedent_learn::bayesian_basis_regression::BasisRegressionPosterior = antecedent_learn::BasisRegressionPosterior
+pub use antecedent_learn::bayesian_basis_regression::InformationRank = antecedent_learn::InformationRank
+pub use antecedent_learn::bayesian_basis_regression::KnownVarianceBasisRegression = antecedent_learn::KnownVarianceBasisRegression
+pub use antecedent_learn::bayesian_basis_regression::KnownVarianceBasisSpec = antecedent_learn::KnownVarianceBasisSpec
+pub use antecedent_learn::bayesian_basis_regression::PolynomialBasis = antecedent_learn::PolynomialBasis
+pub use antecedent_learn::categorical::FiniteJoint = antecedent_learn::FiniteJoint
+pub use antecedent_learn::crossfit::CrossFittedPrediction = antecedent_learn::CrossFittedPrediction
+pub use antecedent_learn::crossfit::NuisanceDiagnostics = antecedent_learn::NuisanceDiagnostics
+pub use antecedent_learn::crossfit::assign_folds = antecedent_learn::assign_folds
+pub use antecedent_learn::crossfit::cross_fit_selected = antecedent_learn::cross_fit_selected
+pub use antecedent_learn::crossfit::cross_fit_with_folds = antecedent_learn::cross_fit_with_folds
+pub use antecedent_learn::design::DenseDesign = antecedent_learn::DenseDesign
+pub use antecedent_learn::design::DesignView = antecedent_learn::DesignView
+pub use antecedent_learn::design::Layout = antecedent_learn::Layout
+pub use antecedent_learn::design::RowSelection = antecedent_learn::RowSelection
+pub use antecedent_learn::design::TargetView = antecedent_learn::TargetView
+pub use antecedent_learn::diagnose = antecedent_learn::crossfit::diagnose
+pub use antecedent_learn::error::LearnError = antecedent_learn::LearnError
+pub use antecedent_learn::information_rank = antecedent_learn::bayesian_basis_regression::information_rank
+pub use antecedent_learn::lasso_logistic::LassoLogisticLearner = antecedent_learn::LassoLogisticLearner
+pub use antecedent_learn::learner::FittedPredictor = antecedent_learn::FittedPredictor
+pub use antecedent_learn::learner::LearnerCapabilities = antecedent_learn::LearnerCapabilities
+pub use antecedent_learn::learner::LearnerFactory = antecedent_learn::LearnerFactory
+pub use antecedent_learn::learner::LearnerProvenance = antecedent_learn::LearnerProvenance
+pub use antecedent_learn::learner::PredictionTask = antecedent_learn::PredictionTask
+pub use antecedent_learn::logistic::RidgeLogisticLearner = antecedent_learn::RidgeLogisticLearner
+pub use antecedent_learn::portable::PortablePredictor = antecedent_learn::PortablePredictor
+pub use antecedent_learn::portable::PredictionMap = antecedent_learn::PredictionMap
+pub use antecedent_learn::portable::PredictionNode = antecedent_learn::PredictionNode
+pub use antecedent_learn::posterior_prediction::PosteriorPrediction = antecedent_learn::PosteriorPrediction
+pub use antecedent_learn::posterior_prediction::PosteriorPredictionDiagnostics = antecedent_learn::PosteriorPredictionDiagnostics
+pub use antecedent_learn::posterior_prediction::PosteriorPredictionProvenance = antecedent_learn::PosteriorPredictionProvenance
+pub use antecedent_learn::spec::ElasticNetSpec = antecedent_learn::ElasticNetSpec
+pub use antecedent_learn::spec::ForestSpec = antecedent_learn::ForestSpec
+pub use antecedent_learn::spec::GbtSpec = antecedent_learn::GbtSpec
+pub use antecedent_learn::spec::LearnerSpec = antecedent_learn::LearnerSpec
+pub use antecedent_learn::spec::LinearSpec = antecedent_learn::LinearSpec
+pub use antecedent_learn::spec::LogisticSpec = antecedent_learn::LogisticSpec
+pub use antecedent_learn::spec::NeuralSpec = antecedent_learn::NeuralSpec
+pub use antecedent_learn::spec::RidgeSpec = antecedent_learn::RidgeSpec
+pub use antecedent_learn::spec::resolve = antecedent_learn::resolve
+pub use antecedent_learn::spec::resolve_for = antecedent_learn::resolve_for
+pub use antecedent_learn::transform::FittedTransformer = antecedent_learn::FittedTransformer
+pub use antecedent_learn::transform::Identity = antecedent_learn::Identity
+pub use antecedent_learn::transform::TransformerFactory = antecedent_learn::TransformerFactory
+pub variant antecedent_learn::BasisTargetPopulation::AllObserved
+pub variant antecedent_learn::BasisTargetPopulation::Other
+pub variant antecedent_learn::FittedEffectError::InvalidArgument(&'static str)
+pub variant antecedent_learn::FittedEffectError::Predictor(alloc::string::String)
+pub variant antecedent_learn::Layout::ColumnMajor
+pub variant antecedent_learn::Layout::RowMajor
+pub variant antecedent_learn::LearnError::Backend(alloc::string::String)
+pub variant antecedent_learn::LearnError::Probability(antecedent_prob::error::ProbError)
+pub variant antecedent_learn::LearnError::ProviderUnavailable { spec: &'static str, required: antecedent_learn::LearnerCapabilities }
+pub variant antecedent_learn::LearnError::Shape { message: &'static str }
+pub variant antecedent_learn::LearnError::Stats(antecedent_stats::error::StatsError)
+pub variant antecedent_learn::LearnError::TaskMismatch { requested: antecedent_learn::PredictionTask, supported: antecedent_learn::PredictionTask }
+pub variant antecedent_learn::LearnError::Unsupported { message: &'static str }
+pub variant antecedent_learn::LearnError::View(alloc::string::String)
+pub variant antecedent_learn::LearnerSpec::Auto
+pub variant antecedent_learn::LearnerSpec::ElasticNet(antecedent_learn::ElasticNetSpec)
+pub variant antecedent_learn::LearnerSpec::GradientBoostedTrees(antecedent_learn::GbtSpec)
+pub variant antecedent_learn::LearnerSpec::Linear(antecedent_learn::LinearSpec)
+pub variant antecedent_learn::LearnerSpec::Logistic(antecedent_learn::LogisticSpec)
+pub variant antecedent_learn::LearnerSpec::NeuralNet(antecedent_learn::NeuralSpec)
+pub variant antecedent_learn::LearnerSpec::RandomForest(antecedent_learn::ForestSpec)
+pub variant antecedent_learn::LearnerSpec::Ridge(antecedent_learn::RidgeSpec)
+pub variant antecedent_learn::PredictionMap::Linear { coefficients: alloc::vec::Vec<f64>, logistic: bool }
+pub variant antecedent_learn::PredictionMap::Trees { trees: alloc::vec::Vec<alloc::vec::Vec<antecedent_learn::PredictionNode>>, base: f64, average: bool, logistic: bool, probability: bool }
+pub variant antecedent_learn::PredictionNode::Leaf { value: core::option::Option<f64> }
+pub variant antecedent_learn::PredictionNode::Split { feature: usize, threshold: f64, inclusive: bool, left: usize, right: usize, missing: usize }
+pub variant antecedent_learn::PredictionTask::BinaryProbability
+pub variant antecedent_learn::PredictionTask::Regression
+pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Budget(&'static str)
+pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Invalid(&'static str)
+pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Nonconvergence
+pub variant antecedent_learn::nested_markov_bayesian::BayesianRefusal::Numerical(&'static str)
+pub variant antecedent_learn::transported_effect::TransportedInference::PointOnly
+pub variant antecedent_learn::transported_effect::TransportedRequest::Interval
+pub variant antecedent_learn::transported_effect::TransportedRequest::Law

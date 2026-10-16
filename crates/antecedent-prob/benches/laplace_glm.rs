@@ -1,8 +1,7 @@
 //! Laplace GLM workspace-reuse benchmark .
-#![allow(missing_docs)]
 #![allow(
-    clippy::cast_possible_truncation,
-    reason = "test scaffolding compares exact constants and indexes with small literals"
+    missing_docs,
+    reason = "benchmark crate root: the criterion macros generate undocumented public items"
 )]
 
 use antecedent_prob::{

@@ -116,7 +116,7 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
         assert!(result.diagnostics.iter().any(|item| item.code.as_ref() == "exec.identify.cached"));
         assert_eq!(result.estimand.method.as_ref(), "transport.sid.direct");
         assert_eq!(result.logical_plan.estimator.as_deref(), Some(expected_estimator.as_str()));
-        let transported = result.transport.as_ref().expect("transport estimate");
+        let transported = result.transport().expect("transport estimate");
         if bayesian {
             let posterior = result.posterior.as_ref().expect("transport posterior");
             assert_eq!(posterior.draws.n_draws, 2_000);
@@ -131,7 +131,10 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
                 .abs()
                     < bayesian_pin["variance_tolerance"].as_f64().unwrap()
             );
-            assert!((result.estimate.ate - posterior.summaries.mean[0]).abs() < 1e-12);
+            assert!(
+                (result.estimate.as_effect().unwrap().ate - posterior.summaries.mean[0]).abs()
+                    < 1e-12
+            );
             // The one-shot facade executes the same retained row-law bootstrap and seed.
             assert_eq!(
                 one_shot.posterior.as_ref().unwrap().draws.values.as_ref(),
@@ -139,9 +142,13 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
             );
         } else {
             assert!((transported.ipw - ipw).abs() <= ipw_tolerance);
-            assert!((result.estimate.ate - ipw).abs() <= ipw_tolerance);
+            assert!((result.estimate.as_effect().unwrap().ate - ipw).abs() <= ipw_tolerance);
         }
-        assert!((one_shot.estimate.ate - result.estimate.ate).abs() < 1e-12);
+        assert!(
+            (one_shot.estimate.as_effect().unwrap().ate - result.estimate.as_effect().unwrap().ate)
+                .abs()
+                < 1e-12
+        );
 
         let bytes =
             prepared.encode_contracted_result(&result, "checked-transport-trial", &ctx).unwrap();
@@ -161,7 +168,7 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
         );
         assert_eq!(refreshed.estimand.method.as_ref(), "transport.sid.direct");
         if !bayesian {
-            assert!((refreshed.transport.as_ref().unwrap().ipw - ipw).abs() <= ipw_tolerance);
+            assert!((refreshed.transport().unwrap().ipw - ipw).abs() <= ipw_tolerance);
         }
         assert!(prepared.has_checked_transport_trial_operation());
         assert!(prepared.refresh(widened(), &ctx).is_err());

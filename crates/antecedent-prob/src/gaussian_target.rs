@@ -7,14 +7,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-
 use crate::backend::BayesDesignRef;
 use crate::error::ProbError;
 use crate::prior::{CoefficientPrecision, GaussianCoefficientPrior, GaussianVarianceModel};
 
 /// Unconstrained posterior density and gradient used by HMC leapfrog steps.
-pub trait PosteriorTarget {
+pub(crate) trait PosteriorTarget {
     /// Dimension of the unconstrained state `q`.
     fn dim(&self) -> usize;
 
@@ -28,7 +26,7 @@ pub trait PosteriorTarget {
 
 /// Shared weighted residual / prior quadratic pieces for Gaussian linear models.
 #[derive(Clone, Debug)]
-pub struct GaussianSufficientStats {
+pub(crate) struct GaussianSufficientStats {
     /// Effective sample size `Σ w_i`.
     pub n_eff: f64,
     /// Number of coefficients `p`.
@@ -41,6 +39,10 @@ impl GaussianSufficientStats {
     /// # Errors
     ///
     /// Empty design or coefficient length mismatch.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn from_design(design: BayesDesignRef<'_>, ncols: usize) -> Result<Self, ProbError> {
         if design.ncols != ncols {
             return Err(ProbError::Shape {
@@ -66,6 +68,10 @@ impl GaussianSufficientStats {
 /// Weighted residual sum of squares and score `X' W r` at `beta`.
 ///
 /// `r_i = y_i - offset_i - x_i' β`, `RSS_w = Σ w_i r_i²`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn rss_and_xtwr(
     design: BayesDesignRef<'_>,
     beta: &[f64],
@@ -133,7 +139,7 @@ pub(crate) fn prior_quadratic(
 
 /// Known-σ² Gaussian target: state `q = β`.
 #[derive(Clone, Debug)]
-pub struct GaussianKnownTarget<'a> {
+pub(crate) struct GaussianKnownTarget<'a> {
     design: BayesDesignRef<'a>,
     coef_prior: GaussianCoefficientPrior,
     prec: CoefficientPrecision,
@@ -149,6 +155,7 @@ impl<'a> GaussianKnownTarget<'a> {
     /// # Errors
     ///
     /// Invalid σ² or design / prior shape errors.
+    #[cfg(test)]
     pub fn new(
         design: BayesDesignRef<'a>,
         coef_prior: GaussianCoefficientPrior,
@@ -163,6 +170,10 @@ impl<'a> GaussianKnownTarget<'a> {
     /// # Errors
     ///
     /// Invalid σ², design / prior shape errors, or a precision of the wrong size.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn with_precision(
         design: BayesDesignRef<'a>,
         coef_prior: GaussianCoefficientPrior,
@@ -193,18 +204,6 @@ impl<'a> GaussianKnownTarget<'a> {
             p_diff: vec![0.0; ncols],
         })
     }
-
-    /// Fixed residual variance.
-    #[must_use]
-    pub const fn sigma2(&self) -> f64 {
-        self.sigma2
-    }
-
-    /// Effective sample size.
-    #[must_use]
-    pub const fn n_eff(&self) -> f64 {
-        self.stats.n_eff
-    }
 }
 
 impl PosteriorTarget for GaussianKnownTarget<'_> {
@@ -212,6 +211,10 @@ impl PosteriorTarget for GaussianKnownTarget<'_> {
         self.stats.p
     }
 
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn logp_and_grad(&mut self, q: &[f64], grad: &mut [f64]) -> Result<f64, ProbError> {
         let p = self.dim();
         if q.len() != p || grad.len() != p {
@@ -235,11 +238,10 @@ impl PosteriorTarget for GaussianKnownTarget<'_> {
 
 /// Inverse-gamma residual target: state `q = [β, λ]` with `λ = log(σ²)`.
 #[derive(Clone, Debug)]
-pub struct GaussianInvGammaTarget<'a> {
+pub(crate) struct GaussianInvGammaTarget<'a> {
     design: BayesDesignRef<'a>,
     coef_prior: GaussianCoefficientPrior,
     prec: CoefficientPrecision,
-    shape: f64,
     scale: f64,
     /// `A = a₀ + (n_eff + p) / 2`.
     a_const: f64,
@@ -253,7 +255,8 @@ impl<'a> GaussianInvGammaTarget<'a> {
     ///
     /// # Errors
     ///
-    /// Invalid InvGamma params or design / prior shape errors.
+    /// Invalid `InvGamma` params or design / prior shape errors.
+    #[cfg(test)]
     pub fn new(
         design: BayesDesignRef<'a>,
         coef_prior: GaussianCoefficientPrior,
@@ -268,8 +271,12 @@ impl<'a> GaussianInvGammaTarget<'a> {
     ///
     /// # Errors
     ///
-    /// Invalid InvGamma params, design / prior shape errors, or a precision of
+    /// Invalid `InvGamma` params, design / prior shape errors, or a precision of
     /// the wrong size.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
     pub fn with_precision(
         design: BayesDesignRef<'a>,
         coef_prior: GaussianCoefficientPrior,
@@ -296,31 +303,12 @@ impl<'a> GaussianInvGammaTarget<'a> {
             design,
             coef_prior,
             prec,
-            shape,
             scale,
             a_const,
             stats,
             xtwr: vec![0.0; ncols],
             p_diff: vec![0.0; ncols],
         })
-    }
-
-    /// Constant `A` in the joint log-density.
-    #[must_use]
-    pub const fn a_const(&self) -> f64 {
-        self.a_const
-    }
-
-    /// Prior shape α₀.
-    #[must_use]
-    pub const fn shape(&self) -> f64 {
-        self.shape
-    }
-
-    /// Prior scale β₀.
-    #[must_use]
-    pub const fn scale(&self) -> f64 {
-        self.scale
     }
 }
 
@@ -329,6 +317,10 @@ impl PosteriorTarget for GaussianInvGammaTarget<'_> {
         self.stats.p + 1
     }
 
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn logp_and_grad(&mut self, q: &[f64], grad: &mut [f64]) -> Result<f64, ProbError> {
         let p = self.stats.p;
         if q.len() != p + 1 || grad.len() != p + 1 {
@@ -368,7 +360,8 @@ impl PosteriorTarget for GaussianInvGammaTarget<'_> {
 /// # Errors
 ///
 /// Propagates design / prior construction errors.
-pub fn gaussian_target_from_model(
+#[cfg(test)]
+pub(crate) fn gaussian_target_from_model(
     design: BayesDesignRef<'_>,
     coef_prior: GaussianCoefficientPrior,
     model: GaussianVarianceModel,
@@ -383,7 +376,7 @@ pub fn gaussian_target_from_model(
 /// # Errors
 ///
 /// Propagates design / prior construction errors.
-pub fn gaussian_target_from_model_with_precision(
+pub(crate) fn gaussian_target_from_model_with_precision(
     design: BayesDesignRef<'_>,
     coef_prior: GaussianCoefficientPrior,
     prec: CoefficientPrecision,
@@ -401,7 +394,7 @@ pub fn gaussian_target_from_model_with_precision(
 
 /// Owned Gaussian target enum (avoids `dyn` across the HMC loop).
 #[derive(Clone, Debug)]
-pub enum GaussianTarget<'a> {
+pub(crate) enum GaussianTarget<'a> {
     /// Known residual variance.
     Known(GaussianKnownTarget<'a>),
     /// Joint inverse-gamma residual prior.

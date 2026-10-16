@@ -3,8 +3,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_lossless, clippy::doc_markdown)]
-
 use std::sync::Arc;
 
 use antecedent::{EstimatorId, RefuteSuite, Study};
@@ -104,7 +102,7 @@ fn two_valued_float_stays_on_binary_overlap() {
 
 #[test]
 fn continuous_float_uses_residual_support_and_skips_riesz() {
-    let t: Vec<f64> = (0..80).map(|i| i as f64 / 80.0).collect();
+    let t: Vec<f64> = (0..80).map(|i| f64::from(i) / 80.0).collect();
     let result = run(table(t, None), RefuteSuite::Full);
     let names = overlap_names(&result);
     assert!(names.iter().any(|n| n == "overlap.continuous_support"), "{names:?}");
@@ -119,10 +117,10 @@ fn continuous_float_uses_residual_support_and_skips_riesz() {
 
 #[test]
 fn integer_dosage_and_multilevel_encoding_are_not_binary() {
-    let dose: Vec<f64> = (0..80).map(|i| (i % 4) as f64).collect();
+    let dose: Vec<f64> = (0..80).map(|i| f64::from(i % 4)).collect();
     let names = overlap_names(&run(table(dose, None), RefuteSuite::Cheap));
     assert!(names.iter().any(|n| n == "overlap.continuous_support"), "dosage {names:?}");
-    let cat: Vec<f64> = (0..80).map(|i| (i % 3) as f64).collect();
+    let cat: Vec<f64> = (0..80).map(|i| f64::from(i % 3)).collect();
     let names = overlap_names(&run(table(cat, None), RefuteSuite::Cheap));
     assert!(names.iter().any(|n| n == "overlap.continuous_support"), "categorical {names:?}");
 }
@@ -172,7 +170,7 @@ fn complete_case_missingness_classifies_the_remaining_sample() {
 
 #[test]
 fn propensity_weighting_refuses_non_binary_treatment() {
-    let t: Vec<f64> = (0..80).map(|i| i as f64 / 80.0).collect();
+    let t: Vec<f64> = (0..80).map(|i| f64::from(i) / 80.0).collect();
     let err = Study::tabular(table(t, None))
         .graph(confounded_dag())
         .query(query())
@@ -203,6 +201,6 @@ fn propensity_weighting_accepts_two_valued_unit_interval() {
         .unwrap()
         .run(&ExecutionContext::for_tests(9))
         .unwrap();
-    assert!(result.estimate.ate.is_finite());
-    assert!(result.estimate.overlap_report.is_some());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().diagnostics.overlap_report.is_some());
 }

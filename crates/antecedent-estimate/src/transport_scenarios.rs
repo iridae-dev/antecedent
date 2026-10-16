@@ -9,7 +9,7 @@
 //! outcome's declared domain (from the set's shared coordinate schema, not from
 //! the atoms the identified distributions happen to carry).
 //!
-//! A conditional question (2.2B B1) compiles each identified scenario through
+//! A conditional question compiles each identified scenario through
 //! the existing ADMG conditional prepared path: the reduced joint's exact plan
 //! at `do(x, w')`, normalized at the requested `w''`. A zero-mass conditioning
 //! event is that scenario's `support_failure`. Counted laws are refused for a
@@ -32,7 +32,7 @@ use crate::error::EstimationError;
 pub const STRUCTURAL_ENVELOPE_INTERPRETATION: &str =
     "range_over_identified_scenarios_not_a_confidence_interval_or_sharp_bound";
 /// How a weighted scenario range may be read.
-pub const WEIGHTED_RANGE_INTERPRETATION: &str = "declared_weight_range_with_unaccounted_mass_at_declared_domain_limits_not_a_confidence_interval";
+pub(crate) const WEIGHTED_RANGE_INTERPRETATION: &str = "declared_weight_range_with_unaccounted_mass_at_declared_domain_limits_not_a_confidence_interval";
 
 /// Range of one outcome's mean across identified scenarios.
 #[derive(Clone, Debug, PartialEq)]
@@ -430,7 +430,7 @@ fn compile_all(
 /// Provider identity of supplied exact laws.
 pub const SCENARIO_EXACT_PROVIDER: &str = "transport.exact_supplied_laws";
 
-#[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.
+#[allow(clippy::needless_pass_by_value, reason = "A `map_err` adapter")]
 fn refuse_scenario(
     refusal: antecedent_identify::sid::scenarios::ScenarioSetRefusal,
 ) -> EstimationError {

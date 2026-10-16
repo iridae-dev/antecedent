@@ -1,4 +1,4 @@
-"""The effect of treatment on the treated on a bounded ADMG (2.2B, X8).
+"""The effect of treatment on the treated on a bounded ADMG.
 
 One cell: ``P(Y_x = y | X = x')`` with ``x != x'``, its distribution over every
 level of ``Y`` and the contrast ``E[Y_x | X = x'] - E[Y | X = x']``, on a

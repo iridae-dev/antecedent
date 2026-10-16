@@ -700,19 +700,17 @@ impl ResponseQuery {
                         )));
                     }
                 }
-                ResponseFunctional::InterventionResponse { .. } => {}
-                _ => {
-                    return Err(QueryError::InvalidResponse(
-                        "temporal attachment is licensed only for MeanCurve and InterventionResponse"
-                            .into(),
-                    ));
-                }
+                ResponseFunctional::InterventionResponse { .. }
+                | ResponseFunctional::AverageDerivative { .. }
+                | ResponseFunctional::PointDerivative { .. }
+                | ResponseFunctional::DirectionalDerivative { .. }
+                | ResponseFunctional::Jacobian { .. } => {}
             }
         }
         Ok(())
     }
 
-    /// Licensed 1.3 static pairs that may ride a temporal curve. Anything else
+    /// Licensed static pairs that may ride a temporal curve. Anything else
     /// refuses with [`TEMPORAL_OBSERVATION_UNLICENSED`].
     ///
     /// # Errors

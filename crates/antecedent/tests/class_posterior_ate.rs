@@ -20,8 +20,8 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
-    set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_cpdag,
+    adjacency_masks_from_pag, set_edge,
 };
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag};
 use antecedent_prob::InferenceDiagnostics;
@@ -134,9 +134,11 @@ fn cpdag_posterior(weights: &[f64], graphs: &[Cpdag]) -> GraphPosterior {
         masks,
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("class_posterior_ate"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("class_posterior_ate"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Cpdag)
@@ -165,9 +167,11 @@ fn pag_posterior(weights: &[f64], graphs: &[Pag]) -> GraphPosterior {
         masks,
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("class_posterior_ate"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("class_posterior_ate"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Pag)
@@ -331,9 +335,10 @@ fn class_posterior_disagreeing_estimands_are_not_a_scalar_mixture() {
     );
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
     assert!(
-        !result.estimate.ate.is_finite() || (result.estimate.ate - fake_mixture).abs() > 0.2,
+        !result.estimate.as_effect().unwrap().ate.is_finite()
+            || (result.estimate.as_effect().unwrap().ate - fake_mixture).abs() > 0.2,
         "disagreeing estimands must not publish the DAG-mixture scalar {fake_mixture}, got {}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
     let mixture = result.structural_response.as_ref().unwrap();
     assert_eq!(mixture.weight_basis, StructuralWeightBasis::PosteriorProbability);
@@ -528,7 +533,8 @@ fn class_posterior_disagreeing_estimands_skip_scalar_mixture_refuter() {
         "disagreeing estimands must not invent a scalar mixture refuter"
     );
     assert!(
-        !result.estimate.ate.is_finite() || (result.estimate.ate - fake_mixture).abs() > 0.2,
+        !result.estimate.as_effect().unwrap().ate.is_finite()
+            || (result.estimate.as_effect().unwrap().ate - fake_mixture).abs() > 0.2,
         "disagreeing estimands must not publish the DAG-mixture scalar {fake_mixture}"
     );
     for report in &result.refutations {
@@ -565,7 +571,7 @@ fn class_posterior_known_truth_mixture_pin() {
     );
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
     assert!(
-        !result.estimate.ate.is_finite(),
+        !result.estimate.as_effect().unwrap().ate.is_finite(),
         "Cpdag: scalar ate must stay withheld when estimands disagree"
     );
     let mixture = result.structural_response.as_ref().expect("Cpdag: mixture");
@@ -612,9 +618,9 @@ fn class_posterior_same_estimand_two_atom_mixture_pin() {
         "Cpdag: same empty adjustment must scalar-mix"
     );
     assert!(
-        (result.estimate.ate - direct_effect).abs() < tolerance,
+        (result.estimate.as_effect().unwrap().ate - direct_effect).abs() < tolerance,
         "Cpdag: mixture mean={} truth={direct_effect}",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
     let mixture = result.structural_response.as_ref().expect("Cpdag: mixture");
     let conditional = match mixture.conditional_on_identified.as_ref() {
@@ -623,7 +629,7 @@ fn class_posterior_same_estimand_two_atom_mixture_pin() {
     };
     assert!((conditional - direct_effect).abs() < tolerance);
     assert!(
-        result.estimate.se_analytic.is_finite(),
+        result.estimate.as_effect().unwrap().se_analytic().is_finite(),
         "Cpdag: two-atom same-estimand mix must publish a joint IF SE"
     );
     assert!(
@@ -658,14 +664,14 @@ fn class_posterior_frequentist_numeric_pins() {
         cpdag_posterior(&weights, &[oriented(false), oriented(true), reverse_causal_cpdag()]);
     let disagree_result = run(data.clone(), disagree, InferenceMode::Frequentist);
     assert!(has_policy(&disagree_result, StructuralAggregationPolicy::GraphDependentAtoms));
-    assert!(!disagree_result.estimate.ate.is_finite());
+    assert!(!disagree_result.estimate.as_effect().unwrap().ate.is_finite());
     let disagree_mix = disagree_result.structural_response.as_ref().unwrap();
     assert!((disagree_mix.unidentified_mass - unidentified_truth).abs() < 1e-12);
     let same = cpdag_posterior(&[0.6, 0.4], &[oriented(false), outcome_parent_cpdag()]);
     let same_result = run(data, same, InferenceMode::Frequentist);
     assert!(has_policy(&same_result, StructuralAggregationPolicy::SameEstimandWeightedMean));
-    assert!((same_result.estimate.ate - direct_effect).abs() < tolerance);
-    assert!(same_result.estimate.se_analytic.is_finite());
+    assert!((same_result.estimate.as_effect().unwrap().ate - direct_effect).abs() < tolerance);
+    assert!(same_result.estimate.as_effect().unwrap().se_analytic().is_finite());
 }
 
 #[test]
@@ -854,7 +860,7 @@ fn class_posterior_graph_posterior_response_runs() {
                     "{label} {query_label} {inference:?}: structural_aggregation diagnostic"
                 );
                 assert!(
-                    result.response.is_some(),
+                    result.response().is_some(),
                     "{label} {query_label} {inference:?}: response payload"
                 );
             }
@@ -955,9 +961,11 @@ fn class_posterior_atom_kind_defaults_to_dag_masks() {
         vec![direct],
         vec![0.0; 9],
         vec![0.0; 9],
-        1.0,
-        InferenceDiagnostics::analytic("dag_default"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("dag_default"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap();
     assert_eq!(gp.atom_kind, GraphPosteriorAtomKind::Dag);
@@ -972,7 +980,7 @@ fn class_posterior_does_not_publish_largest_atom_posterior_as_aggregate() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
     );
     assert!(has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean));
-    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     assert!(result.posterior.is_none());
     let mixture = result.structural_response.as_ref().unwrap();
     assert_eq!(mixture.atoms.iter().filter(|a| a.posterior.is_some()).count(), 2);

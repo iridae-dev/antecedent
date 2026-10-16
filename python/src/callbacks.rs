@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use antecedent::design::{DesignError, Utility};
 use antecedent::gcm::{CompiledCausalModel, DynamicMechanism, MechanismSlot};
@@ -18,11 +18,32 @@ use antecedent_validate::{
     CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError,
 };
 use numpy::{PyArray1, PyReadonlyArray1};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
 use pyo3::types::{PyDict, PyList};
 
 use crate::interrupt::callback_failure;
+
+/// `inspect.signature` and `numpy.random.default_rng`, resolved once per process.
+///
+/// Each mechanism still asks `signature` about its own `sample_noise`. The
+/// callable objects are not imported again on the next draw.
+static INSPECT_SIGNATURE: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+static NUMPY_DEFAULT_RNG: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+fn inspect_signature(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
+    let func = INSPECT_SIGNATURE.get_or_try_init(py, || -> PyResult<_> {
+        Ok(py.import("inspect")?.getattr("signature")?.unbind())
+    })?;
+    Ok(func.bind(py).clone())
+}
+
+fn numpy_default_rng(py: Python<'_>, seed: u64) -> PyResult<Bound<'_, PyAny>> {
+    let func = NUMPY_DEFAULT_RNG.get_or_try_init(py, || -> PyResult<_> {
+        Ok(py.import("numpy.random")?.getattr("default_rng")?.unbind())
+    })?;
+    func.bind(py).call1((seed,))
+}
 
 /// A mechanism callback must return exactly one value per row; extra values would hide a shape
 /// bug in the user's function.
@@ -45,8 +66,10 @@ fn accepts_rng(obj: &Bound<'_, PyAny>) -> Result<bool, ModelError> {
         message: callback_failure("could not inspect sample_noise", e),
     };
     let method = obj.getattr("sample_noise").map_err(unsupported)?;
-    let Ok(signature) = py.import("inspect").and_then(|m| m.call_method1("signature", (&method,)))
-    else {
+    let Ok(signature_of) = inspect_signature(py) else {
+        return Ok(false);
+    };
+    let Ok(signature) = signature_of.call1((&method,)) else {
         return Ok(false);
     };
     let parameters = signature.getattr("parameters").map_err(unsupported)?;
@@ -113,11 +136,22 @@ impl ConditionalIndependenceTest for PyConditionalIndependence {
 /// Python mechanism wrapper: `sample_noise(n) -> array`, `evaluate(parents, noise) -> array`.
 pub struct PyDynamicMechanism {
     obj: Py<PyAny>,
+    /// Whether `sample_noise` accepts `rng`. Computed once per mechanism.
+    accepts_rng: OnceLock<bool>,
 }
 
 impl PyDynamicMechanism {
     pub fn new(obj: Py<PyAny>) -> Self {
-        Self { obj }
+        Self { obj, accepts_rng: OnceLock::new() }
+    }
+
+    fn accepts_rng(&self, py: Python<'_>) -> Result<bool, ModelError> {
+        if let Some(accepts) = self.accepts_rng.get() {
+            return Ok(*accepts);
+        }
+        let accepts = accepts_rng(self.obj.bind(py))?;
+        let _ = self.accepts_rng.set(accepts);
+        Ok(accepts)
     }
 }
 
@@ -130,12 +164,10 @@ impl DynamicMechanism for PyDynamicMechanism {
     ) -> Result<(), ModelError> {
         Python::attach(|py| -> Result<(), ModelError> {
             let bound = self.obj.bind(py);
-            let out = (if accepts_rng(bound)? {
+            let out = (if self.accepts_rng(py)? {
                 // The run's seeded stream governs the user's draws through a NumPy generator.
-                let generator = py
-                    .import("numpy.random")
-                    .and_then(|m| m.call_method1("default_rng", (rng.next_u64(),)))
-                    .map_err(|e| ModelError::Unsupported {
+                let generator =
+                    numpy_default_rng(py, rng.next_u64()).map_err(|e| ModelError::Unsupported {
                         message: callback_failure("failed to seed sample_noise rng", e),
                     })?;
                 let kwargs = PyDict::new(py);
@@ -420,7 +452,7 @@ impl CustomEffectValidator for PyCustomValidator {
             };
             let kwargs = PyDict::new(py);
             kwargs.set_item("ate", problem.original.ate).map_err(py_err)?;
-            kwargs.set_item("se_analytic", problem.original.se_analytic).map_err(py_err)?;
+            kwargs.set_item("se_analytic", problem.original.se_analytic()).map_err(py_err)?;
             kwargs.set_item("method", problem.estimand.method.to_string()).map_err(py_err)?;
             let adj: Vec<String> = problem
                 .estimand
@@ -558,9 +590,7 @@ pub fn parse_validators(
             .collect::<PyResult<_>>()?
     } else {
         let list = obj.cast::<PyList>().map_err(|_| {
-            PyValueError::new_err(
-                "validators must be a list of callables or a {name: callable} mapping",
-            )
+            crate::value_err("validators must be a list of callables or a {name: callable} mapping")
         })?;
         list.iter().map(|item| Ok((qualified_name(&item)?, item))).collect::<PyResult<_>>()?
     };
@@ -568,10 +598,10 @@ pub fn parse_validators(
     let mut out = Vec::with_capacity(named.len());
     for (name, item) in named {
         if !item.is_callable() {
-            return Err(PyValueError::new_err(format!("validator {name:?} is not callable")));
+            return Err(crate::value_err(format!("validator {name:?} is not callable")));
         }
         if !seen.insert(name.clone()) {
-            return Err(PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "validator name {name:?} is not unique; pass a {{name: callable}} mapping to name \
                  each validator's attested evidence"
             )));
@@ -596,16 +626,17 @@ pub fn apply_mechanism_wrappers(
     let mut store = model.mechanisms.clone();
     for (key, val) in wrappers.iter() {
         let name: String = key.extract()?;
-        let idx = names.iter().position(|n| n == &name).ok_or_else(|| {
-            PyValueError::new_err(format!("unknown mechanism wrapper node {name}"))
-        })?;
+        let idx = names
+            .iter()
+            .position(|n| n == &name)
+            .ok_or_else(|| crate::value_err(format!("unknown mechanism wrapper node {name}")))?;
         let slot = MechanismSlot::Dynamic {
             id: Arc::from(name.as_str()),
             mechanism: Arc::new(PyDynamicMechanism::new(val.unbind())),
         };
         store = store
             .with_replaced(DenseNodeId::from_raw(idx as u32), slot)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            .map_err(|e| crate::value_err(e.to_string()))?;
     }
     Ok(model.clone().with_mechanisms(store))
 }
@@ -647,7 +678,7 @@ pub fn progress_sink_from_py(
         None => Ok(None),
         Some(cb) => {
             if !cb.is_callable() {
-                return Err(PyValueError::new_err("on_progress must be callable"));
+                return Err(crate::value_err("on_progress must be callable"));
             }
             Ok(Some(std::sync::Arc::new(PyProgressSink::new(cb.clone().unbind()))
                 as std::sync::Arc<dyn antecedent_core::ProgressSink>))
@@ -680,8 +711,8 @@ impl antecedent::StageResultSink for PyStageResultSink {
                 | antecedent::StageEvent::Uncertainty { estimate } => {
                     let d = PyDict::new(py);
                     let _ = d.set_item("ate", estimate.ate);
-                    let _ = d.set_item("se_analytic", estimate.se_analytic);
-                    let _ = d.set_item("se_bootstrap", estimate.se_bootstrap);
+                    let _ = d.set_item("se_analytic", estimate.se_analytic());
+                    let _ = d.set_item("se_bootstrap", estimate.se_bootstrap());
                     d
                 }
                 antecedent::StageEvent::Validate { refutations, predictive_checks } => {
@@ -709,7 +740,7 @@ pub fn stage_sink_from_py(
         None => Ok(None),
         Some(cb) => {
             if !cb.is_callable() {
-                return Err(PyValueError::new_err("on_stage must be callable"));
+                return Err(crate::value_err("on_stage must be callable"));
             }
             Ok(Some(std::sync::Arc::new(PyStageResultSink::new(cb.clone().unbind()))
                 as std::sync::Arc<dyn antecedent::StageResultSink>))

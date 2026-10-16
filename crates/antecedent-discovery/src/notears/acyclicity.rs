@@ -2,15 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 const TAYLOR_TERMS: u32 = 20;
 
 /// Scratch buffers for \(h(W)\) / \(\nabla h\) (grow-only).
@@ -46,6 +37,10 @@ fn grow(v: &mut Vec<f64>, n: usize) {
 /// \(h(W)=\operatorname{tr}(\exp(W\circ W))-d\).
 ///
 /// Writes `expm(W∘W)` into `ws.expm` for reuse by [`grad_h`].
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn h_of_w(
     w: &[f64],
     d: usize,
@@ -153,13 +148,17 @@ fn matrix_exp_inplace(d: usize, ws: &mut AcyclicityWorkspace) -> Result<(), &'st
 }
 
 fn matmul(a: &[f64], b: &[f64], out: &mut [f64], d: usize) {
+    // i-k-j: each `out[i, j]` is still summed in `k` order, so `h(W)` matches the
+    // previous i-j-k product bit for bit, while `b`'s row stays hot in `j`.
+    out[..d * d].fill(0.0);
     for i in 0..d {
-        for j in 0..d {
-            let mut s = 0.0;
-            for k in 0..d {
-                s += a[i * d + k] * b[k * d + j];
+        for k in 0..d {
+            let aik = a[i * d + k];
+            let brow = &b[k * d..(k + 1) * d];
+            let orow = &mut out[i * d..(i + 1) * d];
+            for j in 0..d {
+                orow[j] += aik * brow[j];
             }
-            out[i * d + j] = s;
         }
     }
 }
@@ -167,6 +166,30 @@ fn matmul(a: &[f64], b: &[f64], out: &mut [f64], d: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// i-k-j still adds the `k` terms of each `out[i, j]` in ascending `k`, so the product
+    /// matches the previous i-j-k loop bit for bit.
+    #[test]
+    fn matmul_matches_ijk_accumulation() {
+        let d = 3;
+        let a = [0.3, -1.25, 0.5, 2.0, 0.125, -0.75, 1.5, 0.0, -2.5];
+        let b = [1.0, 0.5, -0.25, 0.125, -3.0, 0.75, 2.5, -0.5, 0.0625];
+        let mut got = vec![0.0; d * d];
+        matmul(&a, &b, &mut got, d);
+        let mut expect = vec![0.0; d * d];
+        for i in 0..d {
+            for j in 0..d {
+                let mut sum = 0.0;
+                for k in 0..d {
+                    sum += a[i * d + k] * b[k * d + j];
+                }
+                expect[i * d + j] = sum;
+            }
+        }
+        for (g, e) in got.iter().zip(&expect) {
+            assert_eq!(g.to_bits(), e.to_bits());
+        }
+    }
 
     #[test]
     fn h_zero_at_zero() {
@@ -237,5 +260,25 @@ mod tests {
         assert!(ws.expm[1].abs() < 1e-10);
         assert!(ws.expm[2].abs() < 1e-10);
         assert!((ws.expm[3] - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn matmul_matches_the_k_ordered_product() {
+        let a = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
+        let b = [9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0];
+        let d = 3;
+        let mut out = [0.0; 9];
+        matmul(&a, &b, &mut out, d);
+        let mut expect = [0.0; 9];
+        for i in 0..d {
+            for j in 0..d {
+                let mut s = 0.0;
+                for k in 0..d {
+                    s += a[i * d + k] * b[k * d + j];
+                }
+                expect[i * d + j] = s;
+            }
+        }
+        assert_eq!(out, expect);
     }
 }

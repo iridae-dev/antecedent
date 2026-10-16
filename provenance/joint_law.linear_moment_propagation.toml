@@ -1,0 +1,26 @@
+feature_id = "joint_law.linear_moment_propagation"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# papers = [] because the routes are derived in-repo from textbook identities (delta method, law of total variance, expectation under a joint law) with no single paper whose procedure they reproduce.
+papers = [
+]
+
+implementation_deviations = [
+  "Derived in-repo from the delta method, the law of total variance and expectation under an aligned joint law; not taken from a single source.",
+  "The extremes of E[g(X,Y)] for a supermodular or submodular g are attained at the comonotone and countermonotone couplings; here they are evaluated exactly on finite atoms (draws or weighted atoms), not for continuous marginals, and the sign structure is verified on the atom lattice before any bound is reported.",
+  "Makarov and Rueschendorf bounds are evaluated exactly on finite atoms at each atom's value, left limit and right limit; the stated sharpness for general marginals is checked here against permutation enumeration for equal-mass marginals and against closed forms for Bernoulli and uniform marginals.",
+  "A declared correlation range is applied to quantities linear in the correlation (endpoints exact) and the pooled estimate reuses the equicorrelated envelope of the evidence ledger; it is an assumption range.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-stats/src/joint_law.rs",
+  "crates/antecedent-contract/src/joint_law_rule.rs",
+  "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs",
+  "crates/antecedent/tests/joint_law_propagation_facade.rs",
+]

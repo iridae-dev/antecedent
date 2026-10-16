@@ -1,39 +1,32 @@
 """Strict evidence for stateless measured factories with retained native source replay."""
 
 import ast
-
 import tomllib
 
 CONTRACTS = {
     "antecedent.transport.joint_bayesian": (
-        "2.3A.X4.joint_bayesian_transport",
+        "transport.joint_bayesian",
         "joint_bayesian_transport",
-        "x4_joint_bayesian_transport",
     ),
     "antecedent.learned.joint_transport": (
-        "2.3A.X4.learned_joint_transport",
+        "transport.learned_joint",
         "learned_joint_transport",
-        "x4_learned_joint_transport",
     ),
     "antecedent.transport.binary_nested_markov": (
-        "2.3A.X4.binary_nested_markov_pilot",
+        "identify.binary_nested_markov",
         "binary_nested_markov",
-        "x4_binary_nested_markov",
     ),
     "antecedent.transport.binary_nested_markov_fisher_interval": (
-        "2.3A.X4.binary_nested_markov_fisher",
+        "identify.binary_nested_markov_fisher",
         "binary_nested_markov_fisher_interval",
-        "x4_binary_nested_markov",
     ),
     "antecedent.transport.temporal_dependent_interval": (
-        "2.3A.X5.dependent_temporal_interval",
+        "temporal.dependent_interval",
         "temporal_dependent_interval",
-        "x5_dependent_temporal_interval",
     ),
     "antecedent.transport.sampled_observation_recovery": (
-        "2.3A.X10.sampled_observation_recovery",
+        "recovery.sampled_observation",
         "sampled_observation_recovery",
-        "x10_sampled_observation_recovery",
     ),
 }
 
@@ -189,9 +182,9 @@ def source_replay_problems(root, route, body):
         return [
             "source-bound replay is only defined for the six exact measured uncertainty factories"
         ]
-    record_id, producer, provenance = contract
+    record_id, producer = contract
     records = tomllib.loads(
-        (root / "parity/promotion_2_3.toml").read_text(encoding="utf-8")
+        (root / "parity/promotion.toml").read_text(encoding="utf-8")
     )["record"]
     record = next((r for r in records if r["id"] == record_id), {})
     if (
@@ -213,7 +206,7 @@ def source_replay_problems(root, route, body):
             "source-bound replay must match the owning calibrated public uncertainty route"
         ]
     proof = tomllib.loads(
-        (root / f"provenance/{provenance}.toml").read_text(encoding="utf-8")
+        (root / f"provenance/{record_id}.toml").read_text(encoding="utf-8")
     )
     if route["evidence_test"] not in proof.get("test_sources", []):
         return [

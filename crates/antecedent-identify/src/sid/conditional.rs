@@ -1,4 +1,4 @@
-//! ADMG conditional transport on the classical complete-source family (2.2B B1).
+//! ADMG conditional transport on the classical complete-source family.
 //!
 //! The query is the target population's conditional interventional distribution
 //! `P*(y | do(x), w)` over a selection ADMG, answered from a source that can run
@@ -64,7 +64,7 @@
 //! the selection targets. `the_moved_set_is_selection_independent` in the
 //! integration tests pins this on every three-node ADMG and selection pattern.
 //!
-//! # Extension note for the hedge/witness design (B5)
+//! # Extension note for the hedge/witness design
 //!
 //! [`ConditionalObstructionCandidate`] is additive: it pairs the unchanged
 //! [`SHedgeCertificate`] of the reduced joint with the rule-2 moves that produced
@@ -110,7 +110,7 @@ pub const ADMG_CONDITIONAL_DEFAULT_LIMITS: SearchLimits =
 /// Memory cap (estimated live-state bytes, cumulative across the stages of one
 /// decision): the default and the maximum. The effective cap is the smaller of
 /// this and the context's hard limit, so it is never absent.
-pub const ADMG_CONDITIONAL_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
+pub(crate) const ADMG_CONDITIONAL_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 
 /// A declared bound: graph size, treatments, conditioned set or search limits.
 const BOUNDS_EXCEEDED: &str = "admg_transport.bounds_exceeded";
@@ -133,7 +133,7 @@ const STAGES: [&str; 3] = ["rule_two_reduction", "classical_sid", "catalog_bindi
 const WITNESS_STAGE: &str = "conditional_witness";
 
 /// The frozen `(reason code, admg_transport.* detail)` pair of an error the
-/// conditional route raises, as the B1 promotion record declares them. `None`
+/// conditional route raises, as the route declares them. `None`
 /// for an error the route does not own.
 #[must_use]
 #[doc(hidden)]
@@ -789,14 +789,8 @@ pub(super) fn validate(
 
 /// Static variable of every dense node, in dense order.
 pub(super) fn dense_variables(graph: &Admg) -> Result<Vec<VariableId>, IdentificationError> {
-    graph
-        .nodes()
-        .iter()
-        .map(|node| match node {
-            antecedent_graph::NodeRef::Static(variable) => Ok(*variable),
-            _ => Err(invalid_query("only static observed nodes are supported")),
-        })
-        .collect()
+    super::static_nodes::static_variables(graph)
+        .map_err(|()| invalid_query("only static observed nodes are supported"))
 }
 
 /// Dense index of `v` in `variables`.
@@ -836,7 +830,7 @@ fn rule_two_search(
     let n = graph.node_count();
     let mut mutilated = Admg::with_variables(u32::try_from(n).map_err(|_| bounds_exceeded())?);
     for from in 0..n {
-        let from = DenseNodeId::from_raw(u32::try_from(from).map_err(|_| bounds_exceeded())?);
+        let from = DenseNodeId::try_from_usize(from).map_err(|_| bounds_exceeded())?;
         if from != w {
             for &to in graph.children(from) {
                 if !x.contains(&to) {
@@ -1093,7 +1087,7 @@ pub(super) fn decide_charged(
 /// [`ConditionalTransportDecision::Exhausted`] like a stop in any other stage:
 /// its receipt lists the two finished stages as explored and this one as
 /// unevaluated, so a stop is never read as a search that ran out of ideas.
-#[allow(clippy::too_many_arguments)] // The decision's state at the hand-off.
+#[allow(clippy::too_many_arguments, reason = "The decision's state at the hand-off")]
 fn witness_stage(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
@@ -1194,7 +1188,7 @@ fn reduce(
             .iter()
             .position(|w| w == v)
             .ok_or_else(|| invalid_query("unknown coordinate"))?;
-        Ok(DenseNodeId::from_raw(u32::try_from(i).map_err(|_| bounds_exceeded())?))
+        DenseNodeId::try_from_usize(i).map_err(|_| bounds_exceeded())
     };
     let y = query.base.outcomes.iter().map(dense).collect::<Result<Vec<_>, _>>()?;
     let mut x = query.base.treatments.iter().map(dense).collect::<Result<Vec<_>, _>>()?;
@@ -1227,12 +1221,7 @@ mod tests {
     use super::*;
     use antecedent_core::MemoryBudget;
 
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
-    fn d(i: u32) -> DenseNodeId {
-        DenseNodeId::from_raw(i)
-    }
+    use crate::test_support::{d, v};
 
     /// Every source experiment and the target observational joint over three nodes.
     fn full_catalog() -> EvidenceCatalog {

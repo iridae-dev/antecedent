@@ -7,7 +7,7 @@
 mod calibration;
 #[path = "../../antecedent-estimate/tests/common/candidate_calibration.rs"]
 mod candidate;
-use antecedent_core::{QuantityRole, ScientificQuantity};
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,

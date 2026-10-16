@@ -5,15 +5,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_range_loop)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
@@ -113,6 +104,10 @@ pub(crate) fn fit_with_absolute_scale_resolved(
 ///
 /// `β̂` is the weighted least-squares solution and `n` counts rows with a positive
 /// weight (the WLS residual quadratic form has expectation `σ² (n − p)`).
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn ols_residual_variance(design: BayesDesignRef<'_>) -> Result<f64, ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
@@ -197,8 +192,14 @@ fn fit_conjugate_gaussian_resolved(
             draw_mvn_known_sigma(&mean, &cov, sigma2, options.n_draws, options.seed, workspace)?;
         (mean, draws, false, condition, Some(cov))
     } else {
-        let post =
-            posterior_nig(ncols, &coef_prior, &prec, xtx, xty, ig, yty, n_eff, Some(design))?;
+        let post = posterior_nig(
+            ncols,
+            &coef_prior,
+            &prec,
+            NigMoments { xtx, xty, yty, n_eff },
+            ig,
+            Some(design),
+        )?;
         let draws = draw_nig(
             &post.mean,
             &post.scale_chol,
@@ -233,6 +234,10 @@ fn fit_conjugate_gaussian_resolved(
     Ok(BayesFitResult { draws: posterior, map, diagnostics, cov: exact_cov })
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn ensure_conjugate_gram(
     design: BayesDesignRef<'_>,
     workspace: &mut LaplaceWorkspace,
@@ -371,25 +376,14 @@ impl ScaledSolve {
 /// merely in different units (say `1e8` and `1e-3`) is judged by the condition of the
 /// equilibrated system, not by its units.
 fn solve_posterior_mean(a: &[f64], ncols: usize, rhs: &[f64]) -> Result<ScaledSolve, ProbError> {
-    let scales: Vec<f64> = (0..ncols)
-        .map(|j| {
-            let diag = a[j * ncols + j];
-            if diag.is_finite() && diag > 0.0 {
-                // `2^round(log2 sqrt(diag))`, within the normal exponent range.
-                #[allow(clippy::cast_possible_truncation, reason = "exponent of a finite f64")]
-                let e = (0.5 * diag.log2()).round().clamp(-1000.0, 1000.0) as i32;
-                2.0_f64.powi(e)
-            } else {
-                1.0
-            }
-        })
-        .collect();
-    let mut scaled = vec![0.0; ncols * ncols];
-    for i in 0..ncols {
-        for j in 0..ncols {
-            scaled[i * ncols + j] = a[i * ncols + j] / (scales[i] * scales[j]);
-        }
+    let scales = antecedent_kernels::symmetric_scales(a, ncols);
+    if scales.len() != ncols {
+        return Err(ProbError::Shape {
+            message: "posterior precision is shorter than its dimension",
+        });
     }
+    let mut scaled = vec![0.0; ncols * ncols];
+    antecedent_kernels::equilibrate_into(a, &scales, ncols, &mut scaled);
     let scaled_rhs: Vec<f64> = rhs.iter().zip(&scales).map(|(r, d)| r / d).collect();
     let mut mean = vec![0.0; ncols];
     let mut chol = vec![0.0; ncols * ncols];
@@ -416,17 +410,32 @@ struct NigPosterior {
     condition: f64,
 }
 
+/// Weighted normal-linear-model moments the NIG update reads.
+#[derive(Clone, Copy)]
+struct NigMoments<'a> {
+    /// `X'WX`, `ncols × ncols` row-major.
+    xtx: &'a [f64],
+    /// `X'Wy`.
+    xty: &'a [f64],
+    /// `y'Wy`.
+    yty: f64,
+    /// Effective sample size.
+    n_eff: f64,
+}
+
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 fn posterior_nig(
     ncols: usize,
     prior: &GaussianCoefficientPrior,
     prec: &CoefficientPrecision,
-    xtx: &[f64],
-    xty: &[f64],
+    moments: NigMoments<'_>,
     ig: InvGammaPrior,
-    yty: f64,
-    n_eff: f64,
     design: Option<BayesDesignRef<'_>>,
 ) -> Result<NigPosterior, ProbError> {
+    let NigMoments { xtx, xty, yty, n_eff } = moments;
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::PosteriorFit,
         || {
@@ -473,6 +482,10 @@ fn posterior_nig(
 }
 
 /// Weighted residual sum of squares `Σ w_i (y_i − offset_i − x_i' m)²`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn residual_ss_from_design(design: BayesDesignRef<'_>, mean: &[f64]) -> f64 {
     let nrows = design.nrows;
     let ncols = mean.len();
@@ -517,6 +530,10 @@ fn residual_ss_from_moments(ncols: usize, mean: &[f64], xtx: &[f64], xty: &[f64]
     rss.max(0.0)
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn draw_mvn_known_sigma(
     mean: &[f64],
     cov: &[f64],
@@ -552,6 +569,14 @@ fn draw_mvn_known_sigma(
     Ok(Arc::from(values))
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "returns Result to match the fallible sibling paths it is dispatched alongside"
+)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn draw_nig(
     mean: &[f64],
     scale_chol: &[f64],
@@ -673,6 +698,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn conjugate_reports_posterior_precision_condition() {
         // Well-conditioned design: a finite condition estimate that publishes.
         let (x, y) = simple_design();
@@ -956,6 +985,14 @@ mod tests {
     /// large-mean outcomes; the residual-plus-prior-quadratic form must match the
     /// analytic `(αn, βn)` and the Student-t marginal half-width.
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one fixture exercised end to end; later assertions read locals built above them"
+    )]
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+    )]
     fn nig_scale_matches_analytic_on_uncentred_design() {
         for &sigma in &[0.1_f64, 10.0] {
             let n = 64usize;
@@ -1002,7 +1039,7 @@ mod tests {
             let beta_n = beta0 + 0.5 * (rss + prior_quad);
             // Marginal Var(β) under NIG: (βn / (αn − 1)) · Vn
             let marg_var = (beta_n / (alpha_n - 1.0)) * vn;
-            let half_width = 1.96 * marg_var.sqrt();
+            let half_width = antecedent_kernels::NORMAL_Q975 * marg_var.sqrt();
 
             let super::NigPosterior {
                 mean: post_mean, alpha_n: post_alpha, beta_n: post_beta, ..
@@ -1010,11 +1047,8 @@ mod tests {
                 1,
                 prior.gaussian_coefficients().unwrap(),
                 &CoefficientPrecision::Diagonal(prior.gaussian_coefficients().unwrap().precision()),
-                &[xtx],
-                &[xty],
+                NigMoments { xtx: &[xtx], xty: &[xty], yty, n_eff: n as f64 },
                 InvGammaPrior { shape: alpha0, scale: beta0 },
-                yty,
-                n as f64,
                 Some(BayesDesignRef {
                     x_colmajor: &x,
                     nrows: n,
@@ -1061,7 +1095,7 @@ mod tests {
                 "sigma={sigma}: draw mean {} vs {mn}",
                 s.mean[0]
             );
-            let emp_half = 1.96 * s.sd[0];
+            let emp_half = antecedent_kernels::NORMAL_Q975 * s.sd[0];
             assert!(
                 (emp_half - half_width).abs() / half_width < 0.15,
                 "sigma={sigma}: credible half-width {emp_half} vs analytic {half_width}"
@@ -1091,11 +1125,8 @@ mod tests {
             1,
             &prior,
             &CoefficientPrecision::Diagonal(prior.precision()),
-            &[xtx],
-            &[xty],
+            NigMoments { xtx: &[xtx], xty: &[xty], yty, n_eff: n as f64 },
             ig,
-            yty,
-            n as f64,
             Some(BayesDesignRef {
                 x_colmajor: &x,
                 nrows: n,
@@ -1216,7 +1247,7 @@ mod tests {
             let z = standard_normal(&mut rng);
             x[r] = 1.0;
             x[n + r] = z;
-            let p = 1.0 / (1.0 + (-(0.3 + 0.8 * z)).exp());
+            let p = antecedent_kernels::sigmoid(0.3 + 0.8 * z);
             y[r] = f64::from(rng.next_f64() < p);
         }
         let design = BayesDesignRef {

@@ -1,4 +1,4 @@
-//! Uncertain pre-action state of the finite two-step sequence (2.3A, X5).
+//! Uncertain pre-action state of the finite two-step sequence.
 //!
 //! The target two-step mean marginalized over the initial state is
 //! `sum_{s0} P_target(s0) * R(s0)`, where `R(s0)` is the whole sequence's
@@ -13,29 +13,31 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::reason_code;
+use antecedent_core::{CanonicalWriter, reason_code};
 
 use crate::error::EstimationError;
 use crate::temporal_dependent_interval::{
-    ResponseGap, SequenceTallies, TemporalEstimator, TemporalUnitPanel, UnitHistories, fold,
-    fold_text,
+    ResponseGap, SequenceTallies, TemporalEstimator, TemporalUnitPanel, UnitHistories,
 };
+
+/// Domain tag of the initial-state law identity.
+const LAW_DIGEST_TAG: &str = "antecedent.estimate.temporal_initial_state.law";
 
 /// Most support points of an initial-state law.
 pub const INITIAL_STATE_MAX_STATES: usize = 64;
 /// Largest deviation of a law's total mass from one.
-pub const INITIAL_STATE_MASS_TOLERANCE: f64 = 1e-9;
+pub(crate) const INITIAL_STATE_MASS_TOLERANCE: f64 = 1e-9;
 /// The only inference claim of this route.
 pub const INITIAL_STATE_INFERENCE_CLAIM: &str = "point_only";
 
 /// Detail: the initial-state route is closed.
-pub const INITIAL_STATE_ROUTE_FROZEN: &str = "initial_state.route_frozen";
+pub(crate) const INITIAL_STATE_ROUTE_FROZEN: &str = "initial_state.route_frozen";
 /// Detail: only a source law or a point state was supplied for a target-marginal query.
-pub const INITIAL_STATE_TARGET_LAW_MISSING: &str = "initial_state.target_law_missing";
+pub(crate) const INITIAL_STATE_TARGET_LAW_MISSING: &str = "initial_state.target_law_missing";
 /// Detail: more support points than [`INITIAL_STATE_MAX_STATES`].
-pub const INITIAL_STATE_TOO_MANY_STATES: &str = "initial_state.too_many_states";
+pub(crate) const INITIAL_STATE_TOO_MANY_STATES: &str = "initial_state.too_many_states";
 /// Detail: a state with positive target mass has no history support.
-pub const INITIAL_STATE_SUPPORT_GAP: &str = "initial_state.support_gap";
+pub(crate) const INITIAL_STATE_SUPPORT_GAP: &str = "initial_state.support_gap";
 
 /// The refusal of the public initial-state route until its evidence passes.
 #[must_use]
@@ -126,12 +128,13 @@ impl InitialStateLaw {
                  summing to one",
             ));
         }
-        let mut digest = fold_text(0x1417, &snapshot_id);
-        digest = fold(digest, u64::from(population == InitialStatePopulation::Target));
+        let mut digest = CanonicalWriter::new(LAW_DIGEST_TAG);
+        digest.text(&snapshot_id);
+        digest.word(u64::from(population == InitialStatePopulation::Target));
         for (level, mass) in &states {
-            digest = fold(fold(digest, u64::from(*level)), mass.to_bits());
+            digest.word(u64::from(*level)).real(*mass);
         }
-        Ok(Self { population, snapshot_id, states, digest })
+        Ok(Self { population, snapshot_id, states, digest: crate::util::canonical_word(&digest) })
     }
 
     /// Whose law this is.
@@ -344,5 +347,30 @@ impl TemporalEstimator for MarginalizedQuery {
 
     fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
         Ok(self.contributions(units)?.iter().map(|c| c.mass * c.response).sum())
+    }
+}
+
+#[cfg(test)]
+mod digest_tests {
+    use super::*;
+
+    #[test]
+    fn law_digest_matches_the_independent_derivation() {
+        // Derived in Python from the documented framing and a from-scratch BLAKE3: tag,
+        // snapshot text, the target flag, then each (level, mass bits).
+        let law = InitialStateLaw::new(
+            InitialStatePopulation::Target,
+            "target-state",
+            vec![(0, 0.3), (1, 0.7)],
+        )
+        .unwrap();
+        assert_eq!(law.digest(), 284_173_709_406_389_569);
+        let source = InitialStateLaw::new(
+            InitialStatePopulation::Source,
+            "target-state",
+            vec![(0, 0.3), (1, 0.7)],
+        )
+        .unwrap();
+        assert_ne!(source.digest(), law.digest(), "the population is part of the identity");
     }
 }

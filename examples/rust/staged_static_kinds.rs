@@ -65,10 +65,14 @@ pub fn run() -> Result<(), CausalError> {
             .run(&ctx)?;
         println!(
             "{label}={:.4} estimator={}",
-            result.estimate.ate,
+            result.estimate.as_effect().unwrap().ate,
             result.logical_plan.estimator.as_deref().unwrap_or("?")
         );
-        assert!((result.estimate.ate - expected).abs() < 0.03, "{label}={}", result.estimate.ate);
+        assert!(
+            (result.estimate.as_effect().unwrap().ate - expected).abs() < 0.03,
+            "{label}={}",
+            result.estimate.as_effect().unwrap().ate
+        );
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
     }
 
@@ -84,7 +88,7 @@ pub fn run() -> Result<(), CausalError> {
         .bootstrap_replicates(0)
         .build()?
         .run(&ctx)?;
-    let cf = result.counterfactual.as_ref().expect("unit ITE");
+    let cf = result.counterfactual().expect("unit ITE");
     println!(
         "mean_ite={:.4} n={} estimator={}",
         cf.mean_ite,

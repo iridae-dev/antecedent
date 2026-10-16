@@ -93,9 +93,9 @@ notes = "ResultStore refuses over-budget inserts"
 id = "design_state.facade"
 status = "done"
 evidence_kind = "implementation_exists"
-evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_test = "crates/antecedent/tests/identity_contract.rs"
 evidence_assertion = "design_ranking_composes_the_existing_ranker"
-notes = "rank_designs / new_antecedent_state / apply_state_event + Python surfaces. 1.10 adapters: design_rank_* in crates/antecedent/tests/v110_contract.rs (licensed-cell gate, then this ranker). Does not invent a parallel ranking API."
+notes = "rank_designs / new_antecedent_state / apply_state_event + Python surfaces. Adapters: design_rank_* in crates/antecedent/tests/identity_contract.rs (licensed-cell gate, then this ranker). Does not invent a parallel ranking API."
 
 [[capabilities]]
 id = "design_state.incremental.particle_graph_score"

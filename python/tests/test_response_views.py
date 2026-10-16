@@ -210,4 +210,4 @@ def test_identified_set_keeps_unbounded_intervals() -> None:
     uncertainty = ResponseUncertainty(
         "identified_set", lower=[[-float("inf")]], upper=[[float("inf")]]
     )
-    assert uncertainty.lower == [[-float("inf")]]
+    assert uncertainty.lower == ((-float("inf"),),)

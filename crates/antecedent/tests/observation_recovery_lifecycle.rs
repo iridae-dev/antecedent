@@ -1,4 +1,4 @@
-//! 2.2B X10: prepared lifecycle, export and independent consumption of exact
+//! Prepared lifecycle, export and independent consumption of exact
 //! binary observation recovery, with the artifact mutation set.
 #![allow(clippy::float_cmp, reason = "the mutation needs two cells with different masses")]
 
@@ -56,9 +56,11 @@ fn prepare(model: &MModel) -> PreparedObservationRecovery {
         model.catalog(),
         Some(effect(model)),
         RecoveryLimits::default(),
-        model.observed_law(),
-        requests(),
-        ExactEvaluationLimits::default(),
+        antecedent::RecoveryEvaluation {
+            observed: model.observed_law(),
+            requests: requests(),
+            limits: ExactEvaluationLimits::default(),
+        },
         &ctx(),
     )
     .unwrap()
@@ -127,9 +129,11 @@ fn preparing_from_a_decided_derivation_never_decides_again_and_checks_its_inputs
             catalog,
             effect,
             (*derivation).clone(),
-            model.observed_law(),
-            requests,
-            ExactEvaluationLimits::default(),
+            antecedent::RecoveryEvaluation {
+                observed: model.observed_law(),
+                requests,
+                limits: ExactEvaluationLimits::default(),
+            },
             &ctx(),
         )
     };
@@ -223,9 +227,11 @@ fn a_nonrecoverable_decision_refuses_preparation_with_its_witness_code() {
         censored.catalog(),
         None,
         RecoveryLimits::default(),
-        censored.observed_law(),
-        Vec::new(),
-        ExactEvaluationLimits::default(),
+        antecedent::RecoveryEvaluation {
+            observed: censored.observed_law(),
+            requests: Vec::new(),
+            limits: ExactEvaluationLimits::default(),
+        },
         &ctx(),
     )
     .unwrap_err();
@@ -271,9 +277,11 @@ fn the_io_consumer_replays_under_the_stored_limits() {
         model.catalog(),
         Some(effect(&model)),
         RecoveryLimits::default(),
-        model.observed_law(),
-        (0..65).map(|_| requests()[0].clone()).collect(),
-        ExactEvaluationLimits::default(),
+        antecedent::RecoveryEvaluation {
+            observed: model.observed_law(),
+            requests: (0..65).map(|_| requests()[0].clone()).collect(),
+            limits: ExactEvaluationLimits::default(),
+        },
         &ctx(),
     )
     .unwrap();
@@ -302,6 +310,36 @@ fn consume(wire: &RecoveryArtifactWire) -> Result<(), RecoveryArtifactError> {
         &ctx(),
     )
     .map(|_| ())
+}
+
+#[test]
+fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
+    use antecedent_identify::RECOVERY_RULE_VERSION;
+    let (bytes, _) = exported(&model());
+    let sealed = RecoveryArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(sealed.derivation.rule_version, RECOVERY_RULE_VERSION);
+    let consumed =
+        RecoveryArtifactWire::consume_with_limits(&bytes, RecoveryConsumeLimits::default(), &ctx())
+            .expect("the sealed artifact is consumed");
+    // The derivation and recovered-law identity are the ones the artifact was sealed with.
+    assert!(consumed.derivation.identity().starts_with(RECOVERY_RULE_VERSION));
+    assert!(sealed.recovered_identity.contains(RECOVERY_RULE_VERSION));
+    assert_eq!(sealed.recovered, consumed.wire.recovered);
+    assert_eq!(sealed.effects, consumed.wire.effects);
+    // Tampering is refused: an unresealed version edit hits the carried digest, a
+    // resealed edit fails the re-decision, and no other version is accepted.
+    let other = RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    let mut swapped = sealed.clone();
+    swapped.derivation.rule_version = other.clone();
+    assert_eq!(consume(&swapped).unwrap_err(), RecoveryArtifactError::PremisesMismatch);
+    let mut version = sealed.clone();
+    version.derivation.rule_version = other;
+    reseal(&mut version);
+    assert!(matches!(consume(&version).unwrap_err(), RecoveryArtifactError::ProofMismatch(_)));
+    let mut premise = sealed;
+    premise.derivation.premises.push("mar".into());
+    reseal(&mut premise);
+    assert!(matches!(consume(&premise).unwrap_err(), RecoveryArtifactError::ProofMismatch(_)));
 }
 
 #[test]
@@ -394,7 +432,7 @@ fn a_mutated_artifact_fails_independent_consumption() {
     let mut claim = original.clone();
     claim.uncertainty = "calibrated".into();
     assert!(matches!(consume(&claim).unwrap_err(), RecoveryArtifactError::UnsupportedSemantics(_)));
-    // Every kind maps to a registered code and an X10 detail.
+    // Every kind maps to a registered code and an observation-recovery detail.
     assert_eq!(
         RecoveryArtifactError::PremisesMismatch.refusal(),
         ("transport_not_certified", "recovery.invalid_derivation")

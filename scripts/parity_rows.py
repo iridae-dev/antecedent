@@ -41,7 +41,7 @@ def rows(path: str | Path, table: str = "capabilities") -> list[dict]:
     """Rows of `[[table]]` in `path` (relative to the repo root), parsed by tomllib."""
     p = Path(path)
     p = p if p.is_absolute() else ROOT / p
-    return tomllib.loads(p.read_text()).get(table, [])
+    return tomllib.loads(p.read_text(encoding="utf-8")).get(table, [])
 
 
 def find_row(path: str | Path, cid: str) -> dict | None:
@@ -59,7 +59,7 @@ def _evidence_problem(cid: str, rel: str) -> str | None:
         return None
     if p.stat().st_size == 0:
         return f"{cid} evidence file is empty: {rel}"
-    text = p.read_text(errors="ignore")
+    text = p.read_text(errors="ignore", encoding="utf-8")
     if p.suffix == ".rs" and "/tests/" in p.as_posix() and not _RUST_TEST.search(text):
         return f"{cid} evidence {rel} is a test file with no #[test] function"
     if p.suffix == ".py" and "/tests/" in p.as_posix() and not _PY_TEST.search(text):

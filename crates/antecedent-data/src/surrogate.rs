@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::f64::consts::PI;
 use std::sync::Arc;
 
@@ -131,7 +123,6 @@ fn phase_randomize_column(
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use antecedent_core::{
         CausalRng, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType,
@@ -210,8 +201,8 @@ mod tests {
             };
             let mut sa = a.values.to_vec();
             let mut sb = b.values.to_vec();
-            sa.sort_by(|x, y| x.partial_cmp(y).unwrap());
-            sb.sort_by(|x, y| x.partial_cmp(y).unwrap());
+            sa.sort_by(f64::total_cmp);
+            sb.sort_by(f64::total_cmp);
             assert_eq!(sa, sb);
         }
     }

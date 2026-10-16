@@ -1,4 +1,4 @@
-"""2.2 E2: the penalized propensities of ``Aipw`` through the Python surface.
+"""The penalized propensities of ``Aipw`` through the Python surface.
 
 Ridge and lasso propensities publish a cross-fitted point, the score table, the influence
 function SE and, with ``bootstrap > 0``, a refit bootstrap SE whose replicates repeat penalty

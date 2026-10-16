@@ -1,7 +1,6 @@
 //! Temporal observation pairs on `ResponseCurve` / `InterventionResponse`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 
@@ -79,7 +78,7 @@ fn generate(pin: &serde_json::Value) -> GeneratedObservationData {
 }
 
 fn surface_of(result: &antecedent::result::StudyResult) -> Vec<f64> {
-    let response = result.response.as_ref().expect("response");
+    let response = result.response().expect("response");
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
     else {
@@ -127,6 +126,10 @@ fn curve_query(
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the fixture, the run and the pinned assertions for temporal observation pairs match fixture and beat complete proxy"
+)]
 fn temporal_observation_pairs_match_fixture_and_beat_complete_proxy() {
     let pin = fixture();
     let ctx = ExecutionContext::for_tests(pin["seed"].as_u64().unwrap());
@@ -226,7 +229,7 @@ fn temporal_observation_pairs_match_fixture_and_beat_complete_proxy() {
         };
         let query = curve_query(&pin, spec, assumption);
         let result = run_curve(series.clone(), query, &ctx);
-        let response = result.response.as_ref().unwrap();
+        let response = result.response().unwrap();
         assert_eq!(
             response.provenance_id.as_ref(),
             "estimate.temporal_response.observation_adjusted"
@@ -343,7 +346,7 @@ fn temporal_right_censor_intervention_matches_fixture_path() {
     let error = max_abs(&got, &truth);
     assert!(error <= pin["atol"].as_f64().unwrap(), "Set(0.5) {got:?} vs {truth:?}");
     assert_eq!(
-        result.response.as_ref().unwrap().provenance_id.as_ref(),
+        result.response().unwrap().provenance_id.as_ref(),
         "estimate.temporal_response.observation_adjusted"
     );
 }
@@ -377,7 +380,7 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
         .build()
         .unwrap();
     let result = study.run(&ctx).unwrap();
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
         panic!("outer observation bootstrap must return pointwise bands");
     };
@@ -414,7 +417,7 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
 /// refit the observation nuisance and every unfolded sequential mechanism on them, and
 /// publish pointwise and simultaneous bands. (The earlier raw-series replicate measured
 /// 31-81% coverage and was withheld; its replacement is calibrated in
-/// `v19_temporal_response_calibration`.)
+/// `temporal_response_calibration`.)
 #[test]
 fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
     let pin = fixture();
@@ -460,7 +463,7 @@ fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let response = result.response.as_ref().unwrap();
+    let response = result.response().unwrap();
     let ResponseUncertainty::PointwiseBand { lower, upper, level, .. } = &response.uncertainty
     else {
         panic!("observation-adjusted Sequence must publish a pointwise band");
@@ -721,13 +724,13 @@ fn observation_adjusted_curve_cannot_carry_a_lagged_outcome_adjustment() {
     for query in [&curve, &intervention] {
         let result = run(&bare, query).expect("identified feedback graph");
         let horizons = result
-            .response
+            .response()
             .as_ref()
             .and_then(|response| response.horizon_identification.as_ref())
             .expect("per-horizon identification");
         assert!(horizons.iter().all(|h| h.adjustment.is_empty()), "{horizons:?}");
         assert_eq!(
-            result.response.as_ref().unwrap().provenance_id.as_ref(),
+            result.response().unwrap().provenance_id.as_ref(),
             "estimate.temporal_response.observation_adjusted"
         );
     }

@@ -12,10 +12,7 @@ use antecedent_stats::{SandwichKind, coefficient_covariance};
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::learn_nuisance::{
-    aipw_scores, cached_aipw_nuisances, clip_propensity, design_for_spec, learn_err,
-    resolve_nuisance,
-};
+use crate::learn_nuisance::{cached_aipw_nuisances, design_for_spec, learn_err, resolve_nuisance};
 use crate::overlap::OverlapPolicy;
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
 use crate::propensity::{
@@ -220,7 +217,12 @@ impl DrLearner {
             ));
         }
         let (effect, results) = self.fit_with_profiles(problem, profiles, ctx, assumptions)?;
-        Ok((effect, results.expect("profiles requested")))
+        let results = results.ok_or_else(|| {
+            EstimationError::data_msg(
+                "pointwise CATE profiles were requested but the fit returned none",
+            )
+        })?;
+        Ok((effect, results))
     }
 
     #[allow(
@@ -243,11 +245,9 @@ impl DrLearner {
         }
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
-        let (mu0, mu1, raw_e, treat) = nuisance.as_ref();
-        let mut ehat = raw_e.clone();
-        clip_propensity(&mut ehat, clip_of(problem.overlap));
-        let phi =
-            aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
+        let crate::dml::AipwMarginal { phi, ehat, effect } =
+            crate::dml::aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
+        let raw_e = &nuisance.2;
         let (factory, _) = resolve_nuisance(
             self.final_learner,
             PredictionTask::Regression,
@@ -291,54 +291,50 @@ impl DrLearner {
         FINAL_EFFECT_FITS.with(|count| count.set(count.get().saturating_add(1)));
         let mut cate = vec![0.0; problem.nrows];
         fitted.predict(view, &mut cate, ctx).map_err(learn_err)?;
-        let yhat = problem
-            .treatment
-            .iter()
-            .zip(mu0)
-            .zip(mu1)
-            .map(|((&t, &m0), &m1)| if t > 0.5 { m1 } else { m0 })
-            .collect::<Vec<_>>();
-        let outcome_diag =
-            antecedent_learn::diagnose(PredictionTask::Regression, problem.outcome.as_ref(), &yhat);
-        let mut effect = crate::dml::finish_dml(
-            &phi,
+        let mut effect = crate::dml::attach_crossfit_aipw_table(
+            effect.with_cate(Some(Arc::from(cate.clone()))).with_cate_se(linear_cate_pointwise_se(
+                self.final_learner,
+                view,
+                &phi,
+                &cate,
+                retained.as_deref(),
+            )),
             problem,
-            assumptions,
-            treat.validation.logloss,
-            outcome_diag.r2,
-            raw_e.clone(),
-        )?
-        .with_cate(Some(Arc::from(cate.clone())))
-        .with_cate_se(linear_cate_pointwise_se(
-            self.final_learner,
-            view,
-            &phi,
-            &cate,
-            retained.as_deref(),
-        ));
-        effect.crossfit_folds = Some(self.folds);
-        effect.crossfit_seed = Some(ctx.rng.master_seed());
-        if crate::dml::scores_retargetable(problem) {
-            effect = effect.with_score_table(Some(crate::dml::aipw_score_table(
-                problem,
-                &nuisance,
-                self.folds,
-                [self.outcome, self.treatment],
-                "dr_learner",
-            )?));
-        }
-        effect.learner_provenance.clone_from(&treat.model_provenance);
-        effect.learner_provenance.push(fitted.provenance());
+            &nuisance,
+            crate::dml::CrossfitAipwTableContext {
+                folds: self.folds,
+                learners: [self.outcome, self.treatment],
+                route: "dr_learner",
+                seed: ctx.rng.master_seed(),
+                clipped: &ehat,
+            },
+        )?;
+        effect.crossfit.learner_provenance.push(fitted.provenance());
         match fitted.portable() {
             Ok(predictor) => {
+                let features: Vec<u32> = problem.adjustment_set.iter().map(|v| v.raw()).collect();
+                // The support contract is the box of the rows the final model was fitted on
+                // (the common-support rows when trimming applies), so a consumer can refuse
+                // rows the model never saw. It is retained only when it can be computed.
+                let covariate_columns: Vec<&[f64]> =
+                    problem.covariates.iter().map(|column| &column[..]).collect();
+                let support = if covariate_columns.len() == features.len() {
+                    antecedent_learn::EffectSupport::from_rows(
+                        &covariate_columns,
+                        retained.as_deref(),
+                    )
+                } else {
+                    None
+                };
                 let model = crate::FittedEffect {
                     version: 1,
-                    features: problem.adjustment_set.iter().map(|v| v.raw()).collect(),
+                    features,
                     intercept: view.ncols() == problem.design_ncols,
                     predictor,
+                    support,
                 };
                 model.validate()?;
-                effect.fitted_effect = Some(Arc::new(model));
+                effect.heterogeneity.fitted_effect = Some(Arc::new(model));
             }
             Err(antecedent_learn::LearnError::Unsupported { .. }) => {}
             Err(error) => return Err(learn_err(error)),
@@ -543,7 +539,7 @@ mod tests {
         let mut y = vec![0.0; n];
         for i in 0..n {
             let zi = standard_normal(&mut rng);
-            let p = 1.0 / (1.0 + (-(-0.3 + 0.6 * zi)).exp());
+            let p = antecedent_kernels::sigmoid(-0.3 + 0.6 * zi);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             z[i] = zi;
             t[i] = ti;
@@ -703,7 +699,7 @@ mod tests {
         let est = DrLearner::new();
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
-        let cate = effect.cate.as_ref().expect("cate");
+        let cate = effect.heterogeneity.cate.as_ref().expect("cate");
         let mut pairs: Vec<(f64, f64)> =
             z.iter().zip(cate.iter()).map(|(&zi, &c)| (zi, c)).collect();
         pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
@@ -712,11 +708,13 @@ mod tests {
         let hi = pairs[3 * pairs.len() / 4..].iter().map(|p| p.1).sum::<f64>()
             / (pairs.len() - 3 * pairs.len() / 4) as f64;
         assert!(hi > lo + 0.2, "cate should rise with z: lo={lo} hi={hi}");
-        let mean_phi = effect.influence.as_ref().map(|p| p.iter().sum::<f64>() / p.len() as f64);
+        let mean_phi =
+            effect.scores.influence.as_ref().map(|p| p.iter().sum::<f64>() / p.len() as f64);
         if let Some(m) = mean_phi {
             assert!(m.abs() < 1e-10, "influence must be centered: {m}");
         }
-        let se = effect.cate_se.as_ref().expect("linear final stage licenses CATE SEs");
+        let se =
+            effect.heterogeneity.cate_se.as_ref().expect("linear final stage licenses CATE SEs");
         assert_eq!(se.len(), cate.len());
         assert!(se.iter().all(|&s| s.is_finite() && s > 0.0));
     }
@@ -732,8 +730,8 @@ mod tests {
         let prepared = learner.prepare(&data, &estimand, &query).unwrap();
         let effect =
             learner.fit(&prepared, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
-        let cate = effect.cate.as_ref().expect("pointwise CATE estimates");
-        let se = effect.cate_se.as_ref().expect("linear final-stage CATE inference");
+        let cate = effect.heterogeneity.cate.as_ref().expect("pointwise CATE estimates");
+        let se = effect.heterogeneity.cate_se.as_ref().expect("linear final-stage CATE inference");
         for profile in [-1.0, 0.0, 1.0] {
             let row = z
                 .iter()
@@ -749,7 +747,7 @@ mod tests {
             );
             assert!(se[row].is_finite() && se[row] > 0.0, "profile {profile}: {}", se[row]);
             assert!(
-                (cate[row] - truth).abs() <= 1.96 * se[row],
+                (cate[row] - truth).abs() <= antecedent_stats::NORMAL_Q975 * se[row],
                 "pointwise interval at profile {profile} misses known truth: estimate={}, se={}, truth={truth}",
                 cate[row],
                 se[row]
@@ -773,7 +771,10 @@ mod tests {
                 AssumptionSet::new(),
             )
             .unwrap();
-        assert!(effect.cate.is_some(), "rowwise fitted CATE remains a separate diagnostic");
+        assert!(
+            effect.heterogeneity.cate.is_some(),
+            "rowwise fitted CATE remains a separate diagnostic"
+        );
         let result = &results[0];
         assert_eq!(result.profile.values.as_ref(), &[1.0]);
         assert!(result.control_count > 0 && result.treated_count > 0);
@@ -810,8 +811,8 @@ mod tests {
             DrLearner::new().with_final_learner(LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 }));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ExecutionContext::for_tests(1), AssumptionSet::new()).unwrap();
-        assert!(effect.cate.is_some());
-        assert!(effect.cate_se.is_none());
+        assert!(effect.heterogeneity.cate.is_some());
+        assert!(effect.heterogeneity.cate_se.is_none());
     }
 
     #[test]

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import antecedent
@@ -11,9 +10,9 @@ import pytest
 from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = REPO_ROOT
 _CONFOUNDED = load_json(
     _ROOT / "conformance" / "response" / "temporal_confounded_pulse" / "expected.json"
 )
@@ -127,7 +126,7 @@ def test_confounded_multi_horizon_keeps_z_at_short_horizon():
     )
     mean = _means(result)
     expected = spec["surface"]["mean"]
-    assert result.identification.adjustment_set == ["z"]
+    assert result.identification.adjustment_set == tuple(["z"])
     assert result.identification.horizon_adjustment_sets == (("z@-1",), ())
     np.testing.assert_allclose(mean[0], expected[0], atol=atol)
     np.testing.assert_allclose(mean[2], expected[2], atol=atol)

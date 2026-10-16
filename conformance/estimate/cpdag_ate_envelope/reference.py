@@ -62,7 +62,7 @@ def envelope(pin: dict, atoms: list[dict]) -> tuple[float, float, list[float]]:
     weights = weights / weights.sum()
     effects = []
     phi = np.zeros(n)
-    for w, atom in zip(weights, atoms):
+    for w, atom in zip(weights, atoms, strict=True):
         tau, psi = completion_fit(data, t, y, atom["adjustment_set"])
         effects.append(tau)
         phi += w * psi
@@ -72,13 +72,20 @@ def envelope(pin: dict, atoms: list[dict]) -> tuple[float, float, list[float]]:
 
 
 def main() -> int:
-    pin = json.loads((HERE / "expected.json").read_text())
+    pin = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))
     freq = pin["frequentist"]
     ate, se, effects = envelope(pin, freq["reference_atoms"])
     print(json.dumps({"ate": ate, "se": se, "completion_effects": effects}, indent=2))
     if "--check" in sys.argv:
-        assert abs(ate - freq["expected_ate"]) <= 1e-12, (ate, freq["expected_ate"])
-        assert abs(se - freq["expected_se"]) <= 1e-12, (se, freq["expected_se"])
+        # atol matches the previous absolute bound. Finite pins are unchanged.
+        assert np.isclose(ate, freq["expected_ate"], rtol=0.0, atol=1e-12), (
+            ate,
+            freq["expected_ate"],
+        )
+        assert np.isclose(se, freq["expected_se"], rtol=0.0, atol=1e-12), (
+            se,
+            freq["expected_se"],
+        )
         print("reference matches expected.json")
     return 0
 

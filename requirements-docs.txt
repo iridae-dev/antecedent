@@ -1,3 +1,12 @@
 # Docs site (MkDocs on Read the Docs / local preview) + Python API (pdoc).
 mkdocs-material>=9.5,<10
 pdoc>=15,<16
+
+# Virtual files and publication hooks require MkDocs 1.6's API.
+mkdocs>=1.6,<2
+# Execute the notebook front door, including its actual setup cells.
+nbconvert>=7,<8
+nbclient>=0.10,<1
+ipykernel>=6,<8
+pandas>=2.2,<4
+matplotlib>=3.9,<4

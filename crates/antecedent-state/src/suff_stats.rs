@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::similar_names)] // xtx / xty
+#![allow(clippy::similar_names, reason = "xtx / xty")]
 
 use antecedent_stats::{accumulate_xtx_xty_row, invert_square};
 
@@ -25,7 +25,7 @@ pub struct LinearOlsSuffStats {
     /// Welford scatter of `[x | y]` for a translation-stable residual scale.
     joint: StreamingCovariance,
     /// Retention declaration.
-    pub retention: RetentionPolicy,
+    pub(crate) retention: RetentionPolicy,
 }
 
 impl LinearOlsSuffStats {
@@ -181,15 +181,15 @@ impl LinearOlsSuffStats {
 #[derive(Clone, Debug, PartialEq)]
 pub struct StreamingCovariance {
     /// Dimension.
-    pub dim: usize,
+    dim: usize,
     /// Observation count.
-    pub n: u64,
+    n: u64,
     /// Running mean.
-    pub mean: Vec<f64>,
+    mean: Vec<f64>,
     /// Upper-triangular packed? — store full `dim×dim` unnormalized scatter `M2`.
-    pub m2: Vec<f64>,
+    m2: Vec<f64>,
     /// Retention.
-    pub retention: RetentionPolicy,
+    retention: RetentionPolicy,
 }
 
 impl StreamingCovariance {
@@ -203,6 +203,30 @@ impl StreamingCovariance {
             m2: vec![0.0; dim * dim],
             retention: RetentionPolicy::SufficientStatisticsOnly,
         }
+    }
+
+    /// Observation count.
+    #[must_use]
+    pub fn n(&self) -> u64 {
+        self.n
+    }
+
+    /// Dimension.
+    #[must_use]
+    pub fn dim(&self) -> usize {
+        self.dim
+    }
+
+    /// Running mean.
+    #[must_use]
+    pub fn mean(&self) -> &[f64] {
+        &self.mean
+    }
+
+    /// Unnormalized `dim×dim` scatter `M2`.
+    #[must_use]
+    pub fn m2(&self) -> &[f64] {
+        &self.m2
     }
 
     /// Append one observation.
@@ -226,22 +250,10 @@ impl StreamingCovariance {
             self.n = next_n;
             return Ok(());
         }
-        // Welford's rank-one scatter update uses the old mean on both axes.
-        // Updating means afterward eliminates two scratch allocations per row
-        // and makes symmetry exact rather than relying on rounded delta2 values.
-        let correction = self.n as f64 / next_n as f64;
-        for i in 0..self.dim {
-            let delta_i = x[i] - self.mean[i];
-            for j in i..self.dim {
-                let value =
-                    self.m2[i * self.dim + j] + delta_i * (x[j] - self.mean[j]) * correction;
-                self.m2[i * self.dim + j] = value;
-                self.m2[j * self.dim + i] = value;
-            }
-        }
-        for (mean, value) in self.mean.iter_mut().zip(x) {
-            *mean += (value - *mean) / next_n as f64;
-        }
+        // Same rank-one update this type has always applied, now shared with the
+        // kernel crate. It is not `Welford::push`: the two evaluation orders can
+        // differ in the last bit of a diagonal entry. Accessors expose that state.
+        antecedent_kernels::update_scatter(&mut self.mean, &mut self.m2, self.n, x);
         self.n = next_n;
         Ok(())
     }
@@ -261,22 +273,22 @@ impl StreamingCovariance {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct LagIndexCacheKey {
     /// Data version.
-    pub data_version: u64,
+    data_version: u64,
     /// Max lag.
-    pub max_lag: u32,
+    max_lag: u32,
     /// Variable set fingerprint.
-    pub var_fingerprint: u64,
+    var_fingerprint: u64,
 }
 
 /// Lag-index cache entry metadata (values reconstructed by callers).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LagIndexCacheEntry {
     /// Key.
-    pub key: LagIndexCacheKey,
+    key: LagIndexCacheKey,
     /// Approximate retained bytes.
-    pub bytes: u64,
+    bytes: u64,
     /// Retention.
-    pub retention: RetentionPolicy,
+    retention: RetentionPolicy,
 }
 
 #[cfg(test)]

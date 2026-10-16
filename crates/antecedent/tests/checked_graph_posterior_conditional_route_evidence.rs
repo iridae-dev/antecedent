@@ -10,12 +10,12 @@
 use std::sync::Arc;
 
 use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
+use antecedent_contract::SlotAvailability;
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, SlotAvailability,
-    VariableId,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
@@ -79,9 +79,11 @@ fn mixture_posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         vec![direct, adjusted, unidentified],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("known_truth_mixtures"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(kind)
@@ -104,9 +106,11 @@ fn visible_pag_posterior() -> GraphPosterior {
         vec![identified, reverse],
         marginals.clone(),
         marginals,
-        1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
-        InferenceDiagnostics::analytic("visible_pag_known_truth"),
-        0,
+        SamplingSummary {
+            ess: 1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>(),
+            diagnostics: InferenceDiagnostics::analytic("visible_pag_known_truth"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Pag)
@@ -335,13 +339,13 @@ fn graph_posterior_conditional_effect_body() {
                 }
                 if fixture.scalar_mixable {
                     assert!(
-                        (result.estimate.ate - 2.0).abs() < tolerance,
+                        (result.estimate.as_effect().unwrap().ate - 2.0).abs() < tolerance,
                         "{coordinate}: {}",
-                        result.estimate.ate
+                        result.estimate.as_effect().unwrap().ate
                     );
                 } else {
                     assert!(
-                        result.estimate.ate.is_nan(),
+                        result.estimate.as_effect().unwrap().ate.is_nan(),
                         "{coordinate}: distinct adjustment certificates withhold the scalar"
                     );
                 }
@@ -353,9 +357,17 @@ fn graph_posterior_conditional_effect_body() {
 
                 // The one-shot facade executes the same retained operation.
                 assert_eq!(one_shot.logical_plan.estimator.as_deref(), Some(estimator));
-                assert_eq!(one_shot.estimate.ate.is_nan(), result.estimate.ate.is_nan());
-                if !one_shot.estimate.ate.is_nan() {
-                    assert!((one_shot.estimate.ate - result.estimate.ate).abs() < tolerance);
+                assert_eq!(
+                    one_shot.estimate.as_effect().unwrap().ate.is_nan(),
+                    result.estimate.as_effect().unwrap().ate.is_nan()
+                );
+                if !one_shot.estimate.as_effect().unwrap().ate.is_nan() {
+                    assert!(
+                        (one_shot.estimate.as_effect().unwrap().ate
+                            - result.estimate.as_effect().unwrap().ate)
+                            .abs()
+                            < tolerance
+                    );
                 }
                 assert_eq!(atom_values(&one_shot).len(), values.len(), "{coordinate}");
                 assert!(
@@ -375,7 +387,10 @@ fn graph_posterior_conditional_effect_body() {
                 for value in &refreshed_values {
                     assert!((value - 2.0).abs() < tolerance, "{coordinate}: refreshed {value}");
                 }
-                assert_eq!(refreshed.estimate.ate.is_nan(), result.estimate.ate.is_nan());
+                assert_eq!(
+                    refreshed.estimate.as_effect().unwrap().ate.is_nan(),
+                    result.estimate.as_effect().unwrap().ate.is_nan()
+                );
 
                 // A different semantic schema is refused by refresh.
                 assert!(

@@ -17,6 +17,7 @@ never modified.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -26,12 +27,7 @@ import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
-_PREP = ROOT / "docs" / "release-notes" / "preparation.toml"
-DOC_VERSION = (
-    tomllib.loads(_PREP.read_text())["target_version"] if _PREP.is_file() else VERSION
-)
+from _repo import REPO_ROOT as ROOT
 
 Mutation = Callable[[str], str]
 
@@ -80,7 +76,8 @@ def materialize(ov: Path, rel: str) -> Path:
 
 def run_gate(ov: Path, script: str) -> tuple[int, str]:
     proc = subprocess.run(
-        ["bash", str(ov / "scripts" / script)], cwd=ov, capture_output=True, text=True
+        ["bash", str(ov / "scripts" / script)], cwd=ov, capture_output=True, text=True,
+        env={**os.environ, "GIT_DIR": str(ROOT / ".git"), "GIT_WORK_TREE": str(ov)},
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -98,12 +95,12 @@ def case(
         ov = build_overlay(Path(tmp))
         for rel, mutate in mutations.items():
             path = materialize(ov, rel)
-            before = path.read_text()
+            before = path.read_text(encoding="utf-8")
             after = mutate(before)
             if after == before:
                 print(f"SELF-TEST FAIL: {name}: mutation of {rel} changed nothing")
                 return False
-            path.write_text(after)
+            path.write_text(after, encoding="utf-8", newline="\n")
         code, out = run_gate(ov, script)
     if not must_fail:
         if code != 0:
@@ -183,18 +180,6 @@ def in_block(header: str, row_id: str, fn: Mutation) -> Mutation:
     return apply
 
 
-def changelog_current(line: str) -> Mutation:
-    def apply(text: str) -> str:
-        for head in (f"## [{DOC_VERSION}]", f"## {DOC_VERSION}"):
-            if head in text:
-                i = text.index(head)
-                j = text.index("\n", i)
-                return text[: j + 1] + "\n" + line + "\n" + text[j + 1 :]
-        raise ValueError(f"CHANGELOG.md has no {DOC_VERSION} heading")
-
-    return apply
-
-
 # -------------------------------------------------------------------- cases
 
 
@@ -202,51 +187,46 @@ def docs_cases() -> list[bool]:
     g = "gate_docs_support_matrix.sh"
     return [
         case(g, "control", {}, [], must_fail=False),
+        # Hand prose is not a fact source. Deferral and strength words outside
+        # generated markers do not fail the gate.
         case(
             g,
-            "walkthrough_deferral",
-            {
-                "docs/python-workflow.md": append(
-                    "Panel promotions stay a separately gated workstream."
-                )
-            },
-            ["forbidden deferral_prose 'separately gated'"],
-        ),
-        case(
-            g,
-            "adr_follow_on",
-            {
-                "adr/0022-causal-compiler-contract.md": append(
-                    "Consuming gates are follow-on work on this decision."
-                )
-            },
-            ["forbidden deferral_prose 'follow-on'"],
-        ),
-        case(
-            g,
-            "changelog_current_section",
-            {"CHANGELOG.md": changelog_current("- Panel class response is deferred.")},
-            ["CHANGELOG.md: forbidden deferral_prose 'deferred'"],
-        ),
-        case(
-            g,
-            "readme_version_deferral",
-            {"README.md": append("Weighted exports land in 1.12.")},
-            ["README.md: forbidden"],
-        ),
-        case(
-            g,
-            "claim_sentence_edited",
-            {"docs/python-workflow.md": replace("retains a reusable study", "retains a study")},
-            ["docs/python-workflow.md: claim reusable_headline occurs 0 times"],
-        ),
-        case(
-            g,
-            "later_release_deferral",
+            "prose_deferral_allowed",
             {"docs/capabilities.md": append("Panel ATE is planned for the next release.")},
-            ["forbidden deferral_prose 'next release'"],
+            [],
+            must_fail=False,
         ),
-        # Stating a limitation is not deferring work.
+        case(
+            g,
+            "prose_strength_allowed",
+            {"README.md": append("The estimator is doubly robust and calibrated.")},
+            [],
+            must_fail=False,
+        ),
+        case(
+            g,
+            "workflow_sentence_edited",
+            {"docs/python-workflow.md": replace("retains a reusable study", "retains a study")},
+            [],
+            must_fail=False,
+        ),
+        case(
+            g,
+            "claim_marker_edited",
+            {
+                "README.md": replace(
+                    "the record still attests the current code.",
+                    "the record attests some older code.",
+                )
+            },
+            ["README.md: generated claim calibrated_slot_means_a_current_matching_record"],
+        ),
+        case(
+            g,
+            "query_inventory_edited",
+            {"docs/capabilities.md": replace("| Counterfactual |", "| CounterfactualX |")},
+            ["docs/capabilities.md: generated query-inventory"],
+        ),
         case(
             g,
             "known_limitations_allowed",
@@ -259,7 +239,6 @@ def docs_cases() -> list[bool]:
             [],
             must_fail=False,
         ),
-        # Earlier CHANGELOG sections are frozen history and are not rescanned.
         case(
             g,
             "changelog_history_frozen",
@@ -381,12 +360,22 @@ def schema_cases() -> list[bool]:
             g,
             "no_interval_reported_out_of_scope",
             {
-                "parity/reason_codes.toml": replace(
-                    'queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution"]',
-                    'queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution"]',
+                "parity/reason_codes.toml": in_block(
+                    "code", "no_interval_reported", replace(', "ChangeAttribution"', '')
                 )
             },
             ["no_interval_reported on a ChangeAttribution cell"],
+        ),
+        case(
+            g,
+            "no_interval_reason_with_an_interval_method",
+            {
+                "parity/support_licensed.toml": replace(
+                    'calibration_reason = "no_interval_reported"',
+                    'calibration_reason = "no_interval_reported"\ninterval_method = "analytic_se"',
+                )
+            },
+            ["no_interval_reported cannot declare an interval method"],
         ),
         case(
             g,
@@ -414,7 +403,7 @@ def schema_cases() -> list[bool]:
             "external_fixture_not_parsed_by_the_cited_test",
             {
                 "crates/antecedent-discovery/tests/discovery_masked_mci_lag1.rs": replace(
-                    "let expected = load_expected();",
+                    "let expected = load_expected_json(&fixture_dir());",
                     "let expected = serde_json::Value::Null;",
                 )
             },
@@ -512,8 +501,8 @@ def schema_cases() -> list[bool]:
             "record_facets_narrowed_by_hand",
             {
                 "parity/coverage_records.toml": replace(
-                    'facets = ["core", "mechanism", "suite.v19_static_calibration"]',
-                    'facets = ["suite.v19_static_calibration"]',
+                    'facets = ["core", "mechanism", "suite.static_calibration"]',
+                    'facets = ["suite.static_calibration"]',
                 )
             },
             ["are not the derived", "collect_coverage_records.py --retag"],
@@ -601,7 +590,7 @@ def schema_cases() -> list[bool]:
             "record_without_facets",
             {
                 "parity/coverage_records.toml": replace(
-                    'facets = ["core", "estimator.temporal_adjustment", "identity.temporal", "suite.v19_temporal_frequentist"]\n',
+                    'facets = ["core", "estimator.temporal_adjustment", "identity.temporal", "suite.temporal_frequentist"]\n',
                     "",
                 )
             },
@@ -612,8 +601,9 @@ def schema_cases() -> list[bool]:
             "raw_reason_literal",
             {
                 # Before any `#[cfg(test)]`: production code, not a test fixture.
-                "crates/antecedent/src/analysis/prepared.rs": replace(
-                    "\nuse ", '\nconst _BYPASS: &str = "reason=bogus: typed by hand";\nuse '
+                "crates/antecedent/src/analysis/prepared/mod.rs": replace(
+                    "\n#[cfg(test)]\nmod tests;",
+                    '\nconst _BYPASS: &str = "reason=bogus: typed by hand";\n\n#[cfg(test)]\nmod tests;',
                 )
             },
             ['raw "reason=..." literal'],
@@ -629,9 +619,9 @@ def _live_citation(boundary: bool) -> tuple[str, str, float]:
     next collection, before any of its cases runs."""
     records = {
         rec["id"]: rec
-        for rec in tomllib.loads((ROOT / "parity/coverage_records.toml").read_text())["record"]
+        for rec in tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))["record"]
     }
-    prose = (ROOT / "parity/support_licensed.toml").read_text()
+    prose = (ROOT / "parity/support_licensed.toml").read_text(encoding="utf-8")
     for m in re.finditer(r"(0\.\d{3}) \((boundary )?record `(cov\.[^`]+\.l90\.[^`]+)`\)", prose):
         rec = records.get(m.group(3))
         if rec is None or bool(m.group(2)) != boundary or bool(rec["boundary"]) != boundary:
@@ -771,7 +761,7 @@ def reachability_cases() -> list[bool]:
             g,
             "orphan_calibration_test",
             {
-                "crates/antecedent/tests/v19_calibration.rs": append(
+                "crates/antecedent/tests/mixture_interval_calibration.rs": append(
                     '\n#[test]\n#[ignore = "calibration: run via scripts/gate_calibration.sh"]\n'
                     "fn orphan_cell_nominal_90_coverage() {}\n"
                 )

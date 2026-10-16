@@ -9,29 +9,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::match_same_arms, clippy::too_many_lines)]
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::{DummyOptions, MultiEnvironmentData, pool_multi_env_lagged_frame};
 use antecedent_graph::{DenseNodeId, TemporalCpdag, TemporalCpdagReview};
-use antecedent_stats::{
-    ConditionalIndependence, ConfidenceMethod, FdrAdjustment, PairwiseMultivariateCi,
-};
+use antecedent_stats::{ConditionalIndependence, FdrAdjustment, PairwiseMultivariateCi};
 
 use crate::constraints::{
     ContextKind, DiscoveryConstraints, JpcmciNodeRole, SpaceDummyCiMode, TimeDummyCiMode,
 };
-use crate::engine::{DiscoveryWorkspace, PcmciEngine};
+use crate::engine::{DiscoveryWorkspace, LaggedSearch, PcmciEngine};
 use crate::error::DiscoveryError;
 use crate::evidence::{
     cpdag_evidence_from_oriented, symmetrize_contemporaneous_links, threshold_scored_links,
@@ -51,7 +40,7 @@ use crate::result::{
 };
 
 /// Alias for J-PCMCI+ discovery output (context-augmented temporal CPDAG).
-pub type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
+pub(crate) type JpcmciPlusDiscoveryResult = CpdagDiscoveryResult;
 
 /// J-PCMCI+ discovery over [`MultiEnvironmentData`].
 ///
@@ -94,6 +83,10 @@ impl JpcmciPlus {
     /// # Errors
     ///
     /// Empty multi-env, pooling / engine / orientation failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one algorithm pipeline over shared mutable graph state; the phases are marked in place"
+    )]
     pub fn run(
         &self,
         data: &MultiEnvironmentData,
@@ -220,12 +213,8 @@ impl JpcmciPlus {
         let threads = ctx.parallelism.max_threads.get().max(1);
         {
             let cols: Vec<&[f64]> = (0..frame.ncols()).map(|i| frame.column(i)).collect();
-            let plan = antecedent_stats::CiPreparationPlan {
-                significance: constraints.significance,
-                confidence: ConfidenceMethod::default(),
-            };
             workspace.prepared_ci =
-                Some(ci.prepare(&cols, &plan, ctx).map_err(DiscoveryError::from)?);
+                Some(crate::ci::prepare_ci(&*ci, &cols, constraints.significance, ctx)?);
         }
 
         let engine =
@@ -281,9 +270,7 @@ impl JpcmciPlus {
         };
         let (ctx_scored, ctx_sep, ctx_tests, trunc_a) = contemp_mci_phase(
             &engine,
-            frame,
-            &phase2_vars,
-            &compiled2,
+            LaggedSearch { frame, variables: &phase2_vars, compiled: &compiled2 },
             &lagged_parents,
             workspace,
             ctx,
@@ -327,9 +314,7 @@ impl JpcmciPlus {
             };
             let (scored, dum_sep, dum_tests, t) = contemp_mci_phase(
                 &engine3,
-                frame,
-                &all_vars,
-                &compiled3,
+                LaggedSearch { frame, variables: &all_vars, compiled: &compiled3 },
                 &lagged_parents,
                 workspace,
                 ctx,
@@ -370,9 +355,7 @@ impl JpcmciPlus {
         };
         let (sys_scored, sys_sep, sys_tests, trunc_c) = contemp_mci_phase(
             &engine4,
-            frame,
-            &all_vars,
-            &compiled4,
+            LaggedSearch { frame, variables: &all_vars, compiled: &compiled4 },
             &lagged_parents,
             workspace,
             ctx,
@@ -420,7 +403,7 @@ impl JpcmciPlus {
         // Force-direct exogenous → system edges before Meek.
         force_orient_exogenous(&mut cpdag, &mut state, &logical_exog, &system)?;
 
-        let majority_delta = orient_majority_colliders(
+        let (majority_delta, majority_tests) = orient_majority_colliders(
             &engine4,
             frame,
             &lagged_parents,
@@ -429,6 +412,11 @@ impl JpcmciPlus {
             workspace,
             ctx,
         )?;
+        ci_tests += majority_tests;
+        iterations.push(DiscoveryIteration {
+            label: Arc::from("jpcmci_plus.majority_collider"),
+            ci_tests: majority_tests,
+        });
         let rules: [&dyn OrientationRule<antecedent_graph::TemporalCpdag>; 4] =
             [&ContempMeekR1, &ContempMeekR2, &ContempMeekR3, &ContempMeekR4];
         let meek_delta = run_orientation_to_fixed_point(&mut cpdag, &rules, &mut state)?;
@@ -612,6 +600,10 @@ fn orient_exogenous_links(
         .collect()
 }
 
+#[allow(
+    clippy::match_same_arms,
+    reason = "arms are kept separate so each documented case stays visible"
+)]
 fn cpdag_from_jpcmci_links(
     links: &[ScoredLink],
     system: &[VariableId],

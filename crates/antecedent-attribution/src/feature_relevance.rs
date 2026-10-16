@@ -8,9 +8,21 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_model::{CompiledCausalModel, MechanismWorkspace, sample_interventional};
 
+use crate::coalition::MAX_COALITION_PLAYERS;
 use crate::error::AttributionError;
 use crate::result::FeatureRelevance;
 use crate::shapley::{CoalitionPayoff, estimate_shapley};
+
+/// Shift, sampling and size limits of [`feature_relevance`].
+#[derive(Debug, Clone, Copy)]
+pub struct FeatureRelevanceOptions {
+    /// Shift `δ` applied to each intervened feature, from its empirical mean.
+    pub delta: f64,
+    /// Monte Carlo samples per coalition value.
+    pub n_samples: usize,
+    /// Refuse more than this many features (exact Shapley is exponential in the count).
+    pub max_features: usize,
+}
 
 /// Score interventional relevance of each `feature` for `outcome` via Shapley values.
 ///
@@ -27,11 +39,10 @@ pub fn feature_relevance(
     data: &TabularData,
     outcome: VariableId,
     features: &[VariableId],
-    delta: f64,
-    n_samples: usize,
-    max_features: usize,
+    options: &FeatureRelevanceOptions,
     ctx: &ExecutionContext,
 ) -> Result<Vec<FeatureRelevance>, AttributionError> {
+    let FeatureRelevanceOptions { delta, n_samples, max_features } = *options;
     if features.len() > max_features {
         return Err(AttributionError::SizeLimit {
             kind: "features",
@@ -39,11 +50,11 @@ pub fn feature_relevance(
             max: max_features,
         });
     }
-    if features.len() > 64 {
+    if features.len() > MAX_COALITION_PLAYERS {
         return Err(AttributionError::SizeLimit {
             kind: "features",
             requested: features.len(),
-            max: 64,
+            max: MAX_COALITION_PLAYERS,
         });
     }
     let outcome_dense =
@@ -92,6 +103,20 @@ struct FeaturePayoff<'a> {
 }
 
 impl CoalitionPayoff for FeaturePayoff<'_> {
+    fn fork<'a>(&'a self) -> Option<Box<dyn CoalitionPayoff + Send + 'a>> {
+        Some(Box::new(FeaturePayoff {
+            model: self.model,
+            features: self.features,
+            means: self.means,
+            delta: self.delta,
+            outcome: self.outcome,
+            n_samples: self.n_samples,
+            ctx: self.ctx,
+            ws: MechanismWorkspace::default(),
+            seed: self.seed,
+        }))
+    }
+
     fn value(&mut self, mask: u64) -> Result<f64, AttributionError> {
         let mut interventions = Vec::new();
         for (i, &feat) in self.features.iter().enumerate() {
@@ -190,9 +215,7 @@ mod tests {
             &data,
             VariableId::from_raw(2),
             &[VariableId::from_raw(0), VariableId::from_raw(1)],
-            1.0,
-            80,
-            8,
+            &FeatureRelevanceOptions { delta: 1.0, n_samples: 80, max_features: 8 },
             &ExecutionContext::for_tests(2),
         )
         .unwrap();

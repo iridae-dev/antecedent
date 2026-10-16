@@ -1,4 +1,4 @@
-//! One finite two-step temporal transport sequence (2.2A, X5): exact and point-only.
+//! One finite two-step temporal transport sequence: exact and point-only.
 //!
 //! The whole sequence `do(A_1 = a_1, A_2 = a_2)` is one longitudinal intervention
 //! on the explicit two-slice unrolled selection diagram. It is decided by the
@@ -12,7 +12,8 @@
 //! any coordinate without one is assumed invariant at its slice, and that
 //! assumption is recorded per slice. Only the initial-state law (baseline and
 //! step-1 covariates) is fixed per population, not uncertain: temporal sampling
-//! intervals, initial-state uncertainty and new-period refresh are 2.3A.
+//! intervals, initial-state uncertainty and new-period refresh are separate
+//! routes that this decision does not carry.
 //!
 //! One [`antecedent_core::SearchBudget`] bounds the whole decision: the
 //! catalog-aware search, the s-hedge check and every verification replay, then
@@ -28,7 +29,7 @@ use antecedent_core::{
     EvidenceCatalog, ExecutionContext, NodeRef, RegimeId, SearchBudget, SearchLimits,
     SearchReceipt, SearchStop, Value, VariableDomain, VariableId, reason_code,
 };
-use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram, TemporalDag};
+use antecedent_graph::{Admg, BitSet, DenseNodeId, SelectionDiagram, TemporalDag};
 
 use super::scenarios::ScenarioCoordinate;
 use super::{
@@ -47,7 +48,8 @@ pub const TEMPORAL_MAX_OBSERVED: usize = 12;
 pub const TEMPORAL_MAX_HISTORY_STATES: usize = 4096;
 
 /// Detail: a required history has no certified support.
-pub const TEMPORAL_HISTORY_OUTSIDE_SUPPORT: &str = "temporal_transport.history_outside_support";
+pub(crate) const TEMPORAL_HISTORY_OUTSIDE_SUPPORT: &str =
+    "temporal_transport.history_outside_support";
 /// Detail: a horizon other than two, a new period, or a changed window.
 pub const TEMPORAL_HORIZON_DETAIL: &str = "temporal_transport.horizon";
 /// Detail: the licensed rules certified nothing.
@@ -55,7 +57,7 @@ pub const TEMPORAL_SEARCH_INCOMPLETE: &str = "temporal_transport.search_incomple
 /// Detail: the shared budget or cancellation stopped the decision.
 pub const TEMPORAL_HISTORY_BUDGET: &str = "temporal_transport.history_budget";
 /// Detail: an interval was requested.
-pub const TEMPORAL_INTERVAL_REQUESTED: &str = "temporal_transport.interval_requested";
+pub(crate) const TEMPORAL_INTERVAL_REQUESTED: &str = "temporal_transport.interval_requested";
 /// Detail: a hard cap was exceeded.
 pub const TEMPORAL_BOUNDS_EXCEEDED: &str = "temporal_transport.bounds_exceeded";
 /// Detail: the unrolled specification is malformed.
@@ -118,14 +120,14 @@ impl TemporalRefusal {
     }
 
     /// An interval was requested: temporal sampling and initial-state
-    /// uncertainty are 2.3A, so this route is point-only.
+    /// uncertainty are not part of this route, which is point-only.
     #[must_use]
     pub fn interval_requested() -> Self {
         Self::new(
             reason_code!("estimator_inference_mismatch"),
             TEMPORAL_INTERVAL_REQUESTED,
             "the two-step sequence route is exact and point-only; temporal sampling and \
-             initial-state intervals are 2.3A",
+             initial-state intervals are not offered here",
         )
     }
 }
@@ -749,29 +751,18 @@ pub struct TemporalSequenceDecision {
 }
 
 fn dense(diagram: &SelectionDiagram, variable: VariableId) -> Option<DenseNodeId> {
-    diagram
-        .causal_graph()
-        .nodes()
-        .iter()
-        .position(|n| *n == NodeRef::Static(variable))
-        .and_then(|i| DenseNodeId::try_from_usize(i).ok())
+    diagram.causal_graph().dense_of_static(variable)
 }
 
 /// Whether a directed path from `from` reaches `to` without passing through
 /// `avoid`: a cause of `to` that is not merely mediated by `avoid`.
 fn reaches_avoiding(graph: &Admg, from: DenseNodeId, to: DenseNodeId, avoid: DenseNodeId) -> bool {
-    let mut seen = vec![false; graph.node_count()];
-    let mut stack = vec![from];
-    while let Some(node) = stack.pop() {
-        if node == to {
-            return true;
-        }
-        if node == avoid || std::mem::replace(&mut seen[node.as_usize()], true) {
-            continue;
-        }
-        stack.extend(graph.children(node).iter().copied());
-    }
-    false
+    let n = graph.node_count();
+    let (mut seeds, mut cut) = (BitSet::with_len(n), BitSet::with_len(n));
+    seeds.insert(from);
+    cut.insert(avoid);
+    let mut ws = antecedent_graph::GraphWorkspace::default();
+    graph.descendants_within(&seeds, &BitSet::full(n), Some(&cut), &mut ws).contains(to)
 }
 
 /// Covariates of step 2 that confound the second action and the outcome while
@@ -1014,7 +1005,13 @@ pub fn decide_temporal_transport_sequence(
     )
 }
 
-#[allow(clippy::too_many_arguments)] // The public entry point's premises plus a test hook.
+#[cfg_attr(
+    test,
+    allow(
+        clippy::too_many_arguments,
+        reason = "the test build adds the mid-search cancellation hook; the production signature has seven"
+    )
+)]
 fn decide_inner(
     spec: &TemporalSequenceSpec,
     sequence: &[Value],
@@ -1105,9 +1102,7 @@ mod tests {
         RegimeKind, SamplingDesign,
     };
 
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
+    use crate::test_support::v;
 
     /// `b -> l1 -> a1 -> l2 -> a2 -> y`, no selection: four initial states and
     /// eight complete histories.

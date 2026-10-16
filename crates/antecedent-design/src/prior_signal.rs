@@ -15,14 +15,21 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use antecedent_core::ExternalRefusal;
-use antecedent_io::{CompatibilityReport, PriorCatalog, TargetDesign};
+use antecedent_contract::ExternalRefusal;
+use antecedent_contract::evidence_ledger::{
+    EvidenceLedger, ObservationId, Overlap, SourceDeclaration, SourceId, SourceKind,
+};
+use antecedent_core::is_blank;
+use antecedent_io_core::{CompatibilityReport, PriorCatalog, TargetDesign};
 
+use crate::evsi::observation_id;
 use crate::preposterior::DecisionPrior;
-use crate::signal::{NativeBinomialSignal, NativeGaussianMeanSignal, SignalProvider, make_refusal};
+use crate::signal::{
+    NativeBinomialSignal, NativeGaussianMeanSignal, RefusalBuilder, SignalProvider,
+};
 
 /// Largest number of equally weighted draws the adapter produces.
-pub const MAX_PRIOR_RESOLUTION: usize = 1_000_000;
+pub(crate) const MAX_PRIOR_RESOLUTION: usize = 1_000_000;
 
 /// Native future-signal family the candidate study follows.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -209,6 +216,9 @@ pub enum PriorSignalError {
     ObservationReuse(Vec<String>),
     /// Two prior sources share observations (the evidence would be counted twice).
     PriorSourcesOverlap(Vec<String>),
+    /// Whether sources and the study share observations is not computable.
+    /// Unknown dependence is never treated as independence.
+    ObservationOverlapUnknown(String),
     /// The requested resolution is zero or above [`MAX_PRIOR_RESOLUTION`].
     ResolutionInvalid,
 }
@@ -218,72 +228,69 @@ impl PriorSignalError {
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         let signal = antecedent_core::reason_code!("design_signal_invalid");
-        let at = |code, detail: &str| make_refusal(code, "declare", detail);
+        let at = |code, detail: &str| RefusalBuilder::new(code, "declare", detail);
         match self {
-            Self::CoefficientPriorNotSignal => ExternalRefusal {
-                remedy: Some("supply a future-signal likelihood or provider for the candidate"),
-                ..at(signal, "prior_signal.coefficient_prior_not_signal")
-            },
-            Self::UnlockListNotSignal(count) => ExternalRefusal {
-                offending: Some(count.to_string()),
-                remedy: Some("supply a future-signal likelihood or provider for the candidate"),
-                ..at(signal, "prior_signal.unlock_list_not_signal")
-            },
-            Self::NoSources => at(signal, "prior_signal.no_sources"),
-            Self::DuplicateSource(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "prior_signal.duplicate_source")
-            },
-            Self::ArtifactNotInCatalog(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "prior_signal.artifact_not_in_catalog")
-            },
-            Self::IncompatibleArtifact { artifact_id, reason } => ExternalRefusal {
-                offending: Some(artifact_id.clone()),
-                supplied: Some(reason.clone()),
-                ..at(signal, "prior_signal.incompatible_artifact")
-            },
-            Self::InvalidParameter(name) => ExternalRefusal {
-                offending: Some((*name).to_owned()),
-                ..at(
-                    antecedent_core::reason_code!("invalid_argument"),
-                    "prior_signal.invalid_parameter",
-                )
-            },
-            Self::LineageMissing(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "prior_signal.lineage_missing")
-            },
-            Self::ObservationLineageMissing(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(signal, "prior_signal.observation_lineage_missing")
-            },
-            Self::TransportPolicyRequired(id) => ExternalRefusal {
-                offending: Some(id.clone()),
-                ..at(
-                    antecedent_core::reason_code!("transport_policy_required"),
-                    "prior_signal.transport_policy_required",
-                )
-            },
-            Self::ObservationReuse(ids) => ExternalRefusal {
-                offending: Some(ids.join(",")),
-                remedy: Some("use only data not already summarized by the prior"),
-                ..at(signal, "prior_signal.observation_reuse")
-            },
-            Self::PriorSourcesOverlap(ids) => ExternalRefusal {
-                offending: Some(ids.join(",")),
-                ..at(signal, "prior_signal.prior_sources_overlap")
-            },
+            Self::CoefficientPriorNotSignal => {
+                at(signal, "prior_signal.coefficient_prior_not_signal")
+                    .remedy("supply a future-signal likelihood or provider for the candidate")
+                    .build()
+            }
+            Self::UnlockListNotSignal(count) => at(signal, "prior_signal.unlock_list_not_signal")
+                .offending(count.to_string())
+                .remedy("supply a future-signal likelihood or provider for the candidate")
+                .build(),
+            Self::NoSources => at(signal, "prior_signal.no_sources").build(),
+            Self::DuplicateSource(id) => {
+                at(signal, "prior_signal.duplicate_source").offending(id.clone()).build()
+            }
+            Self::ArtifactNotInCatalog(id) => {
+                at(signal, "prior_signal.artifact_not_in_catalog").offending(id.clone()).build()
+            }
+            Self::IncompatibleArtifact { artifact_id, reason } => {
+                at(signal, "prior_signal.incompatible_artifact")
+                    .offending(artifact_id.clone())
+                    .supplied(reason.clone())
+                    .build()
+            }
+            Self::InvalidParameter(name) => at(
+                antecedent_core::reason_code!("invalid_argument"),
+                "prior_signal.invalid_parameter",
+            )
+            .offending(*name)
+            .build(),
+            Self::LineageMissing(id) => {
+                at(signal, "prior_signal.lineage_missing").offending(id.clone()).build()
+            }
+            Self::ObservationLineageMissing(id) => {
+                at(signal, "prior_signal.observation_lineage_missing").offending(id.clone()).build()
+            }
+            Self::TransportPolicyRequired(id) => at(
+                antecedent_core::reason_code!("transport_policy_required"),
+                "prior_signal.transport_policy_required",
+            )
+            .offending(id.clone())
+            .build(),
+            Self::ObservationReuse(ids) => at(signal, "prior_signal.observation_reuse")
+                .offending(ids.join(","))
+                .remedy("use only data not already summarized by the prior")
+                .build(),
+            Self::PriorSourcesOverlap(ids) => {
+                at(signal, "prior_signal.prior_sources_overlap").offending(ids.join(",")).build()
+            }
+            Self::ObservationOverlapUnknown(reason) => at(
+                antecedent_core::reason_code!("evidence_overlap_unknown"),
+                "prior_signal.observation_overlap_unknown",
+            )
+            .expected(reason.clone())
+            .remedy("declare each source's and the study's observations in the evidence ledger")
+            .build(),
             Self::ResolutionInvalid => at(
                 antecedent_core::reason_code!("invalid_argument"),
                 "prior_signal.resolution_invalid",
-            ),
+            )
+            .build(),
         }
     }
-}
-
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
 }
 
 fn resolve_signal(
@@ -363,54 +370,82 @@ fn check_source(
     if !source.source_to_target.valid() {
         return Err(PriorSignalError::InvalidParameter("source_to_target"));
     }
-    if source.lineage.is_empty() || source.lineage.iter().any(|l| blank(l)) {
+    if source.lineage.is_empty() || source.lineage.iter().any(|l| is_blank(l)) {
         return Err(PriorSignalError::LineageMissing(id.clone()));
     }
-    if source.observation_ids.is_empty() || source.observation_ids.iter().any(|o| blank(o)) {
+    if source.observation_ids.is_empty() || source.observation_ids.iter().any(|o| is_blank(o)) {
         return Err(PriorSignalError::ObservationLineageMissing(id.clone()));
     }
-    if blank(&source.source_population) {
+    if is_blank(&source.source_population) {
         return Err(PriorSignalError::InvalidParameter("source_population"));
     }
     if source.source_population != request.target_population {
         match &request.transport {
-            Some(policy) if !blank(&policy.policy_id) => {}
+            Some(policy) if !is_blank(&policy.policy_id) => {}
             _ => return Err(PriorSignalError::TransportPolicyRequired(id.clone())),
         }
     }
     Ok(())
 }
 
-/// Observation identities shared with the candidate study, then between sources.
+/// Observation identities shared with the candidate study, then between sources,
+/// resolved through one evidence ledger holding every source and the study.
 fn check_overlap(
     sources: &[&PriorSourceInput],
     candidate_observations: &[String],
 ) -> Result<usize, PriorSignalError> {
-    let candidate: BTreeSet<&str> = candidate_observations.iter().map(String::as_str).collect();
-    let mut owners: BTreeMap<&str, usize> = BTreeMap::new();
-    let mut reused = BTreeSet::new();
-    let mut duplicated = BTreeSet::new();
-    for source in sources {
-        let own: BTreeSet<&str> = source.observation_ids.iter().map(String::as_str).collect();
-        for observation in own {
-            if candidate.contains(observation) {
-                reused.insert(observation.to_owned());
+    let unknown = |reason: String| PriorSignalError::ObservationOverlapUnknown(reason);
+    let mut ledger = EvidenceLedger::new();
+    let mut names: BTreeMap<ObservationId, String> = BTreeMap::new();
+    let mut declare =
+        |label: &str, kind: SourceKind, ids: &[String]| -> Result<SourceId, PriorSignalError> {
+            let unique: BTreeSet<&str> = ids.iter().map(String::as_str).collect();
+            for id in &unique {
+                names.insert(observation_id(id), (*id).to_owned());
             }
-            *owners.entry(observation).or_insert(0) += 1;
-        }
+            let declaration = SourceDeclaration::new(label, kind)
+                .with_observations(unique.iter().map(|id| observation_id(id)));
+            ledger.add_source(declaration).map_err(|error| unknown(error.message))
+        };
+    let study = declare("candidate study", SourceKind::ObservationSet, candidate_observations)?;
+    let mut ids: Vec<SourceId> = Vec::with_capacity(sources.len());
+    for source in sources {
+        ids.push(declare(&source.artifact_id, SourceKind::FittedModel, &source.observation_ids)?);
     }
-    for (observation, count) in &owners {
-        if *count > 1 {
-            duplicated.insert((*observation).to_owned());
+    let shared_names = |a: SourceId, b: SourceId| -> Result<Vec<String>, PriorSignalError> {
+        match ledger.overlap(a, b) {
+            Ok(Overlap::Independent) => Ok(Vec::new()),
+            Ok(Overlap::SharedObservations { .. }) => Ok(ledger
+                .shared_observations(a, b)
+                .unwrap_or_default()
+                .iter()
+                .map(|id| names.get(id).cloned().unwrap_or_else(|| id.to_hex()))
+                .collect()),
+            Ok(Overlap::Unknown { reason }) => Err(unknown(reason.to_owned())),
+            Ok(_) => Err(unknown("overlap_state_not_recognised".to_owned())),
+            Err(error) => Err(unknown(error.message)),
         }
+    };
+    let mut reused = BTreeSet::new();
+    for &source in &ids {
+        reused.extend(shared_names(source, study)?);
     }
     if !reused.is_empty() {
         return Err(PriorSignalError::ObservationReuse(reused.into_iter().collect()));
     }
+    let mut duplicated = BTreeSet::new();
+    for (i, &left) in ids.iter().enumerate() {
+        for &right in &ids[i + 1..] {
+            duplicated.extend(shared_names(left, right)?);
+        }
+    }
     if !duplicated.is_empty() {
         return Err(PriorSignalError::PriorSourcesOverlap(duplicated.into_iter().collect()));
     }
-    Ok(owners.len())
+    // Distinct observations across the sources (the study's reused ids are disjoint).
+    let distinct: BTreeSet<&str> =
+        sources.iter().flat_map(|s| s.observation_ids.iter().map(String::as_str)).collect();
+    Ok(distinct.len())
 }
 
 /// Largest-remainder allocation of `total` draws in proportion to `weights`
@@ -437,10 +472,6 @@ fn allocate(weights: &[f64], total: usize) -> Vec<usize> {
     counts
 }
 
-fn mean(values: &[f64]) -> f64 {
-    values.iter().sum::<f64>() / values.len() as f64
-}
-
 /// Adapt compatible prior sources and a future candidate signal into a prior and
 /// provider for preposterior analysis.
 ///
@@ -463,7 +494,7 @@ pub fn adapt_prior_to_signal(
     request: &PriorSignalRequest,
 ) -> Result<CandidateSignalPrior, PriorSignalError> {
     let provider = resolve_signal(&request.signal)?;
-    if blank(&request.prior_id) || blank(&request.target_population) {
+    if is_blank(&request.prior_id) || is_blank(&request.target_population) {
         return Err(PriorSignalError::InvalidParameter("prior_id or target_population"));
     }
     if request.resolution == 0 || request.resolution > MAX_PRIOR_RESOLUTION {
@@ -503,7 +534,8 @@ fn combine(
     let raw: Vec<f64> = sources.iter().map(|s| s.weight * s.prior_strength).collect();
     let total: f64 = raw.iter().sum();
     let weights: Vec<f64> = raw.iter().map(|w| w / total).collect();
-    let pooled: f64 = weights.iter().zip(&mapped).map(|(w, m)| w * mean(m)).sum();
+    let pooled: f64 =
+        weights.iter().zip(&mapped).map(|(w, m)| w * antecedent_kernels::mean(m)).sum();
     let counts = allocate(&weights, request.resolution);
     let mut draws = Vec::with_capacity(request.resolution);
     for ((source, values), &count) in sources.iter().zip(&mapped).zip(&counts) {
@@ -520,16 +552,12 @@ fn combine(
     for source in sources {
         lineage.extend(source.lineage.iter().cloned());
     }
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"antecedent.prior_signal.v1");
+    let mut hasher = antecedent_core::CanonicalWriter::new("antecedent.prior_signal.v1");
+    hasher.word(sources.len() as u64);
     for (source, weight) in sources.iter().zip(&weights) {
-        hasher.update(&(source.artifact_id.len() as u64).to_le_bytes());
-        hasher.update(source.artifact_id.as_bytes());
-        hasher.update(&weight.to_le_bytes());
+        hasher.text(&source.artifact_id).real(*weight);
     }
-    for draw in &draws {
-        hasher.update(&draw.to_le_bytes());
-    }
+    hasher.reals(&draws);
     let diagnostics = PriorSignalDiagnostics {
         source_ids: sources.iter().map(|s| s.artifact_id.clone()).collect(),
         effective_weights: weights,
@@ -539,7 +567,7 @@ fn combine(
         observations_checked,
         overlapping_observations: Vec::new(),
         transport_policy_id: request.transport.as_ref().map(|t| t.policy_id.clone()),
-        source_digest: hasher.finalize().to_hex().to_string(),
+        source_digest: hasher.finish_hex(),
     };
     (draws, diagnostics)
 }

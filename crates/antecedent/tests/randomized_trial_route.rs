@@ -23,7 +23,7 @@ fn calibrated_randomized_intervals_round_trip_and_reject_tampering() {
         let prepared =
             Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
-        let fit = result.randomized_effect.as_ref().unwrap();
+        let fit = result.randomized_effect().unwrap();
         let [lower, upper] = fit.interval_95.expect("supported randomized design interval");
         assert_eq!(fit.assignment_design.as_ref(), design);
         assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
@@ -296,7 +296,7 @@ fn graphless_interval_license_refuses_zero_variance_despite_assignment_support()
         );
         let ctx = ExecutionContext::for_tests(0xD364_E123);
         let result = Study::tabular(data).query(query).build().unwrap().run(&ctx).unwrap();
-        assert_eq!(result.randomized_effect.as_ref().unwrap().interval_95, None);
+        assert_eq!(result.randomized_effect().unwrap().interval_95, None);
         assert_eq!(result.support_status, None);
     }
 }
@@ -327,7 +327,7 @@ fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support() 
     let prepared =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let fit = result.randomized_effect.as_ref().unwrap();
+    let fit = result.randomized_effect().unwrap();
     assert_eq!(fit.effect, 2.0);
     assert_eq!(fit.estimand.as_ref(), "multi_arm_itt");
     assert_eq!(fit.assignment_design.as_ref(), "multi_arm");
@@ -346,7 +346,7 @@ fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support() 
     assert!(result.identification.required_assumptions.entries.iter().any(|record| matches!(
         &record.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "known_random_assignment"
     )));
-    assert_eq!(prepared.estimate(&data, &ctx).unwrap().randomized_effect.as_ref().unwrap(), fit);
+    assert_eq!(prepared.estimate(&data, &ctx).unwrap().randomized_effect().unwrap(), fit);
     let bytes = prepared.encode_contracted_result(&result, "multi-arm", &ctx).unwrap();
     let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(artifact.randomized_effect.as_ref().unwrap().multi_arm_values[2].1, 5.0);
@@ -410,7 +410,7 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
     let ctx = ExecutionContext::for_tests(3);
     let result = study.run(&ctx).unwrap();
 
-    let estimate = result.randomized_effect.as_ref().unwrap();
+    let estimate = result.randomized_effect().unwrap();
     assert_eq!(estimate.effect, 3.0);
     assert_eq!(estimate.variance_upper_bound, 3.25);
     assert_eq!(result.interval.as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
@@ -428,7 +428,7 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let refreshed = prepared.estimate(&data, &ctx).unwrap();
-    assert_eq!(refreshed.randomized_effect.as_ref().unwrap().effect, 3.0);
+    assert_eq!(refreshed.randomized_effect().unwrap().effect, 3.0);
     assert_eq!(refreshed.treatment, None);
 }
 
@@ -454,7 +454,7 @@ fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution() {
         .unwrap()
         .run(&ExecutionContext::for_tests(47))
         .unwrap();
-    let adjusted = result.randomized_effect.as_ref().unwrap();
+    let adjusted = result.randomized_effect().unwrap();
     assert_eq!(adjusted.effect, 2.0);
     assert_eq!(adjusted.variance_upper_bound, 1.0);
     assert_eq!(
@@ -494,7 +494,7 @@ fn multi_covariate_ancova_runs_in_retained_study_and_artifact() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let adjusted = result.randomized_effect.as_ref().unwrap();
+    let adjusted = result.randomized_effect().unwrap();
     assert!((adjusted.effect - 2.).abs() < 1e-10);
     assert!(adjusted.variance_upper_bound < 1e-20);
     assert_eq!(adjusted.uncertainty.as_ref(), "bernoulli_ancova_hc0_variance_no_interval");
@@ -552,7 +552,7 @@ fn bernoulli_encouragement_retains_wald_cace_and_refuses_fabricated_interval() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let effect = result.randomized_effect.as_ref().unwrap();
+    let effect = result.randomized_effect().unwrap();
     assert_eq!(effect.effect, 4.0);
     assert_eq!(effect.intention_to_treat_effect, Some(2.0));
     assert_eq!(effect.first_stage_effect, Some(0.5));
@@ -602,7 +602,7 @@ fn one_sided_treatment_on_treated_is_distinct_and_refuses_two_sided_receipt() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let section = result.randomized_effect.as_ref().unwrap();
+    let section = result.randomized_effect().unwrap();
     assert_eq!(section.estimand.as_ref(), "treatment_on_treated");
     assert_eq!(section.effect, 4.0);
     assert_eq!(section.intention_to_treat_effect, Some(2.0));
@@ -650,7 +650,7 @@ fn complete_randomization_enumerates_fisher_sharp_null_without_interval() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let effect = result.randomized_effect.as_ref().unwrap();
+    let effect = result.randomized_effect().unwrap();
     assert_eq!(effect.effect, -2.0);
     assert_eq!(effect.randomization_allocations, Some(6));
     assert!((effect.randomization_p_value.unwrap() - 1.0 / 3.0).abs() < 1e-12);
@@ -658,7 +658,7 @@ fn complete_randomization_enumerates_fisher_sharp_null_without_interval() {
         prepared
             .estimate(&data, &ctx)
             .unwrap()
-            .randomized_effect
+            .randomized_effect()
             .as_ref()
             .unwrap()
             .randomization_p_value,
@@ -717,7 +717,7 @@ fn fixed_cell_factorial_reports_both_main_effects_and_interaction_without_interv
     let prepared =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let factorial = result.randomized_effect.as_ref().unwrap();
+    let factorial = result.randomized_effect().unwrap();
     assert_eq!(factorial.effect, 3.0);
     assert_eq!(factorial.second_factor_effect, Some(2.0));
     assert_eq!(factorial.factorial_interaction, Some(2.0));
@@ -779,7 +779,7 @@ fn switchback_itt_retains_periods_and_sequence_variance() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     let result = prepared.estimate(&data, &context).unwrap();
-    let estimate = result.randomized_effect.as_ref().unwrap();
+    let estimate = result.randomized_effect().unwrap();
     assert_eq!(estimate.effect, 2.5);
     assert!((estimate.variance_upper_bound - 5.0 / 12.0).abs() < 1e-12);
     assert_eq!(estimate.assignment_design.as_ref(), "switchback");
@@ -839,7 +839,7 @@ fn graphless_complete_and_stratified_itt_use_neyman_variance() {
     );
     let complete_result =
         Study::tabular(data.clone()).query(complete).build().unwrap().run(&context).unwrap();
-    let complete_effect = complete_result.randomized_effect.unwrap();
+    let complete_effect = complete_result.randomized_effect().unwrap();
     assert_eq!(complete_effect.effect, 2.0);
     assert!((complete_effect.variance_upper_bound - 10.0 / 3.0).abs() < 1e-12);
     assert_eq!(complete_effect.assignment_design.as_ref(), "complete");
@@ -866,7 +866,8 @@ fn graphless_complete_and_stratified_itt_use_neyman_variance() {
     );
     let stratified_study = Study::tabular(data.clone()).query(stratified).build().unwrap();
     let prepared = stratified_study.prepare(&context).unwrap();
-    let stratified_effect = prepared.estimate(&data, &context).unwrap().randomized_effect.unwrap();
+    let stratified_effect =
+        prepared.estimate(&data, &context).unwrap().into_randomized_effect().unwrap();
     assert_eq!(stratified_effect.effect, 2.0);
     assert!((stratified_effect.variance_upper_bound - 1.0).abs() < 1e-12);
     assert_eq!(stratified_effect.assignment_design.as_ref(), "stratified");
@@ -893,7 +894,7 @@ fn cluster_randomized_itt_uses_cluster_totals_and_assignment_units() {
     let context = ExecutionContext::for_tests(37);
     let result =
         Study::tabular(data.clone()).query(query.clone()).build().unwrap().run(&context).unwrap();
-    let estimate = result.randomized_effect.as_ref().unwrap();
+    let estimate = result.randomized_effect().unwrap();
     assert_eq!(estimate.effect, 4.0);
     assert!((estimate.variance_upper_bound - 104.0 / 9.0).abs() < 1e-12);
     assert_eq!(estimate.control_units, 2);
@@ -908,8 +909,8 @@ fn cluster_randomized_itt_uses_cluster_totals_and_assignment_units() {
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&context).unwrap();
     assert_eq!(
-        prepared.estimate(&data, &context).unwrap().randomized_effect,
-        result.randomized_effect
+        prepared.estimate(&data, &context).unwrap().randomized_effect(),
+        result.randomized_effect()
     );
 }
 

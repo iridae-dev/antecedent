@@ -57,7 +57,7 @@ def test_analyze_discovery_pcmci_smoke():
     # lag-1 graph must give the structural effect, not merely a float.
     assert abs(result.ate - 0.6) < 0.1
     assert result.performance.plan_id
-    assert isinstance(result.diagnostics, list)
+    assert isinstance(result.diagnostics, tuple)
     assert "node_count" in result.provenance
 
 
@@ -215,5 +215,5 @@ def test_analyze_ate_enriched_fields():
     )
     assert result.performance.modality
     assert result.performance.plan_id
-    assert isinstance(result.diagnostics, list)
+    assert isinstance(result.diagnostics, tuple)
     assert result.provenance["node_count"] >= 0

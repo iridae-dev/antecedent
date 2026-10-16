@@ -2,19 +2,42 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
+from functools import partial
 from typing import TypeAlias
+
+from ._validate import count, real
+from .errors import CausalValueError
 
 
 def _positive(name: str, value: float, *, zero: bool = False) -> None:
-    if not math.isfinite(value) or (value < 0 if zero else value <= 0):
-        raise ValueError(f"{name} must be finite and {'nonnegative' if zero else 'positive'}")
+    message = f"{{what}} must be finite and {'nonnegative' if zero else 'positive'}"
+    number = real(
+        value,
+        name,
+        finite=True,
+        type_error=CausalValueError,
+        type_message=message,
+        overflow_message=message,
+        non_finite=lambda what: CausalValueError(message.format(what=what)),
+    )
+    if number < 0 if zero else number <= 0:
+        raise CausalValueError(message.format(what=name))
+
+
+_U32_MESSAGE = "{what} must be a positive 32-bit integer"
+_positive_count = partial(
+    count,
+    minimum=1,
+    maximum=2**32 - 1,
+    type_error=CausalValueError,
+    type_message=_U32_MESSAGE,
+    range_message=_U32_MESSAGE,
+)
 
 
 def _count(name: str, value: int) -> None:
-    if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= 2**32 - 1:
-        raise ValueError(f"{name} must be a positive 32-bit integer")
+    _positive_count(value, name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,8 +86,18 @@ class ElasticNet:
 
     def __post_init__(self) -> None:
         _positive("penalty", self.penalty, zero=True)
-        if not math.isfinite(self.l1_ratio) or not 0 <= self.l1_ratio <= 1:
-            raise ValueError("l1_ratio must be finite and between zero and one")
+        message = "l1_ratio must be finite and between zero and one"
+        ratio = real(
+            self.l1_ratio,
+            "l1_ratio",
+            finite=True,
+            type_error=CausalValueError,
+            type_message=message,
+            overflow_message=message,
+            non_finite=lambda _: CausalValueError(message),
+        )
+        if not 0 <= ratio <= 1:
+            raise CausalValueError(message)
 
     def _wire(self) -> dict[str, object]:
         return {"kind": "elastic_net", "lambda": self.penalty, "l1_ratio": self.l1_ratio}

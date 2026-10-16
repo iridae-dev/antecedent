@@ -1,4 +1,4 @@
-"""2.3.0 A5: the transported static path-specific counterfactual, narrow class.
+"""The transported static path-specific counterfactual, narrow class.
 
 Structural model (covariate ``z``, treatment ``a``, mediator ``m``, outcome ``y``)::
 
@@ -233,6 +233,12 @@ def test_x8t_malformed_inputs_are_refused_or_rejected():
     assert refusal_of(selection=nowhere).detail == "transported_counterfactual.invalid_diagram"
     with pytest.raises(CausalValueError):
         Affine(float("nan"))
+    with pytest.raises(CausalTypeError):
+        Affine(True)  # type: ignore[arg-type]
+    with pytest.raises(CausalTypeError):
+        Affine("1.5")  # type: ignore[arg-type]
+    with pytest.raises(CausalValueError):
+        Affine(10**400)
     with pytest.raises(CausalTypeError):
         effect(premises=True)
 

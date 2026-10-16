@@ -1,4 +1,4 @@
-//! Bounded Python bridge for selective recalculation with a visible receipt (2.3 C2).
+//! Bounded Python bridge for selective recalculation with a visible receipt.
 //!
 //! Rust owns the stage model, the planner, the instrumented execution of the cross-fitted
 //! AIPW route, the receipt counts, the portable receipt artifact and every refusal. Python
@@ -10,6 +10,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::bridge::check_declared_size;
 use antecedent::analysis::recalc_receipt::{
     RecalcOutcome, RecalcRequest, RecalcRunError, RecalcSession, TargetWeights, UtilitySpec,
     execute_with_receipt,
@@ -26,13 +27,12 @@ use antecedent_io::recalc_receipt_artifact::{
     plan_from_wire, plan_to_wire,
 };
 use numpy::PyReadonlyArray1;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{CausalSerializationError, detach_catch, py_err, py_msg, value_err, with_reason_code};
+use crate::{detach_catch, py_err, py_msg, value_err, with_reason_code};
 
 /// Largest declaration JSON accepted.
-const MAX_JSON_BYTES: usize = 1024 * 1024;
+const MAX_JSON_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES;
 pub(crate) type RunPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
 
@@ -48,11 +48,24 @@ pub(crate) fn artifact_invalid(error: &RecalcReceiptArtifactError) -> PyErr {
 }
 
 pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
-    if text.len() > MAX_JSON_BYTES {
-        return Err(PyValueError::new_err(format!("recalc {what} declaration is too large")));
-    }
+    check_declared_size(text, MAX_JSON_BYTES, &format!("recalc {what}"))?;
     serde_json::from_str(text)
         .map_err(|e| invalid("recalc.invalid_declaration", format!("{what}: {e}")))
+}
+
+fn refusal_body(
+    code: &str,
+    stage: &str,
+    detail: &str,
+    offending: Option<&str>,
+    remedy: Option<String>,
+    message: &str,
+    plan: Option<&RecalcPlan>,
+) -> crate::bridge::RefusalJson {
+    crate::bridge::RefusalJson::new(code, stage, detail, message)
+        .offending(offending)
+        .remedy(remedy.as_deref())
+        .field("plan", plan.map(plan_to_wire))
 }
 
 pub(crate) fn refusal_json(
@@ -64,22 +77,31 @@ pub(crate) fn refusal_json(
     message: &str,
     plan: Option<&RecalcPlan>,
 ) -> String {
-    serde_json::json!({
-        "code": code,
-        "stage": stage,
-        "detail": detail,
-        "offending": offending,
-        "expected": serde_json::Value::Null,
-        "supplied": serde_json::Value::Null,
-        "remedy": remedy,
-        "message": message,
-        "plan": plan.map(plan_to_wire),
-    })
-    .to_string()
+    refusal_body(code, stage, detail, offending, remedy, message, plan).json()
+}
+
+/// The same refusal as [`refusal_json`], as a value, so a caller can add fields
+/// without parsing the text it just built.
+pub(crate) fn refusal_value(
+    code: &str,
+    stage: &str,
+    detail: &str,
+    offending: Option<&str>,
+    remedy: Option<String>,
+    message: &str,
+    plan: Option<&RecalcPlan>,
+) -> serde_json::Value {
+    refusal_body(code, stage, detail, offending, remedy, message, plan).value()
 }
 
 /// The refusal a refused plan carries: its first refused stage and reason.
 pub(crate) fn plan_refusal_json(plan: &RecalcPlan) -> String {
+    plan_refusal_json_with(plan, "supply a compatible data snapshot")
+}
+
+/// [`plan_refusal_json`] with the remedy a missing data snapshot names, for the bindings
+/// that run on a live session.
+pub(crate) fn plan_refusal_json_with(plan: &RecalcPlan, data_remedy: &str) -> String {
     let Some((stage, reason)) = plan.first_refusal() else {
         return refusal_json(
             antecedent_core::reason_code!("not_executed"),
@@ -104,9 +126,7 @@ pub(crate) fn plan_refusal_json(plan: &RecalcPlan) -> String {
             antecedent_core::recalc::MissingDependency::Fit => {
                 "supply a portable fit or scores, or the data snapshot to refit".to_owned()
             }
-            antecedent_core::recalc::MissingDependency::Data => {
-                "supply a compatible data snapshot".to_owned()
-            }
+            antecedent_core::recalc::MissingDependency::Data => data_remedy.to_owned(),
             antecedent_core::recalc::MissingDependency::Provider => {
                 "supply a compatible provider callback".to_owned()
             }
@@ -185,7 +205,7 @@ fn consume_recalc_receipt(
                     RecalcReceiptArtifactError::LimitsExceeded(what) => {
                         invalid("recalc.limits_exceeded", what)
                     }
-                    other => CausalSerializationError::new_err(other.to_string()),
+                    other => crate::serialization_err(other.to_string()),
                 }),
             },
         }

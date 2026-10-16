@@ -13,7 +13,7 @@ use antecedent_core::{RegimeId, Value, VariableId};
 use crate::{DomainRef, FactorRequirement, InterventionAssignment};
 
 /// Weighted quadrature nodes: assignment rows paired with integration weights.
-pub type QuadratureNodes = Arc<[(Arc<[Value]>, f64)]>;
+pub(crate) type QuadratureNodes = Arc<[(Arc<[Value]>, f64)]>;
 
 /// Shared cartesian support rows, as returned by [`DistributionProvider::support`].
 type SupportRows = Arc<[Arc<[Value]>]>;
@@ -557,7 +557,7 @@ impl fmt::Display for ProviderSnapshotError {
 impl std::error::Error for ProviderSnapshotError {}
 
 /// Default maximum number of probability entries materialized per snapshot.
-pub const DEFAULT_FACTOR_SNAPSHOT_CELL_LIMIT: usize = 1_000_000;
+pub(crate) const DEFAULT_FACTOR_SNAPSHOT_CELL_LIMIT: usize = 1_000_000;
 
 impl Clone for EmpiricalTableProvider {
     fn clone(&self) -> Self {
@@ -866,35 +866,21 @@ impl DistributionProvider for EmpiricalTableProvider {
 
 /// Draw-indexed posterior provider: one [`EmpiricalTableProvider`] per draw.
 #[derive(Clone, Debug, Default)]
-pub struct PosteriorDrawProvider {
+#[cfg(test)]
+pub(crate) struct PosteriorDrawProvider {
     draws: Vec<EmpiricalTableProvider>,
 }
 
+#[cfg(test)]
 impl PosteriorDrawProvider {
-    /// Empty posterior provider.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Construct from per-draw empirical tables.
     #[must_use]
+    #[cfg(test)]
     pub fn from_draws(draws: Vec<EmpiricalTableProvider>) -> Self {
         Self { draws }
     }
 
-    /// Number of draws.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.draws.len()
-    }
-
-    /// Whether there are no draws.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.draws.is_empty()
-    }
-
+    #[cfg(test)]
     fn table(&self, ctx: &EvalContext) -> Result<&EmpiricalTableProvider, EvalError> {
         let draw = ctx
             .draw
@@ -903,6 +889,7 @@ impl PosteriorDrawProvider {
     }
 }
 
+#[cfg(test)]
 impl DistributionProvider for PosteriorDrawProvider {
     fn probability(
         &self,
@@ -941,14 +928,17 @@ impl DistributionProvider for PosteriorDrawProvider {
 /// variables. [`Self::quadrature`] returns product Gauss–Hermite nodes in
 /// Lebesgue measure (suitable for ∫ body(x) dx near each Gaussian mode).
 #[derive(Clone, Debug, Default)]
-pub struct GaussianDensityProvider {
+#[cfg(test)]
+pub(crate) struct GaussianDensityProvider {
     /// Per-variable (mean, variance).
     params: HashMap<VariableId, (f64, f64)>,
 }
 
+#[cfg(test)]
 impl GaussianDensityProvider {
     /// Empty provider.
     #[must_use]
+    #[cfg(test)]
     pub fn new() -> Self {
         Self::default()
     }
@@ -959,6 +949,7 @@ impl GaussianDensityProvider {
     ///
     /// [`EvalError::InvalidParameter`] unless `mean` is finite and `variance` is finite and
     /// positive; nothing is stored then.
+    #[cfg(test)]
     pub fn set_gaussian(
         &mut self,
         var: VariableId,
@@ -976,6 +967,7 @@ impl GaussianDensityProvider {
 }
 
 /// Physicists' Gauss–Hermite nodes/weights for ∫ e^{-t²} g(t) dt (n = 5).
+#[cfg(test)]
 const GH5_NODES: [f64; 5] = [
     -2.020_182_870_456_085_6,
     -0.958_572_464_613_818_5,
@@ -983,6 +975,7 @@ const GH5_NODES: [f64; 5] = [
     0.958_572_464_613_818_5,
     2.020_182_870_456_085_6,
 ];
+#[cfg(test)]
 const GH5_WEIGHTS: [f64; 5] = [
     0.019_953_242_059_045_913,
     0.393_619_323_152_241_35,
@@ -991,6 +984,7 @@ const GH5_WEIGHTS: [f64; 5] = [
     0.019_953_242_059_045_913,
 ];
 
+#[cfg(test)]
 impl DistributionProvider for GaussianDensityProvider {
     fn probability(
         &self,
@@ -1098,9 +1092,7 @@ impl DistributionProvider for GaussianDensityProvider {
 mod tests {
     use super::*;
 
-    fn v(id: u32) -> VariableId {
-        VariableId::from_raw(id)
-    }
+    use crate::test_variable as v;
 
     fn f(x: f64) -> Value {
         Value::f64(x)

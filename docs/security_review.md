@@ -1,10 +1,17 @@
 # Security, licensing, unsafe-code, and dependency review
 
+Date: 2026-10-11
+<!-- generated:release:reviewed-version:begin -->
+Scope: workspace crates + `python` extension (package version **2.4.0**)
+<!-- generated:release:reviewed-version:end -->
+
+The source review dated 2026-10-09 is recorded in the next section and names package version 2.3.0.
+
 Date: 2026-10-09
 Scope: workspace crates + `python` extension (package version **2.3.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
-Pre-calibration source review against the `v2.2.0` tag, including the Python API
+Pre-calibration source review of the changes since the `v2.2.0` tag, including the Python API
 and result-to-decision changes. The Rust source diff adds no `unsafe` block and
 changes no workflow permissions or dependency-policy exceptions. The Rust lockfile
 adds `sha2` and its digest dependencies for the original external contract's
@@ -43,20 +50,20 @@ claim's exposed original coordinates. Caller-attested scalar mappings retain
 their external trust and cannot inherit a provider's verified response trust.
 This dated source review preceded calibration and inference activation. For
 current supported methods and attestation requirements, see the
-[measured-inference guide](2_3-population-time-uncertainty.md). The final GitHub
+[measured-inference guide](population-time-uncertainty.md). The final GitHub
 release checks remain required before publication.
 
 Date: 2026-10-05
 Scope: workspace crates + `python` extension (package version **2.2.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
-Pre-calibration source review of the 2.2.0 branch: the current changes add no
+Pre-calibration source review of the changes that became package version 2.2.0: they add no
 `unsafe` block and `Cargo.lock` changes only workspace package versions. The
 inverse-outcome route binds forward provenance and refuses unlicensed forward
 claims; batch retargeting requires one row snapshot; dependency and overlap
 failures have typed refusals. Ordinary test and documentation gates run before
-the final calibration and matrix pass. Calibration and the release candidate
-gate are still required before publication.
+the final calibration and matrix pass. Publication requires calibration and the
+release gate.
 
 Date: 2026-09-29
 Scope: workspace crates + `python` extension (package version **2.1.1**)
@@ -82,7 +89,7 @@ finite domains and checked catalog bindings; the nested SCM route is limited
 to the compatible explicit DAG and a point result. An offline `cargo deny
 check` on 2026-09-24 passed advisories, bans, licenses, and sources with
 warnings for existing dependency metadata and duplicate versions. This is a
-source and cached-advisory review; the release candidate still requires its
+source and cached-advisory review; a release requires its
 CI, calibration, artifact, and support gates on the final commit.
 
 Date: 2026-09-22
@@ -229,17 +236,65 @@ only; no external dependency, unsafe block, artifact decoder, or workflow
 permission was added. Mapped priors fail closed without a declared
 mapping; `n_draws < 2` is a typed refuse.
 
+## Callback execution
+
+A callback is a provider function the library does not own. The protocol lives in
+`antecedent-contract` (`callback_protocol`: declaration, reuse plan, output validation,
+standing) and the executor in the analysis facade (`CallbackSession`).
+
+| Concern | Control |
+|---------|---------|
+| Planning and verification | `CallbackSession::plan` and `plan_reuse` read declarations and stored records only and take no provider, so they cannot execute one. `verify_against_callback`, artifact `from_bytes` and `inspect` never invoke a provider. |
+| Declarations | A `CallbackDeclaration` is data (an instance of the one interface-contract schema). Text, input and dependency counts are bounded (`MAX_CALLBACK_TEXT_BYTES`, `MAX_CALLBACK_INPUTS`, `MAX_CALLBACK_DEPENDENCIES`). Opaque or undeclared dependencies make reuse ineligible. |
+| Provider identity | Execution checks the supplied provider is the declared object before calling; another declaration's input is refused. |
+| Side effects | `CallbackExecutionPolicy::allow_side_effects` defaults to `false`; a side-effecting replay contract is refused with `side_effects_not_allowed` unless allowed, and is repeated only under a declared idempotent retry contract with an idempotency key within its attempt bound. |
+| Resource bounds | Invocation count per request, `MAX_CALLBACK_DRAWS` and `MAX_CALLBACK_POINTS`, and `max_output_values` bound the output; cancellation is observed before the call, passed to the callback and observed after it. The wall-clock bound is applied after return (late results are discarded); there is no preemption and no sandbox. |
+| Output | `validate_output` accepts only a well-formed value of the declared quantity and support; non-finite or malformed laws are refused. |
+| Ledger | `CallbackSession` keeps an append-only history, per-request attempt counts, the invocation count and the evidence ledger in which nested callbacks' overlap is computed. A resumed process without a compatible provider records the stage `unavailable`; the historical result stays inspectable and is not silently re-executed. |
+| Standing | Results are `diagnostic` or an external claim (`standing_of`); metadata does not mint native trust, a joint law, an identification licence, an interval or a posterior guarantee. |
+
+Residual risk: a provider is arbitrary in-process code with the caller's privileges. The
+library bounds and records the call; it does not isolate it. Treat provider code as trusted
+code the caller chose to run.
+
+## Artifact deserializers
+
+Every artifact has its own version constant and a fresh-consumer path that re-derives the
+stored digests, identities and derived numbers from the stored fields. A stored digest is
+never trusted on its own, and a semantic edit that reseals the container is refused.
+
+| Artifact decoder | Byte cap | Gates |
+|------------------|----------|-------|
+| Transport handoff (`transport_handoff_artifact`) | 8 MiB | Major-version and required-feature gate; callback identity re-derived; handoff re-run against the declaration with `verify_against_callback` |
+| Joint-law propagation (`joint_law_propagation_artifact`) | 8 MiB (`MAX_JOINT_LAW_PROPAGATION_ARTIFACT_BYTES`); at most 256 inputs, 4096 shared-evidence entries, 4096 bytes per text field | Length checked before decode; version gate; non-finite results refused |
+| Composition verification (`composition_verification_artifact`) | 32 MiB (`MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES`); at most 65,536 shared-data relations | Version gate; ledger re-verification (`verify_ledger`) |
+| Interface contract (`interface_contract_artifact`) | 16 MiB | Version gate; declaration bounds; identity recomputed |
+| Callback result (`callback_result_artifact`) | 24 MiB | Version gate; declaration and output re-validated; output digest recomputed |
+| Evidence ledger export (`evidence_ledger_artifact`) | 128 MiB | Version gate; source graph and overlap re-derived |
+| Counterfactual transport, transported counterfactual, sampled transport | 64 MiB (transported) | Version gate; stored expectations and identity compared on consume |
+| Cohort decision source (`cohort_decision`) | 64 MiB | Support, predictions, mean and identity recomputed from rows and model; caller supplies expectations |
+| Measurement model (`measurement_model_wire`) | 8 MiB | Expected model identity required; digest recomputed |
+| Inverse query result | 16 MiB (`MAX_INVERSE_QUERY_ARTIFACT_BYTES`) | Version gate; contract and source digests required from the consumer |
+| Design ranking, decision and robust decision results | 8 MiB each (`MAX_DESIGN_RANKING_ARTIFACT_BYTES`, `MAX_DECISION_ARTIFACT_BYTES`); at most 65,536 robust items | Version gate; contract and source digests required from the consumer |
+| Structural decision result | no separate byte constant; decoded through the artifact container | Version gate; contract and source digests required from the consumer |
+| Adaptive result and monitoring contract | 256 MiB each (`MAX_ADAPTIVE_INFERENCE_RESULT_BYTES`, `MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES`) | Checked decode needs the execution context; unchecked decode returns metadata only |
+
+Decoders return typed errors and do not panic on malformed input. They are exercised by the
+`fuzz/` targets (no-panic and bounded-allocation) and by per-artifact semantic-mutation tests.
+Version gates refuse newer and unknown versions rather than reading them best-effort.
+
 ## Unsafe code policy
 
 | Crate | Policy | Notes |
 |-------|--------|-------|
 | Most semantic crates (`antecedent-*` except below / kernels) | `#![forbid(unsafe_code)]` | Verified locally by `scripts/gate_release.sh` |
 | `antecedent-data` | `#![deny(unsafe_code)]` + scoped `allow` | Foreign buffers (`buffer.rs`) and Arrow CDI (`arrow_ffi.rs`) |
-| `antecedent-io` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`); `unsafe` mapped constructors on `MappedArtifactReader` |
+| `antecedent-io-core` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`); `unsafe` mapped constructors on `MappedArtifactReader` |
+| `antecedent-io` | `#![forbid(unsafe_code)]` | Estimator-bound artifacts; re-exports `antecedent-io-core` |
 | `antecedent-kernels` | `#![allow(unsafe_code)]` | Only reviewed SIMD / aliasing kernels |
 | `python` / `antecedent-py` | `#![allow(unsafe_code)]` | Required by PyO3 |
 
-Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `deny` / their scoped escape modules.
+Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io-core lose `deny` / their scoped escape modules.
 
 ## Licensing
 
@@ -306,3 +361,10 @@ bash scripts/gate_codeql.sh
 ## 1.3.0 boundary review
 
 The added estimators use safe Rust and existing linear algebra. Conditional Cox IPCW validates input dimensions, numeric covariates, event indicators, convergence, information rank and survival positivity. Nested counterfactuals remain refused. The additive `static_result` artifact uses the existing bounded CBOR container and validates its query, identification and numeric fields. No new runtime dependency or workflow permission is introduced. R survival is an executing test oracle only; no upstream source or executable is bundled.
+
+## Callback and artifact review
+
+The callback protocol, executor and the artifact families above add no `unsafe` block and no
+workflow permission. The only manifest change on the branch is an in-workspace dev-dependency
+(`antecedent-model` -> `antecedent-identify`, tests only); the lockfile gained that one
+internal edge and no external crate, so no new license or `deny.toml` entry is needed.

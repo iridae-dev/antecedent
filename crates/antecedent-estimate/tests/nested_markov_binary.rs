@@ -1,4 +1,4 @@
-//! 2.3A A3 (X4): binary nested-Markov likelihood pilot against an enumerated
+//! Binary nested-Markov likelihood pilot against an enumerated
 //! latent-variable SCM. The oracle below sums the latent variable out by hand and
 //! calls nothing in the code under test.
 #![allow(
@@ -100,7 +100,7 @@ fn assert_outside(error: &EstimationError) {
 }
 
 #[test]
-fn x4_nested_likelihood_truth_exact_counts_recover_scm() {
+fn nested_likelihood_truth_exact_counts_recover_scm() {
     let ctx = ExecutionContext::for_tests(1);
     let law = scm_law(0.4, 0.0);
     // Sixteen cells of an exact (infinite-sample) table scaled to counts.
@@ -178,7 +178,7 @@ fn x4_nested_likelihood_truth_exact_counts_recover_scm() {
 }
 
 #[test]
-fn x4_nested_likelihood_truth_model_and_plugin_are_distinct_when_constraint_fails() {
+fn nested_likelihood_truth_model_and_plugin_are_distinct_when_constraint_fails() {
     // A direct X1 -> X4 effect leaves the selected ADMG: the Verma constraint fails.
     let ctx = ExecutionContext::for_tests(2);
     let law = scm_law(0.4, 0.15);
@@ -213,7 +213,7 @@ fn x4_nested_likelihood_truth_model_and_plugin_are_distinct_when_constraint_fail
 }
 
 #[test]
-fn x4_nested_outside_class_graph_regime_and_domain_refuse() {
+fn nested_outside_class_graph_regime_and_domain_refuse() {
     let cells = scaled(&scm_law(0.4, 0.0), 1.0e6);
 
     // Adjacent ADMGs: an extra directed edge, an extra bidirected edge, a missing edge.
@@ -251,7 +251,7 @@ fn x4_nested_outside_class_graph_regime_and_domain_refuse() {
 }
 
 #[test]
-fn x4_nested_outside_class_violating_law_is_reported_in_diagnostics() {
+fn nested_outside_class_violating_law_is_reported_in_diagnostics() {
     let ctx = ExecutionContext::for_tests(3);
     let law = scm_law(0.4, 0.15);
     let counts = BinaryCells::new(&scaled(&law, 1.0e6)).expect("counts");
@@ -268,7 +268,7 @@ fn x4_nested_outside_class_violating_law_is_reported_in_diagnostics() {
 }
 
 #[test]
-fn x4_nested_fit_diagnostics_boundary_refuses_with_retained_diagnostics() {
+fn nested_fit_diagnostics_boundary_refuses_with_retained_diagnostics() {
     let ctx = ExecutionContext::for_tests(4);
     // P(X1 = 1) = 1e-11: every x1 = 1 cell sits at the boundary.
     let law = scm_law(1.0e-11, 0.0);
@@ -288,7 +288,7 @@ fn x4_nested_fit_diagnostics_boundary_refuses_with_retained_diagnostics() {
 }
 
 #[test]
-fn x4_nested_fit_diagnostics_non_convergence_is_typed_and_keeps_state() {
+fn nested_fit_diagnostics_non_convergence_is_typed_and_keeps_state() {
     let ctx = ExecutionContext::for_tests(5);
     let counts = BinaryCells::new(&scaled(&scm_law(0.4, 0.15), 1.0e6)).expect("counts");
     let options = FitOptions { max_iterations: 1, ..FitOptions::default() };
@@ -305,7 +305,7 @@ fn x4_nested_fit_diagnostics_non_convergence_is_typed_and_keeps_state() {
 }
 
 #[test]
-fn x4_nested_fit_diagnostics_bounds_cancellation_and_positivity() {
+fn nested_fit_diagnostics_bounds_cancellation_and_positivity() {
     let ctx = ExecutionContext::for_tests(6);
     let counts = BinaryCells::new(&scaled(&scm_law(0.4, 0.0), 1.0e6)).expect("counts");
 

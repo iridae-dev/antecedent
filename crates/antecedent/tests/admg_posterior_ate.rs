@@ -14,8 +14,8 @@ use antecedent::{
 use antecedent_core::{AverageEffectQuery, ExecutionContext, IdentificationStatus, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, adjacency_mask_from_admg, admg_from_adjacency_mask,
-    dag_from_adjacency_mask, mask_is_dag, set_edge,
+    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
+    admg_from_adjacency_mask, dag_from_adjacency_mask, mask_is_dag, set_edge,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
@@ -104,9 +104,11 @@ fn admg_posterior(n: usize, weights: &[f64], masks: &[u64]) -> GraphPosterior {
         masks.to_vec(),
         vec![0.0; n * n],
         vec![0.0; n * n],
-        1.0,
-        InferenceDiagnostics::analytic("admg_posterior_ate"),
-        0,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("admg_posterior_ate"),
+            rejected_invalid: 0,
+        },
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Admg)
@@ -204,13 +206,13 @@ fn admg_posterior_average_effect_none_runs() {
         }));
         assert!(
             has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean)
-                || result.estimate.ate.is_finite(),
+                || result.estimate.as_effect().unwrap().ate.is_finite(),
             "one identified front-door atom should mix as a scalar"
         );
         assert!(
-            (result.estimate.ate - expected).abs() < tolerance.max(0.02),
+            (result.estimate.as_effect().unwrap().ate - expected).abs() < tolerance.max(0.02),
             "identified-atom mixture should recover the front-door pin {expected}, got {}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
         assert!(
             !result.diagnostics.iter().any(|d| {

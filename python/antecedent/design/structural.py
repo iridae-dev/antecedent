@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 from .._native import rank_structural_designs as _rank_structural
-from ._declarations import _raise
+from .._refusal import raise_refusal
+from ._declarations import _refusal_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +48,7 @@ class StructuralEntry:
 
 @dataclass(frozen=True, slots=True)
 class StructuralRanking:
-    """The preserved 2.2 ordering: verified sufficiency, then cost units, budget, id."""
+    """The structural ordering: verified sufficiency, then cost units, budget, id."""
 
     entries: tuple[StructuralEntry, ...]
     identity: str
@@ -72,7 +73,7 @@ def _rank_structural_result(candidates: Sequence[StructuralCandidate]) -> Struct
         for c in candidates
     ]
     body, refusal = _rank_structural(json.dumps(wire))
-    _raise(refusal)
+    raise_refusal(refusal, _refusal_type)
     assert body is not None
     parsed = json.loads(body)
     return StructuralRanking(

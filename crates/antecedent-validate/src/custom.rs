@@ -28,3 +28,9 @@ pub trait CustomEffectValidator: Send + Sync {
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError>;
 }
+
+impl std::fmt::Debug for dyn CustomEffectValidator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("CustomEffectValidator").field(&self.name()).finish()
+    }
+}

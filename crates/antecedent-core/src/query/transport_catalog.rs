@@ -43,7 +43,7 @@ pub enum VariableDomain {
 }
 
 impl VariableDomain {
-    #[allow(clippy::float_cmp)] // Domain membership is exact, not approximate equality.
+    #[allow(clippy::float_cmp, reason = "Domain membership is exact, not approximate equality")]
     fn accepts(&self, value: &Value) -> bool {
         let value = value.as_f64();
         match self {
@@ -205,13 +205,13 @@ pub enum LawOrigin {
         /// Identity of the artifact that produced it.
         artifact: Arc<str>,
     },
-    /// A law derived by graph-licensed observation recovery (2.2B X10) from an
+    /// A law derived by graph-licensed observation recovery from an
     /// observed pattern law: a derived law with provenance, never an observed
     /// table. It never supplies a population law (by `origin == Measured` in
     /// [`EvidenceRegime::supplies_population_law`]), so it satisfies no
     /// identification factor of the catalog routes (tested in
     /// `a_recovered_law_never_supplies_a_factor_and_keeps_its_own_identity`);
-    /// the X9 mixed-source search excludes it as `recovered_law`. Only the
+    /// the mixed-source search excludes it as `recovered_law`. Only the
     /// recovery handoff, after checking population, variables, factorization and
     /// support, feeds it onward. On the catalog wire it is its own additive field.
     Recovered {
@@ -289,7 +289,10 @@ impl EvidenceRegime {
     ///
     /// [`QueryError::InvalidTransport`] for empty population, observational
     /// interventions, or experimental regimes with an empty intervention set.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "validating constructor over the regime record fields; each argument is a distinct component of the regime"
+    )]
     pub fn try_new(
         id: RegimeId,
         kind: RegimeKind,
@@ -454,7 +457,10 @@ impl EvidenceRegime {
     /// # Errors
     ///
     /// [`QueryError::InvalidTransport`] when the projection is not licensed.
-    #[allow(clippy::needless_pass_by_value)] // Stable public signature; the projection is read, not stored.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "Stable public signature; the projection is read, not stored"
+    )]
     pub fn project(&self, projection: EvidenceProjection) -> Result<Self, QueryError> {
         let law =
             project_law(&self.measured, &self.conditioned_on, &self.distribution, &projection)?;

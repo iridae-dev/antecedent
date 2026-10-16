@@ -2,7 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
@@ -174,19 +173,37 @@ pub struct ExactDiscreteLaw {
     marginals: Arc<MarginalTables>,
 }
 
-/// Most axis subsets whose marginal table one law retains; further subsets are computed
-/// without being kept.
+/// Most axis subsets whose marginal table one law retains. A full shard evicts its
+/// oldest table, so a later subset can still be cached.
 const MAX_MARGINAL_TABLES: usize = 256;
+const MARGINAL_SHARDS: usize = 8;
 
-#[derive(Debug, Default)]
-struct MarginalTables(Mutex<HashMap<Vec<usize>, Arc<[f64]>>>);
+#[derive(Debug)]
+struct MarginalShard {
+    entries: HashMap<u128, (u64, Arc<[f64]>)>,
+    clock: u64,
+}
+
+#[derive(Debug)]
+struct MarginalTables {
+    shards: [Mutex<MarginalShard>; MARGINAL_SHARDS],
+}
+
+impl Default for MarginalTables {
+    fn default() -> Self {
+        Self {
+            shards: std::array::from_fn(|_| {
+                Mutex::new(MarginalShard { entries: HashMap::new(), clock: 0 })
+            }),
+        }
+    }
+}
 
 impl ExactDiscreteLaw {
     /// Validate a complete observational or hard-intervention law.
     ///
     /// # Errors
     /// Invalid identities, domains, shape, interventions, or probability mass.
-    #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         population: impl Into<Arc<str>>,
         regime: RegimeId,
@@ -267,7 +284,6 @@ impl ExactDiscreteLaw {
     ///
     /// # Errors
     /// Same validation as [`Self::try_new`].
-    #[allow(clippy::too_many_arguments)]
     pub fn try_empirical(
         population: impl Into<Arc<str>>,
         regime: RegimeId,
@@ -292,7 +308,6 @@ impl ExactDiscreteLaw {
     /// Validated draw from an explicitly specified posterior law.
     /// # Errors
     /// Same validation as [`Self::try_new`].
-    #[allow(clippy::too_many_arguments)]
     pub fn try_bayesian_posterior(
         population: impl Into<Arc<str>>,
         regime: RegimeId,
@@ -446,7 +461,7 @@ impl ExactDiscreteLaw {
             && spec.intervention.iter().all(|a| {
                 self.interventions
                     .iter()
-                    .any(|b| a.variable == b.variable && value_key(&a.value) == value_key(&b.value))
+                    .any(|b| a.variable == b.variable && same_value_key(&a.value, &b.value))
             })
             && (spec.domain == DomainRef::Observational) == self.interventions.is_empty()
             && spec
@@ -472,16 +487,7 @@ impl ExactDiscreteLaw {
             .collect()
     }
     fn mass(&self, constraints: &[(usize, usize)]) -> f64 {
-        if constraints.len() == self.axes.len()
-            && constraints
-                .iter()
-                .map(|(axis, _)| *axis)
-                .collect::<std::collections::BTreeSet<_>>()
-                .len()
-                == self.axes.len()
-        {
-            let index =
-                constraints.iter().map(|(axis, level)| self.strides[*axis] * level).sum::<usize>();
+        if let Some(index) = self.full_joint_index(constraints) {
             return self.probabilities[index];
         }
         let mut by_axis: Vec<(usize, usize)> = constraints.to_vec();
@@ -502,30 +508,94 @@ impl ExactDiscreteLaw {
             .fold(0usize, |index, (axis, level)| index * self.axes[*axis].values.len() + level);
         table[index]
     }
+
+    /// Index of a complete assignment of every axis, without allocating a set.
+    ///
+    /// `None` when an axis is repeated or missing: the caller then scans, which is what
+    /// a repeated constraint (two levels of one axis) requires.
+    fn full_joint_index(&self, constraints: &[(usize, usize)]) -> Option<usize> {
+        let n_axes = self.axes.len();
+        if constraints.len() != n_axes || n_axes > 64 {
+            return None;
+        }
+        let mut seen = 0u64;
+        let mut index = 0usize;
+        for &(axis, level) in constraints {
+            if axis >= n_axes {
+                return None;
+            }
+            let bit = 1u64 << axis;
+            if seen & bit != 0 {
+                return None;
+            }
+            seen |= bit;
+            index += self.strides[axis] * level;
+        }
+        let full = if n_axes == 64 { u64::MAX } else { (1u64 << n_axes) - 1 };
+        (seen == full).then_some(index)
+    }
+
     /// Mass of every level combination of the distinct, ascending `axes`, summed in table order
     /// exactly as a filtered scan would, so a lookup equals the scan it replaces.
     fn marginal_table(&self, axes: &[usize]) -> Arc<[f64]> {
-        if let Some(table) =
-            self.marginals.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(axes)
+        let Some(key) = ascending_axis_mask(axes) else {
+            return compute_marginal(self, axes);
+        };
+        let shard = &self.marginals.shards[key as usize % MARGINAL_SHARDS];
         {
-            return Arc::clone(table);
+            let mut cache = shard.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let hit = cache.entries.get(&key).map(|(_, table)| Arc::clone(table));
+            if let Some(table) = hit {
+                let next = cache.clock.wrapping_add(1);
+                cache.clock = next;
+                if let Some((tick, _)) = cache.entries.get_mut(&key) {
+                    *tick = next;
+                }
+                return table;
+            }
         }
-        let cells: usize = axes.iter().map(|a| self.axes[*a].values.len()).product();
-        let mut sums = vec![CompensatedSum::default(); cells];
-        for (i, p) in self.probabilities.iter().enumerate() {
-            let cell = axes.iter().fold(0usize, |cell, a| {
-                let len = self.axes[*a].values.len();
-                cell * len + (i / self.strides[*a]) % len
-            });
-            sums[cell].add(*p);
+        let table = compute_marginal(self, axes);
+        let mut cache = shard.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        cache.clock = cache.clock.wrapping_add(1);
+        let tick = cache.clock;
+        let cap = MAX_MARGINAL_TABLES / MARGINAL_SHARDS;
+        if cache.entries.len() >= cap {
+            if let Some(oldest) =
+                cache.entries.iter().min_by_key(|(_, (tick, _))| *tick).map(|(key, _)| *key)
+            {
+                cache.entries.remove(&oldest);
+            }
         }
-        let table: Arc<[f64]> = sums.into_iter().map(CompensatedSum::total).collect();
-        let mut cache = self.marginals.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        if cache.len() < MAX_MARGINAL_TABLES {
-            cache.insert(axes.to_vec(), Arc::clone(&table));
-        }
+        cache.entries.insert(key, (tick, Arc::clone(&table)));
         table
     }
+}
+
+fn compute_marginal(law: &ExactDiscreteLaw, axes: &[usize]) -> Arc<[f64]> {
+    let cells: usize = axes.iter().map(|a| law.axes[*a].values.len()).product();
+    let mut sums = vec![CompensatedSum::default(); cells];
+    for (i, p) in law.probabilities.iter().enumerate() {
+        let cell = axes.iter().fold(0usize, |cell, a| {
+            let len = law.axes[*a].values.len();
+            cell * len + (i / law.strides[*a]) % len
+        });
+        sums[cell].add(*p);
+    }
+    sums.into_iter().map(CompensatedSum::total).collect()
+}
+
+/// Bitmask of a strictly ascending axis list, each index below 128.
+fn ascending_axis_mask(axes: &[usize]) -> Option<u128> {
+    let mut key = 0u128;
+    let mut prev = None;
+    for &axis in axes {
+        if axis >= 128 || prev.is_some_and(|previous| axis <= previous) {
+            return None;
+        }
+        prev = Some(axis);
+        key |= 1u128 << axis;
+    }
+    Some(key)
 }
 
 fn finite(v: &Value) -> bool {
@@ -564,21 +634,73 @@ pub(crate) fn sum(values: impl Iterator<Item = f64>) -> f64 {
     acc.total()
 }
 
-type WorldIndex = HashMap<Arc<str>, HashMap<RegimeId, HashMap<Vec<InterventionAssignment>, usize>>>;
+/// One population, regime, and normalized intervention world.
+///
+/// Equal worlds share one intervention slice. Lookup is one map.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+struct WorldBinding {
+    population: Arc<str>,
+    regime: RegimeId,
+    interventions: Arc<[InterventionAssignment]>,
+}
+
+type WorldIndex = HashMap<WorldBinding, usize>;
+
+fn integral_level(value: f64) -> Option<i64> {
+    if value.is_finite() && value.fract() == 0.0 && value.abs() <= 9_007_199_254_740_992.0 {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "finite integral f64, explicitly within the exact i64 range"
+        )]
+        Some(value as i64)
+    } else {
+        None
+    }
+}
+
+/// `value_key(left) == value_key(right)` without building either key.
+///
+/// A non-integral float, including NaN, compares as `Value` does.
+pub(crate) fn same_value_key(left: &Value, right: &Value) -> bool {
+    match (integral_or_self(left), integral_or_self(right)) {
+        (Ok(a), Ok(b)) => a == b,
+        (Err(a), Err(b)) => a == b,
+        _ => false,
+    }
+}
+
+fn integral_or_self(value: &Value) -> Result<i64, &Value> {
+    match value {
+        Value::Float64(level) => integral_level(*level).ok_or(value),
+        Value::Int64(level) => Ok(*level),
+        other => Err(other),
+    }
+}
 
 // Normalize exactly represented integral numeric levels locally, without changing
 // core Value equality or the original table/serialized coordinate representation.
-#[allow(clippy::cast_possible_truncation)] // Finite integral f64, explicitly within the exact i64 range.
 pub(crate) fn value_key(value: &Value) -> Value {
     match value {
-        Value::Float64(x)
-            if x.is_finite() && x.fract() == 0.0 && x.abs() <= 9_007_199_254_740_992.0 =>
-        {
-            Value::Int64(*x as i64)
-        }
+        Value::Float64(level) => match integral_level(*level) {
+            Some(level) => Value::Int64(level),
+            None => Value::Float64(*level),
+        },
         other => other.clone(),
     }
 }
+
+fn world_binding(
+    population: impl Into<Arc<str>>,
+    regime: RegimeId,
+    interventions: &[InterventionAssignment],
+) -> WorldBinding {
+    WorldBinding {
+        population: population.into(),
+        regime,
+        interventions: Arc::from(world_key(interventions)),
+    }
+}
+
 fn world_key(assignments: &[InterventionAssignment]) -> Vec<InterventionAssignment> {
     let mut key: Vec<_> = assignments
         .iter()
@@ -586,16 +708,6 @@ fn world_key(assignments: &[InterventionAssignment]) -> Vec<InterventionAssignme
         .collect();
     key.sort_by_key(|a| a.variable);
     key
-}
-
-fn lookup_world_key(assignments: &[InterventionAssignment]) -> Cow<'_, [InterventionAssignment]> {
-    let ordered = assignments.windows(2).all(|pair| pair[0].variable < pair[1].variable);
-    let normalized = assignments.iter().all(|a| value_key(&a.value) == a.value);
-    if ordered && normalized {
-        Cow::Borrowed(assignments)
-    } else {
-        Cow::Owned(world_key(assignments))
-    }
 }
 
 type JointQueryKey =
@@ -652,11 +764,10 @@ impl ExactTransportData {
         let mut domain_keys = HashMap::<VariableId, HashSet<Value>>::new();
         for (i, law) in laws.iter().enumerate() {
             if index
-                .entry(law.population.clone())
-                .or_default()
-                .entry(law.regime)
-                .or_default()
-                .insert(world_key(&law.interventions), i)
+                .insert(
+                    world_binding(Arc::clone(&law.population), law.regime, &law.interventions),
+                    i,
+                )
                 .is_some()
             {
                 return Err(law.error("duplicate_law_binding"));
@@ -777,23 +888,27 @@ impl ExactTransportData {
             conditioning: Arc::from([]),
             interventions: Arc::from(spec.intervention),
         };
-        let regimes =
-            self.index.get(spec.population).ok_or_else(|| missing("missing_exact_provider"))?;
-        let world = lookup_world_key(spec.intervention);
+        let wanted = world_key(spec.intervention);
         let index = match spec.regime {
-            Some(regime) => regimes.get(&regime).and_then(|worlds| worlds.get(world.as_ref())),
+            Some(regime) => self
+                .index
+                .get(&world_binding(Arc::<str>::from(spec.population), regime, spec.intervention))
+                .copied(),
             None => self.world_bound_regimes.as_ref().and_then(|cited| {
-                regimes
+                self.index
                     .iter()
-                    .filter(|(regime, _)| cited.contains(regime))
-                    .filter_map(|(regime, worlds)| Some((regime, worlds.get(world.as_ref())?)))
-                    .filter(|(_, index)| self.laws[**index].covers(spec))
-                    .min_by_key(|(regime, _)| regime.raw())
-                    .map(|(_, index)| index)
+                    .filter(|(binding, index)| {
+                        binding.population.as_ref() == spec.population
+                            && cited.contains(&binding.regime)
+                            && binding.interventions.as_ref() == wanted.as_slice()
+                            && self.laws[**index].covers(spec)
+                    })
+                    .min_by_key(|(binding, _)| binding.regime.raw())
+                    .map(|(_, index)| *index)
             }),
         };
         index
-            .map(|index| &self.laws[*index])
+            .map(|index| &self.laws[index])
             .filter(|law| law.covers(spec))
             .ok_or_else(|| missing("missing_exact_provider"))
     }
@@ -827,8 +942,11 @@ impl ExactTransportData {
                     law.positions(spec.conditioned_on, assignment).map_err(locate)?;
                 let outputs = law.positions(spec.variables, assignment).map_err(locate)?;
                 let key = self.factor_cache.as_ref().map(|_| {
-                    let index = self.index[spec.population][&law.regime]
-                        [lookup_world_key(spec.intervention).as_ref()];
+                    let index = self.index[&world_binding(
+                        Arc::clone(&law.population),
+                        law.regime,
+                        spec.intervention,
+                    )];
                     (self.law_identities[index], outputs.clone(), conditions.clone())
                 });
                 if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
@@ -967,9 +1085,7 @@ mod tests {
     }
 
     use super::*;
-    fn v(i: u32) -> VariableId {
-        VariableId::from_raw(i)
-    }
+    use crate::test_variable as v;
     fn axis(i: u32) -> DiscreteAxis {
         DiscreteAxis { variable: v(i), values: Arc::from([Value::Int64(0), Value::Int64(1)]) }
     }
@@ -1027,6 +1143,53 @@ mod tests {
         let missing_regime = FactorSpec { regime: None, ..spec };
         assert!(data.require_factor(&missing_regime).is_err());
     }
+
+    #[test]
+    fn shared_factor_cache_is_content_bound_across_rebinds() {
+        let axis =
+            DiscreteAxis { variable: v(0), values: Arc::from([Value::Int64(0), Value::Int64(1)]) };
+        let make_law = |probabilities| {
+            ExactDiscreteLaw::try_new(
+                "target",
+                RegimeId::from_raw(0),
+                [],
+                [axis.clone()],
+                probabilities,
+                // Deliberately keep caller-supplied snapshot metadata the same.
+                "same-snapshot-label",
+                LawTolerance::default(),
+            )
+            .unwrap()
+        };
+        let old = ExactTransportData::try_new([make_law([0.25, 0.75])], 4)
+            .unwrap()
+            .with_shared_factor_cache(4);
+        let replacement = ExactTransportData::try_new([make_law([0.75, 0.25])], 4).unwrap();
+        let outputs = [v(0)];
+        let spec = FactorSpec {
+            population: "target",
+            regime: Some(RegimeId::from_raw(0)),
+            ..FactorSpec::new(&outputs, &[], &[], DomainRef::Observational)
+        };
+        let assignment = Assignment::from_pairs([(v(0), Value::Int64(1))]);
+
+        // Warm the shared cache with the first law, then rebind a different immutable
+        // probability table that deliberately reuses its external snapshot label.
+        assert_eq!(
+            old.probability_checked(&spec, &assignment).unwrap().to_bits(),
+            0.75_f64.to_bits()
+        );
+        let rebound = replacement.rebind_reusing_factor_cache(Some(&old), 4).unwrap();
+        let warm_rebind_value = rebound.probability_checked(&spec, &assignment).unwrap();
+        let fresh_value = replacement.probability_checked(&spec, &assignment).unwrap();
+        assert_eq!(warm_rebind_value.to_bits(), 0.25_f64.to_bits());
+        assert_eq!(warm_rebind_value.to_bits(), fresh_value.to_bits());
+        assert_eq!(
+            old.probability_checked(&spec, &assignment).unwrap().to_bits(),
+            0.75_f64.to_bits()
+        );
+    }
+
     #[test]
     fn empirical_empty_conditioner_is_sampling_zero_not_structural() {
         let table = ExactDiscreteLaw::try_empirical(
@@ -1104,13 +1267,15 @@ mod tests {
         let root = ratio_form_conditional(&mut arena);
         let ctx = antecedent_core::ExecutionContext::for_tests(0);
         let plan = crate::ExactEvaluationPlan::compile(
-            &arena,
-            root,
+            crate::ExactEvaluationSpec {
+                arena: &arena,
+                root,
+                outcomes: [v(1)].into(),
+                request: Assignment::from_pairs([(v(0), Value::Int64(0))]),
+                limits: crate::ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data,
-            [v(1)],
-            Assignment::from_pairs([(v(0), Value::Int64(0))]),
-            crate::ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();
@@ -1130,13 +1295,15 @@ mod tests {
         let root = ratio_form_conditional(&mut arena);
         let ctx = antecedent_core::ExecutionContext::for_tests(0);
         let plan = crate::ExactEvaluationPlan::compile(
-            &arena,
-            root,
+            crate::ExactEvaluationSpec {
+                arena: &arena,
+                root,
+                outcomes: [v(1)].into(),
+                request: Assignment::from_pairs([(v(0), Value::Int64(0))]),
+                limits: crate::ExactEvaluationLimits::default(),
+                tolerance: LawTolerance::default(),
+            },
             data,
-            [v(1)],
-            Assignment::from_pairs([(v(0), Value::Int64(0))]),
-            crate::ExactEvaluationLimits::default(),
-            LawTolerance::default(),
             &ctx,
         )
         .unwrap();
@@ -1188,7 +1355,6 @@ mod tests {
         assert!(data.support(&[v(1)], &EvalContext::default()).is_err());
     }
 
-    #[allow(clippy::float_cmp)] // exact constants: the values compared are representable results, not measurements
     #[test]
     fn marginal_tables_agree_with_brute_force_enumeration() {
         // Three binary axes, an asymmetric joint. Every subset of axes and every level
@@ -1230,5 +1396,36 @@ mod tests {
         }
         // One axis pinned to two different levels is the empty event.
         assert!(table.mass(&[(0, 0), (0, 1)]).abs() == 0.0);
+    }
+
+    #[test]
+    fn integral_float_selects_the_int_intervention_world() {
+        assert!(same_value_key(&Value::Float64(1.0), &Value::Int64(1)));
+        assert!(same_value_key(&Value::Float64(-0.0), &Value::Int64(0)));
+        assert!(!same_value_key(&Value::Float64(1.5), &Value::Int64(1)));
+        assert!(same_value_key(&Value::Float64(f64::NAN), &Value::Float64(f64::NAN)));
+        let law = ExactDiscreteLaw::try_new(
+            "target",
+            RegimeId::from_raw(1),
+            [InterventionAssignment { variable: v(0), value: Value::Int64(1) }],
+            [axis(1)],
+            [0.25, 0.75],
+            "s",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let data = ExactTransportData::try_new([law], 1).unwrap();
+        let intervention = [InterventionAssignment { variable: v(0), value: Value::Float64(1.0) }];
+        let spec = FactorSpec {
+            population: "target",
+            regime: Some(RegimeId::from_raw(1)),
+            domain: DomainRef::Interventional,
+            variables: &[v(1)],
+            conditioned_on: &[],
+            intervention: &intervention,
+        };
+        let assignment = Assignment::from_pairs([(v(1), Value::Int64(1))]);
+        let p = data.probability_checked(&spec, &assignment).unwrap();
+        assert!((p - 0.75).abs() < 1e-15);
     }
 }

@@ -1,4 +1,5 @@
-# X7 cross-fitted neural workload, 2.1.0
+<!-- generated from benches/baselines/baselines.toml (neural_crossfit); do not edit -->
+# Cross-fitted neural workload
 
 Established: 2026-09-24 (the date this file was first committed; the measurement date was not written down)
 Machine class: arm64 development host, as the measurement note below states; the chip model was not written down
@@ -23,7 +24,7 @@ On the local arm64 host with Rust 1.85.1, one release-mode run measured:
 End-to-end wall time: **150.797 ms**.
 
 The shipping adapter is Burn `NdArray<f32>` on CPU. There is no GPU provider or
-host-to-device transfer in 2.1.0, so the benchmark does not establish an
+host-to-device transfer in this build, so the benchmark does not establish an
 accelerator speedup. A future opt-in backend must beat this full workload,
 including fold scheduling and transfer, before its distribution and replay
 gates can be considered. This is a timing baseline, not a causal coverage test.

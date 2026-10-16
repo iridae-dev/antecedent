@@ -15,6 +15,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod adaptive_inference;
+pub mod adaptive_measured_interval;
 pub mod adjustment;
 pub mod admg_conditional_transport;
 pub mod aipw;
@@ -28,25 +30,32 @@ pub mod bayesian_robust_ate;
 pub mod categorical_treatment;
 pub mod causal_forest;
 pub mod cell_aipw;
+pub mod cohort_linear_effect;
 pub mod conditional;
 pub mod continuous_dose;
+pub mod count_fitted_posterior;
+pub mod counterfactual_transport;
+pub mod counterfactual_transport_sampled;
 pub mod cpdag_scenarios;
 pub mod crossfit_aipw;
 pub mod crossfit_cache;
+mod crossfit_plan;
 pub mod design_compile;
 pub mod dml;
 pub mod dr;
 pub mod effect_constancy;
+pub mod effect_estimate;
 pub mod empirical_table;
 pub mod envelope;
 pub mod error;
 pub mod estimator;
+pub mod factorial_bernoulli;
 pub mod frontdoor;
 pub mod frontdoor_functional;
 pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
-pub mod identified_set;
+pub use antecedent_stats::identified_set;
 pub mod interference;
 pub mod interference_observational;
 pub mod interference_saturation;
@@ -65,6 +74,7 @@ pub mod nonlinear_mediation;
 pub mod observation;
 pub mod overlap;
 pub mod policy_value;
+pub mod posterior_mean;
 pub mod prediction;
 pub mod prepare;
 pub mod propensity;
@@ -106,12 +116,16 @@ pub mod util;
 pub mod vector_treatment;
 
 #[cfg(test)]
-#[allow(clippy::doc_markdown)]
 mod calibration_coverage;
 
 pub use adjustment::{
-    BlockResampling, CandidateSelectionRecord, CheckedLinearAdjustmentAte, EffectEstimate,
-    EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
+    CheckedLinearAdjustmentAte, EstimationWorkspace, LinearAdjustmentAte, LinearFitKind,
+    PreparedEstimationProblem,
+};
+pub use effect_estimate::{
+    AnalyticSe, BlockResampling, BlockSeRecord, BootstrapAccounting, CandidateSelectionRecord,
+    CrossfitRecord, EffectEstimate, EstimateDiagnostics, EstimateHeterogeneity, EstimateProvenance,
+    EstimateScores, EstimateUncertainty, FamilyInference, JointRecord, ScenarioBand,
 };
 pub mod cluster_dml_aipw;
 pub mod descriptive_comparison;
@@ -122,10 +136,12 @@ pub mod joint_cell_factorized;
 pub mod learned_continuous;
 pub mod learned_joint_transport;
 pub mod learned_trial;
-pub mod longitudinal_regime;
+pub use antecedent_stats::longitudinal_regime;
 pub mod marginal_structural_model;
 pub mod matched_case_control;
+pub mod measurement;
 pub mod smoothed_dose;
+pub use antecedent_learn::{FittedEffect, FittedEffectError};
 pub use estimator_menu::{
     EstimatorMenu, EstimatorMenuEntry, MenuContext, MenuRefusal, transport_estimator_menu,
     transport_estimator_menu_with,
@@ -149,8 +165,6 @@ pub use smoothed_dose::{
 };
 #[cfg(feature = "calibration-internal")]
 pub use smoothed_dose::{SmoothedDoseIntervalRun, smoothed_dose_interval_internal};
-mod fitted_effect;
-pub use fitted_effect::FittedEffect;
 
 pub use admg_conditional_transport::{
     AdmgConditionalExactPlan, prepare_exact_admg_conditional_transport,
@@ -165,20 +179,19 @@ pub use antecedent_learn::{
 };
 pub use antecedent_stats::FirstStageDiagnostics;
 pub use ar_kernel::kernel_bias_factor;
+pub(crate) use bayesian::require_bayesian_n_draws;
 pub use bayesian::{
-    BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
-    BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator,
-    HMC_DRAW_FLOOR_NOTE_PREFIX, HMC_MIN_DRAWS, HYDRATED_COEFFICIENT_COVARIANCE_ID,
-    HYDRATED_COVARIANCE_DROPPED_ID, HydrateMapping, PosteriorFunctionalEvaluator,
-    PreparedBayesianProblem, coefficient_covariance_from_draws, coefficient_names_from_design,
-    hmc_draw_floor_from_notes, hydrate_prior, hydrate_prior_from_coefficient_moments,
-    hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
-    hydrate_prior_with_coefficient_covariance, nonidentified_with_prior, require_bayesian_n_draws,
+    BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
+    CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping, HydrateSource,
+    HydrateTarget, PosteriorFunctionalEvaluator, PreparedBayesianProblem,
+    coefficient_covariance_from_draws, hmc_draw_floor_from_notes, hydrate_prior,
+    hydrate_prior_from_coefficient_moments, nonidentified_with_prior,
 };
 pub use causal_forest::CausalForest;
 pub use cell_aipw::{
-    CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
-    cell_minus_control_contrast, contrast_named, family_cell_contrast, interaction_contrast,
+    CellSaturatedAipw, CellScoreSpec, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
+    SharedCellInputs, cell_minus_control_contrast, contrast_named, family_cell_contrast,
+    interaction_contrast,
 };
 pub use cluster_dml_aipw::{
     ClusterDml, ClusterDmlReceipt, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD,
@@ -186,9 +199,12 @@ pub use cluster_dml_aipw::{
     endpoint_components, flexible_learner_dependence_refusal,
 };
 pub use conditional::{ConditionalArmScores, ConditionalLinearAdjustment};
+pub use counterfactual_transport::{
+    CounterfactualTransportEvidence, CounterfactualTransportPoint, LoweredCounterfactualItem,
+    evaluate_counterfactual_transport, lower_counterfactual_transport_items,
+};
 pub use crossfit_aipw::{
-    AIPW_CROSSFIT_PROVENANCE, DEFAULT_AIPW_FOLDS, WeightedSupport, build_binary_scores,
-    crossfit_binary_scores, thresholds_of, weighted_support,
+    DEFAULT_AIPW_FOLDS, WeightedSupport, build_binary_scores, crossfit_binary_scores,
 };
 pub use crossfit_cache::{CrossfitCacheStats, CrossfitNuisanceCache, NuisanceScopeUse};
 pub use descriptive_comparison::{
@@ -196,24 +212,20 @@ pub use descriptive_comparison::{
     ReportingContrast, ReportingScale, ReportingTransform, Unavailable, compare_raw_adjusted,
     raw_contrast, refuse_column_attribution, refuse_transform_interval, transform_mean_pair,
 };
-pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use dml::{DmlAte, DmlScore};
 pub use dr::{CateProfile, DrLearner, PointwiseCateEstimate};
 pub use empirical_table::{
-    BayesianLawDrawer, BayesianTransportLawDraw, BayesianTransportLawProvider,
-    EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP, EMPIRICAL_TABLE_DIRICHLET, EMPIRICAL_TABLE_PLUGIN,
+    BayesianTransportLawProvider, EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP, EMPIRICAL_TABLE_PLUGIN,
     EmpiricalTableEstimator, EmpiricalTableOptions, RegimeSample, STATE_SPACE_DIRICHLET,
-    StatisticalTransportInput, assemble_point_laws, assemble_statistical_laws, catalog_axes,
-    dependence_refusal, dirichlet_posterior_probabilities, draw_bayesian_transport_laws,
-    draw_empirical_support_transport_law, draw_state_space_dirichlet_transport_law,
+    StatisticalTransportInput, assemble_point_laws, catalog_axes, dependence_refusal,
     fit_empirical_joint, licensed_iid_dependence, licensed_iid_regimes,
 };
 pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
-    aggregate_mixture_functional_envelope, couple_mixture_functional_draws,
+    aggregate_mixture_functional_envelope,
 };
 pub use error::{EstimationError, ExactF64, RefusalFields};
-pub use estimator::{Estimator, TabularAteEstimator};
+pub use estimator::Estimator;
 pub use fit_plan::JointFitPlan;
 pub use frontdoor::{
     CheckedFrontDoorLowering, CheckedFrontDoorPreparation, FrontDoorTwoStage, FrontDoorWorkspace,
@@ -221,11 +233,11 @@ pub use frontdoor::{
 };
 pub use frontdoor_functional::{FrontDoorFunctional, FrontDoorOutcomeModel};
 pub use functional_distribution::{
-    AtomUncertainty, DistributionAtom, FREE_VARIABLES_AVERAGED_CODE, FunctionalDistribution,
-    FunctionalDistributionWorkspace, FunctionalEffect, InterventionalDistributionEstimate,
-    PreparedFunctionalDistribution, PreparedFunctionalEffect, ProbabilityInterval,
-    ProbabilityIntervalUnavailable, free_variables_diagnostic, functional_cell_unevaluable,
-    functional_free_variables, logit_probability_interval, support_from_functional_eval,
+    AtomUncertainty, DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace,
+    FunctionalEffect, InterventionalDistributionEstimate, PreparedFunctionalDistribution,
+    PreparedFunctionalEffect, ProbabilityInterval, ProbabilityIntervalUnavailable,
+    free_variables_diagnostic, functional_cell_unevaluable, functional_free_variables,
+    logit_probability_interval, support_from_functional_eval,
 };
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use identified_set::{
@@ -234,16 +246,14 @@ pub use identified_set::{
 };
 pub use interference::{
     BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate,
-    estimate_cluster_interference_total, estimate_cluster_interference_total_pointwise,
-    estimate_cluster_interference_total_with_inference, estimate_interference,
-    estimate_interference_bayesian, own_treatment_level,
+    estimate_cluster_interference_total, estimate_cluster_interference_total_with_inference,
+    estimate_interference, estimate_interference_bayesian, own_treatment_level,
 };
 pub use interference_observational::{
     ObservationalExposureEstimate, ObservationalExposureSpec, estimate_observational_exposure,
 };
 pub use interference_saturation::{
     SaturationInterferenceEstimate, estimate_saturation_interference,
-    estimate_saturation_interference_pointwise,
 };
 pub use iv::{
     CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,
@@ -256,9 +266,8 @@ pub use joint_cell_factorized::{
     orderings_for, refuse_joint_inference, refuse_joint_learner_inference,
 };
 pub use joint_if::{
-    JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, kish_n_eff,
-    max_t_critical, max_t_critical_polled, max_t_critical_with_df_polled, monotone_decreasing,
-    monotone_increasing, weighted_mean,
+    JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, max_t_critical,
+    max_t_critical_polled, max_t_critical_with_df_polled, monotone_increasing, weighted_mean,
 };
 pub use matched_case_control::{
     ConditionalOddsRatio, MATCHED_ESTIMAND, MATCHED_SAMPLING, MatchedSetCounts,
@@ -274,15 +283,14 @@ pub use observation::{
 pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};
 pub use prediction::TemporalLinearPredictor;
 pub use propensity::{
-    CaliperScale, DEFAULT_LASSO_GRID, DEFAULT_RIDGE_GRID, DEFAULT_RIDGE_INNER_FOLDS,
-    DistanceMatching, FailedFit, FallbackRecord, FoldSupport, NuisanceFallback,
-    PROPENSITY_FIT_STAGE, PenalizedReport, PenalizedVarianceReport, PreparedPropensityProblem,
-    PropensityEstimationWorkspace, PropensityMatching, PropensityModel, PropensityNuisance,
-    PropensityPenalty, PropensityStratification, PropensityWeighting,
+    CaliperScale, DEFAULT_RIDGE_GRID, DistanceMatching, FailedFit, FallbackRecord, FoldSupport,
+    NuisanceFallback, PROPENSITY_FIT_STAGE, PenalizedReport, PenalizedVarianceReport,
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
+    PropensityNuisance, PropensityPenalty, PropensityStratification, PropensityWeighting,
     REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, RidgeTuning, crossfit_influence_se,
     default_propensity_overlap, provenance_marks_penalized, provenance_withholds_interval,
 };
-pub use quantile::{MIN_QUANTILE_DENSITY, empirical_threshold_grid, invert_cdf_quantile};
+pub use quantile::empirical_threshold_grid;
 pub use rd::{
     CheckedRdLowering, CheckedRdPreparation, PreparedRdProblem, RdWorkspace,
     SharpRegressionDiscontinuity,
@@ -291,28 +299,27 @@ pub use recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_eff
 pub use recovery_chain::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};
 pub use recovery_sampled::{
     ObservationPattern, ObservationRow, SAMPLED_RECOVERY_CALIBRATION,
-    SAMPLED_RECOVERY_INTERVAL_LEVEL, SAMPLED_RECOVERY_MAX_BINARY_VARIABLES,
-    SAMPLED_RECOVERY_MAX_REPLICATES, SAMPLED_RECOVERY_MAX_ROWS, SAMPLED_RECOVERY_MIN_REPLICATES,
-    SampledEffectInterval, SampledObservationInput, SampledRecoveryConfig, SampledRecoveryDetail,
+    SAMPLED_RECOVERY_MAX_BINARY_VARIABLES, SAMPLED_RECOVERY_MAX_REPLICATES,
+    SAMPLED_RECOVERY_MAX_ROWS, SAMPLED_RECOVERY_MIN_REPLICATES, SampledEffectInterval,
+    SampledObservationInput, SampledRecoveryConfig, SampledRecoveryDetail,
     SampledRecoveryDiagnostics, SampledRecoveryError, SampledRecoveryReceipt,
     SampledRecoveryResult, derive_sampled_recovery, estimate_sampled_recovery,
     refuse_component_variance_only, replay_sampled_recovery, sampled_recovery_route_frozen,
 };
 pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions, ResponseInfluence};
 pub use retarget::{
-    DirectedAncestry, MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, changes_target,
-    check_depends_on, exceedance_cdf_values, retarget, summarize_functional,
-    weighted_overlap_fields, weighted_support_fields,
+    DirectedAncestry, RetargetRefusal, RetargetResult, changes_target, check_depends_on,
+    exceedance_cdf_values, retarget, summarize_functional, weighted_overlap_fields,
+    weighted_support_fields,
 };
 pub use scores::{
     LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreSupport, ScoreTable,
     ScoreTableWire, inference_from_influence_columns,
 };
+pub use se::AnalyticSeKind;
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
-pub use se::{AnalyticSeKind, LinearSeKind};
 pub use serial_dependence::{
-    DEPENDENCE_ASSUMPTION_ID, DEPENDENCE_NOTE_PREFIX, DependenceScope, SerialDependence,
-    TemperingFactor, long_run_tempering_factor, tempering_capped_from_notes,
+    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_capped_from_notes,
     tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
 pub use statistical_transport::{
@@ -321,23 +328,23 @@ pub use statistical_transport::{
     TransportUncertaintyRow, Z_TRANSPORT_INTERVAL_NOT_MEASURED, bayesian_z_transport_interval,
     evaluate_bayesian_statistical_transport, evaluate_bayesian_statistical_transport_grid,
     evaluate_statistical_transport, mz_interval_withheld_reason, mz_sampling_dependence,
-    nominal_z_transport_interval, percentile_interval,
+    nominal_z_transport_interval, percentile_interval, z_transport_bootstrap_law_draws,
 };
 #[cfg(feature = "calibration-internal")]
 pub use statistical_transport::{
     MzRequestInterval, MzTransportIntervals, mz_transport_bootstrap_interval,
-    mz_transport_bootstrap_law_draws, z_transport_bootstrap_law_draws,
+    mz_transport_bootstrap_law_draws,
 };
 pub use temporal_adjustment::{
-    TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,
-    is_temporal_coefficient_name, temporal_coefficient_names,
+    NestedDirectFitMoments, TemporalDependenceSe, TemporalDesignInputs, TemporalLinearAdjustment,
+    TemporalSlopeSpec, is_temporal_coefficient_name, nested_direct_fit_moments,
+    temporal_coefficient_names, temporal_conditional_marginal_effect, temporal_linear_slopes,
 };
 pub use temporal_block::{
-    AlignedRows, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap, block_effective_rows,
+    AlignedRows, BlockBootstrap, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap,
     circular_fixed_b_scale, common_time_window, dependence_block_length, effective_rows,
-    fixed_b_scale, kernel_bias_scale, normal_equation_scores, normal_equation_scores_of_residuals,
-    politis_white_block_length, row_block_bootstrap_vec, score_effective_rows,
-    testing_block_length,
+    kernel_bias_scale, normal_equation_scores, normal_equation_scores_of_residuals,
+    row_block_bootstrap_vec, score_effective_rows,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, PreparedTemporalMediation, SharedMediationBlockSe,
@@ -348,42 +355,40 @@ pub use temporal_mediation::{
 pub use temporal_response::{
     MaxDeviationBand, PreparedTemporalSurface, ResponseBlockLength, SIMULTANEOUS_BAND_CRITICAL,
     SIMULTANEOUS_BAND_LOWER, SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER,
-    SIMULTANEOUS_BAND_WITHHELD, TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC,
-    TEMPORAL_RESPONSE_BAND_WITHHELD, TEMPORAL_RESPONSE_BLOCK_CAPPED,
-    TEMPORAL_RESPONSE_BLOCK_LENGTH, TEMPORAL_RESPONSE_FEW_REPLICATES,
-    TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY, TemporalInterventionPlan, TemporalResponseEstimator,
-    block_dispersion_inflation, circular_block_positions, circular_block_positions_into,
-    clear_simultaneous_band, disclose_response_block_bootstrap, inflate_replicates,
-    max_deviation_band, max_deviation_band_columns, plan_from_response_query,
-    plan_temporal_intervention, publish_simultaneous_band, temporal_block_length,
+    TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC, TEMPORAL_RESPONSE_BAND_WITHHELD,
+    TEMPORAL_RESPONSE_BLOCK_LENGTH, TEMPORAL_RESPONSE_FEW_REPLICATES, TemporalIdentification,
+    TemporalInterventionPlan, TemporalResponseEstimator, block_dispersion_inflation,
+    circular_block_positions_into, clear_simultaneous_band, disclose_response_block_bootstrap,
+    inflate_replicates, max_deviation_band, plan_from_response_query, publish_simultaneous_band,
 };
-pub use temporal_response_dispersion::{
-    CellDispersion, RESPONSE_SHORT_SERIES_ROWS, influence_effective_rows,
-};
+pub use temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROWS};
 pub use temporal_sequential::{
-    SequentialContrastDesign, SequentialMechanismOverlay, SequentialNodeOverlay,
-    estimate_sequence_mechanisms, estimate_sequence_overlays, estimate_sustained_window,
+    SequenceTarget, SequentialContrastDesign, SequentialInference, SequentialMechanismOverlay,
+    SequentialNodeOverlay, SequentialProblem, estimate_sequence_mechanisms,
+    estimate_sequence_overlays, estimate_sustained_window,
 };
 pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,
 };
 pub use transport::{
-    TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
-    TransportResponseGridEstimate, evaluate_exact_mz_transport, evaluate_exact_transport,
-    evaluate_exact_z_transport, is_support_failure, prepare_exact_mz_transport,
-    prepare_exact_transport, prepare_exact_z_transport, refuse_budget, refuse_cancelled,
-    refuse_eval, transport_augmented_response_grid, transport_outcome_kind,
+    ResponseGridInputs, TransportEffectEstimate, TransportOverlapDiagnostic,
+    TransportOverlapReport, TransportResponseGridEstimate, evaluate_exact_mz_transport,
+    evaluate_exact_transport, evaluate_exact_z_transport, prepare_exact_mz_transport,
+    prepare_exact_transport, prepare_exact_z_transport, refuse_cancelled, refuse_eval,
+    transport_augmented_response_grid, transport_outcome_kind, trial_aipw_row_scores,
     trial_to_target_bayesian_bootstrap, trial_to_target_effect, trial_to_target_ipw_se,
 };
-pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, ReplicatePolicy};
+pub use util::{BootstrapSeResult, DrawSpec, ReplicatePolicy};
 
 mod splitmix;
 mod static_mediation;
 pub use static_mediation::{
-    MediationPriorBridge, estimate_static_mediation, estimate_static_mediation_bayesian,
-    estimate_static_mediation_bayesian_outcome_prior, linear_no_interaction_restriction,
+    MediationPriorBridge, StaticMediationProblem, estimate_static_mediation,
+    estimate_static_mediation_bayesian, estimate_static_mediation_bayesian_outcome_prior,
+    linear_no_interaction_restriction,
 };
 pub mod augmented_panel_did;
 
 /// Retained adjusted-regression execution and measured model fits.
 pub mod adjustment_resume;
+pub mod measurement_transport;

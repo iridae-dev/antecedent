@@ -1,16 +1,12 @@
 """Stationary mixed temporal graphs retain latent confounding and lag coordinates."""
 
-from pathlib import Path
-
 import antecedent as ant
 import numpy as np
 import pytest
 
-from _repo_text import load_json
+from _repo_text import REPO_ROOT, load_json
 
-PIN = load_json(
-    Path(__file__).resolve().parents[2] / "conformance/estimate/temporal_class_envelope/latent.json"
-)
+PIN = load_json(REPO_ROOT / "conformance/estimate/temporal_class_envelope/latent.json")
 
 
 def case(mixed=False):
@@ -42,7 +38,7 @@ def test_temporal_mag_effect_and_prepared_reuse(accepted, mixed, sustained, refu
         else ant.PulseEffect("t", "y", treatment_lag=1)
     )
     identified = ant.identify(graph=graph, query=query)
-    cert = identified.certificate
+    cert = identified.to_dict()["certificate"]
     assert len(cert["cases"]) == (3 if mixed else 1)
     for completion in cert["cases"]:
         assert completion["graph"]["kind"] == "temporal_mag"
@@ -55,8 +51,10 @@ def test_temporal_mag_effect_and_prepared_reuse(accepted, mixed, sustained, refu
     click = prepared.estimate(data, seed=7)
     for result in [fresh, click]:
         assert result.certificate is not None
-        assert len(result.certificate["cases"]) == len(cert["cases"])
-        for expected, actual in zip(cert["cases"], result.certificate["cases"], strict=True):
+        assert len(result.to_dict()["certificate"]["cases"]) == len(cert["cases"])
+        for expected, actual in zip(
+            cert["cases"], result.to_dict()["certificate"]["cases"], strict=True
+        ):
             assert actual["adjustment_coordinates"] == expected["adjustment_coordinates"]
             assert actual["indexer"] == expected["indexer"]
             assert actual["identification"]["arena"] == expected["identification"]["arena"]
@@ -87,7 +85,7 @@ def test_fully_oriented_temporal_pag_keeps_mag_certificate():
     for result in (fresh, prepared.estimate(data, seed=7)):
         assert result.effect == pytest.approx(2.0, abs=1e-6)
         assert result.certificate["graph_class"] == "TemporalPag"
-        assert result.certificate["cases"][0]["graph"]["kind"] == "temporal_mag"
+        assert result.to_dict()["certificate"]["cases"][0]["graph"]["kind"] == "temporal_mag"
         assert not any("completed_to_dag" in diagnostic for diagnostic in result.diagnostics)
         columns = ant.handoff.econml(result).columns(data)
         np.testing.assert_array_equal(columns["W"][:, 0], data["z"][:-1])

@@ -47,36 +47,11 @@ pub const TEMPORAL_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TEMPORAL_TRANSPORT_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v1";
 
-/// Why a temporal sequence artifact was refused.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum TemporalTransportArtifactError {
-    /// The feature marker is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A recorded limit or stored collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The recomputed report differs from the stored report.
-    #[error("temporal sequence report does not replay")]
-    ReportMismatch,
-    /// The stored catalog or laws disagree with the recorded data digest.
-    #[error("temporal sequence data identity mismatch")]
-    DataIdentityMismatch,
-    /// The report was not produced by the prepared sequence it is exported with.
-    #[error("the report was not produced by this prepared sequence")]
-    ForeignReport,
-    /// The stored laws disagree with the recorded provider.
-    #[error("temporal sequence provider mismatch: {0}")]
-    ProviderMismatch(&'static str),
-}
-
+pub use antecedent_io_core::transport_errors::TemporalTransportArtifactError;
 /// A refused sequence, window or bound as a reason-coded refusal.
 #[must_use]
-#[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.
+#[allow(clippy::needless_pass_by_value, reason = "A `map_err` adapter")]
+// doc(hidden): the facade and the python bindings map refusals through it.
 #[doc(hidden)]
 pub fn temporal_refusal(refusal: TemporalRefusal) -> IoError {
     IoError::Refused {
@@ -87,6 +62,7 @@ pub fn temporal_refusal(refusal: TemporalRefusal) -> IoError {
 
 /// A decision failure as an IO error: a refusal keeps its code.
 #[must_use]
+// doc(hidden): the facade maps decision errors through it.
 #[doc(hidden)]
 pub fn temporal_decision_error(error: TemporalSequenceError) -> IoError {
     match error {
@@ -350,11 +326,10 @@ fn data_digest(
         .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
         .collect::<Vec<_>>();
     snapshots.sort();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("temporal_transport_data_v1", bindings, snapshots),
-    )?
-    .to_hex())
+    )
 }
 
 /// Scientific identity of a temporal sequence execution: the unrolled graph and
@@ -364,8 +339,13 @@ fn data_digest(
 ///
 /// # Errors
 /// Encoding failure.
+#[cfg(feature = "test-util")]
 #[doc(hidden)]
 pub fn temporal_sequence_identity(wire: &TemporalSequenceArtifactWire) -> Result<String, IoError> {
+    temporal_sequence_identity_impl(wire)
+}
+
+fn temporal_sequence_identity_impl(wire: &TemporalSequenceArtifactWire) -> Result<String, IoError> {
     let mut graph = wire.graph.clone();
     graph.directed.sort_unstable();
     graph.bidirected.sort_unstable();
@@ -380,7 +360,7 @@ pub fn temporal_sequence_identity(wire: &TemporalSequenceArtifactWire) -> Result
         (wire.search_operations, wire.search_depth, wire.search_memory_bytes),
         (wire.operation_limit, wire.depth_limit, wire.max_support_rows),
     );
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &(
             "temporal_transport_sequence_v1",
@@ -393,8 +373,7 @@ pub fn temporal_sequence_identity(wire: &TemporalSequenceArtifactWire) -> Result
             &wire.sequence,
             budget,
         ),
-    )?
-    .to_hex())
+    )
 }
 
 /// A supplied exact provider carries no fitted tables.
@@ -424,11 +403,6 @@ fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoErro
         .collect::<Result<Vec<_>, _>>()?;
     laws.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(laws.into_iter().map(|(_, law)| law).collect())
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
 }
 
 fn slots_wire(slots: &TemporalSlots) -> TemporalSlotsWire {
@@ -493,7 +467,7 @@ impl TemporalSequenceArtifactWire {
             report: TemporalReportWire::from_report(prepared, report)?,
             premises_digest: String::new(),
         };
-        wire.premises_digest = temporal_sequence_identity(&wire)?;
+        wire.premises_digest = temporal_sequence_identity_impl(&wire)?;
         Ok(wire)
     }
 
@@ -520,11 +494,13 @@ impl TemporalSequenceArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != TEMPORAL_TRANSPORT_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == TEMPORAL_TRANSPORT_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         if wire.required_features != [TEMPORAL_TRANSPORT_ARTIFACT_FEATURE] {
             return Err(
                 TemporalTransportArtifactError::UnsupportedSemantics("required features").into()
@@ -556,11 +532,13 @@ impl TemporalSequenceArtifactWire {
         {
             return Err(exceeded("evaluation limits"));
         }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(exceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(exceeded("law count"));
+        if let Some(what) = crate::stored_law_bounds(
+            self.max_support_rows,
+            limits.max_support_rows,
+            self.laws.len(),
+            limits.max_laws,
+        ) {
+            return Err(exceeded(what));
         }
         Ok(())
     }
@@ -601,12 +579,19 @@ impl TemporalSequenceArtifactWire {
     ) -> Result<(Self, TemporalSequenceReport), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits, ctx)?;
-        if temporal_sequence_identity(&wire)? != wire.premises_digest {
-            return Err(TemporalTransportArtifactError::PremisesMismatch.into());
-        }
-        if data_digest(&wire.catalog.to_catalog()?, &wire.laws)? != wire.data_digest {
-            return Err(TemporalTransportArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            temporal_sequence_identity_impl(&wire),
+            std::convert::identity,
+            || TemporalTransportArtifactError::PremisesMismatch.into(),
+        )?;
+        let catalog = wire.catalog.to_catalog()?;
+        crate::require_digest(
+            &wire.data_digest,
+            data_digest(&catalog, &wire.laws),
+            std::convert::identity,
+            || TemporalTransportArtifactError::DataIdentityMismatch.into(),
+        )?;
         let spec = wire.spec()?;
         let sequence = wire.sequence.iter().map(ValueWire::to_value).collect::<Vec<Value>>();
         let catalog = wire.catalog.to_catalog()?;

@@ -22,15 +22,11 @@ use antecedent_data::{
 };
 use antecedent_estimate::OverlapPolicy;
 use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_test_support::{conformance_dir, load_expected_json};
 use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/estimate/noisy_estimators")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("estimate/noisy_estimators")
 }
 
 fn close(a: f64, b: f64, atol: f64, rtol: f64) -> bool {
@@ -150,9 +146,9 @@ fn run_method(
         expected["methods"][method_id]["val"].as_f64().expect("method val")
     };
     assert!(
-        close(result.estimate.ate, ref_val, atol_val, rtol_val),
+        close(result.estimate.as_effect().unwrap().ate, ref_val, atol_val, rtol_val),
         "{method_id}: ate={} vs ref={ref_val} (atol={atol_val} rtol={rtol_val})",
-        result.estimate.ate
+        result.estimate.as_effect().unwrap().ate
     );
 
     // `iv.2sls` withholds both se_analytic and se_bootstrap and publishes a
@@ -160,7 +156,7 @@ fn run_method(
     // Anderson-Rubin intervals for IV`); there is no SE fixture entry for it
     // and none to check here.
     if method_id != "iv_2sls" {
-        let se = result.estimate.se_analytic;
+        let se = result.estimate.as_effect().unwrap().se_analytic();
         assert!(se.is_finite() && se >= 0.0, "{method_id}: bad se_analytic={se}");
         if !assert_true {
             let row = &expected["methods"][method_id];
@@ -184,7 +180,7 @@ fn run_method(
 
 #[test]
 fn estimate_noisy_estimators_val_and_se() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     assert_eq!(expected["tolerance_class"].as_str().unwrap(), "StableFloat");
     assert!(expected["reference"]["available"].as_bool().unwrap_or(false));
 

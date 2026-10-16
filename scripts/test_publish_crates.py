@@ -7,6 +7,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from _repo import workspace_package_version
+
+VERSION = workspace_package_version()
+STALE = "0.1.0"
+
 
 class PublishVersionTests(unittest.TestCase):
     def run_gate(
@@ -21,13 +26,13 @@ class PublishVersionTests(unittest.TestCase):
             {
                 "id": "core",
                 "name": "antecedent-core",
-                "version": "2.3.0",
+                "version": VERSION,
                 "dependencies": [],
             },
             {
                 "id": "consumer",
                 "name": "antecedent-consumer",
-                "version": "2.3.0",
+                "version": VERSION,
                 "dependencies": [
                     {
                         "name": "antecedent-consumer"
@@ -58,7 +63,7 @@ class PublishVersionTests(unittest.TestCase):
                 '    print("TEST_PACKAGE_VERIFIED")\n'
                 "else:\n"
                 '    sys.exit("unexpected cargo invocation")\n'
-            )
+            , encoding="utf-8", newline="\n")
             cargo.chmod(0o755)
             env = os.environ.copy()
             env["PATH"] = directory + os.pathsep + env["PATH"]
@@ -78,7 +83,7 @@ class PublishVersionTests(unittest.TestCase):
             )
 
     def test_current_internal_version_packages_in_dependency_order(self) -> None:
-        result = self.run_gate("^2.3.0")
+        result = self.run_gate(f"^{VERSION}")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("packaged=2 check-only=0", result.stdout)
         self.assertLess(
@@ -87,15 +92,15 @@ class PublishVersionTests(unittest.TestCase):
         )
 
     def test_outdated_runtime_dependency_refuses_before_packaging(self) -> None:
-        result = self.run_gate("^2.2.0")
+        result = self.run_gate(f"^{STALE}")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("internal dependency version mismatch", result.stderr)
         self.assertNotIn("TEST_PACKAGE_VERIFIED", result.stdout)
 
     def test_outdated_versioned_dev_dependency_also_refuses(self) -> None:
-        result = self.run_gate("^2.2.0", "dev")
+        result = self.run_gate(f"^{STALE}", "dev")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("expected ^2.3.0", result.stderr)
+        self.assertIn(f"expected ^{VERSION}", result.stderr)
 
     def test_unpublished_path_only_dev_dependency_is_allowed(self) -> None:
         result = self.run_gate("*", "dev")
@@ -103,7 +108,7 @@ class PublishVersionTests(unittest.TestCase):
 
     def test_versioned_self_dev_dependency_refuses_before_any_packaging(self) -> None:
         result = self.run_gate(
-            "^2.3.0", "dev", self_version="2.3.0", self_dependency=True
+            f"^{VERSION}", "dev", self_version=VERSION, self_dependency=True
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("versioned self dev dependency must be path-only", result.stderr)

@@ -16,6 +16,26 @@ use antecedent_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentA
 use antecedent_expr::ExprId;
 use antecedent_identify::IdentifiedEstimand;
 
+/// Two noise-driven series with one true lag-1 link `x -> y`: `x` is a stationary AR(1)
+/// and `y_t = 0.9 x_{t-1} + noise`. Both carry independent innovations, so no lagged
+/// column is an exact linear combination of others (a noise-free sinusoid is: every
+/// three of its lags are collinear, which a partial correlation refuses).
+pub(crate) fn driven_xy(n: usize) -> (Vec<f64>, Vec<f64>) {
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    let mut noise = move || {
+        state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        ((state >> 11) as f64 / (1_u64 << 53) as f64) - 0.5
+    };
+    let mut x = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for t in 1..n {
+        x[t] = 0.7 * x[t - 1] + noise();
+        y[t] = 0.9 * x[t - 1] + 0.3 * noise();
+    }
+    (x, y)
+}
+
 /// Table whose column 0 is the treatment `t`, column 1 the outcome `y`, and any further
 /// columns adjustment covariates `z0, z1, ...`. All rows valid.
 pub(crate) fn tabular(columns: &[Vec<f64>]) -> TabularData {

@@ -1,4 +1,4 @@
-//! Selective recalculation with a visible receipt (2.3 C2).
+//! Selective recalculation with a visible receipt.
 //!
 //! [`antecedent_core::recalc`] decides, per stage, whether a workflow can reuse, must
 //! recompute, or must refuse. This module executes one minimal real route under that plan
@@ -18,17 +18,17 @@
 //!
 //! - **Fold fits.** Each prepare or refresh runs inside one
 //!   [`antecedent_estimate::CrossfitNuisanceCache`] scope owned by the [`ReceiptRecorder`].
-//!   The cache counts every cross-fitted nuisance set it actually fit (`propensity_fits`,
-//!   `outcome_fits`; reuse inside the call is counted separately and not as a fit). One fit
-//!   set is `DEFAULT_AIPW_FOLDS` fold fits, so a first run records `5 folds x 2 nuisance
-//!   sets = 10` fold fits. The cache lives only as long as the recorder (one call) and is
-//!   not a persistent fit cache; reuse across calls is the retained [`PreparedStudy`] and its
-//!   frozen score table, and nothing else.
+//!   Its completed-fold counter observes each fitted outer-fold propensity model and outcome
+//!   model pair, including unshared penalized fits and completed folds before a successful
+//!   fallback rerun. Cache hits and failed model-fit attempts do not count; inner penalty
+//!   selection fits are not this counter's unit. A first run records `5 propensity folds + 5
+//!   outcome folds = 10` fold fits. The scope lives only for one call; across calls, reuse is
+//!   the retained [`PreparedStudy`] and frozen score table.
 //! - **Identifications, score computations, reweights, decisions.** Counted at the call sites
 //!   of `Study::prepare` (identification), the score-table build (`prepare` or `refresh`),
 //!   `PreparedStudy::retarget`, and the decision rule. These are call-level counts: they say
-//!   the wrapper invoked the operation, and the fold-fit counter, which is read from the
-//!   estimator's own cache, independently confirms that a refit really happened.
+//!   the wrapper invoked the operation, while the fold-fit counter records completed nuisance
+//!   model fits observed inside the estimator's scope.
 //!
 //! [`RecalcReceipt`] refuses to build when a count contradicts a status: a reused stage that
 //! did work, or a recomputed computation that did none.
@@ -53,6 +53,7 @@ use crate::graph::{Dag, DenseNodeId};
 use super::builder::RefuteSuite;
 use super::execute::Study;
 use super::prepared::PreparedStudy;
+use super::recalc_common::{float_bytes, identity, literal};
 
 fn to_u64(value: usize) -> u64 {
     u64::try_from(value).unwrap_or(u64::MAX)
@@ -281,18 +282,13 @@ impl ReceiptRecorder {
         self.counts.get(&stage).copied().unwrap_or_default()
     }
 
-    /// Run `work` with this recorder's nuisance cache active on the calling thread and record
-    /// every nuisance fit set the cache actually fit as `DEFAULT_AIPW_FOLDS` fold fits.
+    /// Run `work` with this recorder's nuisance cache active and record completed outer-fold
+    /// propensity and outcome model fits observed by the AIPW score builder.
     pub fn measured<R>(&mut self, work: impl FnOnce() -> R) -> R {
-        let before = self.nuisances.stats();
+        let before = self.nuisances.completed_fold_fits();
         let (out, _used) = self.nuisances.scope(work);
-        let after = self.nuisances.stats();
-        let sets = after
-            .propensity_fits
-            .saturating_sub(before.propensity_fits)
-            .saturating_add(after.outcome_fits.saturating_sub(before.outcome_fits));
-        let folds = to_u64(DEFAULT_AIPW_FOLDS);
-        self.record(Counter::FoldFit, to_u64(sets).saturating_mul(folds));
+        let after = self.nuisances.completed_fold_fits();
+        self.record(Counter::FoldFit, to_u64(after.saturating_sub(before)));
         out
     }
 
@@ -607,7 +603,11 @@ pub struct RecalcRequest {
     pub treatment: u32,
     /// Outcome column position.
     pub outcome: u32,
-    /// Estimator configuration. Bootstrap replicates should be zero.
+    /// Estimator configuration. This score-retarget route requires zero bootstrap replicates,
+    /// homoskedastic analytic SEs, and
+    /// [`OverlapPolicy::RequireDiagnostics`](antecedent_estimate::OverlapPolicy::RequireDiagnostics)
+    /// with `trim: None`; the optional clip and other AIPW nuisance and GLM options are fit
+    /// and keyed normally.
     pub estimator: AipwAte,
     /// Target population weights; `None` is the observed population.
     pub target: Option<TargetWeights>,
@@ -615,20 +615,175 @@ pub struct RecalcRequest {
     pub utility: UtilitySpec,
 }
 
-fn f64_bytes(values: &[f64]) -> Vec<u8> {
-    values.iter().flat_map(|v| v.to_bits().to_le_bytes()).collect()
+fn estimator_identity_bytes(estimator: &AipwAte) -> Vec<u8> {
+    let mut out = b"aipw.v1".to_vec();
+    out.extend_from_slice(&estimator.bootstrap_replicates.to_le_bytes());
+    match estimator.overlap {
+        antecedent_estimate::OverlapPolicy::ExplicitOverride => out.push(0),
+        antecedent_estimate::OverlapPolicy::RequireDiagnostics { clip, trim } => {
+            out.push(1);
+            push_opt_f64(&mut out, clip);
+            push_opt_f64(&mut out, trim);
+        }
+    }
+    push_u32(&mut out, estimator.glm_options.max_iter);
+    push_f64(&mut out, estimator.glm_options.tol);
+    match estimator.glm_options.nb_alpha {
+        antecedent_stats::NbAlphaPolicy::Fixed(alpha) => {
+            out.push(0);
+            push_f64(&mut out, alpha);
+        }
+        antecedent_stats::NbAlphaPolicy::MethodOfMoments => out.push(1),
+        antecedent_stats::NbAlphaPolicy::NestedMle { max_outer, tol_alpha } => {
+            out.push(2);
+            push_u32(&mut out, max_outer);
+            push_f64(&mut out, tol_alpha);
+        }
+    }
+    push_opt_f64(&mut out, estimator.glm_options.ridge_on_separation);
+    match estimator.se_kind {
+        antecedent_estimate::AnalyticSeKind::Homoskedastic => out.push(0),
+        antecedent_estimate::AnalyticSeKind::Hc0 => out.push(1),
+        antecedent_estimate::AnalyticSeKind::Hc1 => out.push(2),
+        antecedent_estimate::AnalyticSeKind::Hc2 => out.push(3),
+        antecedent_estimate::AnalyticSeKind::Hc3 => out.push(4),
+        antecedent_estimate::AnalyticSeKind::Cluster => out.push(5),
+        antecedent_estimate::AnalyticSeKind::Multiway => out.push(6),
+        antecedent_estimate::AnalyticSeKind::NeweyWest { lag } => {
+            out.push(7);
+            push_usize(&mut out, lag);
+        }
+        antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag } => {
+            out.push(8);
+            push_usize(&mut out, lag);
+        }
+    }
+    push_opt_u32s(&mut out, estimator.cluster_ids.as_deref());
+    push_opt_u32s(&mut out, estimator.cluster_ids_second.as_deref());
+    push_opt_panel(&mut out, estimator.panel_times.as_deref());
+    match estimator.multiway_ids.as_deref() {
+        None => out.push(0),
+        Some(groups) => {
+            out.push(1);
+            push_usize(&mut out, groups.len());
+            for group in groups {
+                push_u32s(&mut out, group);
+            }
+        }
+    }
+    out.extend_from_slice(&estimator.propensity.identity_digest());
+    match estimator.cluster_dml.as_ref() {
+        None => out.push(0),
+        Some(cluster) => {
+            out.push(1);
+            out.extend_from_slice(cluster.canonical_key().as_bytes());
+        }
+    }
+    match estimator.population_registry.as_ref() {
+        None => out.push(0),
+        Some(registry) => {
+            out.push(1);
+            for (name, rows) in registry.predicates() {
+                out.extend_from_slice(name.as_bytes());
+                out.push(0);
+                push_usize(&mut out, rows.len());
+                for row in rows {
+                    push_usize(&mut out, *row);
+                }
+            }
+            out.push(0xff);
+            for (id, weights, parents) in registry.distributions() {
+                push_u32(&mut out, id.raw());
+                push_f64s(&mut out, weights);
+                push_usize(&mut out, parents.len());
+                for parent in parents {
+                    push_u32(&mut out, parent.raw());
+                }
+            }
+        }
+    }
+    out
 }
 
-fn digest(label: &str, parts: &[Vec<u8>]) -> StageIdentity {
-    let refs: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
-    StageIdentity::of(label, &refs)
+fn push_u32(out: &mut Vec<u8>, value: u32) {
+    out.extend_from_slice(&value.to_le_bytes());
 }
 
-fn literal(label: &str, text: &str) -> StageIdentity {
-    StageIdentity::of(label, &[text.as_bytes()])
+fn push_usize(out: &mut Vec<u8>, value: usize) {
+    out.extend_from_slice(&u64::try_from(value).unwrap_or(u64::MAX).to_le_bytes());
+}
+
+fn push_f64(out: &mut Vec<u8>, value: f64) {
+    out.extend_from_slice(&value.to_bits().to_le_bytes());
+}
+
+fn push_opt_f64(out: &mut Vec<u8>, value: Option<f64>) {
+    match value {
+        None => out.push(0),
+        Some(value) => {
+            out.push(1);
+            push_f64(out, value);
+        }
+    }
+}
+
+fn push_u32s(out: &mut Vec<u8>, values: &[u32]) {
+    push_usize(out, values.len());
+    for value in values {
+        push_u32(out, *value);
+    }
+}
+
+fn push_opt_u32s(out: &mut Vec<u8>, values: Option<&[u32]>) {
+    match values {
+        None => out.push(0),
+        Some(values) => {
+            out.push(1);
+            push_u32s(out, values);
+        }
+    }
+}
+
+fn push_opt_panel(out: &mut Vec<u8>, values: Option<&[i64]>) {
+    match values {
+        None => out.push(0),
+        Some(values) => {
+            out.push(1);
+            push_usize(out, values.len());
+            for value in values {
+                out.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+    }
+}
+
+fn push_f64s(out: &mut Vec<u8>, values: &[f64]) {
+    push_usize(out, values.len());
+    for value in values {
+        push_f64(out, *value);
+    }
 }
 
 impl RecalcRequest {
+    fn validate(&self) -> Result<(), RecalcRunError> {
+        self.utility.validate()?;
+        if self.estimator.bootstrap_replicates != 0 {
+            return Err(RecalcRunError::Request("recalc.bootstrap_replicates_unsupported"));
+        }
+        if self.estimator.overlap == antecedent_estimate::OverlapPolicy::ExplicitOverride {
+            return Err(RecalcRunError::Request("recalc.aipw_requires_overlap_diagnostics"));
+        }
+        if self.estimator.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
+            || matches!(
+                self.estimator.overlap,
+                antecedent_estimate::OverlapPolicy::RequireDiagnostics { trim: Some(_), .. }
+            )
+        {
+            return Err(RecalcRunError::Request("recalc.unsupported_aipw_score_configuration"));
+        }
+        Ok(())
+    }
+
     /// Declared own-input identity of every stage of this request under `ctx`.
     #[must_use]
     pub fn identities(&self, ctx: &ExecutionContext) -> StageIdentities {
@@ -640,41 +795,40 @@ impl RecalcRequest {
         let mut data_parts = Vec::new();
         for (name, values) in &self.columns {
             data_parts.push(name.as_bytes().to_vec());
-            data_parts.push(f64_bytes(values));
+            data_parts.push(float_bytes(values));
         }
         let rows = self.columns.first().map_or(0, |(_, v)| v.len());
         let folds = to_u64(DEFAULT_AIPW_FOLDS);
-        let query = AverageEffectQuery::binary_ate(
-            VariableId::from_raw(self.treatment),
-            VariableId::from_raw(self.outcome),
-        );
         let target = self.target.as_ref().map_or_else(
             || literal("target_population", "all_observed"),
             |t| {
                 let parents: Vec<u8> =
                     t.depends_on.iter().flat_map(|v| v.raw().to_le_bytes()).collect();
-                digest("target_population", &[f64_bytes(&t.weights), parents])
+                identity("target_population", &[float_bytes(&t.weights), parents])
             },
         );
         let mut ids = StageIdentities::new();
         ids.set(
             Stage::Graph,
-            digest("graph", &[to_u64(self.columns.len()).to_le_bytes().to_vec(), edge_bytes]),
+            identity("graph", &[to_u64(self.columns.len()).to_le_bytes().to_vec(), edge_bytes]),
         );
-        ids.set(Stage::Query, literal("query", &format!("{query:?}")));
+        ids.set(
+            Stage::Query,
+            literal("query", &format!("binary_ate:{}:{}", self.treatment, self.outcome)),
+        );
         ids.set(Stage::Regime, literal("regime", "static.binary"));
         ids.set(Stage::Evidence, literal("evidence", "observational.no_external"));
         ids.set(Stage::SourcePopulation, literal("source_population", "all_observed"));
         ids.set(Stage::TargetPopulation, target);
-        ids.set(Stage::DataSnapshot, digest("data_snapshot", &data_parts));
+        ids.set(Stage::DataSnapshot, identity("data_snapshot", &data_parts));
         ids.set(Stage::RowDesign, literal("row_design", &format!("complete_case.rows={rows}")));
         ids.set(Stage::TreatmentGrid, literal("treatment_grid", "binary.0_1"));
         ids.set(
             Stage::LearnerFoldsRng,
-            digest(
+            identity(
                 "learner_folds_rng",
                 &[
-                    format!("{:?}", self.estimator).into_bytes(),
+                    estimator_identity_bytes(&self.estimator),
                     folds.to_le_bytes().to_vec(),
                     ctx.rng.master_seed().to_le_bytes().to_vec(),
                 ],
@@ -682,7 +836,10 @@ impl RecalcRequest {
         );
         ids.set(
             Stage::Utility,
-            digest("utility", &[f64_bytes(&[self.utility.benefit_per_unit, self.utility.cost])]),
+            identity(
+                "utility",
+                &[float_bytes(&[self.utility.benefit_per_unit, self.utility.cost])],
+            ),
         );
         ids.set(Stage::Identification, literal("identification", "backdoor.prepared"));
         ids.set(Stage::ScoreArtifact, literal("score_artifact", "crossfit_aipw.scores"));
@@ -907,7 +1064,9 @@ fn score_stages(
         let mut prepared = live.prepared.as_ref().clone();
         let data = request.data()?;
         recorder.record(Counter::ScoreComputation, 1);
-        recorder.measured(|| prepared.refresh(data, ctx))?;
+        recorder.measured(|| {
+            prepared.refresh_aipw_configuration(data, request.estimator.clone(), ctx)
+        })?;
         return Ok((Arc::new(prepared), None));
     }
     Ok((Arc::clone(&live.prepared), Some((live.law, live.decision))))
@@ -930,7 +1089,11 @@ fn law_stage(
     };
     let result = prepared.retarget(&weights, &depends_on, ctx)?;
     recorder.record(Counter::Reweight, 1);
-    Ok(LawValue { ate: result.estimate.ate, std_error: result.estimate.se_analytic })
+    let effect = result
+        .estimate
+        .as_effect()
+        .ok_or(RecalcRunError::Request("recalc.primary_result_is_not_an_effect"))?;
+    Ok(LawValue { ate: effect.ate, std_error: effect.se_analytic() })
 }
 
 pub(crate) fn decide(
@@ -990,7 +1153,7 @@ pub fn execute_with_receipt(
     request: &RecalcRequest,
     ctx: &ExecutionContext,
 ) -> Result<RecalcOutcome, RecalcRunError> {
-    request.utility.validate()?;
+    request.validate()?;
     let plan = session.plan(request, ctx);
     if !plan.is_executable() {
         return Err(RecalcRunError::Refused(Box::new(plan)));
@@ -1014,4 +1177,159 @@ pub fn execute_with_receipt(
     session.previous = request.identities(ctx);
     session.live = Some(live);
     Ok(RecalcOutcome { plan, receipt, law, decision })
+}
+
+// -- standing inputs ------------------------------------------------------------------------
+
+/// A recalculation session family, for the standing inputs its stage identities declare.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[non_exhaustive]
+pub enum RecalcSessionKind {
+    /// Cross-fitted AIPW average effect with retargeting ([`RecalcRequest`]).
+    Receipt,
+    /// Adjusted mean contrast.
+    Adjusted,
+    /// Binary joint-cell AIPW.
+    Cell,
+    /// Design-based (instrumental-variable and front-door) estimators.
+    Design,
+    /// Doubly robust CATE.
+    DoublyRobust,
+    /// Finite static ADMG responses and multi-source transport.
+    Static,
+    /// Checked temporal response.
+    Temporal,
+    /// Conjugate Bayesian posterior.
+    Bayesian,
+    /// Joint multi-source Bayesian posterior.
+    JointBayesian,
+    /// Attested external mean callbacks.
+    External,
+    /// Native response with attested callbacks under one plan.
+    Composite,
+}
+
+/// How a session states one standing input in its stage identities.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum StandingInputDeclaration {
+    /// The input is declared; a change in it moves the law and the decision, and nothing
+    /// that reads only data.
+    Declared,
+    /// The session's claim does not rest on the input, so none is declared and the
+    /// identities are exactly those of a session that predates standing inputs.
+    NotApplicable {
+        /// Why the claim does not rest on it.
+        reason: &'static str,
+    },
+    /// The session does not hold the information the input names, or declaring it would
+    /// reseal the identity of a retained artifact, so none is declared. A claim that needs
+    /// it is not licensed by this session's identities alone.
+    Undeclared {
+        /// What is missing, as a namespaced finding.
+        finding: &'static str,
+        /// What would make the input declarable.
+        remedy: &'static str,
+    },
+}
+
+/// The three standing inputs of a session's stage identities.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SessionStanding {
+    /// The calibration record behind an interval or posterior statement.
+    pub calibration: StandingInputDeclaration,
+    /// The representation (model family and version) the score artifact was built with.
+    pub representation: StandingInputDeclaration,
+    /// The coupling between streams a joint statement relies on.
+    pub coupling: StandingInputDeclaration,
+}
+
+const POINT_ONLY: StandingInputDeclaration = StandingInputDeclaration::NotApplicable {
+    reason: "the law is a point value; its standard error is an uncalibrated diagnostic",
+};
+const NO_JOINT: StandingInputDeclaration = StandingInputDeclaration::NotApplicable {
+    reason: "the session forms no statement across more than one sampled stream",
+};
+const REPRESENTATION_UNAVAILABLE: StandingInputDeclaration = StandingInputDeclaration::Undeclared {
+    finding: "recalc.standing_undeclared.representation_version_not_held",
+    remedy: "declare the representation when the session consumes a measurement model; the \
+             score artifact identity then moves, so each retained score artifact of the earlier \
+             identity is recomputed once, visibly, and none is resealed in place",
+};
+
+impl RecalcSessionKind {
+    /// The standing inputs this session family declares, and why each other is not.
+    ///
+    /// Declared inputs enter only the effective identities of the law and the decision.
+    /// The representation enters the score artifact: it is declared by no session, because
+    /// no session consumes a measurement model and declaring a label with no model behind
+    /// it would reseal the identity of every retained score artifact for no information.
+    #[must_use]
+    pub const fn standing(self) -> SessionStanding {
+        match self {
+            Self::Bayesian | Self::JointBayesian => SessionStanding {
+                calibration: StandingInputDeclaration::Declared,
+                representation: REPRESENTATION_UNAVAILABLE,
+                coupling: StandingInputDeclaration::Declared,
+            },
+            Self::External | Self::Composite => SessionStanding {
+                calibration: StandingInputDeclaration::Undeclared {
+                    finding: "recalc.standing_undeclared.calibration_folded_into_decision",
+                    remedy: "declare the calibration of the provider's output where the \
+                             provider standing is declared; an existing previous state would \
+                             recompute its law once, visibly",
+                },
+                representation: REPRESENTATION_UNAVAILABLE,
+                coupling: StandingInputDeclaration::Undeclared {
+                    finding: "recalc.standing_undeclared.callback_metadata_establishes_no_coupling",
+                    remedy: "declare the coupling of the callback stream to the native stream \
+                             when a joint statement over both is requested",
+                },
+            },
+            Self::Receipt
+            | Self::Adjusted
+            | Self::Cell
+            | Self::Design
+            | Self::DoublyRobust
+            | Self::Static
+            | Self::Temporal => SessionStanding {
+                calibration: POINT_ONLY,
+                representation: REPRESENTATION_UNAVAILABLE,
+                coupling: NO_JOINT,
+            },
+        }
+    }
+}
+
+#[cfg(test)]
+mod estimator_identity_tests {
+    use super::{RecalcRequest, UtilitySpec};
+    use antecedent_core::ExecutionContext;
+    use antecedent_core::recalc::Stage;
+    use antecedent_estimate::{AipwAte, OverlapPolicy};
+
+    fn request(estimator: AipwAte) -> RecalcRequest {
+        RecalcRequest {
+            columns: vec![("t".into(), vec![0.0, 1.0]), ("y".into(), vec![0.0, 2.0])],
+            edges: vec![(0, 1)],
+            treatment: 0,
+            outcome: 1,
+            estimator,
+            target: None,
+            utility: UtilitySpec { benefit_per_unit: 1.0, cost: 0.0 },
+        }
+    }
+
+    #[test]
+    fn aipw_fold_identity_follows_estimator_structure() {
+        let ctx = ExecutionContext::for_tests(1);
+        let stage = Stage::LearnerFoldsRng;
+        let base = request(AipwAte::new()).identities(&ctx).own(stage);
+        let again = request(AipwAte::new()).identities(&ctx).own(stage);
+        assert_eq!(base, again);
+        let mut clipped = AipwAte::new();
+        clipped.overlap = OverlapPolicy::RequireDiagnostics { clip: Some(1e-13), trim: None };
+        let changed = request(clipped).identities(&ctx).own(stage);
+        assert_ne!(base, changed);
+    }
 }

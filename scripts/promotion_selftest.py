@@ -2,9 +2,8 @@
 
     python3 scripts/promotion_selftest.py                   # gate_promotion.sh --self-test
     python3 scripts/promotion_selftest.py --mutation-check  # manual: every rule has a live case
-    python3 scripts/promotion_selftest.py --release 2.3     # the broken-record cases against a 2.3 registry
 
-The self-test builds ONE synthetic record (2.2A.XT.self_test_cell) with its own owning
+The self-test builds ONE synthetic record (xt.cell) with its own owning
 registries and source files in a temp dir, so it never depends on the state of any
 committed record. The baseline must pass the checker; each case mutates only
 synthetic files and must fail with its specific message AND its `[rule-id]`. Cases
@@ -22,7 +21,7 @@ Rust and body-analysis fixtures cite synthetic test files outside the repo, reso
 statically (PROMOTION_SYNTHETIC_EVIDENCE), so the self-test does not depend on any
 cargo target compiling. Committed files are never written.
 """
-
+import ast
 import os
 import re
 import subprocess
@@ -31,7 +30,8 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from _repo import REPO_ROOT as ROOT
+
 CHECKER = ROOT / "scripts/check_promotion_records.py"
 os.chdir(ROOT)
 
@@ -137,13 +137,10 @@ STAGE_POINT = 'route = "self_test_cell.point_route"\nstage = "evaluate"\nstatus 
 
 # The one synthetic record, generated here so no committed record can drift it.
 RECORD = f'''version = 1
-release = "2.2"
 
 [[record]]
-id = "2.2A.XT.self_test_cell"
-workstream = "XT"
-milestone = "A"
-work_package = "AT"
+id = "xt.cell"
+capability = "xt"
 status = "in_progress"
 consumer_question = "Does the self-test cell hold every frozen field?"
 theorem = "self-test theorem."
@@ -202,7 +199,7 @@ SUPPORT_CLOSED = f'''version = 1
 query = "NestedCounterfactualEffect"
 contrast = "self_test_contrast"
 reason_code = "{REASON}"
-record = "2.2A.XT.self_test_cell"
+record = "xt.cell"
 '''
 
 SEARCH_OK = (
@@ -367,8 +364,8 @@ REFUSAL_ASSERT = f', refusal_assertion = "{PY_REFUSAL}"'
 # (rule, label, edits to the synthetic files, must report, must not report)
 cases = [
     # -- registry and frozen fields
-    ("registry_header", "wrong release", [rec('release = "2.2"', 'release = "2.1"')],
-     "promotion registry requires version 1 and release 2.2", None),
+    ("registry_header", "release field", [rec("version = 1\n", 'version = 1\nrelease = "1"\n')],
+     "promotion registry requires version 1 and no release field", None),
     ("frozen_field", "missing frozen theorem", [rec('\ntheorem = ', '\ntheorem_draft = ')],
      "missing frozen field theorem", None),
     ("duplicate_record", "duplicate record id", [rec(REC_BODY, REC_BODY + "\n[[record]]" + REC_BODY)],
@@ -376,19 +373,19 @@ cases = [
     ("unknown_status", "unknown status", [rec('\nstatus = "in_progress"\n', '\nstatus = "banana"\n')],
      "unknown status 'banana'", None),
     ("claim_invalid", "nominal interval claim", [rec('inference_claim = "point_only"', 'inference_claim = "nominal"')],
-     "inference_claim 'nominal' is not a 2.2 claim", None),
+     "inference_claim 'nominal' is not an allowed inference claim", None),
     ("coverage_required", "calibrated without records", [rec('inference_claim = "point_only"', 'inference_claim = "calibrated"')],
      "a calibrated interval must allocate its coverage record ids", None),
     ("coverage_unexpected", "coverage ids for a point claim",
-     [rec('inference_claim = "point_only"\n', 'inference_claim = "point_only"\ncoverage_records = ["2.2A.NOPE"]\n')],
+     [rec('inference_claim = "point_only"\n', 'inference_claim = "point_only"\ncoverage_records = ["xt.nope"]\n')],
      "coverage records allocated for a point_only claim", None),
     ("coverage_unknown", "promoted record with an unregistered coverage id",
      [rec('\nstatus = "in_progress"\n', '\nstatus = "promoted"\n'),
-      rec('inference_claim = "point_only"\n', 'inference_claim = "calibrated"\ncoverage_records = ["2.2A.NOPE"]\n')],
-     "unknown coverage record 2.2A.NOPE", None),
+      rec('inference_claim = "point_only"\n', 'inference_claim = "calibrated"\ncoverage_records = ["xt.nope"]\n')],
+     "unknown coverage record xt.nope", None),
     # -- bounds and search
     ("bounds_cancellation", "uncancellable bound", [rec('cancellation = true', 'cancellation = false')],
-     "2.2A.XT.self_test_cell: bounds.cancellation must be true", None),
+     "xt.cell: bounds.cancellation must be true", None),
     ("bounds_limit", "search without depth limit", [rec('depth_limit = "SearchLimits.depth", ', '')],
      "a bounded search must declare bounds.depth_limit", None),
     ("bounds_contract", "search off the shared contract", [rec('contract = "antecedent_core::SearchBudget"', 'contract = "ZTransportLimits"')],
@@ -398,7 +395,7 @@ cases = [
     ("search_impl_shape", "search_impl is not a list", [rec('search_impl = ["{D}/search_ok.rs"]', 'search_impl = "x.rs"')],
      "search_impl must be a list of source paths", None),
     ("search_impl_missing", "in_progress search without search_impl", [rec('search_impl = ["{D}/search_ok.rs"]\n', '')],
-     "2.2A.XT.self_test_cell: a search at status in_progress must declare search_impl", None),
+     "xt.cell: a search at status in_progress must declare search_impl", None),
     ("search_impl_file", "search_impl names a missing file",
      [rec('search_impl = ["{D}/search_ok.rs"]', 'search_impl = ["{D}/search_ok.rs", "{D}/missing.rs"]')],
      "missing.rs is not a Rust source file", None),
@@ -427,7 +424,7 @@ cases = [
      "duplicate refusal detail self_test_cell.invalid_query", None),
     ("refusal_namespace", "two namespaces in one record",
      [rec(FIRST_REFUSAL, FIRST_REFUSAL + '  { code = "invalid_argument", detail = "other_ns.thing", when = "self-test" },\n')],
-     "refusal details must share one namespace", None),
+     "refusal details must share one primary namespace", None),
     ("refusal_detail_missing", "record detail absent from code",
      [rec(FIRST_REFUSAL, FIRST_REFUSAL + '  { code = "invalid_argument", detail = "self_test_cell.absent_from_code", when = "self-test" },\n')],
      "refusal detail self_test_cell.absent_from_code is not emitted by non-test source", None),
@@ -476,7 +473,7 @@ cases = [
      "duplicate fixture id xt.point_a.positive", None),
     ("fixture_id_format", "fixture id does not end in its role",
      [rec('id = "xt.point_a.positive", role = "positive"', 'id = "xt.point_a.wrong", role = "positive"')],
-     "fixture xt.point_a.wrong must be <workstream>.<name>.<role>", None),
+     "fixture xt.point_a.wrong must be <capability>.<name>.<role>", None),
     ("fixture_intent", "fixture without an intent", [rec('intent = "self-test positive"', 'intent = ""')],
      "fixture xt.point_a.positive needs an intent", None),
     ("evidence_pair", "evidence_test without an assertion", [rec(POS, POS.replace(f', evidence_assertion = "{PY_POS}"', ""))],
@@ -516,9 +513,9 @@ cases = [
      [rec('\nstatus = "in_progress"\n', '\nstatus = "promoted"\n'), rec(ART, ART + LIFE)],
      "promoted record lacks executed evidence for fixture xt.extra_a.lifecycle", None),
     ("fixture_roles", "missing negative fixture", [rec(NEG, '')],
-     "2.2A.XT.self_test_cell: missing fixture roles negative", None),
+     "xt.cell: missing fixture roles negative", None),
     ("fixture_roles", "calibrated claim without a calibration fixture",
-     [rec('inference_claim = "point_only"\n', 'inference_claim = "calibrated"\ncoverage_records = ["2.2A.NOPE"]\n')],
+     [rec('inference_claim = "point_only"\n', 'inference_claim = "calibrated"\ncoverage_records = ["xt.nope"]\n')],
      "missing fixture roles calibration", None),
     # -- routes
     ("route_name", "duplicate route name", [rec(POINT, POINT + POINT)],
@@ -528,7 +525,7 @@ cases = [
     ("route_registry", "unknown owning registry", [rec(POINT, POINT.replace('status = "licensed",', 'status = "licensed", registry = "nowhere",'))],
      "unknown owning registry 'nowhere'", None),
     ("route_claim", "route claim nominal", [rec(POINT, POINT.replace('"point_only"', '"nominal"'))],
-     "claim 'nominal' is not a 2.2 claim", None),
+     "claim 'nominal' is not an allowed inference claim", None),
     ("route_status", "route status neither closed nor licensed", [rec(POINT, POINT.replace('"licensed"', '"pending"'))],
      "point_route: status must be closed or licensed", None),
     ("closed_reason", "closed route with an unregistered reason",
@@ -593,8 +590,8 @@ cases = [
      "support_route is licensed in its record but still closed in support_closed.toml", None),
     ("support_no_closed_row", "closed support route without a closed row", [("support_closed.toml", SUPPORT_CLOSED, "version = 1\n")],
      "support_route has no support_closed.toml row", None),
-    ("support_closed_record", "closed row names another record", [("support_closed.toml", 'record = "2.2A.XT.self_test_cell"', 'record = "2.2A.XT.other"')],
-     "support_closed.toml row names record '2.2A.XT.other'", None),
+    ("support_closed_record", "closed row names another record", [("support_closed.toml", 'record = "xt.cell"', 'record = "xt.other"')],
+     "support_closed.toml row names record 'xt.other'", None),
     ("support_closed_reason", "closed row with another reason", [("support_closed.toml", f'reason_code = "{REASON}"', 'reason_code = "cell_not_licensed"')],
      "support_route: support_closed.toml reason_code 'cell_not_licensed'", None),
     # -- public surface
@@ -740,7 +737,7 @@ positives = [
     ("a covers entry no evidence closure or entry file mentions still passes but warns",
      [("surface_api.rs", None, EXTRA_FN),
       rec(UNC_CLOSED, covering(UNC_CLOSED, "self_test_extra_fn"))],
-     "warning: 2.2A.XT.self_test_cell: self_test_cell.uncertainty_route: covers entry self_test_extra_fn"),
+     "warning: xt.cell: self_test_cell.uncertainty_route: covers entry self_test_extra_fn"),
     ("an executing-verb method on a listed value type is fine when it is a route component or internal",
      [("surface_api.rs", IMPL_ANCHOR, IMPL_ANCHOR + "    pub fn identify_route(&self) {}\n    #[doc(hidden)]\n    pub fn run_hidden(&self) {}\n"),
       rec('why = "self-test hidden helper" }]', 'why = "self-test hidden helper" }, { name = "run_hidden", why = "r" }]')]),
@@ -769,239 +766,7 @@ positives = [
 ]
 
 
-# ------------------------------------------------------------------ 2.3 release
-#
-#   python3 scripts/promotion_selftest.py --release 2.3 [--mutation-check]
-#
-# The same broken-record machinery against a synthetic registry named
-# promotion_2_3.toml (the checker derives the expected release from the file name):
-# release = "2.3", record id 2.3A.XT.self_test_cell, and the 2.3 record fields
-# prerequisite_records / prerequisite_reason. The checked-in cases are re-rendered
-# for 2.3 (to_23) and a curated subset is selected (SELECT_23); the prerequisite
-# graph rules live in scripts/check_2_3_prerequisites.py, not in the checker's
-# RULES, so they are exercised in-process by prereq_case below. Nothing under
-# parity/ is read or written.
-
-FILES_ACTIVE = FILES
 REGISTRY_FILE = "record.toml"
-
-PREREQ_TOKEN = "@@OLD_RELEASE@@"
-PREREQ_LINE = 'prerequisite_records = ["2.2A.XT.self_test_base"]\n'
-PREREQ_REASON = 'prerequisite_reason = "self-test prerequisite"\n'
-OLD_SYN = [{"id": "2.2A.XT.self_test_base", "status": "promoted"}]
-
-
-def to_23(text):
-    """Render a 2.2 synthetic string (file, edit or expected message) for 2.3."""
-    if text is None:
-        return None
-    with_prereq = REC_BODY.replace(
-        'owners = ["self-test"]\n',
-        'owners = ["self-test"]\n' + PREREQ_LINE.replace("2.2A", PREREQ_TOKEN) + PREREQ_REASON,
-        1,
-    )
-    text = text.replace(REC_BODY, with_prereq)
-    text = (
-        text.replace("2.2A.XT", "2.3A.XT")
-        .replace('release = "2.2"', 'release = "2.3"')
-        .replace("and release 2.2", "and release 2.3")
-    )
-    return text.replace(PREREQ_TOKEN, "2.2A")
-
-
-# (rule, label) of the 2.2 cases re-run against 2.3, grouped by the plan's list.
-SELECT_23 = [
-    # missing frozen fields / registry header / duplicate and unknown records
-    ("frozen_field", "missing frozen theorem"),
-    ("registry_header", "wrong release"),
-    ("duplicate_record", "duplicate record id"),
-    ("unknown_status", "unknown status"),
-    # orphan public surface
-    ("surface_symbol", "python surface symbol without a route"),
-    ("surface_symbol", "public rust function without a route"),
-    ("surface_symbol", "hidden rust item not listed as internal"),
-    ("surface_symbol", "pyo3 function without a route"),
-    ("surface_symbol", "pyo3 method without a route"),
-    ("surface_symbol", "owned export without a route"),
-    ("surface_value_method_verb", "executing-verb method on a listed value type"),
-    # unexecuted fixture
-    ("evidence_pair", "evidence_test without an assertion"),
-    ("evidence_unresolved", "evidence that does not resolve"),
-    ("evidence_no_assertion", "rust test without an assertion"),
-    ("evidence_no_assertion", "python test without an assertion"),
-    ("evidence_should_panic", "should_panic test as evidence"),
-    ("evidence_shared", "one test backs two fixture roles"),
-    ("promoted_evidence", "promoted without evidence"),
-    ("licensed_unevidenced", "licensed point route without evidence"),
-    ("closed_refusal_required", "closed route without refusal evidence"),
-    ("closed_refusal_reason_named", "refusal test that never names the reason"),
-    # missing artifact / budget / calibration evidence
-    ("fixture_roles", "missing negative fixture"),
-    ("fixture_roles", "calibrated claim without a calibration fixture"),
-    ("coverage_required", "calibrated without records"),
-    ("coverage_unexpected", "coverage ids for a point claim"),
-    ("coverage_unknown", "promoted record with an unregistered coverage id"),
-    ("budget_symbol", "budget fixture that never names the contract"),
-    ("budget_asserts", "budget fixture that names but never observes the stop"),
-    ("bounds_limit", "search without depth limit"),
-    ("search_charge_loop", "one straight-line charge is a pre-flight"),
-    # false licensed status
-    ("licensed_status", "route licensed while frozen"),
-    ("licensed_uncertainty", "licensed uncertainty route before promotion"),
-    ("promoted_closed_route", "promoted record with a closed non-permanent route"),
-    ("nominal_route", "licensed route carries the nominal marker"),
-    ("stages_missing", "route without an owning-registry row"),
-    ("stages_licensed_only_here", "route licensed in the record only"),
-    ("stages_licensed_only_there", "transport stage licensed before promotion"),
-    ("stages_reason", "owning row with another reason code"),
-    ("support_licensed_no_cell", "support route licensed without a cell"),
-    ("support_no_closed_row", "closed support route without a closed row"),
-    # refusal mismatch
-    ("refusal_code", "unregistered refusal code"),
-    ("refusal_detail_missing", "record detail absent from code"),
-    ("refusal_detail_undeclared", "rust code detail absent from record"),
-    ("refusal_detail_undeclared", "python code detail absent from record"),
-    ("refusal_pair_code", "the detail is emitted without its code"),
-    ("refusal_dynamic", "rust format! builds a detail"),
-    ("refusal_dead_const", "a detail held in a const nothing uses"),
-]
-SELECT_23_POSITIVE = ["shared evidence on every fixture that shares the test", "python namespace words in docstrings are not emitted refusals"]
-
-IDENT_LICENSED = '  { name = "self_test_cell.identify_route", stage = "identify", status = "licensed", claim = "none" },\n'
-IDENT_CLOSED = (
-    f'  {{ name = "self_test_cell.identify_route", stage = "identify", status = "closed", reason_code = "{REASON}" }},\n'
-)
-POINT_CLOSED = (
-    f'  {{ name = "self_test_cell.point_route", stage = "evaluate", status = "closed", reason_code = "{REASON}" }},\n'
-)
-STAGE_IDENT = 'route = "self_test_cell.identify_route"\nstage = "identify"\nstatus = "licensed"'
-STATUS_IN_PROGRESS = '\nstatus = "in_progress"\n'
-STATUS_CARRIED = '\nstatus = "carried_forward"\n'
-PREREQ_BLOCK = PREREQ_LINE + PREREQ_REASON
-SECOND_RECORD = (
-    '\n[[record]]\nid = "2.3A.XT.self_test_second"\nworkstream = "XT"\n'
-    'prerequisite_records = ["2.2A.XT.self_test_base", "2.3A.XT.self_test_cell"]\n'
-)
-
-# Cases written directly for 2.3 (already in 2.3 form; not passed through to_23).
-NEW_23_CASES = [
-    ("registry_header", "a 2.3 registry file marked release 2.2", [rec('release = "2.3"', 'release = "2.2"')],
-     "promotion registry requires version 1 and release 2.3", None),
-    ("frozen_field", "missing frozen consumer question", [rec('\nconsumer_question = ', '\nconsumer_question_draft = ')],
-     "missing frozen field consumer_question", None),
-    ("frozen_field", "missing frozen refusal boundary", [rec('\nrefusals = [', '\nrefusals_draft = [')],
-     "missing frozen field refusals", None),
-    ("fixture_roles", "missing artifact fixture", [rec(ART, "")],
-     "2.3A.XT.self_test_cell: missing fixture roles artifact", None),
-    ("fixture_roles", "missing budget fixture on a search record", [rec(BUD, "")],
-     "2.3A.XT.self_test_cell: missing fixture roles budget", None),
-    ("licensed_status", "licensed routes on a carried_forward record", [rec(STATUS_IN_PROGRESS, STATUS_CARRIED)],
-     "identify_route: licensed while its record is carried_forward", None),
-]
-# Constructs the 2.3 checker must accept.
-NEW_23_POSITIVES = [
-    ("a carried_forward record with every route closed and its owning rows closed",
-     [rec(STATUS_IN_PROGRESS, STATUS_CARRIED),
-      rec(IDENT_LICENSED, IDENT_CLOSED),
-      rec(POINT, POINT_CLOSED),
-      ("stages.toml", STAGE_IDENT, STAGE_IDENT.replace('"licensed"', '"closed"') + f'\nreason_code = "{REASON}"'),
-      ("stages.toml", STAGE_POINT, STAGE_POINT.replace('"licensed"', '"closed"') + f'\nreason_code = "{REASON}"')]),
-]
-# Prerequisite-graph cases (check_2_3_prerequisites.problems): (label, edits, expected, old registry).
-PREREQ_CASES = [
-    ("a 2.3 record with no prerequisite", [rec(PREREQ_BLOCK, "prerequisite_records = []\n")],
-     "needs a named 2.2 prerequisite", None),
-    ("a 2.3 record with no prerequisite and no reason", [rec(PREREQ_BLOCK, "prerequisite_records = []\n")],
-     "no 2.2 executing base needs an explicit prerequisite_reason", None),
-    ("a 2.3 record without the prerequisite field", [rec(PREREQ_BLOCK, "")],
-     "prerequisite_records must be a list of record IDs", None),
-    ("a self-prerequisite",
-     [rec(PREREQ_LINE, 'prerequisite_records = ["2.2A.XT.self_test_base", "2.3A.XT.self_test_cell"]\n')],
-     "2.3A.XT.self_test_cell: self prerequisite", None),
-    ("an unknown prerequisite",
-     [rec(PREREQ_LINE, 'prerequisite_records = ["2.2A.XT.self_test_base", "2.3A.XT.nope"]\n')],
-     "unknown prerequisite 2.3A.XT.nope", None),
-    ("a cyclic prerequisite",
-     [rec(PREREQ_LINE, 'prerequisite_records = ["2.2A.XT.self_test_base", "2.3A.XT.self_test_second"]\n'),
-      ("record.toml", None, SECOND_RECORD)],
-     "cyclic 2.3 prerequisites", None),
-    ("a 2.2 prerequisite that is not an executing base", [("record.toml", None, "\n")],
-     "is not an executing base", [{"id": "2.2A.XT.self_test_base", "status": "carried_forward"}]),
-]
-
-
-def release_23_cases() -> list:
-    by_key = {(c[0], c[1]): c for c in cases}
-    missing = [key for key in SELECT_23 if key not in by_key]
-    if missing:
-        raise SystemExit(f"SELF-TEST FAIL: --release 2.3 selects unknown 2.2 cases {missing}")
-    rendered = []
-    for key in SELECT_23:
-        rule, label, edits, expect, forbid = by_key[key]
-        rendered.append((rule, label, [(n, to_23(o), to_23(w)) for n, o, w in edits], to_23(expect), to_23(forbid)))
-    return rendered + NEW_23_CASES
-
-
-def release_23_positives() -> list:
-    by_label = {p[0]: p for p in positives}
-    missing = [label for label in SELECT_23_POSITIVE if label not in by_label]
-    if missing:
-        raise SystemExit(f"SELF-TEST FAIL: --release 2.3 selects unknown 2.2 positives {missing}")
-    rendered = []
-    for label in SELECT_23_POSITIVE:
-        _, edits, *rest = by_label[label]
-        rendered.append((label, [(n, to_23(o), to_23(w)) for n, o, w in edits], *[to_23(r) for r in rest]))
-    return rendered + NEW_23_POSITIVES
-
-
-def configure_release_23() -> None:
-    """Switch the module to the 2.3 rendering (before any case runs)."""
-    global FILES_ACTIVE, REGISTRY_FILE
-    FILES_ACTIVE = {name: to_23(body) for name, body in FILES.items()}
-    REGISTRY_FILE = "promotion_2_3.toml"
-    new_cases, new_positives = release_23_cases(), release_23_positives()
-    cases[:] = new_cases
-    positives[:] = new_positives
-
-
-def coverage_problems_23() -> list[str]:
-    listed, _ = rule_ids()
-    return [f"a 2.3 self-test case is tagged with unknown rule {r}" for r in sorted({c[0] for c in cases} - set(listed))]
-
-
-def prereq_case(index: int, label: str, edits, expect: str | None, old=None) -> tuple[bool, str]:
-    """Run check_2_3_prerequisites.problems over the synthetic 2.3 registry."""
-    import tomllib
-
-    sys.path.insert(0, str(ROOT / "scripts"))
-    import check_2_3_prerequisites as prereq
-
-    try:
-        reg, _ = synthetic(index, edits, baseline=expect is None)
-    except LookupError as err:
-        return False, f"SELF-TEST FAIL: prerequisite '{label}': {err}"
-    found = prereq.problems(old if old is not None else OLD_SYN, tomllib.loads(reg.read_text())["record"])
-    if expect is None:
-        if found:
-            return False, f"SELF-TEST FAIL: prerequisite baseline must pass, got {found}"
-        return True, f"self-test ok: prerequisite '{label}' passes"
-    if not any(expect in item for item in found):
-        return False, f"SELF-TEST FAIL: prerequisite '{label}' did not report {expect!r}; got {found}"
-    return True, f"self-test ok: prerequisite '{label}' fails"
-
-
-def release_arg() -> str:
-    for i, arg in enumerate(sys.argv):
-        value = arg.split("=", 1)[1] if arg.startswith("--release=") else (
-            sys.argv[i + 1] if arg == "--release" and i + 1 < len(sys.argv) else None
-        )
-        if value is not None:
-            if value not in ("2.2", "2.3"):
-                raise SystemExit("usage: promotion_selftest.py [--release 2.2|2.3] [--mutation-check]")
-            return value
-        if arg == "--release":
-            raise SystemExit("usage: promotion_selftest.py [--release 2.2|2.3] [--mutation-check]")
-    return "2.2"
 
 
 # ------------------------------------------------------------------------ runner
@@ -1021,7 +786,7 @@ def synthetic(index: int, edits, *, baseline: bool = False, disable: str | None 
     """Write the (possibly mutated) synthetic registry and its owning files."""
     case = TMP / f"case{index}"
     case.mkdir()
-    base = FILES_ACTIVE  # FILES for 2.2; the 2.3 rendering of FILES under --release 2.3
+    base = FILES
     texts = dict(base)
     for name, old, new in edits:
         if old is None:  # append
@@ -1034,7 +799,7 @@ def synthetic(index: int, edits, *, baseline: bool = False, disable: str | None 
         texts[name] = texts[name].replace(old, new, 1)
     for name, body in texts.items():
         target = REGISTRY_FILE if name == "record.toml" else name
-        (case / target).write_text(body.replace("{D}", str(case)))
+        (case / target).write_text(body.replace("{D}", str(case)), encoding="utf-8", newline="\n")
     env = {key: str(case / name) for key, name in ENV_FILES.items()}
     env["PROMOTION_EXTRA_SOURCES"] = os.pathsep.join(str(case / n) for n in ("code.rs", "code.py"))
     env["PROMOTION_SYNTHETIC_EVIDENCE"] = "1"
@@ -1086,30 +851,111 @@ def baseline() -> tuple[bool, str]:
 
 
 def committed() -> tuple[bool, str]:
-    """Both committed registries pass every rule (evidence resolved statically here;
+    """The committed registry passes every rule (evidence resolved statically here;
     the gate itself lists and executes it for real)."""
-    for release in ("2_2", "2_3"):
-        path = Path(f"parity/promotion_{release}.toml")
-        code, out = run(path, {"PROMOTION_STATIC_ONLY": "1"})
-        if code != 0:
-            return False, f"SELF-TEST FAIL: {path} does not pass\n{out[-2500:]}"
-    # The 2.3 filename must not accidentally accept the 2.2 release marker.
+    path = Path("parity/promotion.toml")
+    code, out = run(path, {"PROMOTION_STATIC_ONLY": "1"})
+    if code != 0:
+        return False, f"SELF-TEST FAIL: {path} does not pass\n{out[-2500:]}"
     with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "promotion_2_3.toml"
-        source = (ROOT / "parity/promotion_2_3.toml").read_text()
-        path.write_text(source.replace('release = "2.3"', 'release = "2.2"', 1))
-        code, out = run(path, {"PROMOTION_STATIC_ONLY": "1"})
-        if code == 0 or "promotion registry requires version 1 and release 2.3 [registry_header]" not in out:
-            return False, f"SELF-TEST FAIL: 2.3 release mismatch was accepted\n{out[-2500:]}"
-    return True, "self-test ok: both committed registries pass the checker"
+        leaked = Path(tmp) / "promotion.toml"
+        source = (ROOT / "parity/promotion.toml").read_text(encoding="utf-8")
+        leaked.write_text(source.replace("version = 1\n", 'version = 1\nrelease = "1"\n', 1), encoding="utf-8", newline="\n")
+        code, out = run(leaked, {"PROMOTION_STATIC_ONLY": "1"})
+        if code == 0 or "promotion registry requires version 1 and no release field [registry_header]" not in out:
+            return False, f"SELF-TEST FAIL: a release field was accepted\n{out[-2500:]}"
+    return True, "self-test ok: the committed registry passes the checker"
+
+
+_PROBLEM_HELPERS = {
+    "rust_assertion_problems",
+    "python_assertion_problems",
+    "assertion_problems",
+}
+
+
+def _literal_rule_tuple(node: ast.AST) -> str | None:
+    if (
+        isinstance(node, ast.Tuple)
+        and len(node.elts) == 2
+        and isinstance(node.elts[0], ast.Constant)
+        and isinstance(node.elts[0].value, str)
+        and re.fullmatch(r"[a-z_]+", node.elts[0].value)
+    ):
+        return node.elts[0].value
+    return None
+
+
+def _helper_problem_tuples(function: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Rule ids in literal (rule, message) tuples emitted by an assertion helper."""
+    parents = {child: node for node in ast.walk(function) for child in ast.iter_child_nodes(node)}
+    rules: set[str] = set()
+    for node in ast.walk(function):
+        rule = _literal_rule_tuple(node)
+        if rule is None:
+            continue
+        parent = parents.get(node)
+        if isinstance(parent, ast.Call) and isinstance(parent.func, ast.Attribute):
+            if parent.func.attr == "append" and node in parent.args:
+                rules.add(rule)
+        elif isinstance(parent, ast.List):
+            list_parent = parents.get(parent)
+            if isinstance(list_parent, ast.Return):
+                rules.add(rule)
+    return rules
+
+
+def _used_rule_ids(checker_source: str, source_source: str) -> set[str]:
+    """Find literal fail() rules and rule tuples returned by known source helpers."""
+    checker_tree = ast.parse(checker_source)
+    source_tree = ast.parse(source_source)
+    used = {
+        node.args[0].value
+        for node in ast.walk(checker_tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "fail"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+        and re.fullmatch(r"[a-z_]+", node.args[0].value)
+    }
+    for function in ast.walk(source_tree):
+        if (
+            isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and function.name in _PROBLEM_HELPERS
+        ):
+            used |= _helper_problem_tuples(function)
+    return used
+
+
+def _rule_id_extractor_controls() -> list[str]:
+    checker = '''
+def valid():
+    fail("direct_rule", "reported")
+# fail("comment_rule", "not code")
+DECOY = 'fail("string_rule", "not code")'
+'''
+    source = '''
+def rust_assertion_problems():
+    problems = []
+    problems.append(
+        ("evidence_should_panic", "real multiline helper tuple")
+    )
+    # problems.append(("comment_helper_rule", "not code"))
+    decoy = 'problems.append(("string_helper_rule", "not code"))'
+    return problems
+'''
+    found = _used_rule_ids(checker, source)
+    expected = {"direct_rule", "evidence_should_panic"}
+    return [] if found == expected else [f"AST rule-id controls found {found!r}, expected {expected!r}"]
 
 
 def rule_ids() -> tuple[list[str], set[str]]:
     listed = subprocess.run([sys.executable, str(CHECKER), "--list-rules"], capture_output=True, text=True, check=True).stdout.split()
-    used = set(re.findall(r'\bfail\(\s*"([a-z_]+)"', CHECKER.read_text()))
-    # rules the source analysers hand back as (rule, message) pairs
-    used |= {r for r in listed if f'("{r}",' in (ROOT / "scripts/promotion_source.py").read_text()}
-    return listed, used
+    checker_source = CHECKER.read_text(encoding="utf-8")
+    source_source = (ROOT / "scripts/promotion_source.py").read_text(encoding="utf-8")
+    return listed, _used_rule_ids(checker_source, source_source)
 
 
 def coverage_problems() -> list[str]:
@@ -1117,7 +963,8 @@ def coverage_problems() -> list[str]:
     == the ids the cases are tagged with."""
     listed, used = rule_ids()
     tags = {c[0] for c in cases}
-    problems = [f"rule {r} is in RULES but never reported by fail()" for r in listed if r not in used]
+    problems = _rule_id_extractor_controls()
+    problems += [f"rule {r} is in RULES but never reported by fail()" for r in listed if r not in used]
     problems += [f"rule {r} is reported by fail() but missing from RULES" for r in sorted(used - set(listed))]
     problems += [f"rule {r} has no self-test case tagged with it" for r in listed if r not in tags]
     problems += [f"a self-test case is tagged with unknown rule {r}" for r in sorted(tags - set(listed))]
@@ -1127,10 +974,7 @@ def coverage_problems() -> list[str]:
 def main() -> int:
     global CACHE, TMP
     mutation = "--mutation-check" in sys.argv
-    release = release_arg()
-    if release == "2.3":
-        configure_release_23()
-    problems = coverage_problems() if release == "2.2" else coverage_problems_23()
+    problems = coverage_problems()
     for p in problems:
         print(f"SELF-TEST FAIL: {p}")
     if problems:
@@ -1152,14 +996,10 @@ def main() -> int:
                     by_rule.setdefault(case[0], []).append(i)
                 jobs += [pool.submit(check, i, cases[i], rule) for rule, idx in by_rule.items() for i in idx]
             else:
-                # The 2.3 run leaves the committed-registry sanity check to the 2.2 run (it covers both).
-                if release == "2.2" and os.environ.get("PROMOTION_SELFTEST_SKIP_COMMITTED") != "1":  # analysis only
+                if os.environ.get("PROMOTION_SELFTEST_SKIP_COMMITTED") != "1":  # analysis only
                     jobs.append(pool.submit(committed))
                 jobs += [pool.submit(check, i, c) for i, c in enumerate(cases)]
                 jobs += [pool.submit(positive, 1000 + i, label, *rest) for i, (label, *rest) in enumerate(positives)]
-                if release == "2.3":
-                    jobs.append(pool.submit(prereq_case, 1999, "baseline (one 2.2 base, a reason)", [], None))
-                    jobs += [pool.submit(prereq_case, 2000 + i, *c) for i, c in enumerate(PREREQ_CASES)]
             results = [j.result() for j in jobs]
     for _, message in results:
         print(message)
@@ -1167,8 +1007,6 @@ def main() -> int:
         return 1
     if mutation:
         print(f"gate_promotion mutation-check: ok ({len({c[0] for c in cases})} rules, {len(cases)} cases)")
-    elif release == "2.3":
-        print(f"gate_promotion 2.3 self-test: ok ({len(cases)} cases, {len(positives)} positives, {len(PREREQ_CASES) + 1} prerequisite cases)")
     else:
         print("gate_promotion self-test: ok")
     return 0

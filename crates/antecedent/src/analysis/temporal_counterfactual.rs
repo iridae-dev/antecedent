@@ -1,4 +1,4 @@
-//! X8 fixed-population temporal counterfactual and the closed transported route.
+//! Fixed-population temporal counterfactual and the closed transported route.
 //!
 //! One cell is licensed: on a fixed, fully observed, Markovian two-slice DAG with
 //! linear-Gaussian additive-noise mechanisms, each unit's exogenous history is abduced once from
@@ -133,9 +133,10 @@ impl TemporalCounterfactual {
 ///
 /// # Errors
 /// Always: the typed [`TransportedCounterfactualRefusal`].
-// The typed refusal retains the missing gates and factors by value; this is a cold, always-refusing
-// path, so boxing would only complicate the public error contract.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the typed refusal retains the missing gates and factors by value on an always-refusing cold path; boxing would only complicate the public error contract"
+)]
 pub fn transported_path_specific(
     prerequisites: &TransportedCounterfactualPrerequisites,
     required_factors: &[RegimeFactorKey],

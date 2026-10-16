@@ -2,18 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{TimeSeriesData, surrogate_permute_columns, surrogate_phase_randomize};
 use antecedent_discovery::{DiscoveryWorkspace, Pcmci};
 
+use crate::common::map_drawn_replicates;
 use crate::error::ValidationError;
 use crate::stability::{lagged_link_family, null_rate_se};
 
@@ -72,7 +65,7 @@ impl FalsePositiveCheck {
         &self,
         data: &TimeSeriesData,
         variables: &[VariableId],
-        workspace: &mut DiscoveryWorkspace,
+        _workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<FalsePositiveCheckReport, ValidationError> {
         if self.replicates == 0 {
@@ -83,21 +76,29 @@ impl FalsePositiveCheck {
         let alpha = self.pcmci.engine().constraints.alpha;
         let lags = &self.pcmci.engine().constraints.temporal;
         let family = lagged_link_family(variables.len(), lags.min_lag.raw(), lags.max_lag.raw())?;
-        let mut rng = ctx.rng.stream(0xF41E_u64);
-        let mut hits_per_run = Vec::with_capacity(self.replicates as usize);
-        for _ in 0..self.replicates {
-            let null = match self.transform {
+        let mut rng = ctx.rng.stream(crate::streams::STABILITY_FALSE_POSITIVE);
+        // The surrogates share one stream, drawn in order here; the discovery runs go to the
+        // pool.
+        let hits_per_run = map_drawn_replicates(
+            ctx,
+            self.replicates,
+            |_| match self.transform {
                 NullTransform::ColumnPermute => {
-                    surrogate_permute_columns(data, &mut rng).map_err(ValidationError::from)?
+                    surrogate_permute_columns(data, &mut rng).map_err(ValidationError::from)
                 }
                 NullTransform::PhaseRandomize => {
-                    surrogate_phase_randomize(data, &mut rng).map_err(ValidationError::from)?
+                    surrogate_phase_randomize(data, &mut rng).map_err(ValidationError::from)
                 }
-            };
-            let result =
-                self.pcmci.run(&null, variables, workspace, ctx).map_err(ValidationError::from)?;
-            hits_per_run.push(result.evidence.links.len() as u64);
-        }
+            },
+            DiscoveryWorkspace::default,
+            |workspace, ctx, _r, null| {
+                let result = self
+                    .pcmci
+                    .run(null, variables, workspace, ctx)
+                    .map_err(ValidationError::from)?;
+                Ok(result.evidence.links.len() as u64)
+            },
+        )?;
         let mean_edge_count = hits_per_run.iter().sum::<u64>() as f64 / f64::from(self.replicates);
         let empirical_fpr = mean_edge_count / family as f64;
         let se = null_rate_se(alpha, family, &hits_per_run);
@@ -114,7 +115,6 @@ impl FalsePositiveCheck {
 }
 
 #[cfg(test)]
-#[allow(clippy::cast_precision_loss)]
 mod tests {
     use std::sync::Arc;
 
@@ -145,12 +145,7 @@ mod tests {
             .unwrap();
         }
         let schema = b.build().unwrap();
-        let mut x = vec![0.0; n];
-        let mut y = vec![0.0; n];
-        for t in 1..n {
-            x[t] = ((t as f64) * 0.02).sin();
-            y[t] = 0.9 * x[t - 1];
-        }
+        let (x, y) = crate::test_support::driven_xy(n);
         let cols = vec![
             OwnedColumn::Float64(
                 Float64Column::new(
@@ -191,7 +186,7 @@ mod tests {
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(8);
         let before = pcmci.run(&data, &vars, &mut ws, &ctx).unwrap().evidence.links.len();
-        // The smooth series carry at least the two autocorrelation links (x→x, y→y at lag 1).
+        // The driven series carry at least the x→x autocorrelation and x→y links at lag 1.
         assert!(before >= 2, "structured series must keep links, got {before}");
         let check = FalsePositiveCheck::new(pcmci, NullTransform::ColumnPermute, 4);
         let report = check.run(&data, &vars, &mut ws, &ctx).unwrap();

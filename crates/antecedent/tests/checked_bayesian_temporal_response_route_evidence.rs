@@ -72,7 +72,7 @@ fn intervention_response() -> ResponseQuery {
 }
 
 fn means(result: &antecedent::result::StudyResult) -> Vec<f64> {
-    let response = result.response.as_ref().expect("temporal response");
+    let response = result.response().expect("temporal response");
     let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
         &response.estimate
     else {
@@ -121,7 +121,7 @@ fn bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_
 
             let first = prepared.estimate_series(&initial, &context).unwrap();
             assert_eq!(first.estimand.method.as_ref(), "temporal.backdoor.unfolded");
-            let response = first.response.as_ref().expect("response payload");
+            let response = first.response().expect("response payload");
             assert_eq!(response.provenance_id.as_ref(), "estimate.response.temporal.bayesian");
             assert!(matches!(
                 response.uncertainty,

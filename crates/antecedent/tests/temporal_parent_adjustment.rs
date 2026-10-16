@@ -11,8 +11,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::doc_markdown)]
-
 mod common;
 
 use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study, StudyResult};
@@ -77,9 +75,9 @@ fn autoregressive_pulse_was_refused_and_is_now_identified_by_parent_adjustment()
         // pa(t[-1]) = {t[-2], z[-2]}.
         assert_eq!(result.estimand.adjustment_set.len(), 2);
         assert!(
-            (result.estimate.ate - AR_BETA).abs() < 0.05,
+            (result.estimate.as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
             "accepted={accepted}: ate={} truth={AR_BETA}",
-            result.estimate.ate
+            result.estimate.as_effect().unwrap().ate
         );
     }
 }
@@ -133,7 +131,7 @@ fn every_fixed_structure_pulse_coordinate_uses_parent_adjustment() {
                     let posterior = result.posterior.as_ref().expect("posterior");
                     posterior.summaries.mean[posterior.effect_column().unwrap()]
                 } else {
-                    result.estimate.ate
+                    result.estimate.as_effect().unwrap().ate
                 };
                 assert!((value - AR_BETA).abs() < 0.08, "{what}: {value}");
             }
@@ -161,7 +159,11 @@ fn pooled_panel_pulse_uses_parent_adjustment() {
         .run(&ExecutionContext::for_tests(20))
         .unwrap();
     assert!(rules(&result).iter().any(|rule| rule == PARENT_ADJUSTMENT_RULE));
-    assert!((result.estimate.ate - AR_BETA).abs() < 0.05, "ate={}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
+        "ate={}",
+        result.estimate.as_effect().unwrap().ate
+    );
 }
 
 /// The same data fitted without the confounder shows the adjustment matters:
@@ -177,8 +179,16 @@ fn parent_adjustment_removes_the_confounding_the_naive_regression_keeps() {
     let biased = study(data.clone(), naive.into(), pulse()).run(&ctx).unwrap();
     let adjusted =
         study(data, autoregressive_pulse_dag(true, false).into(), pulse()).run(&ctx).unwrap();
-    assert!((biased.estimate.ate - AR_BETA).abs() > 0.2, "naive ate={}", biased.estimate.ate);
-    assert!((adjusted.estimate.ate - AR_BETA).abs() < 0.05, "ate={}", adjusted.estimate.ate);
+    assert!(
+        (biased.estimate.as_effect().unwrap().ate - AR_BETA).abs() > 0.2,
+        "naive ate={}",
+        biased.estimate.as_effect().unwrap().ate
+    );
+    assert!(
+        (adjusted.estimate.as_effect().unwrap().ate - AR_BETA).abs() < 0.05,
+        "ate={}",
+        adjusted.estimate.as_effect().unwrap().ate
+    );
 }
 
 fn fit(data: &TimeSeriesData, identified: &TemporalIdentificationResult) -> f64 {

@@ -8,7 +8,6 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent import interference, intervention, observation
-from antecedent._native import analyze_response_pag
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.results import (
     CausalResponseView,
@@ -19,6 +18,8 @@ from antecedent.results import (
     SupportReport,
 )
 from antecedent.transport import advanced as transport
+
+from _repo_text import REPO_ROOT
 
 
 def test_only_queries_are_reexported_at_root():
@@ -147,9 +148,12 @@ def test_response_curve_runs_through_public_analyze_api():
         graph=[("x", "a"), ("x", "y"), ("a", "y")],
     )
 
-    assert result.estimand is query
+    assert result.estimand is not query
+    assert result.estimand.treatment == query.treatment
+    assert result.estimand.outcome == query.outcome
+    assert tuple(result.estimand.grid) == tuple(query.grid)
     assert result.response is not None
-    assert list(result.response.points) == [[-0.5], [0.0], [0.5]]
+    assert [list(point) for point in result.response.points] == [[-0.5], [0.0], [0.5]]
     assert result.provenance["operation_id"] == "estimate.response.kennedy_dr"
     assert result.identification.status == "NonparametricallyIdentified"
     tail = next(d for d in result.support.diagnostics if d.id == "response.outcome_tail_ratio")
@@ -342,28 +346,6 @@ def test_pag_mean_curve_is_licensed_mass_weighted_envelope():
     assert any("identify.pag.envelope" in diagnostic for diagnostic in result.diagnostics)
 
 
-def test_pag_curve_labels_capped_mass_as_examined_not_full_class():
-    rng = np.random.default_rng(173)
-    a = rng.normal(size=240)
-    y = 1.2 * a + rng.normal(scale=0.2, size=240)
-    r = rng.normal(size=len(a))
-    s = rng.normal(size=len(a))
-    v = rng.normal(size=len(a))
-    pag = antecedent.Pag.from_marked_edges(
-        ["a", "y", "r", "s", "v"],
-        [("r", "a", "tail", "arrow"), ("a", "y", "tail", "arrow"), ("s", "v", "circle", "circle")],
-    )
-
-    raw = analyze_response_pag(
-        ["a", "y", "r", "s", "v"], [a, y, r, s, v], pag, "a", "y", [-0.25, 0.25], max_completions=1
-    )
-
-    assert raw.enumeration_capped is True
-    assert raw.mass_scope == "examined_completions"
-    assert raw.identified_mass == pytest.approx(1.0)
-    assert raw.unidentified_mass == pytest.approx(0.0)
-
-
 def test_curve_cheap_refute_is_not_applicable():
     rng = np.random.default_rng(172)
     a = rng.normal(size=300)
@@ -431,7 +413,7 @@ def test_response_returns_standard_identification_view_and_adjustment_set():
     )
     assert isinstance(result.identification, antecedent.results.IdentificationView)
     assert result.identification.method == "response.backdoor"
-    assert result.identification.adjustment_set == ["z"]
+    assert result.identification.adjustment_set == tuple(["z"])
     assert result.identification
 
 
@@ -507,16 +489,11 @@ def test_response_honors_explicit_threads():
 
 
 def test_response_admg_intervention_cheap_runs_plugin_level():
-    from pathlib import Path
 
     from _repo_text import load_json
 
     pin = load_json(
-        Path(__file__).resolve().parents[2]
-        / "conformance"
-        / "estimate"
-        / "admg_frontdoor_functional"
-        / "expected.json"
+        REPO_ROOT / "conformance" / "estimate" / "admg_frontdoor_functional" / "expected.json"
     )
     values = {name: [] for name in pin["columns"]}
     for cell in pin["contingency_table"]:

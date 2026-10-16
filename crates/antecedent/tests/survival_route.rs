@@ -61,7 +61,7 @@ fn known_censoring_survival_is_retained_and_refuses_positivity_violation() {
         Study::tabular(data.clone()).query(CausalQuery::Survival(q.clone())).build().unwrap();
     let mut prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert!((curve.control[1] - 2.0 / 3.0).abs() < 1e-12);
     assert!((curve.treated[1] - 0.5).abs() < 1e-12);
     assert_eq!(curve.uncertainty.as_ref(), "point_only_no_interval");
@@ -142,7 +142,7 @@ fn randomized_survival_rmst_is_retained_and_round_trips() {
     let ctx = ExecutionContext::for_tests(86);
     let mut prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
-    let curve = first.survival.as_ref().unwrap();
+    let curve = first.survival().unwrap();
     assert_eq!(&*curve.times, &[0.0, 1.0, 2.0]);
     assert_eq!(&*curve.control, &[1.0, 0.5, 0.5]);
     assert_eq!(&*curve.treated, &[1.0, 1.0, 1.0]);
@@ -173,7 +173,7 @@ fn randomized_survival_rmst_is_retained_and_round_trips() {
         matches!(&record.assumption, antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "independent_censoring_and_entry")
     }));
     let refreshed = prepared.refresh(data, &ctx).unwrap();
-    assert_eq!(first.survival, refreshed.survival);
+    assert_eq!(first.survival(), refreshed.survival());
 }
 
 #[test]
@@ -193,7 +193,7 @@ fn competing_risk_incidence_and_unsupported_observation_contract() {
     let ctx = ExecutionContext::for_tests(87);
     let prepared = study.prepare(&ctx).unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert_eq!(&*curve.control, &[0.0, 0.5, 0.5]);
     assert_eq!(&*curve.treated, &[0.0, 0.5, 1.0]);
     assert_eq!(curve.rmst_control, None);
@@ -232,7 +232,7 @@ fn subject_bootstrap_scalar_intervals_are_retained_and_artifact_checked() {
     let ctx = ExecutionContext::for_tests(17);
     let mut prepared = study.prepare(&ctx).unwrap();
     let first = prepared.estimate(&data, &ctx).unwrap();
-    let section = first.survival.as_ref().unwrap();
+    let section = first.survival().unwrap();
     assert_eq!(
         section.uncertainty.as_ref(),
         "subject_stratified_percentile_bootstrap_pointwise_95"
@@ -242,7 +242,7 @@ fn subject_bootstrap_scalar_intervals_are_retained_and_artifact_checked() {
     let rmst = section.rmst_difference_interval.unwrap();
     assert!(rmst[0] <= 0.2 && 0.2 <= rmst[1]);
     assert_eq!(section.difference_at_tau_interval.unwrap().len(), 2);
-    assert_eq!(prepared.refresh(data, &ctx).unwrap().survival, first.survival);
+    assert_eq!(prepared.refresh(data, &ctx).unwrap().survival(), first.survival());
     let artifact = prepared.encode_contracted_result(&first, "survival-bootstrap", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
     assert_eq!(body.survival.as_ref().unwrap().rmst_difference_interval, Some(rmst));
@@ -289,7 +289,7 @@ fn licensed_survival_scalar_intervals_round_trip_and_refuse_forgery() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [120, 120]);
     assert_eq!(curve.bootstrap_replicates_ok, Some(299));
     assert!(curve.rmst_difference_interval.is_some());
@@ -394,7 +394,7 @@ fn delayed_entry_subject_bootstrap_retains_interval_and_refuses_forgery() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert_eq!(curve.uncertainty.as_ref(), "subject_stratified_percentile_bootstrap_pointwise_95");
     assert!(curve.rmst_difference_interval.is_some());
     assert!(curve.difference_at_tau_interval.is_some());
@@ -477,7 +477,7 @@ fn delayed_entry_fixed_censoring_competing_risk_interval_is_retained() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert!(curve.difference_at_tau_interval.is_some());
     assert!(curve.rmst_difference_interval.is_none());
     assert_eq!(
@@ -552,7 +552,7 @@ fn simultaneous_curve_band_is_retained_and_artifact_checked() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     let band = curve.difference_band.as_ref().expect("eligible randomized subjects");
     assert_eq!(band.times.as_ref(), curve.times.as_ref());
     assert_eq!(band.replicates_ok, 399);
@@ -564,7 +564,7 @@ fn simultaneous_curve_band_is_retained_and_artifact_checked() {
             .all(|((&lower, &difference), &upper)| lower <= difference && difference <= upper)
     );
     assert!(curve.rmst_difference_interval.is_some());
-    assert_eq!(result.survival, prepared.estimate(&data, &ctx).unwrap().survival);
+    assert_eq!(result.survival(), prepared.estimate(&data, &ctx).unwrap().survival());
     let bytes = prepared.encode_contracted_result(&result, "survival-band", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     assert_eq!(
@@ -606,7 +606,7 @@ fn simultaneous_band_withholds_small_arms_without_erasing_scalar_interval() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert!(curve.difference_band.is_none());
     assert!(curve.band_unavailable_reason.as_deref().unwrap().contains("80 subjects"));
     assert!(curve.rmst_difference_interval.is_some());
@@ -657,7 +657,7 @@ fn licensed_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [170, 170]);
     assert!(curve.bootstrap_replicates_ok.unwrap() >= 299);
     assert!(curve.rmst_difference_interval.is_some());
@@ -738,7 +738,7 @@ fn licensed_fixed_g_ipcw_survival_intervals_round_trip_and_refuse_forgery() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [170, 170]);
     assert_eq!(
         curve.censoring_survival_provenance.as_deref(),
@@ -838,7 +838,7 @@ fn licensed_delayed_entry_fixed_g_survival_intervals_round_trip_and_refuse_forge
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(result.support_status, Some(antecedent::support::CellStatus::Licensed));
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert_eq!(curve.assignment_counts, [210, 210]);
     assert!(curve.rmst_difference_interval.is_some());
     assert!(curve.difference_at_tau_interval.is_some());
@@ -901,7 +901,7 @@ fn licensed_survival_difference_band_round_trips_and_refuses_forgery() {
     // Only 100 subjects per arm: the scalar row needs 120, so the scalar route
     // is off-axis while the band's own 80-per-arm license applies.
     assert!(result.support_status.is_none());
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     let band = curve.difference_band.as_ref().expect("eligible randomized subjects");
     assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Licensed));
     let encoded =
@@ -982,7 +982,7 @@ fn licensed_competing_incidence_band_round_trips_and_refuses_forgery() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     // Cumulative incidence never carries the scalar RMST+horizon license.
     assert!(result.support_status.is_none());
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert!(curve.rmst_difference_interval.is_none());
     assert!(curve.difference_at_tau_interval.is_some());
     let band = curve.difference_band.as_ref().expect("eligible randomized subjects");
@@ -1065,7 +1065,7 @@ fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_license() 
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(result.support_status.is_none());
-    let curve = result.survival.as_ref().unwrap();
+    let curve = result.survival().unwrap();
     assert!(curve.difference_at_tau_interval.is_some());
     assert!(curve.rmst_difference_interval.is_none());
     assert!(curve.difference_band.is_none());

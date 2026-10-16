@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/response/temporal_observation`
 
-Licensed 1.3 `ObservationSpec` × `ObservationAssumption` pairs riding temporal
+Licensed `ObservationSpec` × `ObservationAssumption` pairs riding temporal
 `ResponseCurve` / `InterventionResponse` on `TemporalDag` (Frequentist `none`).
 Each pair consumes this fixture, not `conformance/response/observation_primitives`.
 
@@ -35,7 +35,7 @@ A Complete query on the recorded proxy must miss the surface by more than
 DGP. Interval/truncation and Bayesian non-Complete stay refused.
 
 Delayed entry, cheap/full, and TemporalCpdag/Pag observation rides are unavailable.
-Uncertainty is omitted (`none`), same as the static 1.3 contract.
+Uncertainty is omitted (`none`), same as the static contract.
 
 ## Expected summary
 

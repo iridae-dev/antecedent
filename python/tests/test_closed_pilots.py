@@ -57,12 +57,12 @@ def joint_kwargs(**overrides):
     return kwargs
 
 
-def test_x4_joint_bayesian_route_is_closed_with_cell_not_licensed():
+def test_joint_bayesian_route_is_closed_with_cell_not_licensed():
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs()))
     assert_refused(error, "cell_not_licensed", "bayesian_transport.route_frozen")
 
 
-def test_x4_joint_bayesian_adjacent_graph_refuses_before_the_frozen_route():
+def test_joint_bayesian_adjacent_graph_refuses_before_the_frozen_route():
     adjacent = Admg.from_edges(["x", "a", "y"], [("x", "a"), ("a", "y")], [("x", "y")])
     error = refusal_of(lambda: transport.joint_bayesian_transport(**joint_kwargs(graph=adjacent)))
     assert_refused(error, "route_not_supported", "bayesian_transport.unsupported_graph")
@@ -76,7 +76,7 @@ def test_x4_joint_bayesian_adjacent_graph_refuses_before_the_frozen_route():
     assert_refused(error, "cell_not_licensed", "bayesian_transport.route_frozen")
 
 
-def test_x4_joint_bayesian_scope_refusals_carry_their_own_details():
+def test_joint_bayesian_scope_refusals_carry_their_own_details():
     error = refusal_of(
         lambda: transport.joint_bayesian_transport(**joint_kwargs(draws=0)), CausalValueError
     )
@@ -101,7 +101,7 @@ def test_x4_joint_bayesian_scope_refusals_carry_their_own_details():
     assert_refused(error, "invalid_argument", "bayesian_transport.too_many_parameters")
 
 
-def test_x4_joint_bayesian_validates_its_arguments_as_typed_errors():
+def test_joint_bayesian_validates_its_arguments_as_typed_errors():
     with pytest.raises(CausalTypeError):
         transport.joint_bayesian_transport(**joint_kwargs(sources="s1"))
     with pytest.raises(CausalTypeError):
@@ -146,7 +146,7 @@ def test_nested_fisher_measured_interval_and_invalid_level():
         assert_refused(error, "invalid_argument", "nested_markov.fisher_invalid_level")
 
 
-def test_x4_nested_markov_outside_class_requests_refuse_without_a_nonidentification_claim():
+def test_nested_markov_outside_class_requests_refuse_without_a_nonidentification_claim():
     adjacent = Admg.from_edges(NODES, VERMA_DIRECTED, [("X1", "X4")])
     cases = [
         {"graph": adjacent, "regimes": [observational()]},
@@ -163,7 +163,7 @@ def test_x4_nested_markov_outside_class_requests_refuse_without_a_nonidentificat
         assert "nonidentif" not in str(error)
 
 
-def test_x4_nested_markov_invalid_counts_and_arguments_are_typed_errors():
+def test_nested_markov_invalid_counts_and_arguments_are_typed_errors():
     error = refusal_of(
         lambda: transport.binary_nested_markov(
             graph=verma(), regimes=[observational(cells=[-1.0] + CELLS[1:])]
@@ -249,7 +249,7 @@ def test_sampled_recovery_zero_support_and_native_nonrecoverability_refuse():
     assert_refused(error, "route_not_supported", "sampled_recovery.unrecoverable_pattern")
 
 
-def test_x10_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details():
+def test_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details():
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(replicates=5000)),
         CausalValueError,
@@ -278,7 +278,7 @@ def test_x10_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details(
     assert_refused(error, "invalid_argument", "sampled_recovery.invalid_input")
 
 
-def test_x10_sampled_recovery_validates_its_arguments_as_typed_errors():
+def test_sampled_recovery_validates_its_arguments_as_typed_errors():
     with pytest.raises(CausalTypeError):
         transport.sampled_observation_recovery(**sampled_kwargs(stage=object()))
     with pytest.raises(CausalTypeError):

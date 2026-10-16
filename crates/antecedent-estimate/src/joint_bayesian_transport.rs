@@ -1,15 +1,15 @@
-//! Joint Bayesian source-target transport (2.3A cell X4, engine only).
+//! Joint Bayesian source-target transport.
 //!
 //! # The one model
 //!
 //! This module is a **model provider**, not a posterior wrapper on a frequentist point.
-//! It reads one already identified 2.2 transport row (the learned continuous trial
+//! It reads one already identified transport row (the learned continuous trial
 //! transport of [`crate::learned_continuous`]): a certified direct or
 //! baseline-standardization derivation ([`TransportIdentification`]) over a fixed DAG,
 //! a randomized binary source treatment `A`, certified covariates `X` (the
 //! standardizers) and a continuous outcome `Y`, plus a target covariate sample.
 //!
-//! * **Graph class.** The fixed DAG and selection assumptions of the supplied 2.2
+//! * **Graph class.** The fixed DAG and selection assumptions of the supplied
 //!   certificate. An ADMG or a graph posterior is refused
 //!   (`route_not_supported`, `bayesian_transport.unsupported_graph`).
 //! * **Likelihood (one per source `s`, independent units).**
@@ -19,7 +19,7 @@
 //! * **Invariant mechanism.** `theta` is shared by every source and the target. With
 //!   `w = [A, A*x_1..A*x_p]` (the effect block) plus `[x_1..x_p]` when the covariate
 //!   main effects are invariant ([`VaryingBlock::Intercept`]). Mean exchangeability of
-//!   the 2.2 row is the statement that the whole outcome mechanism except the declared
+//!   the exact binary recovery row is the statement that the whole outcome mechanism except the declared
 //!   varying block transports.
 //! * **Varying mechanism.** `gamma_s` is a population-varying block that never
 //!   interacts with treatment: `v = [1]` ([`VaryingBlock::Intercept`]) or
@@ -80,11 +80,9 @@ pub const JOINT_TRANSPORT_MAX_DRAWS: usize = 100_000;
 /// Most model parameters (invariant plus every varying block) one fit may declare.
 pub const JOINT_TRANSPORT_MAX_PARAMETERS: usize = 256;
 /// Route name of the closed public interval route.
-pub const JOINT_TRANSPORT_ROUTE: &str = "antecedent.transport.joint_bayesian";
+pub(crate) const JOINT_TRANSPORT_ROUTE: &str = "antecedent.transport.joint_bayesian";
 /// Sampler recorded on exact conjugate fits.
 pub const JOINT_TRANSPORT_SAMPLER: &str = "exact_conjugate_iid";
-/// Relative pivot below which a data information matrix counts as singular.
-pub const JOINT_TRANSPORT_PIVOT_TOLERANCE: f64 = 1e-10;
 
 /// Detail of the route-level refusal of the public interval route.
 pub const DETAIL_ROUTE_FROZEN: &str = "bayesian_transport.route_frozen";
@@ -541,7 +539,10 @@ impl JointTransportFit {
     /// Bind an internal measurement to the actual producing posterior construction.
     /// The private source scope was captured by the successful fit. This supplies
     /// no public interval, independently authenticated sampling design or activation.
-    #[allow(clippy::result_large_err)]
+    #[allow(
+        clippy::result_large_err,
+        reason = "the public refusal type is deliberately rich and part of the stable signature"
+    )]
     pub fn target_calibration_basis(
         &self,
         level: f64,
@@ -700,55 +701,31 @@ fn parameter_names(layout: &Layout, model: &JointTransportModel, ids: &[&str]) -
     names
 }
 
-/// Lower Cholesky factor, or the failing index and its relative pivot.
-fn cholesky(a: &[f64], n: usize) -> Result<Vec<f64>, (usize, f64)> {
+/// Lower Cholesky factor with its smallest relative pivot, or the failing index and its
+/// relative pivot, under the one kernel acceptance rule.
+fn cholesky(a: &[f64], n: usize) -> Result<(Vec<f64>, f64), (usize, f64)> {
+    use antecedent_kernels::cholesky::{CholeskyError, cholesky_spd_pivots_into};
     let mut l = vec![0.0; n * n];
-    for j in 0..n {
-        let mut d = a[j * n + j];
-        for k in 0..j {
-            d -= l[j * n + k] * l[j * n + k];
-        }
-        let scale = a[j * n + j].abs().max(f64::MIN_POSITIVE);
-        let ratio = d / scale;
-        if ratio.is_nan() || ratio <= JOINT_TRANSPORT_PIVOT_TOLERANCE {
-            return Err((j, ratio));
-        }
-        let root = d.sqrt();
-        l[j * n + j] = root;
-        for i in (j + 1)..n {
-            let mut s = a[i * n + j];
-            for k in 0..j {
-                s -= l[i * n + k] * l[j * n + k];
-            }
-            l[i * n + j] = s / root;
-        }
+    match cholesky_spd_pivots_into(a, n, &mut l) {
+        Ok(smallest) => Ok((l, smallest)),
+        Err(refusal) => Err(match refusal.error {
+            CholeskyError::NotPositiveDefinite { index } => (index, refusal.ratio),
+            CholeskyError::BufferTooShort => (0, f64::NAN),
+        }),
     }
-    Ok(l)
 }
 
 /// Solve `L y = b`.
 fn forward_solve(l: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
     let mut y = vec![0.0; n];
-    for i in 0..n {
-        let mut s = b[i];
-        for k in 0..i {
-            s -= l[i * n + k] * y[k];
-        }
-        y[i] = s / l[i * n + i];
-    }
+    antecedent_kernels::forward_solve_into(l, n, b, &mut y);
     y
 }
 
 /// Solve `L' x = y`.
 fn back_solve(l: &[f64], n: usize, y: &[f64]) -> Vec<f64> {
     let mut x = vec![0.0; n];
-    for i in (0..n).rev() {
-        let mut s = y[i];
-        for k in (i + 1)..n {
-            s -= l[k * n + i] * x[k];
-        }
-        x[i] = s / l[i * n + i];
-    }
+    antecedent_kernels::back_solve_into(l, n, y, &mut x);
     x
 }
 
@@ -757,17 +734,7 @@ fn chol_solve(l: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
 }
 
 fn chol_inverse(l: &[f64], n: usize) -> Vec<f64> {
-    let mut inverse = vec![0.0; n * n];
-    let mut unit = vec![0.0; n];
-    for j in 0..n {
-        unit.fill(0.0);
-        unit[j] = 1.0;
-        let column = chol_solve(l, n, &unit);
-        for i in 0..n {
-            inverse[i * n + j] = column[i];
-        }
-    }
-    inverse
+    antecedent_kernels::chol_inverse(l, n)
 }
 
 fn mat_vec(a: &[f64], n: usize, x: &[f64]) -> Vec<f64> {
@@ -812,7 +779,7 @@ fn prior_block(prior: &GaussianPrior, dim: usize) -> Result<PriorBlock, Refused>
             invalid(DETAIL_INVALID_PRIOR, "prior covariance must be finite and symmetric").into()
         );
     }
-    let factor = cholesky(&prior.covariance, dim).map_err(|(index, ratio)| {
+    let (factor, _) = cholesky(&prior.covariance, dim).map_err(|(index, ratio)| {
         let mut refusal =
             invalid(DETAIL_INVALID_PRIOR, "prior covariance must be positive definite");
         refusal.failure.min_pivot_ratio = Some(ratio);
@@ -840,13 +807,6 @@ fn singular(names: &[String], index: usize, ratio: f64, what: &str) -> JointTran
     refusal.failure.min_pivot_ratio = Some(ratio);
     refusal.failure.failing_column = Some(names[index].clone());
     refusal
-}
-
-/// Smallest relative pivot of a factorization that succeeded (a diagnostic only).
-fn smallest_pivot_ratio(a: &[f64], factor: &[f64], n: usize) -> f64 {
-    (0..n)
-        .map(|j| factor[j * n + j] * factor[j * n + j] / a[j * n + j].abs().max(f64::MIN_POSITIVE))
-        .fold(f64::INFINITY, f64::min)
 }
 
 struct Assembly<'a> {
@@ -885,7 +845,7 @@ fn assemble_posterior(
         }
     }
     let data_pivot = match cholesky(&info, dim) {
-        Ok(factor) => smallest_pivot_ratio(&info, &factor, dim),
+        Ok((_, smallest)) => smallest,
         Err((index, ratio)) if check_data_information => {
             return Err(singular(asm.names, index, ratio, "the data information matrix").into());
         }
@@ -913,7 +873,7 @@ fn assemble_posterior(
     for (m, p) in moment.iter_mut().zip(prior_part) {
         *m += p;
     }
-    let factor = cholesky(&precision, dim)
+    let (factor, _) = cholesky(&precision, dim)
         .map_err(|(index, ratio)| singular(asm.names, index, ratio, "the posterior precision"))?;
     let mean = chol_solve(&factor, dim, &moment);
     let covariance = chol_inverse(&factor, dim);
@@ -1128,9 +1088,11 @@ fn check_unit_ownership(sources: &[SourceData], target: &TargetData) -> Result<(
 ///
 /// # Errors
 /// `invalid_argument` / [`DETAIL_PRIOR_DATA_OVERLAP`] naming the shared snapshot or ids.
-// The public refusal type is deliberately rich; no caller or test depends on boxing it.
-#[allow(clippy::result_large_err)]
-pub fn check_prior_data_overlap(
+#[allow(
+    clippy::result_large_err,
+    reason = "the public refusal type is deliberately rich; no caller or test depends on boxing it"
+)]
+pub(crate) fn check_prior_data_overlap(
     priors: &JointPriors,
     sources: &[SourceData],
 ) -> Result<(), JointTransportRefusal> {
@@ -1383,9 +1345,10 @@ fn draw_joint(
 /// uncertified derivation, mismatched covariates, missing law or source, undeclared source
 /// dependence, prior/likelihood double use, prior or draw bounds, weak target overlap,
 /// singular data information, or cancellation.
-// The public refusal type is deliberately rich and part of the stable signature; the private
-// pipeline boxes it and this boundary unboxes it.
-#[allow(clippy::result_large_err)]
+#[allow(
+    clippy::result_large_err,
+    reason = "the public refusal type is deliberately rich and part of the stable signature; the private pipeline boxes it and this boundary unboxes it"
+)]
 pub fn fit_joint_bayesian_transport(
     id: &TransportIdentification,
     model: &JointTransportModel,

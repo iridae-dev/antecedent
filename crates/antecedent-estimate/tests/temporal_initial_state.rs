@@ -1,4 +1,4 @@
-//! Uncertain pre-action state of the finite two-step sequence (2.3A, X5).
+//! Uncertain pre-action state of the finite two-step sequence.
 //!
 //! The truth is the enumerated two-step dynamic SCM of the dependent-interval
 //! test: a pre-action state `s0`, a first action `a1`, a step-2 covariate `l`
@@ -20,6 +20,9 @@
 )]
 
 use antecedent_estimate::EstimationError;
+use antecedent_estimate::posterior_mean::{
+    DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
+};
 use antecedent_estimate::temporal_dependent_interval::{
     ObservedStateSequence, SequenceHistory, TemporalEstimator, TemporalUnitPanel, UnitHistories,
 };
@@ -96,7 +99,7 @@ fn target_query(p1: f64) -> MarginalizedQuery {
 }
 
 #[test]
-fn x5_initial_state_sum_equals_the_hand_enumerated_target_sum() {
+fn initial_state_sum_equals_the_hand_enumerated_target_sum() {
     let p = panel();
     let result = target_query(0.7).effect(&p).unwrap();
     let hand = 0.3 * 0.33 + 0.7 * 0.46;
@@ -118,7 +121,65 @@ fn x5_initial_state_sum_equals_the_hand_enumerated_target_sum() {
 }
 
 #[test]
-fn x5_initial_state_sum_differs_from_fixing_the_state_at_its_mode() {
+fn initial_state_posterior_mean_stays_at_the_hand_sum() {
+    let p = panel();
+    let weights = [0.3, 0.7];
+    let mean = dirichlet_supported_mean(
+        &weights,
+        PosteriorRequest::IndependentNormal { scale: 1e-8 },
+        DirichletNamespace::InitialState,
+    )
+    .unwrap();
+    let updated = InitialStateLaw::new(
+        InitialStatePopulation::Target,
+        "target-state",
+        vec![(0, mean[0]), (1, mean[1])],
+    )
+    .unwrap();
+    let result = MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(updated))
+        .unwrap()
+        .effect(&p)
+        .unwrap();
+    assert!((result.value - 0.421).abs() < 1e-5, "{}", result.value);
+}
+
+#[test]
+fn initial_state_posterior_refuses_a_mapped_prior() {
+    let error = dirichlet_supported_mean(
+        &[0.3, 0.7],
+        PosteriorRequest::MappedCoefficient,
+        DirichletNamespace::InitialState,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("initial_state_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn initial_state_posterior_consumer_replays_the_weighted_responses() {
+    let p = panel();
+    let mean = dirichlet_supported_mean(
+        &[0.3, 0.7],
+        PosteriorRequest::IndependentNormal { scale: 0.1 },
+        DirichletNamespace::InitialState,
+    )
+    .unwrap();
+    let updated = InitialStateLaw::new(
+        InitialStatePopulation::Target,
+        "target-state",
+        vec![(0, mean[0]), (1, mean[1])],
+    )
+    .unwrap();
+    let result = MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(updated))
+        .unwrap()
+        .effect(&p)
+        .unwrap();
+    let hand = mean[0] * 0.33 + mean[1] * 0.46;
+    assert!((result.value - hand).abs() < 1e-12, "{} vs {hand}", result.value);
+}
+
+#[test]
+fn initial_state_sum_differs_from_fixing_the_state_at_its_mode() {
     let p = panel();
     let marginalized = target_query(0.7).effect(&p).unwrap();
     // The mode of the target law is s0 = 1; fixing it is the wrong answer to the
@@ -138,7 +199,7 @@ fn x5_initial_state_sum_differs_from_fixing_the_state_at_its_mode() {
 }
 
 #[test]
-fn x5_initial_state_sum_results_are_typed_and_labelled_distinctly() {
+fn initial_state_sum_results_are_typed_and_labelled_distinctly() {
     let p = panel();
     let fixed = FixedStateQuery { sequence: SEQUENCE, s0: 1 }.effect(&p).unwrap();
     let marginalized = target_query(0.7).effect(&p).unwrap();
@@ -154,7 +215,7 @@ fn x5_initial_state_sum_results_are_typed_and_labelled_distinctly() {
 }
 
 #[test]
-fn x5_initial_state_sum_follows_the_law_snapshot_and_zero_mass_states() {
+fn initial_state_sum_follows_the_law_snapshot_and_zero_mass_states() {
     let p = panel();
     let base = target_query(0.7);
     // A different target law moves the value: 0.5 * 0.33 + 0.5 * 0.46.
@@ -178,7 +239,7 @@ fn x5_initial_state_sum_follows_the_law_snapshot_and_zero_mass_states() {
 }
 
 #[test]
-fn x5_source_state_only_refuses_a_source_law_and_a_point_state() {
+fn source_state_only_refuses_a_source_law_and_a_point_state() {
     let source = law(InitialStatePopulation::Source, "source-state", 0.5);
     assert_eq!(source.population(), InitialStatePopulation::Source);
     let (code, message) =
@@ -193,7 +254,7 @@ fn x5_source_state_only_refuses_a_source_law_and_a_point_state() {
 }
 
 #[test]
-fn x5_source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
+fn source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     // State 7 has positive target mass but no history starts there.
     let gap = InitialStateLaw::new(
         InitialStatePopulation::Target,

@@ -100,8 +100,8 @@ fn pag_ate_via_generalized_adjustment() {
         .unwrap();
     let ctx = ExecutionContext::for_tests(1);
     let result = analysis.run(&ctx).unwrap();
-    assert!(result.estimate.ate.is_finite());
-    assert!((result.estimate.ate - 2.0).abs() < 0.2);
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
+    assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2);
     assert!(!matches!(result.identification.status, IdentificationStatus::NotIdentified));
 }
 
@@ -163,11 +163,11 @@ fn pag_with_circles_ate_via_generalized_adjustment() {
     // the plan is ready to execute.
     let plan = analysis.compile(&ctx).unwrap();
     let result = analysis.execute(&plan, &ctx).unwrap();
-    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.as_effect().unwrap().ate.is_finite());
     // Same `chain_table(80)` fixture and estimator as `pag_ate_via_generalized_adjustment`
     // above (only the input PAG's mark differs: circle-arrow here vs. directed there), so
     // the identified ATE must match that known ground truth, not merely be finite.
-    assert!((result.estimate.ate - 2.0).abs() < 0.2);
+    assert!((result.estimate.as_effect().unwrap().ate - 2.0).abs() < 0.2);
 }
 
 #[test]
@@ -220,7 +220,11 @@ fn conditional_effect_via_causal_analysis() {
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
     // y = 1 + 2t + 0.5 t w, so the conditional effect at w is 2 + 0.5 w; over the fixture's
     // w = i mod 5 (mean 2, balanced across the two arms) the average conditional effect is 3.
-    assert!((result.estimate.ate - 3.0).abs() < 0.05, "average CATE {}", result.estimate.ate);
+    assert!(
+        (result.estimate.as_effect().unwrap().ate - 3.0).abs() < 0.05,
+        "average CATE {}",
+        result.estimate.as_effect().unwrap().ate
+    );
 }
 
 #[test]
@@ -238,7 +242,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         .unwrap()
         .run(&ExecutionContext::for_tests(1))
         .unwrap();
-    assert!(result.counterfactual.is_some());
+    assert!(result.counterfactual().is_some());
 
     let an = AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100);
     let analysis = Study::tabular(data)
@@ -248,7 +252,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
         .build()
         .unwrap();
     let result = analysis.run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(result.anomaly.is_some());
+    assert!(result.anomaly().is_some());
 }
 
 #[test]

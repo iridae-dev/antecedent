@@ -4,7 +4,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_kernels::norm_cdf;
+use antecedent_kernels::{log_norm_cdf, log_norm_pdf, mills_left_tail, softplus};
 
 use crate::backend::{BayesDesignRef, BayesLikelihood};
 use crate::error::ProbError;
@@ -73,36 +73,6 @@ pub fn gaussian_terms(y: f64, eta: f64, weight: f64, inv_sigma2: f64) -> Likelih
     }
 }
 
-/// Log standard-normal density.
-#[must_use]
-pub fn log_phi(x: f64) -> f64 {
-    const LOG_INV_SQRT_2PI: f64 = -0.918_938_533_204_672_8; // -0.5 ln(2π)
-    LOG_INV_SQRT_2PI - 0.5 * x * x
-}
-
-// For t >= 8, the inverse Mills ratio is t + delta, where
-// delta = 1 / (t + 2 / (t + 3 / (...))). Keeping delta separately avoids
-// subtracting nearly equal values when computing the observed curvature.
-fn left_tail_mills(t: f64) -> (f64, f64) {
-    let mut delta = 0.0;
-    for k in (1..=64).rev() {
-        delta = f64::from(k) / (t + delta);
-    }
-    (t + delta, delta)
-}
-
-/// Numerically stable `log Φ(x)`, using a continued fraction in the left tail.
-#[must_use]
-pub fn log_normal_cdf(x: f64) -> f64 {
-    if x <= -8.0 {
-        return log_phi(x) - left_tail_mills(-x).0.ln();
-    }
-    if x > 0.0 {
-        return (-norm_cdf(-x)).ln_1p();
-    }
-    norm_cdf(x).ln()
-}
-
 /// Bernoulli probit terms using observed Hessian (Mills-ratio form).
 ///
 /// # Errors
@@ -111,12 +81,12 @@ pub fn log_normal_cdf(x: f64) -> f64 {
 pub fn probit_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, ProbError> {
     let sign = if y > 0.5 { 1.0 } else { -1.0 };
     let x = sign * eta;
-    let log_cdf = log_normal_cdf(x);
+    let log_cdf = log_norm_cdf(x);
     let (ratio, curvature) = if x <= -8.0 {
-        let (ratio, delta) = left_tail_mills(-x);
+        let (ratio, delta) = mills_left_tail(-x);
         (ratio, ratio * delta)
     } else {
-        let ratio = (log_phi(x) - log_cdf).exp();
+        let ratio = (log_norm_pdf(x) - log_cdf).exp();
         (ratio, ratio * (ratio + x))
     };
     let terms = LikelihoodTerms {
@@ -133,10 +103,10 @@ pub fn probit_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, Pr
     Ok(terms)
 }
 
-fn softplus(x: f64) -> f64 {
-    if x > 0.0 { x + (-x).exp().ln_1p() } else { x.exp().ln_1p() }
-}
-
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+)]
 pub(crate) fn validate_design(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -227,28 +197,41 @@ const SEPARATION_ROW_SHARE: f64 = 0.10;
 /// with certainty.
 const SEPARATION_CERTAINTY: f64 = 1e-8;
 
-/// Accumulate likelihood gradient and −Hessian at `beta`. Returns (grad_inf, separation);
+/// Output and working buffers of [`accumulate_likelihood`].
+pub(crate) struct LikelihoodScratch<'a> {
+    /// Gradient output (`ncols`).
+    pub grad: &'a mut [f64],
+    /// Negative-Hessian output (`ncols²`).
+    pub neg_hess: &'a mut [f64],
+    /// Linear predictor per row (`nrows`).
+    pub eta: &'a mut [f64],
+    /// Working weights per row (`nrows`).
+    pub work_w: &'a mut [f64],
+}
+
+/// Accumulate likelihood gradient and −Hessian at `beta`. Returns (`grad_inf`, separation);
 /// the separation flag (at least [`SEPARATION_ROW_SHARE`] of the weighted rows fitted with
 /// certainty on their observed side) is evaluated only when `want_hessian` is set.
 ///
-/// `gaussian_sigma2` scales the GaussianIdentity working weights / scores (`1/σ²`). Other
+/// `gaussian_sigma2` scales the `GaussianIdentity` working weights / scores (`1/σ²`). Other
 /// likelihoods ignore it.
 ///
 /// `want_hessian: false` skips the O(n·p²) curvature accumulation entirely
 /// (leaving `neg_hess` zeroed); the gradient is bit-identical either way. HMC
 /// leapfrog steps read only the gradient, so they use the cheap form.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn accumulate_likelihood(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
     beta: &[f64],
-    grad: &mut [f64],
-    neg_hess: &mut [f64],
-    eta: &mut [f64],
-    work_w: &mut [f64],
+    scratch: LikelihoodScratch<'_>,
     gaussian_sigma2: f64,
     want_hessian: bool,
 ) -> Result<(f64, bool), ProbError> {
+    let LikelihoodScratch { grad, neg_hess, eta, work_w } = scratch;
     let nrows = design.nrows;
     let ncols = design.ncols;
     grad.fill(0.0);
@@ -281,7 +264,7 @@ pub(crate) fn accumulate_likelihood(
             )
         {
             let mu = if matches!(likelihood, BayesLikelihood::BernoulliLogit) {
-                1.0 / (1.0 + (-e).exp())
+                antecedent_kernels::sigmoid(e)
             } else {
                 antecedent_kernels::norm_cdf(e)
             };
@@ -340,6 +323,10 @@ fn glm_observation_terms(
     }
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 pub(crate) fn log_posterior_value(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -420,10 +407,12 @@ mod tests {
                     family,
                     design,
                     &[0.0],
-                    &mut grad,
-                    &mut hess,
-                    &mut eta,
-                    &mut work,
+                    LikelihoodScratch {
+                        grad: &mut grad,
+                        neg_hess: &mut hess,
+                        eta: &mut eta,
+                        work_w: &mut work,
+                    },
                     1.0,
                     true,
                 )
@@ -461,12 +450,12 @@ mod tests {
 
     #[test]
     fn review_probit_retains_upper_tail_log_probability() {
-        let lp = log_normal_cdf(8.0);
+        let lp = log_norm_cdf(8.0);
         assert!((lp / -6.220_960_574_271_784e-16 - 1.0).abs() < 1e-12);
         for x in [-10.0, -8.0001, -7.9999, 8.0] {
             let h = 1e-5;
             let terms = probit_terms(1.0, x, 1.0).unwrap();
-            let score = (log_normal_cdf(x + h) - log_normal_cdf(x - h)) / (2.0 * h);
+            let score = (log_norm_cdf(x + h) - log_norm_cdf(x - h)) / (2.0 * h);
             let curvature = -(probit_terms(1.0, x + h, 1.0).unwrap().score_eta
                 - probit_terms(1.0, x - h, 1.0).unwrap().score_eta)
                 / (2.0 * h);
@@ -490,10 +479,12 @@ mod tests {
             BayesLikelihood::GaussianIdentity,
             design,
             &[0.0],
-            &mut grad,
-            &mut hessian,
-            &mut eta,
-            &mut work,
+            LikelihoodScratch {
+                grad: &mut grad,
+                neg_hess: &mut hessian,
+                eta: &mut eta,
+                work_w: &mut work,
+            },
             1e-20,
             true,
         )
@@ -582,14 +573,14 @@ mod tests {
                 assert!(t.neg_hessian_eta >= -1e-12, "curvature neg at eta={eta} y={y}");
                 assert!(t.log_value.is_finite());
                 // Closed-form observed curvature identity.
-                let lp = log_phi(eta);
+                let lp = log_norm_pdf(eta);
                 if y > 0.5 {
-                    let lambda1 = (lp - log_normal_cdf(eta)).exp();
+                    let lambda1 = (lp - log_norm_cdf(eta)).exp();
                     let curv = (lambda1 * (lambda1 + eta)).max(0.0);
                     assert!((t.neg_hessian_eta - curv).abs() < 1e-12);
                     assert!((t.score_eta - lambda1).abs() < 1e-12);
                 } else {
-                    let lambda0 = (lp - log_normal_cdf(-eta)).exp();
+                    let lambda0 = (lp - log_norm_cdf(-eta)).exp();
                     let curv = (lambda0 * (lambda0 - eta)).max(0.0);
                     assert!((t.neg_hessian_eta - curv).abs() < 1e-12);
                     assert!((t.score_eta + lambda0).abs() < 1e-12);
@@ -614,15 +605,15 @@ mod tests {
         // At η=1.5, y=1: observed −ℓ″ = λ(λ+η) ≠ φ²/(Φ(1−Φ)).
         let eta = 1.5_f64;
         let t = probit_terms(1.0, eta, 1.0).unwrap();
-        let mu = norm_cdf(eta);
-        let dens = (log_phi(eta)).exp();
+        let mu = antecedent_kernels::norm_cdf(eta);
+        let dens = (log_norm_pdf(eta)).exp();
         let fisher = (dens * dens) / (mu * (1.0 - mu));
         assert!(
             (t.neg_hessian_eta - fisher).abs() > 0.01,
             "fixture must differ: obs={} fisher={fisher}",
             t.neg_hessian_eta
         );
-        let lambda1 = (log_phi(eta) - log_normal_cdf(eta)).exp();
+        let lambda1 = (log_norm_pdf(eta) - log_norm_cdf(eta)).exp();
         let obs_ref = lambda1 * (lambda1 + eta);
         assert!((t.neg_hessian_eta - obs_ref).abs() < 1e-10);
     }
@@ -644,10 +635,12 @@ mod tests {
                 BayesLikelihood::BernoulliLogit,
                 design,
                 &[30.0],
-                &mut grad,
-                &mut hess,
-                &mut eta,
-                &mut work,
+                LikelihoodScratch {
+                    grad: &mut grad,
+                    neg_hess: &mut hess,
+                    eta: &mut eta,
+                    work_w: &mut work,
+                },
                 1.0,
                 want_hessian,
             )
@@ -681,10 +674,12 @@ mod tests {
                 BayesLikelihood::BernoulliLogit,
                 design,
                 &[0.0],
-                &mut grad,
-                &mut hess,
-                &mut eta,
-                &mut work,
+                LikelihoodScratch {
+                    grad: &mut grad,
+                    neg_hess: &mut hess,
+                    eta: &mut eta,
+                    work_w: &mut work,
+                },
                 1.0,
                 true,
             )

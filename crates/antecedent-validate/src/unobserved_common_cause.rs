@@ -2,14 +2,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![cfg_attr(
-    test,
-    allow(
-        clippy::cast_possible_truncation,
-        reason = "test fixtures compare exact constants and index with small literals"
-    )
-)]
-
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
@@ -17,9 +9,9 @@ use antecedent_data::TableView;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, check_cancelled, check_replicate_count,
-    complete_case_rows, fill_gaussian, float64_full, linear_estimator_no_bootstrap, refit_effect,
-    with_replaced_float,
+    RefutationProblem, RefutationReport, check_replicate_count, complete_case_rows, fill_gaussian,
+    float64_full, full_sample_refit_ate, linear_estimator_no_bootstrap, map_problem_replicates,
+    refit_effect_shared, with_replaced_float,
 };
 use crate::error::ValidationError;
 use crate::sensitivity::{residual_sd_pair_on_adjustment, temporal_residual_sd_pair};
@@ -85,6 +77,10 @@ impl UnobservedCommonCause {
     /// # Errors
     ///
     /// Data or estimation failures.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "validate, perturb, refit and report as one pass over the same prepared columns"
+    )]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -113,10 +109,7 @@ impl UnobservedCommonCause {
         let n = problem.data.row_count();
         let t0 = float64_full(problem.data, problem.treatment())?;
         let y0 = float64_full(problem.data, problem.outcome())?;
-        let mut ids = vec![problem.treatment(), problem.outcome()];
-        if problem.temporal.is_none() {
-            ids.extend_from_slice(&problem.estimand.adjustment_set);
-        }
+        let ids = problem.estimation_ids(problem.temporal.is_none());
         let (mask, _valid) = complete_case_rows(problem.data, &ids)?;
         let (sd_t, sd_y) = if problem.temporal.is_some() {
             temporal_residual_sd_pair(problem)?
@@ -130,33 +123,47 @@ impl UnobservedCommonCause {
             });
         }
         let (kt, ky) = (self.effect_on_treatment * sd_t, self.effect_on_outcome * sd_y);
-        let mut u = vec![0.0; n];
+        let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
+        let (treatment, outcome) = (problem.treatment(), problem.outcome());
+        let ates = map_problem_replicates(
+            ctx,
+            problem,
+            self.replicates,
+            || (EstimationWorkspace::default(), vec![0.0; n]),
+            |problem, refit, (workspace, u), ctx, r| {
+                fill_gaussian(
+                    u,
+                    ctx,
+                    crate::streams::UNOBSERVED_COMMON_CAUSE.wrapping_add(u64::from(r)),
+                );
+                let t: Vec<f64> = t0.iter().zip(&*u).map(|(&t, &u)| t + kt * u).collect();
+                let y: Vec<f64> = y0.iter().zip(&*u).map(|(&y, &u)| y + ky * u).collect();
+                let data = with_replaced_float(problem.data, treatment, Arc::from(t))?;
+                let data = with_replaced_float(&data, outcome, Arc::from(y))?;
+                let est = refit_effect_shared(
+                    problem,
+                    refit,
+                    &data,
+                    problem.estimand,
+                    &[],
+                    &self.estimator,
+                    workspace,
+                    ctx,
+                )?;
+                if !est.ate.is_finite() {
+                    return Err(ValidationError::estimation_msg(
+                        "non-finite simulated-confounder refit effect: the refit did not \
+                         produce a usable effect",
+                    ));
+                }
+                Ok(est.ate)
+            },
+        )?;
         let mut sum_delta = 0.0;
         let mut sum_ate = 0.0;
-        for r in 0..self.replicates {
-            check_cancelled(ctx)?;
-            fill_gaussian(&mut u, ctx, 0xA7E0_0006_0000_u64.wrapping_add(u64::from(r)));
-            let t: Vec<f64> = t0.iter().zip(&u).map(|(&t, &u)| t + kt * u).collect();
-            let y: Vec<f64> = y0.iter().zip(&u).map(|(&y, &u)| y + ky * u).collect();
-            let data = with_replaced_float(problem.data, problem.treatment(), Arc::from(t))?;
-            let data = with_replaced_float(&data, problem.outcome(), Arc::from(y))?;
-            let est = refit_effect(
-                problem,
-                &data,
-                problem.estimand,
-                &[],
-                &self.estimator,
-                workspace,
-                ctx,
-            )?;
-            if !est.ate.is_finite() {
-                return Err(ValidationError::estimation_msg(
-                    "non-finite simulated-confounder refit effect: the refit did not produce a \
-                     usable effect",
-                ));
-            }
-            sum_delta += (est.ate - problem.original.ate).abs();
-            sum_ate += est.ate;
+        for ate in ates {
+            sum_delta += (ate - centre).abs();
+            sum_ate += ate;
         }
         let mean_delta = sum_delta / f64::from(self.replicates);
         let mean_ate = sum_ate / f64::from(self.replicates);
@@ -166,16 +173,15 @@ impl UnobservedCommonCause {
         )?;
         // The scale of an ATE in residual-SD units; the floor keeps a null estimate finite.
         let ate_scale = (sd_y / sd_t) * treatment_delta.abs();
-        let std_delta = mean_delta / problem.original.ate.abs().max(1e-3 * ate_scale);
+        let std_delta = mean_delta / centre.abs().max(1e-3 * ate_scale);
         let passed = std_delta < self.std_delta_threshold;
-        Ok(RefutationReport {
-            refuter: Arc::from("unobserved.common_cause"),
-            original_ate: problem.original.ate,
-            refuted_ate: mean_ate,
-            comparison: std_delta,
-            informative: true,
-            passed,
-            failure_condition: if passed {
+        Ok(RefutationReport::builder("unobserved.common_cause")
+            .original_ate(problem.original.ate)
+            .refuted_ate(mean_ate)
+            .comparison(std_delta)
+            .informative(true)
+            .passed(passed)
+            .failure_condition(if passed {
                 None
             } else {
                 Some(Arc::from(format!(
@@ -183,8 +189,8 @@ impl UnobservedCommonCause {
                      confounding (effect_on_treatment={} sd, effect_on_outcome={} sd)",
                     self.std_delta_threshold, self.effect_on_treatment, self.effect_on_outcome
                 )))
-            },
-            replicates: self.replicates,
-        })
+            })
+            .replicates(self.replicates)
+            .build())
     }
 }

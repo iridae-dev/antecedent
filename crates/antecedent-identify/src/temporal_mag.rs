@@ -1,7 +1,7 @@
 //! Query-window certificates for stationary temporal MAGs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use crate::generalized::{identify_on_mag_completion, not_identified};
+use crate::generalized::{AdjustmentBudget, MagTarget, identify_on_mag_completion, not_identified};
 use crate::{IdentificationError, IdentificationResult};
 
 pub(crate) const HISTORY_CAPPED: &str = "identify.temporal.history_capped";
@@ -19,8 +19,8 @@ use antecedent_core::{
     CausalQuery, Intervention, TemporalEffectQuery, TemporalIndexer, TemporalNodeKey, Value,
     VariableId,
 };
-use antecedent_graph::{DenseNodeId, Endpoint, NodeRef, Pag, TemporalPag};
-use std::collections::HashSet;
+use antecedent_graph::algo::implicit_closure;
+use antecedent_graph::{DenseNodeId, Endpoint, NodeRef, TemporalPag, UnfoldedTemporalPag};
 
 pub(crate) fn window(
     graph: &TemporalPag,
@@ -83,56 +83,60 @@ fn closure(
     cap: u32,
     possible: bool,
 ) -> (u32, bool) {
-    let mut pending: Vec<_> =
-        seeds.iter().map(|k| (k.variable.raw(), i64::from(k.offset))).collect();
-    let mut seen = HashSet::new();
-    let mut depth = 0;
     let mut closed = true;
     let edges = graph.edges();
-    while let Some((variable, offset)) = pending.pop() {
-        if !seen.insert((variable, offset)) {
-            continue;
-        }
-        depth = depth.max(u32::try_from((-offset).max(0)).unwrap_or(u32::MAX));
-        for edge in &edges {
-            for (parent, child, at_parent, at_child) in
-                [(edge.a, edge.b, edge.at_a, edge.at_b), (edge.b, edge.a, edge.at_b, edge.at_a)]
-            {
-                if !(at_parent == Endpoint::Tail || possible && at_parent == Endpoint::Circle)
-                    || !(at_child == Endpoint::Arrow || possible && at_child == Endpoint::Circle)
+    let reached = implicit_closure(
+        seeds.iter().map(|k| (k.variable.raw(), i64::from(k.offset))),
+        |&(variable, offset)| {
+            let mut parents = Vec::new();
+            for edge in &edges {
+                for (parent, child, at_parent, at_child) in
+                    [(edge.a, edge.b, edge.at_a, edge.at_b), (edge.b, edge.a, edge.at_b, edge.at_a)]
                 {
-                    continue;
+                    let parent_ok =
+                        at_parent == Endpoint::Tail || possible && at_parent == Endpoint::Circle;
+                    let child_ok =
+                        at_child == Endpoint::Arrow || possible && at_child == Endpoint::Circle;
+                    if !parent_ok || !child_ok {
+                        continue;
+                    }
+                    let (
+                        NodeRef::Lagged { variable: pv, lag: pl },
+                        NodeRef::Lagged { variable: cv, lag: cl },
+                    ) = (graph.nodes()[parent.as_usize()], graph.nodes()[child.as_usize()])
+                    else {
+                        continue;
+                    };
+                    if cv.raw() != variable || pl.raw() < cl.raw() {
+                        continue;
+                    }
+                    let parent_offset = offset + i64::from(cl.raw()) - i64::from(pl.raw());
+                    if parent_offset < -i64::from(cap) {
+                        closed = false;
+                        continue;
+                    }
+                    parents.push((pv.raw(), parent_offset));
                 }
-                let (
-                    NodeRef::Lagged { variable: pv, lag: pl },
-                    NodeRef::Lagged { variable: cv, lag: cl },
-                ) = (graph.nodes()[parent.as_usize()], graph.nodes()[child.as_usize()])
-                else {
-                    continue;
-                };
-                if cv.raw() != variable || pl.raw() < cl.raw() {
-                    continue;
-                }
-                let parent_offset = offset + i64::from(cl.raw()) - i64::from(pl.raw());
-                if parent_offset < -i64::from(cap) {
-                    closed = false;
-                    continue;
-                }
-                pending.push((pv.raw(), parent_offset));
             }
-        }
-    }
+            parents
+        },
+    );
+    let depth = reached
+        .into_iter()
+        .map(|(_, offset)| u32::try_from((-offset).max(0)).unwrap_or(u32::MAX))
+        .max()
+        .unwrap_or(0);
     (depth, closed)
 }
 
 pub(crate) fn identify(
     graph: &TemporalPag,
     query: &TemporalEffectQuery,
-    indexer: &TemporalIndexer,
+    unfolded: &UnfoldedTemporalPag,
     max_candidates: usize,
     max_examinations: u64,
-) -> Result<(IdentificationResult, Pag), IdentificationError> {
-    let unfolded = graph.unfold(indexer.clone())?;
+) -> Result<IdentificationResult, IdentificationError> {
+    let indexer = &unfolded.indexer;
     let keys = query_keys(query)?;
     let id = |key| indexer.dense_id(key).map_err(|e| IdentificationError::msg(e.to_string()));
     let treatment = id(keys[0])?;
@@ -158,14 +162,15 @@ pub(crate) fn identify(
         };
         identify_on_mag_completion(
             &unfolded.pag,
-            VariableId::from_raw(treatment),
-            VariableId::from_raw(outcome),
-            DenseNodeId::from_raw(treatment),
-            DenseNodeId::from_raw(outcome),
+            MagTarget {
+                t: VariableId::from_raw(treatment),
+                y: VariableId::from_raw(outcome),
+                t_d: DenseNodeId::from_raw(treatment),
+                y_d: DenseNodeId::from_raw(outcome),
+            },
             level(&query.active)?,
             level(&query.control)?,
-            max_candidates,
-            max_examinations,
+            AdjustmentBudget { max_candidates, max_examinations },
         )?
     };
     let mut conditioning = keys.clone();
@@ -192,7 +197,7 @@ pub(crate) fn identify(
         indexer.history(),
         indexer.horizon(),
     );
-    Ok((result, unfolded.pag))
+    Ok(result)
 }
 
 #[cfg(test)]

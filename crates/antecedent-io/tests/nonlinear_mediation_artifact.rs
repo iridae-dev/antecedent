@@ -1,4 +1,4 @@
-//! B4 nonlinear-mediation artifact: the exact-grid closed-form truth of the core tests through
+//! Nonlinear-mediation artifact: the exact-grid closed-form truth of the core tests through
 //! the container, a re-estimating consumer, resealed-mutation refusals against a retained
 //! identity, the premise and bootstrap records, unknown versions, the row cap and the unmeasured
 //! calibration coordinate with the closed interval status.
@@ -9,7 +9,6 @@
 //! levels are scaled so the degrees-of-freedom corrected residual variance equals `sigma2`.
 //! Closed form: `NDE = b1 + delta*gamma*E[X]`,
 //! `NIE = (c1 + delta)*alpha + c2*(alpha^2 + 2*alpha*gamma*E[X])`, `TE = NDE + NIE`.
-#![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::nonlinear_mediation_artifact::{
     MediationConfigWire, MediationDataWire, MediationPremisesWire,
@@ -95,13 +94,16 @@ fn truth() -> (f64, f64, f64) {
     (nde, nie, nde + nie)
 }
 
+#[path = "common/mod.rs"]
+mod common;
+
 fn close(actual: f64, expected: f64, what: &str) {
-    assert!((actual - expected).abs() <= 1e-8, "{what}: {actual} vs {expected}");
+    common::close(actual, expected, 1e-8, what);
 }
 
 fn seal(replicates: u32) -> (NonlinearMediationArtifact, Vec<u8>) {
     let artifact = NonlinearMediationArtifact::seal(&request(replicates)).unwrap();
-    let bytes = artifact.to_bytes("b4-mediation-test").unwrap();
+    let bytes = artifact.to_bytes("mediation-test").unwrap();
     (artifact, bytes)
 }
 
@@ -110,7 +112,7 @@ fn refusal_detail(error: &NonlinearMediationArtifactError) -> String {
 }
 
 #[test]
-fn b4_mediation_artifact_round_trips_the_closed_form_truth() {
+fn mediation_artifact_round_trips_the_closed_form_truth() {
     let (artifact, bytes) = seal(0);
     let consumed =
         NonlinearMediationArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
@@ -132,7 +134,7 @@ fn b4_mediation_artifact_round_trips_the_closed_form_truth() {
 }
 
 #[test]
-fn b4_mediation_artifact_records_premises_with_declared_and_checked_status() {
+fn mediation_artifact_records_premises_with_declared_and_checked_status() {
     let (artifact, _) = seal(0);
     let records = &artifact.meta().premise_records;
     let status = |name: &str| records.iter().find(|r| r.name == name).map(|r| r.status.as_str());
@@ -150,7 +152,7 @@ fn b4_mediation_artifact_records_premises_with_declared_and_checked_status() {
 }
 
 #[test]
-fn b4_mediation_artifact_records_integration_error_and_overlap() {
+fn mediation_artifact_records_integration_error_and_overlap() {
     let (artifact, _) = seal(0);
     let result = &artifact.meta().result;
     assert_eq!(result.coarse_nodes, 8);
@@ -166,7 +168,7 @@ fn b4_mediation_artifact_records_integration_error_and_overlap() {
 }
 
 #[test]
-fn b4_mediation_artifact_bootstrap_record_replays_with_closed_interval_status() {
+fn mediation_artifact_bootstrap_record_replays_with_closed_interval_status() {
     let (artifact, bytes) = seal(12);
     let boot = &artifact.meta().result.bootstrap;
     assert_eq!(boot.seed, 7);
@@ -180,7 +182,7 @@ fn b4_mediation_artifact_bootstrap_record_replays_with_closed_interval_status() 
 }
 
 #[test]
-fn b4_mediation_artifact_refuses_changed_data_even_when_resealed() {
+fn mediation_artifact_refuses_changed_data_even_when_resealed() {
     let (artifact, bytes) = seal(0);
     let (meta, mut numbers) = decode_parts(&bytes).unwrap();
     // Outcome column starts after treatment and mediator: 2 * 40 values of 8 bytes.
@@ -209,7 +211,7 @@ fn b4_mediation_artifact_refuses_changed_data_even_when_resealed() {
 }
 
 #[test]
-fn b4_mediation_artifact_refuses_a_changed_stored_result() {
+fn mediation_artifact_refuses_a_changed_stored_result() {
     let (_, bytes) = seal(0);
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.result.natural_direct += 0.1;
@@ -220,7 +222,7 @@ fn b4_mediation_artifact_refuses_a_changed_stored_result() {
 }
 
 #[test]
-fn b4_mediation_artifact_refuses_changed_premises_and_config() {
+fn mediation_artifact_refuses_changed_premises_and_config() {
     let (_, bytes) = seal(0);
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.premises.unmeasured_mediator_outcome_confounding = true;
@@ -239,7 +241,7 @@ fn b4_mediation_artifact_refuses_changed_premises_and_config() {
 }
 
 #[test]
-fn b4_mediation_artifact_seal_refuses_confounding_and_interventional_estimands() {
+fn mediation_artifact_seal_refuses_confounding_and_interventional_estimands() {
     for flag in 0..3 {
         let mut r = request(0);
         match flag {
@@ -262,7 +264,7 @@ fn b4_mediation_artifact_seal_refuses_confounding_and_interventional_estimands()
 }
 
 #[test]
-fn b4_mediation_artifact_refuses_unknown_versions_features_and_corruption() {
+fn mediation_artifact_refuses_unknown_versions_features_and_corruption() {
     let (_, bytes) = seal(0);
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.version = NONLINEAR_MEDIATION_ARTIFACT_VERSION + 1;
@@ -292,7 +294,7 @@ fn b4_mediation_artifact_refuses_unknown_versions_features_and_corruption() {
 }
 
 #[test]
-fn b4_mediation_artifact_caps_embedded_rows() {
+fn mediation_artifact_caps_embedded_rows() {
     let rows = NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS + 1;
     let big = NonlinearMediationRequestWire {
         premises: ignorable(),
