@@ -428,7 +428,7 @@ def _worst_gap(left, right, path=''):
         for k in left.keys() & right.keys():
             worst = max(worst, _worst_gap(left[k], right[k], f'{path}/{k}'))
     elif isinstance(left, list) and isinstance(right, list):
-        for i, (a, b) in enumerate(zip(left, right)):
+        for i, (a, b) in enumerate(zip(left, right, strict=False)):
             worst = max(worst, _worst_gap(a, b, f'{path}[{i}]'))
     return worst
 
