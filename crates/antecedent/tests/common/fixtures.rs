@@ -142,7 +142,7 @@ fn lag_bit(lag: u32, from: usize, to: usize) -> u64 {
 /// Contemporaneous `z -> x` shared by every DBN atom.
 #[must_use]
 pub fn dbn_contemporaneous_mask() -> u64 {
-    set_edge(0, P, 2, 0, true)
+    set_edge(0, P, 2, 0, true).to_word().expect("a three-variable graph fits one word")
 }
 
 /// Atom A (the DGP): `x@1 -> y`, `x@2 -> y`, `z@1 -> y`. Adjusts `z[t-1]`.
