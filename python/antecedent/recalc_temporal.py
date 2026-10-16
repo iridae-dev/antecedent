@@ -100,6 +100,11 @@ class TemporalRequest:
         return (ids, lengths, time_ids, *states, y)
 
     def _wire(self) -> dict[str, Any]:
+        """The whole request as recorded in a source report, histories included."""
+        return {**self._declaration(), "units": [asdict(unit) for unit in self.units]}
+
+    def _declaration(self) -> dict[str, Any]:
+        """The declaration sent to the bridge: the histories travel as columns instead."""
         functional = asdict(self.functional)
         functional["kind"] = (
             "response" if isinstance(self.functional, TemporalResponse) else "effect"
@@ -173,7 +178,7 @@ class TemporalSession(_Session):
         return RecalcPlan.from_wire(
             json.loads(
                 self._handle.plan(
-                    json.dumps(request._wire()),
+                    json.dumps(request._declaration()),
                     request._history_columns(),
                     seed=_seed(seed),
                     threads=threads,
@@ -196,7 +201,7 @@ class TemporalSession(_Session):
         _admit_histories(request, memory_limit_bytes, cancel)
         return _result(
             self._handle.execute(
-                json.dumps(request._wire()),
+                json.dumps(request._declaration()),
                 request._history_columns(),
                 seed=_seed(seed),
                 threads=threads,
