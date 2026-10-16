@@ -191,12 +191,14 @@ How often PC returns exactly the true graph over that family is printed by the s
 harness (`info recovery` lines) and published here as a table, not as a license. A row
 states the variable count, the rows given to discovery and the share of replicates whose
 discovered graph equals the true one. The table is filled from the measurement at the
-release cut and carries the commit it was measured at; until then it is empty and no
-number is claimed.
+release cut and carries the commit it was measured at (`4ae60f8b5`). It is a description of
+how the search behaves, not a license: the license is the coverage record of the interval.
 
 | Variables | Discovery rows | Replicates | Graph recovered | Interval reported |
 | --- | --- | --- | --- | --- |
-| 5 to 7 | not yet measured | not yet measured | not yet measured | not yet measured |
+| 5 to 7 | 300 | 400 | 0.950 | 0.960 |
+| 5 to 7 | 600 | 400 | 0.975 | 0.978 |
+| 5 to 7 | 1,200 | 400 | 0.975 | 0.975 |
 
 ## Lifecycle
 
