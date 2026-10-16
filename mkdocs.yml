@@ -163,6 +163,7 @@ nav:
   - Conformance: conformance/README.md
   - Hot paths: hot_paths.md
   - Practitioner acceptance: practitioner-acceptance.md
+  - Acceptance manifest: acceptance-manifest.md
   - Security review: security_review.md
   - Callback security: callback-security.md
   - Technical derivations:
