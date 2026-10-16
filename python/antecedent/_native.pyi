@@ -7389,6 +7389,7 @@ def transported_policy_construct(
     coordinate_json: str,
     provider_id: str,
     max_nodes: int | None = None,
+    target_utility_json: str | None = None,
     *,
     cancel: CancellationToken | None = None,
 ) -> tuple[TransportedResponseHandle | None, str | None, str | None]: ...
@@ -7425,6 +7426,7 @@ def transported_policy_verify(
     diagram_json: str | None,
     stored_json: str,
     max_nodes: int | None = None,
+    target_utility_json: str | None = None,
     *,
     cancel: CancellationToken | None = None,
 ) -> str | None: ...

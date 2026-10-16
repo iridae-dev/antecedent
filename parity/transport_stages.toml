@@ -10242,7 +10242,7 @@ functional = "expected_utility_of_the_policy_in_the_target_population"
 guarantee = "declared_selection_diagram_only_initial_state_law_shifted_exact_finite_enumeration_point_only"
 evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs"
 evidence_assertion = "transported_value_matches_the_hand_value_across_target_laws"
-notes = "Library route; refusal details are literals. Exact finite arithmetic, a point; no interval route is registered."
+notes = "Library route; refusal details are literals. The utility may also be shifted when a target utility with declared provenance is supplied; its values and provenance enter the identity only then. Exact finite arithmetic, a point; no interval route is registered."
 
 [[routes]]
 route = "antecedent_design.transported_policy.verify_transported_policy"

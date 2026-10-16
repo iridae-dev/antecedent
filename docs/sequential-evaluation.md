@@ -135,11 +135,18 @@ also refuses a consistently resealed artifact of another evaluation.
 
 ## Decision notes
 
-- **Transported policy evaluation.** Closed. A value is for the model's own
-  population. A policy evaluated in another population needs a selection
-  diagram with the transition and observation mechanisms marked invariant and a
-  target initial-state law with support overlap; the request is refused with
-  that contract named (`transported_policy_contract_missing`).
+- **Transported policy evaluation.** A value is for the model's own
+  population unless it is carried by the bounded transport route
+  (`antecedent_design::transported_policy`, `docs/guides/transported-policy-and-adaptive-source.md`).
+  That route evaluates a fixed policy in a target population under a declared
+  selection diagram: transition and observation mechanisms must be invariant,
+  the target initial-state law must lie inside the source's support, and the
+  utility is either invariant or replaced by the target's own declared utility
+  with its provenance (source label and content digest), which is bound into the
+  evaluation identity. A request with no selection diagram is refused with that
+  contract named (`transported_policy_contract_missing`); an undeclared
+  mechanism, a shifted transition or observation mechanism or a target utility
+  that does not match the model is refused by name.
 - **Temporal transport.** Refused with the same typed refusal
   (`temporal_transport_contract_missing`). The model's laws are
   time-homogeneous within its horizon by construction; carrying them to

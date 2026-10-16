@@ -551,12 +551,20 @@ impl TransportedResponse {
         ];
         assumptions
             .extend(evaluation.shifted_mechanisms.iter().map(|m| format!("shifted:{}", m.name())));
+        let mut transport_identities = vec![evaluation.diagram_identity.clone()];
+        if let Some(utility) = &evaluation.target_utility {
+            assumptions.push(format!(
+                "target_utility:{}:{}",
+                utility.provenance.source, utility.provenance.digest
+            ));
+            transport_identities.push(utility.identity_hex());
+        }
         let declaration = TransportDeclaration {
             route: TransportedRoute::Policy,
             source_identity: evaluation.identity.clone(),
             source_populations: vec![evaluation.source_population.clone()],
             target_population: evaluation.target_population.clone(),
-            transport_identities: vec![evaluation.diagram_identity.clone()],
+            transport_identities,
             assumptions,
             support: SupportStatus::Extrapolative,
             uncalibrated_standard_error: None,

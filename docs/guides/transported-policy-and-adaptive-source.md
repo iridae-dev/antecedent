@@ -6,7 +6,7 @@ anything from the target.
 
 | Route | Rust entry point | Value |
 | --- | --- | --- |
-| Fixed contingent policy in a target population | `antecedent_design::transported_policy::evaluate_transported_policy` | Sequential g-formula under the source's invariant mechanisms and the target's initial-state law |
+| Fixed contingent policy in a target population | `antecedent_design::transported_policy::evaluate_transported_policy` | Sequential g-formula under the source's invariant mechanisms, the target's initial-state law and, when declared shifted, the target's own utility |
 | Adaptive trial as a transport source | `antecedent_design::adaptive_trial_transport::transport_adaptive_trial` | Arm means standardized to a finite target stratum law |
 | Policy across periods | `antecedent_design::temporal_policy_transport::evaluate_temporal_policy` | The same g-formula with time-invariant dynamics and a shifted initial state |
 
@@ -34,10 +34,24 @@ re-deriving verifier, `verify_policy`, `verify_adaptive_trial` and `verify_perio
 You declare, for every mechanism (initial state, each action's transition, each
 observation channel, the state utility), whether a selection node points to it
 (`Shifted`) or it is `Invariant`. An undeclared mechanism is refused by name.
-Only the initial-state law may be shifted. You supply the target initial-state
-law and its support must lie inside the source's, so every reachable target
-history was reachable in the source. The value is
-`V_T(pi) = sum over h of P_T(h | pi) * realized(h)`.
+The initial-state law may be shifted, and so may the utility when you supply the
+target's own (`TargetUtility`). What an outcome is worth is a valuation, not a
+causal mechanism, so the source cannot supply it: the target utility covers
+exactly the source model's actions and latent states (per-action cost and
+immediate value, the delayed value where the source action has a delayed outcome,
+and the terminal value), every value finite and every cost non-negative, and it
+names its provenance, a source label and a 64-character content digest. Both the
+values and the provenance are bound into the evaluation identity and named in
+the response's assumptions, so an edited value or provenance does not replay
+through the verifier. A utility declared shifted with none supplied, or supplied
+while declared invariant, is refused. A shifted utility relaxes nothing else:
+transitions and observation channels must still be invariant and the target
+initial law must still lie inside the source's support. You supply the target
+initial-state law and its support must lie inside the source's, so every
+reachable target history was reachable in the source. The value is
+`V_T(pi) = sum over h of P_T(h | pi) * realized_T(h)`, where `realized_T` uses the
+target utility when one is supplied and the source's otherwise. The period route
+does not accept a shifted utility.
 
 ## Adaptive trial as a source
 
@@ -69,7 +83,10 @@ re-keyed implicitly. Only the initial state may have moved.
 | Refused request | Reason code | Remedy |
 | --- | --- | --- |
 | Mechanism left undeclared, or no selection diagram | `transport_missing_evidence` | Declare every mechanism |
-| Shifted transition, observation or utility mechanism | `transport_missing_evidence` (names the mechanism) | Re-evaluate in the target or use a model fitted there |
+| Shifted transition or observation mechanism | `transport_missing_evidence` (names the mechanism) | Re-evaluate in the target or use a model fitted there |
+| Utility declared shifted with no target utility, or a target utility with the utility declared invariant | `transport_missing_evidence` (`target_utility_missing`), `invalid_argument` (`utility_declared_invariant`) | Supply the target's utility with its provenance, or mark the utility invariant |
+| Target utility with no source label, a malformed digest, other actions or states than the model's, or a non-finite value | `transport_missing_evidence` (`target_utility_provenance_missing`), `invalid_argument` (`target_utility_digest`, `target_utility_support`, `target_utility_value`) | Declare the target's utility over the model's own actions and states |
+| Shifted utility mechanism on the period route | `transport_missing_evidence` (names the mechanism) | Declare the utility time-invariant |
 | Target initial law outside the source support | `transport_support_failure` | Restrict the target law to the source support |
 | Different horizon or alphabet across periods | `invalid_argument` | Build a model for the target period |
 | Adaptive trial with no retained contract | `adaptive_contract_incomplete` | Supply the `AdaptiveDesignContract` |

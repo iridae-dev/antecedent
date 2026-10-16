@@ -251,6 +251,7 @@ fn a_policy_value_is_carried_with_the_populations_and_digest_of_its_evaluation()
         target_population: "plant_b",
         target_initial: Some(&law),
         diagram: Some(&diagram),
+        target_utility: None,
         limits: EvaluationLimits::default(),
     };
     let built =
@@ -295,6 +296,7 @@ fn a_constructed_policy_response_feeds_the_transported_decision() {
         target_population: "plant_b",
         target_initial: Some(&law),
         diagram: Some(&diagram),
+        target_utility: None,
         limits: EvaluationLimits::default(),
     };
     let value = quantity("value", "plant_b");
@@ -361,6 +363,7 @@ fn a_policy_route_refusal_is_the_routes_own_and_a_wrong_coordinate_is_refused() 
         target_population: "plant_b",
         target_initial: Some(&law),
         diagram: Some(&diagram),
+        target_utility: None,
         limits: EvaluationLimits::default(),
     };
     let refused = transported_policy_response(

@@ -14,7 +14,7 @@ papers = [
   { title = "A new approach to causal inference in mortality studies with a sustained exposure period: application to control of the healthy worker survivor effect (Robins, Mathematical Modelling 7:1393-1512, 1986)", doi = "10.1016/0270-0255(86)90088-6", sections = ["the g-computation formula for a sustained treatment strategy (theorem and section numbers not independently verified; the registry title differs slightly: A new method for causal inference in mortality studies with a sustained exposure period, applied to controlling the healthy worker survivor effect)"] },
 ]
 implementation_deviations = [
-  "Only the initial-state law may be shifted. A shifted transition, observation or utility mechanism is refused with the mechanism named, and an undeclared mechanism is refused: there is no default invariance.",
+  "Only the initial-state law may be shifted, and the utility when the caller supplies the target's own utility with its provenance (a source label and content digest). The utility is a valuation, not a causal mechanism, so the source cannot supply it. A shifted transition or observation mechanism is refused with the mechanism named, a shifted utility with no target utility is refused, and an undeclared mechanism is refused: there is no default invariance.",
   "The target initial-state law is supplied, not learned; its support must lie inside the source's, so every reachable target history was reachable in the source.",
   "Point value only. No interval, posterior or coverage statement; the premises are the declared ones in TransportPremises.",
   "The value is verified by re-evaluation (verify_transported_policy) rather than trusted from a stored number.",
@@ -22,4 +22,5 @@ implementation_deviations = [
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-design/tests/transported_evaluation.rs",
+  "python/tests/test_transported_constructors.py",
 ]

@@ -25,7 +25,8 @@ transport identities and assumptions are copied from the producing result and ne
     construction.response        # a TransportedResponse: evaluate_transported(...) reads it
     construction.evaluation      # the route's own values, identity and premises
 
-* :func:`from_policy`: a policy's value in another population (selection-diagram digest).
+* :func:`from_policy`: a policy's value in another population (selection-diagram digest), with
+  the target's own utility (:class:`TargetUtility`) when the diagram marks ``utility`` shifted.
 * :func:`from_period_shift`: a policy's value in another period (time-invariance digest).
 * :func:`from_adaptive_trial`: an adaptive trial's arm mean or contrast (trial-diagram digest).
 * :func:`from_synthesis`: a transported synthesis over an evidence ledger (ledger transport
@@ -72,6 +73,7 @@ from .joint_distribution import ScientificQuantity
 from .transported_response import TransportedResponse, TransportedResponseRefusal
 
 __all__ = [
+    "ActionUtility",
     "AdaptiveTrialDiagram",
     "Borrow",
     "BridgeDiagram",
@@ -81,6 +83,7 @@ __all__ = [
     "SelectionDiagram",
     "SurrogateBridge",
     "TargetPeriod",
+    "TargetUtility",
     "TransportedConstruction",
     "TransportedPrior",
     "from_adaptive_trial",
@@ -198,8 +201,8 @@ class SelectionDiagram:
 
     ``mechanisms`` maps ``initial_state``, ``utility``, ``transition[<action>]`` and
     ``observation[<action>]`` (one per action with an observation channel) to ``invariant`` or
-    ``shifted``. Only the initial-state law may be shifted; an undeclared mechanism is refused,
-    never assumed invariant.
+    ``shifted``. Only the initial-state law and, with a :class:`TargetUtility`, the utility may
+    be shifted; an undeclared mechanism is refused, never assumed invariant.
     """
 
     source_population: str
@@ -214,6 +217,65 @@ class SelectionDiagram:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class ActionUtility:
+    """The target's utility of one action: its cost and its value per latent state.
+
+    ``delayed`` is the value per state of the action's delayed outcome and is given exactly when
+    the model's action has one (its timing stays the model's).
+    """
+
+    cost: float
+    immediate: Sequence[float]
+    delayed: Sequence[float] | None = None
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "cost": real(self.cost, "cost", finite=True),
+            "immediate": _initial(self.immediate, "immediate"),
+            "delayed": _initial(self.delayed, "delayed"),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class TargetUtility:
+    """The target population's own utility mechanism, with where it comes from.
+
+    A utility is a valuation, not a causal mechanism, so the source model cannot supply the
+    target's. ``terminal`` is the value per state when the horizon is reached without a commit
+    and ``actions`` one :class:`ActionUtility` per model action, in the model's order, over the
+    model's own states. ``source`` labels the target-side source of the valuation and ``digest``
+    is its 64-character lowercase hexadecimal content digest; both are bound into the
+    evaluation's identity, so a changed value or provenance is a different, non-replaying
+    evaluation. Pass it with a diagram that marks ``utility`` shifted (and only then).
+    """
+
+    source: str
+    digest: str
+    terminal: Sequence[float]
+    actions: Sequence[ActionUtility]
+
+    def _wire(self) -> dict[str, Any]:
+        if isinstance(self.actions, str) or not isinstance(self.actions, Sequence):
+            raise CausalTypeError("actions must be a sequence of ActionUtility")
+        if not all(isinstance(action, ActionUtility) for action in self.actions):
+            raise CausalTypeError("actions must be a sequence of ActionUtility")
+        return {
+            "source": text(self.source, "source"),
+            "digest": text(self.digest, "digest"),
+            "terminal": _initial(self.terminal, "terminal"),
+            "actions": [action._wire() for action in self.actions],
+        }
+
+
+def _utility_json(utility: TargetUtility | None) -> str | None:
+    if utility is None:
+        return None
+    if not isinstance(utility, TargetUtility):
+        raise CausalTypeError("target_utility must be a TargetUtility")
+    return _dumps(utility._wire())
+
+
 def from_policy(
     model: Any,
     policy: Any,
@@ -224,20 +286,25 @@ def from_policy(
     coordinate: ScientificQuantity,
     provider_id: str,
     max_nodes: int | None = None,
+    target_utility: TargetUtility | None = None,
     cancel: Any = None,
 ) -> TransportedConstruction:
     """A fixed policy's value in another population, as a transported response.
 
     The policy is evaluated in the model's own population and in ``target_population`` (the
-    model with the target's initial-state law) by exact enumeration; the response states the
-    target value at ``coordinate``. The source population is the model's; the identity is the
-    selection-diagram digest.
+    model with the target's initial-state law and, when ``target_utility`` is given, the
+    target's own utility) by exact enumeration; the response states the target value at
+    ``coordinate``. The source population is the model's; the identity is the selection-diagram
+    digest, and a target utility's provenance and content are bound into the evaluation's
+    identity and named in the response's assumptions.
 
     Raises:
         TransportedResponseRefusal: a missing diagram or target initial law, a shifted
-            transition, observation or utility mechanism, a target outside the source's
-            support, a target equal to the source, a coordinate not in the target population,
-            and every sequential-evaluation refusal of the policy.
+            transition or observation mechanism, a utility marked shifted with no
+            ``target_utility`` (or one supplied while it is marked invariant), a target utility
+            without provenance or over other actions or states than the model's, a target outside
+            the source's support, a target equal to the source, a coordinate not in the target
+            population, and every sequential-evaluation refusal of the policy.
     """
     model_json, policy_json = _model_and_policy(model, policy)
     if diagram is not None and not isinstance(diagram, SelectionDiagram):
@@ -252,6 +319,7 @@ def from_policy(
             _quantity(coordinate),
             _provider(provider_id),
             max_nodes,
+            _utility_json(target_utility),
             cancel=cancel,
         )
     )
@@ -482,12 +550,14 @@ def verify_policy(
     target_initial: Sequence[float] | None,
     diagram: SelectionDiagram | None,
     max_nodes: int | None = None,
+    target_utility: TargetUtility | None = None,
     cancel: Any = None,
 ) -> None:
     """Re-derive a transported policy evaluation and compare it bit for bit.
 
-    The model, policy, diagram and target law are evaluated again; the stored identity and both
-    values must equal the re-derived ones. Returns ``None`` when they replay.
+    The model, policy, diagram, target law and target utility are evaluated again; the stored
+    identity and both values must equal the re-derived ones, so an edited utility value or
+    provenance does not replay. Returns ``None`` when they replay.
 
     Raises:
         TransportedResponseRefusal: every refusal of :func:`from_policy`, and
@@ -504,6 +574,7 @@ def verify_policy(
         None if diagram is None else _dumps(diagram._wire()),
         _stored(evaluation, "policy"),
         max_nodes,
+        _utility_json(target_utility),
         cancel=cancel,
     )
     raise_refusal(refusal, TransportedResponseRefusal)
