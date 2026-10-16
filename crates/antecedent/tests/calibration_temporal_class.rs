@@ -144,7 +144,7 @@ const MEDIATION_TRUTH: f64 = 0.8 * 0.55;
 fn temporal_atom(
     kind: GraphPosteriorAtomKind,
     n: usize,
-    adjacency: u64,
+    adjacency: antecedent_discovery::AdjacencyMask,
     max_lag: u32,
     lag_mask: u64,
 ) -> GraphPosterior {

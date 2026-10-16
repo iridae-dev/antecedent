@@ -44,7 +44,7 @@ use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::set_edge;
+use antecedent_discovery::{AdjacencyMask, set_edge};
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
     CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, map_replicates, n_sim,
@@ -127,7 +127,7 @@ fn draw_data(seed: u64, modifier: bool) -> TabularData {
 /// Atoms A / B / C over `[t, y, z]` (and `w -> y` in every atom when `modifier`).
 fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
     let n = if modifier { 4 } else { 3 };
-    let base = if modifier { set_edge(0, n, 3, 1, true) } else { 0 };
+    let base = if modifier { set_edge(0, n, 3, 1, true) } else { AdjacencyMask::EMPTY };
     let direct = set_edge(base, n, 0, 1, true);
     let adjusted = set_edge(set_edge(set_edge(base, n, 0, 1, true), n, 2, 0, true), n, 2, 1, true);
     let unidentified = set_edge(base, n, 1, 0, true);
@@ -150,7 +150,7 @@ fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
 /// Two identified atoms share the empty adjustment set (both estimate 3).
 fn same_estimand_mixture_posterior(modifier: bool) -> GraphPosterior {
     let n = if modifier { 4 } else { 3 };
-    let base = if modifier { set_edge(0, n, 3, 1, true) } else { 0 };
+    let base = if modifier { set_edge(0, n, 3, 1, true) } else { AdjacencyMask::EMPTY };
     let direct = set_edge(base, n, 0, 1, true);
     let outcome_parent = set_edge(set_edge(base, n, 0, 1, true), n, 2, 1, true);
     let unidentified = set_edge(base, n, 1, 0, true);
