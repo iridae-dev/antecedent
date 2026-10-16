@@ -63,6 +63,29 @@ def truth(a1, a2, p1):
     return 0.1375 + 0.2375 * a1 + 0.25 * a2 + 0.1375 * p1 + 0.1 * p1 * a1
 
 
+def test_temporal_accepts_one_hundred_thousand_history_rows_as_columns():
+    from antecedent.errors import CausalValueError
+
+    base = request()
+    cells = [unit.histories[0] for unit in base.units]
+    # 6,400 units of 16 non-overlapping windows each: 102,400 history rows, ten copies of every
+    # cell, so the empirical factors and the SCM truth are those of the 640-unit request.
+    units = tuple(
+        TemporalUnit(
+            len(cells) * copy + index,
+            tuple(TemporalHistory(2 * step, h.s0, h.a1, h.l2, h.a2, h.y) for step in range(16)),
+        )
+        for copy in range(10)
+        for index, h in enumerate(cells)
+    )
+    big = replace(base, units=units, period=(0, 40))
+    assert sum(len(unit.histories) for unit in units) == 102_400
+    result = TemporalSession().execute(big, seed=41)
+    assert result.means == pytest.approx((truth(1, 1, 0.8), truth(0, 0, 0.8)), abs=1e-9)
+    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
+        TemporalSession().execute(big, seed=41, memory_limit_bytes=1_000_000)
+
+
 def test_temporal_actual_history_effect_and_response_scm_truth_and_full_rerun():
     req = request()
     session = TemporalSession()
@@ -163,10 +186,11 @@ def test_temporal_native_capabilities_and_bounded_histories():
     assert retained_kind(session) == RetainedKind.LIVE_HISTORY
     assert require_adapter(Family.TEMPORAL, Operation.TARGET, session).state_type is TemporalSession
     unit = request().units[0]
+    many = replace(request(), units=(unit,) * 4097)
     with pytest.raises(CausalValueError) as error:
-        session.execute(replace(request(), units=(unit,) * 4097), seed=41)
+        session.execute(many, seed=41, memory_limit_bytes=4096)
     assert error.value.reason_code == "invalid_argument"
-    assert "recalc.limits_exceeded" in str(error.value)
+    assert "recalc.memory_budget_exceeded" in str(error.value)
 
 
 def test_temporal_source_artifact_independent_fresh_process_rebuild(tmp_path):

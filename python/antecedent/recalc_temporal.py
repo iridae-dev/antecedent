@@ -13,9 +13,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from typing import Any, Literal, cast
 
+import numpy as np
+
 from . import _native
 from ._columns import coerce_fields
 from ._measured_inference import MeasuredInference
+from ._recalc_bounds import _admit, _check_resources
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .recalc import Decision, Law, RecalcPlan, RecalcReceipt, Utility, _refusal_type, _seed
@@ -72,12 +75,31 @@ class TemporalRequest:
     horizon: int = 2
     lag_alignment: tuple[int, int, int, int, int] = (0, 1, 2, 2, 2)
 
-    def _wire(self) -> dict[str, Any]:
-        if len(self.units) > 4096 or sum(len(unit.histories) for unit in self.units) > 100_000:
-            raise CausalValueError(
-                "recalc.limits_exceeded: temporal unit/history bounds",
-                reason_code="invalid_argument",
+    def _history_columns(self) -> tuple[np.ndarray, ...]:
+        """The histories as arrays for the bridge: per unit its id and window count, then per
+        window its time id, the four binary states and the outcome."""
+        try:
+            units = self.units
+            ids = np.fromiter((unit.unit_id for unit in units), dtype=np.uint64, count=len(units))
+            lengths = np.fromiter(
+                (len(unit.histories) for unit in units), dtype=np.uint64, count=len(units)
             )
+            rows = [h for unit in units for h in unit.histories]
+            time_ids = np.fromiter((h.time_id for h in rows), dtype=np.uint64, count=len(rows))
+            states = [
+                np.fromiter((getattr(h, name) for h in rows), dtype=np.uint32, count=len(rows))
+                for name in ("s0", "a1", "l2", "a2")
+            ]
+            y = np.fromiter((h.y for h in rows), dtype=np.float64, count=len(rows))
+        except (OverflowError, TypeError, ValueError) as error:
+            raise CausalValueError(
+                "recalc.invalid_declaration: histories must be non-negative integers and a "
+                "numeric outcome",
+                reason_code="invalid_argument",
+            ) from error
+        return (ids, lengths, time_ids, *states, y)
+
+    def _wire(self) -> dict[str, Any]:
         functional = asdict(self.functional)
         functional["kind"] = (
             "response" if isinstance(self.functional, TemporalResponse) else "effect"
@@ -89,7 +111,7 @@ class TemporalRequest:
             "horizon": self.horizon,
             "lag_alignment": self.lag_alignment,
             "period": self.period,
-            "units": [asdict(unit) for unit in self.units],
+            "units": [],
             "snapshot_id": self.snapshot_id,
             "initial_state": self.initial_state,
             "initial_state_id": self.initial_state_id,
@@ -139,19 +161,48 @@ class TemporalSession(_Session):
         return _native.TemporalSessionHandle
 
     def plan(
-        self, request: TemporalRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: TemporalRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcPlan:
+        _admit_histories(request, memory_limit_bytes, cancel)
         return RecalcPlan.from_wire(
             json.loads(
-                self._handle.plan(json.dumps(request._wire()), seed=_seed(seed), threads=threads)
+                self._handle.plan(
+                    json.dumps(request._wire()),
+                    request._history_columns(),
+                    seed=_seed(seed),
+                    threads=threads,
+                    memory_limit_bytes=memory_limit_bytes,
+                    cancel=cancel,
+                )
             )
         )
 
     def execute(
-        self, request: TemporalRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: TemporalRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> TemporalResult:
+        """Run the invalidated stages under an optional memory limit and cancellation token."""
+        _admit_histories(request, memory_limit_bytes, cancel)
         return _result(
-            self._handle.execute(json.dumps(request._wire()), seed=_seed(seed), threads=threads)
+            self._handle.execute(
+                json.dumps(request._wire()),
+                request._history_columns(),
+                seed=_seed(seed),
+                threads=threads,
+                memory_limit_bytes=memory_limit_bytes,
+                cancel=cancel,
+            )
         )
 
     def interval_candidate(
@@ -164,7 +215,7 @@ class TemporalSession(_Session):
         """Original checked source/proof whole-unit interval; unmeasured and feature-only."""
         if not isinstance(config, CheckedTemporalIntervalConfig):
             raise CausalTypeError("config must be a CheckedTemporalIntervalConfig")
-        _interval_limits(memory_limit_bytes, cancel)
+        _check_resources(memory_limit_bytes, cancel)
         if not isinstance(self._handle, _native.TemporalSessionHandle):
             raise CausalTypeError("interval candidate requires original checked temporal session")
         native = getattr(self._handle, "interval_candidate", None)
@@ -196,7 +247,7 @@ class TemporalSession(_Session):
             config = CheckedTemporalIntervalConfig(method="studentized")
         if not isinstance(config, CheckedTemporalIntervalConfig):
             raise CausalTypeError("config must be a CheckedTemporalIntervalConfig")
-        _interval_limits(memory_limit_bytes, cancel)
+        _check_resources(memory_limit_bytes, cancel)
         if not isinstance(self._handle, _native.TemporalSessionHandle):
             raise CausalTypeError("interval requires original checked temporal session")
         native, error = self._handle.measured_interval(
@@ -236,11 +287,18 @@ def _interval_integer(name: str, value: int, lower: int, upper: int) -> None:
         raise CausalValueError(f"{name} must be in {lower}..={upper}")
 
 
-def _interval_limits(memory: int | None, cancel: _native.CancellationToken | None) -> None:
-    if memory is not None:
-        _interval_integer("memory_limit_bytes", memory, 0, 2**64 - 1)
-    if cancel is not None and not isinstance(cancel, _native.CancellationToken):
-        raise CausalTypeError("cancel must be a CancellationToken")
+# A history window carries its time id and five binary states.
+_HISTORY_VALUES = 6
+
+
+def _admit_histories(
+    request: TemporalRequest,
+    memory_limit_bytes: int | None,
+    cancel: _native.CancellationToken | None,
+) -> None:
+    _check_resources(memory_limit_bytes, cancel)
+    rows = sum(len(unit.histories) for unit in request.units)
+    _admit(rows * _HISTORY_VALUES, memory_limit_bytes)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -513,7 +571,7 @@ class CheckedTemporalIntervalCandidate:
             ("max_replicates", max_replicates, 2000),
         ):
             _interval_integer(name, value, 1, bound)
-        _interval_limits(memory_limit_bytes, cancel)
+        _check_resources(memory_limit_bytes, cancel)
         consume = getattr(_native, "consume_checked_temporal_interval_candidate", None)
         if consume is None:
             from .recalc import RecalcRefusal

@@ -637,29 +637,11 @@ scope_fixture = { path = "python/tests/test_recalc_capabilities.py", pattern = "
 
 [[bound]]
 record = "recalculation.adjusted"
-key = "max_rows"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "python/tests/test_recalc_adjusted.py", pattern = "\\btest_adjusted_glm_domain_and_solver_refusals_preserve_previous_fit\\b" }
-
-[[bound]]
-record = "recalculation.adjusted"
-key = "max_columns"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_COLUMNS" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_COLUMNS" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "if\\ names\\.len\\(\\)\\ >\\ MAX_COLUMNS" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "if\\ names\\.len\\(\\)\\ >\\ MAX_COLUMNS[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "python/tests/test_recalc_adjusted.py", pattern = "\\btest_adjusted_glm_domain_and_solver_refusals_preserve_previous_fit\\b" }
-
-[[bound]]
-record = "recalculation.adjusted"
-key = "max_values"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+key = "input_bytes_per_value"
+implementation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+documentation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+guard = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{" }
+refusal = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "python/tests/test_recalc_adjusted.py", pattern = "\\btest_adjusted_glm_domain_and_solver_refusals_preserve_previous_fit\\b" }
 
 [[bound]]
@@ -682,29 +664,11 @@ scope_fixture = { path = "python/tests/test_recalc_adjusted.py", pattern = "\\bt
 
 [[bound]]
 record = "recalculation.doubly_robust"
-key = "max_rows"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/recalc_dr.rs", pattern = "\\bdr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data\\b" }
-
-[[bound]]
-record = "recalculation.doubly_robust"
-key = "max_columns"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_COLUMNS" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_COLUMNS" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "if\\ names\\.len\\(\\)\\ >\\ MAX_COLUMNS" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "if\\ names\\.len\\(\\)\\ >\\ MAX_COLUMNS[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/recalc_dr.rs", pattern = "\\bdr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data\\b" }
-
-[[bound]]
-record = "recalculation.doubly_robust"
-key = "max_values"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+key = "input_bytes_per_value"
+implementation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+documentation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+guard = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{" }
+refusal = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/recalc_dr.rs", pattern = "\\bdr_complete_case_rows_frozen_scores_and_fresh_refit_are_bound_to_real_data\\b" }
 
 [[bound]]
@@ -817,20 +781,11 @@ scope_fixture = { path = "python/tests/test_recalc_static.py", pattern = "\\btes
 
 [[bound]]
 record = "recalculation.design_specific"
-key = "max_rows"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/recalc_design.rs", pattern = "\\bdesign_cutoff_mediator_and_resource_refusals_preserve_previous_state\\b" }
-
-[[bound]]
-record = "recalculation.design_specific"
-key = "max_values"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+key = "input_bytes_per_value"
+implementation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+documentation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+guard = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{" }
+refusal = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/recalc_design.rs", pattern = "\\bdesign_cutoff_mediator_and_resource_refusals_preserve_previous_state\\b" }
 
 [[bound]]
@@ -925,15 +880,6 @@ scope_fixture = { path = "crates/antecedent/tests/recalc_temporal.rs", pattern =
 
 [[bound]]
 record = "recalculation.temporal"
-key = "max_units_python"
-implementation = [{ path = "python/src/recalc_temporal_api.rs", pattern = "request.units.len\\(\\) > (4096)" }]
-documentation = [{ path = "python/src/recalc_temporal_api.rs", pattern = "request.units.len\\(\\) > (4096)" }]
-guard = { path = "python/src/recalc_temporal_api.rs", pattern = "request\\.units\\.len\\(\\)\\ >\\ 4096" }
-refusal = { path = "python/src/recalc_temporal_api.rs", pattern = "request\\.units\\.len\\(\\)\\ >\\ 4096[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/recalc_temporal.rs", pattern = "\\btemporal_history_resource_window_and_support_refusals_preserve_previous_fit\\b" }
-
-[[bound]]
-record = "recalculation.temporal"
 key = "max_histories_rust"
 implementation = [{ path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "sum::<usize>\\(\\) > (131_072)" }]
 documentation = [{ path = "crates/antecedent/src/analysis/recalc_temporal.rs", pattern = "sum::<usize>\\(\\) > (131_072)" }]
@@ -943,11 +889,11 @@ scope_fixture = { path = "crates/antecedent/tests/recalc_temporal.rs", pattern =
 
 [[bound]]
 record = "recalculation.temporal"
-key = "max_histories_python"
-implementation = [{ path = "python/src/recalc_temporal_api.rs", pattern = "\\|n\\| n > (100_000)" }]
-documentation = [{ path = "python/src/recalc_temporal_api.rs", pattern = "\\|n\\| n > (100_000)" }]
-guard = { path = "python/src/recalc_temporal_api.rs", pattern = "\\|n\\|\\ n\\ >\\ 100_000" }
-refusal = { path = "python/src/recalc_temporal_api.rs", pattern = "\\|n\\|\\ n\\ >\\ 100_000[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+key = "history_values_per_window"
+implementation = [{ path = "python/src/recalc_temporal_api.rs", constant = "HISTORY_VALUES" }]
+documentation = [{ path = "python/src/recalc_temporal_api.rs", constant = "HISTORY_VALUES" }]
+guard = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{" }
+refusal = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/recalc_temporal.rs", pattern = "\\btemporal_history_resource_window_and_support_refusals_preserve_previous_fit\\b" }
 
 [[bound]]
@@ -1024,20 +970,11 @@ scope_fixture = { path = "python/tests/test_rollout.py", pattern = "\\btest_roll
 
 [[bound]]
 record = "recalculation.external_callback"
-key = "max_rows"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/recalc_external.rs", pattern = "\\bpure_invalid_planning_and_cooperative_budget_and_cancel_refusals\\b" }
-
-[[bound]]
-record = "recalculation.external_callback"
-key = "max_values"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+key = "input_bytes_per_value"
+implementation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+documentation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+guard = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{" }
+refusal = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/recalc_external.rs", pattern = "\\bpure_invalid_planning_and_cooperative_budget_and_cancel_refusals\\b" }
 
 [[bound]]
@@ -1258,20 +1195,11 @@ scope_fixture = { path = "crates/antecedent/tests/recalc_composite.rs", pattern 
 
 [[bound]]
 record = "recalculation.composite"
-key = "max_rows"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_ROWS" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\|\\|\\ columns\\.iter\\(\\)\\.any\\(\\|c\\|\\ c\\.len\\(\\)\\.unwrap_or\\(usize::MAX\\)\\ >\\ MAX_ROWS\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent/tests/recalc_composite.rs", pattern = "\\bnative_proof_substitution_refuses_purely_and_preserves_shared_state\\b" }
-
-[[bound]]
-record = "recalculation.composite"
-key = "max_values"
-implementation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-documentation = [{ path = "python/src/recalc_bounds.rs", constant = "MAX_VALUES" }]
-guard = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)" }
-refusal = { path = "python/src/recalc_bounds.rs", pattern = "\\.is_none_or\\(\\|n\\|\\ n\\ >\\ MAX_VALUES\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+key = "input_bytes_per_value"
+implementation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+documentation = [{ path = "python/src/recalc_bounds.rs", constant = "BYTES_PER_VALUE" }]
+guard = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{" }
+refusal = { path = "python/src/recalc_bounds.rs", pattern = "if\\ let\\ Some\\(limit\\)\\ =\\ limit\\.filter\\(\\|limit\\|\\ bytes\\ >\\ \\*limit\\)\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/recalc_composite.rs", pattern = "\\bnative_proof_substitution_refuses_purely_and_preserves_shared_state\\b" }
 
 [[bound]]

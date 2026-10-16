@@ -1,13 +1,14 @@
 //! Bounded executing external mean callbacks, retaining attested output only.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::program_claims_api::{ClaimWire, claim_from, parse_binding};
-use crate::recalc_api::{context, parse_json, plan_refusal_json, refusal_value};
+use crate::recalc_api::{bounded_context, parse_json, plan_refusal_json, refusal_value};
 use crate::recalc_bounds::check_columns;
 use antecedent::analysis::recalc_external::{
     CallbackContext, CallbackFailure, CallbackPolicy, ExternalCallbackError,
     ExternalCallbackRequest, ExternalCallbackSession, ExternalMeanProvider, ProviderDescriptor,
 };
 use antecedent_contract::{ExternalResponse, ProviderObjectIdentity};
+use antecedent_core::ExecutionContext;
 use antecedent_core::recalc::Branch;
 use antecedent_io::external_binding_wire::{
     ContractWire, ProviderWire, RefusalWire, ResponseWire, core_contract, response_from_wire,
@@ -75,8 +76,9 @@ pub(crate) fn request(
     names: Vec<String>,
     columns: &[PyReadonlyArray1<'_, f64>],
     text: &str,
+    ctx: &ExecutionContext,
 ) -> PyResult<ExternalCallbackRequest> {
-    check_columns(&names, columns)?;
+    check_columns(columns, ctx)?;
     if names.len() != columns.len() {
         return Err(invalid("external_recalc.invalid_request", "column names and arrays differ"));
     }
@@ -264,14 +266,18 @@ impl PyCallbackSession {
     fn is_live(&self) -> bool {
         self.inner.issued_claim().is_some()
     }
+    #[pyo3(signature=(names,columns,text,supplied_provider,*,memory_limit_bytes=None,cancel=None))]
     fn plan(
         &self,
         names: Vec<String>,
         columns: Vec<PyReadonlyArray1<'_, f64>>,
         text: &str,
         supplied_provider: bool,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<String>, Option<String>)> {
-        let req = request(names, &columns, text)?;
+        let ctx = bounded_context(0, None, memory_limit_bytes, cancel);
+        let req = request(names, &columns, text, &ctx)?;
         let plan = self.inner.plan_with_provider(&req, supplied_provider);
         Ok((
             Some(
@@ -283,7 +289,8 @@ impl PyCallbackSession {
             None,
         ))
     }
-    #[pyo3(signature=(names,columns,text,provider=None,*,threads=None,cancel=None))]
+    #[pyo3(signature=(names,columns,text,provider=None,*,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn execute(
         &mut self,
         py: Python<'_>,
@@ -292,14 +299,13 @@ impl PyCallbackSession {
         text: &str,
         provider: Option<PyRef<'_, PyCallbackProvider>>,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Payload> {
-        let req = request(names, &columns, text)?;
+        let mut ctx = bounded_context(0, threads, memory_limit_bytes, cancel);
+        let req = request(names, &columns, text, &ctx)?;
+        ctx.rng = antecedent_core::RngFactory::from_seed(req.seed);
         let mut actual = provider.map(|provider| provider.clone_actual_provider(py)).transpose()?;
-        let mut ctx = context(req.seed, threads);
-        if let Some(cancel) = cancel {
-            ctx.cancellation = cancel.inner;
-        }
         let mut session = std::mem::take(&mut self.inner);
         let ran = py.detach(|| {
             session.execute(&req, actual.as_mut().map(|p| p as &mut dyn ExternalMeanProvider), &ctx)
@@ -342,11 +348,14 @@ impl PyCallbackSession {
         }
     }
     #[staticmethod]
+    #[pyo3(signature=(data,names,columns,text,*,memory_limit_bytes=None,cancel=None))]
     fn resume(
         data: &[u8],
         names: Vec<String>,
         columns: Vec<PyReadonlyArray1<'_, f64>>,
         text: &str,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<Self>, Option<String>)> {
         if data.len() > crate::bridge::MAX_DECLARED_ARTIFACT_BYTES {
             return Err(invalid(
@@ -354,7 +363,8 @@ impl PyCallbackSession {
                 "callback artifact exceeds byte bound",
             ));
         }
-        let req = request(names, &columns, text)?;
+        let ctx = bounded_context(0, None, memory_limit_bytes, cancel);
+        let req = request(names, &columns, text, &ctx)?;
         match ExternalCallbackSession::resume(data, &req) {
             Ok(inner) => Ok((Some(Self { inner }), None)),
             Err(cause) => Ok((None, Some(error(&cause, req.branch)?))),

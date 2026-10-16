@@ -98,14 +98,10 @@ markers below and compares it. Prose outside those markers is not read.
 | recalculation.frozen_scores_artifact | max_rows | 2097152 | `crates/antecedent-io-core/src/frozen_scores_artifact.rs` |
 | recalculation.frozen_scores_artifact | max_columns | 64 | `crates/antecedent-io-core/src/frozen_scores_artifact.rs` |
 | recalculation.operation_inventory | max_external_branches | 8 | `crates/antecedent-core/src/recalc.rs` |
-| recalculation.adjusted | max_rows | 100000 | `python/src/recalc_bounds.rs` |
-| recalculation.adjusted | max_columns | 256 | `python/src/recalc_bounds.rs` |
-| recalculation.adjusted | max_values | 1000000 | `python/src/recalc_bounds.rs` |
+| recalculation.adjusted | input_bytes_per_value | 8 | `python/src/recalc_bounds.rs` |
 | recalculation.adjusted | max_glm_iterations | 1000 | `python/src/recalc_adjusted_api.rs` |
 | recalculation.adjusted | max_json_bytes | 1048576 | `python/src/recalc_api.rs` |
-| recalculation.doubly_robust | max_rows | 100000 | `python/src/recalc_bounds.rs` |
-| recalculation.doubly_robust | max_columns | 256 | `python/src/recalc_bounds.rs` |
-| recalculation.doubly_robust | max_values | 1000000 | `python/src/recalc_bounds.rs` |
+| recalculation.doubly_robust | input_bytes_per_value | 8 | `python/src/recalc_bounds.rs` |
 | recalculation.doubly_robust | max_json_bytes | 1048576 | `python/src/recalc_api.rs` |
 | recalculation.doubly_robust | max_folds | 20 | `python/src/recalc_dr_api.rs` |
 | identify.binary_nested_markov_fisher | max_observed | 6 | `crates/antecedent-estimate/src/nested_markov_binary.rs` |
@@ -118,8 +114,7 @@ markers below and compares it. Prose outside those markers is not read.
 | recalculation.static_response | min_support_points | 2 | `crates/antecedent/src/analysis/recalc_static.rs` |
 | recalculation.static_response | max_support_points | 64 | `crates/antecedent/src/analysis/recalc_static.rs` |
 | recalculation.static_response | max_selected_actions | 64 | `crates/antecedent/src/analysis/recalc_static.rs` |
-| recalculation.design_specific | max_rows | 100000 | `python/src/recalc_bounds.rs` |
-| recalculation.design_specific | max_values | 1000000 | `python/src/recalc_bounds.rs` |
+| recalculation.design_specific | input_bytes_per_value | 8 | `python/src/recalc_bounds.rs` |
 | recalculation.bayesian | max_rows | 100000 | `crates/antecedent/src/analysis/recalc_bayesian.rs` |
 | recalculation.bayesian | max_values | 1000000 | `crates/antecedent/src/analysis/recalc_bayesian.rs` |
 | recalculation.bayesian | max_variables | 128 | `crates/antecedent/src/analysis/recalc_bayesian.rs` |
@@ -130,9 +125,8 @@ markers below and compares it. Prose outside those markers is not read.
 | recalculation.temporal | max_variables | 5 | `crates/antecedent/src/analysis/recalc_temporal.rs` |
 | recalculation.temporal | max_periods | 2 | `crates/antecedent/src/analysis/recalc_temporal.rs` |
 | recalculation.temporal | max_units_rust | 8192 | `crates/antecedent/src/analysis/recalc_temporal.rs` |
-| recalculation.temporal | max_units_python | 4096 | `python/src/recalc_temporal_api.rs` |
 | recalculation.temporal | max_histories_rust | 131072 | `crates/antecedent/src/analysis/recalc_temporal.rs` |
-| recalculation.temporal | max_histories_python | 100000 | `python/src/recalc_temporal_api.rs` |
+| recalculation.temporal | history_values_per_window | 6 | `python/src/recalc_temporal_api.rs` |
 | recalculation.temporal | max_source_support_rows | 4096 | `crates/antecedent/src/analysis/recalc_temporal.rs` |
 | composition.native_authority | max_draws | 100000 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
 | composition.native_authority | max_coordinates | 1024 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
@@ -141,8 +135,7 @@ markers below and compares it. Prose outside those markers is not read.
 | composition.rollout_state | max_quantities | 1024 | `crates/antecedent-design/src/rollout_artifact.rs` |
 | composition.rollout_state | max_actions | 65536 | `crates/antecedent-design/src/rollout_artifact.rs` |
 | composition.rollout_state | max_utility_cells | 4194304 | `crates/antecedent-design/src/rollout_artifact.rs` |
-| recalculation.external_callback | max_rows | 100000 | `python/src/recalc_bounds.rs` |
-| recalculation.external_callback | max_values | 1000000 | `python/src/recalc_bounds.rs` |
+| recalculation.external_callback | input_bytes_per_value | 8 | `python/src/recalc_bounds.rs` |
 | recalculation.external_callback | max_variables | 64 | `crates/antecedent/src/analysis/recalc_external.rs` |
 | recalculation.external_callback | max_actions | 64 | `crates/antecedent/src/analysis/recalc_external.rs` |
 | recalculation.external_callback | max_model_parameters | 128 | `crates/antecedent/src/analysis/recalc_external.rs` |
@@ -167,8 +160,7 @@ markers below and compares it. Prose outside those markers is not read.
 | design.proposal_arrival | max_evaluation_operations | 1000000 | `crates/antecedent/src/analysis/proposal_arrival.rs` |
 | design.proposal_arrival | max_evaluation_depth | 256 | `crates/antecedent/src/analysis/proposal_arrival.rs` |
 | recalculation.composite | max_native_variables | 12 | `python/src/recalc_composite_api.rs` |
-| recalculation.composite | max_rows | 100000 | `python/src/recalc_bounds.rs` |
-| recalculation.composite | max_values | 1000000 | `python/src/recalc_bounds.rs` |
+| recalculation.composite | input_bytes_per_value | 8 | `python/src/recalc_bounds.rs` |
 | recalculation.composite | max_actions | 64 | `crates/antecedent/src/analysis/recalc_composite.rs` |
 | recalculation.composite | max_utility_nodes | 2048 | `crates/antecedent/src/analysis/recalc_composite.rs` |
 | recalculation.composite | external_branches | 2 | `crates/antecedent/src/analysis/recalc_composite.rs` |

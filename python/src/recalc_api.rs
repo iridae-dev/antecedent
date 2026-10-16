@@ -260,7 +260,9 @@ fn build_request(
     target_depends_on: &[String],
     benefit_per_unit: f64,
     cost: f64,
+    ctx: &ExecutionContext,
 ) -> PyResult<RecalcRequest> {
+    crate::recalc_bounds::check_columns(columns, ctx)?;
     if names.is_empty() || names.len() != columns.len() {
         return Err(invalid(
             "recalc.invalid_data",
@@ -340,6 +342,20 @@ pub(crate) fn context(seed: u64, threads: Option<u32>) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(seed, crate::resolve_user_threads(threads));
     // The route proves reuse by counted fits; no persistent cache may stand in for a fit.
     ctx.cache_policy = antecedent_core::CachePolicy::disabled();
+    ctx
+}
+
+/// [`context`] under the caller's memory budget and cancellation token.
+pub(crate) fn bounded_context(
+    seed: u64,
+    threads: Option<u32>,
+    memory: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> ExecutionContext {
+    let mut ctx = context(seed, threads);
+    ctx.memory =
+        antecedent_core::MemoryBudget { soft_limit_bytes: memory, hard_limit_bytes: memory };
+    crate::apply_cancel(&mut ctx, cancel);
     ctx
 }
 
@@ -486,7 +502,9 @@ impl PyRecalcSession {
 
     /// The plan `request` would run under, without running it: JSON.
     #[pyo3(signature = (names, columns, edges, treatment, outcome, benefit_per_unit, cost, *,
-        target_weights=None, target_depends_on=None, seed=1, threads=None))]
+        target_weights=None, target_depends_on=None, seed=1, threads=None,
+        memory_limit_bytes=None, cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn plan(
         &self,
         names: Vec<String>,
@@ -500,7 +518,10 @@ impl PyRecalcSession {
         target_depends_on: Option<Vec<String>>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
         let request = build_request(
             &names,
             &columns,
@@ -511,15 +532,18 @@ impl PyRecalcSession {
             &target_depends_on.unwrap_or_default(),
             benefit_per_unit,
             cost,
+            &ctx,
         )?;
-        let plan = self.inner.plan(&request, &context(seed, threads));
+        let plan = self.inner.plan(&request, &ctx);
         serde_json::to_string(&plan_to_wire(&plan)).map_err(py_msg)
     }
 
     /// Plan, run only what the plan says must run, count the work and seal the receipt:
     /// `(result json, receipt artifact bytes, refusal json)`.
     #[pyo3(signature = (names, columns, edges, treatment, outcome, benefit_per_unit, cost, *,
-        target_weights=None, target_depends_on=None, seed=1, threads=None))]
+        target_weights=None, target_depends_on=None, seed=1, threads=None,
+        memory_limit_bytes=None, cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn execute(
         &mut self,
         py: Python<'_>,
@@ -534,7 +558,10 @@ impl PyRecalcSession {
         target_depends_on: Option<Vec<String>>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
         let request = build_request(
             &names,
             &columns,
@@ -545,11 +572,11 @@ impl PyRecalcSession {
             &target_depends_on.unwrap_or_default(),
             benefit_per_unit,
             cost,
+            &ctx,
         )?;
         drop(columns);
         drop(target_weights);
         self.declare();
-        let ctx = context(seed, threads);
         let capabilities = self.capabilities();
         let previous = self.inner.identities().clone();
         let planned = self.inner.plan(&request, &ctx);

@@ -241,9 +241,17 @@ class StaticResponseSession(_Session):
         )
 
     def plan(
-        self, request: StaticResponseRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: StaticResponseRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcPlan:
-        names, columns = _columns(request.data)
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         return RecalcPlan.from_wire(
             json.loads(
                 self._handle.plan(
@@ -253,14 +261,25 @@ class StaticResponseSession(_Session):
                     _response_spec(request),
                     seed=_seed(seed),
                     threads=threads,
+                    memory_limit_bytes=memory_limit_bytes,
+                    cancel=cancel,
                 )
             )
         )
 
     def execute(
-        self, request: StaticResponseRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: StaticResponseRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> StaticResult:
-        names, columns = _columns(request.data)
+        """Run the invalidated stages under an optional memory limit and cancellation token."""
+        names, columns = _columns(
+            request.data, memory_limit_bytes=memory_limit_bytes, cancel=cancel
+        )
         return _result(
             self._handle.execute(
                 names,
@@ -269,6 +288,8 @@ class StaticResponseSession(_Session):
                 _response_spec(request),
                 seed=_seed(seed),
                 threads=threads,
+                memory_limit_bytes=memory_limit_bytes,
+                cancel=cancel,
             )
         )
 

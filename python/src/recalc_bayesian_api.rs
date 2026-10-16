@@ -1,6 +1,6 @@
 //! Native-issued ordinary Gaussian Bayesian selective adapter.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-use crate::recalc_api::{RunPayload, context, invalid, parse_json};
+use crate::recalc_api::{RunPayload, bounded_context, context, invalid, parse_json};
 use crate::recalc_bounds::check_columns;
 use crate::recalc_family_api::{caps, payload, resume, run_error};
 use antecedent::BayesianConfig;
@@ -9,7 +9,7 @@ use antecedent::analysis::recalc_bayesian::{
     execute_bayesian_with_receipt,
 };
 use antecedent::analysis::recalc_receipt::UtilitySpec;
-use antecedent_core::VariableId;
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
@@ -90,8 +90,9 @@ fn request(
     columns: &[PyReadonlyArray1<'_, f64>],
     specification: &str,
     config: &Bound<'_, PyDict>,
+    ctx: &ExecutionContext,
 ) -> PyResult<BayesianRequest> {
-    check_columns(&names, columns)?;
+    check_columns(columns, ctx)?;
     if names.len() != columns.len() {
         return Err(invalid("recalc.bayesian_invalid_data", "column names/data dimensions differ"));
     }
@@ -164,7 +165,8 @@ impl PyBayesianSession {
         serde_json::to_string(&CapabilitiesWire::from_capabilities(&caps(self.inner.boundary())))
             .map_err(crate::py_msg)
     }
-    #[pyo3(signature=(names,columns,specification,inference,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,specification,inference,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn plan(
         &self,
         names: Vec<String>,
@@ -173,12 +175,15 @@ impl PyBayesianSession {
         inference: Bound<'_, PyDict>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let request = request(names, &columns, specification, &inference)?;
-        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &context(seed, threads))))
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = request(names, &columns, specification, &inference, &ctx)?;
+        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &ctx)))
             .map_err(crate::py_msg)
     }
-    #[pyo3(signature=(names,columns,specification,inference,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,specification,inference,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
     #[allow(clippy::too_many_arguments)]
     fn execute(
         &mut self,
@@ -189,14 +194,16 @@ impl PyBayesianSession {
         inference: Bound<'_, PyDict>,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
-        let request = request(names, &columns, specification, &inference)?;
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = request(names, &columns, specification, &inference, &ctx)?;
         drop(columns);
         drop(inference);
         let previous = self.inner.identities().clone();
         let capabilities = caps(self.inner.boundary());
         let mut session = std::mem::take(&mut self.inner);
-        let ctx = context(seed, threads);
         let (session, ran) = crate::detach_catch(py, move || {
             let ran = execute_bayesian_with_receipt(&mut session, &request, &ctx);
             Ok((session, ran))

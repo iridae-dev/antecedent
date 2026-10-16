@@ -1,5 +1,5 @@
 //! One actual held native response and two executing original attested mean callbacks.
-use crate::recalc_api::{context, invalid, plan_refusal_json, refusal_json};
+use crate::recalc_api::{bounded_context, context, invalid, plan_refusal_json, refusal_json};
 use crate::recalc_bounds::{sequence_item, sequence_len};
 use antecedent::analysis::recalc_composite::{CompositeError, CompositeRequest, CompositeSession};
 use antecedent::analysis::recalc_external::ExternalMeanProvider;
@@ -43,6 +43,7 @@ fn bounded_names(value: &Bound<'_, PyAny>, limit: usize) -> PyResult<Vec<String>
 }
 fn native_request(
     payload: &Bound<'_, PyDict>,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<antecedent::analysis::recalc_static::StaticResponseRequest> {
     let names = field(payload, "names")?;
     if sequence_len(&names, "composite_recalc.invalid_request")? > 12 {
@@ -60,9 +61,13 @@ fn native_request(
         &columns,
         &graph,
         &bounded_text(payload, "specification")?,
+        ctx,
     )
 }
-fn request(payload: &Bound<'_, PyDict>) -> PyResult<CompositeRequest> {
+fn request(
+    payload: &Bound<'_, PyDict>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<CompositeRequest> {
     let callbacks = field(payload, "externals")?;
     if sequence_len(&callbacks, "composite_recalc.invalid_request")? != 2 {
         return Err(invalid("composite_recalc.invalid_request", "exactly two callbacks required"));
@@ -84,6 +89,7 @@ fn request(payload: &Bound<'_, PyDict>) -> PyResult<CompositeRequest> {
             names,
             &columns,
             &bounded_text(item, "specification")?,
+            ctx,
         )?);
     }
     let binding = bounded_text(payload, "program")?;
@@ -98,7 +104,7 @@ fn request(payload: &Bound<'_, PyDict>) -> PyResult<CompositeRequest> {
         _ => return Err(invalid("composite_recalc.invalid_request", "unknown support policy")),
     };
     Ok(CompositeRequest {
-        native: native_request(payload)?,
+        native: native_request(payload, ctx)?,
         native_program: crate::program_claims_api::parse_binding(&binding)?,
         externals,
         decision_contract,
@@ -165,15 +171,23 @@ impl PyCompositeSession {
         native: PyRef<'_, crate::recalc_static_api::PyStaticSession>,
         payload: &Bound<'_, PyDict>,
     ) -> PyResult<Self> {
-        let native_request = native_request(payload)?;
-        CompositeSession::from_native(native.clone_native(), &native_request, &context(1, None))
+        let ctx = context(1, None);
+        let native_request = native_request(payload, &ctx)?;
+        CompositeSession::from_native(native.clone_native(), &native_request, &ctx)
             .map(|inner| Self { inner })
             .map_err(|cause| {
                 invalid("composite_recalc.native_state_mismatch", format!("{cause:?}"))
             })
     }
-    fn plan(&self, payload: &Bound<'_, PyDict>) -> PyResult<(Option<String>, Option<String>)> {
-        let request = request(payload)?;
+    #[pyo3(signature=(payload,*,memory_limit_bytes=None,cancel=None))]
+    fn plan(
+        &self,
+        payload: &Bound<'_, PyDict>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        let ctx = bounded_context(1, None, memory_limit_bytes, cancel);
+        let request = request(payload, &ctx)?;
         match self.inner.plan(&request) {
             Ok(plan) => Ok((
                 Some(
@@ -187,7 +201,8 @@ impl PyCompositeSession {
             Err(cause) => Ok((None, Some(error(&cause)?))),
         }
     }
-    #[pyo3(signature=(payload,providers,*,seed=1,threads=None,cancel=None))]
+    #[pyo3(signature=(payload,providers,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn execute(
         &mut self,
         py: Python<'_>,
@@ -195,9 +210,11 @@ impl PyCompositeSession {
         providers: &Bound<'_, PyDict>,
         seed: u64,
         threads: Option<u32>,
-        cancel: Option<PyRef<'_, crate::PyCancellationToken>>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<crate::recalc_api::RunPayload> {
-        let request = request(payload)?;
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = request(payload, &ctx)?;
         if providers.len() > 2 {
             return Err(invalid("composite_recalc.invalid_request", "too many providers"));
         }
@@ -210,10 +227,6 @@ impl PyCompositeSession {
             let provider =
                 provider.extract::<PyRef<'_, crate::recalc_external_api::PyCallbackProvider>>()?;
             actual.push((branch, provider.clone_actual_provider(py)?));
-        }
-        let mut ctx = context(seed, threads);
-        if let Some(cancel) = cancel {
-            ctx.cancellation = cancel.inner.clone();
         }
         let outcome = py.detach(|| {
             let mut providers = actual

@@ -237,12 +237,19 @@ def test_design_resource_guards_and_native_capabilities():
     r = request()
     session = DesignSession()
     assert retained_kind(session) == RetainedKind.READABLE
+    # The native copy is refused against the caller's budget before any column is taken.
     with pytest.raises(CausalValueError) as caught:
         session._handle.execute(
-            ["z", "t", "y"], [np.zeros(1), np.zeros(100_001), np.zeros(1)], _spec(r)
+            ["z", "t", "y"],
+            [np.zeros(1), np.zeros(100_001), np.zeros(1)],
+            _spec(r),
+            memory_limit_bytes=800_000,
         )
     assert caught.value.reason_code == "invalid_argument"
-    assert "recalc.limits_exceeded" in str(caught.value)
+    assert "recalc.memory_budget_exceeded" in str(caught.value)
+    with pytest.raises(CausalValueError, match="recalc.memory_budget_exceeded"):
+        session.execute(r, memory_limit_bytes=1)
+    assert not session.is_live
     session.execute(r, seed=3)
     assert retained_kind(session) == RetainedKind.LIVE_DESIGN
     assert require_adapter(Family.DESIGN, Operation.UTILITY, session).state_type is DesignSession

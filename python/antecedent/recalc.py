@@ -966,7 +966,13 @@ class RecalcSession:
         return None if scores is None else np.asarray(scores, dtype=np.float64)
 
     def plan(
-        self, request: RecalcRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: RecalcRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcPlan:
         """The plan ``request`` would run under, without running it."""
         a = _arguments(request)
@@ -982,6 +988,8 @@ class RecalcSession:
             target_depends_on=a.target_depends_on,
             seed=_seed(seed),
             threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         return RecalcPlan.from_wire(json.loads(wire))
 
@@ -996,9 +1004,18 @@ class RecalcSession:
         return self.plan(request, seed=seed, threads=threads)
 
     def execute(
-        self, request: RecalcRequest, *, seed: int = 1, threads: int | None = None
+        self,
+        request: RecalcRequest,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
     ) -> RecalcResult:
         """Plan, run only what the plan says must run, count the work and seal the receipt.
+
+        ``memory_limit_bytes`` refuses an input copy above the limit with
+        ``recalc.memory_budget_exceeded`` before it is allocated, and ``cancel`` stops the run.
 
         Raises:
             RecalcRefusal: the plan holds a refused stage (an off-grid or unsupported request,
@@ -1020,6 +1037,8 @@ class RecalcSession:
             target_depends_on=a.target_depends_on,
             seed=_seed(seed),
             threads=threads,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
         )
         raise_refusal(refusal, _refusal_type)
         if result is None or artifact is None:  # pragma: no cover - one of the two is set

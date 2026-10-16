@@ -9,8 +9,8 @@ use antecedent::analysis::recalc_adjusted::{
     execute_adjusted_with_receipt,
 };
 use antecedent::analysis::recalc_receipt::{RecalcRunError, TargetWeights, UtilitySpec};
-use antecedent_core::VariableId;
 use antecedent_core::recalc::{RecalcCapabilities, ResumeContext, RetargetSupport};
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::adjustment_resume::count_adjusted_model_fits;
 use antecedent_estimate::categorical_treatment::{CategoricalTreatmentSpec, LevelScale};
 use antecedent_estimate::vector_treatment::VectorCovariance;
@@ -24,12 +24,10 @@ use pyo3::prelude::*;
 use serde::Deserialize;
 
 use crate::recalc_api::{
-    RunPayload, artifact_invalid, context, counts_wire, invalid, parse_json, plan_refusal_json,
-    refusal_json,
+    RunPayload, artifact_invalid, bounded_context, counts_wire, invalid, parse_json,
+    plan_refusal_json, refusal_json,
 };
-use crate::recalc_bounds::{
-    MAX_COLUMNS, MAX_ROWS, MAX_VALUES, bounded_prediction_rows, check_columns,
-};
+use crate::recalc_bounds::{bounded_prediction_rows, check_columns};
 use crate::{detach_catch, py_msg};
 
 #[derive(Deserialize)]
@@ -92,9 +90,10 @@ fn build_request(
     names: Vec<String>,
     columns: &[PyReadonlyArray1<'_, f64>],
     specification: &str,
+    ctx: &ExecutionContext,
 ) -> PyResult<AdjustedRequest> {
     let wire: RequestWire = parse_json(specification, "adjusted request")?;
-    check_columns(&names, columns)?;
+    check_columns(columns, ctx)?;
     if names.is_empty() || names.len() != columns.len() {
         return Err(invalid("recalc.invalid_data", "one named column per name is required"));
     }
@@ -369,25 +368,17 @@ impl PyAdjustedSession {
         self.inner.prediction_columns().map(<[String]>::to_vec)
     }
 
+    #[pyo3(signature=(rows,columns,*,memory_limit_bytes=None))]
     fn predict(
         &self,
         py: Python<'_>,
         rows: &Bound<'_, PyAny>,
         columns: Vec<String>,
+        memory_limit_bytes: Option<u64>,
     ) -> PyResult<(Option<String>, Option<String>)> {
-        let rows = bounded_prediction_rows(rows, "recalc.adjusted_prediction_schema_mismatch")?;
-        if rows.len() > MAX_ROWS
-            || columns.len() > MAX_COLUMNS
-            || rows
-                .iter()
-                .try_fold(0usize, |n, row| n.checked_add(row.len()))
-                .is_none_or(|n| n > MAX_VALUES)
-        {
-            return Err(invalid(
-                "recalc.limits_exceeded",
-                "adjusted predictions exceed row/column/value limits",
-            ));
-        }
+        let ctx = bounded_context(0, Some(1), memory_limit_bytes, None);
+        let rows =
+            bounded_prediction_rows(rows, "recalc.adjusted_prediction_schema_mismatch", &ctx)?;
         if let Some(expected) = self.inner.prediction_columns() {
             if expected != columns {
                 return Ok((
@@ -415,7 +406,8 @@ impl PyAdjustedSession {
         }
     }
 
-    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn plan(
         &self,
         names: Vec<String>,
@@ -423,13 +415,16 @@ impl PyAdjustedSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let request = build_request(names, &columns, specification)?;
-        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &context(seed, threads))))
-            .map_err(py_msg)
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = build_request(names, &columns, specification, &ctx)?;
+        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &ctx))).map_err(py_msg)
     }
 
-    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(names,columns,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn execute(
         &mut self,
         py: Python<'_>,
@@ -438,10 +433,12 @@ impl PyAdjustedSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
-        let request = build_request(names, &columns, specification)?;
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        let request = build_request(names, &columns, specification, &ctx)?;
         drop(columns);
-        let ctx = context(seed, threads);
         let previous = self.inner.identities().clone();
         let capabilities = self.capabilities();
         let planned = self.inner.plan(&request, &ctx);

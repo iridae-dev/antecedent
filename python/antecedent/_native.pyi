@@ -5482,6 +5482,8 @@ class RecalcSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -5497,6 +5499,8 @@ class RecalcSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
 
 class CellSessionHandle:
@@ -5910,7 +5914,11 @@ class AdjustedSessionHandle:
     def capabilities_json(self) -> str: ...
     def prediction_columns(self) -> list[str] | None: ...
     def predict(
-        self, rows: list[list[float]], columns: list[str]
+        self,
+        rows: list[list[float]],
+        columns: list[str],
+        *,
+        memory_limit_bytes: int | None = None,
     ) -> tuple[str | None, str | None]: ...
     def plan(
         self,
@@ -5920,6 +5928,8 @@ class AdjustedSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -5929,6 +5939,8 @@ class AdjustedSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
 
 class DrSessionHandle:
@@ -5949,6 +5961,8 @@ class DrSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -5958,6 +5972,8 @@ class DrSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def predict(
         self,
@@ -5966,6 +5982,7 @@ class DrSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
     ) -> tuple[str | None, str | None]: ...
     def export_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
     def export_predictor(
@@ -5989,6 +6006,8 @@ class StaticResponseSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -5999,6 +6018,8 @@ class StaticResponseSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
         self, *, seed: int = 1, threads: int | None = None
@@ -6048,6 +6069,8 @@ class DesignSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[DesignSessionHandle | None, str | None, bytes | None, str | None, str | None]: ...
     def is_live(self) -> bool: ...
     def identities_json(self) -> str: ...
@@ -6060,6 +6083,8 @@ class DesignSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -6069,6 +6094,8 @@ class DesignSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(self) -> tuple[bytes | None, str | None]: ...
 
@@ -6088,6 +6115,8 @@ class BayesianSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -6098,6 +6127,8 @@ class BayesianSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_prior_source(self) -> tuple[bytes | None, str | None]: ...
     def effect_draws(self) -> list[float] | None: ...
@@ -6119,9 +6150,25 @@ class TemporalSessionHandle:
     def is_live(self) -> bool: ...
     def identities_json(self) -> str: ...
     def capabilities_json(self) -> str: ...
-    def plan(self, specification: str, *, seed: int = 1, threads: int | None = None) -> str: ...
+    def plan(
+        self,
+        specification: str,
+        histories: tuple[NDArray[np.uint64], ...],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
     def execute(
-        self, specification: str, *, seed: int = 1, threads: int | None = None
+        self,
+        specification: str,
+        histories: tuple[NDArray[np.uint64], ...],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
         self, *, seed: int = 1, threads: int | None = None
@@ -6157,7 +6204,14 @@ class ExternalCallbackSessionHandle:
     def __init__(self) -> None: ...
     def is_live(self) -> bool: ...
     def plan(
-        self, names: list[str], columns: list[Any], text: str, supplied_provider: bool
+        self,
+        names: list[str],
+        columns: list[Any],
+        text: str,
+        supplied_provider: bool,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, str | None]: ...
     def execute(
         self,
@@ -6167,12 +6221,19 @@ class ExternalCallbackSessionHandle:
         provider: ExternalCallbackProviderHandle | None = None,
         *,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, ExternalClaimArtifact | None, str | None]: ...
     def export_output(self) -> tuple[bytes | None, str | None]: ...
     @staticmethod
     def resume(
-        data: bytes, names: list[str], columns: list[Any], text: str
+        data: bytes,
+        names: list[str],
+        columns: list[Any],
+        text: str,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[ExternalCallbackSessionHandle | None, str | None]: ...
 
 def estimate_proposal_arrival(
@@ -6200,7 +6261,13 @@ class SourceEvidenceHandle:
 
 class CompositeSessionHandle:
     def __init__(self, native: StaticResponseSessionHandle, payload: dict[str, object]) -> None: ...
-    def plan(self, payload: dict[str, object]) -> tuple[str | None, str | None]: ...
+    def plan(
+        self,
+        payload: dict[str, object],
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None]: ...
     def execute(
         self,
         payload: dict[str, object],
@@ -6208,6 +6275,7 @@ class CompositeSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def rank_conditional_studies(
