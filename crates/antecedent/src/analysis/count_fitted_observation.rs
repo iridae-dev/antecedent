@@ -55,7 +55,8 @@ impl CountFittedObservation {
     /// `nodes` are in topological order; a fitted node carries `counts`, a declared node
     /// carries `declared_bits`. `rows` is the number of complete rows every fitted node
     /// was counted from. The default prior is the uniform Dirichlet and the default draw
-    /// count is the measured one.
+    /// count is the supported minimum; a source with more draws re-opens through
+    /// [`Self::from_source`].
     ///
     /// # Errors
     /// A malformed model, an unknown variable or level, or evidence of probability zero.
@@ -81,6 +82,16 @@ impl CountFittedObservation {
         };
         wire.point().map_err(|e| refusal_of(&e))?;
         Ok(Self { wire })
+    }
+
+    /// Use `draws` posterior draws instead of the supported minimum.
+    ///
+    /// # Errors
+    /// A count below the supported minimum or above the draw bound.
+    pub fn with_draws(mut self, draws: u32) -> Result<Self, ObservationQueryRefusal> {
+        self.wire.draws = draws;
+        self.wire.check_draws().map_err(|e| refusal_of(&e))?;
+        Ok(self)
     }
 
     /// Re-open a retained source (for example one decoded from bytes), checking it.
@@ -112,8 +123,10 @@ impl CountFittedObservation {
     /// The measured equal-tailed posterior interval at `level`.
     ///
     /// # Errors
-    /// `cell_not_licensed` when the construction (level, prior, draws, complete rows,
-    /// sample size) has no currently attesting coverage record.
+    /// `cell_not_licensed` when the construction (level, prior, a draw count below the
+    /// supported minimum, complete rows, sample size) has no currently attesting coverage
+    /// record, or when the Monte Carlo error of an endpoint exceeds its declared share of
+    /// the interval width (`measured_interval.draws_not_converged`).
     pub fn interval(
         &self,
         level: f64,

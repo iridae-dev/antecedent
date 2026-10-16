@@ -338,6 +338,8 @@ fn record_for(
         replicates: 400,
         boundary: false,
         grid: &[],
+        confirmation: &[],
+        confirmed_passing_range: None,
         dgp: "crates/antecedent/tests/temporal_parent_adjustment.rs::fixture",
         test: "crates/antecedent/tests/temporal_parent_adjustment.rs::fixture",
         calibration_sha: "0123456789abcdef0123456789abcdef01234567",

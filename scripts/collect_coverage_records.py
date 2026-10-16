@@ -25,6 +25,19 @@ pass). A record is refused unless every grid point is present and the points'
 sample sizes strictly increase, so a design that does not scale its `n` with
 the grid cannot claim a range.
 
+A boundary record can recover the passing part of its range, but only after an
+independent confirmation: the gate re-measures the passing points with fresh
+seeds (`ANTECEDENT_CALIBRATION_CONFIRMATION=1`, logs `<group>.p<k>.confirm.log`),
+and the collector keeps those tallies apart from the measurement's, in the
+record's `confirmation`. When a contiguous run of at least two grid points, at
+the top or the bottom of the grid, passed in the measurement and again in the
+confirmation, the record states it as `confirmed_passing_range = [n_lo, n_hi]`.
+The failing points and their evidence stay on the record, which remains a
+boundary; the runtime (`calibration_slot_with`) calibrates only row counts
+inside the confirmed range, governed by the worst passing point. A named
+boundary never recovers a range. A confirmation point that failed leaves no
+line and its log is dropped with a notice, so that point is unconfirmed.
+
 A grid point that was rechecked at more replicates writes
 `<group>.p<k>.recheck.log`; its lines replace that point's first run, because
 the recheck's verdict is the one the gate takes. When the gate re-ran only some
@@ -144,7 +157,10 @@ FIELDS = (
 # `one_sided` record (CoverageTally::assert_one_sided in
 # crates/antecedent/tests/common/calibration.rs) states the side whose true
 # extremal bound it covers and its target, `{ side = "lower"|"upper", target }`.
-OPTIONAL_FIELDS = ("one_sided",)
+# A boundary record that passed an independent confirmation also states the
+# confirmation's points (shaped like `grid`) and the `confirmed_passing_range`
+# they establish (`confirmed_passing_range`).
+OPTIONAL_FIELDS = ("one_sided", "confirmation", "confirmed_passing_range")
 # Coverage roles a grid point may carry. `gated` passes the two-sided band and
 # precision floor/ceiling; `named_boundary` is a documented under-coverage;
 # `reported_level` is an unasserted second level; `one_sided` passes a floor at
@@ -215,7 +231,7 @@ def rechecked_tests(recheck_log: Path) -> set[str] | None:
 
 
 def record_lines(
-    logs: list[Path], smoke: bool = False, sha: str | None = None
+    logs: list[Path], smoke: bool = False, sha: str | None = None, confirmation: bool = False
 ) -> dict[str, dict[int, dict]]:
     """`calibration-record` payloads by record id and grid point.
 
@@ -251,6 +267,16 @@ def record_lines(
                     else f"{log.name}: record {rid} is not a smoke line; --smoke collects only a "
                     "smoke run's logs"
                 )
+            if bool(payload.pop("confirmation", False)) != confirmation:
+                raise SystemExit(
+                    f"{log.name}: record {rid} "
+                    + (
+                        "is not a confirmation line; confirmation logs hold only the fresh-seed "
+                        "re-measurement"
+                        if confirmation
+                        else "is a confirmation line; it is collected apart from the measurement"
+                    )
+                )
             measured_at = payload.pop("measured_at", "")
             if sha is not None and not smoke and measured_at != sha:
                 raise SystemExit(
@@ -279,6 +305,80 @@ def record_lines(
                     continue
             out[rid][point] = payload
     return out
+
+
+def grid_entry(payload: dict) -> dict:
+    """The registry's `grid` entry of one measured point."""
+    return {
+        "point": int(payload["grid_point"]),
+        "n_min": int(payload["n_min"]),
+        "n_max": int(payload["n_max"]),
+        "observed": payload["observed"],
+        "mcse": payload["mcse"],
+        "replicates": int(payload["replicates"]),
+        "boundary": bool(payload["boundary"]),
+        "role": str(payload["role"]),
+    }
+
+
+def confirmed_passing_range(grid: list[dict], confirmation: list[dict]) -> list[int] | None:
+    """`[n_lo, n_hi]` of the longest contiguous run of at least two grid points,
+    touching the top or the bottom of the grid, that passed in the measurement
+    and again in the confirmation; `None` when no run qualifies.
+
+    A run in the middle is not a subrange: it would leave failing points on
+    both sides of a claim. A tie goes to the upper run, where more data lies."""
+    confirmed = {int(p["point"]) for p in confirmation if not p["boundary"]}
+    passing = [not p["boundary"] and int(p["point"]) in confirmed for p in grid]
+    runs = []
+    for start in range(len(grid)):
+        for end in range(start + 1, len(grid)):
+            touches_end = start == 0 or end == len(grid) - 1
+            if touches_end and all(passing[start : end + 1]):
+                runs.append((end - start, end, start))
+    if not runs:
+        return None
+    _, end, start = max(runs)
+    return [int(grid[start]["n_min"]), int(grid[end]["n_max"])]
+
+
+def attach_confirmation(rid: str, record: dict, points: dict[int, dict]) -> None:
+    """Add a boundary record's independent confirmation and the passing range it
+    establishes. Refused unless the confirmation measured the same construction,
+    sample sizes and roles as the measurement; ignored for records with nothing
+    to recover (not a boundary, or a named boundary, which documents a limit)."""
+    if not record["boundary"] or record["role"] == "named_boundary":
+        return
+    entries = []
+    for k in sorted(points):
+        payload = points[k]
+        measured = record["grid"][k]
+        differs = sorted(
+            key
+            for key in payload
+            if key not in POINT_FIELDS and payload[key] != record.get(key)
+        )
+        if differs:
+            raise SystemExit(
+                f"record {rid}: confirmation point {k} measured another construction "
+                f"({', '.join(differs)} differ from the measurement)"
+            )
+        entry = grid_entry(payload)
+        if (entry["n_min"], entry["n_max"], entry["role"]) != (
+            measured["n_min"],
+            measured["n_max"],
+            measured["role"],
+        ):
+            raise SystemExit(
+                f"record {rid}: confirmation point {k} measured {entry['n_min']}..{entry['n_max']} "
+                f"rows as {entry['role']}, not the measurement's {measured['n_min']}.."
+                f"{measured['n_max']} as {measured['role']}; a confirmation re-measures the same design"
+            )
+        entries.append(entry)
+    record["confirmation"] = entries
+    recovered = confirmed_passing_range(record["grid"], entries)
+    if recovered is not None:
+        record["confirmed_passing_range"] = recovered
 
 
 def merge_grid(rid: str, points: dict[int, dict]) -> dict:
@@ -354,30 +454,57 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
         replicates=governing["replicates"],
         boundary=bool(failing),
         role=role,
-        grid=[
-            {
-                "point": int(p["grid_point"]),
-                "n_min": int(p["n_min"]),
-                "n_max": int(p["n_max"]),
-                "observed": p["observed"],
-                "mcse": p["mcse"],
-                "replicates": int(p["replicates"]),
-                "boundary": bool(p["boundary"]),
-                "role": str(p["role"]),
-            }
-            for p in ordered
-        ],
+        grid=[grid_entry(p) for p in ordered],
     )
     return record
+
+
+CONFIRMATION_LOG = re.compile(r"\.p\d+\.confirm(\.recheck)?\.log$")
+
+
+def is_confirmation_log(log: Path) -> bool:
+    """Whether a log is a fresh-seed confirmation (`<group>.p<k>.confirm[.recheck].log`)."""
+    return CONFIRMATION_LOG.search(log.name) is not None
 
 
 def merged_records(
     logs: list[Path], smoke: bool = False, sha: str | None = None
 ) -> dict[str, dict]:
-    """Every record the logs measured, merged over its grid points."""
-    return {
-        rid: merge_grid(rid, points) for rid, points in record_lines(logs, smoke, sha).items()
+    """Every record the logs measured, merged over its grid points, with the
+    independent confirmation of each boundary record that has one."""
+    measured = [log for log in logs if not is_confirmation_log(log)]
+    records = {
+        rid: merge_grid(rid, points)
+        for rid, points in record_lines(measured, smoke, sha).items()
     }
+    confirmations = record_lines(
+        [log for log in logs if is_confirmation_log(log)], smoke, sha, confirmation=True
+    )
+    for rid, points in confirmations.items():
+        if rid not in records:
+            raise SystemExit(
+                f"confirmation logs measured {rid}, which the measurement logs did not; a "
+                "confirmation is collected beside the measurement it confirms"
+            )
+        attach_confirmation(rid, records[rid], points)
+    return records
+
+
+def drop_failed_confirmations(logs: list[Path]) -> list[Path]:
+    """`logs` without the confirmation runs that failed.
+
+    A confirmation point that failed its band measured nothing a record can
+    state: its point stays unconfirmed, which is the answer, so the failure is
+    reported and its logs (the run and its recheck) are left out instead of
+    refusing the collection the way a failed measurement does."""
+    failed = {
+        log.name.replace(".recheck.log", ".log")
+        for log in logs
+        if is_confirmation_log(log) and log_problems(log)[0]
+    }
+    for name in sorted(failed):
+        print(f"confirmation did not pass, point left unconfirmed: {name}")
+    return [log for log in logs if log.name.replace(".recheck.log", ".log") not in failed]
 
 
 CARGO_RESULT = re.compile(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed;", re.M)
@@ -431,7 +558,7 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
     rows: dict[str, dict] = {}
     for log in logs:
         text = read_text(log, errors="ignore")
-        if log.name.endswith(".recheck.log") or any(
+        if is_confirmation_log(log) or log.name.endswith(".recheck.log") or any(
             line.startswith("calibration-record ") for line in text.splitlines()
         ):
             continue
@@ -470,6 +597,7 @@ def load_records(
         raise SystemExit(f"missing {log_dir}: run scripts/gate_calibration.sh first")
     logs = sorted(log_dir.glob("*.log"))
     if verify_logs and not smoke:
+        logs = drop_failed_confirmations(logs)
         check_logs(logs, sha)
     records = merged_records(logs, smoke, None if smoke or not verify_logs else sha)
     # A pass/fail-only re-run (the record-less groups) measures no record but still
@@ -573,7 +701,9 @@ def all_boundary_at_reported_level(ids: list[str], records: dict[str, dict]) -> 
     at_level = [
         records[rid] for rid in ids if abs(float(records[rid]["nominal"]) - REPORTED_LEVEL) < 1e-9
     ]
-    return bool(at_level) and all(rec["boundary"] for rec in at_level)
+    return bool(at_level) and all(
+        rec["boundary"] and "confirmed_passing_range" not in rec for rec in at_level
+    )
 
 
 def replace_pair(

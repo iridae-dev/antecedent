@@ -61,6 +61,15 @@
 //! generates exactly the replicate data the design generated before the grid;
 //! the other points salt every generator in this module ([`grid_salt`]).
 //!
+//! **Independent confirmation.** With [`CONFIRMATION_ENV`] set, the same
+//! design is measured again at the same grid points with a second, fixed seed
+//! salt, so the confirmation shares no replicate data with the first
+//! measurement. Its `calibration-record` lines say `"confirmation": true`, and
+//! the collector keeps their tallies apart from the measurement's: a boundary
+//! record whose grid points pass in both, over a contiguous run reaching the
+//! top or the bottom of the grid, states that run as its
+//! `confirmed_passing_range`.
+//!
 //! `ANTECEDENT_CALIBRATION_NSIM` overrides the replicate count; the band
 //! widens automatically with fewer replicates, and the precision floor applies
 //! whenever the count reaches [`PRECISION_N_SIM`]. The gate script uses the
@@ -252,7 +261,23 @@ pub fn grid_for(base: usize) -> SampleGrid {
 #[must_use]
 pub fn grid_salt() -> u64 {
     const SALTS: [u64; GRID_POINTS] = [0x9E6C_63D0_676A_9A98, 0, 0xD1B5_4A32_D192_ED02];
-    SALTS[grid_point()]
+    SALTS[grid_point()] ^ if confirmation() { CONFIRMATION_SALT } else { 0 }
+}
+
+/// Environment variable of an independent confirmation run (`1`): every
+/// generator is salted a second time ([`CONFIRMATION_SALT`]), so the run's
+/// replicates are fresh data at the same designs and sample sizes.
+pub const CONFIRMATION_ENV: &str = "ANTECEDENT_CALIBRATION_CONFIRMATION";
+
+/// Seed salt folded into [`grid_salt`] by a confirmation run. Distinct from
+/// every grid point's salt, so no confirmation point reuses any measured
+/// point's replicate stream.
+pub const CONFIRMATION_SALT: u64 = 0x5851_F42D_4C95_7F2D;
+
+/// Whether this is an independent confirmation run ([`CONFIRMATION_ENV`]).
+#[must_use]
+pub fn confirmation() -> bool {
+    std::env::var(CONFIRMATION_ENV).is_ok_and(|value| value == "1")
 }
 
 /// A replicate seed for a generator that does not draw through this module
@@ -1109,6 +1134,9 @@ impl CoverageTally {
         }
         if smoke() {
             payload["smoke"] = serde_json::Value::Bool(true);
+        }
+        if confirmation() {
+            payload["confirmation"] = serde_json::Value::Bool(true);
         }
         // One write of the whole line: a whole-file gate group runs its tests on
         // several threads with stdout and stderr in one pipe, and a line written

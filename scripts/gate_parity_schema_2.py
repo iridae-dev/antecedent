@@ -406,6 +406,55 @@ if cr.is_file():
                     )
             else:
                 problems.append(f"{where}: unknown role {point_role}")
+        # An independent confirmation (fresh-seed re-measurement of the same design)
+        # may recover the passing part of a boundary record's range; the range is
+        # exactly what collect_coverage_records.confirmed_passing_range derives, and
+        # the failing points stay on the record.
+        confirmation = rec.get("confirmation")
+        stated_range = rec.get("confirmed_passing_range")
+        if confirmation is None and stated_range is not None:
+            problems.append(f"{label}: confirmed_passing_range without the confirmation behind it")
+        elif confirmation is not None:
+            if not boundary or role == "named_boundary":
+                problems.append(
+                    f"{label}: a confirmation belongs to a boundary record that is not a "
+                    "named boundary"
+                )
+            if (
+                not isinstance(confirmation, list)
+                or not confirmation
+                or not all(isinstance(p, dict) for p in confirmation)
+                or any(sorted(p) != sorted(collector.GRID_ENTRY_FIELDS) for p in confirmation)
+            ):
+                problems.append(
+                    f"{label}: confirmation must list points carrying exactly "
+                    f"{', '.join(collector.GRID_ENTRY_FIELDS)}"
+                )
+                continue
+            indices = [int(p["point"]) for p in confirmation]
+            if indices != sorted(set(indices)) or not set(indices) <= set(range(len(grid))):
+                problems.append(f"{label}: confirmation points must be distinct grid points in order")
+                continue
+            for point in confirmation:
+                where = f"{label} confirmation point {point['point']}"
+                measured_point = grid[int(point["point"])]
+                if (point["n_min"], point["n_max"], point["role"]) != (
+                    measured_point["n_min"],
+                    measured_point["n_max"],
+                    measured_point["role"],
+                ):
+                    problems.append(f"{where}: must re-measure the grid point's sample sizes and role")
+                passes = one_sided_pass(point) if point["role"] == "one_sided" else nominal_pass(point)
+                if bool(point["boundary"]) == passes:
+                    problems.append(
+                        f"{where}: boundary must be true exactly when coverage {point['observed']} "
+                        f"misses the {nominal} target"
+                    )
+            if stated_range != collector.confirmed_passing_range(grid, confirmation):
+                problems.append(
+                    f"{label}: confirmed_passing_range must be the contiguous passing run the "
+                    "grid and confirmation establish (collect_coverage_records.confirmed_passing_range)"
+                )
         # A one-sided record states the side whose true extremal bound it covers and
         # its target (CoverageTally::assert_one_sided); no other role carries one.
         one_sided = rec.get("one_sided")

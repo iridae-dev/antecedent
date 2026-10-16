@@ -5709,6 +5709,7 @@ def count_fitted_observation_build(
     target_level: str,
     evidence_json: str,
     seed: int | None = None,
+    draws: int | None = None,
 ) -> tuple[bytes | None, str | None]: ...
 def count_fitted_observation_point(bytes: bytes) -> tuple[float | None, str | None]: ...
 def count_fitted_observation_interval(

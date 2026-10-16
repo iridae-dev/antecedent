@@ -52,6 +52,21 @@ for point in $GRID_POINTS; do
   case "$point" in 0|1|2) ;; *) echo "bad ANTECEDENT_CALIBRATION_GRID_POINTS=$GRID_POINTS (want points from 0 1 2)" >&2; exit 2;; esac
 done
 
+# `ANTECEDENT_CALIBRATION_CONFIRMATION=1` re-measures the grid groups with fresh
+# seeds (the harness salts every generator a second time) and writes
+# `<group>.p<k>.confirm.log` beside the first measurement's logs, which it never
+# overwrites. Use it with `ANTECEDENT_CALIBRATION_GRID_POINTS` set to the points
+# that passed: scripts/collect_coverage_records.py keeps the confirmation apart
+# and recovers a boundary record's passing range only from it. The record-less
+# pass/fail groups have nothing to confirm and are skipped.
+CONFIRM_SUFFIX=""
+if [ "${ANTECEDENT_CALIBRATION_CONFIRMATION:-}" = "1" ]; then
+  CONFIRM_SUFFIX=".confirm"
+  export ANTECEDENT_CALIBRATION_CONFIRMATION
+else
+  unset ANTECEDENT_CALIBRATION_CONFIRMATION
+fi
+
 # Groups measured over the sample-size grid (every other group is a pass/fail
 # gate that emits no record and runs once).
 grid_group() {
@@ -240,13 +255,16 @@ check() {
     for point in $GRID_POINTS; do
       shown="${label} [grid point ${point}]"
       echo "== grid point ${point}: ${label} =="
-      run_point "$LOG_DIR/${safe}.p${point}" "$shown" \
+      run_point "$LOG_DIR/${safe}.p${point}${CONFIRM_SUFFIX}" "$shown" \
         env ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@"
       if [ "$RUN_STATUS" -ne 0 ]; then
         FAILED="${FAILED}  ${shown}"$'\n'
         FAILED_COUNT=$((FAILED_COUNT + 1))
       fi
     done
+    return 0
+  fi
+  if [ -n "$CONFIRM_SUFFIX" ]; then
     return 0
   fi
   run_point "$LOG_DIR/${safe}" "$label" \
@@ -473,7 +491,7 @@ run_count_fitted_posterior() {
   check "count_fitted_posterior_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test count_fitted_posterior_calibration "$name" -- --ignored --exact --nocapture
 }
 echo "== count-fitted finite table posterior interval =="
-for name in count_fitted_confounded_signal_l90 count_fitted_confounded_signal_l95 count_fitted_measured_signal_l90 count_fitted_measured_signal_l95 count_fitted_sparse_parent_configuration_boundary_l95 count_fitted_rare_evidence_boundary_l95; do
+for name in count_fitted_confounded_signal_l90 count_fitted_confounded_signal_l95 count_fitted_measured_signal_l90 count_fitted_measured_signal_l95 count_fitted_confounded_signal_l90_draws_8000 count_fitted_confounded_signal_l95_draws_8000 count_fitted_measured_signal_l90_draws_8000 count_fitted_measured_signal_l95_draws_8000 count_fitted_sparse_parent_configuration_boundary_l95 count_fitted_rare_evidence_boundary_l95; do
   run_count_fitted_posterior "${name}"
 done
 

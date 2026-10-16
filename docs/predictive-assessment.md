@@ -85,13 +85,27 @@ fitted) and only where a current coverage record measured the construction at
 the design, score, law family (Gaussian here), level (0.95) and number of cases.
 The record is read from the shipped coverage table: a declaration cannot open
 the route. The measured design is a fixed Gaussian forecast against known
-generators (iid outcomes, a stationary AR(1) series, clustered outcomes), over
-100, 200 and 400 cases, for the CRPS, the log score and the CRPS difference of
-two forecasts. A heavy-tailed truth is recorded as a named boundary and does not
-license the route. The interval states its assumptions: cases independent or
-dependent as declared, a finite score variance, a law fixed before the cases
-were seen, and for a rolling-origin design the average expected score over the
-forecast origins.
+generators, for the CRPS, the log score and the CRPS difference of two
+forecasts. The number of cases must lie inside the range measured for the
+declared dependence; there is no extrapolation above the largest count or below
+the smallest, and a count outside it refuses with `cell_not_licensed`.
+
+| Declared dependence | Measured generator | Cases measured |
+| --- | --- | --- |
+| `iid` | independent standard normal outcomes | 400 to 1,600 |
+| `cluster` | clusters of five cases with a shared cluster effect | 800 to 3,200 (160 to 640 clusters) |
+| `serial` | stationary AR(1) outcomes, `phi = 0.5`, lag `floor(n^(1/3))` | 1,600 to 6,400 |
+
+The minimum of ten clusters and the bandwidth limit of the serial interval are
+requirements of the construction, not a measured range: a cluster count or
+series length that satisfies them but lies outside the measured case counts
+still refuses. A serial interval for the CRPS of a single forecast is a named
+boundary (0.925 at 6,400 cases) and is not published; the serial log score and
+CRPS difference are. A heavy-tailed truth is also recorded as a named boundary
+and does not license the route. The interval states its assumptions: cases
+independent or dependent as declared, a finite score variance, a law fixed
+before the cases were seen, and for a rolling-origin design the average
+expected score over the forecast origins.
 
 ## Calibration diagnostics
 

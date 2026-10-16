@@ -10,6 +10,13 @@
 //! prior, seed and level and recomputes the interval bit for bit; the reported scalar
 //! must resolve to a currently attesting coverage record. Declared nodes (a measured
 //! signal with known error rates) are fixed, not redrawn.
+//!
+//! Any draw count from the supported minimum ([`MEASURED_DRAWS`]) up to the bound is
+//! accepted, and the actual draws and seed are part of the replay identity. The
+//! endpoints are quantiles of a finite Monte Carlo sample, so the route reports their
+//! Monte Carlo standard errors and refuses an interval whose larger error exceeds
+//! [`MAX_ENDPOINT_MCSE_FRACTION`] of its width: the draws have not converged enough
+//! for the endpoints to mean what they say.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
@@ -17,8 +24,8 @@ use super::{
 use crate::IoError;
 use antecedent_core::IdentityDomain;
 use antecedent_estimate::count_fitted_posterior::{
-    CountFittedModel, CountNode, FUNCTIONAL_ID, INTERVAL_METHOD, NodeTable, PosteriorQuery,
-    calibration_basis,
+    CountFittedModel, CountNode, FUNCTIONAL_ID, INTERVAL_METHOD, MAX_DRAWS, NodeTable,
+    PosteriorInterval, PosteriorQuery, calibration_basis,
 };
 use serde::{Deserialize, Serialize};
 
@@ -26,8 +33,15 @@ use serde::{Deserialize, Serialize};
 pub const ROUTE: &str = "count_fitted_interval";
 /// The only prior concentration that was measured.
 pub const MEASURED_PRIOR_ALPHA: f64 = 1.0;
-/// The only Monte Carlo draw count that was measured.
+/// The supported minimum (and default) Monte Carlo draw count. Larger counts are
+/// accepted; each measured draw class
+/// ([`MEASURED_DRAW_CLASSES`](antecedent_estimate::count_fitted_posterior::MEASURED_DRAW_CLASSES))
+/// has its own coverage record.
 pub const MEASURED_DRAWS: u32 = 2000;
+/// Largest accepted ratio of an endpoint's Monte Carlo standard error to the interval
+/// width. The measured design sits near 0.015 at the minimum draw count; five times
+/// that or more is a sign the draws, not the posterior, set the endpoints.
+pub const MAX_ENDPOINT_MCSE_FRACTION: f64 = 0.05;
 const MAX_NODES: usize = 16;
 const MAX_LEVELS: usize = 16;
 
@@ -178,12 +192,61 @@ impl CountFittedIntervalArtifactWire {
         crate::to_cbor(self)
     }
 
+    /// The draw count lies in the supported range, from the minimum to the bound.
+    ///
+    /// # Errors
+    /// A count below [`MEASURED_DRAWS`] or above the estimator's draw bound.
+    pub fn check_draws(&self) -> Result<(), IoError> {
+        if self.draws < MEASURED_DRAWS || self.draws as usize > MAX_DRAWS {
+            return Err(protocol(&format!(
+                "posterior draws must lie in {MEASURED_DRAWS}..={MAX_DRAWS}, got {}",
+                self.draws
+            )));
+        }
+        Ok(())
+    }
+
+    /// Replay the posterior draws from the retained counts, check the measured protocol
+    /// and the Monte Carlo error of the endpoints against `mcse_tolerance`.
+    fn replay(&self, mcse_tolerance: f64) -> Result<PosteriorInterval, IoError> {
+        let resolved = self.resolve()?;
+        if resolved.prior_alpha.to_bits() != MEASURED_PRIOR_ALPHA.to_bits() {
+            return Err(protocol("only the uniform Dirichlet prior was measured"));
+        }
+        self.check_draws()?;
+        let interval = resolved
+            .model
+            .posterior_interval(
+                &resolved.query,
+                resolved.level,
+                resolved.prior_alpha,
+                self.draws,
+                self.seed,
+            )
+            .map_err(|e| refused("measured_inference.invalid_report", &e.to_string()))?;
+        let fraction = interval.mcse_width_fraction();
+        if fraction.is_nan() || fraction > mcse_tolerance {
+            return Err(refused(
+                "measured_interval.draws_not_converged",
+                &format!(
+                    "the Monte Carlo standard error of an interval endpoint ({:.3e} lower, \
+                     {:.3e} upper) is {fraction:.3} of the interval width, above the \
+                     {mcse_tolerance} tolerance; use more posterior draws",
+                    interval.lower_mcse, interval.upper_mcse
+                ),
+            ));
+        }
+        Ok(interval)
+    }
+
     /// Replay the posterior draws from the retained counts and bind the interval to the
     /// current calibration evidence.
     ///
     /// # Errors
     /// A non-canonical or malformed source, a construction outside the measured
-    /// protocol (prior, draw count, complete rows), evidence of probability zero, or a
+    /// protocol (prior, a draw count below the supported minimum or above the bound,
+    /// complete rows), endpoints whose Monte Carlo error exceeds
+    /// [`MAX_ENDPOINT_MCSE_FRACTION`] of the width, evidence of probability zero, or a
     /// construction with no currently attesting record.
     pub fn measure(bytes: &[u8]) -> Result<MeasuredInference, IoError> {
         let wire: Self = crate::from_cbor(bytes)?;
@@ -193,24 +256,7 @@ impl CountFittedIntervalArtifactWire {
                 "count-fitted source is not canonical",
             ));
         }
-        let resolved = wire.resolve()?;
-        if resolved.prior_alpha.to_bits() != MEASURED_PRIOR_ALPHA.to_bits()
-            || wire.draws != MEASURED_DRAWS
-        {
-            return Err(protocol(
-                "only the uniform Dirichlet prior with 2000 posterior draws was measured",
-            ));
-        }
-        let interval = resolved
-            .model
-            .posterior_interval(
-                &resolved.query,
-                resolved.level,
-                resolved.prior_alpha,
-                wire.draws,
-                wire.seed,
-            )
-            .map_err(|e| refused("measured_inference.invalid_report", &e.to_string()))?;
+        let interval = wire.replay(MAX_ENDPOINT_MCSE_FRACTION)?;
         let premises = crate::digest_hex(
             IdentityDomain::Claim,
             &(
@@ -245,6 +291,12 @@ impl CountFittedIntervalArtifactWire {
             "rows": wire.rows,
             "draws": wire.draws,
             "seed": wire.seed,
+            "endpoint_mcse": {
+                "lower": interval.lower_mcse,
+                "upper": interval.upper_mcse,
+                "width_fraction": interval.mcse_width_fraction(),
+                "tolerance": MAX_ENDPOINT_MCSE_FRACTION,
+            },
             "level": interval.level,
             "target": wire.target,
             "target_level": wire.target_level,
@@ -278,5 +330,107 @@ impl CountFittedIntervalArtifactWire {
         let measured = Self::measure(&wire.source)?;
         compare_replay(&wire, &measured)?;
         Ok(measured)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn levels() -> Vec<String> {
+        vec!["0".into(), "1".into()]
+    }
+
+    /// `Z -> Y`, 100 rows: Z = 1 in 40 rows, and Y = 1 in 30 of those; Y = 1 in 12 of the
+    /// 60 rows with Z = 0.
+    fn wire(draws: u32) -> CountFittedIntervalArtifactWire {
+        CountFittedIntervalArtifactWire {
+            version: 1,
+            nodes: vec![
+                CountFittedNodeWire {
+                    name: "Z".into(),
+                    levels: levels(),
+                    parents: vec![],
+                    counts: Some(vec![60, 40]),
+                    declared_bits: None,
+                },
+                CountFittedNodeWire {
+                    name: "Y".into(),
+                    levels: levels(),
+                    parents: vec![0],
+                    counts: Some(vec![48, 12, 10, 30]),
+                    declared_bits: None,
+                },
+            ],
+            rows: 100,
+            target: "Y".into(),
+            target_level: "1".into(),
+            evidence: vec![("Z".into(), "1".into())],
+            level_bits: 0.95_f64.to_bits(),
+            prior_alpha_bits: MEASURED_PRIOR_ALPHA.to_bits(),
+            draws,
+            seed: 7,
+        }
+    }
+
+    fn detail(error: &IoError) -> String {
+        let IoError::Refused { message, .. } = error else { panic!("not a refusal: {error:?}") };
+        message.clone()
+    }
+
+    #[test]
+    fn every_draw_count_from_the_supported_minimum_replays() {
+        let mut fractions = Vec::new();
+        for draws in [2000, 3000, 4000, 8000] {
+            let interval = wire(draws).replay(MAX_ENDPOINT_MCSE_FRACTION).expect("replays");
+            assert_eq!(interval.draws, draws);
+            assert!(interval.lower < interval.point && interval.point < interval.upper);
+            assert!(interval.lower_mcse > 0.0 && interval.upper_mcse > 0.0);
+            fractions.push(interval.mcse_width_fraction());
+        }
+        // Four times the draws halves the error; the order-statistic estimate is noisy
+        // enough that only the ends of the range are compared.
+        assert!(fractions[3] < fractions[0], "{fractions:?}");
+        // The retained draws and seed are the replay: the same source reproduces the
+        // interval bit for bit, and a different draw count or seed is another source.
+        let (a, b) = (wire(3000), wire(3000));
+        let (first, second) = (a.replay(1.0).unwrap(), b.replay(1.0).unwrap());
+        assert_eq!(first.lower.to_bits(), second.lower.to_bits());
+        assert_eq!(first.upper.to_bits(), second.upper.to_bits());
+        assert_ne!(a.encode().unwrap(), wire(4000).encode().unwrap());
+        let reseeded = CountFittedIntervalArtifactWire { seed: 8, ..wire(3000) };
+        assert_ne!(a.encode().unwrap(), reseeded.encode().unwrap());
+    }
+
+    #[test]
+    fn draws_below_the_supported_minimum_or_above_the_bound_are_refused() {
+        for draws in [0, 2, 1000, MEASURED_DRAWS - 1, u32::try_from(MAX_DRAWS).unwrap() + 1] {
+            let error = wire(draws).replay(MAX_ENDPOINT_MCSE_FRACTION).unwrap_err();
+            let message = detail(&error);
+            assert!(message.contains("protocol_not_measured"), "{draws}: {message}");
+            assert!(message.contains(&format!("got {draws}")), "{message}");
+        }
+        assert!(wire(u32::try_from(MAX_DRAWS).unwrap()).replay(1.0).is_ok());
+    }
+
+    #[test]
+    fn a_non_measured_prior_is_still_refused() {
+        let other =
+            CountFittedIntervalArtifactWire { prior_alpha_bits: 0.5_f64.to_bits(), ..wire(2000) };
+        let message = detail(&other.replay(1.0).unwrap_err());
+        assert!(message.contains("protocol_not_measured"), "{message}");
+    }
+
+    #[test]
+    fn endpoints_whose_monte_carlo_error_exceeds_the_tolerance_are_refused() {
+        let source = wire(2000);
+        let fraction = source.replay(1.0).unwrap().mcse_width_fraction();
+        assert!(fraction > 0.0 && fraction < MAX_ENDPOINT_MCSE_FRACTION, "{fraction}");
+        // The same draws pass at a tolerance just above their error and are refused
+        // just below it, naming the error, the fraction and the tolerance.
+        assert!(source.replay(fraction * 1.001).is_ok());
+        let message = detail(&source.replay(fraction * 0.999).unwrap_err());
+        assert!(message.contains("measured_interval.draws_not_converged"), "{message}");
+        assert!(message.contains("more posterior draws"), "{message}");
     }
 }

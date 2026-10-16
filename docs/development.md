@@ -147,6 +147,28 @@ a record that failed at any point is `scope_not_assessed` /
 coverage; outside the range it is `scope_not_assessed` /
 `sample_size_outside_measured_range`. Nothing is extrapolated.
 
+A boundary record can recover the passing part of its range, but only from an
+independent confirmation. `ANTECEDENT_CALIBRATION_CONFIRMATION=1` (the gate's
+confirmation mode, run at the grid points that passed, for example with
+`ANTECEDENT_CALIBRATION_GRID_POINTS="1 2"`) measures the same designs again
+with a second fixed seed salt, so no replicate is shared with the first
+measurement, and writes `<group>.p<k>.confirm.log` (and `.confirm.recheck.log`)
+whose lines carry `"confirmation": true`. The collector keeps those tallies
+apart, in the record's `confirmation` (shaped like `grid`). When a contiguous
+run of at least two grid points reaching the top or the bottom of the grid
+passed in the measurement and again in the confirmation, the record states
+`confirmed_passing_range = [n_lo, n_hi]`. The record stays a boundary and keeps
+its failing points; a confirmation point that failed its band leaves that
+point unconfirmed. A named boundary never recovers a range, and a failing point
+in the middle of the grid leaves nothing to recover. The matcher is
+`calibrated` for a row count inside `confirmed_passing_range` (with every other
+axis, the attestation and the scope checks unchanged), governed by the lowest
+coverage over those points in the measurement and the confirmation, and it
+reports that range as the scope. A row count in the failing region, or between
+it and the range, is still `scope_not_assessed` / `boundary_record`.
+`scripts/gate_parity_schema.sh` checks that the stated range is exactly what the
+grid and the confirmation establish.
+
 A named boundary asserts its measured coverage at every grid point with
 `CoverageTally::assert_boundary_at([Some(m0), Some(m1), Some(m2)])`, so a
 regression at any point fails (`None` gates a point at nominal). The values come

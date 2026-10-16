@@ -105,6 +105,8 @@ fn record(
         replicates: governing.replicates,
         boundary,
         grid,
+        confirmation: &[],
+        confirmed_passing_range: None,
         dgp: "crates/antecedent/tests/common/static_dgp.rs::linear_ate_data",
         test: "crates/antecedent/tests/calibration_grid_binding.rs::fixture",
         calibration_sha: "0123456789abcdef0123456789abcdef01234567",

@@ -41,6 +41,10 @@ pub const FUNCTIONAL_ID: &str = "conditional_probability";
 pub const MAX_ASSIGNMENTS: usize = 1 << 20;
 /// Largest number of posterior draws.
 pub const MAX_DRAWS: usize = 100_000;
+/// Posterior-draw counts the calibration measured, ascending. An execution is
+/// governed by the largest class its draw count reaches ([`draw_class`]); the
+/// first is the supported minimum.
+pub const MEASURED_DRAW_CLASSES: [u32; 2] = [2000, 8000];
 
 fn unsupported(message: &'static str) -> EstimationError {
     EstimationError::Unsupported { message }
@@ -93,6 +97,23 @@ pub struct PosteriorInterval {
     pub rows: u64,
     /// Posterior draws used.
     pub draws: u32,
+    /// Monte Carlo standard error of the lower endpoint: the posterior
+    /// quantile is estimated from `draws` independent draws, so this is
+    /// numerical error of the report, not posterior uncertainty.
+    pub lower_mcse: f64,
+    /// Monte Carlo standard error of the upper endpoint.
+    pub upper_mcse: f64,
+}
+
+impl PosteriorInterval {
+    /// The larger endpoint Monte Carlo standard error as a fraction of the
+    /// interval width; infinite for an interval of zero width with nonzero
+    /// error, zero when both are zero.
+    #[must_use]
+    pub fn mcse_width_fraction(&self) -> f64 {
+        let worst = self.lower_mcse.max(self.upper_mcse);
+        if worst <= 0.0 { 0.0 } else { worst / (self.upper - self.lower) }
+    }
 }
 
 /// A topologically ordered finite model with count-fitted or declared conditionals.
@@ -310,15 +331,49 @@ impl CountFittedModel {
             let fraction = h - lo as f64;
             values[lo] + fraction * (values[(lo + 1).min(values.len() - 1)] - values[lo])
         };
+        let (lower_p, upper_p) = ((1.0 - level) / 2.0, 1.0 - (1.0 - level) / 2.0);
         Ok(PosteriorInterval {
             point,
-            lower: quantile((1.0 - level) / 2.0),
-            upper: quantile(1.0 - (1.0 - level) / 2.0),
+            lower: quantile(lower_p),
+            upper: quantile(upper_p),
             level,
             rows: self.rows,
             draws,
+            lower_mcse: quantile_mcse(&values, lower_p),
+            upper_mcse: quantile_mcse(&values, upper_p),
         })
     }
+}
+
+/// Monte Carlo standard error of the `p`-quantile of `sorted` independent draws.
+///
+/// The rank of the sample quantile has standard deviation `sqrt(m p (1 - p))`, so the
+/// quantile's standard error is half the spread of the draws between the ranks one
+/// standard deviation either side of `m p` (the distribution-free order-statistic
+/// estimate; it needs no density estimate at the quantile).
+fn quantile_mcse(sorted: &[f64], p: f64) -> f64 {
+    let m = sorted.len() as f64;
+    let spread = (m * p * (1.0 - p)).sqrt();
+    let last = sorted.len() - 1;
+    #[allow(
+        clippy::cast_sign_loss,
+        reason = "the ranks are clamped to [0, len - 1] before the conversion"
+    )]
+    let rank = |h: f64| h.clamp(0.0, last as f64) as usize;
+    (sorted[rank((m * p + spread).ceil())] - sorted[rank((m * p - spread).floor())]) / 2.0
+}
+
+/// The measured draw class of an execution with `draws` posterior draws: the largest
+/// [`MEASURED_DRAW_CLASSES`] entry not above `draws` (the first below the supported
+/// minimum, which is refused before it is looked up).
+#[must_use]
+pub fn draw_class(draws: u32) -> u32 {
+    MEASURED_DRAW_CLASSES
+        .iter()
+        .rev()
+        .copied()
+        .find(|&class| class <= draws)
+        .unwrap_or(MEASURED_DRAW_CLASSES[0])
 }
 
 struct SplitMix(u64);
@@ -366,7 +421,7 @@ impl SplitMix {
 
 /// The calibration basis of a count-fitted posterior interval at `rows` fitted rows.
 ///
-/// One definition serves the harness and any facade, so a record can only describe the
+/// `draws` selects the measured draw class ([`draw_class`]). One definition serves the harness and any facade, so a record can only describe the
 /// construction a facade reports.
 #[must_use]
 pub fn calibration_basis(rows: u64, level: f64, draws: u32) -> CalibrationBasis {
@@ -387,6 +442,14 @@ pub fn boundary_calibration_basis(
 
 fn basis_with_structure(structure: &str, rows: u64, level: f64, draws: u32) -> CalibrationBasis {
     let a = |text: &str| Arc::<str>::from(text);
+    // The supported minimum keeps its original key; each larger measured draw class is
+    // its own construction, so a record at 8000 draws never gates 2000-draw executions.
+    let class = draw_class(draws);
+    let posterior = if class == MEASURED_DRAW_CLASSES[0] {
+        a("dirichlet.uniform_prior")
+    } else {
+        Arc::from(format!("dirichlet.uniform_prior.draws_{class}"))
+    };
     CalibrationBasis::new(
         [
             a("ObservationConditionalProbability"),
@@ -398,7 +461,7 @@ fn basis_with_structure(structure: &str, rows: u64, level: f64, draws: u32) -> C
             a(INTERVAL_METHOD),
             a(""),
             a("independent_rows"),
-            a("dirichlet.uniform_prior"),
+            posterior,
             a(FUNCTIONAL_ID),
         ],
         level,
@@ -408,4 +471,129 @@ fn basis_with_structure(structure: &str, rows: u64, level: f64, draws: u32) -> C
         Some(draws),
         0.0,
     )
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::cast_possible_wrap,
+    clippy::float_cmp,
+    reason = "small closed-form oracle arithmetic over exponents below twelve"
+)]
+mod tests {
+    use super::*;
+
+    /// A single node counted `[7, 3]` (three in level 1) under the uniform prior: `P(Y = 1)` is exactly
+    /// `Beta(4, 8)`, whose quantiles and density are closed forms.
+    fn beta_four_eight() -> (CountFittedModel, PosteriorQuery) {
+        let nodes = vec![CountNode {
+            cardinality: 2,
+            parents: vec![],
+            table: NodeTable::Counts(vec![7, 3]),
+        }];
+        (
+            CountFittedModel::new(nodes, 10).expect("model"),
+            PosteriorQuery { target: 0, level: 1, evidence: vec![] },
+        )
+    }
+
+    /// Regularised incomplete beta `I_x(4, 8)` as the upper binomial tail with
+    /// `n = 11` trials: `P(Bin(11, x) >= 4)`.
+    fn beta_cdf(x: f64) -> f64 {
+        let choose =
+            |k: u32| (1..=k).fold(1.0, |acc, i| acc * f64::from(11 - k + i) / f64::from(i));
+        (4..=11_u32).map(|j| choose(j) * x.powi(j as i32) * (1.0 - x).powi(11 - j as i32)).sum()
+    }
+
+    fn beta_pdf(x: f64) -> f64 {
+        // B(4, 8) = 3! 7! / 11!
+        let beta = 6.0 * 5040.0 / 39_916_800.0;
+        x.powi(3) * (1.0 - x).powi(7) / beta
+    }
+
+    fn beta_quantile(p: f64) -> f64 {
+        let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if beta_cdf(mid) < p {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        0.5 * (lo + hi)
+    }
+
+    #[test]
+    fn the_reported_endpoint_error_matches_the_closed_form_quantile_error() {
+        let (model, query) = beta_four_eight();
+        for draws in [2000_u32, 8000, 32_000] {
+            let interval =
+                model.posterior_interval(&query, 0.95, 1.0, draws, 11).expect("interval");
+            for (p, reported, endpoint) in [
+                (0.025, interval.lower_mcse, interval.lower),
+                (0.975, interval.upper_mcse, interval.upper),
+            ] {
+                let truth = beta_quantile(p);
+                // sqrt(p (1 - p) / m) / f(q): the standard error of a sample quantile.
+                let oracle = (p * (1.0 - p) / f64::from(draws)).sqrt() / beta_pdf(truth);
+                assert!(
+                    (0.5 * oracle..=1.6 * oracle).contains(&reported),
+                    "draws {draws} p {p}: reported {reported} vs closed form {oracle}"
+                );
+                // The endpoint itself is within a few standard errors of the true quantile.
+                assert!((endpoint - truth).abs() < 4.0 * oracle, "draws {draws} p {p}");
+            }
+        }
+    }
+
+    #[test]
+    fn more_draws_shrink_the_endpoint_error_and_its_width_fraction() {
+        let (model, query) = beta_four_eight();
+        let fraction = |draws| {
+            model
+                .posterior_interval(&query, 0.95, 1.0, draws, 3)
+                .expect("interval")
+                .mcse_width_fraction()
+        };
+        let (small, large) = (fraction(2000), fraction(32_000));
+        assert!(small > large, "{small} vs {large}");
+        assert!(small < 0.05, "the supported minimum stays inside the declared tolerance: {small}");
+    }
+
+    #[test]
+    fn a_degenerate_interval_has_no_error_fraction_to_report() {
+        let interval = PosteriorInterval {
+            point: 0.5,
+            lower: 0.5,
+            upper: 0.5,
+            level: 0.95,
+            rows: 0,
+            draws: 2,
+            lower_mcse: 0.0,
+            upper_mcse: 0.0,
+        };
+        assert!((interval.mcse_width_fraction() - 0.0).abs() < f64::EPSILON);
+        let noisy = PosteriorInterval { upper_mcse: 0.1, ..interval };
+        assert!(noisy.mcse_width_fraction().is_infinite());
+    }
+
+    #[test]
+    fn each_measured_draw_class_is_its_own_construction() {
+        assert_eq!(MEASURED_DRAW_CLASSES[0], 2000);
+        for (draws, class) in [(2000, 2000), (3000, 2000), (4000, 2000), (7999, 2000)] {
+            assert_eq!(draw_class(draws), class, "{draws}");
+        }
+        for draws in [8000, 8001, 50_000, 100_000] {
+            assert_eq!(draw_class(draws), 8000, "{draws}");
+        }
+        // Below the minimum is refused before lookup; the class is still defined.
+        assert_eq!(draw_class(1999), 2000);
+
+        let posterior = |draws| calibration_basis(300, 0.95, draws).posterior;
+        assert_eq!(&*posterior(2000), "dirichlet.uniform_prior");
+        assert_eq!(posterior(3000), posterior(2000));
+        assert_eq!(&*posterior(8000), "dirichlet.uniform_prior.draws_8000");
+        assert_eq!(posterior(50_000), posterior(8000));
+        assert_eq!(calibration_basis(300, 0.95, 3000).posterior_draws, Some(3000));
+    }
 }

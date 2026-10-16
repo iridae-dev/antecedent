@@ -86,3 +86,36 @@ fn unknown_variables_and_zero_probability_evidence_are_refused_at_construction()
     let refusal = CountFittedObservation::new(nodes, 100, "W", "1", &[], None).unwrap_err();
     assert!(!refusal.refusals.is_empty());
 }
+
+fn with_draws(draws: u32) -> CountFittedObservation {
+    let mut source = fitted().source().clone();
+    source.draws = draws;
+    CountFittedObservation::from_source(source).unwrap()
+}
+
+#[test]
+fn draw_counts_from_the_supported_minimum_are_supported_and_fewer_are_refused() {
+    let ctx = ExecutionContext::for_tests(5);
+    for draws in [2000, 3000, 4000, 8000] {
+        match with_draws(draws).interval(0.95, &ctx) {
+            Ok(measured) => {
+                let scalar = &measured.report().scalars[0];
+                assert_eq!(scalar.calibration.status, "calibrated", "{draws}");
+                assert!(scalar.lower <= scalar.point && scalar.point <= scalar.upper);
+            }
+            Err(refusal) => {
+                // Only the absence of a currently attesting record may stand in the way.
+                assert_eq!(refusal.code(), "cell_not_licensed");
+                let detail = &refusal.details()[0];
+                assert!(
+                    !detail.contains("protocol_not_measured")
+                        && !detail.contains("draws_not_converged"),
+                    "{draws}: {detail}"
+                );
+            }
+        }
+    }
+    let refusal = with_draws(1999).interval(0.95, &ctx).unwrap_err();
+    assert_eq!(refusal.code(), "cell_not_licensed");
+    assert!(refusal.details()[0].contains("protocol_not_measured"), "{refusal}");
+}

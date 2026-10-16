@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, write_text
 
 ensure_scripts_on_path()
 import collect_coverage_records as collector  # noqa: E402
@@ -450,6 +451,108 @@ class OneSidedRoleTest(unittest.TestCase):
         self.assertEqual(parsed["one_sided"], UPPER)
         self.assertLess(text.index('role = "one_sided"'), text.index("one_sided = {"))
         self.assertLess(text.index("one_sided = {"), text.index("grid = ["))
+
+
+class ConfirmedPassingRangeTest(unittest.TestCase):
+    """A boundary record recovers a passing range only from an independent confirmation."""
+
+    @staticmethod
+    def boundary_record(failing: tuple[int, ...], role: str = "gated") -> dict:
+        points = {
+            k: _point(k, 0.90 if k in failing else 0.95, role, boundary=k in failing)
+            for k in range(3)
+        }
+        return collector.merge_grid("rid", points)
+
+    @staticmethod
+    def confirmed(record: dict, passing: tuple[int, ...], **extra) -> dict:
+        collector.attach_confirmation(
+            "rid", record, {k: _point(k, 0.951, record["role"], **extra) for k in passing}
+        )
+        return record
+
+    def test_the_upper_passing_points_recover_their_range_and_the_failure_stays(self) -> None:
+        record = self.confirmed(self.boundary_record((0,)), (1, 2))
+        self.assertEqual(record["confirmed_passing_range"], [400, 800])
+        self.assertTrue(record["boundary"])
+        self.assertEqual(record["observed"], 0.90)
+        self.assertEqual([p["point"] for p in record["confirmation"]], [1, 2])
+        self.assertTrue(record["grid"][0]["boundary"])
+
+    def test_the_lower_passing_points_recover_their_range(self) -> None:
+        record = self.confirmed(self.boundary_record((2,)), (0, 1))
+        self.assertEqual(record["confirmed_passing_range"], [200, 400])
+
+    def test_a_point_the_confirmation_did_not_pass_is_not_recovered(self) -> None:
+        self.assertNotIn("confirmed_passing_range", self.confirmed(self.boundary_record((0,)), (2,)))
+        self.assertNotIn("confirmed_passing_range", self.confirmed(self.boundary_record((0,)), ()))
+
+    def test_a_middle_failure_and_a_lone_point_are_not_subranges(self) -> None:
+        self.assertNotIn("confirmed_passing_range", self.confirmed(self.boundary_record((1,)), (0, 2)))
+        self.assertNotIn("confirmed_passing_range", self.confirmed(self.boundary_record((0, 1)), (2,)))
+
+    def test_a_named_boundary_and_a_passing_record_recover_nothing(self) -> None:
+        named = self.confirmed(self.boundary_record((0,), role="named_boundary"), (1, 2))
+        self.assertNotIn("confirmation", named)
+        passing = collector.merge_grid("rid", {k: _point(k, 0.95, "gated") for k in range(3)})
+        collector.attach_confirmation("rid", passing, {1: _point(1, 0.95, "gated")})
+        self.assertNotIn("confirmation", passing)
+
+    def test_a_confirmation_of_another_design_is_refused(self) -> None:
+        record = self.boundary_record((0,))
+        with self.assertRaisesRegex(SystemExit, "another construction"):
+            self.confirmed(record, (1,), estimator="foreign")
+        with self.assertRaisesRegex(SystemExit, "re-measures the same design"):
+            self.confirmed(record, (1,), n_min=999, n_max=999)
+
+    def test_confirmation_lines_are_collected_apart_from_the_measurement(self) -> None:
+        def line(k: int, confirmation: bool, failing: bool = False) -> str:
+            payload = _point(
+                k, 0.90 if failing else 0.951, "gated", boundary=failing, measured_at="a" * 40
+            )
+            if confirmation:
+                payload["confirmation"] = True
+            return "calibration-record " + json.dumps(payload)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            logs = []
+            for k in range(3):
+                measured = root / f"g.p{k}.log"
+                write_text(measured, line(k, False, failing=k == 0) + "\n")
+                logs.append(measured)
+            for k in (1, 2):
+                confirm = root / f"g.p{k}.confirm.log"
+                write_text(confirm, line(k, True) + "\n")
+                logs.append(confirm)
+            records = collector.merged_records(logs)
+            self.assertEqual(len(records), 1)
+            self.assertEqual(next(iter(records.values()))["confirmed_passing_range"], [400, 800])
+            # A confirmation line in a measurement log is refused, not merged in.
+            write_text(logs[0], line(0, True) + "\n")
+            with self.assertRaisesRegex(SystemExit, "is a confirmation line"):
+                collector.merged_records(logs)
+
+    def test_the_registry_writes_the_confirmation_after_role(self) -> None:
+        import tomllib
+
+        record = self.confirmed(self.boundary_record((0,)), (1, 2))
+        record.update({key: "x" for key in collector.FIELDS if key not in record})
+        record.update(facets=["core"], calibration_sha="1" * 40, surface_list_blob="1" * 40)
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "records.toml"
+            original = collector.surface_list_blob
+            collector.surface_list_blob = lambda sha: "1" * 40
+            try:
+                collector.write_registry({"rid": record}, out, retag=False)
+            finally:
+                collector.surface_list_blob = original
+            text = out.read_text(encoding="utf-8")
+            parsed = tomllib.loads(text)["record"][0]
+        self.assertEqual(parsed["confirmed_passing_range"], [400, 800])
+        self.assertEqual([p["point"] for p in parsed["confirmation"]], [1, 2])
+        self.assertLess(text.index('role = "gated"'), text.index("confirmation = ["))
+        self.assertLess(text.index("confirmed_passing_range = "), text.index("grid = ["))
 
 
 if __name__ == "__main__":
