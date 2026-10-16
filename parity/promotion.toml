@@ -11304,7 +11304,7 @@ estimand = "The declared cohort's weighted mean of the true linear conditional t
 inference_claim = "calibrated"
 inference_notes = "Calibrated only through a currently attesting coverage record whose construction equals the reported basis. The native-fit marker (fitting procedure, retained n and p and the producer digest of the coefficient vector and covariance) sits in the export identity and is never trusted: the measured envelope retains the fit rows and the consumer refits and requires the export to reproduce exactly."
 coverage_records = ["cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_randomized_p3_l90", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_randomized_p3_l95", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p4_l90", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p4_l95", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p5_l90", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p5_l95"]
-owners = ["antecedent-estimate", "antecedent-io"]
+owners = ["antecedent-estimate", "antecedent-io", "antecedent-io-core"]
 identity_inputs = ["every identity input of cohort_decision.mean_contrast", "the export identity including the native-fit marker, n and p", "the nominal level", "the coverage record identity and measured commit"]
 wire_changes = ["Additive: a measured_inference_v1 envelope with route cohort_interval whose source is the compact export of the native fit and the unchanged cohort decision source; cohort_decision_source_v1 itself is unchanged and still carries no interval."]
 compatibility = "Additive; the point route, the diagnostic and the artifact are unchanged."
@@ -11371,6 +11371,7 @@ method_source = "crates/antecedent-estimate/src/cohort_linear_effect.rs"
 truth_design = "Known linear conditional effect with randomized or observed-confounded binary treatment and heteroskedastic noise; the truth is the declared cohort's mean of the true effect."
 truth_fixtures = ["cohort_decision.interval.symmetric_t_band.truth"]
 nominal_level = "0.90 and 0.95"
+acceptance_threshold = "The registered two-sided CoverageTally gate at each level and sample size (level within two Monte Carlo standard errors, with the precision floor and ceiling); the confounded four-modifier design at 200 rows is a named conservative boundary at 0.918."
 measurement_suite = "crates/antecedent-estimate/tests/cohort_linear_effect_calibration.rs"
 allocated_coverage_records = ["cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_randomized_p3_l90", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_randomized_p3_l95", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p4_l90", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p4_l95", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p5_l90", "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p5_l95"]
 inherited_coverage_records = []
@@ -12747,6 +12748,7 @@ method_source = "crates/antecedent-estimate/src/count_fitted_posterior.rs"
 truth_design = "Known finite binary structural model with a common cause of the signal and the outcome; the truth is the exact conditional probability under the generating tables."
 truth_fixtures = ["observation_query.calibrated_probability.count_fitted_point.truth"]
 nominal_level = "0.90 and 0.95"
+acceptance_threshold = "The registered two-sided CoverageTally gate at each level and sample size (level within two Monte Carlo standard errors, with the precision floor and ceiling)."
 measurement_suite = "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs"
 allocated_coverage_records = ["cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_confounded_signal_l90", "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95", "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_measured_signal_l90", "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_measured_signal_l95"]
 inherited_coverage_records = []
@@ -16441,7 +16443,6 @@ inference_inventory_disposition = "outputs_listed"
 coverage_records = [
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_discovered_effect_nominal_95_coverage",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_weak_edges_boundary_95",
-  "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_cancelling_edge_boundary_95",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_full_row_reuse_boundary_95",
 ]
@@ -16517,7 +16518,6 @@ acceptance_threshold = "Named boundaries: measured and recorded, never gated, al
 measurement_suite = "crates/antecedent/tests/sample_split_effect_calibration.rs"
 allocated_coverage_records = [
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_weak_edges_boundary_95",
-  "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_cancelling_edge_boundary_95",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_misspecified_test_boundary_95",
   "cov.average_effect.cpdag.frequentist.analytic_se.l95.sample_split_full_row_reuse_boundary_95",
 ]

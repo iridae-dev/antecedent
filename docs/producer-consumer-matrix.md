@@ -142,7 +142,8 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 | `cell_not_licensed` | `decision_reliability.cell_not_licensed` | `DecisionReliability.publish` and `decision_reliability.publish` for a ranking probability, confidence set or interval |
 | `uncertainty_components_not_combined` | `decision_reliability.combined_uncertainty` | `DecisionReliability.combined_uncertainty` and a `reporting="combined"` request |
 | `candidate_search_record_required` | `decision_reliability.search_record_required` | `decision_reliability.assess` and `decision_reliability.rank` over adaptively generated candidates without a `CandidateSearchRecord` |
-| `cell_not_licensed` | `cohort_decision.interval_not_licensed`, `cohort_decision.interval_requires_native_fit` | `CohortDecisionSource.interval` (an interval for a shifted cohort, a portable model or a declared export) |
+| `cell_not_licensed` | `cohort_decision.interval_not_licensed` | `CohortDecisionSource.interval` (an interval, band or posterior for the cohort mean) |
+| `cell_not_licensed` | `cohort_decision.interval_requires_native_fit` | `CohortDecisionSource.interval` (an interval for a declared compact export) |
 | `cell_not_licensed` | `cohort_decision.support_contract_absent` | `FittedEffectModel.decision_source` for a model that retains no fitted-row support contract |
 | `cell_not_licensed` | `cohort_decision.outside_support` | `FittedEffectModel.decision_source` for a cohort row outside the retained support contract |
 | `transport_missing_evidence` | `cohort_decision.shift_declaration_required` | `FittedEffectModel.decision_source` for a cohort of another population without a `CovariateShift` |

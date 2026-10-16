@@ -10,8 +10,8 @@ copied_tests = false
 # The prediction interval of a new observation from a simple linear regression (classical
 # least squares), the delta method for the Rogan-Gladen correction (Rogan and Gladen 1978).
 papers = [
-  "Rogan and Gladen (1978), Estimating Prevalence from the Results of a Screening Test, American Journal of Epidemiology 107(1)",
-  "Buyse, Molenberghs, Burzykowski, Renard and Geys (2000), The Validation of Surrogate Endpoints in Meta-Analyses of Randomized Experiments, Biostatistics 1(1)",
+  { title = "Rogan and Gladen (1978), Estimating Prevalence from the Results of a Screening Test, American Journal of Epidemiology 107(1)", sections = ["prevalence corrected for test sensitivity and specificity"] },
+  { title = "Buyse, Molenberghs, Burzykowski, Renard and Geys (2000), The Validation of Surrogate Endpoints in Meta-Analyses of Randomized Experiments, Biostatistics 1(1)", sections = ["trial-level surrogacy: regression of treatment effects across trials"] },
 ]
 
 implementation_deviations = [

@@ -257,6 +257,16 @@ markers below and compares it. Prose outside those markers is not read.
 | provider_callback.law_posterior_protocol | max_points | 65536 | `crates/antecedent-contract/src/callback_protocol/query.rs` |
 | discovery.selective_reuse | max_portable_receipts | 250000 | `crates/antecedent-discovery/src/selective/store.rs` |
 | discovery.selective_reuse | max_structure_items | 65536 | `crates/antecedent-io-core/src/selective_discovery_artifact.rs` |
+| adaptive_inference.procedure_law | max_arms | 4 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
+| adaptive_inference.procedure_law | max_contexts | 4 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
+| adaptive_inference.procedure_law | max_cells | 8 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
+| adaptive_inference.procedure_law | max_looks | 24 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
+| adaptive_inference.procedure_law | max_units | 400 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
+| adaptive_inference.procedure_law | max_outcome_lag | 4 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
+| adaptive_inference.procedure_ordered_p_value | max_inversion_laws | 4096 | `crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs` |
+| adaptive_inference.procedure_weighting_simulation | max_replications | 1000000 | `crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs` |
+| discovery.sample_split_effect | min_variables | 5 | `crates/antecedent-io/src/measured_inference/split_effect.rs` |
+| discovery.sample_split_effect | max_variables | 7 | `crates/antecedent-io/src/measured_inference/split_effect.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.
