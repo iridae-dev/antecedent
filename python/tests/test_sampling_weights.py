@@ -47,7 +47,9 @@ def _survey(n: int = 160, seed: int = 7) -> dict[str, np.ndarray]:
 
 
 def _run(data, estimator, **options):
-    return ant.analyze(data, graph=EDGES, query=QUERY, estimator=estimator, **ONE_SHOT, **options)
+    return ant.analyze(
+        data, graph=EDGES, query=QUERY, estimator=estimator, **{**ONE_SHOT, **options}
+    )
 
 
 def _wls_hc1(data) -> tuple[float, float]:
@@ -159,7 +161,7 @@ def test_invalid_weights_are_refused_naming_the_first_offender():
         weights = data["w"].copy()
         weights[9] = bad
         with pytest.raises(
-            CausalValueError, match=rf"sampling_weights_invalid|source row 9.*{text}"
+            CausalValueError, match=rf"sampling_weights\.invalid: sampling weight {text} at source row 9"
         ) as raised:
             _run({**data, "w": weights}, LinearAdjustment(weights="w"))
         assert "source row 9" in str(raised.value)
@@ -191,8 +193,8 @@ def test_an_estimator_that_reads_no_weights_refuses_them():
     data = _survey()
     with pytest.raises(CausalUnsupportedError, match="does not read"):
         _run(data, "iv.2sls", estimator_config={"weights": "w"})
-    with pytest.raises(CausalUnsupportedError, match="option_not_applicable|no sampling-weighted"):
-        _run(data, Aipw(weights="w", propensity_penalty=ant.estimators.PropensityPenalty()))
+    with pytest.raises(CausalValueError, match="penalized propensity"):
+        Aipw(weights="w", propensity_penalty=ant.estimators.PropensityPenalty())
     with pytest.raises(CausalValueError, match="ordinary least-squares"):
         LinearAdjustment(weights="w", fit="ridge", fit_lambda=1.0)
 
@@ -241,7 +243,7 @@ def test_a_causal_forest_with_clusters_subsamples_and_splits_whole_clusters():
     data["site"] = np.array([f"s{i // 10}" for i in range(400)])
     result = _run(data, CausalForest(n_trees=12, min_leaf=5, cluster="site"), bootstrap=0)
     assert np.isfinite(result.estimate.ate) and result.estimate.se_analytic > 0
-    with pytest.raises(CausalValueError, match="too_few_clusters|below the declared minimum"):
+    with pytest.raises(CausalUnsupportedError, match="too_few_clusters"):
         data["site"] = np.array([f"s{i // 100}" for i in range(400)])
         _run(data, CausalForest(n_trees=12, min_leaf=5, cluster="site"), bootstrap=0)
 
@@ -258,7 +260,7 @@ def _trial(n: int = 200, seed: int = 3) -> dict[str, np.ndarray]:
     return {"y": y, "w": w, "assigned": assigned.astype(float)}
 
 
-def _hajek(data) -> tuple[float, float]:
+def _trial_hajek(data) -> tuple[float, float]:
     assigned = data["assigned"] > 0.5
     keep = data["w"] > 0
     effects, variances = [], []
@@ -286,7 +288,7 @@ def _trial_query(data, **extra):
 
 def test_a_weighted_randomized_trial_is_the_hajek_contrast_and_reports_its_record():
     data = _trial()
-    effect, se = _hajek(data)
+    effect, se = _trial_hajek(data)
     result = ant.analyze(
         {"y": data["y"], "w": data["w"]},
         query=_trial_query(data, weights="w"),
@@ -310,7 +312,7 @@ def test_a_weighted_randomized_trial_is_the_hajek_contrast_and_reports_its_recor
 def test_a_randomized_trial_refuses_weights_it_cannot_read():
     data = _trial()
     design = ant.experiment.ExperimentDesign(
-        ant.interference.ClusterRandomization(10),
+        ant.interference.ClusterRandomization([i // 20 for i in range(200)], 5),
         [bool((i // 20) % 2 == 0) for i in range(200)],
         [f"cluster-{i // 20}" for i in range(200)],
         [f"row-{i}" for i in range(200)],
@@ -401,12 +403,14 @@ def test_a_weighted_temporal_pulse_reads_one_weight_per_time_step():
     weighted = ant.analyze(
         {"t": t, "y": y, "w": w}, query=ant.PulseEffect("t", "y", weights="w"), **kwargs
     )
-    rows = np.arange(2, n)
-    x = np.column_stack([np.ones(len(rows)), t[rows - 1], t[rows - 2]])
+    # The pulse at lag 1 adjusts for no other lag (the lag-2 treatment is independent of it),
+    # so the windows are y_t on [1, t_{t-1}] for t = 1..n-1, each weighted by w_t.
+    rows = np.arange(1, n)
+    x = np.column_stack([np.ones(len(rows)), t[rows - 1]])
     sqrt_w = np.sqrt(w[rows])[:, None]
     beta = np.linalg.lstsq(sqrt_w * x, np.sqrt(w[rows]) * y[rows], rcond=None)[0]
     assert weighted.estimate.ate == pytest.approx(beta[1], rel=1e-8)
-    assert weighted.estimate.sampling_weights.rows_used == n - 2
+    assert weighted.estimate.sampling_weights.rows_used == n - 1
     with pytest.raises(CausalUnsupportedError, match="sampling_weights.route_unsupported|refuters"):
         ant.analyze(
             {"t": t, "y": y, "w": w},
