@@ -400,14 +400,15 @@ ORACLE = {
 def _values_close(left, right):
     """Float documents compare with ``np.isclose``, not ``!=``.
 
-    The documents come from NumPy linear algebra, whose last bits differ between BLAS builds
-    (macOS and Linux), so values compare at relative 1e-9. ``equal_nan`` only accepts a NaN
-    that the committed document already contains.
+    The posterior values come from a Nelder-Mead search that stops at a simplex extent of 1e-8
+    over NumPy linear algebra, so a last-bit difference between platforms (macOS and Linux)
+    can move the stopping point; the values compare at relative 1e-6. ``equal_nan`` only
+    accepts a NaN that the committed document already contains.
     """
     if isinstance(left, bool) or isinstance(right, bool):
         return left == right
     if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-        return bool(np.isclose(left, right, rtol=1e-9, atol=0.0, equal_nan=True))
+        return bool(np.isclose(left, right, rtol=1e-6, atol=1e-12, equal_nan=True))
     if isinstance(left, dict) and isinstance(right, dict):
         return left.keys() == right.keys() and all(_values_close(left[k], right[k]) for k in left)
     if isinstance(left, list) and isinstance(right, list):
@@ -417,11 +418,27 @@ def _values_close(left, right):
     return left == right
 
 
+def _worst_gap(left, right, path=''):
+    """The largest relative difference of two float documents, with where it sits."""
+    worst = (0.0, path or 'document')
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)) and not isinstance(left, bool):
+        scale = max(abs(left), abs(right), 1e-300)
+        return (abs(left - right) / scale, path)
+    if isinstance(left, dict) and isinstance(right, dict):
+        for k in left.keys() & right.keys():
+            worst = max(worst, _worst_gap(left[k], right[k], f'{path}/{k}'))
+    elif isinstance(left, list) and isinstance(right, list):
+        for i, (a, b) in enumerate(zip(left, right)):
+            worst = max(worst, _worst_gap(a, b, f'{path}[{i}]'))
+    return worst
+
+
 _text = json.dumps({'data': {k: v.tolist() for k,v in dict(t=t,w=w,y=y,r=r,m=m,o=o,s=s,u=u,z=z,tc=tc,mc=mc,oc=oc,td=td,yd=yd).items()}, 'posterior': expected, 'tempering': kappas, 'oracle': ORACLE}, indent=2)+'\n'
 _path = Path(__file__).with_name('expected.json')
 if __name__ == '__main__' and '--check' in sys.argv:
     if not _values_close(json.loads(_path.read_text(encoding='utf-8')), json.loads(_text)):
-        raise SystemExit('expected.json is stale; rerun without --check')
+        gap = _worst_gap(json.loads(_path.read_text(encoding='utf-8')), json.loads(_text))
+        raise SystemExit(f'expected.json is stale; rerun without --check (worst relative gap {gap[0]:.3g} at {gap[1]})')
     print('reference matches expected.json')
 elif __name__ == '__main__':
     _path.write_text(_text, encoding='utf-8', newline='\n')
