@@ -32,7 +32,10 @@ calibration_ranges practitioner_scale interval_evidence posterior_draws
 decision_reliability evidence_synthesis predictive_scores randomized_intervals
 matching_scale fit_vs_artifact recalculation_bridge scalable_ci_sensitivity
 graph_ceilings shared_exogenous transported_utility graph_posteriors survival_policy
-discovered_transport release_closure
+discovered_transport release_closure intervention_programs policy_validation
+intervention_callbacks policy_integration portable_artifacts mechanism_selection
+graph_falsification noise_replay intrinsic_influence attribution_uncertainty
+public_workflows performance_conformance dowhy_comparison release_conformance
 """.split())
 KINDS = frozenset({"value", "refusal", "interval", "calibrated_interval", "receipt"})
 INTERVAL_KINDS = frozenset({"interval", "calibrated_interval"})

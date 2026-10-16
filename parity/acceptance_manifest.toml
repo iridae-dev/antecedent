@@ -3459,3 +3459,823 @@ expected = { kind = "receipt", outputs = ["checker passes with --require-bound"]
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 1248352, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
 evidence = { status = "planned" }
+
+[[case]]
+id = "price_floor_policy_applies_to_every_realized_price"
+area = "intervention_programs"
+workflow = "antecedent.fit_model(...).intervene / sample_interventional"
+configuration = { rows = 200000, policy = "price := max(10, 0.85 * price)", nodes = ["price", "demand", "revenue"], mechanism = "transform_generated_value" }
+expected = { kind = "value", outputs = ["minimum realized price across all draws is at least 10", "every draw satisfies price_after = max(10, 0.85 * price_before) exactly", "share of draws held at the floor matches the independent count"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 9327191, n = 200000, price_location = 3.0, price_scale = 0.4, demand_slope = -0.8, revenue_noise = 0.5, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "price_floor_policy_effects_propagate_downstream"
+area = "intervention_programs"
+workflow = "antecedent.fit_model(...).intervene / sample_interventional"
+configuration = { rows = 200000, policy = "price := max(10, 0.85 * price)", downstream = ["demand", "revenue"], truth = "independent_closed_form_expectation" }
+expected = { kind = "value", outputs = ["downstream demand mean equals the closed form E[intercept + slope * max(10, 0.85 * P)] within Monte Carlo error", "downstream revenue mean matches the same independent computation", "effect against the unintervened mean has the analytic sign and size"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 4768601, n = 200000, price_location = 3.0, price_scale = 0.4, demand_slope = -0.8, revenue_noise = 0.5, truth = "lognormal price truncated below at 10 after scaling by 0.85; expectation by one-dimensional quadrature over the lognormal density, independent of the library", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intervention_expression_arithmetic_and_comparison_truth"
+area = "intervention_programs"
+workflow = "antecedent.fit_model(...).intervene / sample_interventional"
+configuration = { rows = 100000, expressions = ["x := 2 * x + 1", "x := x - z", "flag := x > 0"], truth = "closed_form_gaussian_moments" }
+expected = { kind = "value", outputs = ["transformed mean and variance equal the closed form for an affine map of the generated value", "comparison output is boolean and its rate equals the Gaussian tail probability"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 3696036, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intervention_expression_conditional_branch_selects_per_row"
+area = "intervention_programs"
+workflow = "antecedent.fit_model(...).intervene / sample_interventional"
+configuration = { rows = 100000, expression = "x := if z > 0 then x + 2 else x", branch_variable = "z" }
+expected = { kind = "value", outputs = ["rows with positive z shift by exactly 2", "rows with non-positive z are unchanged", "branch mix matches the sampled z signs row by row"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 3228334, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intervention_expression_clipping_bounds_every_draw"
+area = "intervention_programs"
+workflow = "antecedent.fit_model(...).intervene / sample_interventional"
+configuration = { rows = 100000, expression = "x := clip(x, -1, 1)", bounds = [-1, 1] }
+expected = { kind = "value", outputs = ["no draw lies outside the bounds", "draws inside the bounds are unchanged", "clipped mass equals the independent tail probability"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 1700550, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intervention_expression_transform_differs_from_assignment_replacement"
+area = "intervention_programs"
+workflow = "antecedent.fit_model(...).intervene / sample_interventional"
+configuration = { rows = 100000, transform = "x := x + 1", replacement = "do(x = 1)", downstream = ["y"] }
+expected = { kind = "value", outputs = ["transform keeps the generated value's noise so downstream variance differs from the replacement", "replacement severs incoming edges while transform does not", "both match their analytic downstream moments"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 8275267, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intervention_expression_explicit_variable_reference_reads_current_value"
+area = "intervention_programs"
+workflow = "antecedent.fit_model(...).intervene / sample_interventional"
+configuration = { rows = 100000, expression = "x := 0.5 * z + x", reference = "z", reference_stage = "generated_value" }
+expected = { kind = "value", outputs = ["the reference reads the generated value of z in the same draw", "result equals the independent row-wise recomputation"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 6292378, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intervention_expression_compiled_overlay_matches_interpreted_evaluation"
+area = "intervention_programs"
+workflow = "antecedent.fit_model(...).sample_interventional (batch kernel vs reference interpreter)"
+configuration = { rows = 100000, expressions = ["arithmetic", "comparison", "conditional", "clip"], compare = "batch_kernel_vs_scalar_interpreter" }
+expected = { kind = "value", outputs = ["batch kernel output bit-identical to the scalar interpreter on every row", "same seed gives identical draws"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 5418077, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_circular_dependency_refused"
+area = "policy_validation"
+workflow = "antecedent.fit_model(...).sample_interventional"
+configuration = { policies = ["a := b + 1", "b := a * 2"] }
+expected = { kind = "refusal", outputs = ["names the cycle and the policies in it", "no draws produced"], refusal = "policy circular dependency" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 4180274, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_unavailable_variable_refused"
+area = "policy_validation"
+workflow = "antecedent.fit_model(...).sample_interventional"
+configuration = { policy = "x := w + 1", variable = "w" }
+expected = { kind = "refusal", outputs = ["names the missing variable and the policy"], refusal = "policy unavailable dependency" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 1999893, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_conflicting_directives_refused"
+area = "policy_validation"
+workflow = "antecedent.fit_model(...).sample_interventional"
+configuration = { policies = ["x := x + 1", "x := clip(x, 0, 1)"], composition = "unordered" }
+expected = { kind = "refusal", outputs = ["names both directives and the shared node"], refusal = "policy conflicting directive" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 3252513, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_invalid_output_type_refused"
+area = "policy_validation"
+workflow = "antecedent.fit_model(...).sample_interventional"
+configuration = { policy = "treatment := x * 2", node_type = "categorical" }
+expected = { kind = "refusal", outputs = ["names the node, expected type and expression type"], refusal = "policy output type" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 8142768, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_future_history_read_refused_on_temporal_route"
+area = "policy_validation"
+workflow = "antecedent.analyze (temporal)"
+configuration = { policy = "x[t] := x[t+1]", route = "temporal" }
+expected = { kind = "refusal", outputs = ["names the offending lag reference"], refusal = "policy temporal history unavailable" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 3699781, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_unsupported_execution_route_refused"
+area = "policy_validation"
+workflow = "antecedent.fit_model(...).sample_interventional"
+configuration = { policy = "x := max(10, 0.85 * x)", requested_route = "observational_identification" }
+expected = { kind = "refusal", outputs = ["names the route and the licensed routes"], refusal = "policy route not licensed" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 1965983, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_valid_composition_orders_by_dependency"
+area = "policy_validation"
+workflow = "antecedent.fit_model(...).sample_interventional"
+configuration = { policies = ["a := a + 1", "b := a * 2"], composition = "dependency_ordered" }
+expected = { kind = "value", outputs = ["policies evaluated in dependency order", "result equals sequential application of the two maps"] }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 7091087, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_licenses_simulation_counterfactual_and_identification_separately"
+area = "policy_validation"
+workflow = "antecedent.fit_model(...).policy_support"
+configuration = { policy = "x := max(10, 0.85 * x)", routes = ["simulation", "counterfactual", "observational_identification"] }
+expected = { kind = "value", outputs = ["a separate support decision per route", "each decision cites its reason code", "a route licensed for simulation is not assumed licensed for identification"] }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 5215020, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_batch_matches_equivalent_expression"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).sample_interventional(callback=...)"
+configuration = { rows = 100000, callback = "numpy clip of 0.85 * price at floor 10", declared_inputs = ["price"], output = "float64" }
+expected = { kind = "value", outputs = ["callback result bit-identical to the same policy written as an expression", "callback invoked once per batch, not once per row"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "A batch callback is invoked once per batch, so cost is the callback plus one marshalling pass over the declared input columns." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 1885751, n = 100000, price_location = 3.0, price_scale = 0.4, demand_slope = -0.8, revenue_noise = 0.5, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_wrong_output_length_refused"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).sample_interventional(callback=...)"
+configuration = { rows = 1000, callback_returns_rows = 999 }
+expected = { kind = "refusal", outputs = ["names expected and returned lengths"], refusal = "callback output length" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 7850999, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_non_finite_output_refused"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).sample_interventional(callback=...)"
+configuration = { rows = 1000, callback_returns = "nan" }
+expected = { kind = "refusal", outputs = ["reports the first offending row"], refusal = "callback output non-finite" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 4007062, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_wrong_output_dtype_refused"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).sample_interventional(callback=...)"
+configuration = { rows = 1000, declared_output = "float64", callback_returns = "string" }
+expected = { kind = "refusal", outputs = ["names declared and observed dtype"], refusal = "callback output schema" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 2001332, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_exception_propagates_as_typed_failure"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).sample_interventional(callback=...)"
+configuration = { rows = 1000, callback_raises = "ValueError" }
+expected = { kind = "refusal", outputs = ["failure carries the callback name and original message", "no partial result is returned"], refusal = "callback failed" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 3022533, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_undeclared_input_read_refused"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).sample_interventional(callback=...)"
+configuration = { rows = 1000, declared_inputs = ["price"], callback_reads = "demand" }
+expected = { kind = "refusal", outputs = ["names the undeclared column"], refusal = "callback undeclared input" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 1500505, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_missing_runtime_dependency_refused"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).sample_interventional(callback=...)"
+configuration = { rows = 1000, dependency = "module_not_installed" }
+expected = { kind = "refusal", outputs = ["names the missing dependency and the callback"], refusal = "callback dependency unavailable" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 7918164, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_export_refused_when_implementation_not_recoverable"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).save"
+configuration = { rows = 1000, callback = "lambda defined interactively", export = "portable_artifact" }
+expected = { kind = "refusal", outputs = ["states that the implementation is not recoverable", "runtime binding stays usable in session"], refusal = "callback not portable" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 3873110, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_export_refused_when_dependencies_unverifiable"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).save"
+configuration = { rows = 1000, callback = "importable function", dependency_versions = "unpinned", export = "portable_artifact" }
+expected = { kind = "refusal", outputs = ["names the unverifiable dependency"], refusal = "callback not portable" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 1197540, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "python_callback_portable_export_replays_with_verified_dependencies"
+area = "intervention_callbacks"
+workflow = "antecedent.fit_model(...).save / load / replay"
+configuration = { rows = 10000, callback = "importable pinned function", dependency_versions = "pinned", export = "portable_artifact" }
+expected = { kind = "value", outputs = ["implementation hash and dependency versions recorded in the artifact", "replay in a fresh process reproduces the draws bit-for-bit", "a changed implementation hash refuses replay"] }
+targets = { runtime_seconds = 120, memory_bytes = 1073741824, rationale = "Export hashes the implementation source and dependency set; replay adds one fresh-process load." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 6736828, n = 10000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_semantics_agree_across_sampling_counterfactual_and_temporal_routes"
+area = "policy_integration"
+workflow = "antecedent.fit_model(...).sample_interventional / counterfactual / temporal_response"
+configuration = { rows = 5000, policy = "x := max(1, 0.85 * x)", routes = ["sampling", "counterfactual", "temporal"], tolerance = "bit_identical_on_shared_noise" }
+expected = { kind = "value", outputs = ["applying the policy to identical noise gives identical interventional values on each route", "counterfactual units match the policy applied to inferred noise", "temporal step values equal the static map at each step"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each route runs the same compiled overlay; the cost is the sum of the sampling, counterfactual and temporal runs on a few thousand units." }
+dataset = { generator = "linear_gaussian_panel_known_dynamics", seed = 5251575, n = 5000, steps = 12, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_rust_and_python_share_execution_logic"
+area = "policy_integration"
+workflow = "antecedent facade (Rust) and antecedent.fit_model (Python)"
+configuration = { rows = 5000, policy = "x := clip(x, -1, 1)", compare = "rust_vs_python" }
+expected = { kind = "value", outputs = ["Rust and Python draws bit-identical under the same seed", "identical policy identity in both"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each route runs the same compiled overlay; the cost is the sum of the sampling, counterfactual and temporal runs on a few thousand units." }
+dataset = { generator = "gaussian_chain_known_moments", seed = 7055769, n = 5000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "policy_identity_changes_target_and_contract_identity"
+area = "policy_integration"
+workflow = "antecedent.fit_model(...).sample_interventional"
+configuration = { rows = 2000, policies = ["x := max(10, 0.85 * x)", "x := max(10, 0.9 * x)"] }
+expected = { kind = "value", outputs = ["target identity differs when the expression differs", "contract identity differs when the expression differs", "identical expressions give identical identities"] }
+targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Identity is a hash of the canonical expression and does not depend on row count." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 8442721, n = 2000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "portable_policy_artifact_round_trips"
+area = "portable_artifacts"
+workflow = "antecedent.fit_model(...).save / load"
+configuration = { rows = 10000, policy = "price := max(10, 0.85 * price)", encoding = "versioned_artifact" }
+expected = { kind = "value", outputs = ["loaded policy expression equals the saved expression", "draws after load are bit-identical to draws before save", "artifact carries an encoding version"] }
+targets = { runtime_seconds = 120, memory_bytes = 1073741824, rationale = "Encoding is canonical text of the expression plus the fitted model; load adds one parse and one validation." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 4045294, n = 10000, price_location = 3.0, price_scale = 0.4, demand_slope = -0.8, revenue_noise = 0.5, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "portable_policy_artifact_replay_is_reproducible"
+area = "portable_artifacts"
+workflow = "antecedent.fit_model(...).save / load / replay"
+configuration = { rows = 10000, replays = 3, processes = "fresh" }
+expected = { kind = "value", outputs = ["three replays in separate processes give identical results", "replay identity matches the identity recorded at save"] }
+targets = { runtime_seconds = 180, memory_bytes = 1073741824, rationale = "Three fresh-process loads dominate; each is bounded by artifact decode." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 3999629, n = 10000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "portable_policy_artifact_unknown_encoding_version_refused"
+area = "portable_artifacts"
+workflow = "antecedent.fit_model(...).load"
+configuration = { artifact_encoding_version = "future" }
+expected = { kind = "refusal", outputs = ["names the encoding version and the supported versions"], refusal = "artifact encoding version" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Version check precedes any decode." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 3378747, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "portable_policy_artifact_tampered_expression_refused"
+area = "portable_artifacts"
+workflow = "antecedent.fit_model(...).load"
+configuration = { tamper = "expression_text_edited" }
+expected = { kind = "refusal", outputs = ["identity mismatch reported before replay"], refusal = "artifact identity mismatch" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Identity verification is a hash over the stored expression." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 9061050, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_recovers_quadratic_family"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 4000, node = "y", parents = ["x"], candidates = ["linear", "additive_spline", "random_forest", "gradient_boosted_trees"], truth = "y = 1 + 0.5 x + 0.8 x^2 + noise" }
+expected = { kind = "value", outputs = ["selected family fits the known truth better than linear on held-out score", "held-out scores of all candidates retained and comparable", "selection provenance recorded"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 6040302, n = 4000, family = "quadratic", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_recovers_threshold_family"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 4000, node = "y", parents = ["x"], candidates = ["linear", "additive_spline", "random_forest", "gradient_boosted_trees"], truth = "y = 2 * 1[x > 0.3] + noise" }
+expected = { kind = "value", outputs = ["selected family fits the known truth better than linear on held-out score", "held-out scores of all candidates retained and comparable", "selection provenance recorded"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 6477315, n = 4000, family = "threshold", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_recovers_interaction_family"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 4000, node = "y", parents = ["x1", "x2"], candidates = ["linear", "additive_spline", "random_forest", "gradient_boosted_trees"], truth = "y = x1 * x2 + noise" }
+expected = { kind = "value", outputs = ["selected family fits the known truth better than linear on held-out score", "held-out scores of all candidates retained and comparable", "selection provenance recorded"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 8537223, n = 4000, family = "interaction", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_recovers_sinusoidal_family"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 4000, node = "y", parents = ["x"], candidates = ["linear", "additive_spline", "random_forest", "gradient_boosted_trees"], truth = "y = sin(2 x) + noise" }
+expected = { kind = "value", outputs = ["selected family fits the known truth better than linear on held-out score", "held-out scores of all candidates retained and comparable", "selection provenance recorded"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 7320675, n = 4000, family = "sinusoidal", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_includes_tree_ensembles_as_candidates"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 4000, candidates = ["random_forest", "gradient_boosted_trees"], truth = "piecewise constant in two parents" }
+expected = { kind = "value", outputs = ["tree ensemble selected on piecewise-constant truth", "held-out error close to the noise floor", "each ensemble defines a full conditional sampling distribution"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 6048820, n = 4000, family = "threshold", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_linear_truth_keeps_linear_family"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 4000, candidates = ["linear", "additive_spline", "random_forest", "gradient_boosted_trees"], truth = "y = 1 + 2 x + noise" }
+expected = { kind = "value", outputs = ["linear family selected or tied within the declared tolerance", "no complexity chosen without held-out gain"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 2331947, n = 4000, family = "linear", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_binary_node_selects_classifier"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 4000, node = "t", candidates = ["logistic", "tree_ensemble_classifier"], truth = "logit P(t=1) = x^2 - 1" }
+expected = { kind = "value", outputs = ["classification family selected on held-out log loss", "conditional sampling distribution is Bernoulli with the fitted probability"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 4321846, n = 4000, family = "quadratic_logit", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_retains_failed_candidates_and_provenance"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 4000, candidates = ["linear", "random_forest", "candidate_that_fails_to_fit"] }
+expected = { kind = "value", outputs = ["failed candidate listed with its reason", "selection provenance names splits, scores and chosen family"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 1948424, n = 4000, family = "quadratic", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_per_node_constraints_restrict_candidates"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 4000, constraints = { y = ["linear", "additive_spline"] }, candidates = ["linear", "additive_spline", "random_forest"] }
+expected = { kind = "value", outputs = ["only permitted families are scored for the constrained node", "other nodes use the full candidate set"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 8827312, n = 4000, family = "quadratic", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_time_series_uses_dependency_aware_splits"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(..., candidates=...)"
+configuration = { rows = 3000, splits = "blocked_forward_chaining", dependence = "ar1_noise_0.7" }
+expected = { kind = "value", outputs = ["no validation row precedes a training row", "score not inflated relative to blocked splits on an independent replicate"] }
+targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
+dataset = { generator = "autocorrelated_nonlinear_known_truth", seed = 9299046, n = 3000, ar_coefficient = 0.7, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "mechanism_selection_unsupported_operation_refused_for_family"
+area = "mechanism_selection"
+workflow = "antecedent.fit_model(...).counterfactual"
+configuration = { family = "family_without_noise_inference", operation = "counterfactual" }
+expected = { kind = "refusal", outputs = ["names the family and the unsupported operation", "likelihood and sampling remain available where declared"], refusal = "mechanism operation unsupported" }
+targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Capability lookup is a registry read." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 3465696, n = 2000, family = "quadratic", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "graph_falsification_rejects_misspecified_graph"
+area = "graph_falsification"
+workflow = "antecedent.evaluate_graph(graph, data)"
+configuration = { rows = 3000, graph = "chain with a missing edge", permutations = 500, independence_test = "partial_correlation" }
+expected = { kind = "value", outputs = ["outcome rejected", "violation count exceeds the permutation reference", "test evidence and seed reported"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 1533665, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "graph_falsification_does_not_reject_correct_graph"
+area = "graph_falsification"
+workflow = "antecedent.evaluate_graph(graph, data)"
+configuration = { rows = 3000, graph = "true DAG", permutations = 500, independence_test = "partial_correlation" }
+expected = { kind = "value", outputs = ["outcome not rejected", "violation count within the permutation reference", "seeds and budgets reported"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 9135698, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "graph_falsification_complete_graph_is_uninformative"
+area = "graph_falsification"
+workflow = "antecedent.evaluate_graph(graph, data)"
+configuration = { rows = 3000, graph = "complete DAG", permutations = 500 }
+expected = { kind = "value", outputs = ["outcome uninformative", "reports no testable local Markov implication", "equivalence class has no distinguishing permutation"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 4231852, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "graph_falsification_budget_limited_is_incomplete"
+area = "graph_falsification"
+workflow = "antecedent.evaluate_graph(graph, data)"
+configuration = { rows = 3000, graph = "true DAG", permutations = 500, test_budget = 5 }
+expected = { kind = "value", outputs = ["outcome incomplete", "tests run and tests skipped by the budget reported", "no rejected or not-rejected claim"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 1575800, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "graph_falsification_nonlinear_independence_test_detects_nonlinear_violation"
+area = "graph_falsification"
+workflow = "antecedent.evaluate_graph(graph, data)"
+configuration = { rows = 3000, graph = "edge omitted between nonlinearly dependent nodes", independence_test = "kernel_conditional_independence", permutations = 300 }
+expected = { kind = "value", outputs = ["outcome rejected under the nonlinear test", "the linear partial correlation test misses the violation"] }
+targets = { runtime_seconds = 600, memory_bytes = 2147483648, rationale = "A kernel conditional independence test is quadratic in rows per test; 3,000 rows with a dozen tests fits ten minutes." }
+dataset = { generator = "nonlinear_dag_known_structure", seed = 7580249, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "graph_falsification_requires_no_fitted_mechanisms"
+area = "graph_falsification"
+workflow = "antecedent.evaluate_graph(graph, data)"
+configuration = { rows = 3000, fitted_model = "absent" }
+expected = { kind = "value", outputs = ["runs from graph and data alone", "distinct from the shuffled-outcome likelihood diagnostic"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3334013, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "graph_falsification_reports_seeds_budgets_and_limitations"
+area = "graph_falsification"
+workflow = "antecedent.evaluate_graph(graph, data)"
+configuration = { rows = 3000, permutations = 500 }
+expected = { kind = "value", outputs = ["seed, permutation count and test budget reported", "limitations listed with the outcome"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2370677, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "noise_replay_reproduces_draws_from_retained_noise"
+area = "noise_replay"
+workflow = "antecedent.fit_model(...).replay_noise"
+configuration = { rows = 100000, retain = "all_coordinates" }
+expected = { kind = "value", outputs = ["replayed draws bit-identical to the original draws", "same seed gives the same noise"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Replay reuses one execution context and one noise matrix; cost is a pass of the compiled kernel per draw over the retained noise." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 9124254, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "noise_replay_selectively_fixes_coordinates"
+area = "noise_replay"
+workflow = "antecedent.fit_model(...).replay_noise"
+configuration = { rows = 100000, fixed = ["u_a"], randomized = ["u_b", "u_c"] }
+expected = { kind = "value", outputs = ["fixed coordinate identical across draws", "randomized coordinates vary", "variance matches the closed form conditional on u_a"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Replay reuses one execution context and one noise matrix; cost is a pass of the compiled kernel per draw over the retained noise." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 6828091, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "noise_replay_does_not_clone_model_per_draw_or_coalition"
+area = "noise_replay"
+workflow = "antecedent.fit_model(...).replay_noise"
+configuration = { rows = 100000, coalitions = 512 }
+expected = { kind = "value", outputs = ["one model instance across all coalitions", "allocation count independent of coalition count"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Replay reuses one execution context and one noise matrix; cost is a pass of the compiled kernel per draw over the retained noise." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3114643, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "noise_replay_cancellation_returns_partial_result"
+area = "noise_replay"
+workflow = "antecedent.fit_model(...).replay_noise"
+configuration = { rows = 1000000, cancel_after_fraction = 0.5 }
+expected = { kind = "value", outputs = ["partial result flagged cancelled", "draws completed are exact"] }
+targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Cancellation is checked per batch." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2204453, n = 1000000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "noise_replay_memory_budget_refused"
+area = "noise_replay"
+workflow = "antecedent.fit_model(...).replay_noise"
+configuration = { rows = 10000000, memory_limit_bytes = 67108864 }
+expected = { kind = "refusal", outputs = ["reports required and permitted bytes"], refusal = "noise replay memory budget" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "The budget check precedes allocation." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 6152034, n = 10000000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "noise_replay_counterfactual_noise_inference_disclosures_preserved"
+area = "noise_replay"
+workflow = "antecedent.fit_model(...).replay_noise"
+configuration = { rows = 10000, mechanism = "family_with_approximate_noise_inference" }
+expected = { kind = "value", outputs = ["noise inference disclosure carried into the replay result"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Replay reuses one execution context and one noise matrix; cost is a pass of the compiled kernel per draw over the retained noise." }
+dataset = { generator = "nonlinear_mechanism_known_truth", seed = 1321437, n = 10000, family = "quadratic", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intrinsic_influence_matches_analytic_linear_variance_contributions"
+area = "intrinsic_influence"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 200000, model = "y = 2 a + 3 b + c", noise_sd = [1, 0.5, 2], players = ["u_a", "u_b", "u_c"] }
+expected = { kind = "value", outputs = ["each contribution within Monte Carlo error of coefficient^2 * noise variance", "total contribution equals the analytic target variance"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Exact Shapley over a handful of noise players needs 2^k coalitions each with one conditional-expectation estimate." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 5630873, n = 200000, truth = "y = 2 a + 3 b + c with independent Gaussian noise; contribution_j = (sum of path weights from u_j)^2 * Var(u_j)", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intrinsic_influence_shapley_efficiency_identity_holds"
+area = "intrinsic_influence"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 200000, players = 4 }
+expected = { kind = "value", outputs = ["contributions sum to Var(Y) minus the allocation residual", "residual within the stated inner-simulation error"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Exact Shapley over a handful of noise players needs 2^k coalitions each with one conditional-expectation estimate." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 6921234, n = 200000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intrinsic_influence_players_are_upstream_noise_and_own_noise"
+area = "intrinsic_influence"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 100000, target = "c" }
+expected = { kind = "value", outputs = ["players are exactly the upstream noise terms and the target's own noise", "downstream noise terms absent"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Exact Shapley over a handful of noise players needs 2^k coalitions each with one conditional-expectation estimate." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 7323753, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intrinsic_influence_nonlinear_model_matches_numerical_integration"
+area = "intrinsic_influence"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 200000, model = "y = a^2 + b" }
+expected = { kind = "value", outputs = ["contributions match independent quadrature of Var(E[Y | U_S])", "efficiency identity holds"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Nonlinear conditional expectations need an inner simulation per coalition." }
+dataset = { generator = "nonlinear_dag_known_structure", seed = 2582670, n = 200000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intrinsic_influence_refuses_correlated_noise"
+area = "intrinsic_influence"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 10000, noise_correlation = 0.5 }
+expected = { kind = "refusal", outputs = ["names the correlated noise pair"], refusal = "intrinsic influence correlated noise" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "The check is a static model property." }
+dataset = { generator = "correlated_noise_model", seed = 4401104, n = 10000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intrinsic_influence_refuses_latent_confounding"
+area = "intrinsic_influence"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 10000, latent_confounder = true }
+expected = { kind = "refusal", outputs = ["names the confounded pair"], refusal = "intrinsic influence latent confounding" }
+targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "The check is a static graph property." }
+dataset = { generator = "latent_confounded_model", seed = 8747869, n = 10000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "intrinsic_influence_reuses_coalition_cache"
+area = "intrinsic_influence"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 100000, players = 6, permutations = 200 }
+expected = { kind = "value", outputs = ["distinct coalitions evaluated at most once", "cache hit count reported"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Exact Shapley over a handful of noise players needs 2^k coalitions each with one conditional-expectation estimate." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3479947, n = 100000, truth = "five-parent linear target", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "attribution_uncertainty_reports_contributions_total_variance_and_residual"
+area = "attribution_uncertainty"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 100000, players = 4 }
+expected = { kind = "value", outputs = ["per-source contributions", "total target variance", "allocation residual", "method and compute budget"] }
+targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 1446889, n = 100000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "attribution_uncertainty_separates_permutation_and_inner_simulation_error"
+area = "attribution_uncertainty"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 100000, players = 6, permutations = 100 }
+expected = { kind = "value", outputs = ["permutation error and inner simulation error reported separately", "each shrinks with its own budget while the other is held fixed"] }
+targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 9271049, n = 100000, truth = "five-parent linear target", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "attribution_uncertainty_marks_mechanism_fitting_uncertainty_unquantified"
+area = "attribution_uncertainty"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 5000, fitted_mechanisms = true }
+expected = { kind = "value", outputs = ["mechanism fitting uncertainty marked not quantified", "no total-uncertainty claim made"] }
+targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3691105, n = 5000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "attribution_uncertainty_permutation_only_interval_not_labelled_total"
+area = "attribution_uncertainty"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 100000, interval = "permutation_only" }
+expected = { kind = "value", outputs = ["interval labelled as permutation error only", "total uncertainty field left unquantified"] }
+targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2673392, n = 100000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "attribution_uncertainty_exact_enumeration_has_zero_permutation_error"
+area = "attribution_uncertainty"
+workflow = "antecedent.fit_model(...).attribute(query=IntrinsicCausalInfluence)"
+configuration = { rows = 100000, players = 4, method = "exact" }
+expected = { kind = "value", outputs = ["permutation error reported as exactly zero", "inner simulation error still reported"] }
+targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3192000, n = 100000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "fitted_model_exposes_expression_intervention_mechanism_selection_and_influence"
+area = "public_workflows"
+workflow = "antecedent.fit_model(...)"
+configuration = { rows = 5000, methods = ["sample_interventional", "fit(candidates=...)", "attribute(IntrinsicCausalInfluence)", "replay_noise"] }
+expected = { kind = "value", outputs = ["each capability reachable from the fitted-model handle", "results identical to the underlying shared Rust execution"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each workflow runs once on a few thousand rows through the shared Rust path." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 5286255, n = 5000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "prepared_study_and_analysis_support_policy_workflows"
+area = "public_workflows"
+workflow = "antecedent.prepare / PreparedAnalysis"
+configuration = { rows = 5000, policy = "x := max(1, 0.85 * x)" }
+expected = { kind = "value", outputs = ["prepared handle reruns the policy workflow without recompiling", "support decision, contract and provenance reported", "result equals the one-shot result"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each workflow runs once on a few thousand rows through the shared Rust path." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 6512894, n = 5000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "new_capabilities_record_reason_codes_and_provenance"
+area = "public_workflows"
+workflow = "antecedent.fit_model(...)"
+configuration = { workflows = ["policy", "callback", "mechanism_selection", "graph_falsification", "intrinsic_influence"] }
+expected = { kind = "value", outputs = ["each refusal carries a registered reason code", "each result names its provenance record"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each workflow runs once on a few thousand rows through the shared Rust path." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 4100773, n = 2000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "older_artifacts_load_after_new_capabilities_added"
+area = "public_workflows"
+workflow = "antecedent.load"
+configuration = { artifact = "saved before the new capabilities" }
+expected = { kind = "value", outputs = ["older artifact loads and replays", "results unchanged"] }
+targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Loading is a decode plus the replay identity check." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2366583, n = 2000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "batch_policy_sampling_meets_hot_path_requirements"
+area = "performance_conformance"
+workflow = "antecedent.fit_model(...).sample_interventional (batch)"
+configuration = { rows = 1000000, policy = "x := max(10, 0.85 * x)", baseline = "benches/baselines/sample_overlay.md", hot_path = "GCM interventional sample", max_regression = 1.1 }
+expected = { kind = "value", outputs = ["throughput within 10 percent of the recorded interventional-sample baseline", "workspace reuse asserted: no growth after warm-up"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "The designated hot path allows no more than the recorded baseline plus a ten percent noise margin." }
+dataset = { generator = "pricing_chain_lognormal_price", seed = 4691094, n = 1000000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "batch_noise_replay_meets_hot_path_requirements"
+area = "performance_conformance"
+workflow = "antecedent.fit_model(...).replay_noise"
+configuration = { coalitions = 4096, baseline = "benches/baselines/shapley.md", hot_path = "Shapley attribution", max_regression = 1.1 }
+expected = { kind = "value", outputs = ["coalition throughput within 10 percent of the recorded attribution baseline", "one execution context across coalitions"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Coalition replay must not cost more than the recorded attribution baseline." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2929415, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "batch_counterfactual_with_policy_meets_hot_path_requirements"
+area = "performance_conformance"
+workflow = "antecedent.fit_model(...).counterfactual (batch)"
+configuration = { rows = 1000000, baseline = "benches/baselines/counterfactual_batch.md", hot_path = "Linear-Gaussian counterfactual", max_regression = 1.1 }
+expected = { kind = "value", outputs = ["throughput within 10 percent of the recorded counterfactual baseline", "streaming result identical to retained"] }
+targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "The designated hot path allows the recorded baseline plus a ten percent margin." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3076196, n = 1000000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "dowhy_interventional_mean_matches_pinned_version"
+area = "dowhy_comparison"
+workflow = "docs conformance: pinned DoWhy comparison"
+configuration = { rows = 5000, dowhy_version = "pinned", quantity = "interventional mean under do(x = 1)", tolerance = "Monte Carlo error" }
+expected = { kind = "value", outputs = ["both libraries agree within Monte Carlo error", "pinned version recorded in the docs page"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Each comparison runs one fitted model in each library at a pinned version on a few thousand rows." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 9766501, n = 5000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "dowhy_counterfactual_matches_pinned_version"
+area = "dowhy_comparison"
+workflow = "docs conformance: pinned DoWhy comparison"
+configuration = { rows = 5000, dowhy_version = "pinned", quantity = "unit counterfactual outcome" }
+expected = { kind = "value", outputs = ["unit counterfactuals agree to numerical tolerance for additive noise models"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Each comparison runs one fitted model in each library at a pinned version on a few thousand rows." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 6804289, n = 5000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "dowhy_intrinsic_influence_matches_pinned_version"
+area = "dowhy_comparison"
+workflow = "docs conformance: pinned DoWhy comparison"
+configuration = { rows = 5000, dowhy_version = "pinned", quantity = "intrinsic causal influence" }
+expected = { kind = "value", outputs = ["per-source contributions agree within Monte Carlo error"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Each comparison runs one fitted model in each library at a pinned version on a few thousand rows." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 7000055, n = 5000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "dowhy_graph_falsification_matches_pinned_version"
+area = "dowhy_comparison"
+workflow = "docs conformance: pinned DoWhy comparison"
+configuration = { rows = 5000, dowhy_version = "pinned", quantity = "graph permutation falsification outcome" }
+expected = { kind = "value", outputs = ["same rejected or not-rejected outcome on correct and misspecified graphs"] }
+targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Each comparison runs one fitted model in each library at a pinned version on a few thousand rows." }
+dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2738613, n = 5000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "dowhy_comparison_pages_state_semantic_differences"
+area = "dowhy_comparison"
+workflow = "docs conformance: pinned DoWhy comparison"
+configuration = { pages = ["interventions", "mechanism_selection", "attribution"], dowhy_version = "pinned" }
+expected = { kind = "receipt", outputs = ["each page names overlapping semantics and where the libraries differ", "executable examples run in Rust and Python"] }
+targets = { runtime_seconds = 600, memory_bytes = 2147483648, rationale = "Docs examples execute once in CI." }
+dataset = { generator = "documentation_examples", seed = 9507423, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
+
+[[case]]
+id = "conformance_gates_cover_every_new_capability"
+area = "release_conformance"
+workflow = "release candidate gates"
+configuration = { scope = "policy, callback, mechanism selection, graph falsification, noise replay, intrinsic influence" }
+expected = { kind = "receipt", outputs = ["each capability has a bound conformance test", "parity inventories and provenance updated only for demonstrated capabilities"] }
+targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
+dataset = { generator = "release_candidate", seed = 2056149, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
+evidence = { status = "planned" }
