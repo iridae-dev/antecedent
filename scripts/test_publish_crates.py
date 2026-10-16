@@ -4,9 +4,12 @@ import json
 import os
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import set_version
 from _repo import workspace_package_version
 
 VERSION = workspace_package_version()
@@ -38,9 +41,7 @@ class PublishVersionTests(unittest.TestCase):
                 "version": VERSION,
                 "dependencies": [
                     {
-                        "name": "antecedent-consumer"
-                        if self_dependency
-                        else "antecedent-core",
+                        "name": "antecedent-consumer" if self_dependency else "antecedent-core",
                         "req": requirement,
                         "kind": kind,
                     }
@@ -83,9 +84,7 @@ class PublishVersionTests(unittest.TestCase):
             if separate_source:
                 source = Path(directory) / "release-source"
                 source.mkdir()
-                (source / "Cargo.toml").write_text(
-                    f'[workspace.package]\nversion = "{VERSION}"\n'
-                )
+                (source / "Cargo.toml").write_text(f'[workspace.package]\nversion = "{VERSION}"\n')
                 env["PUBLISH_TEST_SOURCE"] = str(source)
                 arguments += ["--source", str(source), "--allow-dirty"]
             if mode == "--execute":
@@ -134,9 +133,7 @@ class PublishVersionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_versioned_self_dev_dependency_refuses_before_any_packaging(self) -> None:
-        result = self.run_gate(
-            f"^{VERSION}", "dev", self_version=VERSION, self_dependency=True
-        )
+        result = self.run_gate(f"^{VERSION}", "dev", self_version=VERSION, self_dependency=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("versioned self dev dependency must be path-only", result.stderr)
         self.assertNotIn("TEST_PACKAGE_VERIFIED", result.stdout)
@@ -175,9 +172,7 @@ class PublishVersionTests(unittest.TestCase):
     def test_wildcard_private_dev_dependency_is_still_versioned(self) -> None:
         result = self.run_gate("*", "dev", private_dependency=True, self_version="*")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn(
-            "versioned unpublished dev dependency must be path-only", result.stderr
-        )
+        self.assertIn("versioned unpublished dev dependency must be path-only", result.stderr)
         self.assertNotIn("TEST_PACKAGE_VERIFIED", result.stdout)
 
     def test_execute_skips_published_crates_and_verifies_missing_crate(self) -> None:
@@ -197,6 +192,39 @@ class PublishVersionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("published=1 skipped=1", result.stdout)
         self.assertIn("--allow-dirty", result.stdout)
+
+
+class ReleaseVersionBumpTests(unittest.TestCase):
+    def test_next_release_updates_workspace_pins_and_keeps_private_helper_path_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Cargo.toml").write_text(
+                '[workspace.package]\nversion = "9.8.7"\n'
+                "[workspace.dependencies]\n"
+                'antecedent-core = { version = "9.8.7", path = "crates/antecedent-core" }\n'
+                'antecedent-test-support = { path = "crates/antecedent-test-support" }\n'
+            )
+            (root / "python/antecedent").mkdir(parents=True)
+            (root / "python/pyproject.toml").write_text('[project]\nversion = "9.8.7"\n')
+            (root / "python/antecedent/__init__.py").write_text(
+                "from ._native import __version__ as __version__\n"
+            )
+            with (
+                patch.object(set_version, "ROOT", root),
+                patch.object(set_version, "apply_release_snippets"),
+                patch.object(set_version.subprocess, "check_call"),
+            ):
+                set_version.main(["set_version.py", "9.8.8", "0"])
+            manifest = tomllib.loads((root / "Cargo.toml").read_text())
+            self.assertEqual(manifest["workspace"]["package"]["version"], "9.8.8")
+            self.assertEqual(
+                manifest["workspace"]["dependencies"]["antecedent-core"]["version"],
+                "9.8.8",
+            )
+            self.assertEqual(
+                manifest["workspace"]["dependencies"]["antecedent-test-support"],
+                {"path": "crates/antecedent-test-support"},
+            )
 
 
 if __name__ == "__main__":
