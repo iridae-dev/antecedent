@@ -34,12 +34,13 @@ use super::{
     measured_inference_api, measurement_model_api, mechanism_composition_api,
     mechanism_discrepancy_api, msm_sensitivity_api, multi_level_treatment_api, nested_bayesian_api,
     nested_fisher_api, nonlinear_mediation_api, observation_api, observation_query_api,
-    observational_interference_api, policy_api, predictive_assessment_api, preflight_api,
-    prepared_api, prior_bank, prior_signal_api, program_claims_api, proposal_arrival_api,
-    provider_api, provider_callbacks_api, quasi_api, recalc_adjusted_api, recalc_api,
-    recalc_bayesian_api, recalc_cell_api, recalc_composite_api, recalc_design_api, recalc_dr_api,
-    recalc_external_api, recalc_static_api, recalc_temporal_api, recovery_api, recovery_chain_api,
-    regimes_api, repair_api, response_api, scenario_invariance_api, scientific_bridge_api,
+    observational_interference_api, observational_policy_api, observational_survival_api,
+    policy_api, predictive_assessment_api, preflight_api, prepared_api, prior_bank,
+    prior_signal_api, program_claims_api, proposal_arrival_api, provider_api,
+    provider_callbacks_api, quasi_api, recalc_adjusted_api, recalc_api, recalc_bayesian_api,
+    recalc_cell_api, recalc_composite_api, recalc_design_api, recalc_dr_api, recalc_external_api,
+    recalc_static_api, recalc_temporal_api, recovery_api, recovery_chain_api, regimes_api,
+    repair_api, response_api, scenario_invariance_api, scientific_bridge_api,
     selective_discovery_api, sensitivity_decision_api, sensitivity_source_api,
     set_not_identified_error_class, set_review_error_class, set_unsupported_error_class,
     set_value_error_class, smoothed_dose_api, source_evidence_api, source_projection_api,
@@ -139,6 +140,8 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     vector_treatment_api::register(m)?;
     categorical_treatment_api::register(m)?;
     multi_level_treatment_api::register(m)?;
+    observational_survival_api::register(m)?;
+    observational_policy_api::register(m)?;
     compact_export_api::register(m)?;
     cohort_decision_api::register(m)?;
     nonlinear_mediation_api::register(m)?;

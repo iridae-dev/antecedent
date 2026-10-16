@@ -418,6 +418,23 @@ run_learned_joint learned_degree2_gaussian_two_independent_intercepts_l95
 run_learned_joint learned_degree2_gaussian_two_shared_intercepts_l95
 run_learned_joint learned_degree2_gaussian_two_varying_covariates_l95
 
+run_observational_effects() {
+  local name="$1"
+  check "observational_effects_calibration: ${name}" cargo test --release -p antecedent-estimate --test observational_effects_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== observational survival and policy-value standard errors (wired, unmeasured) =="
+run_observational_effects survival_difference_covariate_censoring_n1000_l95
+run_observational_effects survival_difference_covariate_censoring_n3000_l95
+run_observational_effects rmst_difference_covariate_censoring_n1000_l95
+run_observational_effects rmst_difference_covariate_censoring_n3000_l95
+run_observational_effects survival_difference_independent_censoring_n1000_l95
+run_observational_effects survival_difference_independent_censoring_n3000_l95
+run_observational_effects policy_prespecified_n1000_l95
+run_observational_effects policy_prespecified_n3000_l95
+run_observational_effects policy_held_out_n1000_l95
+run_observational_effects policy_held_out_n3000_l95
+run_observational_effects policy_cross_fitted_learning_n3000_l95
+
 run_adaptive_inference() {
   local name="$1"
   check "adaptive_inference_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test adaptive_inference_calibration "$name" -- --ignored --exact --nocapture

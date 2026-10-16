@@ -1,0 +1,32 @@
+feature_id = "estimate.observational_survival_effect"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Inference for treatment-specific survival curves using machine learning", doi = "10.1080/01621459.2023.2205060", sections = ["efficient influence function of the treatment-specific survival probability under coarsening at random", "one-step and cross-fitted estimators"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters", doi = "10.1111/ectj.12097", sections = ["cross-fitting of Neyman-orthogonal scores"] },
+ { title = "Semiparametric Efficiency in Multivariate Regression Models with Missing Data", doi = "10.1080/01621459.1995.10476494", sections = ["augmented inverse-probability-of-censoring weighted estimating functions"] },
+]
+
+# Derived from the efficient influence function of the treatment-specific survival probability
+# and, by integrating it over time, of the restricted mean survival time; NOT the exact
+# estimator analyzed in either paper. The scores are written in closed form for Breslow-type
+# step baseline hazards and averaged after cross-fitting.
+implementation_deviations = [
+ "Nuisances are a multinomial-logit propensity, a Cox proportional-hazards event model with a Breslow baseline per arm, and a Cox (at-random censoring) or Nelson-Aalen (independent censoring) censoring model per arm on the same declared covariates, not the flexible learners the analysis admits; double robustness needs one side correct, and a misspecified Cox model on both sides carries no guarantee.",
+ "Cross-fitting uses a fixed number of folds from a seeded fold plan stratified by treatment arm; there is no repeated cross-fitting or estimator aggregation.",
+ "Hazards are Breslow step functions, so the score integrals are exact sums over the event times of the training fold, with the censoring survival left-continuous (G(u-)) at event times; tied event and censoring times follow the convention that events precede censoring.",
+ "Positivity is enforced by refusal, not truncation: a propensity below the declared floor, a probability of remaining uncensored through the horizon below the declared floor, or a horizon beyond an arm's follow-up refuses instead of clipping a weight.",
+ "The reported standard error is the iid influence-function standard deviation of the cross-fitted scores. It is not an efficiency-bound variance estimator and carries no calibrated coverage claim; interval claims stay closed until a coverage record exists.",
+ "No delayed entry, competing risks, time-varying covariates, or informative censoring; each would change the identifying assumptions.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/observational_survival_effects.rs (exponential event times with a proportional-hazards treatment effect and six confounder cells: closed-form survival probability and restricted mean survival time per arm, independent of the estimator)",
+ "python/tests/test_observational_survival.py (the same closed form through the Python surface)",
+]

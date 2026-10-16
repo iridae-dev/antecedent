@@ -260,3 +260,9 @@ arm, consistency, and no interference. The implementation requires both arms
 to have observed follow-up through `tau`. Delayed entry uses the same explicit
 `IndependentGiven(())` contract and `(entry, duration]` risk-set rule above;
 cause misclassification and covariate-adjusted censoring are unsupported.
+
+## Observational treatments
+
+The routes above assume the treatment was randomized. For an observed treatment, with a
+declared horizon, a declared censoring assumption and a declared adjustment set, see
+[Observational survival effects](guides/observational-survival.md).

@@ -19,3 +19,6 @@ standard error or calibrated interval is claimed.
 This API evaluates a precomputed policy and does not train it. Identification
 requires the declared randomized assignment, consistency and no interference.
 It does not create a support-matrix license.
+
+For observational data, where the propensities are unknown and the policy may have been
+learned from the same rows, see [Observational policy value](guides/observational-policy-value.md).

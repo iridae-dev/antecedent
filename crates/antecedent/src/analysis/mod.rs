@@ -101,6 +101,8 @@ pub mod nonlinear_mediation;
 pub mod observation_evidence;
 pub mod observation_posterior;
 pub mod observation_query;
+pub mod observational_policy;
+pub mod observational_survival;
 pub mod per_population_discovery;
 pub mod predictive_assessment;
 mod preflight;

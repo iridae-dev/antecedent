@@ -30,7 +30,7 @@ pub mod m_estimate;
 pub mod matching;
 pub mod measurement_error;
 pub mod observation;
-pub use cox_ipcw::{CoxIpcwFit, cox_ipcw};
+pub use cox_ipcw::{CoxBreslowFit, CoxIpcwFit, cox_breslow, cox_ipcw};
 pub mod propensity;
 pub mod quantile;
 pub mod regularized;

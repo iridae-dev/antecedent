@@ -57,6 +57,11 @@ nav:
     - Tier-aware overlap and E-value diagnostics: guides/tier-diagnostics.md
     - Penalized propensity for AIPW: guides/penalized-aipw.md
     - Treatment levels and multi-level treatments: guides/treatment-levels.md
+    - Sampling weights: guides/sampling-weights.md
+    - Clusters for propensity weighting, stratification and the forest: guides/cluster-inference.md
+    - Observational survival effects: guides/observational-survival.md
+    - Observational policy value: guides/observational-policy-value.md
+    - Missing data: guides/missing-data.md
     - Joint cells and derived treatments: guides/joint-cells.md
     - Clustered DML and entity-owned screens: guides/clustered-dml.md
     - Preflight diagnostics and cost: guides/preflight-diagnostics.md

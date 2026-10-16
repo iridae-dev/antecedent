@@ -107,6 +107,8 @@ mod nonlinear_mediation_api;
 mod observation_api;
 mod observation_query_api;
 mod observational_interference_api;
+mod observational_policy_api;
+mod observational_survival_api;
 mod policy_api;
 mod predictive_assessment_api;
 mod preflight_api;

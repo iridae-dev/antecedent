@@ -349,6 +349,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "model",
         "multi_level_treatment",
         "observation",
+        "observational_policy",
+        "observational_survival",
         "policy",
         "preflight",
         "regimes",

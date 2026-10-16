@@ -3193,92 +3193,92 @@ evidence = { status = "planned" }
 [[case]]
 id = "observational_survival_effect_calibrated_1000"
 area = "survival_policy"
-workflow = "antecedent.survival.SurvivalOutcome"
+workflow = "observational_survival.survival_effect"
 configuration = { participants = 1000, horizon = "declared", censoring = "independent_given_covariates" }
 expected = { kind = "calibrated_interval", outputs = ["survival effect at declared horizon", "censoring assumption stated"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Survival and policy estimators are weighted regressions or influence-function means. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "confounded_survival_study", seed = 7314357, n = 1000, horizon = 2.0, censoring_rate = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/observational_effects_calibration.rs::survival_difference_covariate_censoring_n1000_l95" }
 
 [[case]]
 id = "observational_survival_effect_calibrated_3000"
 area = "survival_policy"
-workflow = "antecedent.survival.SurvivalOutcome"
+workflow = "observational_survival.survival_effect"
 configuration = { participants = 3000, horizon = "declared", censoring = "independent_given_covariates" }
 expected = { kind = "calibrated_interval", outputs = ["survival effect at declared horizon", "censoring assumption stated"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Survival and policy estimators are weighted regressions or influence-function means. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "confounded_survival_study", seed = 2336254, n = 3000, horizon = 2.0, censoring_rate = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/observational_effects_calibration.rs::survival_difference_covariate_censoring_n3000_l95" }
 
 [[case]]
 id = "observational_survival_missing_horizon_refused"
 area = "survival_policy"
-workflow = "antecedent.survival.SurvivalOutcome"
+workflow = "observational_survival.survival_effect"
 configuration = { horizon = "absent" }
 expected = { kind = "refusal", outputs = ["horizon required"], refusal = "survival horizon" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Survival and policy estimators are weighted regressions or influence-function means." }
 dataset = { generator = "confounded_survival_study", seed = 2800566, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/observational_survival_policy_routes.rs::a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separately" }
 
 [[case]]
 id = "observational_survival_informative_censoring_undeclared_refused"
 area = "survival_policy"
-workflow = "antecedent.survival.SurvivalOutcome"
+workflow = "observational_survival.survival_effect"
 configuration = { censoring_assumption = "absent" }
 expected = { kind = "refusal", outputs = ["censoring assumption required"], refusal = "censoring assumption" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Survival and policy estimators are weighted regressions or influence-function means." }
 dataset = { generator = "confounded_survival_study", seed = 6644649, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/observational_survival_policy_routes.rs::a_missing_horizon_and_an_undeclared_censoring_assumption_are_refused_separately" }
 
 [[case]]
 id = "observational_policy_value_calibrated_1000"
 area = "survival_policy"
-workflow = "antecedent.policy.PolicyValue"
+workflow = "observational_policy.policy_value"
 configuration = { participants = 1000, treatment_support = "declared", evaluation = "independent_holdout" }
 expected = { kind = "calibrated_interval", outputs = ["policy value with interval", "declared treatment support", "independent evaluation"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Survival and policy estimators are weighted regressions or influence-function means. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "confounded_policy_study", seed = 8080242, n = 1000, policy = "threshold", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/observational_effects_calibration.rs::policy_held_out_n1000_l95" }
 
 [[case]]
 id = "observational_policy_value_calibrated_3000"
 area = "survival_policy"
-workflow = "antecedent.policy.PolicyValue"
+workflow = "observational_policy.policy_value"
 configuration = { participants = 3000, treatment_support = "declared", evaluation = "independent_holdout" }
 expected = { kind = "calibrated_interval", outputs = ["policy value with interval", "declared treatment support", "independent evaluation"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Survival and policy estimators are weighted regressions or influence-function means. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "confounded_policy_study", seed = 3138745, n = 3000, policy = "threshold", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/observational_effects_calibration.rs::policy_held_out_n3000_l95" }
 
 [[case]]
 id = "observational_policy_value_selection_aware_evaluation"
 area = "survival_policy"
-workflow = "antecedent.policy.PolicyValue"
+workflow = "observational_policy.policy_value"
 configuration = { participants = 3000, evaluation = "selection_aware" }
 expected = { kind = "calibrated_interval", outputs = ["selection-aware interval for a data-selected policy"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Survival and policy estimators are weighted regressions or influence-function means. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "confounded_policy_study", seed = 5855373, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/observational_effects_calibration.rs::policy_cross_fitted_learning_n3000_l95" }
 
 [[case]]
 id = "observational_policy_value_support_violation_refused"
 area = "survival_policy"
-workflow = "antecedent.policy.PolicyValue"
+workflow = "observational_policy.policy_value"
 configuration = { policy_actions_outside_support = true }
 expected = { kind = "refusal", outputs = ["names the unsupported action"], refusal = "treatment support" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Survival and policy estimators are weighted regressions or influence-function means." }
 dataset = { generator = "confounded_policy_study", seed = 8661913, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/observational_survival_policy_routes.rs::reusing_the_evaluation_rows_to_learn_the_policy_and_unsupported_actions_are_refused" }
 
 [[case]]
 id = "survival_and_policy_known_truth_validated"
 area = "survival_policy"
-workflow = "survival and policy routes"
+workflow = "observational_survival.survival_effect and observational_policy.policy_value"
 configuration = { truth = "simulated" }
 expected = { kind = "receipt", outputs = ["estimates within Monte Carlo error of simulated truth"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Survival and policy estimators are weighted regressions or influence-function means." }
 dataset = { generator = "confounded_survival_study", seed = 4475899, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/observational_survival_effects.rs::closed_form_truths_are_recovered_under_independent_censoring" }
 
 [[case]]
 id = "discovered_identified_pag_transport_effect"

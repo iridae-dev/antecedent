@@ -696,3 +696,23 @@ meaning = "A single adjustment column near-deterministically predicts the outcom
 id = "treatment_level_undeclared"
 applies_to = ["runtime_refusal"]
 meaning = "The treatment column has rows at a level that is none of the levels the estimate declares (the active and control levels of a pairwise contrast, or the declared level set of a full-population generalized-propensity estimate). Dropping those rows would restrict the target population, so the estimate refuses unless the restriction to the rows at the declared levels is declared."
+
+[[code]]
+id = "positivity_violated"
+applies_to = ["runtime_refusal"]
+meaning = "A probability the estimand divides by is not supported by the data or the declaration: a treatment action's propensity, or the probability of remaining uncensored through the declared horizon, is zero or below the declared floor, a policy takes an action outside the declared treatment support, or no unit is followed to the horizon. The refusal names the action, arm or horizon and the smallest probability found."
+
+[[code]]
+id = "policy_learned_on_evaluation_rows"
+applies_to = ["runtime_refusal"]
+meaning = "A treatment policy declared as learned on the rows that would score it. Its value on those rows is estimated too high because the policy was chosen to fit them; the refusal names the two honest evaluations, independent held-out rows and cross-fitted learning."
+
+[[code]]
+id = "missing_policy_required"
+applies_to = ["runtime_refusal"]
+meaning = "A route that has no default for missing values found one and no missing-data policy was declared. Randomized, panel, temporal and NOTEARS routes never delete, weight or restrict rows on their own. The refusal names the first missing cell (column and row) and the policies the route can execute."
+
+[[code]]
+id = "missing_policy_not_applicable"
+applies_to = ["runtime_refusal"]
+meaning = "A declared missing-data policy cannot be executed validly on this route or design: deleting rows would unbalance a panel or compress a time axis, the design (cluster, stratified, factorial, multi-arm, switchback, receipt-adjusted) has no responder-weighted estimator, or the covariates of the observation model are themselves incomplete. The refusal names the policies the route supports."

@@ -1,0 +1,31 @@
+feature_id = "estimate.observational_policy_value"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Policy Learning with Observational Data", doi = "10.3982/ECTA15732", sections = ["doubly robust policy value scores", "cross-fitted evaluation"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters", doi = "10.1111/ectj.12097", sections = ["cross-fitting of Neyman-orthogonal scores"] },
+ { title = "Doubly Robust Policy Evaluation and Optimization", doi = "10.1214/14-STS500", sections = ["doubly robust estimator of a policy's value from logged data"] },
+]
+
+# Derived from the doubly robust policy-value score; NOT the exact estimator analyzed in
+# either paper. The nuisance models are fixed parametric families and the learned policy is a
+# plug-in rule, not a policy-class search with a regret bound.
+implementation_deviations = [
+ "Nuisances are a multinomial-logit propensity over the declared treatment support and a per-action OLS outcome regression on the declared covariates, not the flexible learners the analysis admits.",
+ "The learned policy is the greedy rule over the per-action outcome models fitted on the learning rows; there is no policy-class optimization, no regret guarantee, and no claim that the rule is optimal. The held-out value is the value of that one rule; the cross-fitted value is the value of the learning procedure fed (K - 1) / K of the data.",
+ "In cross-fitted learning the standard error treats the K fold policies as fixed and pools the scores of all folds; it does not account for the dependence between fold policies learned from overlapping training sets.",
+ "Positivity is enforced by refusal, not truncation: a propensity of any declared action below the declared floor at a scored row refuses, and a policy action outside the declared support refuses.",
+ "The held-out split holds out a seeded fraction of the rows at every treatment level (rounded up), so every level is represented in both parts.",
+ "The reported standard error is the iid standard deviation of the scores over the scored rows. It carries no calibrated coverage claim; interval claims stay closed until a coverage record exists.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/observational_policy_value.rs (a confounded normal-covariate process with closed-form policy values for a binary and a three-action policy, and a no-effect process with noise covariates exposing the selection bias of an in-sample plug-in)",
+ "python/tests/test_observational_policy.py (the same closed form through the Python surface)",
+]
