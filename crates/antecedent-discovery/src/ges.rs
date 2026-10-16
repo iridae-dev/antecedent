@@ -1321,8 +1321,11 @@ mod tests {
         crate::constraints::contemp_link(VariableId::from_raw(a), VariableId::from_raw(b))
     }
 
+    /// One present edge between variables `lo < hi`, with `(parent, child)` when directed.
+    type Orientation = (u32, u32, Option<(u32, u32)>);
+
     /// Every present edge between variables `a < b`, as `(parent, child)` when directed.
-    fn orientations(g: &Cpdag) -> Vec<(u32, u32, Option<(u32, u32)>)> {
+    fn orientations(g: &Cpdag) -> Vec<Orientation> {
         g.edges()
             .into_iter()
             .map(|e| {

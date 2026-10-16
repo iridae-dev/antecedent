@@ -1350,9 +1350,9 @@ pub fn simulate_participant_procedure_within(
                 && difference <= comparison.upper,
         });
         receipt.replications += 1;
-        receipt.work_done = receipt
-            .work_done
-            .saturating_add(u64::from(walk.enrolled).saturating_mul(u64::from(spec.work_per_participant())));
+        receipt.work_done = receipt.work_done.saturating_add(
+            u64::from(walk.enrolled).saturating_mul(u64::from(spec.work_per_participant())),
+        );
         receipt.peak_units = receipt.peak_units.max(walk.enrolled);
     }
     Ok(ParticipantSimulation { replicates, receipt })
