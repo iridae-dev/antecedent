@@ -398,15 +398,16 @@ ORACLE = {
     'generator': 'conformance/bayesian/posterior_moments/generate.py (retained; imports NumPy only, no Antecedent code)',
 }
 def _values_close(left, right):
-    """Float documents compare with ``np.isclose(..., rtol=0)``, not ``!=``.
+    """Float documents compare with ``np.isclose``, not ``!=``.
 
-    ``atol=0`` keeps a finite pin exact. ``equal_nan`` only accepts a NaN that
-    the committed document already contains.
+    The documents come from NumPy linear algebra, whose last bits differ between BLAS builds
+    (macOS and Linux), so values compare at relative 1e-9. ``equal_nan`` only accepts a NaN
+    that the committed document already contains.
     """
     if isinstance(left, bool) or isinstance(right, bool):
         return left == right
     if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-        return bool(np.isclose(left, right, rtol=0.0, atol=0.0, equal_nan=True))
+        return bool(np.isclose(left, right, rtol=1e-9, atol=0.0, equal_nan=True))
     if isinstance(left, dict) and isinstance(right, dict):
         return left.keys() == right.keys() and all(_values_close(left[k], right[k]) for k in left)
     if isinstance(left, list) and isinstance(right, list):

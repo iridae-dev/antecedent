@@ -46,10 +46,11 @@ def main() -> None:
     path = Path(__file__).with_name("frontdoor.csv")
     text = render()
     if "--check" in sys.argv:
-        # rtol=0 and atol=0: a finite committed row must match the generator.
+        # Reproducible to platform noise: the generator draws through libm (log, cos, sin),
+        # whose last bits differ between macOS and glibc, so rows compare at relative 1e-9.
         stored = _columns(path.read_text(encoding="utf-8"))
         fresh = _columns(text)
-        if stored.shape != fresh.shape or not np.all(np.isclose(stored, fresh, rtol=0.0, atol=0.0)):
+        if stored.shape != fresh.shape or not np.all(np.isclose(stored, fresh, rtol=1e-9, atol=0.0)):
             raise SystemExit("frontdoor.csv is stale; rerun without --check")
         print("frontdoor.csv matches")
         return
