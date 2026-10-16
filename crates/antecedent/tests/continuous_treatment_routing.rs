@@ -183,7 +183,7 @@ fn propensity_weighting_refuses_non_binary_treatment() {
         .unwrap_err();
     let message = err.to_string();
     assert!(
-        message.contains("binary treatment"),
+        message.contains("treatment_level_undeclared"),
         "IPW must refuse continuous treatment rather than dichotomize, got {message}"
     );
 }

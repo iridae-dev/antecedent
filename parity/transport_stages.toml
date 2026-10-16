@@ -12090,3 +12090,15 @@ guarantee = "recorded_probability_hajek_standardization_to_target_stratum_law_po
 limits = "Python surface of antecedent_design.adaptive_trial_transport.verify_adaptive_transport: re-derives the estimate and refuses a stored identity or mean that differs bit for bit with adaptive_transport.value_mismatch."
 evidence_test = "python/tests/test_transported_route_verification.py"
 evidence_assertion = "test_an_adaptive_trial_estimate_replays_and_an_edited_mean_does_not"
+
+[[routes]]
+route = "antecedent.treatment.multi_level_effects"
+stage = "evaluate"
+status = "licensed"
+graph = "caller_declared_adjustment_set"
+evidence = "multi_level_known_truth_simulation"
+functional = "active_minus_control_contrast_of_a_multi_level_treatment_over_the_declared_target_population"
+guarantee = "multi_level_treatment_contrast_with_stated_target_population_point_only_standard_error_unmeasured"
+evidence_test = "crates/antecedent-estimate/tests/treatment_levels.rs"
+evidence_assertion = "the_full_population_and_pairwise_targets_recover_their_own_truths"
+notes = "Point-only; the standard error is an unmeasured diagnostic. No interval."

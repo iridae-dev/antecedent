@@ -347,6 +347,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "joint_distribution",
         "matched",
         "model",
+        "multi_level_treatment",
         "observation",
         "policy",
         "preflight",
@@ -508,6 +509,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "change_attribution",
     },
     "PreparedAnalysis": {
+        "participants",
         "identification",
         "inspect_plan",
         "last_result",
@@ -633,6 +635,8 @@ SNAPSHOT: dict[str, set[str]] = {
     "estimators.Overlap": {"clip", "trim"},
     "estimators.Aipw": {
         "bootstrap",
+        "cluster",
+        "other_levels",
         "cluster_dml",
         "cluster_ids",
         "estimator_id",

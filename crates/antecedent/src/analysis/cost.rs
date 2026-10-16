@@ -543,6 +543,17 @@ pub(crate) fn cost_of(inputs: &CostInputs, source: &ModelSource) -> CostEstimate
     }
 }
 
+/// Distinct unit labels a whole-cluster cross-fit declares (rows dropped as incomplete are
+/// still counted: the cost estimate precedes the complete-case selection).
+fn units_cluster_count(units: &antecedent_estimate::DeclaredUnits) -> Option<usize> {
+    units.spec?;
+    units
+        .first
+        .as_deref()
+        .or(units.first_source.as_deref())
+        .map(|labels| labels.iter().collect::<std::collections::BTreeSet<_>>().len())
+}
+
 fn inputs_of(study: &Study) -> CostInputs {
     let estimator = study
         .estimator_spec
@@ -562,7 +573,10 @@ fn inputs_of(study: &Study) -> CostInputs {
         Some(EstimatorSpec::Aipw(aipw)) if aipw.cluster_dml.is_some() => aipw
             .cluster_ids
             .as_deref()
+            .or(aipw.source_cluster_ids.as_deref())
             .map(|labels| labels.iter().collect::<std::collections::BTreeSet<_>>().len()),
+        Some(EstimatorSpec::Dml(dml)) => units_cluster_count(&dml.units),
+        Some(EstimatorSpec::DrLearner(dr)) => units_cluster_count(&dr.units),
         _ => None,
     };
     CostInputs {

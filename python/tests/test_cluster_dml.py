@@ -211,8 +211,16 @@ def test_few_components_per_fold_are_refused_with_a_registered_reason_code():
     assert_registered_refusal(error.value)
 
 
-@pytest.mark.parametrize("estimator", ["dml", "dr.learner", "causal.forest"])
-@pytest.mark.parametrize("option", ["cluster_ids", "cluster_dml", "multiway_ids"])
+@pytest.mark.parametrize(
+    ("estimator", "option"),
+    [
+        (estimator, option)
+        for estimator in ("dml", "dr.learner", "causal.forest")
+        for option in ("cluster_ids", "cluster_dml", "multiway_ids")
+        if (estimator, option) not in {("dml", "cluster_dml"), ("dr.learner", "cluster_dml")}
+        # dml and dr.learner declare units (positive tests: test_column_projection_and_identifiers)
+    ],
+)
 def test_flexible_learners_refuse_cluster_options(estimator, option):
     data, cluster = clustered(groups=30, size=10)
     names = ["z0", "z1", "t", "y"]

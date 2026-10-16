@@ -214,7 +214,7 @@ fn build_scores_pass(
     let n = problem.nrows;
     let ncols = problem.design_ncols;
     let clip = clip_of(problem.overlap);
-    let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
+    let arms = problem.fold_strata();
     let source = match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
         (Some(ids), _) => FoldSource::Shared(ids),
         (None, Some(units)) => FoldSource::Clustered { units, seed: fold_seed },

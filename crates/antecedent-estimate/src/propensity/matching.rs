@@ -19,11 +19,12 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance};
 
+use super::levels::OtherLevels;
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap, gather, gather_optional_multiway, gather_optional_row_labels,
-    gather_rowmajor, prepare_propensity_problem_with_registry, restrict_to_rows,
-    split_by_treatment, trim_of, trim_retained_rows,
+    gather_rowmajor, prepare_propensity_problem_with_levels, restrict_to_rows, split_by_treatment,
+    trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -94,6 +95,10 @@ pub struct PropensityMatching {
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for panel HAC.
     pub panel_times: Option<Vec<i64>>,
+    /// Policy for treatment rows at neither declared level. The default refuses; the
+    /// exclusion that restricts the target population to the rows at the two declared levels
+    /// must be declared.
+    pub other_levels: OtherLevels,
 }
 
 impl Default for PropensityMatching {
@@ -118,7 +123,16 @@ impl PropensityMatching {
             population_registry: None,
             multiway_ids: None,
             panel_times: None,
+            other_levels: OtherLevels::default(),
         }
+    }
+
+    /// Declare what to do with rows whose treatment is at neither declared level (see
+    /// [`OtherLevels`]). The default refuses.
+    #[must_use]
+    pub const fn with_other_levels(mut self, other_levels: OtherLevels) -> Self {
+        self.other_levels = other_levels;
+        self
     }
 
     /// Record a bootstrap-replicate count without licensing a bootstrap SE.
@@ -206,12 +220,13 @@ impl PropensityMatching {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        prepare_propensity_problem_with_registry(
+        prepare_propensity_problem_with_levels(
             data,
             estimand,
             query,
             self.overlap,
             self.population_registry.as_ref(),
+            self.other_levels,
         )
     }
 
@@ -309,6 +324,7 @@ impl PropensityMatching {
             .with_se_kind(self.se_kind)
             .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
+            .with_treatment_levels(problem.treatment_levels)
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
     }
 }

@@ -66,6 +66,7 @@ FitKind = Literal["ols", "ridge", "lasso", "huber"]
 PropensityPenaltyKind = Literal["ridge_logistic", "lasso"]
 NuisanceFallbackName = Literal["none", "ml", "ridge_logistic", "lasso"]
 IndependenceUnitName = Literal["cluster", "dyad"]
+OtherLevelsName = Literal["refuse", "exclude_undeclared"]
 GlmFamilyName = Literal[
     "binomial_logit",
     "binomial_probit",
@@ -125,6 +126,7 @@ def _validate_se(
     se_lag: int | None,
     cluster_ids: Sequence[int] | None,
     multiway_ids: Sequence[Sequence[int]] | None = None,
+    cluster: str | None = None,
 ) -> None:
     """Cross-field ``se`` rules shared by every estimator that exposes ``se_kind``.
 
@@ -145,8 +147,15 @@ def _validate_se(
         raise ValueError(
             f"se_lag is only valid when se is 'newey_west' or 'panel_cluster_hac', got se={se!r}"
         )
-    if se == "cluster" and cluster_ids is None:
-        raise ValueError("se='cluster' requires cluster_ids")
+    if cluster is not None:
+        if not isinstance(cluster, str) or not cluster.strip():
+            raise ValueError(f"cluster must name a data column, got {cluster!r}")
+        if cluster_ids is not None:
+            raise ValueError("cluster names a column; do not also pass cluster_ids")
+        if se != "cluster":
+            raise ValueError(f"cluster requires se='cluster'; got se={se!r}")
+    if se == "cluster" and cluster_ids is None and cluster is None:
+        raise ValueError("se='cluster' requires cluster_ids or cluster")
     if cluster_ids is not None and se != "cluster":
         raise ValueError(f"cluster_ids requires se='cluster'; got se={se!r}")
     if se == "multiway" and multiway_ids is None:
@@ -296,7 +305,9 @@ class ClusterDml:
     """Declared independence unit of a cross-fitted :class:`Aipw` (``cluster_dml=``).
 
     ``cluster_ids`` is the cluster label of every *complete-case* row (aligned to the rows
-    the estimator uses, as for ``se="cluster"``). Whole clusters share a cross-fit fold, so
+    the estimator uses); ``cluster="site"`` names the data column instead (and
+    ``second_cluster="..."`` the second endpoint of a dyad), read from the table at prepare
+    and kept with its row when rows are dropped. Whole clusters share a cross-fit fold, so
     the nuisances scoring a cluster are fit on other clusters only; this is not an IID
     cross-fit followed by a cluster standard error. ``min_clusters`` (default 20, at least
     10) is the smallest cluster count accepted: fewer clusters refuse
@@ -320,17 +331,27 @@ class ClusterDml:
     two-way variance is a Rust receipt only; no interval is published.
     """
 
-    cluster_ids: Sequence[int]
+    cluster_ids: Sequence[int] | None = None
     min_clusters: int | None = None
     unit: IndependenceUnitName = "cluster"
     second_cluster_ids: Sequence[int] | None = None
     min_components_per_fold: int | None = None
+    cluster: str | None = None
+    second_cluster: str | None = None
 
     def __post_init__(self) -> None:
         if self.unit not in ("cluster", "dyad"):
             raise CausalValueError(
                 f"ClusterDml.unit must be 'cluster' or 'dyad', got {self.unit!r}"
             )
+        if (self.cluster_ids is None) == (self.cluster is None):
+            raise CausalValueError("ClusterDml takes exactly one of cluster_ids and cluster")
+        if (self.second_cluster_ids is not None) and (self.second_cluster is not None):
+            raise CausalValueError("ClusterDml takes one of second_cluster_ids and second_cluster")
+        if self.cluster is not None or self.second_cluster is not None:
+            self._validate_named()
+            return
+        assert self.cluster_ids is not None
         if len(self.cluster_ids) == 0:
             raise CausalValueError("ClusterDml.cluster_ids must not be empty")
         for label in self.cluster_ids:
@@ -375,8 +396,40 @@ class ClusterDml:
                 f"{self.min_components_per_fold!r}"
             )
 
+    def _validate_named(self) -> None:
+        """Rules for units named by data column: labels are read from the table at prepare."""
+        for key in ("cluster", "second_cluster"):
+            value = getattr(self, key)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise CausalValueError(f"ClusterDml.{key} must name a data column, got {value!r}")
+        if self.cluster is None or (self.second_cluster_ids is not None):
+            raise CausalValueError(
+                "ClusterDml names its units by column or by ids for both endpoints, not a mixture"
+            )
+        if self.unit == "cluster":
+            if self.second_cluster is not None or self.min_components_per_fold is not None:
+                raise CausalValueError(
+                    "ClusterDml.second_cluster and min_components_per_fold belong to unit='dyad'"
+                )
+        elif self.second_cluster is None:
+            raise CausalValueError("ClusterDml(unit='dyad') requires second_cluster")
+        if self.min_clusters is not None and (
+            isinstance(self.min_clusters, bool)
+            or not isinstance(self.min_clusters, int)
+            or self.min_clusters < 10
+        ):
+            raise CausalValueError(
+                f"ClusterDml.min_clusters must be an int of at least 10, got {self.min_clusters!r}"
+            )
+
     def _wire(self) -> dict[str, Any]:
-        out: dict[str, Any] = {"cluster_ids": [int(label) for label in self.cluster_ids]}
+        out: dict[str, Any] = {}
+        if self.cluster is not None:
+            out["cluster"] = self.cluster
+        if self.second_cluster is not None:
+            out["second_cluster"] = self.second_cluster
+        if self.cluster_ids is not None:
+            out["cluster_ids"] = [int(label) for label in self.cluster_ids]
         if self.min_clusters is not None:
             out["min_clusters"] = int(self.min_clusters)
         if self.unit != "cluster":
@@ -427,6 +480,20 @@ class Overlap:
         }
 
 
+def _wire_other_levels(other_levels: OtherLevelsName) -> dict[str, Any]:
+    """The declared handling of treatment rows at neither declared level.
+
+    ``"refuse"`` (the default) refuses such rows. ``"exclude_undeclared"`` excludes them and
+    restricts the target population to the rows at the query's two levels; the result reports
+    how many rows were excluded.
+    """
+    if other_levels not in ("refuse", "exclude_undeclared"):
+        raise CausalValueError(
+            f"other_levels must be 'refuse' or 'exclude_undeclared', got {other_levels!r}"
+        )
+    return {} if other_levels == "refuse" else {"other_levels": other_levels}
+
+
 def _wire_overlap(overlap: Overlap | None) -> dict[str, Any]:
     if overlap is None:
         return {}
@@ -450,6 +517,7 @@ def _wire_se_common(
     cluster_ids: Sequence[int] | None,
     multiway_ids: Sequence[Sequence[int]] | None = None,
     panel_times: Sequence[int] | None = None,
+    cluster: str | None = None,
 ) -> dict[str, Any]:
     """``bootstrap``/``se``/``se_lag``/``cluster_ids``/``multiway_ids``/``panel_times`` wiring
     shared by every estimator config that carries these fields.
@@ -466,6 +534,8 @@ def _wire_se_common(
         out["se_lag"] = se_lag
     if cluster_ids is not None:
         out["cluster_ids"] = list(cluster_ids)
+    if cluster is not None:
+        out["cluster"] = cluster
     if multiway_ids is not None:
         out["multiway_ids"] = [list(group) for group in multiway_ids]
     if panel_times is not None:
@@ -482,6 +552,12 @@ class LinearAdjustment:
 
     ``fit="lasso"`` combined with ``se=...`` raises: Lasso's analytic SE is
     permanently ``NaN`` (see :func:`_validate_linear_fit`); use ``bootstrap=``.
+
+    ``cluster="site"`` names the data column of cluster labels (strings or whole numbers)
+    for ``se="cluster"``, instead of ``cluster_ids``. The labels belong to the rows of the
+    table passed to ``prepare`` / ``analyze``; rows dropped as incomplete or outside the
+    target population take their labels with them. Exclusive with ``cluster_ids``, which
+    must already be aligned to the rows the estimator uses.
     """
 
     bootstrap: int | None = None
@@ -493,6 +569,7 @@ class LinearAdjustment:
     fit: FitKind | None = None
     fit_lambda: float | None = None
     fit_c: float | None = None
+    cluster: str | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -501,6 +578,7 @@ class LinearAdjustment:
             se_lag=self.se_lag,
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
+            cluster=self.cluster,
         )
         _validate_linear_fit(fit=self.fit, fit_lambda=self.fit_lambda, fit_c=self.fit_c, se=self.se)
 
@@ -516,6 +594,7 @@ class LinearAdjustment:
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
             panel_times=self.panel_times,
+            cluster=self.cluster,
         )
         if self.fit is not None:
             out["fit_kind"] = self.fit
@@ -539,6 +618,7 @@ class PropensityWeighting:
     bootstrap: int | None = None
     glm_options: GlmOptions | None = None
     overlap: Overlap | None = None
+    other_levels: OtherLevelsName = "refuse"
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -553,6 +633,7 @@ class PropensityWeighting:
             out["bootstrap_replicates"] = self.bootstrap
         out.update(_wire_glm_options(self.glm_options))
         out.update(_wire_overlap(self.overlap))
+        out.update(_wire_other_levels(self.other_levels))
         return _omit_empty(out)
 
 
@@ -585,6 +666,7 @@ class PropensityMatching:
     caliper: float | None = None
     caliper_scale: Literal["logit", "raw"] | None = None
     overlap: Overlap | None = None
+    other_levels: OtherLevelsName = "refuse"
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -619,6 +701,7 @@ class PropensityMatching:
         if self.caliper_scale is not None:
             out["caliper_scale"] = self.caliper_scale
         out.update(_wire_overlap(self.overlap))
+        out.update(_wire_other_levels(self.other_levels))
         return _omit_empty(out)
 
 
@@ -630,6 +713,7 @@ class PropensityStratification:
     glm_options: GlmOptions | None = None
     n_strata: int | None = None
     overlap: Overlap | None = None
+    other_levels: OtherLevelsName = "refuse"
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -647,6 +731,7 @@ class PropensityStratification:
         if self.n_strata is not None:
             out["n_strata"] = self.n_strata
         out.update(_wire_overlap(self.overlap))
+        out.update(_wire_other_levels(self.other_levels))
         return _omit_empty(out)
 
 
@@ -723,6 +808,9 @@ class Aipw:
     recorded. A fallback is not combined with ``propensity_penalty``.
     ``cluster_dml`` declares whole-cluster cross-fitting (:class:`ClusterDml`); it requires
     ``bootstrap=0`` and publishes the point estimate and score table with no interval.
+    ``cluster="site"`` names the data column of cluster labels for ``se="cluster"``, as for
+    :class:`LinearAdjustment`; the cross-fit units of ``cluster_dml`` take ``cluster_ids``
+    aligned to the analysed rows instead.
     """
 
     bootstrap: int | None = None
@@ -736,6 +824,8 @@ class Aipw:
     propensity_penalty: PropensityPenalty | None = None
     nuisance_fallback: NuisanceFallbackName | PropensityPenalty | None = None
     cluster_dml: ClusterDml | None = None
+    other_levels: OtherLevelsName = "refuse"
+    cluster: str | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -744,6 +834,7 @@ class Aipw:
             se_lag=self.se_lag,
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
+            cluster=self.cluster,
         )
         if self.cluster_dml is not None:
             if not isinstance(self.cluster_dml, ClusterDml):
@@ -796,9 +887,11 @@ class Aipw:
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
             panel_times=self.panel_times,
+            cluster=self.cluster,
         )
         out.update(_wire_glm_options(self.glm_options))
         out.update(_wire_overlap(self.overlap))
+        out.update(_wire_other_levels(self.other_levels))
         if self.propensity_penalty is not None:
             out["propensity_penalty"] = self.propensity_penalty._wire()
         if isinstance(self.nuisance_fallback, PropensityPenalty):
@@ -812,7 +905,11 @@ class Aipw:
 
 @dataclass(frozen=True, slots=True)
 class GlmAdjustment:
-    """``glm.adjustment`` — GLM-family outcome-model adjustment (default binomial-logit)."""
+    """``glm.adjustment`` — GLM-family outcome-model adjustment (default binomial-logit).
+
+    ``cluster="site"`` names the data column of cluster labels, as for
+    :class:`LinearAdjustment`.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None
@@ -822,6 +919,7 @@ class GlmAdjustment:
     panel_times: Sequence[int] | None = None
     glm_options: GlmOptions | None = None
     family: GlmFamilyName | None = None
+    cluster: str | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -830,6 +928,7 @@ class GlmAdjustment:
             se_lag=self.se_lag,
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
+            cluster=self.cluster,
         )
 
     @property
@@ -844,6 +943,7 @@ class GlmAdjustment:
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
             panel_times=self.panel_times,
+            cluster=self.cluster,
         )
         out.update(_wire_glm_options(self.glm_options))
         if self.family is not None:
@@ -873,10 +973,13 @@ class FrontdoorLinearTwoStage:
     se: SeKind | None = None
     se_lag: int | None = None
     cluster_ids: Sequence[int] | None = None
+    cluster: str | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
-        _validate_se(se=self.se, se_lag=self.se_lag, cluster_ids=self.cluster_ids)
+        _validate_se(
+            se=self.se, se_lag=self.se_lag, cluster_ids=self.cluster_ids, cluster=self.cluster
+        )
 
     @property
     def estimator_id(self) -> str:
@@ -889,6 +992,7 @@ class FrontdoorLinearTwoStage:
                 se=self.se,
                 se_lag=self.se_lag,
                 cluster_ids=self.cluster_ids,
+                cluster=self.cluster,
             )
         )
 
@@ -989,10 +1093,12 @@ class Iv2Sls:
 class DML:
     """``dml`` — cross-fitted DML / AIPW.
 
-    These flexible-learner estimators take no cluster or dependence option: an
-    ``estimator_config`` carrying ``cluster_ids``, ``cluster_dml`` or ``multiway_ids`` for
-    them refuses ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of
-    being ignored; use ``Aipw(bootstrap=0, cluster_dml=ClusterDml(...))`` for clustered data.
+    ``cluster_dml=ClusterDml(...)`` declares whole-cluster cross-fitting of the AIPW score:
+    the flexible nuisances scoring a cluster are fit on other clusters only, and the
+    standard error is the cluster sandwich of the cross-fitted scores (point, score table
+    and standard error; no interval is published). ``cluster_ids`` / ``multiway_ids``
+    without a unit declaration, and the partially linear score with one, refuse
+    ``route_not_supported`` instead of being ignored.
     """
 
     learner: LearnerSpec | str | None = None
@@ -1001,8 +1107,16 @@ class DML:
     score: str | None = None
     folds: int | None = None
     overlap: Overlap | None = None
+    other_levels: OtherLevelsName = "refuse"
+    cluster_dml: ClusterDml | None = None
 
     def __post_init__(self) -> None:
+        if self.cluster_dml is not None and not isinstance(self.cluster_dml, ClusterDml):
+            raise CausalValueError(f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}")
+        if self.cluster_dml is not None and self.score == "partially_linear":
+            raise CausalValueError(
+                "DML(cluster_dml=...) needs the AIPW score (reason=route_not_supported)"
+            )
         if self.folds is not None and self.folds < 2:
             raise ValueError(f"DML folds must be at least 2, got {self.folds!r}")
         if self.score is not None and self.score not in {"aipw", "partially_linear"}:
@@ -1025,6 +1139,9 @@ class DML:
         if self.folds is not None:
             out["folds"] = self.folds
         out.update(_wire_overlap(self.overlap))
+        out.update(_wire_other_levels(self.other_levels))
+        if self.cluster_dml is not None:
+            out["cluster_dml"] = self.cluster_dml._wire()
         return _omit_empty(out)
 
 
@@ -1036,10 +1153,10 @@ class DRLearner:
     consistent when either the propensity or the outcome nuisance is. It is a
     property of the point estimate, not of any reported standard error.
 
-    These flexible-learner estimators take no cluster or dependence option: an
-    ``estimator_config`` carrying ``cluster_ids``, ``cluster_dml`` or ``multiway_ids`` for
-    them refuses ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of
-    being ignored; use ``Aipw(bootstrap=0, cluster_dml=ClusterDml(...))`` for clustered data.
+    ``cluster_dml=ClusterDml(...)`` declares whole-cluster cross-fitting of the marginal
+    ATE's doubly robust score, as for :class:`DML`: the standard error is the cluster
+    sandwich of the cross-fitted scores. ``cluster_ids`` / ``multiway_ids`` without a unit
+    declaration refuse ``route_not_supported``.
     """
 
     learner: LearnerSpec | str | None = None
@@ -1048,8 +1165,11 @@ class DRLearner:
     final_learner: LearnerSpec | str | None = None
     folds: int | None = None
     overlap: Overlap | None = None
+    cluster_dml: ClusterDml | None = None
 
     def __post_init__(self) -> None:
+        if self.cluster_dml is not None and not isinstance(self.cluster_dml, ClusterDml):
+            raise CausalValueError(f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}")
         if self.folds is not None and self.folds < 2:
             raise ValueError(f"DRLearner folds must be at least 2, got {self.folds!r}")
 
@@ -1070,6 +1190,8 @@ class DRLearner:
         if self.folds is not None:
             out["folds"] = self.folds
         out.update(_wire_overlap(self.overlap))
+        if self.cluster_dml is not None:
+            out["cluster_dml"] = self.cluster_dml._wire()
         return _omit_empty(out)
 
 

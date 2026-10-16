@@ -152,6 +152,10 @@ pub struct EstimateDiagnostics {
     /// lasso kept on each fold, and the refit bootstrap's per-replicate penalties. `None` for
     /// every other estimator and for an unpenalized AIPW that needed no fallback.
     pub penalized: Option<Box<crate::propensity::PenalizedReport>>,
+    /// The treatment levels a propensity-based estimate contrasts, the rows at neither level
+    /// that were excluded, and the target population that restriction implies. `None` for
+    /// every estimator that does not recode a treatment column to declared levels.
+    pub treatment_levels: Option<crate::propensity::DeclaredTreatmentLevels>,
 }
 
 /// Nuisance cross-fitting record.
@@ -380,6 +384,16 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_overlap_report(mut self, overlap_report: Option<OverlapReport>) -> Self {
         self.diagnostics.overlap_report = overlap_report;
+        self
+    }
+
+    /// Record the declared treatment levels a propensity-based estimate contrasts.
+    #[must_use]
+    pub fn with_treatment_levels(
+        mut self,
+        levels: crate::propensity::DeclaredTreatmentLevels,
+    ) -> Self {
+        self.diagnostics.treatment_levels = Some(levels);
         self
     }
 

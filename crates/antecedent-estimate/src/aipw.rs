@@ -75,10 +75,11 @@ use crate::cluster_dml_aipw::ClusterDml;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::propensity::{
-    PenalizedReport, PenalizedVarianceReport, PreparedPropensityProblem, PropensityModel,
-    PropensityNuisance, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, clamp_scores,
-    clip_of, crossfit_influence_se, default_propensity_overlap, fold_supports, gather, gather_into,
-    prepare_propensity_problem_with_registry, split_by_treatment, trim_of, trim_retained_rows,
+    OtherLevels, PenalizedReport, PenalizedVarianceReport, PreparedPropensityProblem,
+    PropensityModel, PropensityNuisance, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties,
+    clamp_scores, clip_of, crossfit_influence_se, default_propensity_overlap, fold_supports,
+    gather, gather_into, prepare_propensity_problem_with_levels, split_by_treatment, trim_of,
+    trim_retained_rows,
 };
 use crate::se::AnalyticSeKind;
 use crate::util::{BootstrapSeResult, bootstrap_se, refuse, stats_err};
@@ -240,6 +241,15 @@ pub struct AipwAte {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids for [`AnalyticSeKind::Cluster`] (aligned to prepared rows).
     pub cluster_ids: Option<Vec<u32>>,
+    /// Optional cluster labels of every row of the source table for
+    /// [`AnalyticSeKind::Cluster`], subset to the complete-case rows by their original
+    /// index. Exclusive with [`Self::cluster_ids`]. With a [`ClusterDml`] declaration they are
+    /// the first-endpoint unit labels, mapped to the complete-case rows before the cross-fit
+    /// plan is built.
+    pub source_cluster_ids: Option<Vec<u32>>,
+    /// Second-endpoint labels of a dyadic [`ClusterDml`] declaration for every row of the
+    /// source table. Exclusive with [`Self::cluster_ids_second`].
+    pub source_cluster_ids_second: Option<Vec<u32>>,
     /// Second-endpoint labels of a dyadic [`ClusterDml`] declaration (aligned to prepared
     /// rows); [`Self::cluster_ids`] are then the first endpoints.
     pub cluster_ids_second: Option<Vec<u32>>,
@@ -255,6 +265,10 @@ pub struct AipwAte {
     /// Declared cluster-DML independence unit over [`Self::cluster_ids`]: whole clusters are
     /// cross-fit together and no interval is published (see [`ClusterDml`]).
     pub cluster_dml: Option<ClusterDml>,
+    /// Policy for treatment rows at neither declared level. The default refuses; excluding
+    /// them restricts the target population to the rows at the two declared levels (the
+    /// pairwise-subpopulation target) and must be declared. The checked route refuses it.
+    pub other_levels: OtherLevels,
 }
 
 /// Per-row influence of the control-to-treated score contrast: the plain score difference
@@ -297,13 +311,24 @@ impl AipwAte {
             glm_options: GlmOptions::default(),
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            source_cluster_ids: None,
+            source_cluster_ids_second: None,
             cluster_ids_second: None,
             population_registry: None,
             multiway_ids: None,
             panel_times: None,
             propensity: PropensityNuisance::default(),
             cluster_dml: None,
+            other_levels: OtherLevels::default(),
         }
+    }
+
+    /// Declare what to do with rows whose treatment is at neither declared level (see
+    /// [`OtherLevels`]). The default refuses.
+    #[must_use]
+    pub const fn with_other_levels(mut self, other_levels: OtherLevels) -> Self {
+        self.other_levels = other_levels;
+        self
     }
 
     /// Declare the binary-propensity nuisance (see [`PropensityNuisance`]).
@@ -368,6 +393,45 @@ impl AipwAte {
         self
     }
 
+    /// Set cluster labels for every row of the source table (length must equal its row
+    /// count); each complete-case row keeps the label of its original row.
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.source_cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set the second-endpoint labels of a dyadic [`ClusterDml`] declaration for every row of
+    /// the source table (length must equal its row count).
+    #[must_use]
+    pub fn with_source_second_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.source_cluster_ids_second = Some(cluster_ids);
+        self
+    }
+
+    /// The `(first, second)` unit labels of the complete-case rows `row_index`, from labels
+    /// declared per retained row or per source row.
+    ///
+    /// # Errors
+    ///
+    /// A retained row without a declared source label.
+    pub fn unit_labels(
+        &self,
+        row_index: &[u32],
+    ) -> Result<crate::cluster_dml_aipw::UnitLabels, EstimationError> {
+        crate::cluster_dml_aipw::declared_unit_labels(
+            (self.cluster_ids.as_deref(), self.source_cluster_ids.as_deref()),
+            (self.cluster_ids_second.as_deref(), self.source_cluster_ids_second.as_deref()),
+            row_index,
+        )
+    }
+
+    /// Whether the declared units are dyadic (two endpoint label sets).
+    #[must_use]
+    pub fn has_second_units(&self) -> bool {
+        self.cluster_ids_second.is_some() || self.source_cluster_ids_second.is_some()
+    }
+
     /// Set the second-endpoint labels of a dyadic [`ClusterDml`] declaration.
     #[must_use]
     pub fn with_second_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
@@ -412,6 +476,20 @@ impl AipwAte {
                 self.overlap,
             )?;
         }
+        if let Some(source) = self.source_cluster_ids.as_deref() {
+            crate::se::require_source_labels(
+                source,
+                self.cluster_ids.as_deref(),
+                data.row_count(),
+            )?;
+        }
+        if let Some(source) = self.source_cluster_ids_second.as_deref() {
+            crate::se::require_source_labels(
+                source,
+                self.cluster_ids_second.as_deref(),
+                data.row_count(),
+            )?;
+        }
         if self.cluster_dml.is_some() {
             crate::cluster_dml_aipw::require_unpenalized(self.propensity.is_penalized())?;
             crate::cluster_dml_aipw::require_scope(
@@ -434,18 +512,20 @@ impl AipwAte {
                 ));
             }
         }
-        let mut problem = prepare_propensity_problem_with_registry(
+        let mut problem = prepare_propensity_problem_with_levels(
             data,
             estimand,
             query,
             self.overlap,
             self.population_registry.as_ref(),
+            self.other_levels,
         )?;
         problem.propensity = self.propensity.clone();
         if let Some(cluster_dml) = &self.cluster_dml {
+            let (first, second) = self.unit_labels(&problem.row_index)?;
             problem.fold_units = Some(cluster_dml.declare_units(
-                self.cluster_ids.as_deref(),
-                self.cluster_ids_second.as_deref(),
+                first.as_deref(),
+                second.as_deref(),
                 problem.nrows,
             )?);
             problem.fold_unit_kind = cluster_dml.independence_unit();
@@ -543,15 +623,6 @@ impl AipwAte {
         }
         let (active, control, _) =
             crate::prepare::treatment_contrast(&query.active, &query.control)?;
-        #[allow(
-            clippy::float_cmp,
-            reason = "AIPW's licensed binary treatment arms are exact category labels"
-        )]
-        if active != 1.0 || control != 0.0 {
-            return Err(EstimationError::unsupported(
-                "checked AIPW requires binary treatment arms active=1.0 and control=0.0",
-            ));
-        }
         let mut arena = identification.arena.clone();
         let expected = arena.backdoor_ate(
             query.treatment,
@@ -580,6 +651,11 @@ impl AipwAte {
         )
         .map_err(|e| EstimationError::data_msg(format!("checked AIPW target program: {e}")))?;
         let problem = self.prepare(data, target, query)?;
+        if problem.treatment_levels.excluded_rows > 0 {
+            return Err(EstimationError::unsupported(
+                "checked AIPW targets the all-observed population and cannot exclude treatment rows at undeclared levels",
+            ));
+        }
         let factor_requirements = Arc::from(program.factor_requirements().to_vec());
         let procedure = CheckedAipwProcedure::for_overlap(self.overlap);
         let lowering = CheckedAipwLowering {
@@ -683,7 +759,9 @@ impl AipwAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let point = self.fit_point(problem, workspace, ctx, assumptions)?;
+        let point = self
+            .fit_point(problem, workspace, ctx, assumptions)?
+            .with_treatment_levels(problem.treatment_levels);
         self.attach_bootstrap(problem, workspace, ctx, point)
     }
 
@@ -766,12 +844,8 @@ impl AipwAte {
             )?;
         }
         let declared_units = self.cluster_dml.and_then(|spec| {
-            spec.declare_units(
-                self.cluster_ids.as_deref(),
-                self.cluster_ids_second.as_deref(),
-                problem.nrows,
-            )
-            .ok()
+            let (first, second) = self.unit_labels(&problem.row_index).ok()?;
+            spec.declare_units(first.as_deref(), second.as_deref(), problem.nrows).ok()
         });
         if problem.fold_units.as_deref() != declared_units.as_deref()
             || self
@@ -888,11 +962,16 @@ impl AipwAte {
             };
             correct_aipw_psi_for_nuisances(&mut workspace.psi, &fit)?;
         }
+        let declared_clusters = crate::se::declared_row_labels(
+            self.cluster_ids.as_deref(),
+            self.source_cluster_ids.as_deref(),
+            problem.row_index.iter().map(|&row| row as usize),
+        )?;
         let se_analytic = crate::se::influence_se_kind(
             self.se_kind,
             &workspace.psi,
             problem.nrows,
-            self.cluster_ids.as_deref(),
+            declared_clusters.as_deref(),
             self.multiway_ids.as_deref(),
             self.panel_times.as_deref(),
             retained.as_deref(),
@@ -976,11 +1055,16 @@ impl AipwAte {
         let se_analytic = if iid_se {
             contrast.se
         } else {
+            let declared_clusters = crate::se::declared_row_labels(
+                self.cluster_ids.as_deref(),
+                self.source_cluster_ids.as_deref(),
+                problem.row_index.iter().map(|&row| row as usize),
+            )?;
             crate::se::influence_se_kind(
                 self.se_kind,
                 &influence,
                 problem.nrows,
-                self.cluster_ids.as_deref(),
+                declared_clusters.as_deref(),
                 self.multiway_ids.as_deref(),
                 self.panel_times.as_deref(),
                 None,
@@ -989,9 +1073,14 @@ impl AipwAte {
         let overlap_report = treated_arm_overlap_report(&table, problem);
         // Whole-cluster folds: the sandwich standard error of the same scores, under the declared
         // independence unit (`docs/guides/clustered-dml.md`).
-        let cluster_se = match (self.cluster_dml, self.cluster_ids.as_deref()) {
+        let (first_units, second_units) = if self.cluster_dml.is_some() {
+            self.unit_labels(&problem.row_index)?
+        } else {
+            (None, None)
+        };
+        let cluster_se = match (self.cluster_dml, first_units.as_deref()) {
             (Some(spec), Some(labels)) => {
-                let receipt = spec.receipt(&table, labels, self.cluster_ids_second.as_deref())?;
+                let receipt = spec.receipt(&table, labels, second_units.as_deref())?;
                 Some((receipt.cluster_sandwich_se, receipt.reference_df))
             }
             _ => None,
@@ -1035,7 +1124,7 @@ impl AipwAte {
                 result.uncertainty.analytic.se = se;
                 result.uncertainty.analytic.reference_df =
                     Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
-                result.uncertainty.analytic.kind = Some(if self.cluster_ids_second.is_some() {
+                result.uncertainty.analytic.kind = Some(if self.has_second_units() {
                     AnalyticSeKind::Multiway
                 } else {
                     AnalyticSeKind::Cluster

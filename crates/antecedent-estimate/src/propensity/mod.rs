@@ -27,6 +27,8 @@
 )]
 
 mod distance;
+mod generalized;
+mod levels;
 mod matching;
 mod penalized;
 mod penalized_report;
@@ -35,6 +37,11 @@ mod stratification;
 pub(crate) mod weighting;
 
 pub use distance::DistanceMatching;
+pub use generalized::{
+    GENERALIZED_PROPENSITY_PROVENANCE, LevelMean, LevelRows, MultiLevelAipw, MultiLevelEstimate,
+    MultiLevelPopulation, MultiLevelTarget,
+};
+pub use levels::{DeclaredTreatmentLevels, OtherLevels};
 pub use matching::{CaliperScale, PropensityMatching};
 pub use penalized::{
     DEFAULT_RIDGE_GRID, NuisanceFallback, PropensityNuisance, PropensityPenalty, RidgeTuning,
@@ -54,8 +61,9 @@ pub use prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, default_propensity_overlap,
 };
 pub(crate) use prepare::{
-    clamp_scores, clip_of, gather, gather_into, prepare_propensity_problem_with_registry,
-    require_interior_propensities, split_by_treatment, trim_of, trim_retained_rows,
+    clamp_scores, clip_of, gather, gather_into, prepare_propensity_problem_with_levels,
+    prepare_propensity_problem_with_registry, require_interior_propensities, split_by_treatment,
+    trim_of, trim_retained_rows,
 };
 pub use stratification::PropensityStratification;
 pub use weighting::PropensityWeighting;
@@ -464,8 +472,9 @@ mod tests {
     }
 
     #[test]
-    fn prepare_rejects_non_binary_treatment_column() {
-        // {1,2}-coded treatment must be refused, not silently dichotomized at t > 0.5.
+    fn prepare_rejects_a_treatment_column_not_at_the_declared_levels() {
+        // {1,2}-coded treatment against 0/1 declared levels must be refused, not silently
+        // dichotomized at t > 0.5.
         let (t, y, z) = confounded_columns(100, 11);
         let t: Vec<f64> = t.iter().map(|&ti| ti + 1.0).collect();
         let (data, estimand) = build_dataset(t, y, z);
@@ -473,8 +482,7 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
         let est = PropensityWeighting::new();
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::Data(_)), "err={err:?}");
-        assert!(err.to_string().contains("binary treatment column"), "err={err}");
+        assert!(err.to_string().starts_with("reason=treatment_level_undeclared:"), "err={err}");
     }
 
     #[test]

@@ -56,6 +56,7 @@ nav:
     - Descriptive raw-versus-adjusted comparison: guides/descriptive-comparison.md
     - Tier-aware overlap and E-value diagnostics: guides/tier-diagnostics.md
     - Penalized propensity for AIPW: guides/penalized-aipw.md
+    - Treatment levels and multi-level treatments: guides/treatment-levels.md
     - Joint cells and derived treatments: guides/joint-cells.md
     - Clustered DML and entity-owned screens: guides/clustered-dml.md
     - Preflight diagnostics and cost: guides/preflight-diagnostics.md

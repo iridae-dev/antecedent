@@ -1098,6 +1098,10 @@ impl CheckedAipwOperation {
 
     /// Refuses execution when the retained fit or tiered closure no longer matches the
     /// checked target and query.
+    #[allow(
+        clippy::float_cmp,
+        reason = "treatment arms are exact category labels, not computed values"
+    )]
     fn check_retained_target(&self) -> Result<(), CausalError> {
         let lowering = self.preparation.lowering();
         let active = match &self.query.active {
@@ -1120,8 +1124,9 @@ impl CheckedAipwOperation {
             || self.preparation.target().adjustment_set != self.cache.estimand.adjustment_set
             || lowering.treatment != self.query.treatment
             || lowering.outcome != self.query.outcome
-            || active != Some(1.0)
-            || control != Some(0.0)
+            || active.is_none()
+            || control.is_none()
+            || active == control
         {
             return Err(CausalError::Compile {
                 message: "prepared AIPW operation disagrees with its checked target or query"

@@ -7,9 +7,10 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions};
 
+use super::levels::OtherLevels;
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, trim_of,
+    clip_of, default_propensity_overlap, prepare_propensity_problem_with_levels, trim_of,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -32,6 +33,10 @@ pub struct PropensityWeighting {
     pub glm_options: GlmOptions,
     /// Optional bindings for named predicates / custom target distributions.
     pub population_registry: Option<PopulationRegistry>,
+    /// Policy for treatment rows at neither declared level. The default refuses; the
+    /// exclusion that restricts the target population to the rows at the two declared levels
+    /// must be declared.
+    pub other_levels: OtherLevels,
 }
 
 impl Default for PropensityWeighting {
@@ -50,6 +55,7 @@ impl PropensityWeighting {
             overlap: default_propensity_overlap(),
             glm_options: GlmOptions::default(),
             population_registry: None,
+            other_levels: OtherLevels::default(),
         }
     }
 
@@ -77,6 +83,14 @@ impl PropensityWeighting {
         self
     }
 
+    /// Declare what to do with rows whose treatment is at neither declared level (see
+    /// [`OtherLevels`]). The default refuses.
+    #[must_use]
+    pub const fn with_other_levels(mut self, other_levels: OtherLevels) -> Self {
+        self.other_levels = other_levels;
+        self
+    }
+
     /// Prepare the covariate design from tabular data, identified estimand, and query.
     ///
     /// # Errors
@@ -89,12 +103,13 @@ impl PropensityWeighting {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        prepare_propensity_problem_with_registry(
+        prepare_propensity_problem_with_levels(
             data,
             estimand,
             query,
             self.overlap,
             self.population_registry.as_ref(),
+            self.other_levels,
         )
     }
 
@@ -190,6 +205,7 @@ impl PropensityWeighting {
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
+            .with_treatment_levels(problem.treatment_levels)
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
     }
 

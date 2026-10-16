@@ -581,6 +581,8 @@ pub struct StudyBuilder {
     overlap_policy: Option<OverlapPolicy>,
     /// Optional bindings for named predicates / custom target distributions.
     population_registry: Option<PopulationRegistry>,
+    /// Participant labels bound to the rows of the data (digests only).
+    participants: Option<antecedent_io::ParticipantBindingWire>,
     /// Custom slow-path validators appended after the built-in refute suite.
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional tier-rule background (fast-path generalized adjustment).
@@ -895,6 +897,7 @@ impl StudyBuilder {
             n_draws_explicit: false,
             overlap_policy: None,
             population_registry: None,
+            participants: None,
             custom_validators: Vec::new(),
             tiered: None,
             caller_graph: None,
@@ -1291,6 +1294,14 @@ impl StudyBuilder {
         self
     }
 
+    /// Bind participant labels to the rows of the data. The binding enters the data-snapshot
+    /// identity only when set; it labels rows and changes no estimate.
+    #[must_use]
+    pub fn participants(mut self, binding: antecedent_io::ParticipantBindingWire) -> Self {
+        self.participants = Some(binding);
+        self
+    }
+
     /// Bindings for named predicates and custom target-distribution weights.
     #[must_use]
     pub fn population_registry(mut self, registry: PopulationRegistry) -> Self {
@@ -1373,6 +1384,7 @@ impl StudyBuilder {
             n_draws_explicit: self.n_draws_explicit,
             overlap_policy: self.overlap_policy,
             population_registry: self.population_registry,
+            participants: self.participants,
             custom_validators: self.custom_validators,
             tiered: self.tiered,
             caller_graph: self.caller_graph.is_some(),

@@ -54,6 +54,26 @@ pub(crate) fn mean_all_observed(
         && *target_population == TargetPopulation::AllObserved
 }
 
+/// The query contrasts two distinct numeric `Set` levels of its treatment.
+///
+/// Propensity and AIPW preparation recode the declared active and control levels to a 0/1
+/// arm indicator, so the contrast is not limited to treatment coded `1` against `0`.
+#[must_use]
+#[allow(
+    clippy::float_cmp,
+    reason = "treatment arms are exact category labels, not computed values"
+)]
+pub(crate) fn distinct_numeric_arms(query: &antecedent_core::AverageEffectQuery) -> bool {
+    let level = |intervention: &antecedent_core::Intervention| match intervention {
+        antecedent_core::Intervention::Set { variable, value } if *variable == query.treatment => {
+            value.as_f64()
+        }
+        _ => None,
+    };
+    matches!((level(&query.active), level(&query.control)),
+        (Some(active), Some(control)) if active != control)
+}
+
 /// Complete-observation, all-observed, mean response query.
 #[must_use]
 pub(crate) fn complete_mean_response(query: &ResponseQuery) -> bool {

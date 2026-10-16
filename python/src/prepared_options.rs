@@ -29,6 +29,7 @@ const KEYS: &[&str] = &[
     "on_progress",
     "inference",
     "discovery_algorithm",
+    "participants",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -112,6 +113,8 @@ pub(crate) struct PrepareOptions {
     pub inference: InferenceSpec,
     /// Discovery algorithm of an accepted structure (provenance only).
     pub discovery_algorithm: Option<String>,
+    /// Participant labels bound to the data rows (digests only).
+    pub participants: Option<antecedent_io::ParticipantBindingWire>,
 }
 
 impl PrepareOptions {
@@ -170,6 +173,21 @@ impl PrepareOptions {
         };
         let discovery_algorithm =
             item("discovery_algorithm")?.map(|value| value.extract()).transpose()?;
+        let participants = item("participants")?
+            .map(|value| -> PyResult<_> {
+                let dict = value.cast::<PyDict>()?;
+                let field = |key: &str| -> PyResult<Bound<'_, PyAny>> {
+                    dict.get_item(key)?.ok_or_else(|| {
+                        crate::value_err(format!("participants option is missing {key:?}"))
+                    })
+                };
+                Ok(antecedent_io::ParticipantBindingWire {
+                    rows: field("rows")?.extract()?,
+                    labels: field("labels")?.extract()?,
+                    codes: field("codes")?.extract()?,
+                })
+            })
+            .transpose()?;
         Ok(Self {
             refute,
             bootstrap,
@@ -181,6 +199,7 @@ impl PrepareOptions {
             progress,
             inference,
             discovery_algorithm,
+            participants,
         })
     }
 
@@ -246,6 +265,9 @@ impl PrepareOptions {
         if let Some(registry) = &self.registry {
             builder = builder.population_registry(registry.clone());
         }
+        if let Some(participants) = &self.participants {
+            builder = builder.participants(participants.clone());
+        }
         builder
     }
 
@@ -266,6 +288,7 @@ impl PrepareOptions {
             progress: None,
             inference: InferenceSpec::default(),
             discovery_algorithm: None,
+            participants: self.participants.clone(),
         };
         without_bootstrap.apply(builder)
     }

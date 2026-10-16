@@ -1539,6 +1539,19 @@ pub struct InterferenceSnapshotWire {
     pub assignment: PayloadDigestWire,
 }
 
+/// Participant labels bound to the rows of a data snapshot: the row count, a digest of the
+/// distinct labels in first-seen order, and a digest of every row's label code. Labels that
+/// differ in text or in row assignment give another digest.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ParticipantBindingWire {
+    /// Rows labelled.
+    pub rows: u64,
+    /// Digest (hex) of the distinct labels in first-seen order.
+    pub labels: String,
+    /// Digest (hex) of the per-row label codes.
+    pub codes: String,
+}
+
 /// Data-snapshot payload binding contents and ordered unit/environment partitions.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DataSnapshotIdentityWire {
@@ -1571,6 +1584,10 @@ pub struct DataSnapshotIdentityWire {
     /// fit and uncertainty contract is inside the supported replay subset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub linear_fit_moments: Option<LinearFitMomentsWire>,
+    /// Participant labels bound to the rows, when the study declares them. Absent on older
+    /// artifacts and on studies without participants, whose digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub participants: Option<ParticipantBindingWire>,
 }
 
 /// Sufficient statistics for replaying a checked homoskedastic OLS fit.
@@ -2379,6 +2396,10 @@ pub struct EstimatorConfigWire {
     /// Causal-forest honesty flag.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub honesty: Option<bool>,
+    /// Declared exclusion of treatment rows at neither declared level; absent when the
+    /// estimator refuses such rows (the default), so existing digests are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub other_levels: Option<String>,
 }
 
 /// Portable estimator-spec identity (mirrors `antecedent::EstimatorSpec` variants).
@@ -3010,6 +3031,7 @@ mod tests {
             distribution_factor_laws: None,
             nested_counterfactual_fit: None,
             linear_fit_moments: None,
+            participants: None,
         };
         let decoded: DataSnapshotIdentityWire = from_cbor(&to_cbor(&original).unwrap()).unwrap();
         assert_eq!(original, decoded);

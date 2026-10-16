@@ -221,6 +221,10 @@ pub struct LinearAdjustmentAte {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids (length = prepared `nrows`) for cluster / panel SE.
     pub cluster_ids: Option<Vec<u32>>,
+    /// Optional cluster labels of every row of the source table (length = source rows),
+    /// subset to the retained rows by the design's row selection. Exclusive with
+    /// [`Self::cluster_ids`].
+    pub source_cluster_ids: Option<Vec<u32>>,
     /// Optional multiway cluster ids for [`AnalyticSeKind::Multiway`].
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels (length = prepared `nrows`) for panel HAC.
@@ -247,6 +251,7 @@ impl LinearAdjustmentAte {
             overlap: OverlapPolicy::ExplicitOverride,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            source_cluster_ids: None,
             multiway_ids: None,
             panel_times: None,
             fit_kind: LinearFitKind::Ols,
@@ -285,6 +290,15 @@ impl LinearAdjustmentAte {
     #[must_use]
     pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set cluster labels for every row of the source table (length must equal its row
+    /// count). Rows dropped as incomplete or outside the target population drop their
+    /// labels with them, so the labels stay with their rows.
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.source_cluster_ids = Some(cluster_ids);
         self
     }
 
@@ -349,6 +363,13 @@ impl LinearAdjustmentAte {
         let treatment = query.treatment;
         let outcome = query.outcome;
         let (active, control, treatment_delta) = treatment_contrast(&query.active, &query.control)?;
+        if let Some(source) = self.source_cluster_ids.as_deref() {
+            crate::se::require_source_labels(
+                source,
+                self.cluster_ids.as_deref(),
+                data.row_count(),
+            )?;
+        }
 
         let mut ids = Vec::with_capacity(2 + estimand.adjustment_set.len());
         ids.push(treatment);
@@ -658,6 +679,12 @@ impl LinearAdjustmentAte {
         let n = nrows as f64;
         let p = ncols as f64;
         let delta = problem.treatment_delta;
+        let retained_clusters = self
+            .source_cluster_ids
+            .as_deref()
+            .map(|source| crate::se::retained_row_labels(source, &problem.design.row_selection))
+            .transpose()?;
+        let cluster_ids = retained_clusters.as_deref().or(self.cluster_ids.as_deref());
         match &fit.variance {
             FitVariance::Ols => {
                 // `(XᵀX)⁻¹` once: the homoskedastic SE reads its treatment diagonal and
@@ -666,7 +693,7 @@ impl LinearAdjustmentAte {
                 let se_coef = if let Some(se) = residual_sandwich_coef_se(
                     SeSpec {
                         kind: self.se_kind,
-                        cluster_ids: self.cluster_ids.as_deref(),
+                        cluster_ids,
                         multiway_ids: self.multiway_ids.as_deref(),
                         panel_times: self.panel_times.as_deref(),
                     },
@@ -714,7 +741,7 @@ impl LinearAdjustmentAte {
                 let se_coef = if let Some(se) = score_sandwich_coef_se(
                     SeSpec {
                         kind: self.se_kind,
-                        cluster_ids: self.cluster_ids.as_deref(),
+                        cluster_ids,
                         multiway_ids: self.multiway_ids.as_deref(),
                         panel_times: self.panel_times.as_deref(),
                     },
@@ -730,13 +757,7 @@ impl LinearAdjustmentAte {
                     // Huber (1981, §7.10): Var(β̂) = κ² · [Σ s²ψ²/(n−p)] / m² · (XᵀX)⁻¹ with
                     // m = mean ψ′ and κ = 1 + (p/n) var(ψ′)/m². For an indicator ψ′,
                     // var(ψ′) = m(1−m).
-                    let kappa = 1.0 + (p / n) * (1.0 - mean_curvature) / mean_curvature;
-                    let tau2 = scores.iter().map(|e| e * e).sum::<f64>()
-                        / (n - p)
-                        / (mean_curvature * mean_curvature);
-                    crate::util::xtx_inverse(x, nrows, ncols).map_or(f64::NAN, |inv| {
-                        (kappa * kappa * tau2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
-                    })
+                    huber_homoskedastic_se(x, nrows, ncols, t_col, scores, mean_curvature)
                 } else {
                     f64::NAN
                 };
@@ -1177,6 +1198,25 @@ fn curvature_gram_inverse(
         }
     }
     crate::util::xtx_inverse(&scaled, nrows, ncols)
+}
+
+/// Huber (1981, §7.10) homoskedastic-form treatment SE, used when the sandwich is
+/// unavailable and the mean curvature `m = mean ψ′` is positive.
+fn huber_homoskedastic_se(
+    x: &[f64],
+    nrows: usize,
+    ncols: usize,
+    t_col: usize,
+    scores: &[f64],
+    mean_curvature: f64,
+) -> f64 {
+    let n = nrows as f64;
+    let p = ncols as f64;
+    let kappa = 1.0 + (p / n) * (1.0 - mean_curvature) / mean_curvature;
+    let tau2 =
+        scores.iter().map(|e| e * e).sum::<f64>() / (n - p) / (mean_curvature * mean_curvature);
+    crate::util::xtx_inverse(x, nrows, ncols)
+        .map_or(f64::NAN, |inv| (kappa * kappa * tau2 * inv[t_col * ncols + t_col].max(0.0)).sqrt())
 }
 
 /// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.
@@ -1743,6 +1783,54 @@ mod tests {
         let err = est.prepare(&data, &estimand, &named).unwrap_err();
         assert!(
             err.to_string().contains("PopulationRegistry") || err.to_string().contains("named")
+        );
+    }
+
+    #[test]
+    fn source_cluster_labels_follow_their_rows_through_the_population_mask() {
+        use antecedent_core::PredicateExpr;
+        let (data, estimand) = toy_with(|i, t, z| 1.0 + 2.0 * t + z + wiggle(i));
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Predicate(PredicateExpr::rows(
+                    (10..70).collect::<Vec<_>>(),
+                )));
+        let labels: Vec<u32> = (0..100u32).map(|i| (i * 5) % 7).collect();
+        let se_of = |est: LinearAdjustmentAte| {
+            let prep = est.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = EstimationWorkspace::default();
+            est.fit(&prep, &mut ws, &ExecutionContext::for_tests(1), AssumptionSet::new())
+                .unwrap()
+                .se_analytic()
+        };
+        let base = LinearAdjustmentAte {
+            bootstrap_replicates: 0,
+            se_kind: AnalyticSeKind::Cluster,
+            ..LinearAdjustmentAte::new()
+        };
+        let by_source = se_of(base.clone().with_source_cluster_ids(labels.clone()));
+        let aligned = se_of(base.clone().with_cluster_ids(labels[10..70].to_vec()));
+        let misaligned = se_of(base.clone().with_cluster_ids(labels[..60].to_vec()));
+        assert!(by_source.is_finite() && by_source > 0.0);
+        assert_eq!(by_source.to_bits(), aligned.to_bits());
+        assert_ne!(by_source.to_bits(), misaligned.to_bits());
+    }
+
+    #[test]
+    fn source_cluster_labels_must_cover_the_source_rows_and_exclude_complete_case_labels() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let base = LinearAdjustmentAte {
+            bootstrap_replicates: 0,
+            se_kind: AnalyticSeKind::Cluster,
+            ..LinearAdjustmentAte::new()
+        };
+        let short = base.clone().with_source_cluster_ids(vec![0; 99]);
+        assert!(short.prepare(&data, &estimand, &query).unwrap_err().to_string().contains("99"));
+        let both = base.with_source_cluster_ids(vec![0; 100]).with_cluster_ids(vec![0; 100]);
+        assert!(
+            both.prepare(&data, &estimand, &query).unwrap_err().to_string().contains("not both")
         );
     }
 

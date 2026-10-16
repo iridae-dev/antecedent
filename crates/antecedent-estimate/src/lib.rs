@@ -195,8 +195,8 @@ pub use cell_aipw::{
 };
 pub use cluster_dml_aipw::{
     ClusterDml, ClusterDmlReceipt, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD,
-    IndependenceUnit, MIN_CLUSTERS_FLOOR, MIN_COMPONENTS_PER_FOLD_FLOOR, cluster_fold_plan,
-    endpoint_components, flexible_learner_dependence_refusal,
+    DeclaredUnits, IndependenceUnit, MIN_CLUSTERS_FLOOR, MIN_COMPONENTS_PER_FOLD_FLOOR,
+    cluster_fold_plan, endpoint_components, flexible_learner_dependence_refusal,
 };
 pub use conditional::{ConditionalArmScores, ConditionalLinearAdjustment};
 pub use counterfactual_transport::{
@@ -283,8 +283,10 @@ pub use observation::{
 pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};
 pub use prediction::TemporalLinearPredictor;
 pub use propensity::{
-    CaliperScale, DEFAULT_RIDGE_GRID, DistanceMatching, FailedFit, FallbackRecord, FoldSupport,
-    NuisanceFallback, PROPENSITY_FIT_STAGE, PenalizedReport, PenalizedVarianceReport,
+    CaliperScale, DEFAULT_RIDGE_GRID, DeclaredTreatmentLevels, DistanceMatching, FailedFit,
+    FallbackRecord, FoldSupport, GENERALIZED_PROPENSITY_PROVENANCE, LevelMean, LevelRows,
+    MultiLevelAipw, MultiLevelEstimate, MultiLevelPopulation, MultiLevelTarget, NuisanceFallback,
+    OtherLevels, PROPENSITY_FIT_STAGE, PenalizedReport, PenalizedVarianceReport,
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
     PropensityNuisance, PropensityPenalty, PropensityStratification, PropensityWeighting,
     REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, RidgeTuning, crossfit_influence_se,

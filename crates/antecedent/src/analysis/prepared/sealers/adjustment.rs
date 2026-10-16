@@ -400,6 +400,9 @@ pub(super) fn checked_propensity(cx: &SealContext<'_>) -> SealOutcome {
                     && matches!(
                         cx.binding.estimator.named(),
                         Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
+                    )
+                    && !analysis.estimator_spec.as_deref().is_some_and(
+                        crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels,
                     ) =>
             {
                 let estimator = cx.binding.estimator.named().expect("checked propensity estimator");
@@ -477,10 +480,11 @@ pub(super) fn checked_aipw(cx: &SealContext<'_>) -> SealOutcome {
             background.within_tier == antecedent_graph::WithinTier::CoDetermined
         }) && matches!(query.outcome_functional, OutcomeFunctional::Mean)
             && matches!(query.target_population, TargetPopulation::AllObserved)
-            && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
-                    if *variable == query.treatment && value.as_f64() == Some(1.0))
-            && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
-                    if *variable == query.treatment && value.as_f64() == Some(0.0))
+            && crate::analysis::route_guards::distinct_numeric_arms(query)
+            && !analysis
+                .estimator_spec
+                .as_deref()
+                .is_some_and(crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels)
             && cx.binding.estimator.is(EstimatorId::Aipw) =>
         {
             let fitter = checked_aipw_fitter(analysis);

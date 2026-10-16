@@ -158,7 +158,7 @@ loosened to absorb one. It is a test with fixed seeds, not a coverage record.
 
 ## Scope and refusals
 
-- Licensed: the untrimmed `AllObserved` mean ATE with binary treatment. Other functionals,
+- Licensed: the untrimmed `AllObserved` mean ATE with a binary treatment (two declared levels). Other functionals,
   populations and trimmed fits refuse `route_not_supported` (`cluster_dml.scope`).
 - A penalized propensity keeps points only and is not combined with this route
   (`route_not_supported`, `cluster_dml.penalized_propensity`).
@@ -176,14 +176,23 @@ loosened to absorb one. It is a test with fixed seeds, not a coverage record.
   (`cluster_dml.dyadic_giant_component`). Too few endpoint labels or too few components per
   fold refuse `too_few_clusters`; a missing or misplaced second label set refuses
   `required_option_missing` / `invalid_argument` (see below).
-- **Flexible-learner estimators refuse a cluster option.** `DML`, `DRLearner` and
-  `CausalForest` have no cluster or dependence option. An `estimator_config` carrying
-  `cluster_ids`, `cluster_dml` or `multiway_ids` for them (`dml`, `dr.learner`,
-  `causal.forest`) is refused with `route_not_supported`
-  (`cluster_dml.flexible_learner_closed`) rather than reported as an unknown key or ignored,
-  and no dependence-aware interval is claimed for them: their cross-fitting and inference are
-  not justified under dependence in this change. The refusal is raised by the shared
-  `flexible_learner_dependence_refusal` and tested in Rust and Python.
+- **Flexible-learner estimators.** `DML(cluster_dml=ClusterDml(...))` and
+  `DRLearner(cluster_dml=ClusterDml(...))` take the same whole-unit cross-fit and publish the
+  cluster-sandwich standard error of the cross-fitted AIPW scores (point, score table and
+  standard error; no interval), on the same scope as the AIPW route: the untrimmed
+  `AllObserved` mean ATE and the AIPW score (the partially linear score is refused). Their
+  flexible nuisances are fit on other units only, so the dependence the sandwich allows for is
+  also respected by the learners. `CausalForest`, a bare `cluster_ids` or `multiway_ids` on
+  these estimators, and `cluster_dml` on a score-less route are refused with
+  `route_not_supported` (`cluster_dml.flexible_learner_closed`) rather than reported as an
+  unknown key or ignored; the refusal is raised by `flexible_learner_dependence_refusal`.
+- **Named unit columns.** `ClusterDml(cluster="site")` (and `second_cluster="..."` for a dyad)
+  names the data columns of the unit labels instead of `cluster_ids`. The labels are encoded
+  in first-seen order over the rows of the table passed to `prepare` (both endpoints share one
+  vocabulary, so an entity that is both a first and a second endpoint is seen as such), and
+  each analysed row keeps the label of its original row through the complete-case mask before
+  the cross-fit plan is built. A named column is equivalent to `cluster_ids` aligned by hand to
+  the analysed rows.
 
 ## Two-way and dyadic units
 

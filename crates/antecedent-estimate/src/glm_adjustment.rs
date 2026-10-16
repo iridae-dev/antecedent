@@ -90,6 +90,10 @@ pub struct GlmAdjustmentAte {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids for cluster / panel sandwich SE.
     pub cluster_ids: Option<Vec<u32>>,
+    /// Optional cluster labels of every row of the source table (length = source rows),
+    /// subset to the retained rows by the design's row selection. Exclusive with
+    /// [`Self::cluster_ids`].
+    pub source_cluster_ids: Option<Vec<u32>>,
     /// Optional multiway cluster ids.
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for panel HAC sandwich SE.
@@ -116,6 +120,7 @@ impl GlmAdjustmentAte {
             family: GlmFamily::BinomialLogit,
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            source_cluster_ids: None,
             multiway_ids: None,
             panel_times: None,
             population_registry: None,
@@ -165,6 +170,15 @@ impl GlmAdjustmentAte {
     #[must_use]
     pub fn with_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
         self.cluster_ids = Some(cluster_ids);
+        self
+    }
+
+    /// Set cluster labels for every row of the source table (length must equal its row
+    /// count). Rows dropped as incomplete or outside the target population drop their
+    /// labels with them, so the labels stay with their rows.
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.source_cluster_ids = Some(cluster_ids);
         self
     }
 
@@ -225,6 +239,13 @@ impl GlmAdjustmentAte {
             return Err(EstimationError::unsupported(
                 "GLM adjustment supports AllObserved, Treated, Untreated, or Predicate",
             ));
+        }
+        if let Some(source) = self.source_cluster_ids.as_deref() {
+            crate::se::require_source_labels(
+                source,
+                self.cluster_ids.as_deref(),
+                data.row_count(),
+            )?;
         }
         let treatment = query.treatment;
         let outcome = query.outcome;
@@ -379,6 +400,12 @@ impl GlmAdjustmentAte {
             &glm_fit.coefficients,
             &problem.design.outcome,
         );
+        let retained_clusters = self
+            .source_cluster_ids
+            .as_deref()
+            .map(|source| crate::se::retained_row_labels(source, &problem.design.row_selection))
+            .transpose()?;
+        let cluster_ids = retained_clusters.as_deref().or(self.cluster_ids.as_deref());
         let se_analytic = match self.se_kind {
             AnalyticSeKind::Homoskedastic => gcomp_delta_method_se(
                 &contrast,
@@ -390,7 +417,7 @@ impl GlmAdjustmentAte {
             other => gcomp_sandwich_se(
                 SeSpec {
                     kind: other,
-                    cluster_ids: self.cluster_ids.as_deref(),
+                    cluster_ids,
                     multiway_ids: self.multiway_ids.as_deref(),
                     panel_times: self.panel_times.as_deref(),
                 },

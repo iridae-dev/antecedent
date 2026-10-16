@@ -9,10 +9,11 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions, fit_propensity};
 
+use super::levels::OtherLevels;
 use super::prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry,
-    restrict_to_rows, trim_of, trim_retained_rows,
+    clip_of, default_propensity_overlap, prepare_propensity_problem_with_levels, restrict_to_rows,
+    trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -37,6 +38,10 @@ pub struct PropensityStratification {
     pub n_strata: u32,
     /// Optional bindings for named predicates / custom target distributions.
     pub population_registry: Option<PopulationRegistry>,
+    /// Policy for treatment rows at neither declared level. The default refuses; the
+    /// exclusion that restricts the target population to the rows at the two declared levels
+    /// must be declared.
+    pub other_levels: OtherLevels,
 }
 
 impl Default for PropensityStratification {
@@ -56,6 +61,7 @@ impl PropensityStratification {
             glm_options: GlmOptions::default(),
             n_strata: 5,
             population_registry: None,
+            other_levels: OtherLevels::default(),
         }
     }
 
@@ -83,6 +89,14 @@ impl PropensityStratification {
         self
     }
 
+    /// Declare what to do with rows whose treatment is at neither declared level (see
+    /// [`OtherLevels`]). The default refuses.
+    #[must_use]
+    pub const fn with_other_levels(mut self, other_levels: OtherLevels) -> Self {
+        self.other_levels = other_levels;
+        self
+    }
+
     /// Set the number of quantile strata (default 5).
     #[must_use]
     pub const fn with_n_strata(mut self, n_strata: u32) -> Self {
@@ -101,12 +115,13 @@ impl PropensityStratification {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
-        prepare_propensity_problem_with_registry(
+        prepare_propensity_problem_with_levels(
             data,
             estimand,
             query,
             self.overlap,
             self.population_registry.as_ref(),
+            self.other_levels,
         )
     }
 
@@ -204,6 +219,7 @@ impl PropensityStratification {
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
             .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
+            .with_treatment_levels(problem.treatment_levels)
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
     }
 

@@ -519,6 +519,7 @@ pub(crate) fn fit_once(
         // change its answer and that it cannot carry are a refusal, not a silent drop.
         if estimator.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
             || estimator.cluster_ids.is_some()
+            || estimator.source_cluster_ids.is_some()
             || estimator.multiway_ids.is_some()
             || estimator.panel_times.is_some()
             || !matches!(estimator.fit_kind, antecedent_estimate::LinearFitKind::Ols)

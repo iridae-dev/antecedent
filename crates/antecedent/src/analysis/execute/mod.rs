@@ -176,6 +176,8 @@ pub struct Study {
     pub(crate) inference: InferenceMode,
     pub(crate) overlap_policy: Option<OverlapPolicy>,
     pub(crate) population_registry: Option<PopulationRegistry>,
+    /// Digests of the participant labels bound to the rows of the data.
+    pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
     pub(crate) custom_validators: Vec<Arc<dyn antecedent_validate::CustomEffectValidator>>,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
     /// Prepare-time identification for the static ATE path (including the

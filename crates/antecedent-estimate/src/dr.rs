@@ -5,12 +5,13 @@
 use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_learn::{LearnerSpec, LinearSpec, LogisticSpec, PredictionTask, RidgeSpec};
 use antecedent_stats::{SandwichKind, coefficient_covariance};
 
 use crate::adjustment::EffectEstimate;
+use crate::cluster_dml_aipw::{ClusterDml, DeclaredUnits};
 use crate::error::EstimationError;
 use crate::learn_nuisance::{cached_aipw_nuisances, design_for_spec, learn_err, resolve_nuisance};
 use crate::overlap::OverlapPolicy;
@@ -33,6 +34,10 @@ pub struct DrLearner {
     pub final_learner: LearnerSpec,
     /// Overlap policy.
     pub overlap: OverlapPolicy,
+    /// Declared independence unit of a whole-cluster cross-fit: the nuisances scoring a unit
+    /// are fit on other units, and the marginal ATE's standard error is the cluster sandwich
+    /// of the cross-fitted scores.
+    pub units: DeclaredUnits,
 }
 
 /// A prespecified profile in the complete ordered adjustment set.
@@ -83,7 +88,50 @@ impl DrLearner {
             treatment: LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 }),
             final_learner: LearnerSpec::Linear(LinearSpec {}),
             overlap: default_propensity_overlap(),
+            units: DeclaredUnits {
+                spec: None,
+                first: None,
+                first_source: None,
+                second: None,
+                second_source: None,
+            },
         }
+    }
+
+    /// Declare whole-cluster cross-fitting over the unit labels set with
+    /// [`Self::with_cluster_ids`] or [`Self::with_source_cluster_ids`].
+    #[must_use]
+    pub fn with_cluster_dml(mut self, spec: ClusterDml) -> Self {
+        self.units.spec = Some(spec);
+        self
+    }
+
+    /// Unit label of every analysed row.
+    #[must_use]
+    pub fn with_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.first = Some(labels);
+        self
+    }
+
+    /// Unit label of every row of the source table (length must equal its row count).
+    #[must_use]
+    pub fn with_source_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.first_source = Some(labels);
+        self
+    }
+
+    /// Second-endpoint label of every analysed row of a dyadic unit.
+    #[must_use]
+    pub fn with_second_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.second = Some(labels);
+        self
+    }
+
+    /// Second-endpoint label of every source row of a dyadic unit.
+    #[must_use]
+    pub fn with_source_second_cluster_ids(mut self, labels: Vec<u32>) -> Self {
+        self.units.second_source = Some(labels);
+        self
     }
 
     /// Adapt one shared spec to each first-stage nuisance task.
@@ -142,7 +190,15 @@ impl DrLearner {
     ) -> Result<PreparedPropensityProblem, EstimationError> {
         require_adjustment_shaped(estimand, "DRLearner requires an adjustment-shaped estimand")?;
         validate_ate_query_with_targets(query)?;
-        prepare_propensity_problem_with_registry(data, estimand, query, self.overlap, None)
+        self.units.check_source_rows(data.row_count())?;
+        let mut problem =
+            prepare_propensity_problem_with_registry(data, estimand, query, self.overlap, None)?;
+        self.units.declare(
+            &mut problem,
+            query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
+            self.overlap,
+        )?;
+        Ok(problem)
     }
 
     /// Row-identified cross-fitted AIPW score table of the marginal ATE this learner reports
@@ -190,7 +246,8 @@ impl DrLearner {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        self.fit_with_profiles(problem, &[], ctx, assumptions).map(|(effect, _)| effect)
+        let (effect, _) = self.fit_with_profiles(problem, &[], ctx, assumptions)?;
+        self.units.publish(effect, problem)
     }
 
     /// Fit and evaluate prespecified profiles with pointwise linear HC0 inference.
@@ -217,6 +274,7 @@ impl DrLearner {
             ));
         }
         let (effect, results) = self.fit_with_profiles(problem, profiles, ctx, assumptions)?;
+        let effect = self.units.publish(effect, problem)?;
         let results = results.ok_or_else(|| {
             EstimationError::data_msg(
                 "pointwise CATE profiles were requested but the fit returned none",

@@ -1006,6 +1006,14 @@ reason = ""
 test = "python/tests/test_parameter_bindings.py::test_max_completions_reaches_plan"
 
 [[parameter]]
+name = "participant"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "data_snapshot.participants"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_participant_reaches_plan"
+
+[[parameter]]
 name = "latency"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
 binding = "contract"

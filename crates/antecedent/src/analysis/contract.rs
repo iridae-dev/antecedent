@@ -586,6 +586,7 @@ impl PreparedStudy {
         let snapshot = data_snapshot_wire(
             data,
             self.study().interference.as_ref(),
+            self.study().participants.as_ref(),
             &program.observation_digest,
         )?;
         let mut snapshot = snapshot;
@@ -1715,8 +1716,12 @@ fn contract_payloads(
     study: &Study,
     prepared: Option<&PreparedStudy>,
 ) -> Result<ContractPayloads, CausalError> {
-    let mut data_snapshot =
-        data_snapshot_wire(&study.data, study.interference.as_ref(), &program.observation_digest)?;
+    let mut data_snapshot = data_snapshot_wire(
+        &study.data,
+        study.interference.as_ref(),
+        study.participants.as_ref(),
+        &program.observation_digest,
+    )?;
     if let (Some(prepared), DataInput::Tabular(tabular)) = (prepared, &study.data) {
         let laws = prepared
             .distribution_factor_snapshot(tabular)?
@@ -2052,6 +2057,7 @@ const fn snapshot_modality(data_input: &DataInput) -> &'static str {
 fn data_snapshot_wire(
     data_input: &DataInput,
     interference: Option<&super::builder::InterferenceSpec>,
+    participants: Option<&antecedent_io::ParticipantBindingWire>,
     observation: &antecedent_core::SemanticDigest,
 ) -> Result<DataSnapshotIdentityWire, CausalError> {
     let modality = snapshot_modality(data_input);
@@ -2097,6 +2103,7 @@ fn data_snapshot_wire(
         distribution_factor_laws: None,
         nested_counterfactual_fit: None,
         linear_fit_moments: None,
+        participants: participants.cloned(),
     })
 }
 

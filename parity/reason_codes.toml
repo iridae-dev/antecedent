@@ -22,7 +22,7 @@ max_uses = 36
 id = "estimator_grid_not_measured"
 applies_to = ["calibration"]
 meaning = "No coverage record measured this construction (query, graph class, structure, inference, estimator, interval method, SE kind, dependence, posterior, functional)."
-max_uses = 175
+max_uses = 176
 
 [[code]]
 id = "interval_level_not_measured"
@@ -686,3 +686,8 @@ meaning = "A single adjustment column near-deterministically predicts a treatmen
 id = "adjustment_column_tracks_outcome"
 applies_to = ["runtime_refusal"]
 meaning = "A single adjustment column near-deterministically predicts the outcome; review finding."
+
+[[code]]
+id = "treatment_level_undeclared"
+applies_to = ["runtime_refusal"]
+meaning = "The treatment column has rows at a level that is none of the levels the estimate declares (the active and control levels of a pairwise contrast, or the declared level set of a full-population generalized-propensity estimate). Dropping those rows would restrict the target population, so the estimate refuses unless the restriction to the rows at the declared levels is declared."

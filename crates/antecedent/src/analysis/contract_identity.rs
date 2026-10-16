@@ -52,16 +52,21 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             EstimatorSpecWire::LinearAdjustmentAte(EstimatorConfigWire {
                 se_kind: Some(se_kind(cfg.se_kind)),
                 fit_kind: Some(fit_kind(cfg.fit_kind)),
+                cluster_ids: declared_clusters(
+                    cfg.cluster_ids.as_deref(),
+                    cfg.source_cluster_ids.as_deref(),
+                ),
                 ..grouped!(
                     cfg,
                     base(cfg.bootstrap_replicates, cfg.overlap);
-                    cluster_ids, multiway_ids, panel_times, population_registry
+                    multiway_ids, panel_times, population_registry
                 )
             })
         }
         EstimatorSpec::PropensityWeighting(cfg) => {
             EstimatorSpecWire::PropensityWeighting(EstimatorConfigWire {
                 glm: Some(glm_options(&cfg.glm_options)),
+                other_levels: other_levels_key(cfg.other_levels),
                 ..grouped!(
                     cfg,
                     base(cfg.bootstrap_replicates, cfg.overlap);
@@ -72,6 +77,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         EstimatorSpec::PropensityMatching(cfg) => {
             EstimatorSpecWire::PropensityMatching(EstimatorConfigWire {
                 glm: Some(glm_options(&cfg.glm_options)),
+                other_levels: other_levels_key(cfg.other_levels),
                 se_kind: Some(se_kind(cfg.se_kind)),
                 caliper_bits: cfg.caliper.map(f64::to_bits),
                 caliper_scale: Some(
@@ -91,6 +97,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         EstimatorSpec::PropensityStratification(cfg) => {
             EstimatorSpecWire::PropensityStratification(EstimatorConfigWire {
                 glm: Some(glm_options(&cfg.glm_options)),
+                other_levels: other_levels_key(cfg.other_levels),
                 n_strata: Some(cfg.n_strata),
                 ..grouped!(
                     cfg,
@@ -113,6 +120,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         }
         EstimatorSpec::Aipw(cfg) => EstimatorSpecWire::Aipw(EstimatorConfigWire {
             glm: Some(glm_options(&cfg.glm_options)),
+            other_levels: other_levels_key(cfg.other_levels),
             // The declared propensity nuisance (penalty grid, inner folds, fallback) changes
             // the science; the default is omitted so existing digests are unchanged.
             treatment_config: (!cfg.propensity.is_default())
@@ -120,12 +128,22 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             // The declared independence unit and minimum cluster count (the labels are
             // digested as `cluster_ids`, a dyadic unit's second-endpoint labels inside this
             // key); omitted by default.
-            score: cluster_dml_key(cfg),
+            score: cfg.cluster_dml.as_ref().map(|spec| {
+                cluster_dml_key(
+                    spec,
+                    cfg.cluster_ids_second.as_deref(),
+                    cfg.source_cluster_ids_second.as_deref(),
+                )
+            }),
             se_kind: Some(se_kind(cfg.se_kind)),
+            cluster_ids: declared_clusters(
+                cfg.cluster_ids.as_deref(),
+                cfg.source_cluster_ids.as_deref(),
+            ),
             ..grouped!(
                 cfg,
                 base(cfg.bootstrap_replicates, cfg.overlap);
-                cluster_ids, multiway_ids, panel_times, population_registry
+                multiway_ids, panel_times, population_registry
             )
         }),
         EstimatorSpec::GlmAdjustment(cfg) => {
@@ -133,21 +151,25 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 glm: Some(glm_options(&cfg.glm_options)),
                 se_kind: Some(se_kind(cfg.se_kind)),
                 family: Some(glm_family(cfg.family).into()),
+                cluster_ids: declared_clusters(
+                    cfg.cluster_ids.as_deref(),
+                    cfg.source_cluster_ids.as_deref(),
+                ),
                 ..grouped!(
                     cfg,
                     base(cfg.bootstrap_replicates, cfg.overlap);
-                    cluster_ids, multiway_ids, panel_times, population_registry
+                    multiway_ids, panel_times, population_registry
                 )
             })
         }
         EstimatorSpec::FrontDoorTwoStage(cfg) => {
             EstimatorSpecWire::FrontDoorTwoStage(EstimatorConfigWire {
                 se_kind: Some(se_kind(cfg.se_kind)),
-                ..grouped!(
-                    cfg,
-                    base(cfg.bootstrap_replicates, cfg.overlap);
-                    cluster_ids
-                )
+                cluster_ids: declared_clusters(
+                    cfg.cluster_ids.as_deref(),
+                    cfg.source_cluster_ids.as_deref(),
+                ),
+                ..base(cfg.bootstrap_replicates, cfg.overlap)
             })
         }
         EstimatorSpec::IvWald(cfg) => EstimatorSpecWire::IvWald(EstimatorConfigWire {
@@ -173,12 +195,28 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             outcome_config: Some(learner_identity(cfg.outcome)),
             treatment: Some(cfg.treatment.name().into()),
             treatment_config: Some(learner_identity(cfg.treatment)),
-            score: Some(
-                match cfg.score {
-                    antecedent_estimate::DmlScore::Aipw => "aipw",
-                    antecedent_estimate::DmlScore::PartiallyLinear => "partially_linear",
-                }
-                .into(),
+            score: Some(match (cfg.score, cfg.units.spec.as_ref()) {
+                (antecedent_estimate::DmlScore::Aipw, None) => "aipw".into(),
+                (antecedent_estimate::DmlScore::PartiallyLinear, None) => "partially_linear".into(),
+                // The unit declaration (and a dyad's second labels) change the science, so
+                // they extend the score name only when declared.
+                (score, Some(spec)) => format!(
+                    "{};{}",
+                    match score {
+                        antecedent_estimate::DmlScore::Aipw => "aipw",
+                        antecedent_estimate::DmlScore::PartiallyLinear => "partially_linear",
+                    },
+                    cluster_dml_key(
+                        spec,
+                        cfg.units.second.as_deref(),
+                        cfg.units.second_source.as_deref(),
+                    )
+                ),
+            }),
+            other_levels: other_levels_key(cfg.other_levels),
+            cluster_ids: declared_clusters(
+                cfg.units.first.as_deref(),
+                cfg.units.first_source.as_deref(),
             ),
             ..base(0, cfg.overlap)
         }),
@@ -190,6 +228,17 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             treatment_config: Some(learner_identity(cfg.treatment)),
             final_learner: Some(cfg.final_learner.name().into()),
             final_learner_config: Some(learner_identity(cfg.final_learner)),
+            score: cfg.units.spec.as_ref().map(|spec| {
+                cluster_dml_key(
+                    spec,
+                    cfg.units.second.as_deref(),
+                    cfg.units.second_source.as_deref(),
+                )
+            }),
+            cluster_ids: declared_clusters(
+                cfg.units.first.as_deref(),
+                cfg.units.first_source.as_deref(),
+            ),
             ..base(0, cfg.overlap)
         }),
         EstimatorSpec::CausalForest(cfg) => EstimatorSpecWire::CausalForest(EstimatorConfigWire {
@@ -232,6 +281,15 @@ fn base(bootstrap_replicates: u32, overlap: OverlapPolicy) -> EstimatorConfigWir
         min_leaf: None,
         max_depth: None,
         honesty: None,
+        other_levels: None,
+    }
+}
+
+/// Identity key of a declared exclusion; the default refusal is omitted.
+fn other_levels_key(policy: antecedent_estimate::OtherLevels) -> Option<String> {
+    match policy {
+        antecedent_estimate::OtherLevels::Refuse => None,
+        antecedent_estimate::OtherLevels::ExcludeUndeclared => Some("exclude_undeclared".into()),
     }
 }
 
@@ -283,21 +341,42 @@ pub(crate) fn glm_options(options: &GlmOptions) -> GlmOptionsWire {
     }
 }
 
-/// Canonical key of an AIPW cluster-DML declaration, with the digest of a dyadic unit's
+/// Canonical key of a cluster-DML declaration, with the digest of a dyadic unit's
 /// second-endpoint labels so that other second labels give another identity.
-fn cluster_dml_key(cfg: &antecedent_estimate::AipwAte) -> Option<String> {
-    let mut key = cfg.cluster_dml.as_ref()?.canonical_key();
-    if let Some(second) = cfg.cluster_ids_second.as_deref() {
+fn cluster_dml_key(
+    spec: &antecedent_estimate::ClusterDml,
+    second: Option<&[u32]>,
+    second_source: Option<&[u32]>,
+) -> String {
+    let mut key = spec.canonical_key();
+    if let Some(second) = second {
         key.push_str(";second_ids=");
         key.push_str(&to_hex(
             &PayloadDigestWire::u32s("estimator.cluster_ids_second", second).digest,
         ));
+    } else if let Some(second) = second_source {
+        key.push_str(";second_source_ids=");
+        key.push_str(&to_hex(
+            &PayloadDigestWire::u32s("estimator.source_cluster_ids_second", second).digest,
+        ));
     }
-    Some(key)
+    key
 }
 
 fn cluster_ids(ids: &[u32]) -> PayloadDigestWire {
     PayloadDigestWire::u32s("estimator.cluster_ids", ids)
+}
+
+/// The declared cluster labels as one digest. Labels per source row and labels per retained
+/// row digest under different names, so the same numbers declared the other way are another
+/// identity.
+fn declared_clusters(
+    retained: Option<&[u32]>,
+    source: Option<&[u32]>,
+) -> Option<PayloadDigestWire> {
+    retained
+        .map(cluster_ids)
+        .or_else(|| source.map(|ids| PayloadDigestWire::u32s("estimator.source_cluster_ids", ids)))
 }
 
 fn multiway_ids(groups: &[Vec<u32>]) -> PayloadDigestWire {

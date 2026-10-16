@@ -379,10 +379,13 @@ fn retained_fold_ids(
     {
         return Err(EstimationError::data_msg("invalid retained nuisance fold count"));
     }
-    let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
-    let source = match problem.fold_assignment.as_deref() {
-        Some(raw) => FoldSource::Shared(raw),
-        None => FoldSource::Stratified {
+    let arms = problem.fold_strata();
+    // Whole-unit folds when a cluster-DML unit is declared: the nuisances scoring a unit are
+    // then fit on other units only.
+    let source = match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
+        (Some(raw), _) => FoldSource::Shared(raw),
+        (None, Some(units)) => FoldSource::Clustered { units, seed: ctx.rng.master_seed() },
+        (None, None) => FoldSource::Stratified {
             strata: &arms,
             units: &problem.row_index,
             seed: ctx.rng.master_seed(),

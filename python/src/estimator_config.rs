@@ -50,6 +50,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "se_kind",
             "se_lag",
             "cluster_ids",
+            "source_cluster_ids",
             "multiway_ids",
             "panel_times",
             "fit_kind",
@@ -57,7 +58,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "fit_c",
         ],
     ),
-    ("propensity.weighting", &["bootstrap_replicates", "glm_options", "overlap"]),
+    ("propensity.weighting", &["bootstrap_replicates", "glm_options", "overlap", "other_levels"]),
     (
         "propensity.matching",
         &[
@@ -71,9 +72,13 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "caliper",
             "caliper_scale",
             "overlap",
+            "other_levels",
         ],
     ),
-    ("propensity.stratification", &["bootstrap_replicates", "glm_options", "n_strata", "overlap"]),
+    (
+        "propensity.stratification",
+        &["bootstrap_replicates", "glm_options", "n_strata", "overlap", "other_levels"],
+    ),
     (
         "distance.matching",
         &[
@@ -95,6 +100,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "se_kind",
             "se_lag",
             "cluster_ids",
+            "source_cluster_ids",
             "multiway_ids",
             "panel_times",
             "glm_options",
@@ -102,6 +108,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "propensity_penalty",
             "nuisance_fallback",
             "cluster_dml",
+            "other_levels",
         ],
     ),
     (
@@ -111,13 +118,17 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "se_kind",
             "se_lag",
             "cluster_ids",
+            "source_cluster_ids",
             "multiway_ids",
             "panel_times",
             "glm_options",
             "family",
         ],
     ),
-    ("frontdoor.linear_two_stage", &["bootstrap_replicates", "se_kind", "se_lag", "cluster_ids"]),
+    (
+        "frontdoor.linear_two_stage",
+        &["bootstrap_replicates", "se_kind", "se_lag", "cluster_ids", "source_cluster_ids"],
+    ),
     (
         "iv.wald",
         &[
@@ -145,8 +156,23 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
     // with the loose `running_variable`/`cutoff`/`bandwidth` kwargs by `merge_rd_triple`.
     // `se_kind` selects the jump coefficient's residual-based SE (`RdConfig::with_se_kind`).
     ("rd.sharp", &["running_variable", "cutoff", "bandwidth", "se_kind"]),
-    ("dml", &["learner", "outcome", "treatment", "score", "folds", "overlap"]),
-    ("dr.learner", &["learner", "outcome", "treatment", "final_learner", "folds", "overlap"]),
+    (
+        "dml",
+        &[
+            "learner",
+            "outcome",
+            "treatment",
+            "score",
+            "folds",
+            "overlap",
+            "other_levels",
+            "cluster_dml",
+        ],
+    ),
+    (
+        "dr.learner",
+        &["learner", "outcome", "treatment", "final_learner", "folds", "overlap", "cluster_dml"],
+    ),
     ("causal.forest", &["n_trees", "min_leaf", "max_depth", "honesty"]),
 ];
 
@@ -157,8 +183,15 @@ const GLM_OPTION_KEYS: &[&str] = &["max_iter", "tol", "ridge_on_separation"];
 const PROPENSITY_PENALTY_KEYS: &[&str] = &["kind", "lambdas", "inner_folds"];
 
 /// Valid `cluster_dml` sub-dict keys (see [`build_cluster_dml`]).
-const CLUSTER_DML_KEYS: &[&str] =
-    &["cluster_ids", "second_cluster_ids", "min_clusters", "min_components_per_fold", "unit"];
+const CLUSTER_DML_KEYS: &[&str] = &[
+    "cluster_ids",
+    "second_cluster_ids",
+    "source_cluster_ids",
+    "source_second_cluster_ids",
+    "min_clusters",
+    "min_components_per_fold",
+    "unit",
+];
 
 /// Estimators with a flexible-learner cross-fit and no dependence option: a cluster or
 /// dependence key on them is a typed refusal, not an unknown key.
@@ -250,7 +283,12 @@ pub(crate) fn parse_estimator_config(
     for (key_obj, _val) in dict.iter() {
         let key: String =
             key_obj.extract().map_err(|_| crate::value_err("estimator_config keys must be str"))?;
-        if FLEXIBLE_LEARNER_IDS.contains(&resolved_id) && DEPENDENCE_KEYS.contains(&key.as_str()) {
+        // `dml` and `dr.learner` declare dependence through whole-cluster cross-fitting only.
+        let declares_units = matches!(resolved_id, "dml" | "dr.learner") && key == "cluster_dml";
+        if FLEXIBLE_LEARNER_IDS.contains(&resolved_id)
+            && DEPENDENCE_KEYS.contains(&key.as_str())
+            && !declares_units
+        {
             let message =
                 antecedent_estimate::flexible_learner_dependence_refusal(resolved_id, &key)
                     .to_string();
@@ -716,7 +754,13 @@ fn build_propensity_nuisance(
 }
 
 /// Declared cluster-DML independence unit of an `aipw` estimator and its row labels.
-type ClusterDmlConfig = (antecedent_estimate::ClusterDml, Vec<u32>, Option<Vec<u32>>);
+struct ClusterDmlConfig {
+    spec: antecedent_estimate::ClusterDml,
+    first: Vec<u32>,
+    second: Option<Vec<u32>>,
+    /// The labels are those of every row of the source table, not of the analysed rows.
+    per_source_row: bool,
+}
 
 /// Build the declared cluster-DML independence unit of `aipw` and its row labels from
 /// `cluster_dml` (`{"cluster_ids": [int], "min_clusters": int, "unit": "cluster" | "dyad",
@@ -746,10 +790,39 @@ fn build_cluster_dml(dict: &Bound<'_, PyDict>) -> PyResult<Option<ClusterDmlConf
             )));
         }
     }
-    let ids = get_u32_list(sub, "cluster_ids")?.ok_or_else(|| {
-        invalid("estimator_config['cluster_dml'] requires cluster_ids".to_string())
-    })?;
-    let second = get_u32_list(sub, "second_cluster_ids")?;
+    let retained = get_u32_list(sub, "cluster_ids")?;
+    let source = get_u32_list(sub, "source_cluster_ids")?;
+    let (ids, per_source_row) = match (retained, source) {
+        (Some(ids), None) => (ids, false),
+        (None, Some(ids)) => (ids, true),
+        (Some(_), Some(_)) => {
+            return Err(invalid(
+                "estimator_config['cluster_dml'] takes cluster_ids or source_cluster_ids, not both"
+                    .to_string(),
+            ));
+        }
+        (None, None) => {
+            return Err(invalid(
+                "estimator_config['cluster_dml'] requires cluster_ids".to_string(),
+            ));
+        }
+    };
+    let second = match (
+        get_u32_list(sub, "second_cluster_ids")?,
+        get_u32_list(sub, "source_second_cluster_ids")?,
+    ) {
+        (second, None) if !per_source_row => second,
+        (None, second) if per_source_row => second,
+        (None, None) => None,
+        _ => {
+            return Err(invalid(
+                "estimator_config['cluster_dml'] declares both endpoints per analysed row \
+                 (cluster_ids, second_cluster_ids) or per source row (source_cluster_ids, \
+                 source_second_cluster_ids), not a mixture"
+                    .to_string(),
+            ));
+        }
+    };
     let min_clusters = get_u32(sub, "min_clusters")?.map_or(DEFAULT_MIN_CLUSTERS, |m| m as usize);
     let min_components = get_u32(sub, "min_components_per_fold")?;
     let refused = |error: antecedent_estimate::EstimationError| {
@@ -797,7 +870,22 @@ fn build_cluster_dml(dict: &Bound<'_, PyDict>) -> PyResult<Option<ClusterDmlConf
             )));
         }
     };
-    Ok(Some((spec, ids, second)))
+    Ok(Some(ClusterDmlConfig { spec, first: ids, second, per_source_row }))
+}
+
+/// Store a parsed cluster-DML declaration on an estimator's [`DeclaredUnits`](antecedent_estimate::DeclaredUnits).
+fn declare_units(units: &mut antecedent_estimate::DeclaredUnits, config: Option<ClusterDmlConfig>) {
+    let Some(ClusterDmlConfig { spec, first, second, per_source_row }) = config else {
+        return;
+    };
+    units.spec = Some(spec);
+    let (first_slot, second_slot) = if per_source_row {
+        (&mut units.first_source, &mut units.second_source)
+    } else {
+        (&mut units.first, &mut units.second)
+    };
+    *first_slot = Some(first);
+    *second_slot = second;
 }
 
 /// Build the caller-configured [`EstimatorSpec`] for one of the ten estimators
@@ -846,6 +934,30 @@ fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimat
     }))
 }
 
+/// Declared handling of treatment rows at neither declared level: `"refuse"` (the default) or
+/// `"exclude_undeclared"`, which restricts the target population to the rows at the two
+/// declared levels.
+fn build_other_levels(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent_estimate::OtherLevels>> {
+    let Some(value) = dict.get_item("other_levels")? else {
+        return Ok(None);
+    };
+    let name: String = value.extract().map_err(|_| {
+        invalid(format!(
+            "estimator_config other_levels must be \"refuse\" or \"exclude_undeclared\", got {}",
+            type_name(&value)
+        ))
+    })?;
+    match name.as_str() {
+        "refuse" => Ok(Some(antecedent_estimate::OtherLevels::Refuse)),
+        "exclude_undeclared" => Ok(Some(antecedent_estimate::OtherLevels::ExcludeUndeclared)),
+        other => Err(invalid(format!(
+            "estimator_config other_levels must be \"refuse\" or \"exclude_undeclared\", got {other:?}"
+        ))),
+    }
+}
+
 pub(crate) fn get_learner(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<LearnerSpec>> {
     let Some(value) = dict.get_item(key)? else { return Ok(None) };
     let spec = if let Ok(name) = value.extract::<String>() {
@@ -875,10 +987,12 @@ fn build_configured_spec(
     let bootstrap = get_u32(dict, "bootstrap_replicates")?.unwrap_or(ambient_bootstrap);
     let se_kind = build_se_kind(dict)?;
     let cluster_ids = get_u32_list(dict, "cluster_ids")?;
+    let source_cluster_ids = get_u32_list(dict, "source_cluster_ids")?;
     let multiway_ids = get_u32_list_list(dict, "multiway_ids")?;
     let panel_times = get_i64_list(dict, "panel_times")?;
     let glm_options = build_glm_options(dict)?;
     let overlap = build_overlap(dict)?;
+    let other_levels = build_other_levels(dict)?;
 
     Ok(match resolved_id {
         "linear.adjustment.ate" => {
@@ -888,6 +1002,9 @@ fn build_configured_spec(
             }
             if let Some(ids) = cluster_ids {
                 est = est.with_cluster_ids(ids);
+            }
+            if let Some(ids) = source_cluster_ids {
+                est = est.with_source_cluster_ids(ids);
             }
             if let Some(mw) = multiway_ids {
                 est = est.with_multiway_ids(mw);
@@ -907,6 +1024,9 @@ fn build_configured_spec(
             }
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
+            }
+            if let Some(policy) = other_levels {
+                est = est.with_other_levels(policy);
             }
             est.into()
         }
@@ -948,6 +1068,9 @@ fn build_configured_spec(
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
             }
+            if let Some(policy) = other_levels {
+                est = est.with_other_levels(policy);
+            }
             est.into()
         }
         "propensity.stratification" => {
@@ -960,6 +1083,9 @@ fn build_configured_spec(
             }
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
+            }
+            if let Some(policy) = other_levels {
+                est = est.with_other_levels(policy);
             }
             est.into()
         }
@@ -990,7 +1116,7 @@ fn build_configured_spec(
         }
         "aipw" => {
             let cluster_dml = build_cluster_dml(dict)?;
-            if cluster_dml.is_some() && cluster_ids.is_some() {
+            if cluster_dml.is_some() && (cluster_ids.is_some() || source_cluster_ids.is_some()) {
                 return Err(invalid(
                     "estimator_config['cluster_dml'] carries its own cluster_ids; do not also \
                      pass cluster_ids"
@@ -1004,6 +1130,9 @@ fn build_configured_spec(
             if let Some(ids) = cluster_ids {
                 est = est.with_cluster_ids(ids);
             }
+            if let Some(ids) = source_cluster_ids {
+                est = est.with_source_cluster_ids(ids);
+            }
             if let Some(mw) = multiway_ids {
                 est = est.with_multiway_ids(mw);
             }
@@ -1016,13 +1145,25 @@ fn build_configured_spec(
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
             }
+            if let Some(policy) = other_levels {
+                est = est.with_other_levels(policy);
+            }
             if let Some(nuisance) = build_propensity_nuisance(dict)? {
                 est = est.with_propensity_nuisance(nuisance);
             }
-            if let Some((spec, ids, second)) = cluster_dml {
-                est = est.with_cluster_ids(ids).with_cluster_dml(spec);
+            if let Some(ClusterDmlConfig { spec, first, second, per_source_row }) = cluster_dml {
+                est = est.with_cluster_dml(spec);
+                est = if per_source_row {
+                    est.with_source_cluster_ids(first)
+                } else {
+                    est.with_cluster_ids(first)
+                };
                 if let Some(second) = second {
-                    est = est.with_second_cluster_ids(second);
+                    est = if per_source_row {
+                        est.with_source_second_cluster_ids(second)
+                    } else {
+                        est.with_second_cluster_ids(second)
+                    };
                 }
             }
             est.into()
@@ -1034,6 +1175,9 @@ fn build_configured_spec(
             }
             if let Some(ids) = cluster_ids {
                 est = est.with_cluster_ids(ids);
+            }
+            if let Some(ids) = source_cluster_ids {
+                est = est.with_source_cluster_ids(ids);
             }
             if let Some(mw) = multiway_ids {
                 est = est.with_multiway_ids(mw);
@@ -1056,6 +1200,9 @@ fn build_configured_spec(
             }
             if let Some(ids) = cluster_ids {
                 est = est.with_cluster_ids(Arc::from(ids));
+            }
+            if let Some(ids) = source_cluster_ids {
+                est = est.with_source_cluster_ids(Arc::from(ids));
             }
             est.into()
         }
@@ -1113,6 +1260,10 @@ fn build_configured_spec(
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
             }
+            if let Some(policy) = other_levels {
+                est = est.with_other_levels(policy);
+            }
+            declare_units(&mut est.units, build_cluster_dml(dict)?);
             est.into()
         }
         "dr.learner" => {
@@ -1135,6 +1286,7 @@ fn build_configured_spec(
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
             }
+            declare_units(&mut est.units, build_cluster_dml(dict)?);
             est.into()
         }
         "causal.forest" => {

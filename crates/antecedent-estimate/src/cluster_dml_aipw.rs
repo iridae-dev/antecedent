@@ -705,6 +705,151 @@ fn dyad_units(first: &[u32], second: &[u32]) -> Result<Vec<u32>, EstimationError
     Ok(component.iter().map(|c| name[c]).collect())
 }
 
+/// The `(first, second)` unit labels of the complete-case rows `row_index`.
+///
+/// Each endpoint is declared per retained row (`.0`) or per source row (`.1`, subset by the
+/// original index of every retained row), so a named unit column keeps its labels with its
+/// rows however many rows the complete-case mask dropped.
+///
+/// # Errors
+///
+/// A retained row without a declared source label.
+pub(crate) fn declared_unit_labels(
+    first: (Option<&[u32]>, Option<&[u32]>),
+    second: (Option<&[u32]>, Option<&[u32]>),
+    row_index: &[u32],
+) -> Result<UnitLabels, EstimationError> {
+    let rows = || row_index.iter().map(|&row| row as usize);
+    let labels = |(retained, source): (Option<&[u32]>, Option<&[u32]>)| {
+        crate::se::declared_row_labels(retained, source, rows())
+            .map(|labels| labels.map(std::borrow::Cow::into_owned))
+    };
+    Ok((labels(first)?, labels(second)?))
+}
+
+/// First and second endpoint labels of the analysed rows.
+pub type UnitLabels = (Option<Vec<u32>>, Option<Vec<u32>>);
+
+/// A cluster-DML unit declaration carried by a cross-fitted estimator: the independence unit
+/// and its labels, per analysed row or per row of the source table.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DeclaredUnits {
+    /// Declared independence unit; `None` is an iid cross-fit.
+    pub spec: Option<ClusterDml>,
+    /// First-endpoint label of every analysed row.
+    pub first: Option<Vec<u32>>,
+    /// First-endpoint label of every source row, subset to the analysed rows by their original
+    /// index. Exclusive with [`Self::first`].
+    pub first_source: Option<Vec<u32>>,
+    /// Second-endpoint label of every analysed row of a dyadic unit.
+    pub second: Option<Vec<u32>>,
+    /// Second-endpoint label of every source row. Exclusive with [`Self::second`].
+    pub second_source: Option<Vec<u32>>,
+}
+
+impl DeclaredUnits {
+    /// Whether the units are dyadic (two endpoint label sets).
+    #[must_use]
+    pub fn has_second(&self) -> bool {
+        self.second.is_some() || self.second_source.is_some()
+    }
+
+    /// The `(first, second)` labels of the analysed rows `row_index`.
+    ///
+    /// # Errors
+    ///
+    /// An analysed row without a declared source label.
+    pub fn labels(&self, row_index: &[u32]) -> Result<UnitLabels, EstimationError> {
+        declared_unit_labels(
+            (self.first.as_deref(), self.first_source.as_deref()),
+            (self.second.as_deref(), self.second_source.as_deref()),
+            row_index,
+        )
+    }
+
+    /// Check the per-source-row labels against the source table's row count.
+    ///
+    /// # Errors
+    ///
+    /// Labels declared both ways, or a count that is not the row count.
+    pub fn check_source_rows(&self, source_rows: usize) -> Result<(), EstimationError> {
+        for (source, analysed) in [
+            (self.first_source.as_deref(), self.first.as_deref()),
+            (self.second_source.as_deref(), self.second.as_deref()),
+        ] {
+            if let Some(source) = source {
+                crate::se::require_source_labels(source, analysed, source_rows)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Give a prepared problem its whole-unit cross-fit plan (no-op without a declaration).
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`ClusterDml::declare_units`], or a scope the declaration does not
+    /// license.
+    pub(crate) fn declare(
+        &self,
+        problem: &mut crate::propensity::PreparedPropensityProblem,
+        mean_functional: bool,
+        overlap: OverlapPolicy,
+    ) -> Result<(), EstimationError> {
+        let Some(spec) = &self.spec else {
+            return Ok(());
+        };
+        require_scope(mean_functional, &problem.target_population, overlap)?;
+        let (first, second) = self.labels(&problem.row_index)?;
+        problem.fold_units =
+            Some(spec.declare_units(first.as_deref(), second.as_deref(), problem.nrows)?);
+        problem.fold_unit_kind = spec.independence_unit();
+        Ok(())
+    }
+
+    /// Replace the iid standard error of a cluster-DML fit by the cluster sandwich of its
+    /// cross-fitted scores (the receipt [`AipwAte`](crate::AipwAte) publishes). The iid
+    /// covariance and influence values are not a sampling distribution under the declared
+    /// dependence and stay withheld.
+    ///
+    /// # Errors
+    ///
+    /// Missing labels or score table, or a refusal of [`ClusterDml::receipt`].
+    pub(crate) fn publish(
+        &self,
+        mut estimate: crate::adjustment::EffectEstimate,
+        problem: &crate::propensity::PreparedPropensityProblem,
+    ) -> Result<crate::adjustment::EffectEstimate, EstimationError> {
+        let Some(spec) = self.spec else {
+            return Ok(estimate);
+        };
+        if problem.fold_units.is_none() {
+            return Err(EstimationError::data_msg(
+                "the cluster-DML declaration differs from the one the problem was prepared with",
+            ));
+        }
+        let (first, second) = self.labels(&problem.row_index)?;
+        let (Some(first), Some(table)) = (first, estimate.scores.table.as_ref()) else {
+            return Err(EstimationError::data_msg(
+                "a cluster-DML fit needs unit labels and the cross-fitted score table",
+            ));
+        };
+        let receipt = spec.receipt(table, &first, second.as_deref())?;
+        estimate.uncertainty.analytic.se = receipt.cluster_sandwich_se;
+        estimate.uncertainty.analytic.reference_df =
+            Some(f64::from(u32::try_from(receipt.reference_df).unwrap_or(u32::MAX)));
+        estimate.uncertainty.analytic.kind = Some(if self.has_second() {
+            AnalyticSeKind::Multiway
+        } else {
+            AnalyticSeKind::Cluster
+        });
+        estimate.joint.covariance = None;
+        estimate.scores.inference = None;
+        estimate.scores.influence = None;
+        Ok(estimate)
+    }
+}
+
 /// Typed refusal of a cluster or dependence declaration on a flexible-learner estimator
 /// (`dml`, `dr.learner`, `causal.forest`), whose configurations carry no dependence option.
 ///

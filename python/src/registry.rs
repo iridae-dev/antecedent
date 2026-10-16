@@ -32,8 +32,8 @@ use super::{
     latent_class_api, learned_continuous_api, learned_joint_api, learned_trial_api,
     load_float64_arrow_c_columns, load_float64_columns, matched_case_control_api,
     measured_inference_api, measurement_model_api, mechanism_composition_api,
-    mechanism_discrepancy_api, msm_sensitivity_api, nested_bayesian_api, nested_fisher_api,
-    nonlinear_mediation_api, observation_api, observation_query_api,
+    mechanism_discrepancy_api, msm_sensitivity_api, multi_level_treatment_api, nested_bayesian_api,
+    nested_fisher_api, nonlinear_mediation_api, observation_api, observation_query_api,
     observational_interference_api, policy_api, predictive_assessment_api, preflight_api,
     prepared_api, prior_bank, prior_signal_api, program_claims_api, proposal_arrival_api,
     provider_api, provider_callbacks_api, quasi_api, recalc_adjusted_api, recalc_api,
@@ -138,6 +138,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     recovery_chain_api::register(m)?;
     vector_treatment_api::register(m)?;
     categorical_treatment_api::register(m)?;
+    multi_level_treatment_api::register(m)?;
     compact_export_api::register(m)?;
     cohort_decision_api::register(m)?;
     nonlinear_mediation_api::register(m)?;

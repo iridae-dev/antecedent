@@ -27,6 +27,142 @@ def _is_missing_scalar(value: Any) -> bool:
     return type(value).__name__ in _PANDAS_MISSING
 
 
+def table_column_names(data: Any) -> list[str] | None:
+    """Column names (as strings) of a mapping, pandas / Polars frame or Arrow table.
+
+    ``None`` for anything else (frames of the ``antecedent.data`` module, series,
+    Arrow stream exporters without column access): those are not projected.
+    """
+    if isinstance(data, Mapping):
+        return [str(key) for key in data]
+    names = getattr(data, "column_names", None)  # pyarrow Table / RecordBatch
+    if names is None and hasattr(data, "__getitem__"):
+        names = getattr(data, "columns", None)  # pandas, Polars
+    if names is None:
+        return None
+    return [str(name) for name in names]
+
+
+def table_row_count(data: Any) -> int | None:
+    """Row count of a mapping, frame or Arrow table; ``None`` for anything else."""
+    names = table_column_names(data)
+    if names is None:
+        return None
+    if hasattr(data, "num_rows"):
+        return int(data.num_rows)
+    if not names:
+        return 0
+    return len(read_columns(data, names[:1], what="row count")[names[0]])
+
+
+def project_columns(
+    data: Any,
+    names: Sequence[str],
+    *,
+    subset: bool = False,
+    what: str = "analysis",
+) -> Any:
+    """``data`` restricted to the named columns, before any column is converted.
+
+    Columns the analysis does not declare (strings, dates, identifiers) are never
+    converted, so they cannot refuse a numeric ingest. Columns are chosen by name,
+    never by position, and a pandas index is not a column.
+
+    With ``subset=False`` every name is required and the result follows the order of
+    ``names`` (a typed graph or a prepared schema fixes the order). With
+    ``subset=True`` the names that are present are kept in the data's own order and
+    the rest of the check is left to the consumer. A selected name that occurs twice
+    in the data is refused either way. Inputs that are not tables pass through.
+    """
+    available = table_column_names(data)
+    if available is None:
+        return data
+    wanted = list(dict.fromkeys(str(name) for name in names))
+    present = set(available)
+    if subset:
+        keep = set(wanted)
+        chosen = [name for name in dict.fromkeys(available) if name in keep]
+    else:
+        missing = [name for name in wanted if name not in present]
+        if missing:
+            raise CausalValueError(
+                f"required {what} columns are missing: {missing}; available: {available}",
+                reason_code="invalid_argument",
+            )
+        chosen = wanted
+    duplicated = sorted({name for name in chosen if available.count(name) > 1})
+    if duplicated:
+        raise CausalValueError(
+            f"data has duplicate column names: {duplicated}", reason_code="invalid_argument"
+        )
+    if chosen == available:
+        return data
+    positions = [available.index(name) for name in chosen]
+    if isinstance(data, Mapping):
+        keys = {str(key): key for key in data}
+        return {name: data[keys[name]] for name in chosen}
+    if hasattr(data, "iloc"):
+        return data.iloc[:, positions]
+    if hasattr(data, "select") and hasattr(data, "column_names"):
+        return data.select(positions)
+    if hasattr(data, "select"):
+        return data.select(chosen)
+    return data
+
+
+def read_columns(data: Any, names: Sequence[str], *, what: str) -> dict[str, NDArray[Any]]:
+    """The named columns as raw arrays of any dtype, in the order of ``names``.
+
+    Identifier and design columns (strings, dates, labels) are read this way and kept
+    out of the numeric ingest. Missing or duplicated names, and unequal lengths, are
+    refused.
+    """
+    projected = project_columns(data, names, what=what)
+    available = table_column_names(projected)
+    if available is None:
+        raise CausalTypeError(
+            f"{what} columns require a mapping of name→array, a pandas or Polars frame, or an "
+            f"Arrow table; got {type(data)!r}",
+            reason_code="invalid_argument",
+        )
+    out: dict[str, NDArray[Any]] = {}
+    for position, name in enumerate(available):
+        if name in out:
+            continue
+        out[name] = _raw_array(projected, position, name)
+    ordered = {name: out[str(name)] for name in dict.fromkeys(str(n) for n in names)}
+    if len({len(column) for column in ordered.values()}) > 1:
+        detail = ", ".join(f"{name}={len(column)}" for name, column in ordered.items())
+        raise CausalValueError(
+            f"{what} columns must have equal row counts ({detail})",
+            reason_code="invalid_argument",
+        )
+    return ordered
+
+
+def _raw_array(table: Any, position: int, name: str) -> NDArray[Any]:
+    """One column of a projected table as a 1-d array, without a numeric cast."""
+    if isinstance(table, Mapping):
+        column: Any = table[next(key for key in table if str(key) == name)]
+    elif hasattr(table, "iloc"):
+        column = table.iloc[:, position].to_numpy()
+    elif hasattr(table, "column"):
+        column = table.column(position)
+        column = (
+            column.to_numpy()
+            if hasattr(column, "chunks")
+            else column.to_numpy(zero_copy_only=False)
+        )
+    else:
+        column = table.get_column(name).to_numpy()
+    array = np.asarray(column)
+    if array.ndim != 1:
+        raise CausalValueError(
+            f"expected 1-d column {name!r}, got shape {array.shape}", reason_code="invalid_argument"
+        )
+    return array
+
+
 def ingest_columns(
     data: Mapping[str, Any] | Any,
 ) -> tuple[list[str], list[Any]]:
@@ -145,7 +281,13 @@ def try_as_arrow_c_columns(
             import pyarrow as pa
         except ImportError:
             return None
-        table = pa.table(data)
+        # pandas would export a non-default index as an extra column; the index is
+        # not data, so it is never exported.
+        table = (
+            pa.Table.from_pandas(data, preserve_index=False)
+            if hasattr(data, "iloc")
+            else pa.table(data)
+        )
         names = [str(n) for n in table.column_names]
         cols = [_arrow_float64(table.column(i).combine_chunks()) for i in range(len(names))]
         if names:

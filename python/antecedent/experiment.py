@@ -8,7 +8,7 @@ from typing import Literal
 
 import numpy as np
 
-from ._columns import coerce_fields, hold_unresolved, resolved
+from ._columns import coerce_fields, first_seen_codes, hold_unresolved, resolved
 from ._native import estimate_ancova_effect as _estimate_ancova_effect
 from ._native import estimate_cuped_effect as _estimate_cuped_effect
 from ._native import estimate_stratified_effect as _estimate_stratified_effect
@@ -437,12 +437,12 @@ class ExperimentDesign:
         if isinstance(self.assignment, ClusterRandomization):
             if len(self.assignment.clusters) != n:
                 raise CausalValueError("cluster IDs must have one entry per outcome row")
-            encoded = {name: i for i, name in enumerate(dict.fromkeys(self.assignment_units))}
-            if list(self.assignment.clusters) != [encoded[name] for name in self.assignment_units]:
+            distinct, expected = first_seen_codes(self.assignment_units)
+            if list(self.assignment.clusters) != expected:
                 raise CausalValueError(
                     "cluster randomization IDs must encode assignment_units in first-seen order"
                 )
-            if self.assignment.treated_clusters >= len(encoded):
+            if self.assignment.treated_clusters >= len(distinct):
                 raise CausalValueError("treated_clusters must be less than the cluster count")
             assignments_by_cluster: dict[int, bool] = {}
             for cluster, assigned in zip(self.assignment.clusters, realized, strict=True):

@@ -145,6 +145,7 @@ def analyze(
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
+    participant: str | None = None,
     outcome_units: str | None = None,
     dose_units: str | None = None,
     quantity_population: str = "target",
@@ -227,6 +228,11 @@ def analyze(
         (``accept_discovered=False`` raises ``ReviewRequired`` while anything is
         pending); ``RPCMCI`` also needs ``regimes=``, and ``JPCMCIPlus`` takes a
         ``MultiEnvFrame`` or a sequence of environment tables.
+    participant:
+        Optional name of a data column of participant (row-owner) labels, strings or whole
+        numbers. The labels are read from the raw table, kept with their original rows and
+        frozen in the prepared study: ``refresh`` refuses a table that holds other labels or
+        other rows, and ``reprepare`` rebuilds them.
     latency:
         Optional compute tier (``interactive`` / ``standard`` / ``report``).
         The study builder maps it onto the omitted bootstrap / refute / draw
@@ -301,6 +307,7 @@ def analyze(
                     max_completions,
                 )
             )
+            or participant is not None
             or seed != 1
             or not accept_discovered
             or return_posterior_artifact
@@ -394,6 +401,7 @@ def analyze(
         latency=latency,
         class_prior=class_prior,
         max_completions=max_completions,
+        participant=participant,
         population_registry=population_registry,
         cancel=cancel,
         on_progress=on_progress,

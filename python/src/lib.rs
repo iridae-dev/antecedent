@@ -99,6 +99,7 @@ mod measurement_model_api;
 mod mechanism_composition_api;
 mod mechanism_discrepancy_api;
 mod msm_sensitivity_api;
+mod multi_level_treatment_api;
 mod nested_bayesian_api;
 mod nested_fisher_api;
 mod nonlinear_mediation_api;

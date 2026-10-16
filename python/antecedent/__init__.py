@@ -400,6 +400,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "mechanism_composition",
     "mechanism_discrepancy",
     "msm_sensitivity",
+    "multi_level_treatment",
     "nonlinear_mediation",
     "observation_query",
     "predictive_assessment",
@@ -470,6 +471,7 @@ if _TYPE_CHECKING:
     from . import mechanism_composition as mechanism_composition
     from . import mechanism_discrepancy as mechanism_discrepancy
     from . import msm_sensitivity as msm_sensitivity
+    from . import multi_level_treatment as multi_level_treatment
     from . import nonlinear_mediation as nonlinear_mediation
     from . import observation_query as observation_query
     from . import predictive_assessment as predictive_assessment

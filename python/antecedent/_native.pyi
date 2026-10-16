@@ -5682,6 +5682,13 @@ def consume_categorical_treatment_artifact(
     *,
     memory_limit_bytes: int | None = None,
 ) -> tuple[str | None, str | None]: ...
+def evaluate_multi_level_treatment(
+    outcome: NDArray[np.float64] | list[float],
+    treatment: NDArray[np.float64] | list[float],
+    adjustment_names: list[str],
+    adjustment_columns: list[NDArray[np.float64] | list[float]],
+    declaration_json: str,
+) -> str: ...
 def build_compact_export(
     spec_json: str, artifact_id: str
 ) -> tuple[str | None, bytes | None, str | None]: ...

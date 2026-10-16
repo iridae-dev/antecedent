@@ -691,7 +691,7 @@ fn evaluate_claim(
                 weighted_influence(&scores, &claim.weights, value)
             }
         }),
-        cluster: cluster_df.and(plan.cluster_units()),
+        cluster: cluster_df.and(plan.cluster_units(table)),
         point: ClaimPoint {
             value,
             std_error: None,

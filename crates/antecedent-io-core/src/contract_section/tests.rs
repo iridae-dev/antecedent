@@ -362,6 +362,7 @@ fn contract_for(
         partitions: Vec::new(),
         interference: None,
         distribution_factor_laws: None,
+        participants: None,
         nested_counterfactual_fit: None,
         linear_fit_moments: None,
     };

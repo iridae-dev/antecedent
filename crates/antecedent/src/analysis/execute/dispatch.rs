@@ -15,7 +15,9 @@ use super::{
     graph_posterior_response_supported, is_class_atom, reject_dag_only_on_pag,
     response_functional_is_derivative, temporal_admg_projection,
 };
-use crate::analysis::route_guards::{complete_mean_response, mean_all_observed};
+use crate::analysis::route_guards::{
+    complete_mean_response, distinct_numeric_arms, mean_all_observed,
+};
 use crate::graph::Dag;
 use crate::planner::RouteDefaults;
 use antecedent_core::NestedCounterfactualQuery;
@@ -1741,6 +1743,10 @@ impl super::Study {
             && self.tiered.is_none()
             && self.inference.is_frequentist()
             && self.custom_validators.is_empty()
+            && !self
+                .estimator_spec
+                .as_deref()
+                .is_some_and(crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels)
             && matches!(
                 super::super::prepared::checked_aipw_fitter(self).overlap,
                 OverlapPolicy::RequireDiagnostics { .. }
@@ -1757,10 +1763,7 @@ impl super::Study {
         {
             if let Some(RouteInput::StaticAteDag { data, query, .. }) = route {
                 if mean_all_observed(&query.outcome_functional, &query.target_population)
-                    && matches!(&query.active, antecedent_core::Intervention::Set { variable, value }
-                        if *variable == query.treatment && value.as_f64() == Some(1.0))
-                    && matches!(&query.control, antecedent_core::Intervention::Set { variable, value }
-                        if *variable == query.treatment && value.as_f64() == Some(0.0))
+                    && distinct_numeric_arms(query)
                 {
                     return self.admit_sealed_tabular(
                         data,
@@ -1802,21 +1805,16 @@ impl super::Study {
             Some(EstimatorId::PropensityWeighting | EstimatorId::PropensityMatching)
         ) && self.plain_fixed_route()
             && self.inference.is_frequentist()
+            && !self
+                .estimator_spec
+                .as_deref()
+                .is_some_and(crate::estimator_spec::EstimatorSpec::excludes_undeclared_levels)
             && matches!(
                 route,
                 Some(RouteInput::StaticAteDag { query, .. })
                     if matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
                         && query.effect_modifiers.is_empty()
-                        && matches!(
-                            &query.active,
-                            antecedent_core::Intervention::Set { variable, value }
-                                if *variable == query.treatment && value.as_f64() == Some(1.0)
-                        )
-                        && matches!(
-                            &query.control,
-                            antecedent_core::Intervention::Set { variable, value }
-                                if *variable == query.treatment && value.as_f64() == Some(0.0)
-                        )
+                        && distinct_numeric_arms(query)
             );
         if checked_rd {
             if let Some(RouteInput::StaticAteDag { data, .. }) = route {

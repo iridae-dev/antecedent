@@ -20,14 +20,16 @@ class validates exactly as before, so the inline-array path is untouched.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import is_dataclass, replace
+import hashlib
+from collections.abc import Hashable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, fields, is_dataclass, replace
 from typing import Any, TypeVar, cast, overload
 
 import numpy as np
 
+from ._data import read_columns, table_column_names, table_row_count
 from ._validate import count as _count
-from .errors import CausalValueError
+from .errors import CausalUnsupportedError, CausalValueError
 
 _T = TypeVar("_T")
 
@@ -308,3 +310,308 @@ def resolve_columns(obj: Any, columns: Mapping[str, Any]) -> Any:
     # replace() re-runs __post_init__; with the names now resolved to arrays the
     # class validates exactly as if the caller had passed the arrays inline.
     return replace(obj, **updates)
+
+
+def first_seen_codes(labels: Iterable[Hashable]) -> tuple[tuple[Hashable, ...], list[int]]:
+    """Distinct labels in first-seen order, and each label's code (its place among them)."""
+    index: dict[Hashable, int] = {}
+    codes = [index.setdefault(label, len(index)) for label in labels]
+    return tuple(index), codes
+
+
+@dataclass(frozen=True, slots=True)
+class IdentifierBinding:
+    """A named identifier column encoded over the rows of the data it was read from.
+
+    ``labels[code]`` is the label of each code, in first-seen order; ``digest`` covers
+    the per-row codes. A refreshed table that encodes differently holds different
+    identifiers (other labels, or the same labels on other rows) and is refused.
+    ``row_labels`` keeps the original label of every row for a participant column, whose
+    values the caller reads back; it is empty for a cluster column.
+    """
+
+    column: str
+    labels: tuple[str, ...]
+    digest: str
+    rows: int
+    row_labels: tuple[str, ...] = ()
+
+    def contract_binding(self) -> dict[str, Any]:
+        """The digests that enter the exported contract's data snapshot: rows, labels, codes."""
+        labels = hashlib.sha256("\x00".join(self.labels).encode("utf-8")).hexdigest()
+        return {"rows": self.rows, "labels": labels, "codes": self.digest}
+
+
+def _identifier_label(value: Any, column: str, row: int) -> Hashable:
+    """One identifier value as a hashable label; a missing or non-label value is refused."""
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float):
+        if not np.isfinite(value):
+            raise CausalValueError(
+                f"identifier column {column!r} is missing at row {row}; identifiers must be present "
+                "on every row",
+                reason_code="invalid_argument",
+            )
+        if value != int(value):
+            raise CausalValueError(
+                f"identifier column {column!r} holds the non-integer number {value!r} at row {row}; "
+                "identifiers are labels or whole numbers",
+                reason_code="invalid_argument",
+            )
+        return int(value)
+    if isinstance(value, (str, int)):
+        if isinstance(value, str) and not value.strip():
+            raise CausalValueError(
+                f"identifier column {column!r} holds an empty label at row {row}",
+                reason_code="invalid_argument",
+            )
+        return value
+    if value is None or type(value).__name__ in ("NAType", "NaTType"):
+        raise CausalValueError(
+            f"identifier column {column!r} is missing at row {row}; identifiers must be present "
+            "on every row",
+            reason_code="invalid_argument",
+        )
+    return str(value)
+
+
+def encode_identifier(
+    data: Any, column: str, *, what: str, keep_rows: bool = False
+) -> tuple[IdentifierBinding, list[int]]:
+    """Encode the identifier column ``column`` of ``data`` over its original rows.
+
+    The column is read in its own dtype (string labels included), outside the numeric
+    ingest, and encoded to ``u32`` codes in first-seen order. The codes belong to the
+    original rows; the estimator keeps the rows it analyses and their codes together.
+    """
+    values = read_columns(data, [column], what=what)[column]
+    row_values = [
+        _identifier_label(value, column, row) for row, value in enumerate(values.tolist())
+    ]
+    labels, codes = first_seen_codes(row_values)
+    if len(labels) > 2**32 - 1:
+        raise CausalValueError(
+            f"identifier column {column!r} has more distinct labels than fit in 32 bits",
+            reason_code="invalid_argument",
+        )
+    digest = hashlib.sha256(np.asarray(codes, dtype="<u4").tobytes()).hexdigest()
+    binding = IdentifierBinding(
+        column=column,
+        labels=tuple(str(label) for label in labels),
+        digest=digest,
+        rows=len(codes),
+        row_labels=tuple(str(value) for value in row_values) if keep_rows else (),
+    )
+    return binding, codes
+
+
+_CLUSTER_DML_ESTIMATORS = ("aipw", "dml", "dr.learner")
+_CLUSTER_ESTIMATORS = (
+    None,
+    "linear.adjustment.ate",
+    "glm.adjustment",
+    "aipw",
+    "frontdoor.linear_two_stage",
+)
+_NO_CLUSTER_VARIANCE = {
+    "iv.wald": "carries no cluster-robust variance",
+    "iv.2sls": "carries no cluster-robust variance",
+    "propensity.matching": "refuses cluster standard errors (no clustered influence function "
+    "exists for fixed-match nearest-neighbour matching)",
+    "distance.matching": "refuses cluster standard errors (no clustered influence function "
+    "exists for fixed-match nearest-neighbour matching)",
+}
+
+
+def _check_cluster_estimator(estimator: str | None, allowed: tuple[str | None, ...]) -> None:
+    if estimator in allowed:
+        return
+    reason = _NO_CLUSTER_VARIANCE.get(
+        str(estimator), "has no cluster standard error that reads cluster labels per row"
+    )
+    raise CausalUnsupportedError(
+        f"cluster= names a cluster column that the estimator aligns to the rows it analyses; "
+        f"{estimator!r} {reason} (cluster= is available for linear.adjustment.ate, "
+        "glm.adjustment, aipw, dml and frontdoor.linear_two_stage)",
+        reason_code="option_not_applicable",
+    )
+
+
+def _joint_codes(data: Any, columns: Sequence[str]) -> list[list[int]]:
+    """First-seen codes of several identifier columns in one shared vocabulary.
+
+    An entity that appears in two columns gets one code, so a dyadic declaration whose
+    endpoints share entities is seen as such by the estimator.
+    """
+    index: dict[Hashable, int] = {}
+    codes: list[list[int]] = []
+    for column in columns:
+        values = read_columns(data, [column], what="cluster")[column].tolist()
+        codes.append(
+            [
+                index.setdefault(_identifier_label(v, column, row), len(index))
+                for row, v in enumerate(values)
+            ]
+        )
+    return codes
+
+
+def resolve_estimator_identifiers(
+    estimator: str | None, config: Mapping[str, Any] | None, data: Any
+) -> tuple[Mapping[str, Any] | None, dict[str, IdentifierBinding]]:
+    """Replace named ``cluster`` columns in an estimator configuration by their labels.
+
+    The labels are those of every original row of ``data``; the estimator aligns them to
+    the rows it analyses after its complete-case and population masks, so a row that is
+    dropped takes its label with it. A ``cluster_dml`` declaration names its unit columns
+    the same way (``cluster``, and ``second_cluster`` for a dyad). Returns the configuration
+    the native parser reads and the frozen bindings to check a later refresh against.
+    """
+    if not config:
+        return config, {}
+    declared = config.get("cluster_dml")
+    named_dml = isinstance(declared, Mapping) and (
+        "cluster" in declared or "second_cluster" in declared
+    )
+    if "cluster" not in config and not named_dml:
+        return config, {}
+    resolved = dict(config)
+    bindings: dict[str, IdentifierBinding] = {}
+    if "cluster" in config:
+        column = config["cluster"]
+        if not isinstance(column, str) or not column.strip():
+            raise CausalValueError(
+                "cluster must name a data column", reason_code="invalid_argument"
+            )
+        if "cluster_ids" in config:
+            raise CausalValueError(
+                "cluster names a column; do not also pass cluster_ids",
+                reason_code="invalid_argument",
+            )
+        _check_cluster_estimator(estimator, _CLUSTER_ESTIMATORS)
+        if "cluster_dml" in config:
+            raise CausalUnsupportedError(
+                "cluster= names the cluster standard-error column; a cluster_dml declaration "
+                "names its own unit column (ClusterDml(cluster=...))",
+                reason_code="option_not_applicable",
+            )
+        binding, codes = encode_identifier(data, column, what="cluster")
+        del resolved["cluster"]
+        resolved["source_cluster_ids"] = codes
+        bindings[column] = binding
+    if named_dml:
+        _check_cluster_estimator(estimator, _CLUSTER_DML_ESTIMATORS)
+        unit = dict(declared)
+        names = [unit[key] for key in ("cluster", "second_cluster") if key in unit]
+        for key in ("cluster", "second_cluster"):
+            if key in unit and not isinstance(unit[key], str):
+                raise CausalValueError(
+                    f"ClusterDml.{key} must name a data column", reason_code="invalid_argument"
+                )
+        codes = _joint_codes(data, names)
+        for name in names:
+            bindings[name] = encode_identifier(data, name, what="cluster")[0]
+        if "cluster" in unit:
+            del unit["cluster"]
+            unit["source_cluster_ids"] = codes.pop(0)
+        if "second_cluster" in unit:
+            del unit["second_cluster"]
+            unit["source_second_cluster_ids"] = codes.pop(0)
+        resolved["cluster_dml"] = unit
+    return resolved, bindings
+
+
+def guard_identifiers(study: Any, data: Any) -> None:
+    """Refuse a table whose frozen identifier columns changed, before anything runs."""
+    bindings: Mapping[str, IdentifierBinding] = getattr(study, "_identifier_bindings", {})
+    if not bindings or data is None:
+        return
+    available = table_column_names(data)
+    rows = table_row_count(data)
+    for column, frozen in bindings.items():
+        if rows is not None and rows != frozen.rows:
+            refusal = CausalValueError(
+                f"frozen identifier column {column!r} labels {frozen.rows} rows; the supplied "
+                f"table has {rows}; use study.reprepare(data) to declare new identifiers",
+                reason_code="invalid_argument",
+            )
+            setattr(refusal, "offending", column)  # noqa: B010 — structured optional error field
+            refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+            raise refusal
+        if available is None or column not in available:
+            continue  # the frozen labels stay; the native side checks the row count
+        supplied, _ = encode_identifier(data, column, what="cluster")
+        if supplied != frozen:
+            refusal = CausalValueError(
+                f"frozen identifier column {column!r} changed labels or row order; "
+                "use study.reprepare(data) to declare new identifiers",
+                reason_code="invalid_argument",
+            )
+            setattr(refusal, "offending", column)  # noqa: B010 — structured optional error field
+            refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+            raise refusal
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisColumns:
+    """The columns an analysis reads: their names, and whether their order is fixed."""
+
+    names: tuple[str, ...]
+    ordered: bool
+
+
+def _declared_strings(value: Any, into: set[str]) -> None:
+    """Every string a declaration holds (column names are strings, so this is a superset)."""
+    if isinstance(value, str):
+        into.add(value)
+    elif isinstance(value, Mapping):
+        for key, item in value.items():
+            _declared_strings(key, into)
+            _declared_strings(item, into)
+    elif is_dataclass(value) and not isinstance(value, type):
+        data_fields = getattr(type(value), "_COLUMN_FIELDS", {})
+        for field in fields(value):
+            if field.name not in data_fields:  # row-aligned design arrays are data, not names
+                _declared_strings(getattr(value, field.name, None), into)
+    elif isinstance(value, (list, tuple, set, frozenset)):
+        for item in value:
+            _declared_strings(item, into)
+
+
+def analysis_columns(
+    query: Any, graph: Any, estimator_config: Mapping[str, Any] | None
+) -> AnalysisColumns | None:
+    """The columns a typed-graph analysis reads, or ``None`` when every column is read.
+
+    A graph whose nodes are positional (``Admg``, ``Pag``, ``Cpdag``) binds the data
+    columns by name and order, so the analysis reads exactly its nodes, in its order.
+    A ``Dag`` or an edge list binds by name: the analysis reads its nodes and the
+    columns the query and estimator configuration name, in the data's order. Without a
+    graph (discovery) or with a temporal graph, every column is read.
+    """
+    from .graph import Admg, Cpdag, Dag, Pag
+
+    if isinstance(graph, (Admg, Cpdag, Pag)):
+        return AnalysisColumns(tuple(graph.nodes()), ordered=True)
+    declared: set[str] = set()
+    if isinstance(graph, Dag):
+        declared.update(graph.nodes())
+    elif isinstance(graph, Sequence) and not isinstance(graph, str):
+        for edge in graph:
+            _declared_strings(tuple(edge), declared)
+    else:
+        return None
+    _declared_strings(query, declared)
+    _declared_strings(estimator_config, declared)
+    return AnalysisColumns(tuple(sorted(declared)), ordered=False)
+
+
+def refuse_named_identifiers(config: Mapping[str, Any] | None, route: str) -> None:
+    """Refuse a named ``cluster`` column on a route that never reads the raw table."""
+    if config and "cluster" in config:
+        raise CausalUnsupportedError(
+            f"{route} does not resolve cluster= against a table; pass cluster_ids aligned to the "
+            "analysed rows, or use analyze / prepare, which bind a named cluster column",
+            reason_code="option_not_applicable",
+        )

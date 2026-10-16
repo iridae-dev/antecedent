@@ -702,6 +702,16 @@ fn estimator_identity_bytes(estimator: &AipwAte) -> Vec<u8> {
             }
         }
     }
+    // Labels per source row are appended only when declared, so a configuration without
+    // them keeps its earlier encoding.
+    if let Some(labels) = estimator.source_cluster_ids.as_deref() {
+        out.push(2);
+        push_u32s(&mut out, labels);
+    }
+    if let Some(labels) = estimator.source_cluster_ids_second.as_deref() {
+        out.push(3);
+        push_u32s(&mut out, labels);
+    }
     out
 }
 

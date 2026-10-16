@@ -129,6 +129,23 @@ impl EstimatorSpec {
         }
     }
 
+    /// Whether the configured estimator declares the exclusion of treatment rows at neither
+    /// declared level. That restricts the target population to the rows at the two declared
+    /// levels, which the checked all-observed routes do not cover, so such a spec executes
+    /// through the ordinary dispatcher.
+    #[must_use]
+    pub fn excludes_undeclared_levels(&self) -> bool {
+        let policy = match self {
+            Self::PropensityWeighting(cfg) => cfg.other_levels,
+            Self::PropensityMatching(cfg) => cfg.other_levels,
+            Self::PropensityStratification(cfg) => cfg.other_levels,
+            Self::Aipw(cfg) => cfg.other_levels,
+            Self::Dml(cfg) => cfg.other_levels,
+            _ => return false,
+        };
+        policy != antecedent_estimate::OtherLevels::Refuse
+    }
+
     /// The suffix a declared non-default AIPW propensity nuisance (a ridge or lasso penalty,
     /// or a GLM-to-penalized fallback) adds to the calibration key's functional label, so an
     /// interval measured under one nuisance never binds to another; `None` otherwise.
