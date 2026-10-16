@@ -49,7 +49,7 @@ use antecedent_estimate::{AipwAte, AnalyticSeKind, LinearAdjustmentAte};
 use antecedent_graph::{Cpdag, Dag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
-    Construction, CoverageTally, RecordKey, SampleGrid, ScopeFacts, Z90, Z95, gaussian,
+    Construction, CoverageTally, RecordKey, SampleGrid, ScopeFacts, Z90, Z95, gaussian, grid_n,
     map_replicates, n_sim, normal_interval, quantile_interval, stream_seed, uniform_from_state,
 };
 use common::calibration_bind::constructions;
@@ -58,6 +58,7 @@ use common::driven_dgp::{
     pulse_series, single_sustained,
 };
 use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate, posterior_pair, scalar_normal_pair};
+use common::static_dgp::linear_ate_data;
 
 /// 1,000, 10,000 and 100,000 rows: the practitioner sizes, one point per decade. The lowest
 /// point lies inside the 150 to 1,200 rows the ordinary suites measure, so no row count between
@@ -378,6 +379,87 @@ fn practitioner_bayesian_laplace_interval() {
         })
     });
     score(&mut pair, &runs, TRUTH);
+    gate(&pair, &[None, None]);
+}
+
+/// Equal-tailed exchangeable-rank (type-6) interval of `draws` at `level`.
+fn rank_interval(draws: &[f64], level: f64) -> (f64, f64) {
+    let mut sorted = draws.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    antecedent_stats::equal_tail_interval_sorted(
+        &sorted,
+        level,
+        antecedent_stats::QuantileRule::ExchangeableRank,
+    )
+}
+
+/// Reported (0.95) and gate-level (0.90) intervals of a Laplace effect posterior below the default
+/// draw count: the exchangeable-rank intervals of its draws (the published one is checked).
+fn rank_pair(result: &StudyResult) -> [Option<(f64, f64)>; 2] {
+    let Some(posterior) = result.posterior.as_ref() else { return [None, None] };
+    let Some(column) = posterior.effect_column() else { return [None, None] };
+    let Ok(draws) = posterior.draws.column(column) else { return [None, None] };
+    let reported = (posterior.summaries.q025[column], posterior.summaries.q975[column]);
+    let rebuilt = rank_interval(draws, REPORTED_LEVEL);
+    assert!(
+        (rebuilt.0 - reported.0).abs() <= 1e-9 * (1.0 + reported.0.abs())
+            && (rebuilt.1 - reported.1).abs() <= 1e-9 * (1.0 + reported.1.abs()),
+        "published {reported:?} is not the exchangeable-rank interval {rebuilt:?}"
+    );
+    [Some(reported), Some(rank_interval(draws, GATE_LEVEL))]
+}
+
+/// The Laplace construction at 64 draws: the exchangeable-rank interval of its draws
+/// (`laplace.gaussian_identity.prior_scale=10.rank_quantile_interval`), whose expected posterior
+/// mass is 0.95 at every count where the type-7 interval's is 0.921. Practitioner scale. About
+/// 30 minutes.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn practitioner_bayesian_laplace_64_draw_interval() {
+    let mut pair =
+        tallies("practitioner_bayesian_laplace_64_draw_interval", DGP, "posterior_quantile");
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x1700_000A, rep);
+        let replicate = practitioner_study(rows(), seed, Noise::Homoskedastic);
+        let study = Study::tabular(replicate.data)
+            .graph(practitioner_dag())
+            .query(binary_ate())
+            .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(64)))
+            .refute(RefuteSuite::None)
+            .build()
+            .ok()?;
+        scored(&study, seed, rank_pair)
+    });
+    score(&mut pair, &runs, TRUTH);
+    gate(&pair, &[None, None]);
+}
+
+/// The same 64-draw construction on the ordinary small-sample grid (250, 500 and 1,000 rows of
+/// `static_dgp::linear_ate_data`, as the default Laplace record). About 3 minutes.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn small_sample_bayesian_laplace_64_draw_interval() {
+    let mut pair = tallies(
+        "small_sample_bayesian_laplace_64_draw_interval",
+        "crates/antecedent/tests/common/static_dgp.rs::linear_ate_data",
+        "posterior_quantile",
+    );
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(node(2), node(0)).unwrap();
+    dag.insert_directed(node(2), node(1)).unwrap();
+    dag.insert_directed(node(0), node(1)).unwrap();
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = stream_seed(0x1700_000B, rep);
+        let study = Study::tabular(linear_ate_data(grid_n(500), seed))
+            .graph(dag.clone())
+            .query(binary_ate())
+            .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(64)))
+            .refute(RefuteSuite::None)
+            .build()
+            .ok()?;
+        scored(&study, seed, rank_pair)
+    });
+    score(&mut pair, &runs, 2.0);
     gate(&pair, &[None, None]);
 }
 
@@ -819,10 +901,11 @@ fn the_practitioner_study_is_a_well_posed_design() {
     assert!(effect.se_analytic() > 0.0);
 }
 
-/// A Laplace request for 64 draws keeps its declared draws and summaries; only the credible
-/// interval is taken from an independent 1,000-draw supplement, recorded in a diagnostics note.
+/// A Laplace request for 64 draws keeps its draws, mean and sd; its effect interval is the
+/// exchangeable-rank interval of those draws, not their type-7 interval, and a 1,000-draw run is
+/// unchanged.
 #[test]
-fn a_64_draw_laplace_request_keeps_its_draws_and_supplements_only_the_interval() {
+fn a_64_draw_laplace_request_publishes_the_exchangeable_rank_interval() {
     let run = |draws: usize| {
         let replicate = practitioner_study(1_000, 3, Noise::Homoskedastic);
         let study = Study::tabular(replicate.data)
@@ -838,37 +921,13 @@ fn a_64_draw_laplace_request_keeps_its_draws_and_supplements_only_the_interval()
     let posterior = small.posterior.as_ref().unwrap();
     assert_eq!(posterior.draws.n_draws, 64);
     let column = posterior.effect_column().unwrap();
-    assert!(
-        posterior
-            .diagnostics
-            .notes
-            .iter()
-            .any(|note| note.starts_with(antecedent_estimate::LAPLACE_INTERVAL_DRAWS_NOTE_PREFIX)
-                && note.contains("declared=64 used=1000"))
-    );
-    // The interval is the supplement's, not the declared draws' own type-7 interval, and is
-    // wider than the 64 draws' (mass 0.921) interval.
-    let own = posterior.draws.column(column).unwrap();
-    let mut sorted = own.to_vec();
-    sorted.sort_by(f64::total_cmp);
-    let own_width = antecedent_kernels::quantile_type7_sorted(&sorted, 0.975)
-        - antecedent_kernels::quantile_type7_sorted(&sorted, 0.025);
-    let published = posterior.summaries.q975[column] - posterior.summaries.q025[column];
-    assert!(published > 0.0 && (published - own_width).abs() > 1e-12);
-    // The point summaries are the declared draws' own.
-    assert_eq!(
-        posterior.summaries.mean[column].to_bits(),
-        posterior.draws.summarize().mean[column].to_bits()
-    );
-    // At and above the measured minimum nothing is supplemented and no note is recorded.
+    let (lower, upper) = rank_interval(posterior.draws.column(column).unwrap(), 0.95);
+    assert_eq!(posterior.summaries.q025[column], lower);
+    assert_eq!(posterior.summaries.q975[column], upper);
+    let own = posterior.draws.summarize();
+    assert_eq!(posterior.summaries.mean[column], own.mean[column]);
+    assert_ne!(posterior.summaries.q025[column], own.q025[column]);
     let full = run(1_000);
     let posterior = full.posterior.as_ref().unwrap();
-    assert!(
-        posterior
-            .diagnostics
-            .notes
-            .iter()
-            .all(|note| !note.starts_with(antecedent_estimate::LAPLACE_INTERVAL_DRAWS_NOTE_PREFIX))
-    );
     assert_eq!(posterior.summaries, posterior.draws.summarize());
 }

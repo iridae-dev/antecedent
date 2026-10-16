@@ -188,7 +188,7 @@ pub(crate) use bayesian::require_bayesian_n_draws;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
     CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping, HydrateSource,
-    HydrateTarget, LAPLACE_INTERVAL_DRAWS, LAPLACE_INTERVAL_DRAWS_NOTE_PREFIX,
+    HydrateTarget, LAPLACE_RANK_INTERVAL_BELOW_DRAWS,
     PosteriorFunctionalEvaluator, PreparedBayesianProblem, coefficient_covariance_from_draws,
     hmc_draw_floor_from_notes, hydrate_prior, hydrate_prior_from_coefficient_moments,
     nonidentified_with_prior,

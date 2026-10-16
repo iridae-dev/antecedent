@@ -2043,19 +2043,15 @@ fn compile_with_payloads(
             score_reuse: None,
             target_weights: None,
             checked_aipw_rows: None,
-            posterior: Arc::from(posterior_label(&study.inference)),
+            posterior: Arc::from(posterior_label(
+                &study.inference,
+                matches!(study.query, CausalQuery::AverageEffect(_))
+                    && study.graph.class() == GraphClass::Dag
+                    || matches!(study.query, CausalQuery::TemporalEffect(_))
+                        && study.graph.class() == GraphClass::TemporalDag,
+            )),
             functional: Arc::from(functional),
             posterior_draws: match &study.inference {
-                // The Laplace g-computation takes a below-minimum declared count's interval from
-                // a supplement of the measured minimum (`LAPLACE_INTERVAL_DRAWS`); the claim's
-                // scope is that interval's draw count. The declared count stays in the binding.
-                InferenceMode::Bayesian(cfg)
-                    if matches!(cfg.backend, antecedent_estimate::BayesianBackendKind::Laplace)
-                        && matches!(study.query, CausalQuery::AverageEffect(_))
-                        && study.graph.class() == GraphClass::Dag =>
-                {
-                    u32::try_from(cfg.n_draws.max(antecedent_estimate::LAPLACE_INTERVAL_DRAWS)).ok()
-                }
                 InferenceMode::Bayesian(cfg) => u32::try_from(cfg.n_draws).ok(),
                 InferenceMode::Frequentist => None,
             },
@@ -2780,7 +2776,7 @@ fn overlap_label(study: &Study, resolved_estimator: Option<&str>) -> Option<Stri
 }
 
 /// Posterior construction label: backend, likelihood and prior.
-fn posterior_label(inference: &InferenceMode) -> String {
+fn posterior_label(inference: &InferenceMode, rank_interval: bool) -> String {
     let InferenceMode::Bayesian(cfg) = inference else {
         return String::new();
     };
@@ -2801,7 +2797,18 @@ fn posterior_label(inference: &InferenceMode) -> String {
         } else {
             format!("prior_scale={}", cfg.prior_scale)
         };
-    format!("{backend}.{likelihood}.{prior}")
+    // Below the measured draw count the g-computation's effect interval is the exchangeable-rank
+    // interval of its draws, not the type-7 interval its 1,000-draw records measured: another
+    // construction, keyed apart. The default count and above keep the original label.
+    let interval = if rank_interval
+        && matches!(cfg.backend, antecedent_estimate::BayesianBackendKind::Laplace)
+        && cfg.n_draws < antecedent_estimate::LAPLACE_RANK_INTERVAL_BELOW_DRAWS
+    {
+        ".rank_quantile_interval"
+    } else {
+        ""
+    };
+    format!("{backend}.{likelihood}.{prior}{interval}")
 }
 
 fn attested_evidence(result: &StudyResult) -> Arc<[AttestedEvidence]> {
