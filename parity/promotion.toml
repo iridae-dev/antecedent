@@ -18823,3 +18823,72 @@ inference_outputs = [
   { id = "estimate.observational_policy_value.point.1", fields = ["value", "action_values.value", "reference.incremental_value"], method = "Cross-fitted doubly robust scores built from a multinomial-logit propensity over the declared support and per-action OLS outcome regressions, for a prespecified policy, a held-out learned greedy policy, or a cross-fitted learned greedy policy.", implementation_status = "implemented_unmeasured", owner = "antecedent-estimate", operation_or_object = "antecedent_estimate::observational_policy::ObservationalPolicyValue", public_producers = ["antecedent.policy.observational_value"], closed_producers = [], independent_consumers = [], method_source = "crates/antecedent-estimate/src/observational_policy.rs; crates/antecedent-estimate/src/propensity/generalized.rs", truth_design = "Closed-form values of a binary threshold policy and a three-action policy under confounded assignment, the optimum recovered by held-out and cross-fitted learning, and the selection bias of an in-sample plug-in; finite fixture checks, not a repeated-sampling coverage study.", truth_fixtures = ["estimate.observational_policy_value.targets_known_truth.positive"], nominal_level = "none; point-only, no interval or coverage target", acceptance_threshold = "Within four reported standard errors of each independent truth in crates/antecedent-estimate/tests/observational_policy_value.rs; no sampling-coverage threshold is claimed.", measurement_suite = "crates/antecedent-estimate/tests/observational_policy_value.rs", allocated_coverage_records = [], inherited_coverage_records = [], boundary = "The point value only. The record does not license an interval, sampling coverage, or optimality of a learned rule; the adjustment set is the caller's declaration.", activation_disposition = "new_point_only_route_no_inferential_guarantee", allocation_status = "frozen_harness_compiled_measurement_pending", measurement_design_status = "frozen_ignored_suite_compiled_measurement_pending", truth_grid_allocation = "Calibration designs at n = 1000 and 3000 for a prespecified and a held-out policy and at n = 3000 for cross-fitted learning are written as ignored tests in crates/antecedent-estimate/tests/observational_effects_calibration.rs; none is measured." },
   { id = "estimate.observational_policy_value.se.2", fields = ["se", "action_values.se", "reference.incremental_se"], method = "Sample standard deviation of the cross-fitted doubly robust scores over the square root of the scored rows.", implementation_status = "implemented_unmeasured", owner = "antecedent-estimate", operation_or_object = "antecedent_estimate::observational_policy::PolicyValueEstimate", public_producers = ["antecedent.policy.observational_value"], closed_producers = [], independent_consumers = ["estimate.observational_policy_value.score_replay.artifact"], method_source = "crates/antecedent-estimate/src/observational_policy.rs", truth_design = "The standard error is replayed from the retained scores; its sampling calibration is not measured.", truth_fixtures = ["estimate.observational_policy_value.score_replay.artifact"], nominal_level = "none; reported diagnostic, calibration unmeasured", acceptance_threshold = "Replay within 1e-12 of the retained scores in crates/antecedent-estimate/tests/observational_policy_value.rs; no coverage threshold is claimed.", measurement_suite = "crates/antecedent-estimate/tests/observational_policy_value.rs", allocated_coverage_records = [], inherited_coverage_records = [], boundary = "Valid only under consistent nuisances and positivity; for cross-fitted learning it treats the fold policies as fixed; no interval is produced.", activation_disposition = "new_point_only_route_no_inferential_guarantee", allocation_status = "frozen_harness_compiled_measurement_pending", measurement_design_status = "frozen_ignored_suite_compiled_measurement_pending", truth_grid_allocation = "Whole-route coverage designs are written as ignored tests in crates/antecedent-estimate/tests/observational_effects_calibration.rs; none is measured." },
 ]
+
+[[record]]
+id = "gcm.model.graph_falsification"
+capability = "gcm.model.graph_falsification"
+inference_inventory_disposition = "outputs_listed"
+status = "promoted"
+consumer_question = "Is a declared causal DAG better than random relabellings of its own nodes at agreeing with the conditional independencies in the data, and can that comparison separate it from them at all?"
+theorem = "For a DAG G, the local Markov property implies that each node is independent of its non-descendants given its parents, so each non-parent non-descendant j of a node i gives the testable statement i independent of j given the parents of i. Two DAGs on the same nodes are Markov equivalent exactly when they share a skeleton and unshielded colliders (Verma and Pearl 1990), so relabellings equivalent to G imply the same independencies and can never have a worse violation count in expectation. The route counts rejected implications at a declared level for G and for node relabellings of G on the same data, and reports the add-one Monte Carlo share of relabellings with at most as many violations (the exact share when every non-identity relabelling is enumerated). Not inherited: the violation count is a sum of dependent, uncorrected tests, the p-value is a comparison statistic with no calibrated error rate, and a graph that is not rejected is not shown correct."
+reference = "Eulig et al. (2023) Toward falsifying causal graphs using a permutation-based test; Verma and Pearl (1990) Equivalence and synthesis of causal models; provenance/gcm.model.graph_falsification.toml"
+guarantee = "graph_node_permutation_comparison_of_local_markov_violations_diagnostic_no_error_rate_claim"
+graph_class = "A caller-declared static DAG over the observed columns of the data; causal sufficiency and no selection are assumed."
+population_semantics = "All rows of the data, every graph column fully observed and finite; rows are never dropped."
+evidence_family = "Linear-Gaussian disjoint dependent pairs, where a correct matching and a crossed matching have known violation structure, and quadratic pairs with zero Pearson correlation, where only a nonlinear test sees the dependence."
+provider = "Native implementation; the conditional-independence test is a library test chosen by name."
+estimand = "the number of local Markov implications rejected at the declared level, and the share of node relabellings with at most that many"
+inference_claim = "none"
+owners = ["antecedent-model", "antecedent", "python/antecedent"]
+identity_inputs = ["graph", "data columns", "conditional-independence test name", "alpha and significance", "permutation count and minimum", "equivalence-share threshold", "test budget", "permutation seed", "execution seed"]
+wire_changes = ["None: the report is a value with no artifact section."]
+compatibility = "Additive: ModelEvaluator and its shuffled-outcome likelihood baseline are unchanged and share no statistic with this route."
+search = false
+bounds = { cancellation = true, max_permutations = 100000, contract = "antecedent_core::SearchBudget", operation_limit = "max_ci_tests distinct conditional-independence tests, cached across relabellings" }
+surface = ["python/antecedent/graph_falsification.py"]
+surface_rust = ["crates/antecedent-model/src/falsify.rs"]
+surface_pyo3 = ["python/src/graph_falsification_api.rs"]
+surface_values = ["GraphFalsificationConfig", "GraphFalsificationOutcome", "GraphFalsificationReport", "GraphUninformativeReason", "MarkovImplicationTest", "GraphFalsification"]
+refusals = [
+  { code = "invalid_argument", detail = "graph_falsification.invalid_level", when = "alpha, significance or max_equivalent_share is outside its range." },
+  { code = "invalid_argument", detail = "graph_falsification.invalid_permutations", when = "The permutation counts are zero, the minimum exceeds the request, or ci_replicates is zero." },
+  { code = "route_not_supported", detail = "graph_falsification.permutations_exceed_ceiling", when = "More node relabellings are requested than the ceiling on relabellings held in memory." },
+  { code = "invalid_argument", detail = "graph_falsification.too_few_nodes", when = "The graph has fewer than two nodes." },
+  { code = "invalid_argument", detail = "graph_falsification.empty_data", when = "The data have no rows." },
+  { code = "route_not_supported", detail = "graph_falsification.node_not_static", when = "A graph node is not a static variable node." },
+  { code = "invalid_argument", detail = "graph_falsification.duplicate_variable", when = "Two nodes carry the same variable." },
+  { code = "invalid_argument", detail = "graph_falsification.data_not_observed", when = "A graph column has a missing or non-finite value." },
+  { code = "route_not_supported", detail = "graph_falsification.ci_test_not_frequentist", when = "The named test reports a posterior probability instead of a frequentist p-value." },
+  { code = "diagnostic_not_available", detail = "graph_falsification.ci_p_value_missing", when = "A conditional-independence test returned a NaN p-value." },
+  { code = "diagnostic_not_available", detail = "graph_falsification.ci_result_count", when = "A conditional-independence test returned a different number of results than queries." },
+]
+routes = [{ name = "antecedent.gcm.evaluate_graph", stage = "evaluate", status = "licensed", claim = "none", covers = ["evaluate_graph", "falsify_graph"] }]
+fixtures = [
+  { id = "gcm.model.graph_falsification.known_structure.positive", role = "positive", intent = "On four strongly dependent disjoint pairs the correct matching is not rejected and the crossed matching, which claims false independencies, is rejected.", evidence_test = "crates/antecedent-model/src/falsify.rs", evidence_assertion = "a_graph_claiming_false_independencies_is_rejected" },
+  { id = "gcm.model.graph_falsification.invalid_settings.negative", role = "negative", intent = "Out-of-range levels, an inconsistent permutation count, an unknown or non-frequentist test and a missing graph column are refused.", evidence_test = "crates/antecedent-model/src/falsify.rs", evidence_assertion = "invalid_inputs_are_refused" },
+  { id = "gcm.model.graph_falsification.seeded_report.artifact", role = "artifact", intent = "A consumer re-running with the reported seeds reproduces the violation counts and the p-value.", evidence_test = "crates/antecedent-model/src/falsify.rs", evidence_assertion = "the_same_seed_reproduces_the_report" },
+  { id = "gcm.model.graph_falsification.python_known_structure.positive", role = "positive", intent = "The Python surface rejects the crossed matching, accepts the correct one and reports its limitations.", evidence_test = "python/tests/test_graph_falsification.py", evidence_assertion = "test_false_independencies_are_rejected" },
+]
+
+[[record.inference_outputs]]
+fields = ["outcome", "p_value", "n_violations", "evidence", "permutation_violations"]
+method = "Local Markov implications tested with a named conditional-independence test and compared with the violation counts of node relabellings of the same graph on the same data."
+implementation_status = "implemented_unmeasured"
+owner = "antecedent-model"
+operation_or_object = "antecedent_model::falsify_graph"
+public_producers = ["antecedent.gcm.evaluate_graph"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-model/src/falsify.rs"
+truth_design = "Known-structure linear-Gaussian pairs and quadratic pairs; a finite fixture check, not a repeated-sampling study of the rejection rate."
+truth_fixtures = ["gcm.model.graph_falsification.known_structure.positive"]
+nominal_level = "none; diagnostic comparison, no error rate claimed"
+acceptance_threshold = "Correct matching not rejected and crossed matching rejected at fixed seeds in crates/antecedent-model/src/falsify.rs; no rejection-rate threshold is claimed."
+measurement_suite = "crates/antecedent-model/src/falsify.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "A comparison statistic only: no error rate, interval or universal guarantee; a graph that is not rejected is not shown correct, and Markov-equivalent graphs are indistinguishable."
+activation_disposition = "new_diagnostic_route_no_inferential_guarantee"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "no_calibration_design_diagnostic_only"
+truth_grid_allocation = "None: the route makes no error-rate claim, so no calibration design is allocated."

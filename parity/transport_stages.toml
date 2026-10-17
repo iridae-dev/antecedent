@@ -12283,3 +12283,15 @@ guarantee = "observational_policy_value_under_declared_support_and_evaluation_po
 evidence_test = "crates/antecedent-estimate/tests/observational_policy_value.rs"
 evidence_assertion = "a_prespecified_policy_recovers_its_closed_form_value_where_the_follower_mean_does_not"
 notes = "Point-only; the standard error is an unmeasured diagnostic. No interval."
+
+[[routes]]
+route = "antecedent.gcm.evaluate_graph"
+stage = "evaluate"
+status = "licensed"
+graph = "caller_declared_dag"
+evidence = "local_markov_violation_known_structure_simulation"
+functional = "local_markov_violation_count_compared_with_node_relabellings_of_the_graph"
+guarantee = "graph_node_permutation_comparison_of_local_markov_violations_diagnostic_no_error_rate_claim"
+evidence_test = "crates/antecedent-model/src/falsify.rs"
+evidence_assertion = "a_graph_claiming_false_independencies_is_rejected"
+notes = "Diagnostic only; no fitted mechanism and no error-rate claim. Distinct from the shuffled-outcome likelihood baseline of ModelEvaluator."

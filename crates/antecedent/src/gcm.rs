@@ -45,11 +45,13 @@ pub use antecedent_counterfactual::{
 };
 pub use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, DoSampleResult, DynamicMechanism,
-    InvertibleStructuralCausalModel, KdeDoSampler, McmcDoSampler, MechanismAssignment,
-    MechanismFamily, MechanismRegistry, MechanismSlot, MechanismTyping, MechanismWorkspace,
-    ModelCollection, ModelError, ModelEvaluator, ProbabilisticCausalModel, SelectionPolicy,
-    StructuralCausalModel, WeightingDoSampler, interventional_mean, sample_interventional,
-    sample_observational,
+    GraphFalsificationConfig, GraphFalsificationOutcome, GraphFalsificationReport,
+    GraphUninformativeReason, InvertibleStructuralCausalModel, KdeDoSampler, MarkovImplicationTest,
+    McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismSlot,
+    MechanismTyping, MechanismWorkspace, ModelCollection, ModelError, ModelEvaluator,
+    NodeFamilyConstraint, ProbabilisticCausalModel, SelectionOptions, SelectionPolicy,
+    SelectionProvenance, SelectionRule, StructuralCausalModel, ValidationSplits,
+    WeightingDoSampler, interventional_mean, sample_interventional, sample_observational,
 };
 
 /// Fitted GCM plus per-node assignment records.
@@ -59,6 +61,28 @@ pub struct FittedGcm {
     pub model: CompiledCausalModel,
     /// Auto-assignment provenance (no silent defaults).
     pub assignments: Vec<MechanismAssignment>,
+}
+
+/// Falsify `graph` against `data` by graph-node permutation, with no fitted mechanisms.
+///
+/// Tests the graph's local Markov implications with the configured conditional-independence test
+/// and compares the violation count with that of random node relabellings of the same graph.
+/// The result is `Rejected`, `NotRejected`, `Uninformative` or `Incomplete`, carrying every
+/// implication's test evidence, the seeds, the test budget consumed and the stated limitations.
+/// This is not the shuffled-outcome likelihood diagnostic of a fitted model.
+///
+/// # Errors
+///
+/// Invalid configuration, a graph that is not a static DAG over numeric observed columns, an
+/// unknown or non-frequentist CI test, or a CI-test failure. A budget or cancellation stop is an
+/// `Incomplete` report, not an error.
+pub fn evaluate_graph(
+    graph: &Dag,
+    data: &TabularData,
+    config: &GraphFalsificationConfig,
+    ctx: &ExecutionContext,
+) -> Result<GraphFalsificationReport, CausalError> {
+    antecedent_model::falsify_graph(graph, data, config, ctx).map_err(CausalError::from)
 }
 
 /// Fit a standard mechanism registry to `data` on `graph`.
@@ -103,6 +127,143 @@ pub fn fit_gcm_counterfactual(graph: Dag, data: &TabularData) -> Result<FittedGc
         data,
         map_mechanism_fit,
     )
+}
+
+/// Fit a caller-chosen candidate set to `data` on `graph`, with per-node family
+/// constraints and a declared validation-split scheme.
+///
+/// `registry` fixes the candidate families per outcome type (see
+/// [`registry_from_candidates`]); `options` narrows or overrides them per node and
+/// declares how held-out scores are cut when rows are dependent. With
+/// [`SelectionOptions::default`] and [`MechanismRegistry::standard`] this is
+/// [`fit_gcm`]. Every node's assignment keeps each candidate's held-out score on
+/// the shared folds, the failed candidates with their reasons, and the selection
+/// provenance.
+///
+/// # Errors
+///
+/// Fit failures; a constraint or split declaration the model or data cannot honour
+/// is refused with reason `mechanism_candidates_invalid`, and a required family
+/// that could not be scored with reason `mechanism_family_unavailable`.
+pub fn fit_gcm_with(
+    graph: Dag,
+    data: &TabularData,
+    registry: &MechanismRegistry,
+    options: &SelectionOptions,
+) -> Result<FittedGcm, CausalError> {
+    let compiled = CompiledCausalModel::compile(graph)?;
+    let (store, assignments) = registry
+        .assign_and_fit_with(&compiled, data, SelectionPolicy::BestScore, options)
+        .map_err(map_mechanism_fit)?;
+    Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
+}
+
+/// Every family a candidate token may name exactly, by its registry id.
+const ALL_FAMILIES: [MechanismFamily; 16] = [
+    MechanismFamily::LinearGaussian,
+    MechanismFamily::Constant,
+    MechanismFamily::Discrete,
+    MechanismFamily::LinearInteractions,
+    MechanismFamily::LinearSpline,
+    MechanismFamily::DiscreteInteractions,
+    MechanismFamily::DiscreteSpline,
+    MechanismFamily::HierarchicalLinear,
+    MechanismFamily::HierarchicalGlm,
+    MechanismFamily::Bvar,
+    MechanismFamily::LinearGaussianStateSpace,
+    MechanismFamily::GaussianProcess,
+    MechanismFamily::TreeBoostedAdditive,
+    MechanismFamily::TreeForestAdditive,
+    MechanismFamily::TreeBoostedCategorical,
+    MechanismFamily::TreeForestCategorical,
+];
+
+/// Families a candidate token names. Exact family ids name one family; the
+/// outcome-agnostic aliases name the member of the family for each outcome type
+/// (a continuous node uses the regression member, a categorical node the
+/// classification member).
+///
+/// | token | families |
+/// | --- | --- |
+/// | `linear` | `linear_gaussian`, `discrete` |
+/// | `logistic` | `discrete` |
+/// | `additive_spline` | `linear_spline`, `discrete_spline` |
+/// | `interactions` | `linear_interactions`, `discrete_interactions` |
+/// | `random_forest` | `tree_forest_additive`, `tree_forest_categorical` |
+/// | `gradient_boosted_trees` | `tree_boosted_additive`, `tree_boosted_categorical` |
+/// | `tree_ensembles` | all four tree families |
+/// | `tree_ensemble_classifier` | `tree_boosted_categorical`, `tree_forest_categorical` |
+///
+/// # Errors
+///
+/// An unknown token, refused with reason `mechanism_candidates_invalid`.
+pub fn candidate_families(token: &str) -> Result<Vec<MechanismFamily>, CausalError> {
+    use MechanismFamily as F;
+    let families: &[F] = match token {
+        "linear" => &[F::LinearGaussian, F::Discrete],
+        "logistic" => &[F::Discrete],
+        "additive_spline" => &[F::LinearSpline, F::DiscreteSpline],
+        "interactions" => &[F::LinearInteractions, F::DiscreteInteractions],
+        "random_forest" => &[F::TreeForestAdditive, F::TreeForestCategorical],
+        "gradient_boosted_trees" => &[F::TreeBoostedAdditive, F::TreeBoostedCategorical],
+        "tree_ensembles" => &[
+            F::TreeBoostedAdditive,
+            F::TreeForestAdditive,
+            F::TreeBoostedCategorical,
+            F::TreeForestCategorical,
+        ],
+        "tree_ensemble_classifier" => &[F::TreeBoostedCategorical, F::TreeForestCategorical],
+        exact => {
+            return ALL_FAMILIES.iter().copied().find(|f| f.id() == exact).map_or_else(
+                || {
+                    Err(crate::compile_reason!(
+                        "mechanism_candidates_invalid",
+                        "unknown mechanism candidate `{exact}`"
+                    ))
+                },
+                |family| Ok(vec![family]),
+            );
+        }
+    };
+    Ok(families.to_vec())
+}
+
+/// A registry whose candidate lists are exactly the families `tokens` name (see
+/// [`candidate_families`]), split by outcome type, in the order given, followed by
+/// [`MechanismFamily::Constant`] (admissible only for a degenerate column). An outcome
+/// type no token names keeps its standard family (`linear_gaussian`, `discrete`).
+///
+/// # Errors
+///
+/// An unknown token or an empty list, refused with reason `mechanism_candidates_invalid`.
+pub fn registry_from_candidates(tokens: &[&str]) -> Result<MechanismRegistry, CausalError> {
+    if tokens.is_empty() {
+        return Err(crate::compile_reason!(
+            "mechanism_candidates_invalid",
+            "the candidate list is empty"
+        ));
+    }
+    let mut continuous = Vec::new();
+    let mut discrete = Vec::new();
+    for token in tokens {
+        for family in candidate_families(token)? {
+            let list = if family.is_categorical() { &mut discrete } else { &mut continuous };
+            if family != MechanismFamily::Constant && !list.contains(&family) {
+                list.push(family);
+            }
+        }
+    }
+    // An outcome type no token names keeps its standard family, so a list of
+    // categorical-only candidates does not leave every continuous root without one.
+    if continuous.is_empty() {
+        continuous.push(MechanismFamily::LinearGaussian);
+    }
+    if discrete.is_empty() {
+        discrete.push(MechanismFamily::Discrete);
+    }
+    continuous.push(MechanismFamily::Constant);
+    discrete.push(MechanismFamily::Constant);
+    Ok(MechanismRegistry { continuous: Arc::from(continuous), discrete: Arc::from(discrete) })
 }
 
 /// Frozen single-intervention ITE target and mechanism-fitting procedure.
@@ -500,6 +661,12 @@ fn fit_non_separable_nested_outcome_polled(
 /// can resolve.
 pub(crate) fn map_mechanism_fit(e: ModelError) -> CausalError {
     match e {
+        ModelError::InvalidSelection { message } => {
+            crate::compile_reason!("mechanism_candidates_invalid", "{message}")
+        }
+        ModelError::RequiredFamilyUnavailable { message } => {
+            crate::compile_reason!("mechanism_family_unavailable", "{message}")
+        }
         ModelError::NotConverged { .. } => crate::unsupported_reason!(
             "mechanism_fit_not_converged",
             "a parent-conditional categorical mechanism did not converge even on standardized \

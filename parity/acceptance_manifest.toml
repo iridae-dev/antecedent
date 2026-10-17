@@ -3468,7 +3468,7 @@ configuration = { rows = 200000, policy = "price := max(10, 0.85 * price)", node
 expected = { kind = "value", outputs = ["minimum realized price across all draws is at least 10", "every draw satisfies price_after = max(10, 0.85 * price_before) exactly", "share of draws held at the floor matches the independent count"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 9327191, n = 200000, price_location = 3.0, price_scale = 0.4, demand_slope = -0.8, revenue_noise = 0.5, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::a_price_floor_holds_for_every_realized_price_and_flows_downstream_on_the_same_noise" }
 
 [[case]]
 id = "price_floor_policy_effects_propagate_downstream"
@@ -3478,7 +3478,7 @@ configuration = { rows = 200000, policy = "price := max(10, 0.85 * price)", down
 expected = { kind = "value", outputs = ["downstream demand mean equals the closed form E[intercept + slope * max(10, 0.85 * P)] within Monte Carlo error", "downstream revenue mean matches the same independent computation", "effect against the unintervened mean has the analytic sign and size"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 4768601, n = 200000, price_location = 3.0, price_scale = 0.4, demand_slope = -0.8, revenue_noise = 0.5, truth = "lognormal price truncated below at 10 after scaling by 0.85; expectation by one-dimensional quadrature over the lognormal density, independent of the library", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::downstream_means_under_a_price_floor_match_the_closed_form_expectation" }
 
 [[case]]
 id = "intervention_expression_arithmetic_and_comparison_truth"
@@ -3488,7 +3488,7 @@ configuration = { rows = 100000, expressions = ["x := 2 * x + 1", "x := x - z", 
 expected = { kind = "value", outputs = ["transformed mean and variance equal the closed form for an affine map of the generated value", "comparison output is boolean and its rate equals the Gaussian tail probability"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 3696036, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::affine_and_comparison_programs_have_their_gaussian_closed_forms" }
 
 [[case]]
 id = "intervention_expression_conditional_branch_selects_per_row"
@@ -3498,7 +3498,7 @@ configuration = { rows = 100000, expression = "x := if z > 0 then x + 2 else x",
 expected = { kind = "value", outputs = ["rows with positive z shift by exactly 2", "rows with non-positive z are unchanged", "branch mix matches the sampled z signs row by row"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 3228334, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::a_conditional_branch_selects_per_row_from_the_sampled_condition" }
 
 [[case]]
 id = "intervention_expression_clipping_bounds_every_draw"
@@ -3508,7 +3508,7 @@ configuration = { rows = 100000, expression = "x := clip(x, -1, 1)", bounds = [-
 expected = { kind = "value", outputs = ["no draw lies outside the bounds", "draws inside the bounds are unchanged", "clipped mass equals the independent tail probability"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 1700550, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::clipping_bounds_every_draw_and_the_clipped_mass_is_the_tail_probability" }
 
 [[case]]
 id = "intervention_expression_transform_differs_from_assignment_replacement"
@@ -3518,7 +3518,7 @@ configuration = { rows = 100000, transform = "x := x + 1", replacement = "do(x =
 expected = { kind = "value", outputs = ["transform keeps the generated value's noise so downstream variance differs from the replacement", "replacement severs incoming edges while transform does not", "both match their analytic downstream moments"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 8275267, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::a_transform_keeps_the_noise_and_incoming_edges_while_an_assignment_replaces_them" }
 
 [[case]]
 id = "intervention_expression_explicit_variable_reference_reads_current_value"
@@ -3528,7 +3528,7 @@ configuration = { rows = 100000, expression = "x := 0.5 * z + x", reference = "z
 expected = { kind = "value", outputs = ["the reference reads the generated value of z in the same draw", "result equals the independent row-wise recomputation"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 6292378, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::an_explicit_reference_reads_the_current_value_of_the_other_variable_in_the_same_draw" }
 
 [[case]]
 id = "intervention_expression_compiled_overlay_matches_interpreted_evaluation"
@@ -3538,7 +3538,7 @@ configuration = { rows = 100000, expressions = ["arithmetic", "comparison", "con
 expected = { kind = "value", outputs = ["batch kernel output bit-identical to the scalar interpreter on every row", "same seed gives identical draws"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Expression evaluation is one fused pass over the draw columns; a million draws of a four-node chain stay well inside a minute and hold two columns per node." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 5418077, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::the_batch_kernel_equals_the_scalar_interpreter_bit_for_bit" }
 
 [[case]]
 id = "policy_circular_dependency_refused"
@@ -3548,7 +3548,7 @@ configuration = { policies = ["a := b + 1", "b := a * 2"] }
 expected = { kind = "refusal", outputs = ["names the cycle and the policies in it", "no draws produced"], refusal = "policy circular dependency" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 4180274, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::circular_dependencies_are_refused_naming_the_cycle_before_any_draw" }
 
 [[case]]
 id = "policy_unavailable_variable_refused"
@@ -3558,7 +3558,7 @@ configuration = { policy = "x := w + 1", variable = "w" }
 expected = { kind = "refusal", outputs = ["names the missing variable and the policy"], refusal = "policy unavailable dependency" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 1999893, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::unavailable_dependencies_are_refused_before_any_draw" }
 
 [[case]]
 id = "policy_conflicting_directives_refused"
@@ -3568,7 +3568,7 @@ configuration = { policies = ["x := x + 1", "x := clip(x, 0, 1)"], composition =
 expected = { kind = "refusal", outputs = ["names both directives and the shared node"], refusal = "policy conflicting directive" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 3252513, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::conflicting_directives_on_one_node_are_refused_but_identical_repeats_are_not" }
 
 [[case]]
 id = "policy_invalid_output_type_refused"
@@ -3578,7 +3578,7 @@ configuration = { policy = "treatment := x * 2", node_type = "categorical" }
 expected = { kind = "refusal", outputs = ["names the node, expected type and expression type"], refusal = "policy output type" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 8142768, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::output_types_are_checked_against_the_expression_and_the_node" }
 
 [[case]]
 id = "policy_future_history_read_refused_on_temporal_route"
@@ -3598,7 +3598,7 @@ configuration = { policy = "x := max(10, 0.85 * x)", requested_route = "observat
 expected = { kind = "refusal", outputs = ["names the route and the licensed routes"], refusal = "policy route not licensed" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 1965983, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::each_route_is_licensed_separately" }
 
 [[case]]
 id = "policy_valid_composition_orders_by_dependency"
@@ -3608,7 +3608,7 @@ configuration = { policies = ["a := a + 1", "b := a * 2"], composition = "depend
 expected = { kind = "value", outputs = ["policies evaluated in dependency order", "result equals sequential application of the two maps"] }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 7091087, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::policies_are_evaluated_in_dependency_order_not_declaration_or_node_order" }
 
 [[case]]
 id = "policy_licenses_simulation_counterfactual_and_identification_separately"
@@ -3618,7 +3618,7 @@ configuration = { policy = "x := max(10, 0.85 * x)", routes = ["simulation", "co
 expected = { kind = "value", outputs = ["a separate support decision per route", "each decision cites its reason code", "a route licensed for simulation is not assumed licensed for identification"] }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Dependency validation is a static graph walk before any draw is made; it must be immediate and independent of row count." }
 dataset = { generator = "gaussian_chain_known_moments", seed = 5215020, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/intervention_programs.rs::each_route_is_licensed_separately" }
 
 [[case]]
 id = "python_callback_batch_matches_equivalent_expression"
@@ -3798,7 +3798,7 @@ configuration = { rows = 4000, node = "y", parents = ["x"], candidates = ["linea
 expected = { kind = "value", outputs = ["selected family fits the known truth better than linear on held-out score", "held-out scores of all candidates retained and comparable", "selection provenance recorded"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 6040302, n = 4000, family = "quadratic", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::a_tree_ensemble_recovers_a_quadratic_mechanism" }
 
 [[case]]
 id = "mechanism_selection_recovers_threshold_family"
@@ -3808,7 +3808,7 @@ configuration = { rows = 4000, node = "y", parents = ["x"], candidates = ["linea
 expected = { kind = "value", outputs = ["selected family fits the known truth better than linear on held-out score", "held-out scores of all candidates retained and comparable", "selection provenance recorded"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 6477315, n = 4000, family = "threshold", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::a_tree_ensemble_recovers_a_threshold_mechanism" }
 
 [[case]]
 id = "mechanism_selection_recovers_interaction_family"
@@ -3818,7 +3818,7 @@ configuration = { rows = 4000, node = "y", parents = ["x1", "x2"], candidates = 
 expected = { kind = "value", outputs = ["selected family fits the known truth better than linear on held-out score", "held-out scores of all candidates retained and comparable", "selection provenance recorded"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 8537223, n = 4000, family = "interaction", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::a_tree_ensemble_recovers_an_interaction_mechanism" }
 
 [[case]]
 id = "mechanism_selection_recovers_sinusoidal_family"
@@ -3828,7 +3828,7 @@ configuration = { rows = 4000, node = "y", parents = ["x"], candidates = ["linea
 expected = { kind = "value", outputs = ["selected family fits the known truth better than linear on held-out score", "held-out scores of all candidates retained and comparable", "selection provenance recorded"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 7320675, n = 4000, family = "sinusoidal", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::a_tree_ensemble_recovers_a_sinusoidal_mechanism" }
 
 [[case]]
 id = "mechanism_selection_includes_tree_ensembles_as_candidates"
@@ -3838,7 +3838,7 @@ configuration = { rows = 4000, candidates = ["random_forest", "gradient_boosted_
 expected = { kind = "value", outputs = ["tree ensemble selected on piecewise-constant truth", "held-out error close to the noise floor", "each ensemble defines a full conditional sampling distribution"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 6048820, n = 4000, family = "threshold", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::additive_tree_noise_inversion_round_trips_and_samples_the_truth" }
 
 [[case]]
 id = "mechanism_selection_linear_truth_keeps_linear_family"
@@ -3848,7 +3848,7 @@ configuration = { rows = 4000, candidates = ["linear", "additive_spline", "rando
 expected = { kind = "value", outputs = ["linear family selected or tied within the declared tolerance", "no complexity chosen without held-out gain"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 2331947, n = 4000, family = "linear", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::linear_truth_keeps_the_linear_family" }
 
 [[case]]
 id = "mechanism_selection_binary_node_selects_classifier"
@@ -3858,7 +3858,7 @@ configuration = { rows = 4000, node = "t", candidates = ["logistic", "tree_ensem
 expected = { kind = "value", outputs = ["classification family selected on held-out log loss", "conditional sampling distribution is Bernoulli with the fitted probability"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 4321846, n = 4000, family = "quadratic_logit", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::a_binary_node_with_a_nonlinear_logit_selects_a_tree_classifier" }
 
 [[case]]
 id = "mechanism_selection_retains_failed_candidates_and_provenance"
@@ -3868,7 +3868,7 @@ configuration = { rows = 4000, candidates = ["linear", "random_forest", "candida
 expected = { kind = "value", outputs = ["failed candidate listed with its reason", "selection provenance names splits, scores and chosen family"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 1948424, n = 4000, family = "quadratic", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::a_root_cannot_be_a_tree_ensemble_and_the_failure_is_recorded" }
 
 [[case]]
 id = "mechanism_selection_per_node_constraints_restrict_candidates"
@@ -3878,7 +3878,7 @@ configuration = { rows = 4000, constraints = { y = ["linear", "additive_spline"]
 expected = { kind = "value", outputs = ["only permitted families are scored for the constrained node", "other nodes use the full candidate set"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 8827312, n = 4000, family = "quadratic", noise_sd = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::per_node_constraints_are_honoured_and_recorded" }
 
 [[case]]
 id = "mechanism_selection_time_series_uses_dependency_aware_splits"
@@ -3888,7 +3888,7 @@ configuration = { rows = 3000, splits = "blocked_forward_chaining", dependence =
 expected = { kind = "value", outputs = ["no validation row precedes a training row", "score not inflated relative to blocked splits on an independent replicate"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Candidate fitting is cross-validated per node; a handful of families on thousands of rows stays within minutes and holds one fold design at a time." }
 dataset = { generator = "autocorrelated_nonlinear_known_truth", seed = 9299046, n = 3000, ar_coefficient = 0.7, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_selection.rs::time_ordered_splits_remove_the_inflation_that_serial_dependence_causes" }
 
 [[case]]
 id = "mechanism_selection_unsupported_operation_refused_for_family"
@@ -3908,7 +3908,7 @@ configuration = { rows = 3000, graph = "chain with a missing edge", permutations
 expected = { kind = "value", outputs = ["outcome rejected", "violation count exceeds the permutation reference", "test evidence and seed reported"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 1533665, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/src/falsify.rs::a_graph_claiming_false_independencies_is_rejected" }
 
 [[case]]
 id = "graph_falsification_does_not_reject_correct_graph"
@@ -3918,7 +3918,7 @@ configuration = { rows = 3000, graph = "true DAG", permutations = 500, independe
 expected = { kind = "value", outputs = ["outcome not rejected", "violation count within the permutation reference", "seeds and budgets reported"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 9135698, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/src/falsify.rs::a_correct_graph_is_not_rejected_without_fitted_mechanisms" }
 
 [[case]]
 id = "graph_falsification_complete_graph_is_uninformative"
@@ -3928,7 +3928,7 @@ configuration = { rows = 3000, graph = "complete DAG", permutations = 500 }
 expected = { kind = "value", outputs = ["outcome uninformative", "reports no testable local Markov implication", "equivalence class has no distinguishing permutation"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 4231852, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/src/falsify.rs::complete_and_tiny_graphs_are_uninformative" }
 
 [[case]]
 id = "graph_falsification_budget_limited_is_incomplete"
@@ -3938,7 +3938,7 @@ configuration = { rows = 3000, graph = "true DAG", permutations = 500, test_budg
 expected = { kind = "value", outputs = ["outcome incomplete", "tests run and tests skipped by the budget reported", "no rejected or not-rejected claim"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 1575800, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/src/falsify.rs::a_budget_that_cannot_cover_the_tests_is_incomplete" }
 
 [[case]]
 id = "graph_falsification_nonlinear_independence_test_detects_nonlinear_violation"
@@ -3948,7 +3948,7 @@ configuration = { rows = 3000, graph = "edge omitted between nonlinearly depende
 expected = { kind = "value", outputs = ["outcome rejected under the nonlinear test", "the linear partial correlation test misses the violation"] }
 targets = { runtime_seconds = 600, memory_bytes = 2147483648, rationale = "A kernel conditional independence test is quadratic in rows per test; 3,000 rows with a dozen tests fits ten minutes." }
 dataset = { generator = "nonlinear_dag_known_structure", seed = 7580249, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/src/falsify.rs::a_nonlinear_test_finds_the_violation_partial_correlation_misses" }
 
 [[case]]
 id = "graph_falsification_requires_no_fitted_mechanisms"
@@ -3958,7 +3958,7 @@ configuration = { rows = 3000, fitted_model = "absent" }
 expected = { kind = "value", outputs = ["runs from graph and data alone", "distinct from the shuffled-outcome likelihood diagnostic"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3334013, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/src/falsify.rs::falsification_runs_from_graph_and_data_alone" }
 
 [[case]]
 id = "graph_falsification_reports_seeds_budgets_and_limitations"
@@ -3968,7 +3968,7 @@ configuration = { rows = 3000, permutations = 500 }
 expected = { kind = "value", outputs = ["seed, permutation count and test budget reported", "limitations listed with the outcome"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Local Markov tests are run per node with a permutation reference; a dozen nodes and several hundred permutations fit within minutes." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2370677, n = 3000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/src/falsify.rs::the_report_carries_seeds_budgets_and_limitations" }
 
 [[case]]
 id = "noise_replay_reproduces_draws_from_retained_noise"
@@ -3978,7 +3978,7 @@ configuration = { rows = 100000, retain = "all_coordinates" }
 expected = { kind = "value", outputs = ["replayed draws bit-identical to the original draws", "same seed gives the same noise"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Replay reuses one execution context and one noise matrix; cost is a pass of the compiled kernel per draw over the retained noise." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 9124254, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/noise_replay.rs::replaying_a_sampled_table_reproduces_the_draws_bit_for_bit" }
 
 [[case]]
 id = "noise_replay_selectively_fixes_coordinates"
@@ -3988,7 +3988,7 @@ configuration = { rows = 100000, fixed = ["u_a"], randomized = ["u_b", "u_c"] }
 expected = { kind = "value", outputs = ["fixed coordinate identical across draws", "randomized coordinates vary", "variance matches the closed form conditional on u_a"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Replay reuses one execution context and one noise matrix; cost is a pass of the compiled kernel per draw over the retained noise." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 6828091, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/noise_replay.rs::fixed_coordinates_stay_fixed_and_randomized_coordinates_vary" }
 
 [[case]]
 id = "noise_replay_does_not_clone_model_per_draw_or_coalition"
@@ -3998,7 +3998,7 @@ configuration = { rows = 100000, coalitions = 512 }
 expected = { kind = "value", outputs = ["one model instance across all coalitions", "allocation count independent of coalition count"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Replay reuses one execution context and one noise matrix; cost is a pass of the compiled kernel per draw over the retained noise." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3114643, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/noise_replay.rs::coalitions_replay_from_two_tables_without_copying_or_growing_scratch" }
 
 [[case]]
 id = "noise_replay_cancellation_returns_partial_result"
@@ -4008,7 +4008,7 @@ configuration = { rows = 1000000, cancel_after_fraction = 0.5 }
 expected = { kind = "value", outputs = ["partial result flagged cancelled", "draws completed are exact"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Cancellation is checked per batch." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2204453, n = 1000000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/noise_replay.rs::cancellation_returns_the_exact_completed_prefix" }
 
 [[case]]
 id = "noise_replay_memory_budget_refused"
@@ -4018,7 +4018,7 @@ configuration = { rows = 10000000, memory_limit_bytes = 67108864 }
 expected = { kind = "refusal", outputs = ["reports required and permitted bytes"], refusal = "noise replay memory budget" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "The budget check precedes allocation." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 6152034, n = 10000000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/noise_replay.rs::a_table_over_the_memory_limit_is_refused_before_allocating" }
 
 [[case]]
 id = "noise_replay_counterfactual_noise_inference_disclosures_preserved"
@@ -4028,7 +4028,7 @@ configuration = { rows = 10000, mechanism = "family_with_approximate_noise_infer
 expected = { kind = "value", outputs = ["noise inference disclosure carried into the replay result"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Replay reuses one execution context and one noise matrix; cost is a pass of the compiled kernel per draw over the retained noise." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 1321437, n = 10000, family = "quadratic", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/noise_replay_abduction.rs::posterior_noise_disclosure_is_carried_into_the_table" }
 
 [[case]]
 id = "intrinsic_influence_matches_analytic_linear_variance_contributions"

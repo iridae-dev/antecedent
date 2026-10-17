@@ -33,6 +33,16 @@ limitations = "Evidence covers auto-assignment on a linear chain; the Gaussian-p
 notes = "MechanismRegistry auto-assignment; no silent default"
 
 [[capabilities]]
+id = "gcm.model.mechanism_selection"
+status = "done"
+evidence_kind = "implementation_exists"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "per_node_constraints_are_honoured_and_recorded"
+python_facade = "full"
+limitations = "Tree-ensemble recovery of quadratic, threshold, interaction and sinusoidal truths, linear-truth retention, the binary classifier and the noise-inversion round trips run under the ml-gbdt and ml-forest features (tree_ensembles_beat_linear_on_nonlinear_truths); constraints, split schemes, failure records and capability flags run without them. Noise of the additive tree families is homoscedastic Gaussian."
+notes = "Tree-ensemble additive and categorical mechanism families; candidate sets, per-node allowed/excluded/required constraints, shuffled/time-ordered/clustered validation splits; per-candidate held-out scores, failed candidates and selection provenance (FittedGcm.mechanism_selection)"
+
+[[capabilities]]
 id = "gcm.model.sampling"
 status = "done"
 evidence_kind = "internal_known_truth"
@@ -72,6 +82,16 @@ evidence_test = "crates/antecedent-model/src/evaluate.rs"
 evidence_assertion = "evaluation_runs_on_linear_scm"
 limitations = "Evidence checks in-sample log-likelihood and residuals on a correctly specified linear SCM; residual-independence, local Markov and Bonferroni behavior are covered by other tests in the same module."
 notes = "Residual CI, local Markov, predictive checks"
+
+[[capabilities]]
+id = "gcm.model.graph_falsification"
+status = "done"
+evidence_kind = "internal_known_truth"
+evidence_test = "crates/antecedent-model/src/falsify.rs"
+evidence_assertion = "a_graph_claiming_false_independencies_is_rejected"
+limitations = "Violation counts are uncorrected pairwise conditional-independence tests; the permutation comparison cannot separate Markov-equivalent graphs, and a graph that is not rejected is not shown correct. Known-truth evidence uses linear-Gaussian and quadratic pairs; it is a diagnostic, with no calibrated error rate."
+python_facade = "full"
+notes = "Graph-and-data falsification with no fitted mechanisms: local Markov implications tested with any named CI test, compared with violation counts of node-relabelled graphs, with Markov-equivalence informativeness; distinct from the shuffled-outcome likelihood baseline of gcm.model.falsification; Python gcm.evaluate_graph"
 
 [[capabilities]]
 id = "gcm.counterfactual.aap"
@@ -146,3 +166,33 @@ known_truth_fixture = "conformance/attribution/structure_change_grid"
 evidence_test = "crates/antecedent-attribution/src/structure_change.rs"
 evidence_assertion = "attributes_parent_set_change_to_y"
 notes = "Dual-graph parent-set structure-change attribution"
+
+[[capabilities]]
+id = "gcm.model.noise_replay"
+status = "done"
+evidence_kind = "implementation_exists"
+evidence_test = "crates/antecedent-model/tests/noise_replay.rs"
+evidence_assertion = "replaying_a_sampled_table_reproduces_the_draws_bit_for_bit"
+python_facade = "none"
+limitations = "Rust-level API; the tests check bit-identical replay, selective fixing with closed-form conditional variances and counterfactual-engine agreement, but no numerical-truth conformance fixture backs it and it is not exposed through the Python facade."
+notes = "NoiseTable / NoiseReplayer: retained per-node noise with sampled, fixed, abducted and assumed provenance, replayed through the compiled model under an overlay with forward-sampling precedence; coalition replay from two tables and a node mask"
+
+[[capabilities]]
+id = "gcm.model.intervention_programs"
+status = "done"
+evidence_kind = "implementation_exists"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "a_price_floor_holds_for_every_realized_price_and_flows_downstream_on_the_same_noise"
+python_facade = "none"
+limitations = "Programs run on static compiled models, in forward sampling, conditional sampling, the do-samplers and counterfactual world evaluation through one shared executor; temporal routes with a declared history window and nested counterfactuals refuse them. The tests compare the executor with hand arithmetic on identical noise, a scalar interpreter and Gaussian closed forms; no interval or calibration claim is made and the Rust API is not exposed through the Python facade."
+notes = "Intervention::Transform (expression of the generated value, noise and incoming edges kept) and Intervention::Assign (expression of other variables, mechanism replaced) over typed value expressions with arithmetic, min/max/clip, comparisons, boolean connectives, conditionals and explicit variable references, compiled to postfix column programs on the intervention overlay"
+
+[[capabilities]]
+id = "gcm.model.policy_validation"
+status = "done"
+evidence_kind = "implementation_exists"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "each_route_is_licensed_separately"
+python_facade = "none"
+limitations = "Validation is structural: declared reads equal referenced variables, the combined read and parent graph is acyclic, the output type fits the node, directives do not conflict. Observational identification is licensed only for programs reducing to a hard level; history reads are refused on static models and no temporal route executes them yet."
+notes = "Coded refusals (policy_dependency_circular, policy_dependency_unavailable, policy_directive_conflict, policy_output_type_invalid, policy_history_unavailable, policy_route_not_licensed) and policy_support, a separate licensing decision for simulation, counterfactual execution and observational identification"

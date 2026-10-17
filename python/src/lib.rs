@@ -80,6 +80,7 @@ mod forward_source_api;
 mod functional_source_api;
 mod gcm_api;
 mod graph_build;
+mod graph_falsification_api;
 mod graph_io;
 mod graphs;
 mod identification_details;

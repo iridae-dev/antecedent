@@ -340,6 +340,7 @@ dependencies = [
  "antecedent-graph",
  "antecedent-identify",
  "antecedent-kernels",
+ "antecedent-learn",
  "antecedent-stats",
  "criterion",
  "serde_json",

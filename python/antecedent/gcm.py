@@ -21,6 +21,7 @@ from .discovery import (
     discovery_to_dag,
     run_static_discovery,
 )
+from .graph_falsification import GraphFalsification, MarkovImplicationTest, evaluate_graph
 
 
 def _run_static_discovery(data, discovery, *, seed: int, threads: int | None):
@@ -136,8 +137,11 @@ def attribute_distribution_change_discovered(
 
 
 __all__ = [
+    "GraphFalsification",
+    "MarkovImplicationTest",
     "anomaly_attribution_discovered",
     "attribute_distribution_change_discovered",
     "attribute_paths_discovered",
+    "evaluate_graph",
     "fit_gcm_discovered",
 ]

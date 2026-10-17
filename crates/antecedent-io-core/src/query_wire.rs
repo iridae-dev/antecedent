@@ -15,7 +15,7 @@ use antecedent_core::{
     PopulationRegistry, PopulationSelector, PredicateExpr, RandomizationDesign,
     RandomizedEffectQuery, SequencedIntervention, ShapleyConfig, ShapleyMode, StochasticPolicy,
     SyntheticControlQuery, TargetPopulation, TemporalEffectQuery, TemporalPolicy, TransportQuery,
-    UnitChangeQuery, Value, VariableId,
+    UnitChangeQuery, Value, ValueExpr, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -443,6 +443,296 @@ pub struct MechanismOverrideWire {
     pub parameters: Vec<f64>,
 }
 
+/// Binary numeric operator wire code.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ArithOpWire {
+    /// Addition.
+    Add,
+    /// Subtraction.
+    Sub,
+    /// Multiplication.
+    Mul,
+    /// Division.
+    Div,
+    /// Minimum.
+    Min,
+    /// Maximum.
+    Max,
+}
+
+/// Comparison wire code.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CompareOpWire {
+    /// Less than.
+    Lt,
+    /// Less than or equal.
+    Le,
+    /// Greater than.
+    Gt,
+    /// Greater than or equal.
+    Ge,
+    /// Equal.
+    Eq,
+    /// Not equal.
+    Ne,
+}
+
+/// Boolean connective wire code.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LogicOpWire {
+    /// Conjunction.
+    And,
+    /// Disjunction.
+    Or,
+}
+
+/// Value expression wire: the canonical, ordered encoding of the expression tree.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+pub enum ValueExprWire {
+    /// Numeric constant.
+    Const {
+        /// Value.
+        value: f64,
+    },
+    /// The node's own generated value.
+    Generated,
+    /// Current-draw read of a variable.
+    Var {
+        /// Variable.
+        variable: u32,
+    },
+    /// Read of a variable `lag` steps back.
+    Lag {
+        /// Variable.
+        variable: u32,
+        /// Steps back.
+        lag: u32,
+    },
+    /// Negation.
+    Neg {
+        /// Operand.
+        operand: Box<ValueExprWire>,
+    },
+    /// Binary numeric operation.
+    Arith {
+        /// Operator.
+        op: ArithOpWire,
+        /// Left operand.
+        lhs: Box<ValueExprWire>,
+        /// Right operand.
+        rhs: Box<ValueExprWire>,
+    },
+    /// Clip to bounds.
+    Clip {
+        /// Clipped value.
+        value: Box<ValueExprWire>,
+        /// Lower bound.
+        lower: Box<ValueExprWire>,
+        /// Upper bound.
+        upper: Box<ValueExprWire>,
+    },
+    /// Comparison.
+    Compare {
+        /// Operator.
+        op: CompareOpWire,
+        /// Left operand.
+        lhs: Box<ValueExprWire>,
+        /// Right operand.
+        rhs: Box<ValueExprWire>,
+    },
+    /// Boolean negation.
+    Not {
+        /// Operand.
+        operand: Box<ValueExprWire>,
+    },
+    /// Boolean connective.
+    Logic {
+        /// Connective.
+        op: LogicOpWire,
+        /// Left operand.
+        lhs: Box<ValueExprWire>,
+        /// Right operand.
+        rhs: Box<ValueExprWire>,
+    },
+    /// Conditional.
+    If {
+        /// Boolean condition.
+        condition: Box<ValueExprWire>,
+        /// Value when true.
+        then_branch: Box<ValueExprWire>,
+        /// Value when false.
+        else_branch: Box<ValueExprWire>,
+    },
+    /// Boolean to number.
+    Indicator {
+        /// Operand.
+        operand: Box<ValueExprWire>,
+    },
+}
+
+impl ValueExprWire {
+    /// Encode.
+    ///
+    /// # Errors
+    ///
+    /// Unknown expression or operator variants.
+    pub fn from_domain(expr: &ValueExpr) -> Result<Self, IoError> {
+        use antecedent_core::{ArithOp, CompareOp, LogicOp};
+        let boxed = |e: &ValueExpr| Self::from_domain(e).map(Box::new);
+        Ok(match expr {
+            ValueExpr::Const(c) => Self::Const { value: c.get() },
+            ValueExpr::Generated => Self::Generated,
+            ValueExpr::Var(v) => Self::Var { variable: v.raw() },
+            ValueExpr::Lag { variable, lag } => Self::Lag { variable: variable.raw(), lag: *lag },
+            ValueExpr::Neg(a) => Self::Neg { operand: boxed(a)? },
+            ValueExpr::Not(a) => Self::Not { operand: boxed(a)? },
+            ValueExpr::Indicator(a) => Self::Indicator { operand: boxed(a)? },
+            ValueExpr::Arith { op, lhs, rhs } => Self::Arith {
+                op: match op {
+                    ArithOp::Add => ArithOpWire::Add,
+                    ArithOp::Sub => ArithOpWire::Sub,
+                    ArithOp::Mul => ArithOpWire::Mul,
+                    ArithOp::Div => ArithOpWire::Div,
+                    ArithOp::Min => ArithOpWire::Min,
+                    ArithOp::Max => ArithOpWire::Max,
+                    other => {
+                        return Err(IoError::Convert(format!("unsupported ArithOp: {other:?}")));
+                    }
+                },
+                lhs: boxed(lhs)?,
+                rhs: boxed(rhs)?,
+            },
+            ValueExpr::Compare { op, lhs, rhs } => Self::Compare {
+                op: match op {
+                    CompareOp::Lt => CompareOpWire::Lt,
+                    CompareOp::Le => CompareOpWire::Le,
+                    CompareOp::Gt => CompareOpWire::Gt,
+                    CompareOp::Ge => CompareOpWire::Ge,
+                    CompareOp::Eq => CompareOpWire::Eq,
+                    CompareOp::Ne => CompareOpWire::Ne,
+                    other => {
+                        return Err(IoError::Convert(format!("unsupported CompareOp: {other:?}")));
+                    }
+                },
+                lhs: boxed(lhs)?,
+                rhs: boxed(rhs)?,
+            },
+            ValueExpr::Logic { op, lhs, rhs } => Self::Logic {
+                op: match op {
+                    LogicOp::And => LogicOpWire::And,
+                    LogicOp::Or => LogicOpWire::Or,
+                    other => {
+                        return Err(IoError::Convert(format!("unsupported LogicOp: {other:?}")));
+                    }
+                },
+                lhs: boxed(lhs)?,
+                rhs: boxed(rhs)?,
+            },
+            ValueExpr::Clip { value, lower, upper } => {
+                Self::Clip { value: boxed(value)?, lower: boxed(lower)?, upper: boxed(upper)? }
+            }
+            ValueExpr::If { condition, then_branch, else_branch } => Self::If {
+                condition: boxed(condition)?,
+                then_branch: boxed(then_branch)?,
+                else_branch: boxed(else_branch)?,
+            },
+            other => {
+                return Err(IoError::Convert(format!("unsupported ValueExpr: {other:?}")));
+            }
+        })
+    }
+
+    /// Decode.
+    #[must_use]
+    pub fn to_domain(&self) -> ValueExpr {
+        use antecedent_core::{ArithOp, CompareOp, LogicOp};
+        let un = |e: &Self| Box::new(e.to_domain());
+        match self {
+            Self::Const { value } => ValueExpr::constant(*value),
+            Self::Generated => ValueExpr::Generated,
+            Self::Var { variable } => ValueExpr::Var(VariableId::from_raw(*variable)),
+            Self::Lag { variable, lag } => {
+                ValueExpr::Lag { variable: VariableId::from_raw(*variable), lag: *lag }
+            }
+            Self::Neg { operand } => ValueExpr::Neg(un(operand)),
+            Self::Not { operand } => ValueExpr::Not(un(operand)),
+            Self::Indicator { operand } => ValueExpr::Indicator(un(operand)),
+            Self::Arith { op, lhs, rhs } => ValueExpr::Arith {
+                op: match op {
+                    ArithOpWire::Add => ArithOp::Add,
+                    ArithOpWire::Sub => ArithOp::Sub,
+                    ArithOpWire::Mul => ArithOp::Mul,
+                    ArithOpWire::Div => ArithOp::Div,
+                    ArithOpWire::Min => ArithOp::Min,
+                    ArithOpWire::Max => ArithOp::Max,
+                },
+                lhs: un(lhs),
+                rhs: un(rhs),
+            },
+            Self::Compare { op, lhs, rhs } => ValueExpr::Compare {
+                op: match op {
+                    CompareOpWire::Lt => CompareOp::Lt,
+                    CompareOpWire::Le => CompareOp::Le,
+                    CompareOpWire::Gt => CompareOp::Gt,
+                    CompareOpWire::Ge => CompareOp::Ge,
+                    CompareOpWire::Eq => CompareOp::Eq,
+                    CompareOpWire::Ne => CompareOp::Ne,
+                },
+                lhs: un(lhs),
+                rhs: un(rhs),
+            },
+            Self::Logic { op, lhs, rhs } => ValueExpr::Logic {
+                op: match op {
+                    LogicOpWire::And => LogicOp::And,
+                    LogicOpWire::Or => LogicOp::Or,
+                },
+                lhs: un(lhs),
+                rhs: un(rhs),
+            },
+            Self::Clip { value, lower, upper } => {
+                ValueExpr::Clip { value: un(value), lower: un(lower), upper: un(upper) }
+            }
+            Self::If { condition, then_branch, else_branch } => ValueExpr::If {
+                condition: un(condition),
+                then_branch: un(then_branch),
+                else_branch: un(else_branch),
+            },
+        }
+    }
+}
+
+/// Declared reads of a value program, as written (decoded verbatim so validation can
+/// compare them with what the expression references).
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PolicyReadsWire {
+    /// Current-draw reads (raw variable ids).
+    pub current: Vec<u32>,
+    /// History reads as `(raw variable id, lag)`.
+    pub history: Vec<(u32, u32)>,
+}
+
+impl PolicyReadsWire {
+    fn from_domain(reads: &antecedent_core::PolicyReads) -> Self {
+        Self {
+            current: reads.current.iter().map(|v| v.raw()).collect(),
+            history: reads.history.iter().map(|(v, lag)| (v.raw(), *lag)).collect(),
+        }
+    }
+
+    fn to_domain(&self) -> antecedent_core::PolicyReads {
+        antecedent_core::PolicyReads::new(
+            self.current.iter().map(|v| VariableId::from_raw(*v)),
+            self.history.iter().map(|(v, lag)| (VariableId::from_raw(*v), *lag)),
+        )
+    }
+}
+
 /// Full intervention wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -475,6 +765,24 @@ pub enum InterventionWire {
         variable: u32,
         /// Mechanism.
         mechanism: MechanismOverrideWire,
+    },
+    /// Transform of the generated value by an expression.
+    Transform {
+        /// Variable.
+        variable: u32,
+        /// Expression.
+        expr: ValueExprWire,
+        /// Declared reads.
+        reads: PolicyReadsWire,
+    },
+    /// Assignment from an expression of other variables.
+    Assign {
+        /// Variable.
+        variable: u32,
+        /// Expression.
+        expr: ValueExprWire,
+        /// Declared reads.
+        reads: PolicyReadsWire,
     },
     /// Sequence.
     Sequence {
@@ -518,6 +826,16 @@ impl InterventionWire {
                     parameters: mechanism.parameters.to_vec(),
                 },
             },
+            Intervention::Transform { variable, expr, reads } => Self::Transform {
+                variable: variable.raw(),
+                expr: ValueExprWire::from_domain(expr)?,
+                reads: PolicyReadsWire::from_domain(reads),
+            },
+            Intervention::Assign { variable, expr, reads } => Self::Assign {
+                variable: variable.raw(),
+                expr: ValueExprWire::from_domain(expr)?,
+                reads: PolicyReadsWire::from_domain(reads),
+            },
             Intervention::Sequence(seq) => Self::Sequence {
                 steps: seq
                     .steps
@@ -556,6 +874,16 @@ impl InterventionWire {
                     parameters: Arc::from(mechanism.parameters.as_slice()),
                 },
             ),
+            Self::Transform { variable, expr, reads } => Intervention::Transform {
+                variable: VariableId::from_raw(*variable),
+                expr: expr.to_domain(),
+                reads: reads.to_domain(),
+            },
+            Self::Assign { variable, expr, reads } => Intervention::Assign {
+                variable: VariableId::from_raw(*variable),
+                expr: expr.to_domain(),
+                reads: reads.to_domain(),
+            },
             Self::Sequence { steps } => Intervention::sequence(InterventionSequence::new(
                 steps
                     .iter()
@@ -3782,5 +4110,68 @@ mod tests {
             }
             other => panic!("expected Counterfactual, got {other:?}"),
         }
+    }
+
+    fn every_expression_form() -> ValueExpr {
+        let x = VariableId::from_raw(0);
+        let z = VariableId::from_raw(1);
+        let branch = ValueExpr::var(z).gt(ValueExpr::constant(0.0)).and(
+            ValueExpr::lag(z, 2)
+                .le(ValueExpr::constant(1.0))
+                .or(ValueExpr::var(x).not_equals(ValueExpr::constant(3.0)).not()),
+        );
+        branch
+            .if_then_else(
+                ValueExpr::generated().sub(ValueExpr::constant(2.0)).neg(),
+                ValueExpr::generated()
+                    .clip(ValueExpr::constant(-1.0), ValueExpr::constant(1.0))
+                    .div(ValueExpr::constant(4.0))
+                    .min(ValueExpr::constant(9.0))
+                    .max(ValueExpr::constant(-9.0)),
+            )
+            .add(ValueExpr::var(z).equals(ValueExpr::constant(0.5)).indicator())
+            .mul(
+                ValueExpr::var(z)
+                    .ge(ValueExpr::constant(0.0))
+                    .indicator()
+                    .add(ValueExpr::constant(1.0)),
+            )
+            .add(ValueExpr::var(x).lt(ValueExpr::constant(1.0)).indicator())
+    }
+
+    #[test]
+    fn programmed_interventions_round_trip_through_cbor() {
+        let x = VariableId::from_raw(0);
+        let expr = every_expression_form();
+        for iv in [Intervention::transform(x, expr.clone()), Intervention::assign(x, expr)] {
+            let wire = InterventionWire::from_domain(&iv).unwrap();
+            let back: InterventionWire = from_cbor(&to_cbor(&wire).unwrap()).unwrap();
+            assert_eq!(back, wire);
+            assert_eq!(back.to_domain(), iv);
+            let again = InterventionWire::from_domain(&back.to_domain()).unwrap();
+            assert_eq!(to_cbor(&again).unwrap(), to_cbor(&wire).unwrap(), "encoding is canonical");
+        }
+    }
+
+    #[test]
+    fn released_interventions_keep_their_encoding_and_programs_use_new_tags() {
+        let x = VariableId::from_raw(0);
+        let set = InterventionWire::from_domain(&Intervention::set(x, Value::f64(1.0))).unwrap();
+        let set_json = serde_json::to_string(&set).unwrap();
+        assert_eq!(set_json, r#"{"set":{"variable":0,"value":{"float64":1.0}}}"#);
+        let program = InterventionWire::from_domain(&Intervention::transform(
+            x,
+            ValueExpr::generated().add(ValueExpr::constant(1.0)),
+        ))
+        .unwrap();
+        let json = serde_json::to_value(&program).unwrap();
+        assert!(json.get("transform").is_some(), "{json}");
+        // A wire that edits the declared reads decodes verbatim; validation, not the
+        // codec, is what refuses the mismatch.
+        let mut tampered = program.clone();
+        if let InterventionWire::Transform { reads, .. } = &mut tampered {
+            reads.current.push(7);
+        }
+        assert!(tampered.to_domain().validate().is_err());
     }
 }

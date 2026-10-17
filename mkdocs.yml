@@ -72,6 +72,7 @@ nav:
     - Graph uncertainty: graph_uncertainty.md
     - Selective discovery: selective-discovery.md
     - Background knowledge in discovery: guides/discovery-background-knowledge.md
+    - Falsifying a graph by node permutation: guides/graph-falsification.md
   - Transport:
     - Transport and interference: transport-interference.md
     - Transport failures: guides/transport-failure.md
@@ -85,6 +86,9 @@ nav:
   - Decisions and composition:
     - Inverse queries and decisions on composed and transported sources: guides/inverse-and-decision-reach.md
     - Finite-SCM discretization: guides/finite-scm-discretization.md
+    - Noise replay: guides/noise-replay.md
+    - Programmable interventions: guides/intervention-programs.md
+    - Mechanism selection: guides/mechanism-selection.md
     - Composed uncertainty: guides/composed-uncertainty.md
     - Decision-reliability derived uncertainty: guides/decision-reliability-uncertainty.md
     - Adaptive procedure uncertainty: guides/adaptive-procedure-uncertainty.md

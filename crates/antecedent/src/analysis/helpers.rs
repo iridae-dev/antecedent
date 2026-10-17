@@ -1254,6 +1254,14 @@ fn remap_intervention(
         Intervention::Soft { variable, mechanism } => {
             Ok(Intervention::Soft { variable: remap.map(*variable)?, mechanism: mechanism.clone() })
         }
+        Intervention::Transform { variable, expr, .. } => {
+            let expr = expr.try_map_variables(&mut |v| remap.map(v))?;
+            Ok(Intervention::transform(remap.map(*variable)?, expr))
+        }
+        Intervention::Assign { variable, expr, .. } => {
+            let expr = expr.try_map_variables(&mut |v| remap.map(v))?;
+            Ok(Intervention::assign(remap.map(*variable)?, expr))
+        }
         Intervention::Sequence(seq) => {
             let steps: Result<Vec<_>, CausalError> = seq
                 .steps

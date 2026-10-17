@@ -433,6 +433,9 @@ _EXPECTED_STAGE_ALL = {
         "attribute_distribution_change_discovered",
         "attribute_paths_discovered",
         "fit_gcm_discovered",
+        "GraphFalsification",
+        "MarkovImplicationTest",
+        "evaluate_graph",
     },
     "graph": {
         "Admg",

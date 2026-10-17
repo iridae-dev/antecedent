@@ -1884,10 +1884,22 @@ status = "bound"
 python = "antecedent._native.attribute_unit_change"
 
 [[entry]]
+rust = "antecedent::gcm::candidate_families"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.fit_gcm"
+
+[[entry]]
 rust = "antecedent::gcm::counterfactual_ite"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.counterfactual_ite"
+
+[[entry]]
+rust = "antecedent::gcm::evaluate_graph"
+kind = "fn"
+status = "bound"
+python = "antecedent.graph_falsification.evaluate_graph"
 
 [[entry]]
 rust = "antecedent::gcm::fit_gcm"
@@ -1902,6 +1914,12 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
+rust = "antecedent::gcm::fit_gcm_with"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.fit_gcm"
+
+[[entry]]
 rust = "antecedent::gcm::mechanism_change_detection"
 kind = "fn"
 status = "bound"
@@ -1912,6 +1930,12 @@ rust = "antecedent::gcm::rank_root_causes"
 kind = "fn"
 status = "bound"
 python = "antecedent._native.rank_root_causes"
+
+[[entry]]
+rust = "antecedent::gcm::registry_from_candidates"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.fit_gcm"
 
 [[entry]]
 rust = "antecedent::gcm::sample_do"

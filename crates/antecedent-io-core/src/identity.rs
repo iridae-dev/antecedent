@@ -545,6 +545,15 @@ fn intervention_label(intervention: &InterventionWire) -> String {
         }
         InterventionWire::Stochastic { variable, .. } => format!("stochastic:{variable}"),
         InterventionWire::Soft { variable, .. } => format!("soft:{variable}"),
+        // A program enters identity as its full tree and declared reads under its kind tag,
+        // so two different programs (or a transform and an assignment of one expression)
+        // never share a label. Released variants above are unchanged.
+        InterventionWire::Transform { variable, expr, reads } => {
+            format!("transform:{variable}:{expr:?}:{reads:?}")
+        }
+        InterventionWire::Assign { variable, expr, reads } => {
+            format!("assign:{variable}:{expr:?}:{reads:?}")
+        }
         InterventionWire::Sequence { steps } => format!(
             "sequence:{}",
             steps
@@ -2662,6 +2671,38 @@ pub fn external_compose_identity(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn programmed_interventions_have_canonical_distinct_identities() {
+        use antecedent_core::{Intervention, Value, ValueExpr, VariableId};
+        let x = VariableId::from_raw(0);
+        let z = VariableId::from_raw(1);
+        let wire = |iv: Intervention| InterventionWire::from_domain(&iv).unwrap();
+        let bump = ValueExpr::generated().add(ValueExpr::constant(1.0));
+        let a = wire(Intervention::transform(x, bump.clone()));
+        let same = wire(Intervention::transform(x, bump.clone()));
+        let assigned =
+            wire(Intervention::assign(x, ValueExpr::var(z).add(ValueExpr::constant(1.0))));
+        let other =
+            wire(Intervention::transform(x, ValueExpr::generated().add(ValueExpr::constant(2.0))));
+        let moved = wire(Intervention::transform(z, bump));
+        let cbor = |w: &InterventionWire| crate::convert::to_cbor(w).unwrap();
+        assert_eq!(intervention_label(&a), intervention_label(&same));
+        assert_eq!(cbor(&a), cbor(&same));
+        for different in [&assigned, &other, &moved] {
+            assert_ne!(intervention_label(&a), intervention_label(different));
+            assert_ne!(cbor(&a), cbor(different));
+        }
+        // Transform and assign of one expression differ by kind alone.
+        let e = ValueExpr::constant(3.0);
+        let t = wire(Intervention::transform(x, e.clone()));
+        let s = wire(Intervention::assign(x, e));
+        assert_ne!(intervention_label(&t), intervention_label(&s));
+        assert_ne!(cbor(&t), cbor(&s));
+        // Released variants keep their labels.
+        let set = wire(Intervention::set(x, Value::f64(1.0)));
+        assert_eq!(intervention_label(&set), "set:0=1");
+    }
+
     use antecedent_core::{
         AverageEffectQuery, CausalQuery, CausalSchemaBuilder, Lag, MeasurementSpec,
         RandomizedEffectQuery, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,

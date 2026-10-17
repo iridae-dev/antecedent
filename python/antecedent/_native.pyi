@@ -2051,6 +2051,7 @@ class FittedGcm:
     names: list[str]
     n_assignments: int
     def mechanism_kinds(self) -> list[tuple[str, str]]: ...
+    def mechanism_selection(self) -> list[dict[str, Any]]: ...
     def sample_do(
         self,
         interventions: dict[str, float],
@@ -2175,7 +2176,29 @@ def fit_gcm(
     edges: list[tuple[str, str]],
     *,
     threads: int | None = None,
+    candidates: list[str] | None = None,
+    constraints: dict[str, dict[str, Any]] | None = None,
+    splits: str = "shuffled",
+    purge: int = 0,
 ) -> FittedGcm: ...
+def evaluate_graph(
+    names: list[str],
+    columns: Sequence[Any],
+    edges: list[tuple[str, str]],
+    *,
+    ci_test: str = "parcorr",
+    alpha: float = 0.05,
+    significance: float = 0.05,
+    n_permutations: int = 200,
+    min_permutations: int = 20,
+    max_equivalent_share: float | None = None,
+    max_ci_tests: int | None = None,
+    ci_replicates: int = 199,
+    permutation_seed: int | None = None,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 def load_float64_columns(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],

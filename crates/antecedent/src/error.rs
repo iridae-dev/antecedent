@@ -427,6 +427,7 @@ impl From<ModelError> for CausalError {
     fn from(error: ModelError) -> Self {
         match error {
             ModelError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
+            ModelError::ResourceLimit { .. } => Self::Resource { message: error.to_string() },
             other => Self::Model(other),
         }
     }

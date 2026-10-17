@@ -2201,3 +2201,12 @@ documentation = [{ path = "crates/antecedent/src/analysis/discovered_transport_e
 guard = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ levels\\ >\\ MAX_LEVELS_PER_VARIABLE\\ \\{" }
 refusal = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ levels\\ >\\ MAX_LEVELS_PER_VARIABLE\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/discovered_transport_facade.rs", pattern = "\\ba_variable_with_more_levels_than_supported_is_refused\\b" }
+
+[[bound]]
+record = "gcm.model.graph_falsification"
+key = "max_permutations"
+implementation = [{ path = "crates/antecedent-model/src/falsify.rs", constant = "MAX_GRAPH_PERMUTATIONS" }]
+documentation = [{ path = "crates/antecedent-model/src/falsify.rs", constant = "MAX_GRAPH_PERMUTATIONS" }]
+guard = { path = "crates/antecedent-model/src/falsify.rs", pattern = "if\\ self\\.n_permutations\\ >\\ MAX_GRAPH_PERMUTATIONS\\ \\{" }
+refusal = { path = "crates/antecedent-model/src/falsify.rs", pattern = "if\\ self\\.n_permutations\\ >\\ MAX_GRAPH_PERMUTATIONS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+scope_fixture = { path = "crates/antecedent-model/src/falsify.rs", pattern = "\\binvalid_inputs_are_refused\\b" }

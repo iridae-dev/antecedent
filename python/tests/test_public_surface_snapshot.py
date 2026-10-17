@@ -433,6 +433,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "discretized_composition",
         "vector_treatment",
         "missing",
+        "graph_falsification",
     },
     "AnalysisResult": {
         "artifact",

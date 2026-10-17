@@ -435,6 +435,17 @@ id = "mechanism_composition_incoherent"
 applies_to = ["runtime_refusal"]
 meaning = "Independently fitted mechanisms do not establish one coherent joint law: a support gap between a producer and its consumer, a conditioning set that is not the parent set, a dropped or unloaded shared latent cause, misaligned or contradicted parameter uncertainty, missing mechanism provenance, mixed families, or a mechanism outside the bounded composition family. The detail names the defect and the refusal states the declaration that would license the composition."
 
+# Mechanism selection (candidate sets, per-node constraints, validation splits).
+[[code]]
+id = "mechanism_candidates_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A mechanism candidate list, per-node family constraint or validation-split declaration cannot be honoured: an unknown family or alias, an empty list, a variable outside the model, two constraints on one variable, a family both required and excluded or outside the allowed list, a required family of the wrong outcome type, or time-ordered or clustered splits the rows cannot support. Raised before any family is fit; the message names the node and the defect."
+
+[[code]]
+id = "mechanism_family_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "A family a node requires could not be scored or fit on that node (a tree ensemble on a root or on fewer rows than it needs, a provider that is not compiled in, a fit that failed on every fold). The message names the node, the family and its failure; the other candidates' scores are not used to substitute another family."
+
 # Evidence ledger (promotion records: evidence_ledger.* in parity/promotion.toml).
 [[code]]
 id = "evidence_double_counted"
@@ -716,3 +727,33 @@ meaning = "A route that has no default for missing values found one and no missi
 id = "missing_policy_not_applicable"
 applies_to = ["runtime_refusal"]
 meaning = "A declared missing-data policy cannot be executed validly on this route or design: deleting rows would unbalance a panel or compress a time axis, the design (cluster, stratified, factorial, multi-arm, switchback, receipt-adjusted) has no responder-weighted estimator, or the covariates of the observation model are themselves incomplete. The refusal names the policies the route supports."
+
+[[code]]
+id = "policy_dependency_circular"
+applies_to = ["runtime_refusal"]
+meaning = "A value program reads a variable that depends on the node it assigns, directly, through the graph's edges or through other programs' reads, so no evaluation order computes the inputs before the node. The refusal names the cycle and the policies in it."
+
+[[code]]
+id = "policy_dependency_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "A value program reads a variable it cannot see: a variable absent from the compiled model, a read it did not declare exactly, or the generated value of a node whose mechanism the program replaces (an assignment). The refusal names the policy and the missing or undeclared read."
+
+[[code]]
+id = "policy_directive_conflict"
+applies_to = ["runtime_refusal"]
+meaning = "Two directives on one node have no well-defined composition: two different value programs, a program with a hard set or an additive shift, or an assignment with a stochastic policy or soft mechanism. The refusal names the node and both directives."
+
+[[code]]
+id = "policy_output_type_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A value program produces a type its node cannot hold: a boolean written to a numeric node without an explicit indicator, or a number that is not a level of a categorical node's support. The refusal names the node and the expression's type."
+
+[[code]]
+id = "policy_history_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "A value program reads temporal history that the route cannot supply: a lagged read on a static model with no declared history window, or a look-back of zero steps (a future value does not exist when the policy applies). The refusal names the offending reference."
+
+[[code]]
+id = "policy_route_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "A policy is licensed for some execution routes but not the one requested. Simulation and counterfactual execution accept any valid program; observational identification accepts only programs that reduce to a hard level (a set, or an assignment that folds to a constant). The refusal names the route and the routes the policy is licensed for."

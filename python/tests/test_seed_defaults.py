@@ -62,6 +62,7 @@ SEED_ZERO = (
     "gcm_api.rs::rank_root_causes",
     "gcm_api.rs::rank_root_causes",
     "gcm_api.rs::sample_do",
+    "graph_falsification_api.rs::evaluate_graph_py",
     "predictive_assessment_api.rs::predictive_assessment_assess",
     "recovery_api.rs::prepare_empirical",
     "recovery_api.rs::prepare_exact",

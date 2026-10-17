@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use crate::ids::{DynamicRuleId, VariableId};
 use crate::value::Value;
+use crate::value_expr::{ExpressionFault, PolicyReads, ValueExpr};
 
 /// Temporal intervention policy over discrete time steps.
 ///
@@ -428,11 +429,48 @@ pub enum Intervention {
         /// Replacement mechanism description.
         mechanism: MechanismOverride,
     },
+    /// Transform of the node's generated value: the mechanism runs as usual (parents and
+    /// noise flow through), then the expression replaces the generated value, so the
+    /// effect propagates to descendants while the node keeps its own noise. The
+    /// expression may read [`ValueExpr::Generated`].
+    Transform {
+        /// Target variable.
+        variable: VariableId,
+        /// Expression of the generated value and of other variables' current values.
+        expr: ValueExpr,
+        /// Declared reads; must equal the variables `expr` references.
+        reads: PolicyReads,
+    },
+    /// Replacement of the node's assignment by an expression of other variables: the
+    /// mechanism is discarded, so incoming edges are severed (a computed `do`). The
+    /// expression cannot read [`ValueExpr::Generated`].
+    Assign {
+        /// Target variable.
+        variable: VariableId,
+        /// Expression of other variables' current values.
+        expr: ValueExpr,
+        /// Declared reads; must equal the variables `expr` references.
+        reads: PolicyReads,
+    },
     /// Ordered temporal sequence of interventions.
     Sequence(InterventionSequence),
 }
 
 impl Intervention {
+    /// Transform of the generated value; the declared reads are the expression's own.
+    #[must_use]
+    pub fn transform(variable: VariableId, expr: ValueExpr) -> Self {
+        let reads = expr.reads();
+        Self::Transform { variable, expr, reads }
+    }
+
+    /// Computed replacement of the assignment; the declared reads are the expression's own.
+    #[must_use]
+    pub fn assign(variable: VariableId, expr: ValueExpr) -> Self {
+        let reads = expr.reads();
+        Self::Assign { variable, expr, reads }
+    }
+
     /// Hard set intervention.
     #[must_use]
     pub const fn set(variable: VariableId, value: Value) -> Self {
@@ -470,7 +508,9 @@ impl Intervention {
             Self::Set { variable, .. }
             | Self::Shift { variable, .. }
             | Self::Stochastic { variable, .. }
-            | Self::Soft { variable, .. } => vec![*variable],
+            | Self::Soft { variable, .. }
+            | Self::Transform { variable, .. }
+            | Self::Assign { variable, .. } => vec![*variable],
             Self::Sequence(seq) => {
                 let mut variables = Vec::new();
                 for step in seq.steps.iter() {
@@ -492,7 +532,9 @@ impl Intervention {
             Self::Set { variable, .. }
             | Self::Shift { variable, .. }
             | Self::Stochastic { variable, .. }
-            | Self::Soft { variable, .. } => Some(*variable),
+            | Self::Soft { variable, .. }
+            | Self::Transform { variable, .. }
+            | Self::Assign { variable, .. } => Some(*variable),
             Self::Sequence(seq) => {
                 if seq.steps.is_empty() {
                     return None;
@@ -529,6 +571,12 @@ impl Intervention {
                 Ok(())
             }
             Self::Stochastic { policy, .. } => policy.validate(),
+            Self::Transform { expr, reads, .. } => expr
+                .validate_program(true, reads)
+                .map_err(|fault| InterventionError::Expression { fault }),
+            Self::Assign { expr, reads, .. } => expr
+                .validate_program(false, reads)
+                .map_err(|fault| InterventionError::Expression { fault }),
             Self::Sequence(seq) => {
                 if seq.is_empty() {
                     return Err(InterventionError::EmptySequence);
@@ -570,6 +618,12 @@ pub enum InterventionError {
     /// Dynamic schedule has no active offsets.
     #[error("TemporalPolicy::Dynamic requires a non-empty active_at schedule")]
     EmptyDynamicSchedule,
+    /// A transform or assignment expression is not a valid node program.
+    #[error("invalid intervention expression: {fault}")]
+    Expression {
+        /// What is wrong with the expression.
+        fault: ExpressionFault,
+    },
 }
 
 #[cfg(test)]
@@ -672,6 +726,35 @@ mod tests {
         let m = MechanismOverride::constant(2.0);
         assert_eq!(&*m.family_id, "constant");
         assert_eq!(m.parameters.as_ref(), &[2.0]);
+    }
+
+    #[test]
+    fn transform_and_assign_validate_their_programs() {
+        let x = VariableId::from_raw(0);
+        let z = VariableId::from_raw(1);
+        let floor =
+            ValueExpr::constant(10.0).max(ValueExpr::constant(0.85).mul(ValueExpr::generated()));
+        let transform = Intervention::transform(x, floor.clone());
+        transform.validate().unwrap();
+        assert_eq!(transform.primary_variable(), Some(x));
+        // An assignment replaces the generated value, so it cannot read it.
+        assert_eq!(
+            Intervention::assign(x, floor).validate(),
+            Err(InterventionError::Expression { fault: ExpressionFault::GeneratedInAssignment })
+        );
+        let from_z = ValueExpr::constant(2.0).mul(ValueExpr::var(z));
+        Intervention::assign(x, from_z.clone()).validate().unwrap();
+        let undeclared =
+            Intervention::Assign { variable: x, expr: from_z, reads: PolicyReads::default() };
+        assert_eq!(
+            undeclared.validate(),
+            Err(InterventionError::Expression { fault: ExpressionFault::DeclaredReadsMismatch })
+        );
+        let boolean = Intervention::transform(x, ValueExpr::var(z).gt(ValueExpr::constant(0.0)));
+        assert!(matches!(
+            boolean.validate(),
+            Err(InterventionError::Expression { fault: ExpressionFault::OutputType { .. } })
+        ));
     }
 
     #[test]

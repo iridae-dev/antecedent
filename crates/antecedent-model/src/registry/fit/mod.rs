@@ -20,6 +20,7 @@ mod gp;
 mod hierarchical;
 mod linear;
 mod state_space;
+mod tree;
 
 /// Family-specific fitters used by [`fit_family_weighted`].
 pub(super) use basis::*;
@@ -29,6 +30,7 @@ use hierarchical::{fit_hierarchical_glm, fit_hierarchical_linear};
 use linear::{fit_linear_gaussian, fit_linear_gaussian_weighted};
 /// State-space fitters used by [`fit_family_weighted`].
 pub(super) use state_space::*;
+use tree::{TreeLearner, fit_tree_additive, fit_tree_categorical};
 
 /// Fit `family` with unit weights.
 #[cfg(test)]
@@ -70,6 +72,10 @@ pub(super) fn fit_family_weighted(
 }
 
 /// Fit `family` on a frame that is already built.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one arm per mechanism family, each a distinct fitting procedure"
+)]
 pub(super) fn fit_frame_family(
     family: MechanismFamily,
     frame: &FitFrame<'_>,
@@ -181,6 +187,28 @@ pub(super) fn fit_frame_family(
         MechanismFamily::HierarchicalGlm => fit_hierarchical_glm(frame, y, backend, ls_ws),
         MechanismFamily::Bvar => fit_bvar_minnesota(frame, y, backend, ls_ws),
         MechanismFamily::LinearGaussianStateSpace => fit_lgssm_kalman_em(frame, y, backend, ls_ws),
+        MechanismFamily::TreeBoostedAdditive
+        | MechanismFamily::TreeForestAdditive
+        | MechanismFamily::TreeBoostedCategorical
+        | MechanismFamily::TreeForestCategorical => {
+            if weights.is_some() {
+                return Err(ModelError::Unsupported {
+                    message: "tree-ensemble mechanisms do not support weighted fitting".into(),
+                });
+            }
+            match family {
+                MechanismFamily::TreeBoostedAdditive => {
+                    fit_tree_additive(TreeLearner::Boosted, frame, y)
+                }
+                MechanismFamily::TreeForestAdditive => {
+                    fit_tree_additive(TreeLearner::Forest, frame, y)
+                }
+                MechanismFamily::TreeBoostedCategorical => {
+                    fit_tree_categorical(TreeLearner::Boosted, frame, y)
+                }
+                _ => fit_tree_categorical(TreeLearner::Forest, frame, y),
+            }
+        }
         MechanismFamily::GaussianProcess => {
             #[cfg(feature = "gaussian-process")]
             {

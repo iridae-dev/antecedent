@@ -8,9 +8,9 @@ use antecedent_core::{CausalRng, ExecutionContext, Intervention, StreamDomain, V
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
-    CompiledCausalModel, InterventionOverlay, MechanismSlot, MechanismWorkspace,
-    NoiseInferenceMode, ParentBatch, ValueBatchMut, evaluate_column, infer_noise_column_rng,
-    refuse_cross_family_soft, sample_noise_column, sample_stochastic, soft_to_slot,
+    CompiledCausalModel, InterventionOverlay, MechanismSlot, MechanismWorkspace, NodeEvaluation,
+    NodeNoise, NoiseInferenceMode, ParentBatch, ValueBatchMut, evaluate_column, evaluate_node,
+    infer_noise_column_rng, sample_noise_column,
 };
 
 use crate::error::CounterfactualError;
@@ -85,6 +85,16 @@ pub enum NoiseInferenceKind {
     PosteriorNoise,
     /// Assumed independent noise draws (no abduction of factual values).
     AssumedNoise,
+}
+
+impl From<NoiseInferenceMode> for NoiseInferenceKind {
+    /// The disclosure a model-level noise inference mode carries into counterfactual results.
+    fn from(mode: NoiseInferenceMode) -> Self {
+        match mode {
+            NoiseInferenceMode::Invertible => Self::Invertible,
+            NoiseInferenceMode::Posterior => Self::PosteriorNoise,
+        }
+    }
 }
 
 /// Exogenous state for one or more factual units (columnar).
@@ -420,7 +430,7 @@ impl CounterfactualEngine {
             let mut rng =
                 ctx.rng.stream_for(StreamDomain::Counterfactual, predict_world_stream(wi));
             evaluate_world_into(
-                WorldEvaluation { model: &self.model, exo, overlay: &overlay, frozen: None },
+                WorldEvaluation { model: &self.model, exo, overlay: &overlay, frozen: None, ctx },
                 &mut rng,
                 &mut values,
                 &mut parent_buf,
@@ -923,6 +933,9 @@ fn nested_rows_independent(
                 // disturbance, exactly like the linear family it extends.
                 | MechanismSlot::LinearBasis { .. }
                 | MechanismSlot::DiscreteBasis { .. }
+                // Tree ensembles read only their own row's parents and disturbance.
+                | MechanismSlot::TreeAdditive { .. }
+                | MechanismSlot::TreeCategorical { .. }
                 // A state-space mechanism's abduced noise is its residual path, so
                 // evaluation is `mean(parents) + noise[row]`: row-wise like the linear family.
                 | MechanismSlot::LinearGaussianStateSpace { .. }
@@ -951,6 +964,7 @@ struct WorldEvaluation<'a> {
     exo: &'a ExogenousPosterior,
     overlay: &'a InterventionOverlay,
     frozen: Option<&'a [bool]>,
+    ctx: &'a ExecutionContext,
 }
 
 fn evaluate_world_into(
@@ -960,11 +974,14 @@ fn evaluate_world_into(
     parent_buf: &mut Vec<f64>,
     ws: &mut MechanismWorkspace,
 ) -> Result<(), CounterfactualError> {
-    let WorldEvaluation { model, exo, overlay, frozen } = evaluation;
+    let WorldEvaluation { model, exo, overlay, frozen, ctx } = evaluation;
     let n_units = exo.n_units;
-    for gather in model.parent_gathers.iter() {
-        let node = gather.child;
-        let idx = node.as_usize();
+    // The per-node precedence (hard set, assignment, stochastic policy, soft override,
+    // shift, transform) is the one forward sampling uses; here the retained noise
+    // replaces the drawn noise.
+    let eval = NodeEvaluation { model, overlay, ctx: Some(ctx) };
+    for gather in overlay.gathers(model) {
+        let idx = gather.child.as_usize();
         if frozen.is_some_and(|mask| mask[idx]) {
             continue;
         }
@@ -978,36 +995,11 @@ fn evaluate_world_into(
             n_parents: gather.n_parents(),
             values: &parent_buf[..gather.n_parents().saturating_mul(n_units)],
         };
-        let out = values.column_mut(idx)?;
-        if let Some(v) = overlay.hard_set[idx] {
-            out.fill(v);
-            continue;
-        }
-        if let Some(policy) = &overlay.stochastic[idx] {
-            sample_stochastic(policy, n_units, rng, out)?;
-            if overlay.shifts[idx] != 0.0 {
-                for x in out.iter_mut() {
-                    *x += overlay.shifts[idx];
-                }
-            }
-            continue;
-        }
-        let noise_col = &exo.noise[idx * n_units..(idx + 1) * n_units];
-        let existing = model.mechanisms.get(node);
-        let owned;
-        let slot = if let Some(soft) = &overlay.soft[idx] {
-            refuse_cross_family_soft(existing, soft)?;
-            owned = soft_to_slot(soft, gather.n_parents())?;
-            &owned
-        } else {
-            existing
+        let noise = NodeNoise::Column {
+            noise: &exo.noise[idx * n_units..(idx + 1) * n_units],
+            policy_rng: &mut *rng,
         };
-        evaluate_column(slot, parents, noise_col, out, ws)?;
-        if overlay.shifts[idx] != 0.0 {
-            for x in out.iter_mut() {
-                *x += overlay.shifts[idx];
-            }
-        }
+        evaluate_node(eval, gather, parents, noise, values, ws)?;
     }
     Ok(())
 }
@@ -1049,7 +1041,7 @@ fn nested_column_frozen_mean(
     let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
     let mut parent_buf = Vec::new();
     evaluate_world_into(
-        WorldEvaluation { model: &engine.model, exo, overlay, frozen: Some(is_frozen) },
+        WorldEvaluation { model: &engine.model, exo, overlay, frozen: Some(is_frozen), ctx },
         &mut rng,
         &mut values,
         &mut parent_buf,
@@ -2296,5 +2288,90 @@ mod tests {
                 .predict(&malformed, &[world], &outcomes, false, &mut workspace, &context)
                 .is_err()
         );
+    }
+
+    /// A transform applied through forward sampling and through counterfactual replay of the
+    /// same noise is the same program, evaluated by the same executor: the two worlds agree
+    /// row by row, and both equal an independent hand computation.
+    #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the transformed column is bit-identical across the two routes"
+    )]
+    fn a_transform_agrees_between_forward_sampling_and_counterfactual_replay() {
+        use antecedent_core::ValueExpr;
+        use antecedent_model::{sample_interventional, sample_observational};
+
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let store = CompiledMechanismStore {
+            slots: Arc::from([
+                MechanismSlot::LinearGaussian {
+                    intercept: 11.0,
+                    coeffs: Arc::from([]),
+                    sigma: 2.0,
+                },
+                MechanismSlot::LinearGaussian {
+                    intercept: 50.0,
+                    coeffs: Arc::from([-0.8]),
+                    sigma: 1.0,
+                },
+            ]),
+        };
+        let model = CompiledCausalModel::compile(g).unwrap().with_mechanisms(store);
+        let (price, demand) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let floor = Intervention::transform(
+            price,
+            ValueExpr::constant(10.0).max(ValueExpr::constant(0.85).mul(ValueExpr::generated())),
+        );
+        let n = 4_000;
+        let ctx = ExecutionContext::for_tests(1);
+        let mut ws = MechanismWorkspace::default();
+        let factual = sample_observational(
+            &model,
+            n,
+            &mut antecedent_core::CausalRng::from_seed(77),
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
+        let forward = sample_interventional(
+            &model,
+            std::slice::from_ref(&floor),
+            n,
+            &mut antecedent_core::CausalRng::from_seed(77),
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
+
+        // Abduce by hand: each mechanism's additive disturbance is its residual.
+        let (p0, d0) = (factual.column(0).unwrap(), factual.column(1).unwrap());
+        let mut noise = vec![0.0; 2 * n];
+        for i in 0..n {
+            noise[i] = p0[i] - 11.0;
+            noise[n + i] = d0[i] - (50.0 - 0.8 * p0[i]);
+        }
+        let exo = ExogenousPosterior {
+            noise: Arc::from(noise),
+            n_units: n,
+            n_nodes: 2,
+            kind: NoiseInferenceKind::Invertible,
+            assumed_columns: Arc::from([false, false]),
+        };
+        let engine = CounterfactualEngine::new(model);
+        let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from([floor]) };
+        let replay =
+            engine.predict(&exo, &[world], &[price, demand], false, &mut ws, &ctx).unwrap();
+
+        let (p1, d1) = (forward.column(0).unwrap(), forward.column(1).unwrap());
+        for i in 0..n {
+            let hand_price = 10.0_f64.max(0.85 * p0[i]);
+            assert_eq!(p1[i], hand_price, "forward price, unit {i}");
+            assert_eq!(replay.get(0, DenseNodeId::from_raw(0), i), hand_price, "replayed price");
+            let hand_demand = 50.0 - 0.8 * hand_price + (d0[i] - (50.0 - 0.8 * p0[i]));
+            assert!((replay.get(0, DenseNodeId::from_raw(1), i) - hand_demand).abs() < 1e-9);
+            assert!((replay.get(0, DenseNodeId::from_raw(1), i) - d1[i]).abs() < 1e-9);
+        }
     }
 }

@@ -20,6 +20,7 @@ use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatchMut
 use crate::compile::MechanismSlot;
 use crate::error::ModelError;
 use crate::lgssm::{kalman_filter, sample_lgssm_noise};
+use crate::tree::class_probabilities;
 
 /// How noise was recovered for a mechanism family during abduction.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -34,6 +35,17 @@ pub enum NoiseInferenceMode {
     Posterior,
 }
 
+impl NoiseInferenceMode {
+    /// Stable id: `invertible` or `posterior`.
+    #[must_use]
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Invertible => "invertible",
+            Self::Posterior => "posterior",
+        }
+    }
+}
+
 /// The reference ("out-of-coalition") noise value that reconstructs a node at its
 /// typical / median output, for point-mass Shapley references
 /// (e.g. [`antecedent_attribution`](../antecedent_attribution/index.html)'s
@@ -42,14 +54,34 @@ pub enum NoiseInferenceMode {
 /// `0` is the median for every additive-noise family here (`y = f(pa) + ε` with a
 /// symmetric, zero-centred `ε`), which is why callers have historically hard-coded
 /// `0`. [`MechanismSlot::Discrete`] and [`MechanismSlot::DiscreteBasis`] are the
-/// exception: their noise is `u ~ U(0,1)` read through a CDF bin lookup, not an
-/// additive residual, so their median is `0.5`, not `0`; feeding them the additive
+/// exception (as is [`MechanismSlot::TreeCategorical`]): their noise is `u ~ U(0,1)` read
+/// through a CDF bin lookup, not an additive residual, so their median is `0.5`, not `0`;
+/// feeding them the additive
 /// families' `0` reference is an invalid draw ([`categorical_noise`] refuses it).
 #[must_use]
 pub const fn reference_noise(slot: &MechanismSlot) -> f64 {
     match slot {
-        MechanismSlot::Discrete { .. } | MechanismSlot::DiscreteBasis { .. } => 0.5,
+        MechanismSlot::Discrete { .. }
+        | MechanismSlot::DiscreteBasis { .. }
+        | MechanismSlot::TreeCategorical { .. } => 0.5,
         _ => 0.0,
+    }
+}
+
+/// How abduction recovers the noise of `slot`: [`NoiseInferenceMode::Posterior`] for the
+/// many-to-one categorical families, the mechanism's own declaration for a dynamic
+/// mechanism, and [`NoiseInferenceMode::Invertible`] for every other family.
+///
+/// This is the mode [`infer_noise_column_rng`] reports for the slot, available without
+/// running the inference.
+#[must_use]
+pub fn noise_inference_mode_of(slot: &MechanismSlot) -> NoiseInferenceMode {
+    match slot {
+        MechanismSlot::Discrete { .. }
+        | MechanismSlot::DiscreteBasis { .. }
+        | MechanismSlot::TreeCategorical { .. } => NoiseInferenceMode::Posterior,
+        MechanismSlot::Dynamic { mechanism, .. } => mechanism.noise_inference_mode(),
+        _ => NoiseInferenceMode::Invertible,
     }
 }
 
@@ -59,7 +91,7 @@ pub const fn reference_noise(slot: &MechanismSlot) -> f64 {
 /// value outside the interval is not such a draw (for instance an additive
 /// residual carried over from another family, or a hand-built posterior). It is
 /// refused rather than read as the median category.
-fn categorical_noise(noise: f64) -> Result<f64, ModelError> {
+pub(crate) fn categorical_noise(noise: f64) -> Result<f64, ModelError> {
     if noise > 0.0 && noise < 1.0 {
         Ok(noise)
     } else {
@@ -101,6 +133,7 @@ pub fn sample_noise_column(
         | MechanismSlot::HierarchicalLinear { sigma, .. }
         | MechanismSlot::Bvar { sigma, .. }
         | MechanismSlot::LinearBasis { sigma, .. }
+        | MechanismSlot::TreeAdditive { sigma, .. }
         | MechanismSlot::GaussianProcess { noise_std: sigma, .. } => {
             for i in 0..n_rows {
                 output[i] = *sigma * standard_normal(rng);
@@ -115,7 +148,9 @@ pub fn sample_noise_column(
             initial_mean,
             ..
         } => sample_lgssm_noise(n_rows, *a, *process_std, *obs_std, *initial_mean, rng, output),
-        MechanismSlot::Discrete { .. } | MechanismSlot::DiscreteBasis { .. } => {
+        MechanismSlot::Discrete { .. }
+        | MechanismSlot::DiscreteBasis { .. }
+        | MechanismSlot::TreeCategorical { .. } => {
             // Uniform(0,1) drives categorical draws in evaluate / sample_column.
             for i in 0..n_rows {
                 output[i] = rng.next_f64().clamp(f64::EPSILON, 1.0 - f64::EPSILON);
@@ -201,6 +236,23 @@ pub fn evaluate_column(
                 )?;
                 let u = categorical_noise(noise[r])?;
                 output[r] = categorical_draw(support, &row_probs, u);
+            }
+            Ok(())
+        }
+        MechanismSlot::TreeAdditive { ensemble, .. } => {
+            ensemble.predict_column(parents, &mut output[..n])?;
+            for r in 0..n {
+                output[r] += noise[r];
+            }
+            Ok(())
+        }
+        MechanismSlot::TreeCategorical { support, classifiers, .. } => {
+            let k = support.len();
+            let mut row_probs = vec![0.0; n * k];
+            class_probabilities(k, classifiers, parents, &mut row_probs)?;
+            for r in 0..n {
+                let u = categorical_noise(noise[r])?;
+                output[r] = categorical_draw(support, &row_probs[r * k..(r + 1) * k], u);
             }
             Ok(())
         }
@@ -534,6 +586,30 @@ pub fn infer_noise_column_rng(
             }
             Ok(NoiseInferenceMode::Invertible)
         }
+        MechanismSlot::TreeAdditive { ensemble, .. } => {
+            // Additive disturbance: the ensemble moves the conditional mean only, so the
+            // structural residual is recovered exactly.
+            let mut mean = vec![0.0; n];
+            ensemble.predict_column(parents, &mut mean)?;
+            for r in 0..n {
+                output[r] = value[r] - mean[r];
+            }
+            Ok(NoiseInferenceMode::Invertible)
+        }
+        MechanismSlot::TreeCategorical { support, classifiers, .. } => {
+            let k = support.len();
+            let mut row_probs = vec![0.0; n * k];
+            class_probabilities(k, classifiers, parents, &mut row_probs)?;
+            for r in 0..n {
+                output[r] = categorical_inverse_cdf_draw(
+                    support,
+                    &row_probs[r * k..(r + 1) * k],
+                    value[r],
+                    rng,
+                )?;
+            }
+            Ok(NoiseInferenceMode::Posterior)
+        }
         MechanismSlot::Discrete { support, probs, logit_coeffs } => {
             infer_discrete_posterior_noise(
                 support,
@@ -776,6 +852,36 @@ pub fn log_prob_column(
             for r in 0..n {
                 let z = (values[r] - mean[r]) * inv_s;
                 output[r] = log_norm - 0.5 * z * z;
+            }
+            Ok(())
+        }
+        MechanismSlot::TreeAdditive { ensemble, sigma } => {
+            if !(sigma.is_finite() && *sigma > 0.0) {
+                return Err(ModelError::Numerical { message: "sigma must be > 0".into() });
+            }
+            let mut mean = vec![0.0; n];
+            ensemble.predict_column(parents, &mut mean)?;
+            let inv_s = 1.0 / sigma;
+            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - sigma.ln();
+            for r in 0..n {
+                let z = (values[r] - mean[r]) * inv_s;
+                output[r] = log_norm - 0.5 * z * z;
+            }
+            Ok(())
+        }
+        MechanismSlot::TreeCategorical { support, classifiers, .. } => {
+            let k = support.len();
+            let mut row_probs = vec![0.0; n * k];
+            class_probabilities(k, classifiers, parents, &mut row_probs)?;
+            for r in 0..n {
+                let mut found = f64::NEG_INFINITY;
+                for (i, &s) in support.iter().enumerate() {
+                    if (values[r] - s).abs() < 1e-12 {
+                        found = row_probs[r * k + i].max(f64::EPSILON).ln();
+                        break;
+                    }
+                }
+                output[r] = found;
             }
             Ok(())
         }

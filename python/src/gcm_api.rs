@@ -16,7 +16,7 @@ use antecedent::gcm::{
     attribute_paths as facade_attribute_paths,
     attribute_structure_change as facade_attribute_structure_change,
     attribute_unit_change as facade_attribute_unit_change,
-    counterfactual_ite as facade_counterfactual_ite, fit_gcm,
+    counterfactual_ite as facade_counterfactual_ite, fit_gcm, fit_gcm_with,
     mechanism_change_detection as facade_mechanism_change_detection,
     rank_root_causes as facade_rank_root_causes, sample_do as facade_sample_do,
 };
@@ -30,10 +30,13 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
-use antecedent_model::{CompiledCausalModel, ValueBatch};
+use antecedent_model::{
+    CompiledCausalModel, MechanismAssignment, MechanismFamily, MechanismRegistry,
+    NodeFamilyConstraint, SelectionOptions, ValidationSplits, ValueBatch,
+};
 use numpy::{PyArray1, PyArrayMethods};
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
+use pyo3::types::{PyDict, PyModule};
 
 use crate::{
     GcmIteResult, GcmSampleResult, dag_from_named_edges, detach_catch, py_err,
@@ -459,6 +462,14 @@ impl PyFittedGcm {
                 (name, a.selected.id().to_string())
             })
             .collect()
+    }
+
+    /// Mechanism selection record per variable: every candidate's held-out score on the
+    /// shared folds, the failed candidates with their reasons, the split scheme and seed,
+    /// the candidate set and constraint that shaped it, and the selected family's noise
+    /// semantics.
+    fn mechanism_selection<'py>(&self, py: Python<'py>) -> PyResult<Vec<Bound<'py, PyDict>>> {
+        self.inner.assignments.iter().map(|a| selection_record(py, &self.names, a)).collect()
     }
 
     /// Interventional ancestral sample under hard `do` values and/or additive shifts.
@@ -924,21 +935,202 @@ impl PyFittedGcm {
     }
 }
 
-/// Fit a linear-Gaussian GCM; return a reusable [`FittedGcm`].
+fn family_ids(families: &[MechanismFamily]) -> Vec<&'static str> {
+    families.iter().map(|f| f.id()).collect()
+}
+
+fn selection_record<'py>(
+    py: Python<'py>,
+    names: &[String],
+    a: &MechanismAssignment,
+) -> PyResult<Bound<'py, PyDict>> {
+    let record = PyDict::new(py);
+    record.set_item("variable", var_name(names, a.variable))?;
+    record.set_item("selected", a.selected.id())?;
+    record.set_item("typing", a.typing.id())?;
+    record.set_item("noise_inference", a.selected.noise_inference_mode().id())?;
+    record.set_item("attribution_compatible", a.selected.attribution_compatible())?;
+    let provenance = &a.provenance;
+    record.set_item("rule", provenance.rule.id())?;
+    record.set_item("splits", provenance.splits.id())?;
+    record.set_item(
+        "purge",
+        match provenance.splits {
+            ValidationSplits::TimeOrdered { purge } => Some(purge),
+            _ => None,
+        },
+    )?;
+    record.set_item("folds", provenance.folds)?;
+    record.set_item("n_rows", provenance.n_rows)?;
+    record.set_item("seed", provenance.seed)?;
+    record.set_item("candidate_set", family_ids(&provenance.candidate_set))?;
+    let constraint = match &provenance.constraint {
+        None => None,
+        Some(c) => {
+            let d = PyDict::new(py);
+            d.set_item("allowed", c.allowed.as_deref().map(family_ids))?;
+            d.set_item("excluded", family_ids(&c.excluded))?;
+            d.set_item("required", c.required.map(MechanismFamily::id))?;
+            Some(d)
+        }
+    };
+    record.set_item("constraint", constraint)?;
+    let candidates = a
+        .candidates
+        .iter()
+        .map(|c| {
+            let d = PyDict::new(py);
+            d.set_item("family", c.family.id())?;
+            d.set_item("score", c.score)?;
+            d.set_item("held_out_log_likelihood", c.held_out_log_likelihood)?;
+            d.set_item("complexity_penalty", c.complexity_penalty)?;
+            Ok(d)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    record.set_item("candidates", candidates)?;
+    let failed = a
+        .failed_families
+        .iter()
+        .map(|(family, reason)| {
+            let d = PyDict::new(py);
+            d.set_item("family", family.id())?;
+            d.set_item("reason", reason)?;
+            Ok(d)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    record.set_item("failed", failed)?;
+    Ok(record)
+}
+
+/// Families a candidate token list names for one node constraint field.
+fn constraint_families(tokens: &[String]) -> PyResult<Vec<MechanismFamily>> {
+    let mut out: Vec<MechanismFamily> = Vec::new();
+    for token in tokens {
+        for family in antecedent::gcm::candidate_families(token).map_err(py_err)? {
+            if !out.contains(&family) {
+                out.push(family);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Per-node constraints from `{node: {"allowed": [...], "excluded": [...], "required": id}}`,
+/// in node-name order so the resolved options do not depend on dict iteration order.
+fn parse_constraints(
+    constraints: Option<&Bound<'_, PyDict>>,
+    data: &TabularData,
+) -> PyResult<Vec<(VariableId, NodeFamilyConstraint)>> {
+    let mut entries: Vec<(String, Bound<'_, PyDict>)> = Vec::new();
+    if let Some(map) = constraints {
+        for (node, spec) in map.iter() {
+            entries.push((node.extract()?, spec.cast::<PyDict>().map_err(py_msg)?.clone()));
+        }
+    }
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut out = Vec::with_capacity(entries.len());
+    for (node, spec) in entries {
+        let variable = data.schema().id_of(&node).map_err(py_err)?;
+        let mut constraint = NodeFamilyConstraint::default();
+        for key in spec.keys() {
+            let key: String = key.extract()?;
+            let value = spec
+                .get_item(&key)?
+                .ok_or_else(|| py_msg(format!("constraint for `{node}`: missing `{key}`")))?;
+            match key.as_str() {
+                "allowed" => {
+                    let tokens: Vec<String> = value.extract()?;
+                    constraint.allowed = Some(Arc::from(constraint_families(&tokens)?));
+                }
+                "excluded" => {
+                    let tokens: Vec<String> = value.extract()?;
+                    constraint.excluded = Arc::from(constraint_families(&tokens)?);
+                }
+                "required" => {
+                    let token: String = value.extract()?;
+                    let families = antecedent::gcm::candidate_families(&token).map_err(py_err)?;
+                    let [family] = families.as_slice() else {
+                        return Err(py_msg(format!(
+                            "constraint for `{node}`: `required` must name one family id, \
+                             `{token}` names {}",
+                            families.len()
+                        )));
+                    };
+                    constraint.required = Some(*family);
+                }
+                other => {
+                    return Err(py_msg(format!(
+                        "constraint for `{node}`: unknown key `{other}` (expected allowed, \
+                         excluded or required)"
+                    )));
+                }
+            }
+        }
+        out.push((variable, constraint));
+    }
+    Ok(out)
+}
+
+fn parse_splits(splits: &str, purge: usize) -> PyResult<ValidationSplits> {
+    match (splits, purge) {
+        ("shuffled", 0) => Ok(ValidationSplits::Shuffled),
+        ("clustered", 0) => Ok(ValidationSplits::Clustered),
+        ("time_ordered", purge) => Ok(ValidationSplits::TimeOrdered { purge }),
+        ("shuffled" | "clustered", _) => {
+            Err(py_msg(format!("purge applies only to splits=\"time_ordered\", not `{splits}`")))
+        }
+        (other, _) => Err(py_msg(format!(
+            "unknown splits `{other}` (expected shuffled, time_ordered or clustered)"
+        ))),
+    }
+}
+
+/// Fit a graphical causal model; return a reusable [`FittedGcm`].
+///
+/// With no keyword it fits the standard candidate set. `candidates` (family ids or
+/// the aliases `linear`, `logistic`, `additive_spline`, `interactions`, `random_forest`,
+/// `gradient_boosted_trees`, `tree_ensembles`, `tree_ensemble_classifier`) replaces the
+/// candidate set; `constraints` narrows it per node; `splits` declares how rows are
+/// cut for the held-out scores (`shuffled`, `time_ordered` with an optional `purge`,
+/// or `clustered` by the `UnitId` column).
 #[pyfunction]
-#[pyo3(name = "fit_gcm", signature = (names, columns, edges, *, threads=None))]
+#[pyo3(
+    name = "fit_gcm",
+    signature = (names, columns, edges, *, threads=None, candidates=None, constraints=None, splits="shuffled", purge=0)
+)]
+#[allow(clippy::too_many_arguments, reason = "keyword-only selection options of one Python call")]
 fn fit_gcm_py(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
     threads: Option<u32>,
+    candidates: Option<Vec<String>>,
+    constraints: Option<Bound<'_, PyDict>>,
+    splits: &str,
+    purge: usize,
 ) -> PyResult<PyFittedGcm> {
     let _ = threads;
     let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
+    let registry = match &candidates {
+        None => MechanismRegistry::standard(),
+        Some(tokens) => {
+            let tokens: Vec<&str> = tokens.iter().map(String::as_str).collect();
+            antecedent::gcm::registry_from_candidates(&tokens).map_err(py_err)?
+        }
+    };
+    let options = SelectionOptions {
+        constraints: parse_constraints(constraints.as_ref(), &data)?,
+        splits: parse_splits(splits, purge)?,
+    };
     detach_catch(py, move || {
         let g = dag_from_edges(&data, &edges)?;
-        let fitted = fit_gcm(g, &data).map_err(py_err)?;
+        let fit = if candidates.is_none() && options == SelectionOptions::default() {
+            fit_gcm(g, &data)
+        } else {
+            fit_gcm_with(g, &data, &registry, &options)
+        };
+        let fitted = fit.map_err(py_err)?;
         Ok(PyFittedGcm { inner: Arc::new(fitted), names: Arc::from(names), data: Arc::new(data) })
     })
 }

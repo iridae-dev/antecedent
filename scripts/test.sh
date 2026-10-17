@@ -105,8 +105,8 @@ case "$suite" in
     doctests "${workspace[@]}"
     rust_tests -p antecedent-learn --features ml-full,ml-neural
     doctests -p antecedent-learn --features ml-full,ml-neural
-    rust_tests -p antecedent-model --features gaussian-process
-    doctests -p antecedent-model --features gaussian-process
+    rust_tests -p antecedent-model --features gaussian-process,ml-full
+    doctests -p antecedent-model --features gaussian-process,ml-full
     python_tests --durations=30
     ;;
 esac

@@ -6,7 +6,11 @@ EVIDENCE = {
     "gcm.model.compiled_plans": "crates/antecedent-model/src/compile.rs",
     "gcm.model.mechanisms": "crates/antecedent-model/src/mechanism.rs",
     "gcm.model.registry_fit": "crates/antecedent-model/src/registry/mod.rs",
+    "gcm.model.mechanism_selection": "crates/antecedent-model/tests/mechanism_selection.rs",
     "gcm.model.sampling": "crates/antecedent-model/src/sample.rs",
+    "gcm.model.noise_replay": "crates/antecedent-model/tests/noise_replay.rs",
+    "gcm.model.intervention_programs": "crates/antecedent-model/tests/intervention_programs.rs",
+    "gcm.model.policy_validation": "crates/antecedent-model/tests/intervention_programs.rs",
     "gcm.do_sampling": "crates/antecedent/tests/gcm.rs",
     # Additive shift do(X := X + delta): overlay accumulation is the primary
     # implementation. Harness: crates/antecedent-model/src/overlay.rs

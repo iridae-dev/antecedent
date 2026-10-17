@@ -127,6 +127,113 @@ impl PortablePredictor {
     }
 }
 
+impl PortablePredictor {
+    /// Predict a tree-ensemble map for `n_rows` rows read through `value(row, feature)`.
+    ///
+    /// For callers that hold their design in a layout [`DesignView`] does not cover
+    /// (a mechanism's gathered parent columns). The payload is not re-validated per
+    /// call: [`Self::validate`] it once on acceptance, and make sure `value` answers
+    /// every feature index below the payload's `columns` for every row below `n_rows`.
+    ///
+    /// # Errors
+    /// A linear map, a short `out`, a tree link out of range, no supporting leaf at
+    /// a row, or a non-finite prediction.
+    pub fn predict_trees_with(
+        &self,
+        n_rows: usize,
+        value: &dyn Fn(usize, usize) -> f64,
+        out: &mut [f64],
+    ) -> Result<(), LearnError> {
+        let PredictionMap::Trees { trees, base, average, logistic, probability } = &self.model
+        else {
+            return Err(LearnError::Unsupported { message: "not a tree-ensemble prediction map" });
+        };
+        if out.len() < n_rows {
+            return Err(LearnError::Shape { message: "predict out shorter than rows" });
+        }
+        for (row, slot) in out.iter_mut().enumerate().take(n_rows) {
+            let aggregation = TreeAggregation {
+                base: *base,
+                average: *average,
+                logistic: *logistic,
+                probability: *probability,
+            };
+            let predicted =
+                tree_ensemble_value(trees, aggregation, &mut |feature| Ok(value(row, feature)))?;
+            if !predicted.is_finite() {
+                return Err(LearnError::Shape { message: "nonfinite prediction" });
+            }
+            *slot = predicted;
+        }
+        Ok(())
+    }
+}
+
+/// How an ensemble's per-tree leaf values combine into one prediction.
+#[derive(Clone, Copy)]
+struct TreeAggregation {
+    base: f64,
+    average: bool,
+    logistic: bool,
+    probability: bool,
+}
+
+/// One row's prediction from an ensemble; `feature_value(f)` reads the row's column `f`.
+fn tree_ensemble_value(
+    trees: &[Vec<PredictionNode>],
+    aggregation: TreeAggregation,
+    feature_value: &mut dyn FnMut(usize) -> Result<f64, LearnError>,
+) -> Result<f64, LearnError> {
+    let mut sum = 0.0;
+    let mut votes = 0usize;
+    for tree in trees {
+        let mut index = 0;
+        loop {
+            let Some(node) = tree.get(index) else {
+                return Err(LearnError::Shape {
+                    message: "prediction tree child index out of range",
+                });
+            };
+            match *node {
+                PredictionNode::Leaf { value } => {
+                    if let Some(v) = value {
+                        sum += v;
+                        votes += 1;
+                    }
+                    break;
+                }
+                PredictionNode::Split { feature, threshold, inclusive, left, right, missing } => {
+                    let v = feature_value(feature)?;
+                    #[allow(
+                        clippy::float_cmp,
+                        reason = "an inclusive split sends a value equal to the stored threshold left, so exact equality is the contract"
+                    )]
+                    let goes_left = !v.is_nan() && (v < threshold || (inclusive && v == threshold));
+                    index = if v.is_nan() {
+                        missing
+                    } else if goes_left {
+                        left
+                    } else {
+                        right
+                    };
+                }
+            }
+        }
+    }
+    if votes == 0 {
+        return Err(LearnError::Unsupported {
+            message: "no supported prediction at requested row",
+        });
+    }
+    let mut value = aggregation.base + if aggregation.average { sum / votes as f64 } else { sum };
+    if aggregation.logistic {
+        value = sigmoid(value);
+    } else if aggregation.probability {
+        value = crate::learner::clip_probability(value);
+    }
+    Ok(value)
+}
+
 impl FittedPredictor for PortablePredictor {
     fn predict(
         &self,
@@ -154,63 +261,16 @@ impl FittedPredictor for PortablePredictor {
                     if ctx.cancellation.is_cancelled() {
                         return Err(LearnError::Unsupported { message: "prediction cancelled" });
                     }
-                    let mut sum = 0.0;
-                    let mut votes = 0usize;
-                    for tree in trees {
-                        let mut index = 0;
-                        loop {
-                            let Some(node) = tree.get(index) else {
-                                return Err(LearnError::Shape {
-                                    message: "prediction tree child index out of range",
-                                });
-                            };
-                            match *node {
-                                PredictionNode::Leaf { value } => {
-                                    if let Some(v) = value {
-                                        sum += v;
-                                        votes += 1;
-                                    }
-                                    break;
-                                }
-                                PredictionNode::Split {
-                                    feature,
-                                    threshold,
-                                    inclusive,
-                                    left,
-                                    right,
-                                    missing,
-                                } => {
-                                    let v = x.get(row, feature)?;
-                                    #[allow(
-                                        clippy::float_cmp,
-                                        reason = "an inclusive split sends a value equal to the stored threshold left, so exact equality is the contract"
-                                    )]
-                                    let goes_left = !v.is_nan()
-                                        && (v < threshold || (inclusive && v == threshold));
-                                    index = if v.is_nan() {
-                                        missing
-                                    } else if goes_left {
-                                        left
-                                    } else {
-                                        right
-                                    };
-                                }
-                            }
-                        }
-                    }
-                    if votes == 0 {
-                        return Err(LearnError::Unsupported {
-                            message: "no supported prediction at requested row",
-                        });
-                    }
-                    {
-                        *value = base + if *average { sum / votes as f64 } else { sum };
-                    }
-                    if *logistic {
-                        *value = sigmoid(*value);
-                    } else if *probability {
-                        *value = crate::learner::clip_probability(*value);
-                    }
+                    *value = tree_ensemble_value(
+                        trees,
+                        TreeAggregation {
+                            base: *base,
+                            average: *average,
+                            logistic: *logistic,
+                            probability: *probability,
+                        },
+                        &mut |feature| x.get(row, feature),
+                    )?;
                 }
             }
         }
