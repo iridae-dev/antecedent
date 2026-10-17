@@ -542,8 +542,23 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
 
 
 def last_durations() -> dict[str, float]:
-    """The most recent recorded wall time of each task label (target/calibration-timings.tsv)."""
+    """The most recent recorded wall time of each task label (target/calibration-timings.tsv),
+    falling back to the latest pilot of the label at any commit, projected to the first pass.
+
+    These order and size the work; they are never a budget claim, so a pilot from an earlier
+    commit is close enough where no full run has timed the task."""
     out: dict[str, float] = {}
+    if PILOT_TIMINGS.is_file():
+        for line in PILOT_TIMINGS.read_text(encoding="utf-8").splitlines():
+            parts = line.split("\t")
+            if len(parts) != 7 or parts[2] != "0":
+                continue
+            try:
+                elapsed, replicates, test_seconds = float(parts[1]), int(parts[5]), float(parts[6])
+            except ValueError:
+                continue
+            if replicates == PILOT_NSIM and 0 <= test_seconds <= elapsed:
+                out[parts[0]] = test_seconds * FIRST_NSIM / replicates + elapsed - test_seconds
     if not TIMINGS.is_file():
         return out
     for line in TIMINGS.read_text(encoding="utf-8").splitlines():
@@ -569,6 +584,34 @@ def longest_first(tasks: list[tuple[Group, int | None]]) -> list[tuple[Group, in
         return (0, -seconds, position) if seconds is not None else (1, 0.0, position)
 
     return [task for _, task in sorted(enumerate(tasks), key=key)]
+
+
+# Most worker threads a single long task is given (see tail_threads).
+MAX_TAIL_THREADS = 4
+
+
+def tail_threads(
+    tasks: list[tuple[Group, int | None]], jobs: int, threads: int
+) -> dict[str, int]:
+    """Extra worker threads for the tasks that would otherwise set the wall time.
+
+    With `jobs` tasks running at once the run cannot finish before the total recorded work over
+    `jobs`; a task whose last single-threaded duration exceeds that share would finish after
+    everything else. Such a task gets `ceil(duration / share)` threads (at most
+    MAX_TAIL_THREADS), so its replicates spread over cores the short tasks leave idle at the
+    tail. Durations come from the last recorded run; untimed tasks keep `threads`."""
+    durations = last_durations()
+    timed = [durations[task_label(g, p)] for g, p in tasks if task_label(g, p) in durations]
+    if not timed or jobs <= 1:
+        return {}
+    share = sum(timed) / jobs
+    out: dict[str, int] = {}
+    for group, point in tasks:
+        label = task_label(group, point)
+        seconds = durations.get(label)
+        if seconds is not None and seconds > share:
+            out[label] = min(MAX_TAIL_THREADS, CORES, max(threads, math.ceil(seconds / share)))
+    return out
 
 
 def run(selection: Selection, total: int, jobs: int) -> int:
@@ -618,13 +661,19 @@ def run(selection: Selection, total: int, jobs: int) -> int:
     failed: list[Group] = []
 
     tasks = longest_first([(group, point) for group in groups for point in group.points])
+    widened = tail_threads(tasks, jobs, threads)
 
     def one(task: tuple[Group, int | None]) -> None:
         group, point = task
         label = task_label(group, point)
         suffix = "" if point is None else f".p{point}"
         console = CONSOLE_DIR / f"{group.safe}{suffix}.txt"
-        task_env = {**env, "ANTECEDENT_CALIBRATION_SHARD": f"{group.index - 1}/{total}"}
+        task_threads = widened.get(label, threads)
+        task_env = {
+            **env,
+            "ANTECEDENT_CALIBRATION_SHARD": f"{group.index - 1}/{total}",
+            "ANTECEDENT_CALIBRATION_THREADS": str(task_threads),
+        }
         if point is not None:
             task_env["ANTECEDENT_CALIBRATION_GRID_POINTS"] = str(point)
         begin = time.monotonic()
@@ -645,7 +694,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             if status != 0:
                 failed.append(label)
             with TIMINGS.open("a", encoding="utf-8", newline="\n") as timings:
-                timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{threads}\n")
+                timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\t{task_threads}\n")
             verdict = "ok" if status == 0 else f"FAILED (see {console.relative_to(ROOT)})"
             print(
                 f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} "
