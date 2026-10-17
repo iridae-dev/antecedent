@@ -188,6 +188,16 @@ impl GeneralizedAdjustmentIdentifier {
         cpdag: &TemporalCpdag,
         query: &TemporalEffectQuery,
     ) -> Result<TemporalClassEnvelope, IdentificationError> {
+        crate::class_envelope_cache::memoized_cpdag(cpdag, query, &self.config, || {
+            self.compute_temporal_cpdag_envelope(cpdag, query)
+        })
+    }
+
+    fn compute_temporal_cpdag_envelope(
+        &self,
+        cpdag: &TemporalCpdag,
+        query: &TemporalEffectQuery,
+    ) -> Result<TemporalClassEnvelope, IdentificationError> {
         refuse_unsupported_class_policy(query)?;
         let (limits, ctx) = self.config.completion_search();
         let mut sampler = TemporalCpdagCompletionSampler::with_budget(
@@ -217,6 +227,16 @@ impl GeneralizedAdjustmentIdentifier {
     ///
     /// Unsupported policy, unsupported marks, invalid stationary templates, or identification errors.
     pub fn identify_temporal_pag_envelope(
+        &self,
+        pag: &TemporalPag,
+        query: &TemporalEffectQuery,
+    ) -> Result<TemporalClassEnvelope, IdentificationError> {
+        crate::class_envelope_cache::memoized_pag(pag, query, &self.config, || {
+            self.compute_temporal_pag_envelope(pag, query)
+        })
+    }
+
+    pub(crate) fn compute_temporal_pag_envelope(
         &self,
         pag: &TemporalPag,
         query: &TemporalEffectQuery,

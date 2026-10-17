@@ -20,6 +20,7 @@ pub mod assumptions;
 pub mod auto;
 pub mod backdoor;
 pub mod bounds;
+mod class_envelope_cache;
 pub mod counterfactual_id;
 pub mod cross_world;
 pub mod efficient;
