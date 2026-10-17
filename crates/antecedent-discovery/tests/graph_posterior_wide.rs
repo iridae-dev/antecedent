@@ -506,7 +506,7 @@ fn published_structure() -> StructureMcmc {
 }
 
 fn published_order() -> OrderMcmc {
-    OrderMcmc::new().with_schedule(4, 3000, 12_000, 2)
+    OrderMcmc::new().with_schedule(4, 6000, 24_000, 2)
 }
 
 /// Independent colliders: the easy case, where even untempered single-edge moves mix.

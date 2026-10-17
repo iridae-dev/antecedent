@@ -291,7 +291,7 @@ impl DbnPosterior {
         // invalid empty template as a posterior sample until the right bit was proposed.
         let (init_cmask, init_lmask, init_score) = initial_dbn_state(target)?;
 
-        let (traces, samples, rejected) =
+        let (traces, samples, rejected, scores) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcDbn, chain as u64);
                 let mut walker = DbnWalker {
@@ -313,12 +313,13 @@ impl DbnPosterior {
                     &mut rng,
                     &mut walker,
                 )?;
-                Ok((run.traces, run.samples, run.rejected))
+                Ok((run.traces, run.samples, run.rejected, run.scores))
             })?;
 
         let (diagnostics, summary) = diagnostics_from_traces(
             &schedule,
             &traces,
+            &scores,
             n_params,
             true,
             "DBN MCMC diagnostics gate refused posterior",

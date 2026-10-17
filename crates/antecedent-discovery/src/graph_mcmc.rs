@@ -8,21 +8,23 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_prob::{InferenceDiagnostics, kish_ess};
 
-use crate::adjacency_mask::AdjacencyMask;
+use crate::adjacency_mask::{AdjacencyMask, parent_bits, set_edge};
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    GraphChainSummary, GraphMcmcRun, GraphPosterior, MAX_EDGE_MCSE, SamplingSummary,
-    accumulate_marginals, graph_chain_summary, mcmc_graph_diagnostics, publish_graph_posterior,
+    ChainAgreement, GraphChainSummary, GraphMcmcRun, GraphPosterior, MAX_EDGE_MCSE,
+    SamplingSummary, accumulate_marginals, graph_chain_agreement, graph_chain_summary,
+    mcmc_graph_diagnostics, publish_graph_posterior,
 };
 
-/// One chain: flat edge-indicator trace, sampled states, constraint-invalid proposals.
+/// One chain: flat edge-indicator trace, sampled states, constraint-invalid proposals, and the
+/// log target at each kept draw.
 ///
 /// `S` is an [`AdjacencyMask`] for structure and order MCMC, and a contemporaneous/lag
-/// pair for the DBN posterior. The three samplers used to each spell this triple.
-type ChainOutput<S> = (Vec<f64>, Vec<S>, u64);
+/// pair for the DBN posterior. The three samplers used to each spell this quadruple.
+type ChainOutput<S> = (Vec<f64>, Vec<S>, u64, Vec<f64>);
 
-/// Merged `(traces, per-chain samples, rejected proposals)`.
-type MaskChainMerge<S> = (Vec<f64>, Vec<Vec<S>>, u64);
+/// Merged `(traces, per-chain samples, rejected proposals, log targets)`.
+type MaskChainMerge<S> = (Vec<f64>, Vec<Vec<S>>, u64, Vec<f64>);
 
 /// Shared MCMC schedule knobs for mask-based graph samplers.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -72,14 +74,17 @@ pub(crate) fn merge_chain_outputs<S>(
 ) -> MaskChainMerge<S> {
     let mut traces = Vec::new();
     let mut sample_masks = Vec::new();
+    let mut scores = Vec::new();
     let mut rejected = 0u64;
-    for (local_traces, local_samples, local_rej) in chains {
+    for (local_traces, local_samples, local_rej, local_scores) in chains {
         debug_assert_eq!(local_traces.len(), n_draws * n_params);
+        debug_assert_eq!(local_scores.len(), n_draws);
         rejected += local_rej;
         traces.extend_from_slice(&local_traces);
+        scores.extend_from_slice(&local_scores);
         sample_masks.push(local_samples);
     }
-    (traces, sample_masks, rejected)
+    (traces, sample_masks, rejected, scores)
 }
 
 /// Run one worker per chain and merge their outputs.
@@ -151,9 +156,9 @@ pub(crate) trait MaskChain {
     /// Invalid proposals in this draw. A kernel Hastings ratio is not returned.
     fn propose(&mut self, rng: &mut CausalRng) -> u64;
     fn proposed_score(&mut self) -> Option<f64>;
-    /// Replace the Metropolis step by an exact kernel move at inverse temperature `beta`,
-    /// returning whether it did. Such a move samples its full conditional under the tempered
-    /// target, so it keeps that target invariant and needs no accept test.
+    /// Replace the Metropolis step by a kernel move that keeps the target tempered at `beta`
+    /// invariant by itself, returning whether it did: a draw from a full conditional, which needs
+    /// no accept test, or a Metropolis–Hastings step with its own.
     fn exact_move(&mut self, _rng: &mut CausalRng, _beta: f64) -> bool {
         false
     }
@@ -197,6 +202,8 @@ pub(crate) struct MaskChainOutput<S> {
     pub traces: Vec<f64>,
     pub samples: Vec<S>,
     pub rejected: u64,
+    /// Log target (before tempering) of the state recorded at each kept draw.
+    pub scores: Vec<f64>,
 }
 
 /// Inverse temperature of the random walk that scatters a later chain's starting state.
@@ -206,8 +213,93 @@ const START_BETA: f64 = 0.1;
 /// copies, each half as sharp as the one before.
 pub const DEFAULT_TEMPERATURES: [f64; 4] = [1.0, 0.5, 0.25, 0.125];
 
+/// Ladder used in place of [`DEFAULT_TEMPERATURES`] on at least [`EQUIVALENCE_WALK_MIN_NODES`]
+/// nodes: eight replicas, each about three quarters as sharp as the one before. The log target
+/// of a graph spreads in proportion to the number of variables, so the exchange acceptance of
+/// neighbouring replicas at the default spacing falls as the graph grows; a denser ladder keeps
+/// it usable and lets the cold replica receive states from the hot ones.
+pub(crate) const DENSE_TEMPERATURES: [f64; 8] = [1.0, 0.75, 0.56, 0.42, 0.32, 0.24, 0.18, 0.13];
+
+/// The ladder a sampler on `n` nodes runs: `configured`, except that the default ladder is
+/// replaced by [`DENSE_TEMPERATURES`] from [`EQUIVALENCE_WALK_MIN_NODES`] nodes on. Samplers on
+/// fewer nodes run the configured ladder unchanged.
+pub(crate) fn tempering_ladder(configured: &[f64], n: usize) -> Vec<f64> {
+    if n >= EQUIVALENCE_WALK_MIN_NODES && configured == DEFAULT_TEMPERATURES.as_slice() {
+        DENSE_TEMPERATURES.to_vec()
+    } else {
+        configured.to_vec()
+    }
+}
+
 /// Iterations between replica-exchange attempts.
 const SWAP_EVERY: usize = 10;
+
+/// Graphs on at least this many nodes (nine) also take equivalence-class steps (see
+/// [`propose_covered_reversal`]). Samplers on fewer nodes draw exactly the random numbers they
+/// always did.
+pub(crate) const EQUIVALENCE_WALK_MIN_NODES: usize = 9;
+
+/// Probability that an iteration of a sampler on at least [`EQUIVALENCE_WALK_MIN_NODES`] nodes is
+/// an equivalence-class step instead of its usual proposal.
+pub(crate) const EQUIVALENCE_WALK_PROBABILITY: f64 = 0.25;
+
+/// The covered edges `x -> y` of a DAG: `Pa(y) = Pa(x) ∪ {x}` (Chickering, 1995).
+///
+/// Reversing a covered edge yields a DAG of the same Markov equivalence class, so the two have
+/// the same Gaussian-BIC score, and every two members of a class are joined by a sequence of such
+/// reversals. Single-edge moves that propose an arbitrary reversal rarely hit one of the few
+/// covered edges, which is why the orientation of an edge inside a class mixes slowly.
+pub(crate) fn covered_edges(mask: AdjacencyMask, n: usize) -> Vec<(usize, usize)> {
+    let parents: Vec<u16> = (0..n).map(|node| parent_bits(mask, n, node)).collect();
+    let mut covered = Vec::new();
+    for (y, &pa_y) in parents.iter().enumerate() {
+        for x in (0..n).filter(|&x| (pa_y >> x) & 1 == 1) {
+            if pa_y == parents[x] | (1 << x) {
+                covered.push((x, y));
+            }
+        }
+    }
+    covered
+}
+
+/// Pick a covered edge `x -> y` of `mask` uniformly: `(x, y, number of covered edges)`, or `None`
+/// when there is none.
+///
+/// Completing the move is [`accept_covered_reversal`], which supplies the Hastings factor
+/// `|covered(G)| / |covered(G')|` of the uniform choice.
+pub(crate) fn propose_covered_reversal(
+    mask: AdjacencyMask,
+    n: usize,
+    rng: &mut CausalRng,
+) -> Option<(usize, usize, usize)> {
+    let covered = covered_edges(mask, n);
+    if covered.is_empty() {
+        return None;
+    }
+    let (x, y) = covered[crate::indexing::bounded_index(rng.next_u64(), covered.len())];
+    Some((x, y, covered.len()))
+}
+
+/// `mask` with the edge `x -> y` replaced by `y -> x`.
+pub(crate) fn reversed_edge(mask: AdjacencyMask, n: usize, x: usize, y: usize) -> AdjacencyMask {
+    set_edge(set_edge(mask, n, x, y, false), n, y, x, true)
+}
+
+/// Metropolis–Hastings decision of a covered-edge reversal at inverse temperature `beta`, from a
+/// state of log target `current` with `covered_before` covered edges to `after` with log target
+/// `proposed`.
+pub(crate) fn accept_covered_reversal(
+    (beta, current, proposed): (f64, f64, f64),
+    covered_before: usize,
+    after: AdjacencyMask,
+    n: usize,
+    rng: &mut CausalRng,
+) -> bool {
+    let covered_after = covered_edges(after, n).len();
+    let log_r = beta * (proposed - current) + (covered_before as f64).ln()
+        - (covered_after.max(1) as f64).ln();
+    log_r >= 0.0 || rng.next_f64() < log_r.exp()
+}
 
 /// Refuse a temperature ladder that is not `1 = beta_0 > beta_1 > ... > 0`.
 ///
@@ -284,6 +376,7 @@ pub(crate) fn run_tempered_mask_chain<C: MaskChain>(
     // `holder[k]` is the replica currently at temperature `ladder[k]`.
     let mut holder: Vec<usize> = (0..replicas.len()).collect();
     let mut traces = vec![0.0f64; plan.n_draws * plan.n_params];
+    let mut scores = vec![0.0f64; plan.n_draws];
     let mut samples = Vec::new();
     let mut rejected = 0u64;
     let total_steps = plan.n_warmup + plan.n_draws * plan.thin;
@@ -334,21 +427,26 @@ pub(crate) fn run_tempered_mask_chain<C: MaskChain>(
         if step >= plan.n_warmup && (step - plan.n_warmup) % plan.thin == 0 && kept < plan.n_draws {
             let cold = &replicas[holder[0]];
             cold.record(&mut traces[kept * plan.n_params..(kept + 1) * plan.n_params]);
+            scores[kept] = cold.current_score();
             samples.push(cold.sample());
             kept += 1;
         }
     }
-    Ok(MaskChainOutput { traces, samples, rejected })
+    Ok(MaskChainOutput { traces, samples, rejected, scores })
 }
 
 /// Diagnostics from edge-indicator traces, then optional publish gate.
 ///
 /// Besides R̂ / ESS the gate requires every edge marginal's Monte-Carlo standard error to be
-/// within [`MAX_EDGE_MCSE`]. Returns the diagnostics and the per-indicator chain summary (MCSE,
+/// within [`MAX_EDGE_MCSE`], and the chains to agree ([`graph_chain_agreement`]): no chain's
+/// marginal of an edge far from the pooled one, every edge changed often enough in every chain to
+/// be judged, and a rank-normalised split R̂ of the log target within bounds. Each criterion
+/// leaves a `gate_*` note with its outcome. Returns the diagnostics and the per-indicator chain summary (MCSE,
 /// split R̂ and bulk ESS, each aligned with the trace parameters).
 pub(crate) fn diagnostics_from_traces(
     schedule: &GraphMcmcSchedule,
     traces: &[f64],
+    scores: &[f64],
     n_params: usize,
     require_gate: bool,
     refuse_msg: &'static str,
@@ -374,13 +472,51 @@ pub(crate) fn diagnostics_from_traces(
             "chains disagree on an edge indicator that never varies within a chain (rhat=inf)",
         ));
     }
-    if mcse_max > MAX_EDGE_MCSE || mcse_max.is_nan() {
+    let mcse_ok = mcse_max <= MAX_EDGE_MCSE;
+    let agreement = graph_chain_agreement(traces, scores, n_chains, n_draws, n_params);
+    push_gate_notes(&mut diagnostics, &summary, mcse_ok, &agreement);
+    if !mcse_ok || !agreement.agrees() {
         diagnostics.converged = false;
     }
     if require_gate && !diagnostics.converged {
         return Err(DiscoveryError::unsupported(refuse_msg));
     }
     Ok((diagnostics, summary))
+}
+
+/// Record the outcome of each publication criterion as a `gate_<name>=pass|fail` note.
+fn push_gate_notes(
+    diagnostics: &mut InferenceDiagnostics,
+    summary: &GraphChainSummary,
+    mcse_ok: bool,
+    agreement: &ChainAgreement,
+) {
+    let verdict = |ok: bool| if ok { "pass" } else { "fail" };
+    let rhat_ok = summary.rhat_max.is_finite() && summary.rhat_max < 1.2;
+    let ess_ok = summary.ess_bulk_min.is_finite() && summary.ess_bulk_min > 10.0;
+    let notes = [
+        format!("gate_rhat={}", verdict(rhat_ok)),
+        format!("gate_ess={}", verdict(ess_ok)),
+        format!("gate_moved={}", verdict(summary.all_chains_moved)),
+        format!("gate_mcse={}", verdict(mcse_ok)),
+        format!(
+            "gate_chain_deviation={} z={:.2} at_param={}",
+            verdict(agreement.deviation_ok()),
+            agreement.max_deviation_z,
+            agreement.worst_param.map_or_else(|| "none".to_string(), |p| p.to_string())
+        ),
+        format!(
+            "indicator_changes={} unresolved={}",
+            verdict(agreement.resolved()),
+            agreement.unresolved
+        ),
+        format!(
+            "gate_score_rhat={} rhat={:.3}",
+            verdict(agreement.score_ok()),
+            agreement.score_rhat
+        ),
+    ];
+    diagnostics.notes.extend(notes.into_iter().map(|n| Arc::from(n.as_str())));
 }
 
 /// Aggregate visit-frequency weights into a [`GraphPosterior`].
@@ -428,6 +564,8 @@ pub(crate) struct FinishMaskPosterior<'a> {
     pub n: usize,
     pub schedule: &'a GraphMcmcSchedule,
     pub traces: &'a [f64],
+    /// Log target at each kept draw, chain-major (one value per draw).
+    pub scores: &'a [f64],
     pub sample_masks: &'a [Vec<AdjacencyMask>],
     pub rejected: u64,
     pub n_params: usize,
@@ -443,6 +581,7 @@ impl FinishMaskPosterior<'_> {
         let (diagnostics, summary) = diagnostics_from_traces(
             self.schedule,
             self.traces,
+            self.scores,
             self.n_params,
             self.require_gate,
             self.refuse_msg,
@@ -477,12 +616,20 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
+    fn dense_ladder_replaces_only_the_default_above_eight_nodes() {
+        assert!(validate_temperatures(&DENSE_TEMPERATURES).is_ok());
+        assert_eq!(tempering_ladder(&DEFAULT_TEMPERATURES, 8), DEFAULT_TEMPERATURES.to_vec());
+        assert_eq!(tempering_ladder(&DEFAULT_TEMPERATURES, 9), DENSE_TEMPERATURES.to_vec());
+        assert_eq!(tempering_ladder(&[1.0, 0.3], 12), vec![1.0, 0.3]);
+    }
+
+    #[test]
     fn worker_partition_respects_nondivisible_thread_limit() {
         let workers = AtomicUsize::new(0);
         let ctx = ExecutionContext::production(0, 2);
-        let (traces, samples, _) = run_parallel_mask_chains(&ctx, 5, 4, 1, |chain, _| {
+        let (traces, samples, _, _) = run_parallel_mask_chains(&ctx, 5, 4, 1, |chain, _| {
             workers.fetch_add(1, Ordering::Relaxed);
-            Ok((vec![chain as f64; 4], vec![chain as u64; 4], 0))
+            Ok((vec![chain as f64; 4], vec![chain as u64; 4], 0, vec![0.0; 4]))
         })
         .unwrap();
         assert_eq!(workers.load(Ordering::Relaxed), 5);
@@ -509,10 +656,29 @@ mod tests {
         assert!(summary.mcse[0] > MAX_EDGE_MCSE, "mcse={}", summary.mcse[0]);
 
         let schedule = GraphMcmcSchedule { n_chains: 2, n_warmup: 0, n_draws: 50, thin: 1 };
-        assert!(diagnostics_from_traces(&schedule, &traces, 1, true, "refused").is_err());
-        let (d, _) = diagnostics_from_traces(&schedule, &traces, 1, false, "refused").unwrap();
+        let scores = vec![0.0; n_chains * n_draws];
+        assert!(diagnostics_from_traces(&schedule, &traces, &scores, 1, true, "refused").is_err());
+        let (d, _) =
+            diagnostics_from_traces(&schedule, &traces, &scores, 1, false, "refused").unwrap();
         assert!(!d.converged);
         assert!(d.notes.iter().any(|n| n.starts_with("edge_mcse_max=")));
+    }
+
+    /// Covered edges against hand-checked graphs: a fork's edges are all covered, a chain's last
+    /// edge and a collider's edges are not.
+    #[test]
+    fn covered_edges_match_hand_checked_graphs() {
+        let n = 3;
+        let build = |edges: &[(usize, usize)]| {
+            edges.iter().fold(AdjacencyMask::EMPTY, |m, &(a, b)| set_edge(m, n, a, b, true))
+        };
+        assert_eq!(covered_edges(build(&[(0, 1), (0, 2)]), n), [(0, 1), (0, 2)]);
+        assert_eq!(covered_edges(build(&[(0, 1), (1, 2)]), n), [(0, 1)]);
+        assert!(covered_edges(build(&[(0, 2), (1, 2)]), n).is_empty());
+        // Reversing a covered edge keeps the covered edge covered, in the other direction.
+        let fork = build(&[(0, 1), (0, 2)]);
+        let flipped = reversed_edge(fork, n, 0, 1);
+        assert_eq!(covered_edges(flipped, n), [(1, 0)]);
     }
 
     /// The ladder must start at the target and cool strictly.

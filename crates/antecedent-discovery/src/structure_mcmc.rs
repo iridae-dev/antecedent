@@ -13,9 +13,10 @@ use crate::adjacency_mask::{has_edge, mask_is_dag, parent_bits, set_edge};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_mcmc::{
-    DEFAULT_TEMPERATURES, FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel,
-    MaskChain, MaskChainPlan, run_parallel_mask_chains, run_tempered_mask_chain,
-    validate_temperatures,
+    DEFAULT_TEMPERATURES, EQUIVALENCE_WALK_MIN_NODES, EQUIVALENCE_WALK_PROBABILITY,
+    FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel, MaskChain, MaskChainPlan,
+    accept_covered_reversal, propose_covered_reversal, reversed_edge, run_parallel_mask_chains,
+    run_tempered_mask_chain, tempering_ladder, validate_temperatures,
 };
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorEngine, GraphPrior, GraphPriorTable, edge_bit,
@@ -42,6 +43,14 @@ const PAIR_MOVE_MAX_SETS: usize = 4096;
 /// it is always accepted and leaves the target invariant. It is disabled when a node has more
 /// than 4096 allowed parent sets (set `max_parents`).
 ///
+/// Above eight variables a quarter of the iterations instead reverse a uniformly chosen covered
+/// edge (one whose parents are its child's parents less itself), accepted with the
+/// Metropolis–Hastings ratio of the move. Reversing a covered edge stays inside the Markov
+/// equivalence class, whose members the Gaussian-BIC score does not tell apart, so the move
+/// walks the class at the acceptance of a plateau; the orientation of an edge the data leave
+/// open is otherwise decided only by the rare proposal that reverses a covered edge, and its
+/// chain diagnostics mix at the pace of that rare event.
+///
 /// Replicas at the inverse temperatures of [`Self::temperatures`] run in every chain and
 /// exchange temperatures (replica exchange), which carries chains across the local modes
 /// single-edge moves cannot leave; only the replica at temperature 1 is recorded.
@@ -64,7 +73,8 @@ pub struct StructureMcmc {
     /// When true (default), refuse if [`crate::graph_posterior::allows_graph_posterior`] fails.
     pub require_diagnostics_gate: bool,
     /// Inverse-temperature ladder of the replicas in every chain: `1 = b_0 > b_1 > ... > 0`
-    /// (default `[1, 1/2, 1/4, 1/8]`; `[1]` is a single untempered chain).
+    /// (default `[1, 1/2, 1/4, 1/8]`, run as a denser eight-replica ladder from nine variables on;
+    /// `[1]` is a single untempered chain).
     pub temperatures: Vec<f64>,
     /// Probability that an iteration is a paired parent-set resampling instead of a
     /// single-edge proposal, in `[0, 1]`.
@@ -178,6 +188,7 @@ impl StructureMcmc {
         let schedule = self.schedule();
         schedule.require_min_chains(2, "structure MCMC requires at least 2 chains for R-hat")?;
         validate_temperatures(&self.temperatures)?;
+        let ladder = tempering_ladder(&self.temperatures, n);
         if !(0.0..=1.0).contains(&self.pair_move_probability) {
             return Err(DiscoveryError::unsupported(
                 "structure MCMC pair move probability must lie in [0, 1]",
@@ -204,14 +215,13 @@ impl StructureMcmc {
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = pairs.len();
 
-        let (traces, sample_masks, rejected) =
+        let (traces, sample_masks, rejected, scores) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
                 let target = SharedTarget(std::rc::Rc::new(std::cell::RefCell::new(
                     ScoredTarget::new(n, &score_data, score_family, &prior_table),
                 )));
-                let mut replicas: Vec<_> = self
-                    .temperatures
+                let mut replicas: Vec<_> = ladder
                     .iter()
                     .map(|_| StructureWalker {
                         n,
@@ -229,9 +239,9 @@ impl StructureMcmc {
                     inner,
                     &mut rng,
                     &mut replicas,
-                    &self.temperatures,
+                    &ladder,
                 )?;
-                Ok((run.traces, run.samples, run.rejected))
+                Ok((run.traces, run.samples, run.rejected, run.scores))
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -241,6 +251,7 @@ impl StructureMcmc {
             n,
             schedule: &schedule,
             traces: &traces,
+            scores: &scores,
             sample_masks: &sample_masks,
             rejected,
             n_params,
@@ -407,6 +418,23 @@ struct StructureWalker<'a, T> {
 }
 
 impl<T: ChainTarget> StructureWalker<'_, T> {
+    /// Metropolis–Hastings step that reverses a uniformly chosen covered edge at inverse
+    /// temperature `beta`. Reversing a covered edge keeps the graph acyclic.
+    fn reverse_covered_edge(&mut self, beta: f64, rng: &mut CausalRng) {
+        let Some((x, y, covered)) = propose_covered_reversal(self.mask, self.n, rng) else {
+            return;
+        };
+        let proposal = reversed_edge(self.mask, self.n, x, y);
+        debug_assert!(mask_is_dag(proposal, self.n));
+        let Some(score) = self.target.score(proposal) else {
+            return;
+        };
+        if accept_covered_reversal((beta, self.cur, score), covered, proposal, self.n, rng) {
+            self.mask = proposal;
+            self.cur = score;
+        }
+    }
+
     /// Nodes reachable from `from` along child edges, `child[x]` being the bitset of `x`'s children.
     fn descendants(child: &[u16], from: usize) -> u16 {
         let mut reach = 0u16;
@@ -555,6 +583,10 @@ impl<T: ChainTarget> MaskChain for StructureWalker<'_, T> {
     }
 
     fn exact_move(&mut self, rng: &mut CausalRng, beta: f64) -> bool {
+        if self.n >= EQUIVALENCE_WALK_MIN_NODES && rng.next_f64() < EQUIVALENCE_WALK_PROBABILITY {
+            self.reverse_covered_edge(beta, rng);
+            return true;
+        }
         let Some(catalog) = self.catalog else {
             return false;
         };
@@ -762,7 +794,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(23);
         let (draws, thin) = (10_000usize, 10usize);
         let ladder = [1.0, 0.5];
-        let (_, samples, _) =
+        let (_, samples, _, _) =
             run_parallel_mask_chains(&ctx, 4, draws, pairs.len(), |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
                 let mut replicas: Vec<_> = ladder
@@ -786,7 +818,7 @@ mod tests {
                     n_params: pairs.len(),
                 };
                 let run = run_tempered_mask_chain(&plan, inner, &mut rng, &mut replicas, &ladder)?;
-                Ok((run.traces, run.samples, run.rejected))
+                Ok((run.traces, run.samples, run.rejected, run.scores))
             })
             .unwrap();
         crate::test_tables::assert_rooted_forest_law(
@@ -795,6 +827,44 @@ mod tests {
             500,
             &[(0, 1), (5, 9), (11, 10), (10, 11), (11, 0)],
         );
+    }
+
+    /// The covered-edge reversal alone, on a three-leaf star under a flat target: the star's
+    /// Markov equivalence class is the four orientations away from a chosen root, with three
+    /// covered edges when the root is the centre and one otherwise. The class is uniform only
+    /// with the move's Hastings factor; without it the chain would favour the centre.
+    #[test]
+    fn covered_reversal_walks_a_markov_class_uniformly() {
+        let n = 4;
+        let prior = GraphPrior::uniform();
+        let vars: Vec<_> = (0..n).map(|i| VariableId::from_raw(i as u32)).collect();
+        let table = GraphPriorTable::new(n, &prior, &vars);
+        let start = [(0, 1), (0, 2), (0, 3)]
+            .iter()
+            .fold(AdjacencyMask::EMPTY, |m, &(a, b)| set_edge(m, n, a, b, true));
+        let mut walker = StructureWalker {
+            n,
+            pairs: &[],
+            target: crate::test_tables::PriorOnlyTarget(&table),
+            catalog: None,
+            pair_probability: 0.0,
+            mask: start,
+            cur: 0.0,
+            pending: start,
+        };
+        let mut rng = CausalRng::from_seed(21);
+        let steps = 80_000usize;
+        let mut visits = std::collections::HashMap::new();
+        for _ in 0..steps {
+            walker.reverse_covered_edge(1.0, &mut rng);
+            assert!(mask_is_dag(walker.mask, n));
+            *visits.entry(walker.mask).or_insert(0usize) += 1;
+        }
+        assert_eq!(visits.len(), 4, "the class has four members: {visits:?}");
+        for (mask, count) in &visits {
+            let share = *count as f64 / steps as f64;
+            assert!((share - 0.25).abs() < 0.02, "{mask:?}: {share}");
+        }
     }
 
     /// The paired move draws exactly from its conditional: from a fixed state on four nodes, every

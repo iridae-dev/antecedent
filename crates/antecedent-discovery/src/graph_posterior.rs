@@ -1248,6 +1248,189 @@ pub(crate) fn graph_chain_summary(
     }
 }
 
+/// Fewest value changes an edge indicator must make in every chain for that chain's mean to be
+/// compared with the others. A two-state series with `t` changes holds about `t / 2` independent
+/// excursions into its rarer state, so its mean has no usable standard error below a handful.
+pub(crate) const MIN_INDICATOR_TRANSITIONS: usize = 6;
+
+/// An indicator whose rarer value occurs fewer than this many times over all draws of all chains
+/// is judged by the pooled count alone: its marginal is within `MIN_RARE_EVENTS / draws` of 0 or 1
+/// whatever the chains do, so a chain that rarely changes it cannot move the answer.
+const MIN_RARE_EVENTS: usize = 4 * MIN_INDICATOR_TRANSITIONS;
+
+/// Largest standardised distance between one chain's marginal of an edge and the pooled marginal.
+/// A run holds a few hundred comparisons (indicators times chains) and the batch-means error
+/// behind each rests on [`AGREEMENT_BATCHES`] batches, so its ratio has a Student-t tail:
+/// 6 (two-sided 1e-5 at 19 degrees of freedom) keeps the false refusal rate of a correct run
+/// near 1e-3.
+pub(crate) const MAX_CHAIN_DEVIATION_Z: f64 = 6.0;
+
+/// Largest rank-normalised split R̂ of the log target along the chains. The log target is a
+/// continuous summary of the whole graph, so it exposes chains sitting in different regions that
+/// every individual edge indicator would hide behind a rarely flipping value.
+pub(crate) const MAX_SCORE_RHAT: f64 = 1.1;
+
+/// Batches the draws of one chain are cut into to estimate the standard error of its marginal.
+const AGREEMENT_BATCHES: usize = 20;
+
+/// Whether the chains of a graph sampler describe the same distribution, judged on what the
+/// indicator R̂ and ESS cannot see.
+///
+/// R̂ of an indicator that a chain never changes has no within-chain variance, and the Geyer ESS
+/// of an indicator that changes a few times is far too large. This asks the questions directly.
+/// Per indicator: how far is each chain's marginal from the pooled marginal in units of that
+/// chain's standard error (the batch-means error, which cannot be trusted when batches hold
+/// few changes of the indicator; there the excursion bound `sqrt(p (1 - p) / (changes / 2))`
+/// replaces it), and does every chain change the indicator often enough to
+/// be judged at all. Overall: do the chains agree on the log target.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ChainAgreement {
+    /// Largest standardised distance of a chain's marginal from the pooled one.
+    pub max_deviation_z: f64,
+    /// Trace parameter attaining [`Self::max_deviation_z`].
+    pub worst_param: Option<usize>,
+    /// Indicators some chain changes fewer than [`MIN_INDICATOR_TRANSITIONS`] times although
+    /// their pooled marginal is not within the rare-event bound of 0 or 1.
+    pub unresolved: usize,
+    /// Rank-normalised split R̂ of the log target (`∞` when the chains cannot be compared).
+    pub score_rhat: f64,
+}
+
+impl ChainAgreement {
+    /// Chains agree on every judged edge marginal.
+    #[must_use]
+    pub(crate) fn deviation_ok(&self) -> bool {
+        self.max_deviation_z.is_finite() && self.max_deviation_z <= MAX_CHAIN_DEVIATION_Z
+    }
+
+    /// Every indicator is changed often enough in every chain to be judged. Reported, not
+    /// gated: an edge the data nearly fix flips rarely in a converged chain, so a transition
+    /// count cannot tell a stuck chain from a decided edge; [`Self::deviation_ok`] judges
+    /// agreement with the excursion error of such an indicator instead.
+    #[must_use]
+    pub(crate) fn resolved(&self) -> bool {
+        self.unresolved == 0
+    }
+
+    /// The chains agree on the log target.
+    #[must_use]
+    pub(crate) fn score_ok(&self) -> bool {
+        self.score_rhat.is_finite() && self.score_rhat <= MAX_SCORE_RHAT
+    }
+
+    /// The gated criteria hold: chain agreement on every edge marginal and on the log target.
+    #[must_use]
+    pub(crate) fn agrees(&self) -> bool {
+        self.deviation_ok() && self.score_ok()
+    }
+}
+
+/// [`ChainAgreement`] of `traces` (edge indicators) and `scores` (the log target at each draw),
+/// both laid out chain-major as in [`graph_chain_summary`] (`scores` has one value per draw).
+#[must_use]
+pub(crate) fn graph_chain_agreement(
+    traces: &[f64],
+    scores: &[f64],
+    n_chains: usize,
+    n_draws: usize,
+    n_params: usize,
+) -> ChainAgreement {
+    let unjudgeable = ChainAgreement {
+        max_deviation_z: f64::INFINITY,
+        worst_param: None,
+        unresolved: n_params,
+        score_rhat: f64::INFINITY,
+    };
+    if n_chains < 2
+        || n_draws < 8
+        || traces.len() != n_chains * n_draws * n_params
+        || scores.len() != n_chains * n_draws
+    {
+        return unjudgeable;
+    }
+    let score_rhat = score_rank_rhat(scores, n_chains, n_draws);
+    let total = (n_chains * n_draws) as f64;
+    let batch_len = (n_draws / AGREEMENT_BATCHES).max(1);
+    let n_batches = n_draws / batch_len;
+    let mut max_deviation_z = 0.0_f64;
+    let mut worst_param = None;
+    let mut unresolved = 0usize;
+    let mut means = vec![0.0; n_chains];
+    let mut changes = vec![0usize; n_chains];
+    let mut errors = vec![0.0; n_chains];
+    for p in 0..n_params {
+        for c in 0..n_chains {
+            let at = |d: usize| traces[(c * n_draws + d) * n_params + p];
+            let mut sum = 0.0;
+            let mut flips = 0usize;
+            let mut batch_means = vec![0.0; n_batches];
+            for d in 0..n_draws {
+                let v = at(d);
+                sum += v;
+                if d > 0 && v.to_bits() != at(d - 1).to_bits() {
+                    flips += 1;
+                }
+                if d / batch_len < n_batches {
+                    batch_means[d / batch_len] += v / batch_len as f64;
+                }
+            }
+            means[c] = sum / n_draws as f64;
+            changes[c] = flips;
+            errors[c] = if n_batches >= 2 {
+                let grand = batch_means.iter().sum::<f64>() / n_batches as f64;
+                let var = batch_means.iter().map(|m| (m - grand).powi(2)).sum::<f64>()
+                    / (n_batches as f64 - 1.0);
+                (var / n_batches as f64).sqrt()
+            } else {
+                0.0
+            };
+        }
+        let pooled = means.iter().sum::<f64>() / n_chains as f64;
+        let minority = (pooled.min(1.0 - pooled) * total).round();
+        if minority < 1.0 {
+            continue;
+        }
+        let variance = pooled * (1.0 - pooled);
+        for c in 0..n_chains {
+            // Batches that each hold several changes carry the chain's autocorrelation; with
+            // fewer the batch means are too coarse, and the independent units of a two-state
+            // series are its excursions into the rarer state, about half its changes.
+            let units = if changes[c] >= 5 * n_batches {
+                n_draws as f64
+            } else {
+                (changes[c] as f64 / 2.0).max(1.0)
+            };
+            let error = errors[c].max((variance / units).sqrt());
+            let z = (means[c] - pooled).abs() / error;
+            if z > max_deviation_z {
+                max_deviation_z = z;
+                worst_param = Some(p);
+            }
+        }
+        let thin_chain = changes.iter().any(|&t| t < MIN_INDICATOR_TRANSITIONS);
+        if thin_chain && minority >= MIN_RARE_EVENTS as f64 {
+            unresolved += 1;
+        }
+    }
+    ChainAgreement { max_deviation_z, worst_param, unresolved, score_rhat }
+}
+
+/// Rank-normalised split R̂ (Vehtari et al., 2021) of one scalar trace; `1` when the trace is
+/// constant over every draw of every chain, `∞` when it cannot be computed.
+fn score_rank_rhat(scores: &[f64], n_chains: usize, n_draws: usize) -> f64 {
+    let (lo, hi) = scores
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| (lo.min(v), hi.max(v)));
+    if !lo.is_finite() || !hi.is_finite() {
+        return f64::INFINITY;
+    }
+    if hi - lo <= 1e-12 {
+        return 1.0;
+    }
+    let d = parameter_mcmc_diagnostics(scores, n_chains, n_draws, 1)[0];
+    if d.rhat.is_finite() { d.rhat } else { f64::INFINITY }
+}
+
 #[cfg(test)]
 mod tests {
     use antecedent_graph::{DenseNodeId, Endpoint};
@@ -1435,6 +1618,89 @@ mod tests {
         assert!(
             back.bidirected_neighbors(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(2))
         );
+    }
+
+    /// A two-state trace of `n_draws` draws with marginal `p` that changes value at random
+    /// (geometric run lengths), from a fixed seed.
+    fn blinking(n_draws: usize, p: f64, mut state: u64) -> Vec<f64> {
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut on = next() < p;
+        (0..n_draws)
+            .map(|_| {
+                // Independent redraw with probability 1/2 keeps the marginal at `p`.
+                if next() < 0.5 {
+                    on = next() < p;
+                }
+                f64::from(u8::from(on))
+            })
+            .collect()
+    }
+
+    fn agreement_of(chains: &[Vec<f64>], scores: &[Vec<f64>]) -> ChainAgreement {
+        let (n_chains, n_draws) = (chains.len(), chains[0].len());
+        graph_chain_agreement(&chains.concat(), &scores.concat(), n_chains, n_draws, 1)
+    }
+
+    #[test]
+    fn chains_drawing_one_marginal_agree() {
+        let chains: Vec<Vec<f64>> = (0..4).map(|c| blinking(4000, 0.3, 11 + c)).collect();
+        let scores: Vec<Vec<f64>> = (0..4).map(|c| blinking(4000, 0.5, 91 + c)).collect();
+        let a = agreement_of(&chains, &scores);
+        assert!(a.agrees(), "{a:?}");
+    }
+
+    /// Chains that change their indicator freely but at different marginals disagree, however
+    /// well each chain mixes; R̂ of a binary trace with this much within-chain variance is mild.
+    #[test]
+    fn chains_with_different_marginals_are_refused() {
+        let chains: Vec<Vec<f64>> = [0.30, 0.30, 0.30, 0.60]
+            .iter()
+            .zip(0u64..)
+            .map(|(&p, c)| blinking(4000, p, 5 + c))
+            .collect();
+        let scores: Vec<Vec<f64>> = (0..4).map(|c| blinking(4000, 0.5, 91 + c)).collect();
+        let a = agreement_of(&chains, &scores);
+        assert!(!a.deviation_ok(), "{a:?}");
+    }
+
+    /// A chain that never changes an indicator the others change cannot be judged, and the
+    /// pooled marginal is far from 0 or 1: publication is blocked.
+    #[test]
+    fn a_chain_that_never_flips_a_contested_edge_blocks_publication() {
+        let mut chains: Vec<Vec<f64>> = (0..3).map(|c| blinking(4000, 0.3, 21 + c)).collect();
+        chains.push(vec![0.0; 4000]);
+        let scores: Vec<Vec<f64>> = (0..4).map(|c| blinking(4000, 0.5, 91 + c)).collect();
+        let a = agreement_of(&chains, &scores);
+        assert!(!a.resolved(), "{a:?}");
+    }
+
+    /// An edge no chain ever includes, or that only a handful of draws include, is settled at
+    /// the pooled count and does not block.
+    #[test]
+    fn a_rare_edge_does_not_block_publication() {
+        let mut chains: Vec<Vec<f64>> = vec![vec![0.0; 4000]; 4];
+        for d in 0..3 {
+            chains[1][100 + d] = 1.0;
+        }
+        let scores: Vec<Vec<f64>> = (0..4).map(|c| blinking(4000, 0.5, 91 + c)).collect();
+        let a = agreement_of(&chains, &scores);
+        assert!(a.resolved(), "{a:?}");
+    }
+
+    /// Chains whose log targets sit at different levels have not found the same region.
+    #[test]
+    fn chains_at_different_log_target_levels_are_refused() {
+        let chains: Vec<Vec<f64>> = (0..4).map(|c| blinking(4000, 0.3, 11 + c)).collect();
+        let scores: Vec<Vec<f64>> = (0..4)
+            .map(|c| blinking(4000, 0.5, 91 + c).iter().map(|v| v + 3.0 * (c % 2) as f64).collect())
+            .collect();
+        let a = agreement_of(&chains, &scores);
+        assert!(!a.score_ok(), "{a:?}");
     }
 
     /// Two chains, each constant but at a different value, are the clearest

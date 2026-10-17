@@ -65,10 +65,10 @@ Conditions of the validated 10- and 12-variable workflow:
 | --- | --- |
 | Variables | 10 or 12 (up to 16 run; cost below) |
 | Parents per node | at most 3 (`max_parents` in the prior's constraints) |
-| Chains | 4, each running 4 replicas at inverse temperatures 1, 1/2, 1/4, 1/8 (replica exchange every 10 iterations) |
-| Warmup per chain | 3 000 iterations |
-| Retained draws per chain | 12 000, thinned by 2 (24 000 post-warmup iterations) |
-| Publication gate | split R-hat below 1.2 over every edge indicator, bulk ESS above 10, every edge's Monte-Carlo standard error at most 0.05, and every chain made a structural move |
+| Chains | 4; above 8 variables each runs 8 replicas at inverse temperatures 1, 0.75, 0.56, 0.42, 0.32, 0.24, 0.18, 0.13 (the default 4-replica ladder 1, 1/2, 1/4, 1/8 is kept at 8 or fewer); replica exchange every 10 iterations |
+| Warmup per chain | structure MCMC 3 000 iterations; order MCMC 6 000 |
+| Retained draws per chain | structure MCMC 12 000, order MCMC 24 000, thinned by 2 |
+| Publication gate | split R-hat below 1.2 over every edge indicator, bulk ESS above 10, every edge's Monte-Carlo standard error at most 0.05, every chain made a structural move, every chain's edge marginals agree with the pooled ones (at most 6 standard errors, with the excursion error for edges a chain rarely flips), and rank-normalized split R-hat of the log target at most 1.1 |
 
 A schedule far shorter than this is refused by the gate rather than published.
 
@@ -89,6 +89,11 @@ exchange, and structure MCMC adds a paired parent-set move:
   target given everybody else's parents. It contains an edge reversal together with the parent
   changes the reversal needs, is always accepted, and keeps the target invariant. It is disabled
   when a node has more than 4 096 allowed parent sets (set `max_parents`).
+- **Equivalence-class and order moves** (above 8 variables). Both samplers reverse a covered
+  edge with probability 0.25 per iteration, walking the Markov equivalence class whose members
+  share a score; the Metropolis–Hastings ratio carries the ratio of covered-edge counts. Order
+  MCMC also relocates one node to a uniformly drawn position in the order, a symmetric move
+  that reshapes the order in one step where adjacent transpositions random-walk.
 - **Start states.** Every chain after the first begins with a short random walk at inverse
   temperature 0.1, so chains start dispersed but biased toward the target, and R-hat compares
   chains that began in different places.
@@ -96,7 +101,10 @@ exchange, and structure MCMC adds a paired parent-set move:
 Acceptance cases at the published conditions: independent colliders and the interacting ring,
 each at 10 and 12 variables, with both samplers clearing the gate and agreeing with each other,
 and the interacting ring's twelve-edge skeleton compared with an exhaustive enumeration of its
-3^12 states.
+3^12 states. On sparse random graphs at 10 and 12 variables, every posterior the gate publishes
+matches the exact dynamic-programming marginals of the same score, prior and constraints within
+its Monte Carlo error. These marginals are the posterior of the Gaussian BIC score; they are not
+claimed to be calibrated against the true graph.
 
 Chain diagnostics are reported per edge, not only as a worst case:
 `GraphPosterior.edge_rhat`, `edge_ess` and `edge_mcse` (Python and Rust) hold the split R-hat,

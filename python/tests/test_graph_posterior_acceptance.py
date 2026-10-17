@@ -30,6 +30,8 @@ from _repo_text import REPO_ROOT, read_text
 GUIDE = REPO_ROOT / "docs/graph_uncertainty.md"
 ROWS = 2000
 PUBLISHED = {"n_chains": 4, "n_warmup": 3000, "n_draws": 12_000, "thin": 2, "max_parents": 3}
+# Order MCMC is published at twice the warmup and draws (docs/graph_uncertainty.md).
+PUBLISHED_ORDER = {**PUBLISHED, "n_warmup": 6000, "n_draws": 24_000}
 
 
 def tractable_posterior_scm(
@@ -156,8 +158,11 @@ def test_a_nine_variable_posterior_is_returned_where_the_eight_variable_word_end
     data, edges = tractable_posterior_scm("colliders", 9, 9116002)
     names = list(data)
     posts = {}
-    for label, sampler in (("structure", StructureMcmc), ("order", OrderMcmc)):
-        post = sampler(**PUBLISHED).run(data, seed=7)
+    for label, sampler, schedule in (
+        ("structure", StructureMcmc, PUBLISHED),
+        ("order", OrderMcmc, PUBLISHED_ORDER),
+    ):
+        post = sampler(**schedule).run(data, seed=7)
         assert post.names == names, label
         assert_valid_wide_posterior(post, 9)
         assert post.converged, label
@@ -188,15 +193,15 @@ def test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics(
     # The computational and model conditions the posterior is published under.
     for condition in (
         "| Parents per node | at most 3",
-        "| Chains | 4, each running 4 replicas",
-        "| Warmup per chain | 3 000 iterations",
-        "| Retained draws per chain | 12 000, thinned by 2",
+        "| Chains | 4; above 8 variables each runs 8 replicas",
+        "| Warmup per chain | structure MCMC 3 000 iterations; order MCMC 6 000",
+        "| Retained draws per chain | structure MCMC 12 000, order MCMC 24 000, thinned by 2",
         "| Publication gate | split R-hat below 1.2",
     ):
         assert condition in guide
     posts = {}
-    for sampler in (StructureMcmc, OrderMcmc):
-        post = sampler(**PUBLISHED).run(data, seed=5)
+    for sampler, schedule in ((StructureMcmc, PUBLISHED), (OrderMcmc, PUBLISHED_ORDER)):
+        post = sampler(**schedule).run(data, seed=5)
         assert post.names == names
         assert_valid_wide_posterior(post, size)
         assert_published_gate_diagnostics(post, size)

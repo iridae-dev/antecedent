@@ -18,9 +18,10 @@ use crate::adjacency_mask::{has_edge, set_edge};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_mcmc::{
-    DEFAULT_TEMPERATURES, FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel,
-    MaskChain, MaskChainPlan, run_parallel_mask_chains, run_tempered_mask_chain,
-    validate_temperatures,
+    DEFAULT_TEMPERATURES, EQUIVALENCE_WALK_MIN_NODES, EQUIVALENCE_WALK_PROBABILITY,
+    FinishMaskPosterior, GraphMcmcSchedule, MaskAccept, MaskCancel, MaskChain, MaskChainPlan,
+    accept_covered_reversal, propose_covered_reversal, reversed_edge, run_parallel_mask_chains,
+    run_tempered_mask_chain, tempering_ladder, validate_temperatures,
 };
 use crate::graph_posterior::{
     GraphPosterior, GraphPosteriorEngine, GraphPrior, GraphPriorTable, n_directed_edges,
@@ -34,6 +35,18 @@ use crate::graph_score::{
 /// Supports up to [`crate::MAX_POSTERIOR_NODES`] variables; each step costs a `2^n`-state dynamic
 /// program (the topological-order correction), so it doubles with every variable. Cap the parents
 /// of any node with `GraphPrior::constraints.max_parents`.
+///
+/// Above eight variables a quarter of the iterations instead reverse a uniformly chosen covered
+/// edge and exchange the two endpoints in the order (a deterministic partner of the reversal,
+/// valid when the tail has no child between the two), accepted with the Metropolis–Hastings
+/// ratio of the move. The reversal stays inside the Markov equivalence class, so the
+/// orientation of an edge the data leave open is walked at the acceptance of a plateau rather
+/// than waiting for a transposition that happens to separate the two nodes by no child.
+///
+/// The order move set also relocates a uniformly chosen node to a uniformly chosen position
+/// (`from` and `to` independent and uniform, so the move and its inverse are equally likely and
+/// the proposal is symmetric). It replaces part of the adjacent transpositions above eight
+/// variables, where an order space of `n!` states is crossed too slowly by single-place moves.
 ///
 /// Every chain runs replicas at the inverse temperatures of [`Self::temperatures`] and exchanges
 /// them (parallel tempering), which carries chains across the local modes single-step moves
@@ -52,7 +65,8 @@ pub struct OrderMcmc {
     /// When true (default), refuse if [`crate::graph_posterior::allows_graph_posterior`] fails.
     pub require_diagnostics_gate: bool,
     /// Inverse-temperature ladder of the replicas in every chain: `1 = b_0 > b_1 > ... > 0`
-    /// (default `[1, 1/2, 1/4, 1/8]`; `[1]` is a single untempered chain).
+    /// (default `[1, 1/2, 1/4, 1/8]`, run as a denser eight-replica ladder from nine variables on;
+    /// `[1]` is a single untempered chain).
     pub temperatures: Vec<f64>,
 }
 
@@ -145,6 +159,7 @@ impl OrderMcmc {
         let schedule = self.schedule();
         schedule.require_min_chains(2, "order MCMC requires at least 2 chains for R-hat")?;
         validate_temperatures(&self.temperatures)?;
+        let ladder = tempering_ladder(&self.temperatures, n);
 
         let score_data = tabular_score_data(data, variables)?;
         let (initial_mask, initial_score) =
@@ -169,14 +184,13 @@ impl OrderMcmc {
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = n_directed_edges(n);
 
-        let (traces, sample_masks, rejected) =
+        let (traces, sample_masks, rejected, scores) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
                 let target = SharedTarget(std::rc::Rc::new(std::cell::RefCell::new(
                     ScoredTarget::new(n, &score_data, score_family, &prior_table),
                 )));
-                let mut replicas: Vec<_> = self
-                    .temperatures
+                let mut replicas: Vec<_> = ladder
                     .iter()
                     .map(|_| OrderWalker {
                         n,
@@ -194,9 +208,9 @@ impl OrderMcmc {
                     inner,
                     &mut rng,
                     &mut replicas,
-                    &self.temperatures,
+                    &ladder,
                 )?;
-                Ok((run.traces, run.samples, run.rejected))
+                Ok((run.traces, run.samples, run.rejected, run.scores))
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -208,6 +222,7 @@ impl OrderMcmc {
             n,
             schedule: &schedule,
             traces: &traces,
+            scores: &scores,
             sample_masks: &sample_masks,
             rejected,
             n_params,
@@ -247,6 +262,41 @@ struct OrderWalker<T> {
     pos_scratch: Vec<usize>,
 }
 
+impl<T: ChainTarget> OrderWalker<T> {
+    /// Metropolis–Hastings step that reverses a uniformly chosen covered edge `x -> y` and
+    /// swaps `x` and `y` in the order, at inverse temperature `beta`.
+    ///
+    /// A node between `x` and `y` in the order is neither a parent of `y` (those are `x` and the
+    /// parents of `x`, which precede `x`) nor a parent of `x`; it may only be a child of `x`,
+    /// which the swap would put before its parent, so such a state is left as it is. The swap is
+    /// its own inverse, and no child of `y` lies between the two, so the reverse move exists
+    /// exactly when the forward one does and the proposal ratio is the ratio of covered counts.
+    fn reverse_covered_edge(&mut self, beta: f64, rng: &mut CausalRng) {
+        let Some((x, y, covered)) = propose_covered_reversal(self.mask, self.n, rng) else {
+            return;
+        };
+        fill_position_map(&self.order, &mut self.pos_scratch);
+        let (a, b) = (self.pos_scratch[x], self.pos_scratch[y]);
+        debug_assert!(a < b, "an edge points forward in the order");
+        if a >= b || self.order[a + 1..b].iter().any(|&z| has_edge(self.mask, self.n, x, z)) {
+            return;
+        }
+        let proposal = reversed_edge(self.mask, self.n, x, y);
+        let Some(score) = self
+            .target
+            .score(proposal)
+            .map(|score| score - log_topological_order_count(proposal, self.n))
+        else {
+            return;
+        };
+        if accept_covered_reversal((beta, self.cur, score), covered, proposal, self.n, rng) {
+            self.order.swap(a, b);
+            self.mask = proposal;
+            self.cur = score;
+        }
+    }
+}
+
 impl<T: ChainTarget> MaskChain for OrderWalker<T> {
     type Sample = AdjacencyMask;
 
@@ -262,6 +312,14 @@ impl<T: ChainTarget> MaskChain for OrderWalker<T> {
 
     fn cancel_policy(&self) -> MaskCancel {
         MaskCancel::Break
+    }
+
+    fn exact_move(&mut self, rng: &mut CausalRng, beta: f64) -> bool {
+        if self.n >= EQUIVALENCE_WALK_MIN_NODES && rng.next_f64() < EQUIVALENCE_WALK_PROBABILITY {
+            self.reverse_covered_edge(beta, rng);
+            return true;
+        }
+        false
     }
 
     fn propose(&mut self, rng: &mut CausalRng) -> u64 {
@@ -318,11 +376,25 @@ fn propose_order(
     new_order.extend_from_slice(order);
     let mut new_mask = mask;
     let u = rng.next_f64();
-    if u < 0.35 && n >= 2 {
+    // Above the equivalence-walk size a share of the transpositions becomes node relocations:
+    // an adjacent transposition moves an order by one place, so over `n!` orders it is a slow
+    // random walk, while a relocation moves one node anywhere and reshapes the order at once.
+    let relocate = n >= EQUIVALENCE_WALK_MIN_NODES;
+    let (adjacent_below, relocate_below, swap_below) =
+        if relocate { (0.2, 0.45, 0.55) } else { (0.35, 0.35, 0.55) };
+    if u < adjacent_below && n >= 2 {
         let k = crate::indexing::bounded_index(rng.next_u64(), n - 1);
         new_order.swap(k, k + 1);
         new_mask = reorient_skeleton(mask, new_order, n, pos);
-    } else if u < 0.55 && n >= 3 {
+    } else if relocate && u < relocate_below {
+        let from = crate::indexing::bounded_index(rng.next_u64(), n);
+        let to = crate::indexing::bounded_index(rng.next_u64(), n);
+        if from != to {
+            let node = new_order.remove(from);
+            new_order.insert(to, node);
+            new_mask = reorient_skeleton(mask, new_order, n, pos);
+        }
+    } else if u < swap_below && n >= 3 {
         let a = crate::indexing::bounded_index(rng.next_u64(), n);
         let b = crate::indexing::bounded_index(rng.next_u64(), n);
         if a != b {
@@ -430,38 +502,69 @@ mod tests {
         let (draws, thin) = (6_000usize, 5usize);
         let n_params = n_directed_edges(n);
         let ladder = [1.0, 0.5];
-        let (_, samples, _) = run_parallel_mask_chains(&ctx, 4, draws, n_params, |chain, inner| {
-            let mut rng = inner.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
-            let mut replicas: Vec<_> = ladder
-                .iter()
-                .map(|_| OrderWalker {
-                    n,
-                    target: crate::test_tables::PriorOnlyTarget(&table),
-                    order: (0..n).collect(),
-                    mask: AdjacencyMask::EMPTY,
-                    cur: -log_topological_order_count(AdjacencyMask::EMPTY, n),
-                    pending_order: (0..n).collect(),
-                    pending_mask: AdjacencyMask::EMPTY,
-                    pos_scratch: Vec::with_capacity(n),
-                })
-                .collect();
-            let plan = MaskChainPlan {
-                chain_index: chain,
-                n_warmup: 5_000,
-                n_draws: draws,
-                thin,
-                n_params,
-            };
-            let run = run_tempered_mask_chain(&plan, inner, &mut rng, &mut replicas, &ladder)?;
-            Ok((run.traces, run.samples, run.rejected))
-        })
-        .unwrap();
+        let (_, samples, _, _) =
+            run_parallel_mask_chains(&ctx, 4, draws, n_params, |chain, inner| {
+                let mut rng = inner.rng.stream_for(StreamDomain::McmcOrder, chain as u64);
+                let mut replicas: Vec<_> = ladder
+                    .iter()
+                    .map(|_| OrderWalker {
+                        n,
+                        target: crate::test_tables::PriorOnlyTarget(&table),
+                        order: (0..n).collect(),
+                        mask: AdjacencyMask::EMPTY,
+                        cur: -log_topological_order_count(AdjacencyMask::EMPTY, n),
+                        pending_order: (0..n).collect(),
+                        pending_mask: AdjacencyMask::EMPTY,
+                        pos_scratch: Vec::with_capacity(n),
+                    })
+                    .collect();
+                let plan = MaskChainPlan {
+                    chain_index: chain,
+                    n_warmup: 5_000,
+                    n_draws: draws,
+                    thin,
+                    n_params,
+                };
+                let run = run_tempered_mask_chain(&plan, inner, &mut rng, &mut replicas, &ladder)?;
+                Ok((run.traces, run.samples, run.rejected, run.scores))
+            })
+            .unwrap();
         crate::test_tables::assert_rooted_forest_law(
             n,
             &samples,
             600,
             &[(0, 1), (4, 7), (9, 8), (8, 9), (9, 0)],
         );
+    }
+
+    /// Every proposal at ten nodes (relocations included) is a permutation of the order and a
+    /// mask whose edges all point forward in it, and proposals change every position of
+    /// the order. The prior-only law test above then checks the invariance of the whole
+    /// move set, since at ten nodes it proposes relocations.
+    #[test]
+    fn order_proposals_keep_the_mask_compatible_with_the_order() {
+        let n = 10;
+        let mut rng = antecedent_core::CausalRng::from_seed(5);
+        let (mut order, mut mask) = ((0..n).collect::<Vec<_>>(), AdjacencyMask::EMPTY);
+        let (mut proposed, mut pos) = (Vec::new(), Vec::new());
+        let mut moved_to = [false; 10];
+        for _ in 0..4_000 {
+            let new_mask = propose_order(&order, mask, n, &mut rng, &mut proposed, &mut pos);
+            let mut sorted = proposed.clone();
+            sorted.sort_unstable();
+            assert_eq!(sorted, (0..n).collect::<Vec<_>>());
+            fill_position_map(&proposed, &mut pos);
+            for i in 0..n {
+                for j in 0..n {
+                    assert!(!has_edge(new_mask, n, i, j) || pos[i] < pos[j]);
+                }
+            }
+            for p in (0..n).filter(|&p| proposed[p] != order[p]) {
+                moved_to[p] = true;
+            }
+            (order, mask) = (proposed.clone(), new_mask);
+        }
+        assert!(moved_to.iter().all(|&m| m), "{moved_to:?}");
     }
 
     #[test]
