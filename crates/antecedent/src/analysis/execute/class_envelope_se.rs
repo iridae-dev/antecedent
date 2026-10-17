@@ -177,20 +177,8 @@ impl TemporalAtomDesign {
         })
     }
 
-    /// Prepare a multi-step Sustained atom.
-    pub fn sequential(
-        data: &TimeSeriesData,
-        graph: &TemporalDag,
-        indexer: &TemporalIndexer,
-        estimand: &IdentifiedEstimand,
-        query: &TemporalEffectQuery,
-        status: IdentificationStatus,
-        ctx: &ExecutionContext,
-    ) -> Result<Self, CausalError> {
-        Self::sequential_with_gaps(data, graph, indexer, estimand, query, status, false, ctx)
-    }
-
-    /// [`Self::sequential`], on a series that may have missing time points when `gaps` is set.
+    /// Prepare a multi-step Sustained atom, on a series that may have missing time points when
+    /// `gaps` is set.
     #[allow(
         clippy::too_many_arguments,
         reason = "the sequential envelope's inputs plus the gap switch; each is a distinct caller input"
@@ -231,6 +219,13 @@ impl TemporalAtomDesign {
             Self::Linear { rows, .. } => antecedent_estimate::GappedAlignedRows::contiguous(*rows),
             Self::Sequential { design, .. } => design.gapped_rows(),
         }
+    }
+
+    /// The atom's windows on the original window axis with their intactness, for the row
+    /// accounting of a mixture fitted on a series with gaps.
+    pub fn window_selection(&self) -> antecedent_estimate::GapSelection {
+        let rows = self.gapped_rows();
+        antecedent_estimate::GapSelection { first_time: rows.first_time, complete: rows.complete }
     }
 
     /// Whether the atom was fit on a series with dropped windows.

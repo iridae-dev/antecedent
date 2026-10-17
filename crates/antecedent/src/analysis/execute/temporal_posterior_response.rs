@@ -568,6 +568,7 @@ impl super::Study {
                 query: pulse,
                 split: self.split.as_ref(),
                 time_index: data.time_index(),
+                gaps: false,
             }),
         }
         .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?;
@@ -636,6 +637,7 @@ impl super::Study {
                 query: pulse,
                 split: self.split.as_ref(),
                 time_index: data.time_index(),
+                gaps: false,
             }),
         }
         .run(&envelope_refute_atoms(&fits)?, &mut EstimationWorkspace::default(), ctx)?;

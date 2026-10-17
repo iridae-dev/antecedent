@@ -11,7 +11,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sequential_validation::{SequentialValidation, SequentialValidationAtom};
-use super::temporal_effect_core::FitFinishMeta;
+use super::temporal_effect_core::{FitFinishMeta, mixture_read_variables, shared_gap_report};
 use super::temporal_path::{temporal_class_envelope_diagnostic, temporal_class_structural_mixture};
 use super::{
     Arc, BayesianGComputationAte, CausalError, CausalPosterior, ClassLinearAtoms, Diagnostic,
@@ -20,10 +20,10 @@ use super::{
     GraphIdentFlag, IDENTIFIED_SET_INTERVAL_LEVEL, IdentificationResult, IdentificationStatus,
     IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifierId,
     InferenceDiagnostics, InferenceMode, PhysicalExecutionPlan, PredictiveCheckReport, RefuteSuite,
-    SequentialAtomBlock, Strategy, TableView, TabularData, TemporalDag, TemporalEffectQuery,
-    TemporalRefutation, TimeSeriesData, UNFOLDED_LINEAR_SEM, WeightedGraphSamples,
-    aggregate_effect_envelope, bayesian_gcomp, class_mixture_estimate, completion_fit_seed,
-    effect_from_posterior, envelope_se_omits_between_atom_variance,
+    SequentialAtomBlock, Strategy, TableView, TabularData, TemporalAtomDesign, TemporalDag,
+    TemporalEffectQuery, TemporalRefutation, TimeSeriesData, UNFOLDED_LINEAR_SEM,
+    WeightedGraphSamples, aggregate_effect_envelope, bayesian_gcomp, class_mixture_estimate,
+    completion_fit_seed, effect_from_posterior, envelope_se_omits_between_atom_variance,
     envelope_shared_block_diagnostics, fit_class_linear_atoms, identification_status_ok_for_case,
     identified_set_interval_diagnostics, mag_sequential_unevaluable_diagnostic,
     mix_weighted_analytic_se, nan_effect, posterior_identified_set_interval, provenance_ids,
@@ -66,6 +66,8 @@ pub(super) struct TemporalClassEffectFit {
     pub cancelled: bool,
     /// A point value with no published interval or posterior.
     pub point_only: bool,
+    /// The windows a series with declared complete-case handling lost, when it was declared.
+    pub missing_data: Option<crate::result::MissingDataReport>,
 }
 
 impl TemporalClassEffectFit {
@@ -178,6 +180,7 @@ fn fit_class_conditional(
         bootstrap_replicates_ok: None,
         cancelled: false,
         point_only: true,
+        missing_data: None,
     })
 }
 
@@ -186,6 +189,10 @@ fn fit_class_conditional(
 /// The envelope is a frozen-weight enumeration of completions, so there is no
 /// class prior; the Bayesian counterpart mixes posteriors and lives with its
 /// own operation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "each completion's fit, its window selection and the shared bootstrap read the same frozen enumeration"
+)]
 pub(super) fn fit_class_linear(
     inputs: &TemporalClassEffectInputs<'_>,
     ctx: &ExecutionContext,
@@ -251,7 +258,7 @@ pub(super) fn fit_class_linear(
         suite: inputs.refute,
         estimator: EstimatorId::TemporalLinearAdjustment.as_str(),
         custom: inputs.custom_validators,
-        temporal: Some(TemporalRefutation { query, split, time_index: data.time_index() }),
+        temporal: Some(TemporalRefutation { query, split, time_index: data.time_index(), gaps }),
     }
     .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?;
     diagnostics.extend(refute_diagnostics);
@@ -274,6 +281,17 @@ pub(super) fn fit_class_linear(
         &values,
     );
     structural.identified_set_interval = identified_set_interval;
+    let missing_data = if gaps {
+        let variables = mixture_read_variables(
+            [query.treatment, query.outcome],
+            refute_atoms.iter().map(|atom| &atom.estimand),
+            std::iter::empty(),
+        );
+        let windows: Vec<_> = designs.iter().map(TemporalAtomDesign::window_selection).collect();
+        Some(shared_gap_report(data, &variables, &windows)?)
+    } else {
+        None
+    };
     Ok(TemporalClassEffectFit {
         estimand,
         estimator_id: EstimatorId::TemporalLinearAdjustment,
@@ -286,6 +304,7 @@ pub(super) fn fit_class_linear(
         structural,
         predictive_checks: Vec::new(),
         point_only: false,
+        missing_data,
     })
 }
 
@@ -316,6 +335,8 @@ struct SequentialClassRun {
     weighted_ate: f64,
     total_w: f64,
     diagnostics: Vec<Diagnostic>,
+    /// The atoms' windows on the original window axis, when the series has gaps.
+    windows: Vec<antecedent_estimate::GapSelection>,
 }
 
 impl SequentialClassRun {
@@ -335,6 +356,7 @@ impl SequentialClassRun {
             weighted_ate: 0.0,
             total_w: 0.0,
             diagnostics,
+            windows: Vec::new(),
         }
     }
 }
@@ -342,6 +364,10 @@ impl SequentialClassRun {
 /// Multi-step sustained fit of a class envelope: a sequential g-computation per
 /// directed completion, mixed by the completion enumeration (frequentist) or by
 /// the caller's class prior (Bayesian).
+#[allow(
+    clippy::too_many_lines,
+    reason = "each completion's sequential fit, its window selection and the shared bootstrap read the same frozen enumeration"
+)]
 pub(super) fn fit_class_sequential(
     inputs: &TemporalClassEffectInputs<'_>,
     ctx: &ExecutionContext,
@@ -425,6 +451,16 @@ pub(super) fn fit_class_sequential(
     structural.unevaluable_mass = if total > 0.0 { run.unevaluable_weight / total } else { 0.0 };
     structural.unidentified_mass =
         (structural.unidentified_mass - structural.unevaluable_mass).max(0.0);
+    let missing_data = if run.windows.is_empty() {
+        None
+    } else {
+        let variables = mixture_read_variables(
+            [inputs.query.treatment, inputs.query.outcome],
+            run.seq_atoms.iter().map(|atom| &atom.estimand),
+            run.seq_atoms.iter().map(|atom| &atom.graph),
+        );
+        Some(shared_gap_report(inputs.data, &variables, &run.windows)?)
+    };
     Ok(TemporalClassEffectFit {
         estimand,
         estimator_id: EstimatorId::TemporalSequentialGcomp,
@@ -437,6 +473,7 @@ pub(super) fn fit_class_sequential(
         structural,
         predictive_checks,
         point_only: false,
+        missing_data,
     })
 }
 
@@ -472,7 +509,7 @@ fn fit_sequential_completion(
     run.flags.push(GraphIdentFlag::Identified);
     let mut assumptions = case.result.required_assumptions.clone();
     assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
-    let (estimate, posterior, mechanisms, seed) = fit_completion_mechanisms(
+    let (estimate, posterior, mechanisms, seed, selection) = fit_completion_mechanisms(
         inputs,
         bayes,
         (&run.seq_atoms, &run.seq_atom_seeds),
@@ -481,6 +518,7 @@ fn fit_sequential_completion(
         ctx,
     )?;
     run.seq_atom_seeds.push(seed);
+    run.windows.extend(selection);
     run.atom_values[i] = Some(estimate.ate);
     run.weighted_ate += weight * estimate.ate;
     run.total_w += weight;
@@ -517,8 +555,13 @@ type CompletionDesign<'a> = (
 );
 
 /// A completion's estimate, posterior, fitted mechanisms and the seed it drew on.
-type CompletionMechanismFit =
-    (EffectEstimate, Option<CausalPosterior>, Vec<SequentialBayesianMechanism>, u64);
+type CompletionMechanismFit = (
+    EffectEstimate,
+    Option<CausalPosterior>,
+    Vec<SequentialBayesianMechanism>,
+    u64,
+    Option<antecedent_estimate::GapSelection>,
+);
 
 /// One completion's sustained-window fit and posterior. Each completion's
 /// posterior draws from its own seed stream; a completion whose fitted
@@ -537,7 +580,7 @@ fn fit_completion_mechanisms(
     loop {
         let mut mechanisms = Vec::new();
         let completion_bayes = bayes.map(|est| BayesianGComputationAte { seed, ..est.clone() });
-        let (estimate, posterior, _) =
+        let (estimate, posterior, selection) =
             antecedent_estimate::temporal_sequential::estimate_sustained_window_gaps_if(
                 &antecedent_estimate::SequentialProblem { data, graph: dag, indexer, estimand },
                 query,
@@ -571,7 +614,7 @@ fn fit_completion_mechanisms(
             .map(|(_, atom_seed)| *atom_seed);
         match shared_seed {
             Some(shared) => seed = shared,
-            None => return Ok((estimate, posterior, mechanisms, seed)),
+            None => return Ok((estimate, posterior, mechanisms, seed, selection)),
         }
     }
 }

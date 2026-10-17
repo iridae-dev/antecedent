@@ -17,7 +17,9 @@ use antecedent_core::{
     TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::{MissingDeclaration, MissingPolicy, TabularData, TimeSeriesData};
-use antecedent_graph::{TemporalDag, ensure_lagged};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
+use antecedent_prob::InferenceDiagnostics;
 
 /// `SplitMix64` uniform stream.
 struct Stream(u64);
@@ -1014,4 +1016,504 @@ fn mediation_refuters_on_a_series_with_gaps_refit_the_intact_windows() {
     )
     .unwrap_err();
     assert_eq!(refused.reason_code(), Some("missing_policy_not_applicable"), "{refused}");
+}
+
+// ---------------------------------------------------------------- mixtures over graph classes
+
+/// Slope of `y` on `t` in the regression of `y` on an intercept, `t` and (when given) `z`,
+/// with its OLS standard error: the independent oracle of one mixture atom on its intact windows.
+fn slope_and_se(t: &[f64], z: Option<&[f64]>, y: &[f64]) -> (f64, f64) {
+    let n = t.len() as f64;
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / n;
+    let (mt, my) = (mean(t), mean(y));
+    // `t` with the intercept (and `z`) partialled out: the slope is its regression on `y`.
+    let (tilde, z_part): (Vec<f64>, Option<(Vec<f64>, f64)>) = match z {
+        None => (t.iter().map(|v| v - mt).collect(), None),
+        Some(z) => {
+            let mz = mean(z);
+            let centred: Vec<f64> = z.iter().map(|v| v - mz).collect();
+            let szz: f64 = centred.iter().map(|v| v * v).sum();
+            let stz: f64 = t.iter().zip(&centred).map(|(a, b)| (a - mt) * b).sum();
+            let tilde = t.iter().zip(&centred).map(|(a, b)| (a - mt) - stz / szz * b).collect();
+            (tilde, Some((centred, szz)))
+        }
+    };
+    let stt: f64 = tilde.iter().map(|v| v * v).sum();
+    let slope = tilde.iter().zip(y).map(|(a, b)| a * (b - my)).sum::<f64>() / stt;
+    // Full-regression residuals: take the `t` part out of `y`, then regress what is left on `z`.
+    let rest: Vec<f64> = t.iter().zip(y).map(|(a, b)| (b - my) - slope * (a - mt)).collect();
+    let (residuals, parameters): (Vec<f64>, f64) = match &z_part {
+        None => (rest, 2.0),
+        Some((centred, szz)) => {
+            let d = centred.iter().zip(&rest).map(|(a, b)| a * b).sum::<f64>() / szz;
+            (centred.iter().zip(&rest).map(|(a, b)| b - d * a).collect(), 3.0)
+        }
+    };
+    let rss: f64 = residuals.iter().map(|v| v * v).sum();
+    (slope, (rss / (n - parameters) / stt).sqrt())
+}
+
+/// The times of the lag-1 windows that read none of `gaps`, with the regressor, adjuster and
+/// outcome of each: `(t_{s-1}, z_{s-1}, y_s)`.
+fn intact_triples(
+    series: (&[f64], &[f64], &[f64]),
+    gaps: &[usize],
+) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    let (t, y, z) = series;
+    let kept: Vec<usize> = (1..t.len()).filter(|s| !gaps.contains(&(s - 1))).collect();
+    (
+        kept.iter().map(|&s| t[s - 1]).collect(),
+        kept.iter().map(|&s| z[s - 1]).collect(),
+        kept.iter().map(|&s| y[s]).collect(),
+    )
+}
+
+/// A simulated series with its three generated columns.
+type SimulatedColumns = (Vec<f64>, Vec<f64>, Vec<f64>);
+
+fn missing_count(accounting: &antecedent_data::RowAccounting, name: &str) -> usize {
+    accounting
+        .missing_by_variable
+        .iter()
+        .find(|(variable, _)| variable.as_ref() == name)
+        .map_or_else(|| panic!("no missing-point count for `{name}`"), |(_, count)| *count)
+}
+
+const CLASS_TRUTH: f64 = 2.0;
+const CLASS_NOISE: f64 = 0.35;
+
+/// `t_s = 0.4 z_s + 0.5 u_s`, `y_s = 2 t_{s-1} + 0.35 e_s` over `[t, y, z]`, with `t` missing
+/// at `gaps` and `y` overwritten at the `garbled` times. Returns the series and the true
+/// `(t, y, z)` columns.
+fn class_series(n: usize, gaps: &[usize], garbled: &[usize]) -> (TimeSeriesData, SimulatedColumns) {
+    let mut noise = Stream(0xC1A5_5E71);
+    let z: Vec<f64> = (0..n).map(|_| noise.normal()).collect();
+    let t: Vec<f64> = z.iter().map(|z| 0.4 * z + 0.5 * noise.normal()).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|s| if s == 0 { 0.0 } else { CLASS_TRUTH * t[s - 1] + CLASS_NOISE * noise.normal() })
+        .collect();
+    let observed_t: Vec<f64> =
+        t.iter().enumerate().map(|(s, v)| if gaps.contains(&s) { f64::NAN } else { *v }).collect();
+    let observed_y: Vec<f64> =
+        y.iter().enumerate().map(|(s, v)| if garbled.contains(&s) { 1.0e3 } else { *v }).collect();
+    let data = TimeSeriesData::from_f64_columns(
+        [("t", observed_t.as_slice()), ("y", observed_y.as_slice()), ("z", z.as_slice())],
+        1,
+    )
+    .unwrap();
+    (data, (t, y, z))
+}
+
+/// `z_1 - t_1`, `t_1 -> y_0`, `z_1 -> y_0`: the completions `z_1 -> t_1` (adjust for `z`) and
+/// `t_1 -> z_1` (no adjustment) both identify the lag-1 effect.
+fn class_cpdag() -> TemporalCpdag {
+    let mut graph = TemporalCpdag::empty();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_undirected(z1, t1).unwrap();
+    graph
+}
+
+fn run_class(
+    data: &TimeSeriesData,
+    declared: bool,
+    bootstrap: u32,
+) -> Result<StudyResult, antecedent::CausalError> {
+    let mut builder = Study::series(data.clone())
+        .graph(class_cpdag())
+        .query(pulse())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(bootstrap);
+    if declared {
+        builder = builder.missing(declare(MissingPolicy::CompleteCase));
+    }
+    builder.build()?.run(&ctx())
+}
+
+#[test]
+fn the_frequentist_class_mixture_on_a_series_with_gaps_recovers_the_known_effect() {
+    let gaps = [100, 101, 250];
+    let n = 420;
+    let (data, (t, y, z)) = class_series(n, &gaps, &[]);
+    // Undeclared, the gap refuses as it always has.
+    assert!(run_class(&data, false, 0).is_err());
+    let result = run_class(&data, true, 200).unwrap();
+    let effect = result.estimate.as_effect().unwrap();
+
+    // Each completion's effect is the OLS slope on the lag-1 windows that read no gap: the
+    // adjusted completion regresses on `z_{s-1}` too. The mixture averages the two.
+    let (tl, zl, yl) = intact_triples((&t, &y, &z), &gaps);
+    let (adjusted, se_adjusted) = slope_and_se(&tl, Some(&zl), &yl);
+    let (plain, se_plain) = slope_and_se(&tl, None, &yl);
+    let (low, high) = (adjusted.min(plain), adjusted.max(plain));
+    assert!(
+        effect.ate >= low - 1e-9 && effect.ate <= high + 1e-9,
+        "mixture {} outside the atoms [{low}, {high}]",
+        effect.ate
+    );
+
+    // Tolerance from the reported SE. The estimate is a mean of two unbiased OLS slopes with
+    // noise sd 0.35 on about 417 windows, so its sampling sd is 0.35 / (sqrt(417) * sd(t | z)),
+    // between 0.35 / (20.4 * 0.64) = 0.027 (plain) and 0.35 / (20.4 * 0.5) = 0.034 (adjusted);
+    // the block-bootstrap SE has to land in that range up to a factor two either way. The
+    // estimate then sits within 4 reported SEs of the truth (a 6e-5 two-sided tail).
+    let se = effect.se_bootstrap().expect("a shared block-bootstrap SE");
+    assert!(
+        se > 0.5 * se_plain.min(se_adjusted) && se < 2.0 * se_plain.max(se_adjusted),
+        "bootstrap SE {se} vs atoms {se_plain} / {se_adjusted}"
+    );
+    assert!((effect.ate - CLASS_TRUTH).abs() < 4.0 * se, "mixture {} vs truth", effect.ate);
+    assert!(effect.uncertainty.bootstrap.replicates_ok.is_some_and(|ok| ok >= 190));
+
+    // The windows that read a gap are dropped by their series time and counted once.
+    let accounting = &result.missing_data.as_ref().expect("a missing-data report").accounting;
+    assert_eq!(accounting.dropped_rows.as_ref(), [101, 102, 251]);
+    assert_eq!(accounting.rows_kept + 3, accounting.rows_total);
+    assert_eq!(missing_count(accounting, "t"), 3);
+
+    // No window that was dropped reaches the fit or a bootstrap block: overwriting the outcome
+    // inside the dropped windows leaves the estimate and its SE (same seeds) unchanged.
+    let (garbled, _) = class_series(n, &gaps, &[101, 102, 251]);
+    let again = run_class(&garbled, true, 200).unwrap();
+    let again = again.estimate.as_effect().unwrap();
+    assert!((again.ate - effect.ate).abs() < 1e-9, "{} vs {}", again.ate, effect.ate);
+    assert!((again.se_bootstrap().unwrap() - se).abs() < 1e-9);
+}
+
+const POSTERIOR_TRUTH: f64 = 2.0;
+
+/// One identified class-posterior atom (weight 1) over `[t, y, z, w]`: `t_1 -> y_0` and
+/// `z_1 -> y_0` at lag 1, `z -> t` and `w -> t` contemporaneously, so `{z_1}` adjusts the
+/// lag-1 effect of `t` on `y`.
+fn class_posterior() -> GraphPosterior {
+    let n = 4;
+    let contemporaneous = set_edge(set_edge(0, n, 2, 0, true), n, 3, 0, true);
+    let lag_mask = (1u64 << 1) | (1u64 << 9);
+    GraphPosterior::new(
+        n,
+        vec![1.0],
+        vec![contemporaneous],
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("gapped_class_posterior"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Cpdag)
+    .with_lagged_marginals(1, vec![0.0; n * n])
+    .unwrap()
+    .with_lag_masks(vec![lag_mask])
+    .unwrap()
+}
+
+/// `y_s = 1 + 2 t_{s-1} + 0.8 z_{s-1} + e_s` over `[t, y, z, w]` with `t` missing at `gaps` and
+/// `y` overwritten at the `garbled` times. Independent draws, or, when `persistent`, a regressor
+/// and an error that each repeat two steps later (`x_s = 0.8 x_{s-2} + 0.6 v_s`). Returns the
+/// series and the true `(t, y, z)` columns.
+fn posterior_series(
+    n: usize,
+    gaps: &[usize],
+    persistent: bool,
+    garbled: &[usize],
+) -> (TimeSeriesData, SimulatedColumns) {
+    let mut noise = Stream(0x9057_E410);
+    let (mut t, mut y) = (vec![0.0; n], vec![0.0; n]);
+    let (mut z, mut w, mut e) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for s in 0..n {
+        z[s] = noise.normal();
+        w[s] = 0.4 * z[s] + noise.normal();
+        if persistent {
+            let (t2, e2) = if s >= 2 { (t[s - 2], e[s - 2]) } else { (0.0, 0.0) };
+            t[s] = 0.8 * t2 + 0.6 * noise.normal();
+            e[s] = 0.8 * e2 + 0.6 * noise.normal();
+        } else {
+            t[s] = 0.5 * z[s] + 0.4 * w[s] + noise.normal();
+            e[s] = noise.normal();
+        }
+        let (t1, z1) = if s == 0 { (0.0, 0.0) } else { (t[s - 1], z[s - 1]) };
+        y[s] = 1.0 + POSTERIOR_TRUTH * t1 + 0.8 * z1 + e[s];
+    }
+    let observed_t: Vec<f64> =
+        t.iter().enumerate().map(|(s, v)| if gaps.contains(&s) { f64::NAN } else { *v }).collect();
+    let observed_y: Vec<f64> =
+        y.iter().enumerate().map(|(s, v)| if garbled.contains(&s) { 1.0e3 } else { *v }).collect();
+    let data = TimeSeriesData::from_f64_columns(
+        [
+            ("t", observed_t.as_slice()),
+            ("y", observed_y.as_slice()),
+            ("z", z.as_slice()),
+            ("w", w.as_slice()),
+        ],
+        1,
+    )
+    .unwrap();
+    (data, (t, y, z))
+}
+
+fn run_class_posterior(
+    data: &TimeSeriesData,
+    inference: InferenceMode,
+    bootstrap: u32,
+    declared: bool,
+) -> Result<StudyResult, antecedent::CausalError> {
+    run_class_posterior_with(data, inference, (RefuteSuite::None, bootstrap), declared)
+}
+
+fn run_class_posterior_with(
+    data: &TimeSeriesData,
+    inference: InferenceMode,
+    (suite, bootstrap): (RefuteSuite, u32),
+    declared: bool,
+) -> Result<StudyResult, antecedent::CausalError> {
+    let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1)
+        .with_max_history_lag(Some(1));
+    let mut builder = Study::series(data.clone())
+        .graph_posterior(class_posterior())
+        .temporal_query(query)
+        .inference(inference)
+        .refute(suite)
+        .bootstrap_replicates(bootstrap);
+    if declared {
+        builder = builder.missing(declare(MissingPolicy::CompleteCase));
+    }
+    builder.build()?.run(&ctx())
+}
+
+fn bayesian_class() -> InferenceMode {
+    InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(1000).prior_scale(1_000.0))
+}
+
+#[test]
+fn the_bayesian_class_mixture_on_a_series_with_gaps_recovers_the_known_effect() {
+    let gaps = [100, 101, 250, 333];
+    let n = 420;
+    let (data, (t, y, z)) = posterior_series(n, &gaps, false, &[]);
+    // Undeclared, the gap refuses as it always has.
+    assert!(run_class_posterior(&data, bayesian_class(), 0, false).is_err());
+    let result = run_class_posterior(&data, bayesian_class(), 0, true).unwrap();
+
+    // The atom adjusts for `z_{s-1}` and is fitted on the 415 or so windows that read no gap.
+    let (tl, zl, yl) = intact_triples((&t, &y, &z), &gaps);
+    let (slope, se_ols) = slope_and_se(&tl, Some(&zl), &yl);
+    let posterior =
+        result.posterior.as_ref().expect("a single identified atom keeps its posterior");
+    let col = posterior.effect_column().expect("an effect column");
+    let (mean, sd) = (posterior.summaries.mean[col], posterior.summaries.sd[col]);
+
+    // A diffuse prior leaves the posterior mean at the OLS slope of the adjusted regression (the
+    // adjustment set may also carry the pure-noise `w_{s-1}`, which moves the slope by well
+    // under an SE). Its sd is the OLS SE of the adjusted slope,
+    // 1 / sqrt(415 * var(t | z)) = 1 / sqrt(415 * 1.16) = 0.046 (t = 0.66 z + 0.4 e_w + e_t),
+    // inflated by the tempering factor, which is 1 for independent scores and at most about
+    // 1.4 from the Bartlett estimate's own noise; the sd has to sit within [0.5, 2.5] of the OLS
+    // SE. The mean then lies within 4 posterior sds of the truth (a 6e-5 two-sided tail).
+    assert!((mean - slope).abs() < 1.5 * se_ols, "posterior mean {mean} vs OLS slope {slope}");
+    assert!(sd > 0.5 * se_ols && sd < 2.5 * se_ols, "posterior sd {sd} vs OLS SE {se_ols}");
+    assert!((mean - POSTERIOR_TRUTH).abs() < 4.0 * sd, "posterior mean {mean} vs truth");
+
+    // The dropped windows are reported by series time, and the missing points per variable.
+    let accounting = &result.missing_data.as_ref().expect("a missing-data report").accounting;
+    assert_eq!(accounting.dropped_rows.as_ref(), [101, 102, 251, 334]);
+    assert_eq!(accounting.rows_kept + 4, accounting.rows_total);
+    assert_eq!(missing_count(accounting, "t"), 4);
+}
+
+#[test]
+fn the_bayesian_class_mixture_tempers_segment_wise_across_gaps() {
+    // `t` is missing at every odd time, so the intact windows are the odd times and no two of
+    // them are adjacent: every window is its own segment. The regressor and the error each
+    // repeat two steps later (x_s = 0.8 x_{s-2} + 0.6 v_s), which is the spacing between
+    // consecutive intact windows, so the estimating scores of consecutive rows have
+    // autocorrelation 0.8 * 0.8 = 0.64. A tempering that summed autocovariances over consecutive
+    // rows (the compacted design) would see that and inflate the posterior sd by about
+    // sqrt((1 + 0.64) / (1 - 0.64)) = 2.1; the segment-wise Bartlett ratio has no pair of rows
+    // in one segment, so it is exactly one and the posterior sd is the plain OLS SE.
+    let n = 400;
+    let gaps: Vec<usize> = (1..n).step_by(2).collect();
+    let (data, (t, y, z)) = posterior_series(n, &gaps, true, &[]);
+    let result = run_class_posterior(&data, bayesian_class(), 0, true).unwrap();
+    let (tl, zl, yl) = intact_triples((&t, &y, &z), &gaps);
+    assert!(tl.len() > 190, "{} windows", tl.len());
+    let (_, se_ols) = slope_and_se(&tl, Some(&zl), &yl);
+    let posterior = result.posterior.as_ref().expect("a posterior");
+    let sd = posterior.summaries.sd[posterior.effect_column().expect("an effect column")];
+    assert!(
+        sd > 0.8 * se_ols && sd < 1.25 * se_ols,
+        "posterior sd {sd} vs the untempered OLS SE {se_ols}"
+    );
+    // Window `g + 1` is lost to the gap at `g`, except past the last window.
+    let dropped = &result.missing_data.as_ref().unwrap().accounting.dropped_rows;
+    assert_eq!(dropped.len(), gaps.iter().filter(|gap| **gap + 1 < n).count());
+}
+
+#[test]
+fn the_frequentist_class_posterior_on_a_series_with_gaps_shares_one_gapped_bootstrap() {
+    let gaps = [100, 101, 250, 333];
+    let n = 420;
+    let (data, (t, y, z)) = posterior_series(n, &gaps, false, &[]);
+    let result = run_class_posterior(&data, InferenceMode::Frequentist, 200, true).unwrap();
+    let effect = result.estimate.as_effect().unwrap();
+    let (tl, zl, yl) = intact_triples((&t, &y, &z), &gaps);
+    let (slope, se_ols) = slope_and_se(&tl, Some(&zl), &yl);
+    // The single identified atom is the adjusted OLS slope on the intact windows (the adjustment
+    // set may also carry the pure-noise `w_{s-1}`, which moves the slope by well under an SE).
+    assert!((effect.ate - slope).abs() < 1.5 * se_ols, "{} vs OLS slope {slope}", effect.ate);
+    // The shared block bootstrap SE of independent windows is the OLS SE up to a factor two;
+    // the estimate is then within 4 reported SEs of the truth.
+    let se = effect.se_bootstrap().expect("a shared block-bootstrap SE");
+    assert!(se > 0.5 * se_ols && se < 2.0 * se_ols, "bootstrap SE {se} vs OLS SE {se_ols}");
+    assert!((effect.ate - POSTERIOR_TRUTH).abs() < 4.0 * se, "{} vs truth", effect.ate);
+    let accounting = &result.missing_data.as_ref().unwrap().accounting;
+    assert_eq!(accounting.dropped_rows.as_ref(), [101, 102, 251, 334]);
+
+    // The dropped windows never reach a block: overwriting the outcome inside them changes
+    // neither the estimate nor the SE (same seeds).
+    let (garbled, _) = posterior_series(n, &gaps, false, &[101, 102, 251, 334]);
+    let again = run_class_posterior(&garbled, InferenceMode::Frequentist, 200, true).unwrap();
+    let again = again.estimate.as_effect().unwrap();
+    assert!((again.ate - effect.ate).abs() < 1e-9);
+    assert!((again.se_bootstrap().unwrap() - se).abs() < 1e-9);
+}
+
+#[test]
+fn class_posterior_refuters_on_a_series_with_gaps_refit_the_intact_windows() {
+    let gaps = [100, 101, 250, 333];
+    let (data, _) = posterior_series(420, &gaps, false, &[]);
+    let result =
+        run_class_posterior_with(&data, InferenceMode::Frequentist, (RefuteSuite::Cheap, 60), true)
+            .unwrap();
+    assert!(!result.refutations.is_empty(), "the class refuters ran on the intact windows");
+    assert!((result.estimate.as_effect().unwrap().ate - POSTERIOR_TRUTH).abs() < 0.3);
+}
+
+// ---------------------------------------------------------------- DBN mediation
+
+const DBN_MEDIATED_TRUTH: f64 = 0.8 * 0.55;
+
+/// `t_s ~ N(0, 1)`, `m_s = 0.8 t_{s-1} + 0.4 e`, `y_s = 0.25 t_{s-1} + 0.55 m_s + 0.4 e'` over
+/// `[t, m, y]`, with the mediator missing at `gaps` and `y` overwritten at the `garbled` times.
+/// Returns the series and the true `(t, m, y)` columns.
+fn dbn_mediation_series(
+    n: usize,
+    gaps: &[usize],
+    garbled: &[usize],
+) -> (TimeSeriesData, SimulatedColumns) {
+    let mut noise = Stream(0xDB17_0A11);
+    let t: Vec<f64> = (0..n).map(|_| noise.normal()).collect();
+    let mut m = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for s in 1..n {
+        m[s] = 0.8 * t[s - 1] + 0.4 * noise.normal();
+        y[s] = 0.25 * t[s - 1] + 0.55 * m[s] + 0.4 * noise.normal();
+    }
+    let observed_m: Vec<f64> =
+        m.iter().enumerate().map(|(s, v)| if gaps.contains(&s) { f64::NAN } else { *v }).collect();
+    let observed_y: Vec<f64> =
+        y.iter().enumerate().map(|(s, v)| if garbled.contains(&s) { 1.0e3 } else { *v }).collect();
+    let data = TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("m", observed_m.as_slice()), ("y", observed_y.as_slice())],
+        1,
+    )
+    .unwrap();
+    (data, (t, m, y))
+}
+
+/// One DBN atom (weight 1) over `[t, m, y]`: `m_0 -> y_0` contemporaneously, `t_1 -> m_0` and
+/// `t_1 -> y_0` at lag 1.
+fn dbn_mediation_posterior() -> GraphPosterior {
+    let n = 3;
+    GraphPosterior::new(
+        n,
+        vec![1.0],
+        vec![set_edge(0, n, 1, 2, true)],
+        vec![0.0; n * n],
+        vec![0.0; n * n],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("gapped_dbn_mediation"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Dag)
+    .with_lagged_marginals(1, vec![0.0; n * n])
+    .unwrap()
+    .with_lag_masks(vec![(1u64 << 1) | (1u64 << 2)])
+    .unwrap()
+}
+
+fn run_dbn_mediation(
+    data: &TimeSeriesData,
+    declared: bool,
+    bootstrap: u32,
+) -> Result<StudyResult, antecedent::CausalError> {
+    let query = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        [VariableId::from_raw(1)],
+        MediationContrast::Mediated,
+    )
+    .with_horizons(vec![1])
+    .unwrap();
+    let mut builder = Study::series(data.clone())
+        .graph_posterior(dbn_mediation_posterior())
+        .query(CausalQuery::Mediation(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(bootstrap);
+    if declared {
+        builder = builder.missing(declare(MissingPolicy::CompleteCase));
+    }
+    builder.build()?.run(&ctx())
+}
+
+#[test]
+fn dbn_mediation_on_a_series_with_gaps_recovers_the_known_effect_through_one_gapped_bootstrap() {
+    let gaps = [80, 81, 200, 310];
+    let n = 420;
+    let (data, _) = dbn_mediation_series(n, &gaps, &[]);
+    // Undeclared, the gap refuses as it always has.
+    assert!(run_dbn_mediation(&data, false, 0).is_err());
+    let result = run_dbn_mediation(&data, true, 200).unwrap();
+    let effect = result.estimate.as_effect().unwrap();
+
+    // The mediated effect is a * b with a = 0.8 (t_{s-1} -> m_s) and b = 0.55 (m_s -> y_s).
+    // On the w = 415 windows that read no gap, SE(a) = 0.4 / sqrt(w) = 0.0196 (sd(t) = 1) and,
+    // since var(m | t) = 0.16, SE(b) = 0.4 / (0.4 sqrt(w)) = 0.049, so the delta-method SE of
+    // the product is sqrt((0.55 * 0.0196)^2 + (0.8 * 0.049)^2) = 0.041. The block-bootstrap SE
+    // has to land within a factor two of it, and the estimate within 4 reported SEs of the
+    // truth (a 6e-5 two-sided tail).
+    let windows = (n - 1 - gaps.len()) as f64;
+    let se_theory =
+        ((0.55 * 0.4 / windows.sqrt()).powi(2) + (0.8 * 1.0 / windows.sqrt()).powi(2)).sqrt();
+    let se = effect.se_bootstrap().expect("a shared block-bootstrap SE");
+    assert!(se > 0.5 * se_theory && se < 2.0 * se_theory, "bootstrap SE {se} vs {se_theory}");
+    assert!(
+        (effect.ate - DBN_MEDIATED_TRUTH).abs() < 4.0 * se,
+        "mediated effect {} vs truth {DBN_MEDIATED_TRUTH}",
+        effect.ate
+    );
+    assert!(effect.uncertainty.bootstrap.replicates_ok.is_some_and(|ok| ok >= 190));
+
+    // The windows that read a missing mediator are dropped by series time.
+    let accounting = &result.missing_data.as_ref().expect("a missing-data report").accounting;
+    assert!(gaps.iter().all(|gap| accounting.dropped_rows.contains(&(*gap as u64))));
+    assert_eq!(accounting.rows_kept + accounting.dropped_rows.len(), accounting.rows_total);
+    assert_eq!(missing_count(accounting, "m"), gaps.len());
+
+    // The dropped windows never reach the fit or a bootstrap block: overwriting the outcome
+    // inside them changes neither the estimate nor the SE (same seeds).
+    let (garbled, _) = dbn_mediation_series(n, &gaps, &gaps);
+    let again = run_dbn_mediation(&garbled, true, 200).unwrap();
+    let again = again.estimate.as_effect().unwrap();
+    assert!((again.ate - effect.ate).abs() < 1e-9, "{} vs {}", again.ate, effect.ate);
+    assert!((again.se_bootstrap().unwrap() - se).abs() < 1e-9);
 }

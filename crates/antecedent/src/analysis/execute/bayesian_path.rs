@@ -4,6 +4,7 @@ use super::class_envelope_se::SharedCircularBlockSe;
 use super::sequential_validation::{
     SequentialValidation, SequentialValidationAtom, validate_sequential,
 };
+use super::temporal_effect_core::shared_gap_report;
 use super::{
     Arc, AverageEffectQuery, BayesianGCompWorkspace, BayesianGComputationAte,
     BayesianGraphPosteriorPriorAnchor, BayesianSuiteContext, BayesianTemporalGcomp,
@@ -663,6 +664,8 @@ struct DbnFrequentistAtoms<'a> {
     point_sum: f64,
     point_mass: f64,
     primary: Option<(IdentifiedEstimand, IdentificationResult, antecedent_core::AssumptionSet)>,
+    /// Each atom's windows on the original window axis, when the series has missing time points.
+    windows: Vec<antecedent_estimate::GapSelection>,
 }
 
 /// Published DBN frequentist estimate with its shared-block bootstrap accounting.
@@ -727,6 +730,8 @@ struct DbnBayesianRun<'a> {
     cfg: &'a crate::inference::BayesianConfig,
     sequential_bayes: Option<&'a BayesianGComputationAte>,
     multi_step: bool,
+    /// The series has missing time points: atoms fit their intact lag windows.
+    gaps: bool,
 }
 
 /// One identified DBN atom handed to a per-atom fit.
@@ -767,6 +772,8 @@ struct DbnBayesianAtomFits {
     /// draw extraction) failed: a refusal to estimate, kept apart from structural
     /// non-identification in `unidentified_mass`.
     unevaluable_weight: f64,
+    /// Each fitted atom's windows on the original window axis, when the series has gaps.
+    windows: Vec<antecedent_estimate::GapSelection>,
 }
 
 impl DbnBayesianAtomFits {
@@ -2204,12 +2211,13 @@ impl super::Study {
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
         let (identified, identify_cached) =
             self.dbn_posterior_identification(gp, &vars, query, ctx)?;
+        let gaps = self.admit_posterior_gaps(data, &vars, false)?;
         let mut atoms = Self::estimate_dbn_posterior_frequentist_atoms(
             data,
             gp,
             query,
             &vars,
-            &identified,
+            (&identified, gaps),
             ctx,
         )?;
         let DbnFrequentistBlockEstimate { estimate, identification, estimand, block, point } =
@@ -2231,7 +2239,9 @@ impl super::Study {
             &atoms.atom_estimates,
             point,
         );
-        Ok(self.finish_identified_execute(
+        let missing_data =
+            gaps.then(|| shared_gap_report(data, &vars, &atoms.windows)).transpose()?;
+        let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
@@ -2266,7 +2276,9 @@ impl super::Study {
                 structural_response: Some(structural_response),
                 ..Default::default()
             }),
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
     }
 
     /// The frozen DBN-posterior identification: the prepared cache, or a fresh build.
@@ -2297,12 +2309,13 @@ impl super::Study {
         gp: &GraphPosterior,
         query: &TemporalEffectQuery,
         vars: &[VariableId],
-        identified: &'a super::super::prepared::CachedDbnPosteriorIdentification,
+        (identified, gaps): (&'a super::super::prepared::CachedDbnPosteriorIdentification, bool),
         ctx: &ExecutionContext,
     ) -> Result<DbnFrequentistAtoms<'a>, CausalError> {
         let mut contexts = Vec::new();
         let mut atom_estimates = Vec::new();
         let mut designs = Vec::new();
+        let mut windows = Vec::new();
         let mut point_sum = 0.0;
         let mut point_mass = 0.0;
         let mut primary = None;
@@ -2315,18 +2328,30 @@ impl super::Study {
             let mut assumptions = atom.identification.required_assumptions.clone();
             let design = if query.is_multi_step_sustained() {
                 assumptions.push(sequential_linear_sem_assumption(DBN_LINEAR_SEM));
-                TemporalAtomDesign::sequential(
+                TemporalAtomDesign::sequential_with_gaps(
                     data,
                     &crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, atom.key, vars)?,
                     &atom.indexer,
                     &atom.estimand,
                     query,
                     atom.identification.status,
+                    gaps,
                     ctx,
                 )?
             } else {
-                TemporalAtomDesign::linear(data, &atom.estimand, query, &atom.indexer, None, ctx)?
+                TemporalAtomDesign::linear_with_gaps(
+                    data,
+                    &atom.estimand,
+                    query,
+                    &atom.indexer,
+                    None,
+                    gaps,
+                    ctx,
+                )?
             };
+            if gaps {
+                windows.push(design.window_selection());
+            }
             let estimate = design.effect_estimate(assumptions);
             point_sum += weight * estimate.ate;
             point_mass += weight;
@@ -2348,6 +2373,7 @@ impl super::Study {
             point_sum,
             point_mass,
             primary,
+            windows,
         })
     }
 
@@ -2415,7 +2441,10 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
         let DbnFrequentistRefuteInput { data, gp, query, vars, estimate_ate } = *input;
-        let DbnFrequentistAtoms { contexts, atom_estimates, .. } = atoms;
+        let DbnFrequentistAtoms { contexts, atom_estimates, windows, .. } = atoms;
+        // The atoms were fitted on the intact windows of a series with missing time points: the
+        // refuters refit through them and resample blocks of the original window axis.
+        let gaps = !windows.is_empty();
         let refute_atoms = contexts
             .iter()
             .zip(atom_estimates)
@@ -2459,7 +2488,7 @@ impl super::Study {
                         predictive_sims: super::super::latency::predictive_check_sims(
                             self.latency_mode,
                         ),
-                        gaps: false,
+                        gaps,
                     },
                     &validation_atoms,
                     None,
@@ -2479,6 +2508,7 @@ impl super::Study {
                         query,
                         split: self.split.as_ref(),
                         time_index: data.time_index(),
+                        gaps,
                     }),
                 }
                 .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?
@@ -2498,6 +2528,10 @@ impl super::Study {
     ///
     /// `InferenceMode::Frequentist`, a posterior missing per-atom lag masks / `max_lag`
     /// (i.e. not actually a DBN posterior), or per-graph estimation infrastructure failure.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the per-atom fits, the gap admission and the mixed report read one frozen posterior in a single pass"
+    )]
     pub(super) fn execute_dbn_posterior_bayesian(
         &self,
         data: &TimeSeriesData,
@@ -2520,6 +2554,7 @@ impl super::Study {
         if multi_step {
             self.ensure_dbn_multi_step_bayesian_admitted(&cfg)?;
         }
+        let gaps = self.admit_posterior_gaps(data, &vars, true)?;
 
         let bayes = bayesian_temporal_gcomp(&cfg, ctx);
         let sequential_bayes = if multi_step { Some(bayesian_gcomp(&cfg, ctx)) } else { None };
@@ -2534,8 +2569,10 @@ impl super::Study {
             cfg: &cfg,
             sequential_bayes: sequential_bayes.as_ref(),
             multi_step,
+            gaps,
         };
-        let fits = self.fit_dbn_posterior_bayesian_atoms(&run, &identified, bayes, ctx)?;
+        let mut fits = self.fit_dbn_posterior_bayesian_atoms(&run, &identified, bayes, ctx)?;
+        let windows = std::mem::take(&mut fits.windows);
         let DbnBayesianEnvelope {
             mut posterior,
             estimate,
@@ -2569,7 +2606,8 @@ impl super::Study {
             ctx,
         )?;
 
-        Ok(self.finish_identified_execute(
+        let missing_data = gaps.then(|| shared_gap_report(data, &vars, &windows)).transpose()?;
+        let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
@@ -2607,7 +2645,9 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 ..Default::default()
             }),
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
     }
 
     /// Multi-step sustained DBN inference needs no discovery-estimation split and isotropic
@@ -2657,6 +2697,7 @@ impl super::Study {
             fit_demoted: 0,
             draws_demoted: 0,
             unevaluable_weight: 0.0,
+            windows: Vec::new(),
         };
         for atom in identified.atoms.iter() {
             let atom = DbnFitAtom {
@@ -2683,7 +2724,7 @@ impl super::Study {
         atom: DbnFitAtom,
         ctx: &ExecutionContext,
     ) {
-        let DbnBayesianRun { data, gp, vars, query, sequential_bayes, .. } = *run;
+        let DbnBayesianRun { data, gp, vars, query, sequential_bayes, gaps, .. } = *run;
         let DbnFitAtom { key, estimand, identification, indexer } = atom;
         let Ok(graph) = crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, key, vars) else {
             state.demote(key, DbnAtomDemotion::Prepare);
@@ -2692,8 +2733,8 @@ impl super::Study {
         let mut assumptions = identification.required_assumptions.clone();
         assumptions.push(sequential_linear_sem_assumption(SUSTAINED_LINEAR_SEM));
         let mut mechanisms = Vec::new();
-        let Ok((atom_estimate, Some(posterior))) =
-            antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
+        let Ok((atom_estimate, Some(posterior), selection)) =
+            antecedent_estimate::temporal_sequential::estimate_sustained_window_gaps_if(
                 &antecedent_estimate::SequentialProblem {
                     data,
                     graph: &graph,
@@ -2709,12 +2750,14 @@ impl super::Study {
                 },
                 ctx,
                 Some(&mut mechanisms),
+                gaps,
             )
         else {
             state.demote(key, DbnAtomDemotion::Fit);
             return;
         };
         if let Ok(draws) = envelope_draws_from_posterior(key, &posterior) {
+            state.windows.extend(selection);
             state.sequential_keys.push(key);
             state.sequential_atoms.push(SequentialValidationAtom {
                 weight: state.key_weights.get(key),
@@ -2746,18 +2789,20 @@ impl super::Study {
         atom: DbnFitAtom,
         ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
-        let DbnBayesianRun { data, query, cfg, .. } = *run;
+        let DbnBayesianRun { data, query, cfg, gaps, .. } = *run;
         let DbnFitAtom { key, estimand, identification, indexer } = atom;
         let mut temporal_est = TemporalLinearAdjustment::new();
         temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
-        let Ok(prep) = temporal_est.prepare(
-            data,
-            &estimand,
-            query,
-            &indexer,
-            self.split.as_ref(),
-            &ctx.kernel_policy,
-        ) else {
+        let prepared = if gaps {
+            temporal_est
+                .prepare_with_gaps(data, &estimand, query, &indexer, &ctx.kernel_policy)
+                .map(|(prep, selection)| (prep, Some(selection)))
+        } else {
+            temporal_est
+                .prepare(data, &estimand, query, &indexer, self.split.as_ref(), &ctx.kernel_policy)
+                .map(|prep| (prep, None))
+        };
+        let Ok((prep, selection)) = prepared else {
             state.demote(key, DbnAtomDemotion::Prepare);
             return Ok(());
         };
@@ -2767,8 +2812,17 @@ impl super::Study {
             state.demote(key, DbnAtomDemotion::Prepare);
             return Ok(());
         };
-        let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
-            .map_err(CausalError::from)?;
+        // The likelihood is tempered by the segment-wise long-run variance over the intact
+        // windows when the atom lost any, so no autocovariance crosses a gap.
+        let bprep = match selection.as_ref().filter(|s| s.complete.iter().any(|intact| !intact)) {
+            Some(selection) => BayesianGComputationAte::from_prepared_temporal_gapped(
+                &prep,
+                names,
+                selection.segments(),
+            ),
+            None => BayesianGComputationAte::from_prepared_temporal(&prep, names),
+        }
+        .map_err(CausalError::from)?;
         if state.envelope_prior.is_none() {
             let (resolved, conflict) = resolve_envelope_prior_anchor(cfg, &bprep, ctx)?;
             state.envelope_prior = resolved;
@@ -2781,6 +2835,7 @@ impl super::Study {
             return Ok(());
         };
         if let Ok(draws) = envelope_draws_from_posterior(key, &posterior) {
+            state.windows.extend(selection);
             state.atom_contexts.push((
                 key,
                 estimand.clone(),
@@ -2817,7 +2872,7 @@ impl super::Study {
     ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<PredictiveCheckReport>), CausalError>
     {
         let DbnBayesianValidationInput { run, estimator, estimate_ate } = *input;
-        let DbnBayesianRun { data, query, cfg, sequential_bayes, multi_step, .. } = *run;
+        let DbnBayesianRun { data, query, cfg, sequential_bayes, multi_step, gaps, .. } = *run;
         let tabular = TabularData::new(data.storage().clone());
         let ate_query = temporal_refuter_average(query);
         let (mut refutations, notes, sequential_predictive) = if multi_step {
@@ -2830,7 +2885,7 @@ impl super::Study {
                     predictive_sims: super::super::latency::predictive_check_sims(
                         self.latency_mode,
                     ),
-                    gaps: false,
+                    gaps,
                 },
                 sequential_atoms,
                 sequential_bayes,
@@ -2849,6 +2904,7 @@ impl super::Study {
                     query,
                     split: self.split.as_ref(),
                     time_index: data.time_index(),
+                    gaps,
                 }),
             }
             .run(

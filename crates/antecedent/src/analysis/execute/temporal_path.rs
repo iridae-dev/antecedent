@@ -2404,6 +2404,7 @@ impl super::Study {
             ctx,
         )?;
         let point_only = fit.point_only;
+        let missing_data = fit.missing_data.clone();
         let mut identification = envelope_to_identification_result_for(
             &bundle.envelope.envelope,
             CausalQuery::TemporalEffect(query.clone()),
@@ -2421,10 +2422,12 @@ impl super::Study {
                 wall_time_ns: elapsed_ns(started),
             },
         );
-        Ok(super::temporal_effect_core::seal_point_only(
+        let mut result = super::temporal_effect_core::seal_point_only(
             point_only,
             self.finish_identified_execute(args),
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
     }
 
     /// The identifier and class proof of a one-shot class effect: the prepared
@@ -2764,6 +2767,7 @@ impl super::Study {
                     query,
                     split: self.split.as_ref(),
                     time_index: data.time_index(),
+                    gaps: false,
                 }),
             }
             .run(std::slice::from_ref(&refute_atom), &mut refute_ws, ctx)?;

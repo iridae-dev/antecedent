@@ -1206,6 +1206,8 @@ pub(super) struct TemporalRefutation<'a> {
     pub(super) query: &'a TemporalEffectQuery,
     pub(super) split: Option<&'a DiscoveryEstimationSplit>,
     pub(super) time_index: &'a TimeIndex,
+    /// The series has missing time points: refits fit the intact lag windows.
+    pub(super) gaps: bool,
 }
 
 /// What an envelope refuter run checks and how: the data and query every atom is validated
@@ -1261,7 +1263,7 @@ impl EnvelopeRefutation<'_> {
                     kernel_policy: &ctx.kernel_policy,
                     time_index: Some(frame.time_index),
                     panel: None,
-                    gaps: false,
+                    gaps: frame.gaps,
                 }),
                 _ => None,
             };

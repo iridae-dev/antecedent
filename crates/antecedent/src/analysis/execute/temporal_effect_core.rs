@@ -709,14 +709,56 @@ fn gap_report(
     variables: &[antecedent_core::VariableId],
     selection: &antecedent_estimate::GapSelection,
 ) -> Result<crate::result::MissingDataReport, CausalError> {
-    let dropped = selection.dropped_times().into_iter().map(|time| time as u64).collect();
+    shared_gap_report(data, variables, std::slice::from_ref(selection))
+}
+
+/// [`gap_report`] for several fits of one series that share a window axis (the atoms of a
+/// mixture): the windows every fit reads, a window counting as dropped when any fit reads a
+/// gap in it.
+pub(super) fn shared_gap_report(
+    data: &TimeSeriesData,
+    variables: &[antecedent_core::VariableId],
+    selections: &[antecedent_estimate::GapSelection],
+) -> Result<crate::result::MissingDataReport, CausalError> {
+    let start = selections.iter().map(|s| s.first_time).max().unwrap_or(0);
+    let end =
+        selections.iter().map(|s| s.first_time + s.complete.len()).min().unwrap_or(0).max(start);
+    let dropped: Vec<u64> = (start..end)
+        .filter(|&time| selections.iter().any(|s| !s.complete[time - s.first_time]))
+        .map(|time| time as u64)
+        .collect();
     let accounting = antecedent_data::RowAccounting::from_dropped(
         antecedent_data::MissingPolicy::CompleteCase,
-        selection.complete.len(),
+        end - start,
         dropped,
         missing_time_points(data, variables)?,
     );
     Ok(crate::analysis::missing_data::report(TEMPORAL_ROUTE, true, Arc::from([]), accounting))
+}
+
+/// Series variables the atoms of a mixture read: the treatment and outcome, every
+/// atom's estimand sets and, for sequential atoms, every variable of the unfolded graph.
+pub(super) fn mixture_read_variables<'a>(
+    [treatment, outcome]: [antecedent_core::VariableId; 2],
+    estimands: impl IntoIterator<Item = &'a IdentifiedEstimand>,
+    graphs: impl IntoIterator<Item = &'a TemporalDag>,
+) -> Vec<antecedent_core::VariableId> {
+    let mut variables = vec![treatment, outcome];
+    for estimand in estimands {
+        variables.extend(estimand.adjustment_set.iter().copied());
+        variables.extend(estimand.instruments.iter().copied());
+        variables.extend(estimand.mediators.iter().copied());
+    }
+    for graph in graphs {
+        variables.extend(graph.nodes().iter().map(|node| node.variable()));
+    }
+    let mut seen = Vec::new();
+    variables.retain(|variable| {
+        let new = !seen.contains(variable);
+        seen.push(*variable);
+        new
+    });
+    variables
 }
 
 /// Accounting of a complete series under a declared policy: nothing dropped. `None` when no

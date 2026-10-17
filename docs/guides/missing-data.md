@@ -99,8 +99,7 @@ through the same gap-aware design (the perturbations keep the gaps in place), an
 refuter resamples on the window axis. The multi-step sustained contrast, the one-modifier
 conditional effect and the frequentist temporal mediation contrasts run the same way: every
 mechanism is fitted on the intact windows at their original times, and their block bootstraps
-draw blocks on the original window axis (the sustained and mediation refuters are not gap-aware
-and must be off). The Bayesian single-window, sustained-contrast and mediation posteriors are fitted on the
+draw blocks on the original window axis. The Bayesian single-window, sustained-contrast and mediation posteriors are fitted on the
 intact windows and tempered by the segment-wise Bartlett long-run variance of their estimating
 scores: autocovariances are summed within runs of consecutive windows only, so no pair that
 straddles a gap enters. That is a different construction from the REML autoregressive factor
@@ -108,9 +107,15 @@ used on a series without gaps (the autoregression and its small-sample scale are
 consecutive rows), and their predictive checks and prior-sensitivity refuters, which read
 consecutive rows, must be off. The sustained and mediation refuters refit through the intact
 windows, and the frequentist mixtures over graph classes and the dynamic-Bayesian-network
-mediation estimator fit every atom on its own intact windows. The Bayesian posterior mixture
-over graph classes still refuses a series with gaps, because its shared aligned bootstrap is
-defined on consecutive rows.
+mediation estimator fit every atom on its own intact windows. The posterior mixtures over
+graph classes and over dynamic-Bayesian-network atoms do the same: each atom is fitted on its
+own intact windows, a Bayesian atom is tempered segment-wise, and a frequentist mixture's shared
+bootstrap resamples blocks of the original window axis, so every atom is refit on the same
+resampled windows and no block joins windows across a gap. A mixture reports the windows that
+any of its atoms lost (a window counts as dropped when some atom reads a gap in it) and the
+missing time points of the variables it reads; the Bayesian dynamic-Bayesian-network mixture
+declines refuters, whose predictive checks and prior sensitivity read consecutive rows, and
+every mixture refuses a discovery-estimation split on a series with gaps.
 
 **NOTEARS, `complete_case`.** Rows with a missing value in any discovery variable are dropped
 and reported in `result.row_accounting`. The graph equals the one learned on the complete rows

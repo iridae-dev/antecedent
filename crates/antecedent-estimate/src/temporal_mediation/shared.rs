@@ -94,6 +94,20 @@ impl PreparedTemporalMediation {
         self.aligned
     }
 
+    /// The windows of this atom's design on the original window axis, with their intactness:
+    /// every window is intact unless the design was prepared on a series with gaps.
+    #[must_use]
+    pub fn window_selection(&self) -> crate::GapSelection {
+        crate::GapSelection {
+            first_time: self.aligned.first_time,
+            complete: self
+                .design
+                .window_complete
+                .clone()
+                .unwrap_or_else(|| vec![true; self.aligned.rows]),
+        }
+    }
+
     /// Total, Direct and Mediated refit on design rows `rows` (any count: a
     /// shared window can be shorter than this atom's own rows).
     fn contrasts_on_rows(&self, rows: &[usize]) -> Option<[f64; 3]> {

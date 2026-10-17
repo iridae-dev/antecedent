@@ -954,6 +954,7 @@ fn refute_temporal_class_graph_posterior_intervention(
             query: &pulse,
             split: study.split.as_ref(),
             time_index: data.time_index(),
+            gaps: false,
         }),
     }
     .run(&refute_atoms, &mut EstimationWorkspace::default(), ctx)?;

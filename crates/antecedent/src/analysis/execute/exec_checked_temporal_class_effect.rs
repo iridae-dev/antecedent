@@ -102,6 +102,7 @@ impl CheckedTemporalClassEffectExecution {
             ctx,
         )?;
         let point_only = fit.point_only;
+        let missing_data = fit.missing_data.clone();
         let mut identification = operation.identification().clone();
         identification.status = bundle.envelope.envelope.status;
         let args = fit.finish_args(
@@ -116,10 +117,12 @@ impl CheckedTemporalClassEffectExecution {
                 wall_time_ns: elapsed_ns(started),
             },
         );
-        Ok(super::temporal_effect_core::seal_point_only(
+        let mut result = super::temporal_effect_core::seal_point_only(
             point_only,
             super::finish_identified_execute_with_context(&self.result_context, None, args),
-        ))
+        );
+        result.missing_data = missing_data;
+        Ok(result)
     }
 }
 
