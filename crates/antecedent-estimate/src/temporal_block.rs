@@ -664,6 +664,87 @@ pub fn aligned_block_bootstrap(
     Some(RowBlockDraws { draws, attempted, cancelled, block_length, rows: len, kernel_bias: 1.0 })
 }
 
+/// Lag-aligned windows of one design of a series with gaps: window `w` ends at series time
+/// `first_time + w`, and `complete[w]` says whether it is intact. The design's rows are the
+/// intact windows in time order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GappedAlignedRows {
+    /// Series time of window 0.
+    pub first_time: usize,
+    /// Whether each window is intact.
+    pub complete: Vec<bool>,
+}
+
+impl GappedAlignedRows {
+    /// A design without gaps: every one of its `rows` windows is intact.
+    #[must_use]
+    pub fn contiguous(rows: AlignedRows) -> Self {
+        Self { first_time: rows.first_time, complete: vec![true; rows.rows] }
+    }
+}
+
+/// Shared circular-block bootstrap over several designs of one series with gaps.
+///
+/// One block plan is drawn on the original time axis over the series times every design
+/// covers (the intersection of their window ranges). A series time enters a replicate only if
+/// it is intact in **every** design, so all designs are refit on the same resampled times, and
+/// a block never joins times across a gap. Each replicate hands `estimate` one row map per
+/// design (`maps[g]` = rows of design `g`, an index into its intact windows in time order),
+/// all describing the same times; map length varies by replicate. Returns `None` when the
+/// designs share no series time. The kernel-bias widening is not applied.
+pub fn gapped_aligned_block_bootstrap(
+    designs: &[GappedAlignedRows],
+    block_length: usize,
+    replicates: u32,
+    stream_base: u64,
+    ctx: &ExecutionContext,
+    mut estimate: impl FnMut(&[Vec<usize>]) -> Option<Vec<f64>>,
+) -> Option<RowBlockDraws> {
+    let start = designs.iter().map(|d| d.first_time).max()?;
+    let end = designs.iter().map(|d| d.first_time + d.complete.len()).min()?;
+    if end <= start {
+        return None;
+    }
+    let len = end - start;
+    // Row of each design at each shared series time (`usize::MAX` where the window is not
+    // intact), and whether the time is intact in every design.
+    let row_of: Vec<Vec<usize>> = designs
+        .iter()
+        .map(|design| {
+            let mut next =
+                design.complete[..start - design.first_time].iter().filter(|c| **c).count();
+            (start..end)
+                .map(|time| {
+                    if design.complete[time - design.first_time] {
+                        let row = next;
+                        next += 1;
+                        row
+                    } else {
+                        usize::MAX
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    let shared: Vec<bool> =
+        (0..len).map(|i| row_of.iter().all(|rows| rows[i] != usize::MAX)).collect();
+    let block_length = block_length.clamp(1, len);
+    let mut maps: Vec<Vec<usize>> = designs.iter().map(|_| Vec::new()).collect();
+    let (draws, attempted, cancelled) =
+        block_replicates(len, block_length, replicates, stream_base, ctx, |positions| {
+            for map in &mut maps {
+                map.clear();
+            }
+            for &position in positions.iter().filter(|&&p| shared[p]) {
+                for (map, rows) in maps.iter_mut().zip(&row_of) {
+                    map.push(rows[position]);
+                }
+            }
+            if maps[0].is_empty() { None } else { estimate(&maps) }
+        });
+    Some(RowBlockDraws { draws, attempted, cancelled, block_length, rows: len, kernel_bias: 1.0 })
+}
+
 /// The replicate count and RNG stream base of a circular-block bootstrap. Replicate `r`
 /// draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ r)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1128,5 +1209,58 @@ mod tests {
         assert!((fixed_b_scale(6, 159) - 1.057_458).abs() < 1e-5);
         assert!((fixed_b_scale(0, 10) - 1.0).abs() < 1e-12);
         assert!(fixed_b_scale(8, 399) < fixed_b_scale(4, 59));
+    }
+
+    #[test]
+    fn gapped_designs_share_one_plan_over_times_intact_in_every_design() {
+        // Design 0 reads times 2..22 with times 7 and 12 dropped; design 1 reads times 4..20
+        // with time 12 and 15 dropped. Times 7, 12 and 15 are not intact in both.
+        let mut first = vec![true; 20];
+        first[5] = false;
+        first[10] = false;
+        let mut second = vec![true; 16];
+        second[8] = false;
+        second[11] = false;
+        let designs = [
+            GappedAlignedRows { first_time: 2, complete: first.clone() },
+            GappedAlignedRows { first_time: 4, complete: second.clone() },
+        ];
+        let rank = |design: &GappedAlignedRows, time: usize| {
+            design.complete[..time - design.first_time].iter().filter(|c| **c).count()
+        };
+        let ctx = ExecutionContext::for_tests(9);
+        let boot = gapped_aligned_block_bootstrap(&designs, 3, 20, 31, &ctx, |maps| {
+            // Both designs describe the same resampled times, never a dropped one.
+            assert_eq!(maps[0].len(), maps[1].len());
+            for (a, b) in maps[0].iter().zip(&maps[1]) {
+                let time = (4..20)
+                    .find(|&t| {
+                        designs[0].complete[t - 2]
+                            && designs[1].complete[t - 4]
+                            && rank(&designs[0], t) == *a
+                            && rank(&designs[1], t) == *b
+                    })
+                    .expect("a shared intact time");
+                assert!(![7, 12, 15].contains(&time));
+            }
+            Some(vec![maps[0].len() as f64])
+        })
+        .expect("the designs overlap");
+        assert_eq!(boot.rows, 16);
+        assert!(!boot.draws.is_empty());
+        assert!(
+            gapped_aligned_block_bootstrap(
+                &[
+                    GappedAlignedRows { first_time: 0, complete: vec![true; 3] },
+                    GappedAlignedRows { first_time: 5, complete: vec![true; 3] },
+                ],
+                2,
+                4,
+                1,
+                &ctx,
+                |_| Some(vec![0.0]),
+            )
+            .is_none()
+        );
     }
 }

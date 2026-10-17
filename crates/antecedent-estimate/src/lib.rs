@@ -328,7 +328,7 @@ pub use se::AnalyticSeKind;
 pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use serial_dependence::{
     DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_capped_from_notes,
-    tempering_inestimable_from_notes, tempering_kappa_from_notes,
+    tempering_inestimable_from_notes, tempering_kappa_from_notes, window_segments,
 };
 pub use statistical_transport::{
     BayesianStatisticalTransportEstimate, INTERVAL_NUMERICAL_FAILURE, NominalZTransportInterval,
@@ -350,10 +350,11 @@ pub use temporal_adjustment::{
     temporal_conditional_marginal_effect_with_gaps, temporal_linear_slopes,
 };
 pub use temporal_block::{
-    AlignedRows, BlockBootstrap, CircularBlockFamily, RowBlockDraws, aligned_block_bootstrap,
-    circular_fixed_b_scale, common_time_window, dependence_block_length, effective_rows,
-    gapped_row_block_bootstrap, kernel_bias_scale, normal_equation_scores,
-    normal_equation_scores_of_residuals, row_block_bootstrap_vec, score_effective_rows,
+    AlignedRows, BlockBootstrap, CircularBlockFamily, GappedAlignedRows, RowBlockDraws,
+    aligned_block_bootstrap, circular_fixed_b_scale, common_time_window, dependence_block_length,
+    effective_rows, gapped_aligned_block_bootstrap, gapped_row_block_bootstrap, kernel_bias_scale,
+    normal_equation_scores, normal_equation_scores_of_residuals, row_block_bootstrap_vec,
+    score_effective_rows,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, PreparedTemporalMediation, SharedMediationBlockSe,
@@ -374,7 +375,8 @@ pub use temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROW
 pub use temporal_sequential::{
     SequenceTarget, SequentialContrastDesign, SequentialInference, SequentialMechanismOverlay,
     SequentialNodeOverlay, SequentialProblem, estimate_sequence_mechanisms,
-    estimate_sequence_overlays, estimate_sustained_window, estimate_sustained_window_with_gaps,
+    estimate_sequence_overlays, estimate_sustained_window, estimate_sustained_window_gaps_if,
+    estimate_sustained_window_with_gaps,
 };
 pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,

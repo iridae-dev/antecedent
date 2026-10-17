@@ -1593,6 +1593,7 @@ impl super::Study {
                             predictive_sims: super::super::latency::predictive_check_sims(
                                 self.latency_mode,
                             ),
+                            gaps: false,
                         },
                         std::slice::from_ref(&validation_atom),
                         unit_bayes.as_ref(),

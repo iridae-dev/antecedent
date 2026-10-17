@@ -171,6 +171,17 @@ pub enum SerialDependence {
     /// Rows are time-ordered; temper the likelihood by the variance ratio of the
     /// targeted linear combination under an autoregressive residual.
     LongRunTempering(DependenceScope),
+    /// Rows are the intact lag windows of a series with gaps, in time order. `segments[i]` is
+    /// the id of the run of consecutive windows row `i` belongs to; the long-run variance is
+    /// summed over autocovariances within a segment only, so no pair of rows that straddles a
+    /// gap contributes. The factor is the segment-wise Bartlett ratio, a different
+    /// construction from the REML autoregression of [`Self::LongRunTempering`].
+    SegmentedTempering {
+        /// The combination(s) whose long-run variance sets the factor.
+        scope: DependenceScope,
+        /// Segment id of every design row.
+        segments: Arc<[u32]>,
+    },
 }
 
 /// Which linear combination `c'β` of the design coefficients sets the tempering factor.
@@ -394,30 +405,7 @@ pub(crate) fn long_run_tempering_factor(
         inestimable: false,
         scope: scope.label(),
     };
-    let check_width = |direction: &[f64]| {
-        if direction.len() == p {
-            Ok(direction.to_vec())
-        } else {
-            Err(EstimationError::stats_msg(format!(
-                "long-run tempering direction has {} entries for {p} design columns",
-                direction.len()
-            )))
-        }
-    };
-    let directions: Vec<Vec<f64>> = match scope {
-        DependenceScope::Treatment => {
-            let t = design.treatment_column().ok_or_else(|| {
-                EstimationError::stats_msg("long-run tempering needs a treatment column")
-            })?;
-            let mut c = vec![0.0; p];
-            c[t] = 1.0;
-            vec![c]
-        }
-        DependenceScope::Direction(direction) => vec![check_width(direction)?],
-        DependenceScope::Levels(directions) | DependenceScope::MediationPaths(directions) => {
-            directions.iter().map(|direction| check_width(direction)).collect::<Result<_, _>>()?
-        }
-    };
+    let directions = scope_directions(design, scope)?;
     // A zero or non-finite combination carries no score; it neither tempers nor refuses.
     let directions: Vec<Vec<f64>> = directions
         .into_iter()
@@ -536,6 +524,172 @@ pub(crate) fn long_run_tempering_factor(
         kappa: factor.raw_ratio.clamp(1.0, cap),
         capped: factor.raw_ratio > cap,
         ..factor
+    })
+}
+
+/// The linear combinations `c` of the coefficients a scope targets.
+fn scope_directions(
+    design: &CompiledDesign,
+    scope: &DependenceScope,
+) -> Result<Vec<Vec<f64>>, EstimationError> {
+    let p = design.ncols;
+    let check_width = |direction: &[f64]| {
+        if direction.len() == p {
+            Ok(direction.to_vec())
+        } else {
+            Err(EstimationError::stats_msg(format!(
+                "long-run tempering direction has {} entries for {p} design columns",
+                direction.len()
+            )))
+        }
+    };
+    Ok(match scope {
+        DependenceScope::Treatment => {
+            let t = design.treatment_column().ok_or_else(|| {
+                EstimationError::stats_msg("long-run tempering needs a treatment column")
+            })?;
+            let mut c = vec![0.0; p];
+            c[t] = 1.0;
+            vec![c]
+        }
+        DependenceScope::Direction(direction) => vec![check_width(direction)?],
+        DependenceScope::Levels(directions) | DependenceScope::MediationPaths(directions) => {
+            directions.iter().map(|direction| check_width(direction)).collect::<Result<_, _>>()?
+        }
+    })
+}
+
+/// Segment ids of the intact windows of a series with gaps: windows whose positions on the
+/// original axis are adjacent share a segment, and a gap starts a new one.
+#[must_use]
+pub fn window_segments(complete: &[bool]) -> Arc<[u32]> {
+    let mut ids = Vec::new();
+    let mut segment = 0u32;
+    let mut previous: Option<usize> = None;
+    for (position, intact) in complete.iter().enumerate() {
+        if !*intact {
+            continue;
+        }
+        if previous.is_some_and(|last| last + 1 != position) {
+            segment += 1;
+        }
+        ids.push(segment);
+        previous = Some(position);
+    }
+    Arc::from(ids)
+}
+
+/// Bartlett long-run variance of `u` summed over autocovariances within segments only,
+/// divided by the number of rows (uncentred). Two rows in different segments never
+/// contribute a cross product, so no pair that straddles a gap enters.
+fn segmented_long_run_variance(u: &[f64], segments: &[u32], bandwidth: usize) -> f64 {
+    let n = u.len();
+    let mut total = 0.0;
+    let mut start = 0;
+    while start < n {
+        let mut end = start + 1;
+        while end < n && segments[end] == segments[start] {
+            end += 1;
+        }
+        let part = &u[start..end];
+        let m = part.len();
+        let lags = bandwidth.min(m.saturating_sub(1));
+        total += dot(part, part);
+        for lag in 1..=lags {
+            let weight = 1.0 - lag as f64 / (lags + 1) as f64;
+            total += 2.0 * weight * dot(&part[lag..], &part[..m - lag]);
+        }
+        start = end;
+    }
+    (total / n as f64).max(0.0)
+}
+
+/// The tempering factor of a design whose rows are the intact windows of a series with gaps.
+///
+/// For each targeted combination `c'β`, the row weights `w = X (X'X)⁻¹ c` and the OLS residual
+/// `e` give the estimating score `s_i = w_i e_i`, whose segment-wise Bartlett long-run variance
+/// over its iid variance `Σ s_i²/n` is the factor (floored at 1, capped to leave `p + 2`
+/// effective rows); the largest over the combinations drives `κ̂`. No autocovariance crosses a
+/// gap. This is the HAC ratio only: the REML autoregression and its small-sample scale
+/// correction are defined for consecutive rows and are not applied.
+///
+/// # Errors
+///
+/// A wrong-width direction, a missing treatment column, or a singular `X'X`.
+pub(crate) fn segmented_tempering_factor(
+    design: &CompiledDesign,
+    scope: &DependenceScope,
+    segments: &[u32],
+) -> Result<TemperingFactor, EstimationError> {
+    let n = design.nrows;
+    let p = design.ncols;
+    let bandwidth = newey_west_bandwidth(n);
+    let floor = TemperingFactor {
+        kappa: 1.0,
+        raw_ratio: 1.0,
+        ar_ratio: 1.0,
+        df_loss: p as f64,
+        kappa_log_sd: 0.0,
+        hac_ratio: 1.0,
+        fixed_b: 1.0,
+        score_ar_order: 0,
+        residual_ar_order: 0,
+        bandwidth,
+        nrows: n,
+        bounded: false,
+        capped: false,
+        inestimable: false,
+        scope: scope.label(),
+    };
+    if segments.len() != n {
+        return Err(EstimationError::stats_msg(
+            "segmented tempering needs one segment id per design row",
+        ));
+    }
+    let directions: Vec<Vec<f64>> = scope_directions(design, scope)?
+        .into_iter()
+        .filter(|c| c.iter().all(|v| v.is_finite()) && c.iter().any(|v| *v != 0.0))
+        .collect();
+    if n < MIN_ROWS.max(p + 2) {
+        return Ok(TemperingFactor { inestimable: true, ..floor });
+    }
+    if directions.is_empty() {
+        return Ok(floor);
+    }
+    let x = &design.matrix[..n * p];
+    let y = &design.outcome[..n];
+    let mut xtx = vec![0.0; p * p];
+    let mut xty = vec![0.0; p];
+    for a in 0..p {
+        xty[a] = dot(&x[a * n..(a + 1) * n], y);
+        for b in 0..p {
+            xtx[a * p + b] = dot(&x[a * n..(a + 1) * n], &x[b * n..(b + 1) * n]);
+        }
+    }
+    let beta = crate::util::solve_spd(&xtx, &xty, p)
+        .ok_or_else(|| EstimationError::stats_msg("segmented tempering: singular X'X"))?;
+    let residuals: Vec<f64> =
+        (0..n).map(|t| y[t] - (0..p).map(|k| x[k * n + t] * beta[k]).sum::<f64>()).collect();
+    let mut ratio = 1.0_f64;
+    for c in &directions {
+        let v = crate::util::solve_spd(&xtx, c, p)
+            .ok_or_else(|| EstimationError::stats_msg("segmented tempering: singular X'X"))?;
+        let score: Vec<f64> = (0..n)
+            .map(|t| (0..p).map(|k| x[k * n + t] * v[k]).sum::<f64>() * residuals[t])
+            .collect();
+        let gamma0 = dot(&score, &score) / n as f64;
+        if gamma0 <= 0.0 || !gamma0.is_finite() {
+            continue;
+        }
+        ratio = ratio.max(segmented_long_run_variance(&score, segments, bandwidth) / gamma0);
+    }
+    let cap = (n as f64 / (p + 2) as f64).max(1.0);
+    Ok(TemperingFactor {
+        kappa: ratio.clamp(1.0, cap),
+        raw_ratio: ratio,
+        hac_ratio: ratio,
+        capped: ratio > cap,
+        ..floor
     })
 }
 
@@ -1458,6 +1612,54 @@ fn long_run_variance_ratio(s: &[f64], bandwidth: usize) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn segments_start_where_a_gap_separates_intact_windows() {
+        let complete = [true, true, false, true, true, true, false, false, true];
+        assert_eq!(window_segments(&complete).as_ref(), [0, 0, 1, 1, 1, 2]);
+        assert_eq!(window_segments(&[true; 4]).as_ref(), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn the_segmented_long_run_variance_sums_autocovariances_within_segments_only() {
+        // Two runs of three: [1, 1, 1] and [-1, -1, -1]. Within a run the Bartlett sum at
+        // bandwidth 2 is 3 + 2 (2/3) 2 + 2 (1/3) 1 = 19/3; the cross products between the runs
+        // (which a consecutive estimator would add, and which are negative) are excluded.
+        let u = [1.0, 1.0, 1.0, -1.0, -1.0, -1.0];
+        let segmented = segmented_long_run_variance(&u, &[0, 0, 0, 1, 1, 1], 2);
+        assert!((segmented - 2.0 * (19.0 / 3.0) / 6.0).abs() < 1e-12, "{segmented}");
+        let consecutive = segmented_long_run_variance(&u, &[0; 6], 2);
+        assert!(consecutive < segmented);
+    }
+
+    #[test]
+    fn the_segmented_factor_widens_a_persistent_design_and_leaves_an_independent_one() {
+        let n = 400;
+        let design_of = |rho: f64, seed: u64| {
+            let ctx = antecedent_core::ExecutionContext::for_tests(seed);
+            let mut rng = ctx.rng.stream_for(antecedent_core::StreamDomain::Test, 9);
+            let mut e = 0.0;
+            let mut t = 0.0;
+            let (mut ts, mut ys) = (Vec::with_capacity(n), Vec::with_capacity(n));
+            for _ in 0..n {
+                t = rho * t + (1.0 - rho * rho).sqrt() * standard_normal(&mut rng);
+                e = rho * e + (1.0 - rho * rho).sqrt() * standard_normal(&mut rng);
+                ts.push(t);
+                ys.push(0.5 * t + e);
+            }
+            CompiledDesign::linear_adjustment(&ts, &[], &ys, &[]).unwrap()
+        };
+        // Four equal runs, as a series with three gaps would leave.
+        let segments: Vec<u32> = (0..n).map(|i| (i * 4 / n) as u32).collect();
+        let persistent =
+            segmented_tempering_factor(&design_of(0.9, 3), &DependenceScope::Treatment, &segments)
+                .unwrap();
+        let independent =
+            segmented_tempering_factor(&design_of(0.0, 4), &DependenceScope::Treatment, &segments)
+                .unwrap();
+        assert!(persistent.kappa > 3.0, "persistent design kappa {}", persistent.kappa);
+        assert!(independent.kappa < 1.6, "independent design kappa {}", independent.kappa);
+    }
+
     #[test]
     fn design_hash_is_the_word_at_a_time_fnv_over_the_row_bits() {
         // Independent reference: h = (h ^ bits) * 0x100000001b3 from the FNV offset basis over

@@ -313,6 +313,18 @@ pub trait EffectRefit: std::fmt::Debug {
         let _ = (data, ctx);
         None
     }
+
+    /// [`Self::prepare_aligned`] on a series that may have missing time points, with the
+    /// intact-window map of the original window axis (`None` for a complete series).
+    ///
+    /// The default has no gap-aware evaluation and reports every series as complete.
+    fn prepare_aligned_windows(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Option<Result<(AlignedRefit, Option<WindowCompleteness>), ValidationError>> {
+        self.prepare_aligned(data, ctx).map(|prepared| prepared.map(|refit| (refit, None)))
+    }
 }
 
 /// Refit of a composed estimator on a row map of its lag-aligned rows
@@ -334,6 +346,12 @@ pub struct AlignedRefit {
     /// Refit on the aligned rows of a row map.
     pub estimate: AlignedRowEstimate,
 }
+
+/// Which lag windows of a series with missing time points are intact, in time order.
+///
+/// The prepared design's rows are the intact windows, and a block bootstrap resamples
+/// blocks of the original window axis so that no block spans a gap.
+pub type WindowCompleteness = Vec<bool>;
 
 impl std::fmt::Debug for AlignedRefit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

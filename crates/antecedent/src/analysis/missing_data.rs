@@ -60,8 +60,10 @@ impl MissingRoute {
             ) => Some(Self::Static),
             (CausalQuery::RandomizedEffect(_), DataInput::Tabular(_)) => Some(Self::Randomized),
             (CausalQuery::PanelDid(_), DataInput::Tabular(_)) => Some(Self::Panel),
-            (CausalQuery::TemporalEffect(_), DataInput::Temporal(_)) => Some(Self::Temporal),
-            (CausalQuery::Mediation(_), DataInput::Temporal(_)) => Some(Self::Temporal),
+            (
+                CausalQuery::TemporalEffect(_) | CausalQuery::Mediation(_),
+                DataInput::Temporal(_),
+            ) => Some(Self::Temporal),
             _ => None,
         }
     }

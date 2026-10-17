@@ -112,22 +112,33 @@ impl BootstrapRefute {
         // Rebuilding lags on a block-resampled raw series would pair, at every
         // block junction, an outcome with regressors from an unrelated block, so a
         // refitter without lag-aligned evaluation is not checked at all.
-        let Some(aligned) = problem.effect_refit.and_then(|r| r.prepare_aligned(problem.data, ctx))
+        let Some(aligned) =
+            problem.effect_refit.and_then(|r| r.prepare_aligned_windows(problem.data, ctx))
         else {
             return Err(ValidationError::NotApplicable {
                 message: "composed refitter has no lag-aligned evaluation; a block bootstrap \
                           of the raw series would misalign lags at block junctions",
             });
         };
-        let mut aligned = aligned?;
-        let boot = antecedent_estimate::row_block_bootstrap_vec(
-            aligned.rows,
-            aligned.block_length,
-            self.replicates,
-            BOOTSTRAP_REFUTE_STREAM,
-            ctx,
-            |rows| (aligned.estimate)(rows).map(|value| vec![value]),
-        );
+        let (mut aligned, window_complete) = aligned?;
+        let boot = match window_complete.as_deref() {
+            Some(complete) => antecedent_estimate::gapped_row_block_bootstrap(
+                complete,
+                aligned.block_length,
+                self.replicates,
+                BOOTSTRAP_REFUTE_STREAM,
+                ctx,
+                |rows| (aligned.estimate)(rows).map(|value| vec![value]),
+            ),
+            None => antecedent_estimate::row_block_bootstrap_vec(
+                aligned.rows,
+                aligned.block_length,
+                self.replicates,
+                BOOTSTRAP_REFUTE_STREAM,
+                ctx,
+                |rows| (aligned.estimate)(rows).map(|value| vec![value]),
+            ),
+        };
         if boot.cancelled {
             return Err(ValidationError::Cancelled);
         }

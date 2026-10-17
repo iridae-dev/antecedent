@@ -100,10 +100,17 @@ refuter resamples on the window axis. The multi-step sustained contrast, the one
 conditional effect and the frequentist temporal mediation contrasts run the same way: every
 mechanism is fitted on the intact windows at their original times, and their block bootstraps
 draw blocks on the original window axis (the sustained and mediation refuters are not gap-aware
-and must be off). The Bayesian single-window and sequential posteriors, the mixtures over
-graph classes and the dynamic-Bayesian-network estimators still refuse a series with gaps,
-because their serial-dependence tempering and shared aligned bootstraps are defined on
-consecutive rows.
+and must be off). The Bayesian single-window, sustained-contrast and mediation posteriors are fitted on the
+intact windows and tempered by the segment-wise Bartlett long-run variance of their estimating
+scores: autocovariances are summed within runs of consecutive windows only, so no pair that
+straddles a gap enters. That is a different construction from the REML autoregressive factor
+used on a series without gaps (the autoregression and its small-sample scale are defined for
+consecutive rows), and their predictive checks and prior-sensitivity refuters, which read
+consecutive rows, must be off. The sustained and mediation refuters refit through the intact
+windows, and the frequentist mixtures over graph classes and the dynamic-Bayesian-network
+mediation estimator fit every atom on its own intact windows. The Bayesian posterior mixture
+over graph classes still refuses a series with gaps, because its shared aligned bootstrap is
+defined on consecutive rows.
 
 **NOTEARS, `complete_case`.** Rows with a missing value in any discovery variable are dropped
 and reported in `result.row_accounting`. The graph equals the one learned on the complete rows

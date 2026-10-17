@@ -11,9 +11,9 @@ use super::{
     mediation_design_max_lag, ols_three_col, ols_two_col,
 };
 use crate::temporal_block::{
-    AlignedRows, CircularBlockFamily, aligned_block_bootstrap, common_time_window,
-    dependence_block_length, kernel_bias_scale, normal_equation_scores_of_residuals,
-    score_effective_rows,
+    AlignedRows, CircularBlockFamily, GappedAlignedRows, aligned_block_bootstrap,
+    common_time_window, dependence_block_length, gapped_aligned_block_bootstrap, kernel_bias_scale,
+    normal_equation_scores_of_residuals, score_effective_rows,
 };
 
 /// One temporal mediation atom prepared once on the original series, so a
@@ -48,7 +48,15 @@ impl TemporalMediationEstimator {
         ctx: &ExecutionContext,
     ) -> Result<PreparedTemporalMediation, EstimationError> {
         let (mediator, delta) = self.validate(estimand, query)?;
-        let design = Self::prepare_design(data, mediator, query, adjustment, &[], ctx)?;
+        let design = Self::prepare_design_with_gaps(
+            data,
+            mediator,
+            query,
+            adjustment,
+            &[],
+            ctx,
+            self.allow_gaps,
+        )?;
         let point = self.fit_design(&design, None, delta)?;
         let estimate = self.estimate_from_fit(query, &point);
         let max_lag = mediation_design_max_lag(query, adjustment) as usize;
@@ -57,7 +65,11 @@ impl TemporalMediationEstimator {
         let normal_scores = mechanism_normal_scores(&point);
         Ok(PreparedTemporalMediation {
             estimator: self.clone(),
-            aligned: AlignedRows { first_time: max_lag, rows: design.n },
+            // On a series with gaps the axis is the original window axis, not the intact rows.
+            aligned: AlignedRows {
+                first_time: max_lag,
+                rows: design.window_complete.as_ref().map_or(design.n, Vec::len),
+            },
             structural_span: max_lag + 1,
             design,
             delta,
@@ -170,6 +182,18 @@ pub fn shared_mediation_block_bootstrap(
         return None;
     }
     let family = CircularBlockFamily::for_mediation_atoms(atoms.len());
+    if atoms.iter().any(|atom| atom.design.window_complete.is_some()) {
+        return gapped_shared_bootstrap(
+            atoms,
+            weights,
+            total,
+            contrast,
+            replicates,
+            stream_base,
+            ctx,
+            family,
+        );
+    }
     let designs: Vec<AlignedRows> = atoms.iter().map(|atom| atom.aligned).collect();
     let (start, len) = common_time_window(&designs)?;
     let window = |series: &[f64], design: AlignedRows| -> Option<Vec<f64>> {
@@ -269,6 +293,82 @@ pub fn shared_mediation_block_bootstrap(
             Some(mixed.to_vec())
         })?;
     let draws = draws.with_kernel_bias(&target_scores);
+    let [total_se, direct_se, mediated_se] = [0, 1, 2].map(|c| draws.se_result(c));
+    block.total = total_se.se;
+    block.direct = direct_se.se;
+    block.mediated = mediated_se.se;
+    block.replicates_ok = total_se.replicates_ok;
+    block.replicates_attempted = draws.attempted;
+    block.block_length = draws.block_length;
+    let requested = [block.total, block.direct, block.mediated][contrast_index(contrast)];
+    Some(SharedMediationBlockSe { block, requested, structural_span, family })
+}
+
+/// [`shared_mediation_block_bootstrap`] when an atom's series has gaps: one block plan on the
+/// original time axis over the times every atom covers, restricted to the times intact in
+/// every atom, so all atoms are refit on the same resampled times and no block joins times
+/// across a gap. The scores of compacted rows are not consecutive, so the block length is the
+/// structural rule, no kernel-bias widening is applied and the effective-row count is `NaN`.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the shared bootstrap's inputs plus the mixture family; each is a distinct caller input"
+)]
+fn gapped_shared_bootstrap(
+    atoms: &[&PreparedTemporalMediation],
+    weights: &[f64],
+    total: f64,
+    contrast: MediationContrast,
+    replicates: u32,
+    stream_base: u64,
+    ctx: &ExecutionContext,
+    family: CircularBlockFamily,
+) -> Option<SharedMediationBlockSe> {
+    let designs: Vec<GappedAlignedRows> = atoms
+        .iter()
+        .map(|atom| GappedAlignedRows {
+            first_time: atom.aligned.first_time,
+            complete: atom
+                .design
+                .window_complete
+                .clone()
+                .unwrap_or_else(|| vec![true; atom.aligned.rows]),
+        })
+        .collect();
+    let windows: Vec<AlignedRows> = atoms.iter().map(|atom| atom.aligned).collect();
+    let (_, len) = common_time_window(&windows)?;
+    let structural_span = atoms.iter().map(|atom| atom.structural_span).max().unwrap_or(1);
+    let block_length = antecedent_data::circular_block_length(structural_span, len);
+    let mut block = TemporalMediationBlockSe {
+        total: None,
+        direct: None,
+        mediated: None,
+        replicates_ok: 0,
+        replicates_attempted: 0,
+        block_length: block_length.clamp(1, len),
+        rows: len,
+        effective_rows: f64::NAN,
+        kernel_bias: 1.0,
+    };
+    if replicates == 0 {
+        return Some(SharedMediationBlockSe { block, requested: None, structural_span, family });
+    }
+    let draws = gapped_aligned_block_bootstrap(
+        &designs,
+        block_length,
+        replicates,
+        stream_base,
+        ctx,
+        |maps| {
+            let mut mixed = [0.0; 3];
+            for ((atom, rows), weight) in atoms.iter().zip(maps).zip(weights) {
+                let values = atom.contrasts_on_rows(rows)?;
+                for (slot, value) in mixed.iter_mut().zip(values) {
+                    *slot += weight / total * value;
+                }
+            }
+            Some(mixed.to_vec())
+        },
+    )?;
     let [total_se, direct_se, mediated_se] = [0, 1, 2].map(|c| draws.se_result(c));
     block.total = total_se.se;
     block.direct = direct_se.se;

@@ -131,6 +131,13 @@ pub struct GapSelection {
 }
 
 impl GapSelection {
+    /// Segment id of every intact window, in time order: windows adjacent on the original axis
+    /// share a segment and a gap starts a new one.
+    #[must_use]
+    pub fn segments(&self) -> Arc<[u32]> {
+        crate::serial_dependence::window_segments(&self.complete)
+    }
+
     /// Series times of the windows that were dropped, ascending.
     #[must_use]
     pub fn dropped_times(&self) -> Vec<usize> {

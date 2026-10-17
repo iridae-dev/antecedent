@@ -95,6 +95,9 @@ impl CheckedTemporalClassEffectExecution {
                 refute,
                 custom_validators,
                 latency_mode: None,
+                gaps: self.result_context.missing.as_ref().is_some_and(|declaration| {
+                    declaration.policy == antecedent_data::MissingPolicy::CompleteCase
+                }),
             },
             ctx,
         )?;

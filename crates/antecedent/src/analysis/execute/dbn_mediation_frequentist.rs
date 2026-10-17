@@ -122,7 +122,9 @@ impl super::Study {
         let horizon = query.horizons[0];
         let identified = identified.mediation_horizon(horizon)?;
         let mut atoms = dbn_posterior_structural_atoms(&identified);
-        let est = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+        let est = TemporalMediationEstimator::new()
+            .with_allow_natural_controlled_alias(true)
+            .with_allow_gaps(self.declares_complete_case());
         let DbnMediationFits {
             designs,
             weights,

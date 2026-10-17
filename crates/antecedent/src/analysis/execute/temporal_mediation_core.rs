@@ -143,6 +143,10 @@ struct HorizonFit {
 }
 
 /// Fit and assemble the mediation of every requested horizon.
+#[allow(
+    clippy::too_many_lines,
+    reason = "every horizon shares the gap policy, the design and the replicate loop of one mediation fit"
+)]
 pub(super) fn fit_temporal_mediation(
     inputs: &TemporalMediationInputs<'_>,
     ctx: &ExecutionContext,
@@ -172,7 +176,7 @@ pub(super) fn fit_temporal_mediation(
     let first_gap = antecedent_data::first_missing_cell(inputs.data, &gap_variables)?;
     let gaps = first_gap.is_some();
     if let Some(cell) = &first_gap {
-        admit_mediation_gaps(inputs, bayesian.is_some(), cell)?;
+        admit_mediation_gaps(inputs, cell)?;
     }
 
     let mut slices = Vec::with_capacity(horizons.len());
@@ -307,12 +311,11 @@ fn mediation_variables(inputs: &TemporalMediationInputs<'_>) -> Vec<antecedent_c
     variables
 }
 
-/// Admit a series with gaps only under a declared complete-case policy on a frequentist fit
-/// without refuters; the Bayesian composition tempers likelihoods by long-run variances of
-/// consecutive rows, and the mediation refuters refit through contiguous windows.
+/// Admit a series with gaps only under a declared complete-case policy without refuters (the
+/// mediation refuters refit through contiguous windows). The Bayesian mechanisms are tempered
+/// by the segment-wise long-run variance of the intact windows.
 fn admit_mediation_gaps(
     inputs: &TemporalMediationInputs<'_>,
-    bayesian: bool,
     cell: &antecedent_data::MissingCell,
 ) -> Result<(), CausalError> {
     use crate::analysis::missing_data::MissingRoute;
@@ -342,14 +345,11 @@ fn admit_mediation_gaps(
             &supported[..1],
         ))
     };
-    if bayesian {
+    if inputs.validation != RefuteSuite::None
+        && matches!(inputs.inference, MediationInference::Bayesian(_))
+    {
         return Err(refuse(
-            "the Bayesian mediation composition tempers likelihoods by long-run variances of consecutive rows",
-        ));
-    }
-    if inputs.validation != RefuteSuite::None {
-        return Err(refuse(
-            "the mediation refuters refit through contiguous windows; request no refuters on a series with gaps",
+            "the mediation predictive checks read consecutive rows; request no refuters on a Bayesian fit of a series with gaps",
         ));
     }
     Ok(())
@@ -443,7 +443,7 @@ fn fit_mediation_horizon(
             ctx,
         ),
         (MediationInference::Bayesian(config), Some(estimator)) => {
-            fit_bayesian_horizon(inputs, click, &horizon_query, config, estimator, ctx)
+            fit_bayesian_horizon(inputs, click, &horizon_query, config, estimator, gaps, ctx)
         }
         (MediationInference::Bayesian(_), None) => Err(CausalError::Compile {
             message: "Bayesian temporal mediation horizon has no estimator".into(),
@@ -505,13 +505,14 @@ fn fit_frequentist_horizon(
     let refutations = if inputs.validation == RefuteSuite::None {
         Vec::new()
     } else {
-        antecedent_validate::mediation::refute_temporal_mediation_adjusted(
+        antecedent_validate::mediation::refute_temporal_mediation_with_gaps(
             inputs.data,
             &click.estimand,
             horizon_query,
             &mediation,
             inputs.validation == RefuteSuite::Full,
             &click.adjustment,
+            gaps,
             ctx,
         )
         .map_err(CausalError::from)?
@@ -572,10 +573,11 @@ fn fit_bayesian_horizon(
     horizon_query: &antecedent_core::MediationQuery,
     config: &BayesianConfig,
     estimator: &BayesianGComputationAte,
+    gaps: bool,
     ctx: &ExecutionContext,
 ) -> Result<HorizonFit, CausalError> {
     use antecedent_estimate::bayesian_mediation::{
-        compose_temporal_mediation, prepare_temporal_mediation_adjusted,
+        compose_temporal_mediation, prepare_temporal_mediation_with_gaps,
     };
     let status = click.identification.status;
     let natural_alias = matches!(
@@ -583,12 +585,13 @@ fn fit_bayesian_horizon(
         antecedent_core::MediationContrast::NaturalDirect
             | antecedent_core::MediationContrast::NaturalIndirect
     );
-    let preparations = prepare_temporal_mediation_adjusted(
+    let preparations = prepare_temporal_mediation_with_gaps(
         inputs.data,
         &click.estimand,
         horizon_query,
         &click.adjustment,
         ctx,
+        gaps,
     )
     .map_err(CausalError::from)?;
     let fit = |scale: f64| {
@@ -612,13 +615,14 @@ fn fit_bayesian_horizon(
     let mut predictive_checks = Vec::new();
     if inputs.validation != RefuteSuite::None {
         refutations.extend(
-            antecedent_validate::mediation::refute_temporal_mediation_adjusted(
+            antecedent_validate::mediation::refute_temporal_mediation_with_gaps(
                 inputs.data,
                 &click.estimand,
                 horizon_query,
                 &point_estimate,
                 inputs.validation == RefuteSuite::Full,
                 &click.adjustment,
+                gaps,
                 ctx,
             )
             .map_err(CausalError::from)?,

@@ -11,7 +11,7 @@ use super::{
     mix_prior_sensitivity_summaries, temporal_refuter_average, with_prior_sensitivity,
 };
 use antecedent_estimate::temporal_sequential::{
-    SequentialBayesianMechanism, estimate_sustained_window,
+    SequentialBayesianMechanism, estimate_sustained_window, estimate_sustained_window_gaps_if,
 };
 use antecedent_validate::RefutationProblem;
 use antecedent_validate::common::EffectRefit;
@@ -33,6 +33,8 @@ struct SequentialRefitter<'a> {
     query: &'a TemporalEffectQuery,
     time: &'a TimeIndex,
     bayes: Option<&'a BayesianGComputationAte>,
+    /// The series has missing time points: refits fit the intact lag windows.
+    gaps: bool,
 }
 impl EffectRefit for SequentialRefitter<'_> {
     fn refit(
@@ -74,7 +76,7 @@ impl EffectRefit for SequentialRefitter<'_> {
             )
             .map_err(|e| antecedent_validate::ValidationError::data_msg(e.to_string()))?
         };
-        Ok(estimate_sustained_window(
+        Ok(estimate_sustained_window_gaps_if(
             &antecedent_estimate::SequentialProblem {
                 data: &series,
                 graph: &graph,
@@ -89,6 +91,8 @@ impl EffectRefit for SequentialRefitter<'_> {
                 bayesian: self.bayes,
             },
             ctx,
+            None,
+            self.gaps,
         )?
         .0)
     }
@@ -107,6 +111,31 @@ impl EffectRefit for SequentialRefitter<'_> {
     ) -> Option<
         Result<antecedent_validate::common::AlignedRefit, antecedent_validate::ValidationError>,
     > {
+        self.prepare_aligned_windows(data, ctx).map(|prepared| {
+            prepared.and_then(|(refit, windows)| match windows {
+                None => Ok(refit),
+                Some(_) => Err(antecedent_validate::ValidationError::NotApplicable {
+                    message: "the aligned rows of a series with missing time points are not \
+                              consecutive; resample them through the intact-window map",
+                }),
+            })
+        })
+    }
+
+    /// [`Self::prepare_aligned`], with the intact-window map when the series has gaps.
+    fn prepare_aligned_windows(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Option<
+        Result<
+            (
+                antecedent_validate::common::AlignedRefit,
+                Option<antecedent_validate::common::WindowCompleteness>,
+            ),
+            antecedent_validate::ValidationError,
+        >,
+    > {
         if self.bayes.is_some_and(|bayes| bayes.prior.is_some()) {
             return Some(Err(antecedent_validate::ValidationError::NotApplicable {
                 message: "a composed Bayesian contrast under an informative coefficient prior \
@@ -118,7 +147,7 @@ impl EffectRefit for SequentialRefitter<'_> {
         let prepared = TimeSeriesData::try_new(data.storage().clone(), time)
             .map_err(antecedent_validate::ValidationError::from)
             .and_then(|series| {
-                antecedent_estimate::SequentialContrastDesign::prepare(
+                antecedent_estimate::SequentialContrastDesign::prepare_with_gaps(
                     &antecedent_estimate::SequentialProblem {
                         data: &series,
                         graph: &self.atom.graph,
@@ -128,6 +157,7 @@ impl EffectRefit for SequentialRefitter<'_> {
                     self.query,
                     self.atom.status,
                     ctx,
+                    self.gaps,
                 )
                 .map_err(antecedent_validate::ValidationError::from)
             });
@@ -144,9 +174,16 @@ impl EffectRefit for SequentialRefitter<'_> {
             }));
         }
         let rows = design.aligned_rows().rows;
+        let window_complete = design.has_gaps().then(|| design.gapped_rows().complete);
         // A bootstrapped Frequentist contrast carries the length its interval
         // resampled; otherwise derive it once from the prepared design.
         let block_length = match self.atom.estimate.uncertainty.block.resampling {
+            // On a series with gaps the compacted rows are not consecutive: the structural
+            // rule on the original window axis stands.
+            _ if window_complete.is_some() => antecedent_data::circular_block_length(
+                design.structural_span(),
+                design.gapped_rows().complete.len(),
+            ),
             Some(geometry)
                 if self.bayes.is_none()
                     && self.atom.estimate.uncertainty.bootstrap.replicates_ok.is_some()
@@ -156,12 +193,15 @@ impl EffectRefit for SequentialRefitter<'_> {
             }
             _ => design.block_length(),
         };
-        Some(Ok(antecedent_validate::common::AlignedRefit {
-            rows,
-            block_length,
-            stand_in,
-            estimate: Box::new(move |rows| design.estimate_on_rows(rows).ok()),
-        }))
+        Some(Ok((
+            antecedent_validate::common::AlignedRefit {
+                rows,
+                block_length,
+                stand_in,
+                estimate: Box::new(move |rows| design.estimate_on_rows(rows).ok()),
+            },
+            window_complete,
+        )))
     }
 }
 
@@ -225,6 +265,9 @@ pub(super) struct SequentialValidation<'a> {
     pub(super) suite: RefuteSuite,
     pub(super) custom: &'a [Arc<dyn antecedent_validate::CustomEffectValidator>],
     pub(super) predictive_sims: u32,
+    /// The series has missing time points: refuters refit the intact lag windows and resample
+    /// blocks of the original window axis.
+    pub(super) gaps: bool,
 }
 
 type SequentialValidationResults =
@@ -284,7 +327,13 @@ impl SequentialPass<'_> {
         let bayes = self.bayes;
         let table = &self.table;
         let average = &self.average;
-        let refitter = SequentialRefitter { atom, query, time: data.time_index(), bayes };
+        let refitter = SequentialRefitter {
+            atom,
+            query,
+            time: data.time_index(),
+            bayes,
+            gaps: self.setup.gaps,
+        };
         let temporal = TemporalRefitContext {
             indexer: &atom.indexer,
             temporal_query: query,
@@ -292,7 +341,7 @@ impl SequentialPass<'_> {
             kernel_policy: &ctx.kernel_policy,
             time_index: Some(data.time_index()),
             panel: None,
-            gaps: false,
+            gaps: self.setup.gaps,
         };
         let problem = RefutationProblem::new(
             table,

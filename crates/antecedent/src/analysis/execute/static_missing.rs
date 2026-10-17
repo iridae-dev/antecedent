@@ -10,6 +10,14 @@ use crate::analysis::missing_data::{self, MissingRoute};
 use antecedent_data::{MissingPolicy, RowAccounting, complete_rows, first_missing_cell};
 
 impl Study {
+    /// Whether the caller declared complete-case handling, which lets gap-aware estimators
+    /// fit the intact lag windows of a series with missing time points.
+    pub(super) fn declares_complete_case(&self) -> bool {
+        self.missing
+            .as_ref()
+            .is_some_and(|declaration| declaration.policy == MissingPolicy::CompleteCase)
+    }
+
     /// Attach the missing-data report of a static adjustment result.
     ///
     /// Routes that account for their own rows (randomized, panel) already carry one.

@@ -9,10 +9,12 @@
 
 use std::sync::Arc;
 
-use antecedent::{RandomizedEffectQuery, RefuteSuite, Study, StudyResult};
+use antecedent::{
+    BayesianConfig, InferenceMode, RandomizedEffectQuery, RefuteSuite, Study, StudyResult,
+};
 use antecedent_core::{
-    CausalQuery, ExecutionContext, Lag, PanelDidQuery, TemporalEffectQuery, TemporalPolicy,
-    VariableId,
+    CausalQuery, ExecutionContext, Lag, MediationContrast, MediationQuery, PanelDidQuery,
+    TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::{MissingDeclaration, MissingPolicy, TabularData, TimeSeriesData};
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -698,7 +700,10 @@ fn sustained_windows_on_a_series_with_gaps_match_the_intact_window_regression() 
     // Windows that read a gap are dropped, each by its own time; no window spans one.
     let accounting = &result.missing_data.as_ref().unwrap().accounting;
     let dropped: Vec<usize> = (2..n).filter(|i| !rows.contains(i)).collect();
-    assert_eq!(accounting.dropped_rows.iter().map(|r| *r as usize).collect::<Vec<_>>(), dropped);
+    assert_eq!(
+        accounting.dropped_rows.iter().map(|r| usize::try_from(*r).unwrap()).collect::<Vec<_>>(),
+        dropped
+    );
     // The block bootstrap runs on the original window axis.
     let boot = run(120).unwrap();
     let se = boot.estimate.as_effect().unwrap().se_bootstrap().expect("bootstrap SE");
@@ -774,4 +779,239 @@ fn the_conditional_marginal_effect_on_a_series_with_gaps_uses_the_intact_windows
     let ate = result.estimate.as_effect().unwrap().ate;
     assert!((ate - (1.5 + 0.8 * wbar)).abs() < 1e-8, "ate {ate} vs {}", 1.5 + 0.8 * wbar);
     assert_eq!(result.missing_data.as_ref().unwrap().accounting.dropped_rows.as_ref(), [31]);
+}
+
+#[test]
+fn the_bayesian_single_window_on_a_series_with_gaps_uses_segment_wise_tempering() {
+    let gaps = [100, 101, 202, 303];
+    let n = 420;
+    let (data, x, y) = series(n, &gaps);
+    let result = Study::series(data)
+        .query(pulse())
+        .graph(temporal_graph())
+        .refute(RefuteSuite::None)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().prior_scale(1_000.0).n_draws(400),
+        ))
+        .missing(declare(MissingPolicy::CompleteCase))
+        .build()
+        .unwrap()
+        .prepare(&ctx())
+        .unwrap()
+        .estimate_retained(&ctx())
+        .unwrap();
+    // A diffuse prior leaves the posterior mean at the intact-window regression slope.
+    let kept: Vec<usize> = (1..n).filter(|t| !gaps.contains(&(t - 1))).collect();
+    let (mx, my) = (
+        kept.iter().map(|&t| x[t - 1]).sum::<f64>() / kept.len() as f64,
+        kept.iter().map(|&t| y[t]).sum::<f64>() / kept.len() as f64,
+    );
+    let slope = kept.iter().map(|&t| (x[t - 1] - mx) * (y[t] - my)).sum::<f64>()
+        / kept.iter().map(|&t| (x[t - 1] - mx).powi(2)).sum::<f64>();
+    let posterior = result.posterior.as_ref().expect("a Bayesian posterior");
+    // Column 0 of the summaries is not the effect: read the effect column.
+    let col = posterior.effect_column().expect("an effect column");
+    assert!(
+        (posterior.summaries.mean[col] - slope).abs() < 0.02,
+        "{} vs {slope}",
+        posterior.summaries.mean[col]
+    );
+    assert!(posterior.summaries.sd[col] > 0.0);
+    assert_eq!(
+        result.missing_data.as_ref().unwrap().accounting.dropped_rows.as_ref(),
+        [101, 102, 203, 304]
+    );
+    // Predictive checks read consecutive rows, so a Bayesian fit with gaps declines them.
+    let refused = Study::series(series(n, &gaps).0)
+        .query(pulse())
+        .graph(temporal_graph())
+        .refute(RefuteSuite::Cheap)
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(50)))
+        .missing(declare(MissingPolicy::CompleteCase))
+        .build()
+        .unwrap()
+        .prepare(&ctx())
+        .unwrap()
+        .estimate_retained(&ctx())
+        .unwrap_err();
+    assert_eq!(refused.reason_code(), Some("missing_policy_not_applicable"), "{refused}");
+}
+
+fn sustained_graph() -> TemporalDag {
+    let mut graph = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let t2 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(t2, y0).unwrap();
+    graph
+}
+
+fn sustained_query() -> CausalQuery {
+    CausalQuery::TemporalEffect(
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::sustained(-2, -1)),
+    )
+}
+
+#[test]
+fn the_bayesian_sustained_contrast_on_a_series_with_gaps_recovers_the_known_effect() {
+    let gaps = [90, 91, 200];
+    let (data, _, _) = sustained_series(360, &gaps);
+    let result = Study::series(data)
+        .query(sustained_query())
+        .graph(sustained_graph())
+        .refute(RefuteSuite::None)
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().prior_scale(1_000.0).n_draws(600),
+        ))
+        .missing(declare(MissingPolicy::CompleteCase))
+        .build()
+        .unwrap()
+        .prepare(&ctx())
+        .unwrap()
+        .estimate_retained(&ctx())
+        .unwrap();
+    // The data are nearly deterministic: the sustained contrast is 2 + 0.8.
+    let ate = result.estimate.as_effect().unwrap().ate;
+    assert!((ate - 2.8).abs() < 0.1, "posterior contrast {ate}");
+    assert!(result.posterior.is_some());
+    let accounting = &result.missing_data.as_ref().unwrap().accounting;
+    assert!(accounting.dropped_rows.iter().any(|row| *row == 91));
+}
+
+#[test]
+fn sustained_refuters_on_a_series_with_gaps_refit_the_intact_windows() {
+    let gaps = [90, 91, 200];
+    let (data, _, _) = sustained_series(360, &gaps);
+    let run = |inference: InferenceMode| {
+        Study::series(data.clone())
+            .query(sustained_query())
+            .graph(sustained_graph())
+            .refute(RefuteSuite::Full)
+            .inference(inference)
+            .bootstrap_replicates(60)
+            .missing(declare(MissingPolicy::CompleteCase))
+            .build()?
+            .prepare(&ctx())?
+            .estimate_retained(&ctx())
+    };
+    let result = run(InferenceMode::Frequentist).unwrap();
+    assert!(!result.refutations.is_empty(), "the sustained refuters ran");
+    assert!((result.estimate.as_effect().unwrap().ate - 2.8).abs() < 0.05);
+    // Predictive checks read consecutive rows, so a Bayesian fit with gaps declines them.
+    let refused =
+        run(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(50))).unwrap_err();
+    assert_eq!(refused.reason_code(), Some("missing_policy_not_applicable"), "{refused}");
+}
+
+/// `m_i = 0.8 t_{i-1} + 0.6 z_{i-1} + noise`, `y_i = 1 + 0.25 t_{i-1} + 0.55 m_i + 5 z_{i-1}`,
+/// with the mediator missing at `gaps`. The mediated effect is `0.8 * 0.55`.
+fn mediation_series(gaps: &[usize]) -> TimeSeriesData {
+    let n = 241;
+    let z: Vec<f64> = (0..n).map(|i| if i % 4 < 2 { 1.0 } else { -1.0 }).collect();
+    let t: Vec<f64> =
+        (0..n).map(|i| z[i] + if i % 4 == 0 || i % 4 == 2 { 1.0 } else { -1.0 }).collect();
+    let mut m = vec![0.0; n];
+    let mut y = vec![1.0; n];
+    for i in 1..n {
+        let noise = (i % 5) as f64 - 2.0;
+        m[i] = 0.8 * t[i - 1] + 0.6 * z[i - 1] + 0.15 * noise;
+        y[i] = 1.0 + 0.25 * t[i - 1] + 0.55 * m[i] + 5.0 * z[i - 1];
+    }
+    let observed: Vec<f64> =
+        m.iter().enumerate().map(|(i, v)| if gaps.contains(&i) { f64::NAN } else { *v }).collect();
+    TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("m", observed.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+        1,
+    )
+    .unwrap()
+}
+
+fn mediation_graph() -> TemporalDag {
+    let mut graph = TemporalDag::empty();
+    let t0 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let z0 = ensure_lagged(&mut graph, VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = ensure_lagged(&mut graph, VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    for (from, to) in [(z0, t0), (z1, y0), (z1, m0), (t1, y0), (t1, m0), (m0, y0)] {
+        graph.insert_directed(from, to).unwrap();
+    }
+    graph
+}
+
+fn run_mediation(
+    gaps: &[usize],
+    inference: InferenceMode,
+    suite: RefuteSuite,
+    bootstrap: u32,
+    declared: bool,
+) -> Result<StudyResult, antecedent::CausalError> {
+    let query = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        [VariableId::from_raw(1)],
+        MediationContrast::Mediated,
+    )
+    .with_horizons(vec![1])
+    .unwrap();
+    let mut builder = Study::series(mediation_series(gaps))
+        .graph(mediation_graph())
+        .query(CausalQuery::Mediation(query))
+        .inference(inference)
+        .refute(suite)
+        .bootstrap_replicates(bootstrap);
+    if declared {
+        builder = builder.missing(declare(MissingPolicy::CompleteCase));
+    }
+    builder.build()?.prepare(&ctx())?.estimate_retained(&ctx())
+}
+
+#[test]
+fn mediation_on_a_series_with_gaps_recovers_the_known_mediated_effect_under_both_inferences() {
+    const MEDIATED_TRUTH: f64 = 0.8 * 0.55;
+    let gaps = [60, 61, 150];
+    // Undeclared, the gap refuses as it always has.
+    assert!(run_mediation(&gaps, InferenceMode::Frequentist, RefuteSuite::None, 0, false).is_err());
+    let frequentist =
+        run_mediation(&gaps, InferenceMode::Frequentist, RefuteSuite::None, 0, true).unwrap();
+    let ate = frequentist.estimate.as_effect().unwrap().ate;
+    // The mediator equation carries noise 0.15 * (i % 5 - 2), sd 0.15 * sqrt(2) = 0.212; the
+    // outcome equation is exact, so the product is 0.55 * a_hat. With about 235 intact windows
+    // and a treatment residual sd near 1, SE(a_hat) = 0.212 / sqrt(235) = 0.0138, so
+    // SE(mediated) = 0.55 * 0.0138 = 0.0076. The tolerance is 3.3 of those SEs.
+    assert!((ate - MEDIATED_TRUTH).abs() < 0.025, "frequentist mediated effect {ate}");
+    let dropped = &frequentist.missing_data.as_ref().unwrap().accounting.dropped_rows;
+    assert!([60, 61, 150].iter().all(|time| dropped.contains(time)), "{dropped:?}");
+
+    let bayesian = run_mediation(
+        &gaps,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(2048).prior_scale(1_000.0)),
+        RefuteSuite::None,
+        0,
+        true,
+    )
+    .unwrap();
+    let ate = bayesian.estimate.as_effect().unwrap().ate;
+    assert!((ate - MEDIATED_TRUTH).abs() < 0.08, "Bayesian mediated effect {ate}");
+    assert!(bayesian.posterior.is_some());
+}
+
+#[test]
+fn mediation_refuters_on_a_series_with_gaps_refit_the_intact_windows() {
+    let gaps = [60, 61, 150];
+    let result =
+        run_mediation(&gaps, InferenceMode::Frequentist, RefuteSuite::Full, 60, true).unwrap();
+    assert!(!result.refutations.is_empty(), "the mediation refuters ran");
+    let refused = run_mediation(
+        &gaps,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(50)),
+        RefuteSuite::Cheap,
+        0,
+        true,
+    )
+    .unwrap_err();
+    assert_eq!(refused.reason_code(), Some("missing_policy_not_applicable"), "{refused}");
 }

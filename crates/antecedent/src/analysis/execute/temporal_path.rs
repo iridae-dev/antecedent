@@ -48,7 +48,9 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+        let estimator = TemporalMediationEstimator::new()
+            .with_allow_natural_controlled_alias(true)
+            .with_allow_gaps(self.declares_complete_case());
         let inputs = CpdagMediationInputs { data, query, estimator: &estimator, ctx };
         let mut run = CpdagMediationRun::new(query.horizons.len());
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
@@ -1140,7 +1142,8 @@ impl super::Study {
         // Surface SEs follow the Study bootstrap / replicate contract so Pulse,
         // single-step Sustained, and the dose × horizon surface report comparable
         // uncertainty. Replicates = 0 keeps the analytic OLS linear-functional SE.
-        let mut estimator = TemporalResponseEstimator::new();
+        let mut estimator =
+            TemporalResponseEstimator::new().with_allow_gaps(self.declares_complete_case());
         estimator.inner.bootstrap_replicates =
             if observation_adjusted.is_some() { 0 } else { self.bootstrap_replicates };
         let mut conflict_summary = None;
@@ -2396,6 +2399,7 @@ impl super::Study {
                 refute: self.refute,
                 custom_validators: &self.custom_validators,
                 latency_mode: self.latency_mode,
+                gaps: self.declares_complete_case(),
             },
             ctx,
         )?;

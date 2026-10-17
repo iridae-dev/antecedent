@@ -871,6 +871,7 @@ fn refute_temporal_class_graph_posterior(
                         predictive_sims: super::super::latency::predictive_check_sims(
                             study.latency_mode,
                         ),
+                        gaps: false,
                     },
                     &eval.sequential_atoms,
                     None,

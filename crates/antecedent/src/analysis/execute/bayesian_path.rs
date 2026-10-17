@@ -2459,6 +2459,7 @@ impl super::Study {
                         predictive_sims: super::super::latency::predictive_check_sims(
                             self.latency_mode,
                         ),
+                        gaps: false,
                     },
                     &validation_atoms,
                     None,
@@ -2829,6 +2830,7 @@ impl super::Study {
                     predictive_sims: super::super::latency::predictive_check_sims(
                         self.latency_mode,
                     ),
+                    gaps: false,
                 },
                 sequential_atoms,
                 sequential_bayes,

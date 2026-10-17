@@ -88,6 +88,8 @@ pub enum TemporalAtomDesign {
     Linear {
         prep: Box<antecedent_estimate::PreparedEstimationProblem>,
         rows: antecedent_estimate::AlignedRows,
+        /// The intact windows when the series has missing time points.
+        selection: Option<antecedent_estimate::GapSelection>,
         fitter: antecedent_estimate::LinearAdjustmentAte,
         point: EffectEstimate,
         normal_scores: Vec<Vec<f64>>,
@@ -111,12 +113,40 @@ impl TemporalAtomDesign {
         split: Option<&antecedent_data::DiscoveryEstimationSplit>,
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
+        Self::linear_with_gaps(data, estimand, query, indexer, split, false, ctx)
+    }
+
+    /// [`Self::linear`], on a series that may have missing time points when `gaps` is set:
+    /// the atom is fit on its intact windows and the shared bootstrap resamples the original
+    /// window axis. A split series is not combined with gaps.
+    pub fn linear_with_gaps(
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &TemporalEffectQuery,
+        indexer: &TemporalIndexer,
+        split: Option<&antecedent_data::DiscoveryEstimationSplit>,
+        gaps: bool,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
         let mut estimator = TemporalLinearAdjustment::new();
         estimator.inner.bootstrap_replicates = 0;
         estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
-        let (prep, rows) = estimator
-            .prepare_aligned(data, estimand, query, indexer, split, &ctx.kernel_policy)
-            .map_err(CausalError::from)?;
+        let (prep, rows, selection) = if gaps && split.is_none() {
+            let (prep, selection) = estimator
+                .prepare_with_gaps(data, estimand, query, indexer, &ctx.kernel_policy)
+                .map_err(CausalError::from)?;
+            let rows = antecedent_estimate::AlignedRows {
+                first_time: selection.first_time,
+                rows: prep.design.nrows,
+            };
+            let selection = selection.complete.iter().any(|intact| !intact).then_some(selection);
+            (prep, rows, selection)
+        } else {
+            let (prep, rows) = estimator
+                .prepare_aligned(data, estimand, query, indexer, split, &ctx.kernel_policy)
+                .map_err(CausalError::from)?;
+            (prep, rows, None)
+        };
         // The point fit's own OLS residuals give the nuisance scores: no second solve.
         let (point, residuals) = estimator
             .inner
@@ -140,6 +170,7 @@ impl TemporalAtomDesign {
         Ok(Self::Linear {
             prep: Box::new(prep),
             rows,
+            selection,
             fitter: estimator.inner,
             point,
             normal_scores,
@@ -156,17 +187,58 @@ impl TemporalAtomDesign {
         status: IdentificationStatus,
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
-        let design = antecedent_estimate::SequentialContrastDesign::prepare(
+        Self::sequential_with_gaps(data, graph, indexer, estimand, query, status, false, ctx)
+    }
+
+    /// [`Self::sequential`], on a series that may have missing time points when `gaps` is set.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the sequential envelope's inputs plus the gap switch; each is a distinct caller input"
+    )]
+    pub fn sequential_with_gaps(
+        data: &TimeSeriesData,
+        graph: &TemporalDag,
+        indexer: &TemporalIndexer,
+        estimand: &IdentifiedEstimand,
+        query: &TemporalEffectQuery,
+        status: IdentificationStatus,
+        gaps: bool,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        let design = antecedent_estimate::SequentialContrastDesign::prepare_with_gaps(
             &antecedent_estimate::SequentialProblem { data, graph, indexer, estimand },
             query,
             status,
             ctx,
+            gaps,
         )
         .map_err(CausalError::from)?;
         let point = design.estimate().map_err(CausalError::from)?;
         let influence = design.influence();
         let normal_scores = design.normal_equation_scores();
         Ok(Self::Sequential { design: Box::new(design), point, influence, normal_scores })
+    }
+
+    /// The atom's windows with their intactness, for the gap-aware shared bootstrap.
+    fn gapped_rows(&self) -> antecedent_estimate::GappedAlignedRows {
+        match self {
+            Self::Linear { selection: Some(selection), .. } => {
+                antecedent_estimate::GappedAlignedRows {
+                    first_time: selection.first_time,
+                    complete: selection.complete.clone(),
+                }
+            }
+            Self::Linear { rows, .. } => antecedent_estimate::GappedAlignedRows::contiguous(*rows),
+            Self::Sequential { design, .. } => design.gapped_rows(),
+        }
+    }
+
+    /// Whether the atom was fit on a series with dropped windows.
+    pub fn has_gaps(&self) -> bool {
+        match self {
+            Self::Linear { selection, .. } => selection.is_some(),
+            Self::Sequential { design, .. } => design.has_gaps(),
+        }
     }
 
     fn aligned_rows(&self) -> antecedent_estimate::AlignedRows {
@@ -254,6 +326,16 @@ pub fn shared_circular_block_mixture_se(
     stream_base: u64,
     ctx: &ExecutionContext,
 ) -> SharedCircularBlockSe {
+    if atoms.iter().any(|atom| atom.has_gaps()) {
+        return shared_gapped_block_mixture_se(
+            atoms,
+            weights,
+            structural_span,
+            replicates,
+            stream_base,
+            ctx,
+        );
+    }
     let designs: Vec<_> = atoms.iter().map(|atom| atom.aligned_rows()).collect();
     let Some((start, len)) =
         antecedent_estimate::common_time_window(&designs).filter(|_| replicates > 0)
@@ -305,6 +387,59 @@ pub fn shared_circular_block_mixture_se(
         f64::NAN
     };
     out
+}
+
+/// [`shared_circular_block_mixture_se`] when any atom was fit on a series with missing time
+/// points: one block plan on the original window axis over the windows every atom reads,
+/// keeping the times intact in every atom, and every atom refit on those same times.
+///
+/// The dependence-adaptive block length reads consecutive scores, which the compacted rows of
+/// a gapped fit are not, so the structural rule stands (the lag span, at least `ceil(m^(1/3))`)
+/// without the kernel-bias widening, and no effective-row count is reported.
+fn shared_gapped_block_mixture_se(
+    atoms: &[&TemporalAtomDesign],
+    weights: &[f64],
+    structural_span: usize,
+    replicates: u32,
+    stream_base: u64,
+    ctx: &ExecutionContext,
+) -> SharedCircularBlockSe {
+    let total: f64 = weights.iter().sum();
+    if replicates == 0 || atoms.is_empty() || atoms.len() != weights.len() || total <= 0.0 {
+        return SharedCircularBlockSe::empty();
+    }
+    let designs: Vec<_> = atoms.iter().map(|atom| atom.gapped_rows()).collect();
+    let start = designs.iter().map(|d| d.first_time).max().unwrap_or(0);
+    let end = designs.iter().map(|d| d.first_time + d.complete.len()).min().unwrap_or(0);
+    if end <= start {
+        return SharedCircularBlockSe::empty();
+    }
+    let block_length = antecedent_data::circular_block_length(structural_span, end - start);
+    let mut workspace = EstimationWorkspace::default();
+    let mut x_boot = Vec::new();
+    let mut y_boot = Vec::new();
+    let Some(draws) = antecedent_estimate::gapped_aligned_block_bootstrap(
+        &designs,
+        block_length,
+        replicates,
+        stream_base,
+        ctx,
+        |maps| {
+            let mut values = Vec::with_capacity(maps.len() + 1);
+            let mut mixture = 0.0;
+            for (atom, (rows, weight)) in maps.iter().zip(weights).enumerate() {
+                let value =
+                    atoms[atom].estimate_on_rows(rows, &mut workspace, &mut x_boot, &mut y_boot)?;
+                mixture += weight / total * value;
+                values.push(value);
+            }
+            values.push(mixture);
+            Some(values)
+        },
+    ) else {
+        return SharedCircularBlockSe::empty();
+    };
+    shared_se_from_draws(draws, atoms.len(), 1.0)
 }
 
 /// Block length of the shared circular block over `len` shared times:
@@ -399,8 +534,17 @@ pub fn shared_circular_block_mixture_se_with_length(
     ) else {
         return SharedCircularBlockSe::empty();
     };
+    shared_se_from_draws(draws, designs.len(), kernel_bias)
+}
+
+/// The mixture SE of `k` atoms from shared-block draws holding each atom's value and then the
+/// mixture's.
+fn shared_se_from_draws(
+    draws: antecedent_estimate::RowBlockDraws,
+    k: usize,
+    kernel_bias: f64,
+) -> SharedCircularBlockSe {
     let draws = antecedent_estimate::RowBlockDraws { kernel_bias, ..draws };
-    let k = designs.len();
     // Cancelled shared blocks do not earn a nominal bootstrap SE even when the
     // success floor is met; cancellation is not adaptive early-stop.
     let se = if draws.cancelled { f64::NAN } else { draws.se_result(k).se.unwrap_or(f64::NAN) };

@@ -46,6 +46,26 @@ pub fn prepare_temporal_mediation_adjusted(
     adjustment: &[LaggedColumn],
     ctx: &ExecutionContext,
 ) -> Result<[PreparedBayesianProblem; 2], EstimationError> {
+    prepare_temporal_mediation_with_gaps(data, estimand, query, adjustment, ctx, false)
+}
+
+/// [`prepare_temporal_mediation_adjusted`], optionally on a series with missing time points.
+///
+/// With `gaps` both mechanisms are fitted on the intact lag windows (each at its original
+/// time with its own lags) and their likelihoods are tempered by the segment-wise long-run
+/// variance ([`SerialDependence::SegmentedTempering`]): no autocovariance crosses a gap.
+///
+/// # Errors
+///
+/// As [`prepare_temporal_mediation_adjusted`].
+pub fn prepare_temporal_mediation_with_gaps(
+    data: &TimeSeriesData,
+    estimand: &IdentifiedEstimand,
+    query: &MediationQuery,
+    adjustment: &[LaggedColumn],
+    ctx: &ExecutionContext,
+    gaps: bool,
+) -> Result<[PreparedBayesianProblem; 2], EstimationError> {
     query.validate()?;
     if !estimand.method_kind().is_ok_and(antecedent_expr::EstimandMethod::is_temporal_mediation)
         || estimand.mediators.len() != 1
@@ -65,7 +85,13 @@ pub fn prepare_temporal_mediation_adjusted(
     let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(1);
     let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
     let mut workspace = LaggedSampleWorkspace::default();
-    let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
+    let (sample, segments) = if gaps {
+        let (sample, complete) =
+            plan.prepare_complete_windows(data, &mut workspace, &ctx.kernel_policy)?;
+        (sample, Some(crate::serial_dependence::window_segments(&complete)))
+    } else {
+        (plan.prepare(data, &mut workspace, &ctx.kernel_policy)?, None)
+    };
     let active = crate::adjustment::intervention_f64(&query.active)?;
     let control = crate::adjustment::intervention_f64(&query.control)?;
     if active.to_bits() == control.to_bits() || (active == 0.0 && control == 0.0) {
@@ -113,10 +139,16 @@ pub fn prepare_temporal_mediation_adjusted(
         unit(po, &[(2, 1.0)]),
         unit(po, &[(1, 1.0), (2, a_hat)]),
     ]));
+    let dependence = |scope: DependenceScope| match &segments {
+        Some(segments) => SerialDependence::SegmentedTempering {
+            scope,
+            segments: std::sync::Arc::clone(segments),
+        },
+        None => SerialDependence::LongRunTempering(scope),
+    };
     Ok([
-        mediator_mechanism
-            .with_serial_dependence(SerialDependence::LongRunTempering(mediator_paths)),
-        outcome_mechanism.with_serial_dependence(SerialDependence::LongRunTempering(outcome_paths)),
+        mediator_mechanism.with_serial_dependence(dependence(mediator_paths)),
+        outcome_mechanism.with_serial_dependence(dependence(outcome_paths)),
     ])
 }
 

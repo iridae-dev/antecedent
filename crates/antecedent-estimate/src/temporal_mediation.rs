@@ -510,20 +510,8 @@ impl TemporalMediationEstimator {
         Ok((estimand.mediators[0], delta))
     }
 
-    /// Prepare the lag-aligned `[T, M, Y, adjustment…, extra…]` columns.
-    fn prepare_design(
-        data: &TimeSeriesData,
-        mediator: antecedent_core::VariableId,
-        query: &MediationQuery,
-        adjustment: &[LaggedColumn],
-        extra: &[antecedent_core::VariableId],
-        ctx: &ExecutionContext,
-    ) -> Result<MediationDesign, EstimationError> {
-        Self::prepare_design_with_gaps(data, mediator, query, adjustment, extra, ctx, false)
-    }
-
-    /// [`Self::prepare_design`], optionally keeping only the intact windows of a series with
-    /// gaps (and remembering which windows they are).
+    /// Prepare the lag-aligned `[T, M, Y, adjustment…, extra…]` columns, optionally keeping
+    /// only the intact windows of a series with gaps (and remembering which windows they are).
     fn prepare_design_with_gaps(
         data: &TimeSeriesData,
         mediator: antecedent_core::VariableId,
@@ -551,7 +539,8 @@ impl TemporalMediationEstimator {
             let (prep, complete) = plan
                 .prepare_complete_windows(data, &mut ws, &ctx.kernel_policy)
                 .map_err(EstimationError::from)?;
-            (prep, Some(complete))
+            // A series whose windows are all intact is the contiguous case.
+            (prep, Some(complete).filter(|complete| !complete.iter().all(|intact| *intact)))
         } else {
             (plan.prepare(data, &mut ws, &ctx.kernel_policy).map_err(EstimationError::from)?, None)
         };

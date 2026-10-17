@@ -381,6 +381,24 @@ impl BayesianGComputationAte {
         Ok(problem)
     }
 
+    /// [`Self::from_prepared_temporal`] for a design built from the intact windows of a series
+    /// with gaps: the likelihood is tempered by the segment-wise long-run variance, so no
+    /// autocovariance crosses a gap (see [`SerialDependence::SegmentedTempering`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_prepared_temporal`].
+    pub fn from_prepared_temporal_gapped(
+        prep: &PreparedEstimationProblem,
+        coef_names: Arc<[Arc<str>]>,
+        segments: Arc<[u32]>,
+    ) -> Result<PreparedBayesianProblem, EstimationError> {
+        let mut problem = Self::from_prepared_temporal(prep, coef_names)?;
+        problem.serial_dependence =
+            SerialDependence::SegmentedTempering { scope: DependenceScope::Treatment, segments };
+        Ok(problem)
+    }
+
     /// Fit mechanism + evaluate ATE g-computation posterior.
     ///
     /// `identification` is recorded as-is; informative priors never change it.
@@ -740,6 +758,18 @@ fn temper_likelihood(
                 ));
             }
             Some(long_run_tempering_factor(&problem.design, scope)?)
+        }
+        SerialDependence::SegmentedTempering { scope, segments } => {
+            if problem.unit_ids.is_some() {
+                return Err(EstimationError::unsupported(
+                    "segmented tempering applies to one series with gaps, not stacked panel units",
+                ));
+            }
+            Some(crate::serial_dependence::segmented_tempering_factor(
+                &problem.design,
+                scope,
+                segments,
+            )?)
         }
     };
     let weights = tempering

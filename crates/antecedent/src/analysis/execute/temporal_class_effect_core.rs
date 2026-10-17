@@ -47,6 +47,9 @@ pub(super) struct TemporalClassEffectInputs<'a> {
     pub refute: RefuteSuite,
     pub custom_validators: &'a [Arc<dyn antecedent_validate::CustomEffectValidator>],
     pub latency_mode: Option<crate::analysis::latency::LatencyMode>,
+    /// Complete-case handling of missing time points was declared: atoms fit the intact lag
+    /// windows and the shared bootstrap resamples the original window axis.
+    pub gaps: bool,
 }
 
 /// An assembled class-effect fit, before the result envelope.
@@ -187,8 +190,9 @@ pub(super) fn fit_class_linear(
     inputs: &TemporalClassEffectInputs<'_>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassEffectFit, CausalError> {
-    let TemporalClassEffectInputs { data, query, bundle, bootstrap_replicates, split, .. } =
-        *inputs;
+    let TemporalClassEffectInputs {
+        data, query, bundle, bootstrap_replicates, split, gaps, ..
+    } = *inputs;
     let envelope = &bundle.envelope.envelope;
     let mut diagnostics = vec![temporal_class_envelope_diagnostic(envelope, inputs.graph_class)];
     let ClassLinearAtoms {
@@ -208,7 +212,7 @@ pub(super) fn fit_class_linear(
         query,
         &bundle.envelope,
         &bundle.envelope.indexers,
-        split,
+        (split, gaps),
         ctx,
     )?;
     if total_weight <= 0.0 {
@@ -528,13 +532,13 @@ fn fit_completion_mechanisms(
     (assumptions, key): (antecedent_core::AssumptionSet, u64),
     ctx: &ExecutionContext,
 ) -> Result<CompletionMechanismFit, CausalError> {
-    let TemporalClassEffectInputs { data, query, bootstrap_replicates, .. } = *inputs;
+    let TemporalClassEffectInputs { data, query, bootstrap_replicates, gaps, .. } = *inputs;
     let mut seed = completion_fit_seed(ctx, key);
     loop {
         let mut mechanisms = Vec::new();
         let completion_bayes = bayes.map(|est| BayesianGComputationAte { seed, ..est.clone() });
-        let (estimate, posterior) =
-            antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
+        let (estimate, posterior, _) =
+            antecedent_estimate::temporal_sequential::estimate_sustained_window_gaps_if(
                 &antecedent_estimate::SequentialProblem { data, graph: dag, indexer, estimand },
                 query,
                 antecedent_estimate::SequentialInference {
@@ -553,6 +557,7 @@ fn fit_completion_mechanisms(
                 },
                 ctx,
                 Some(&mut mechanisms),
+                gaps,
             )
             .map_err(CausalError::from)?;
         let shared_seed = seq_atoms
@@ -584,7 +589,7 @@ fn mix_sequential_class_atoms(
     (EffectEstimate, Option<CausalPosterior>, Option<antecedent_estimate::IdentifiedSetInterval>),
     CausalError,
 > {
-    let TemporalClassEffectInputs { data, query, bundle, bootstrap_replicates, .. } = *inputs;
+    let TemporalClassEffectInputs { data, query, bundle, bootstrap_replicates, gaps, .. } = *inputs;
     let envelope = &bundle.envelope.envelope;
     let mut identified_set_interval = None;
     if bayes.is_some() {
@@ -635,6 +640,7 @@ fn mix_sequential_class_atoms(
                 &run.seq_atoms,
                 bootstrap_replicates,
                 envelope.truncated_completions > 0,
+                gaps,
                 ctx,
             )?;
         identified_set_interval = interval;
@@ -692,6 +698,7 @@ fn validate_sequential_class_atoms(
                 suite: inputs.refute,
                 custom: inputs.custom_validators,
                 predictive_sims: sims,
+                gaps: inputs.gaps,
             },
             &run.seq_atoms,
             bayes,
@@ -712,6 +719,7 @@ fn validate_sequential_class_atoms(
                     suite: inputs.refute,
                     custom: inputs.custom_validators,
                     predictive_sims: sims,
+                    gaps: inputs.gaps,
                 },
                 std::slice::from_ref(atom),
                 bayes,

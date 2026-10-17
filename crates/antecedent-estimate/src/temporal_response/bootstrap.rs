@@ -1,6 +1,9 @@
 //! Joint circular-block bootstrap of the response surface.
 
-use crate::temporal_block::{AlignedRows, aligned_block_bootstrap};
+use crate::temporal_block::{
+    AlignedRows, GappedAlignedRows, RowBlockDraws, aligned_block_bootstrap,
+    gapped_aligned_block_bootstrap,
+};
 use crate::util::BOOTSTRAP_MAX_FAILURE_FRAC;
 use antecedent_core::ExecutionContext;
 use antecedent_data::fill_circular_block_indexes;
@@ -78,51 +81,105 @@ pub(super) fn bootstrap_surface(
     if replicates == 0 || horizons.is_empty() || rows.iter().any(|r| r.rows == 0) {
         return None;
     }
-    let mut ols_ws = LeastSquaresWorkspace::default();
-    let mut x_boot = Vec::new();
-    let mut y_boot = Vec::new();
-    let ncols: Vec<usize> = horizons.iter().map(|fitted| fitted.prepared.design.ncols).collect();
+    let mut refit = SurfaceRefit::new(horizons);
     let boot = aligned_block_bootstrap(
         rows,
         block_length,
         replicates,
         HORIZON_BOOTSTRAP_STREAM,
         ctx,
-        |maps| {
-            let mut flat = Vec::new();
-            for (fitted, map) in horizons.iter().zip(maps) {
-                let design = &fitted.prepared.design;
-                let (n, p, m) = (design.nrows, design.ncols, map.len());
-                x_boot.resize(m * p, 0.0);
-                y_boot.resize(m, 0.0);
-                for (i, &src) in map.iter().enumerate() {
-                    y_boot[i] = design.outcome[src];
-                }
-                for c in 0..p {
-                    let column = &design.matrix[c * n..(c + 1) * n];
-                    for (i, &src) in map.iter().enumerate() {
-                        x_boot[c * m + i] = column[src];
-                    }
-                }
-                let fit = FaerBackend.least_squares(&x_boot, m, p, &y_boot, &mut ols_ws).ok()?;
-                flat.extend(fit.coefficients);
-                flat.extend(
-                    (0..p).map(|c| x_boot[c * m..(c + 1) * m].iter().sum::<f64>() / m as f64),
-                );
-            }
-            Some(flat)
-        },
+        |maps| refit.run(horizons, maps),
     )?;
-    if boot.draws.len() < 2 {
+    refit.finish(boot)
+}
+
+/// [`bootstrap_surface`] for horizons fit on a series with missing time points: one block plan
+/// on the original window axis over the windows every horizon reads, keeping the times intact
+/// in every horizon, with every horizon refit on those same times
+/// ([`gapped_aligned_block_bootstrap`]).
+pub(super) fn bootstrap_surface_gapped(
+    horizons: &[FittedHorizon],
+    rows: &[GappedAlignedRows],
+    block_length: usize,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Option<SurfaceBootstrap> {
+    if replicates == 0 || horizons.is_empty() {
         return None;
     }
-    // Unattempted replicates after cancellation are not failures (mirrors
-    // `finalize_bootstrap_se_ex`); singular resamples among those attempted are.
-    let failed = f64::from(boot.attempted) - boot.draws.len() as f64;
-    if failed / f64::from(boot.attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
-        return None;
+    let mut refit = SurfaceRefit::new(horizons);
+    let boot = gapped_aligned_block_bootstrap(
+        rows,
+        block_length,
+        replicates,
+        HORIZON_BOOTSTRAP_STREAM,
+        ctx,
+        |maps| refit.run(horizons, maps),
+    )?;
+    refit.finish(boot)
+}
+
+/// Buffers and shape of the per-replicate refit of every horizon.
+struct SurfaceRefit {
+    ols_ws: LeastSquaresWorkspace,
+    x_boot: Vec<f64>,
+    y_boot: Vec<f64>,
+    ncols: Vec<usize>,
+}
+
+impl SurfaceRefit {
+    fn new(horizons: &[FittedHorizon]) -> Self {
+        Self {
+            ols_ws: LeastSquaresWorkspace::default(),
+            x_boot: Vec::new(),
+            y_boot: Vec::new(),
+            ncols: horizons.iter().map(|fitted| fitted.prepared.design.ncols).collect(),
+        }
     }
-    Some(SurfaceBootstrap { draws: boot.draws, ncols, cancelled: boot.cancelled })
+
+    /// Every horizon's coefficients and design column means on its resampled rows.
+    fn run(&mut self, horizons: &[FittedHorizon], maps: &[Vec<usize>]) -> Option<Vec<f64>> {
+        let mut flat = Vec::new();
+        for (fitted, map) in horizons.iter().zip(maps) {
+            let design = &fitted.prepared.design;
+            let (n, p, m) = (design.nrows, design.ncols, map.len());
+            if m <= p {
+                return None;
+            }
+            self.x_boot.resize(m * p, 0.0);
+            self.y_boot.resize(m, 0.0);
+            for (i, &src) in map.iter().enumerate() {
+                self.y_boot[i] = design.outcome[src];
+            }
+            for c in 0..p {
+                let column = &design.matrix[c * n..(c + 1) * n];
+                for (i, &src) in map.iter().enumerate() {
+                    self.x_boot[c * m + i] = column[src];
+                }
+            }
+            let fit = FaerBackend
+                .least_squares(&self.x_boot, m, p, &self.y_boot, &mut self.ols_ws)
+                .ok()?;
+            flat.extend(fit.coefficients);
+            flat.extend(
+                (0..p).map(|c| self.x_boot[c * m..(c + 1) * m].iter().sum::<f64>() / m as f64),
+            );
+        }
+        Some(flat)
+    }
+
+    fn finish(self, boot: RowBlockDraws) -> Option<SurfaceBootstrap> {
+        if boot.draws.len() < 2 {
+            return None;
+        }
+        // Unattempted replicates after cancellation are not failures (mirrors
+        // `finalize_bootstrap_se_ex`); singular resamples among those attempted are.
+        let failed = f64::from(boot.attempted) - boot.draws.len() as f64;
+        if failed / f64::from(boot.attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
+            return None;
+        }
+        Some(SurfaceBootstrap { draws: boot.draws, ncols: self.ncols, cancelled: boot.cancelled })
+    }
 }
 
 /// Unbiased sample SD of column `cell` across `draws`.
