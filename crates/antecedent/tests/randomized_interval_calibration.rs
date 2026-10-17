@@ -208,6 +208,12 @@ fn measure(
     seed_base: u64,
 ) {
     let n = grid_n(300);
+    // The treated count is declared for 300 participants and keeps its share of the grid's size,
+    // so a halved grid point is still a proper complete randomization.
+    let assignment = match assignment {
+        Assignment::Complete(treated) => Assignment::Complete(treated * n / 300),
+        other => other,
+    };
     let mut tally =
         CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL);
     let runs = map_replicates(n_sim(), |rep| {

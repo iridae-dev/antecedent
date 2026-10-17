@@ -1,8 +1,8 @@
 //! Calibration design for the edge marginals of the order- and structure-MCMC posteriors at ten
 //! and twelve variables.
 //!
-//! The claim under test is that, under the published conditions (at most three parents, four
-//! chains, the schedules below) and a published posterior, the skeleton marginal
+//! The claim under test is that, under the published conditions (at most three parents, a sparse
+//! Bernoulli edge prior, four chains, the schedules below) and a published posterior, the skeleton marginal
 //! `P(i — j) = P(i → j) + P(j → i)` of a pair is calibrated: among pairs reported at marginal
 //! `p`, a fraction `p` are adjacent in the generating graph. The skeleton, not the direction,
 //! is the claim: a direction inside a Markov equivalence class is not identified, so its
@@ -53,6 +53,12 @@ const Z_BAND: f64 = 3.5;
 const MIN_PUBLISHED_FRACTION: f64 = 0.8;
 /// Published cap on the parents of any node.
 const MAX_PARENTS: usize = 3;
+/// Bernoulli edge-inclusion probability of the published prior. A posterior is calibrated for
+/// data drawn from its own prior, so the prior states the generator's sparsity: a node has one
+/// parent on average, which at ten to twelve variables is about 0.19 to 0.16 of the pairs
+/// adjacent, or `0.09` per direction. The uniform prior over DAGs puts roughly even odds on each
+/// pair and so reports about 0.075 for pairs the generator never connects.
+const EDGE_INCLUSION: f64 = 0.09;
 
 fn normal(rng: &mut CausalRng) -> f64 {
     let (u, v) = (rng.next_f64().max(f64::MIN_POSITIVE), rng.next_f64());
@@ -150,10 +156,9 @@ fn assert_skeleton_marginals_calibrated_at(
 ) {
     let vars: Vec<VariableId> =
         (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
-    let prior = GraphPrior::uniform().with_constraints(DiscoveryConstraints {
-        max_parents: Some(MAX_PARENTS),
-        ..Default::default()
-    });
+    let prior = GraphPrior::bernoulli_edges(EDGE_INCLUSION).unwrap().with_constraints(
+        DiscoveryConstraints { max_parents: Some(MAX_PARENTS), ..Default::default() },
+    );
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
     let mut published: Vec<BinCells> = Vec::new();
     for rep in 0..replicates {

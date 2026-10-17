@@ -423,8 +423,18 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
             regime: Regime::None,
         };
         replicate(design, variant, skewed, rep).map(|mut scored| {
-            scored.construction.0.functional =
-                format!("{}.named_boundary:{label}", scored.construction.0.functional);
+            // The record pools the topologies, so its key names the pool, not the topology
+            // this replicate happened to draw.
+            let functional = &scored.construction.0.functional;
+            let pooled = functional.split_once(".topology_").map_or_else(
+                || functional.clone(),
+                |(head, tail)| {
+                    let rest = tail.split_once('.').map_or("", |(_, rest)| rest);
+                    let rest = if rest.is_empty() { String::new() } else { format!(".{rest}") };
+                    format!("{head}.topology_pooled{rest}")
+                },
+            );
+            scored.construction.0.functional = format!("{pooled}.named_boundary:{label}");
             scored
         })
     });

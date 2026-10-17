@@ -27,7 +27,12 @@ use crate::workspace::{BitSet, GraphWorkspace};
 
 /// Operations the default completion search may charge: one per endpoint assignment (or
 /// partial orientation) visited and one per m-separation query of the equivalence audit.
-pub const DEFAULT_COMPLETION_OPERATIONS: usize = 1_000_000;
+///
+/// The audit may use half of them, two million queries: enough to certify every member of a
+/// class over twelve nodes with sixteen circle assignments, the largest audit the search
+/// performed before it was budgeted. A smaller default abandons that audit and withdraws
+/// the class-wide claims the audit licenses.
+pub const DEFAULT_COMPLETION_OPERATIONS: usize = 4_000_000;
 
 /// Limits and context of the searches whose constructors take no explicit budget.
 pub(crate) fn default_completion_search() -> (SearchLimits, ExecutionContext) {

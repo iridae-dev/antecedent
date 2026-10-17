@@ -442,7 +442,16 @@ fn evaluate_class_atom_bayesian(
         status: atom.identification.status,
         estimand: atom.invariant.clone().or(primary),
         estimate,
-        posterior: if atom.cases.len() == 1 { atom_posterior } else { None },
+        // Completions that all return one estimand share one posterior: the draws of the
+        // first fit are the atom's. Completions that disagree, or that do not all identify
+        // the estimand, have no shared posterior.
+        posterior: if atom.cases.len() == 1
+            || (atom.invariant.is_some() && atom.cases.iter().all(|case| case.estimand.is_some()))
+        {
+            atom_posterior
+        } else {
+            None
+        },
         identified_set: (lo.is_finite() && hi.is_finite()).then_some((lo, hi)),
         partial: atom.invariant.is_none()
             || matches!(atom.identification.status, IdentificationStatus::PartiallyIdentified),

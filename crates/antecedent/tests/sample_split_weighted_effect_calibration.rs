@@ -127,12 +127,14 @@ fn replicate(rep: u64) -> Option<((f64, f64), f64)> {
     let columns = scm.simulate(rows, stream_seed(seed, 2));
     let table = weighted_table(&scm, &columns, survey_weights(rows, stream_seed(seed, 3)));
 
-    let ctx = ExecutionContext::for_tests(seed);
+    // The adapter requires the context's master seed to be the contract's frozen seed.
+    let discovery_seed = stream_seed(seed, 4);
+    let ctx = ExecutionContext::for_tests(discovery_seed);
     let mut contract = StaticDiscoveryContract::new(
         StaticAlgorithm::Pc,
         (0..VARIABLES).map(v).collect(),
         CiTestSpec::named("weighted_parcorr"),
-        stream_seed(seed, 4),
+        discovery_seed,
     );
     contract.fdr = None;
     contract.constraints.alpha = ALPHA;
