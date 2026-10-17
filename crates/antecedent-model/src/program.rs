@@ -785,6 +785,49 @@ pub fn apply_node_program(
 /// few columns within a core's L2 cache.
 const PROGRAM_BLOCK_ROWS: usize = 4096;
 
+/// [`run_block`] for a program whose stack never holds more than one column: the node's own
+/// column is that slot, so the block is computed where it is stored, with no copy in or out.
+/// The operators are the same functions in the same order, so the values are identical.
+fn run_block_in_place(
+    program: &NodeProgram,
+    values: &mut ValueBatchMut<'_>,
+    node: usize,
+    start: usize,
+    m: usize,
+) -> Result<(), ModelError> {
+    let n = values.n_rows;
+    let at = node * n + start;
+    for op in program.ops.iter() {
+        match *op {
+            Op::Const(c) => values.values[at..at + m].fill(c),
+            // The column already holds the generated value.
+            Op::Generated => {}
+            Op::Read(dense) => {
+                let from = dense * n + start;
+                values.values.copy_within(from..from + m, at);
+            }
+            op => {
+                step_columns(op, &mut values.values[at..at + m], 1, m);
+            }
+        }
+    }
+    let result = &values.values[at..at + m];
+    let largest = result.iter().map(|v| v.to_bits() & !(1_u64 << 63)).max().unwrap_or(0);
+    if largest >= f64::INFINITY.to_bits() {
+        if let Some(row) = result.iter().position(|v| !v.is_finite()) {
+            return Err(ModelError::Numerical {
+                message: format!(
+                    "intervention program for dense node {node} is not finite at row {} ({}); \
+                     guard a division or restrict the clip bounds",
+                    start + row,
+                    result[row]
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Evaluate `program` for rows `start..start + rows` and write them to the node's column.
 fn run_block(
     program: &NodeProgram,
@@ -796,6 +839,9 @@ fn run_block(
 ) -> Result<(), ModelError> {
     let (n, m) = (values.n_rows, rows);
     let column = |dense: usize| dense * n + start..dense * n + start + m;
+    if program.max_stack == 1 && program.callbacks.is_empty() {
+        return run_block_in_place(program, values, node, start, m);
+    }
     let mut sp = 0usize;
     for op in program.ops.iter() {
         match *op {
@@ -825,9 +871,11 @@ fn run_block(
         }
     }
     let result = &scratch[..m];
-    // A vectorizable check first (an OR over the rows, which has no ordering dependency);
-    // the failing row is located only when one fails.
-    let any_non_finite = result.iter().fold(false, |acc, v| acc | !v.is_finite());
+    // A vectorizable check first: the largest magnitude bit pattern reaches the all-ones
+    // exponent exactly when some row is infinite or NaN (a max reduction cannot stop early,
+    // so it compiles to vector code); the failing row is located only when one fails.
+    let largest = result.iter().map(|v| v.to_bits() & !(1_u64 << 63)).max().unwrap_or(0);
+    let any_non_finite = largest >= f64::INFINITY.to_bits();
     let failed = if any_non_finite { result.iter().position(|v| !v.is_finite()) } else { None };
     if let Some(row) = failed {
         return Err(ModelError::Numerical {

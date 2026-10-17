@@ -143,6 +143,7 @@ mod intervention_programs;
     dead_code,
     reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
 )]
+#[cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]
 #[path = "../../../examples/rust/mechanism_selection.rs"]
 mod mechanism_selection;
 
@@ -270,6 +271,7 @@ fn example_intervention_programs_runs() {
     intervention_programs::run().unwrap();
 }
 
+#[cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]
 #[test]
 fn example_mechanism_selection_runs() {
     mechanism_selection::run().unwrap();

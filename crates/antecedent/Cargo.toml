@@ -154,6 +154,8 @@ path = "../../examples/rust/intervention_programs.rs"
 [[example]]
 name = "mechanism_selection"
 path = "../../examples/rust/mechanism_selection.rs"
+# The one-parent quadratic is fitted by the tree families.
+required-features = ["ml-gbdt", "ml-forest"]
 
 [[example]]
 name = "graph_falsification"
