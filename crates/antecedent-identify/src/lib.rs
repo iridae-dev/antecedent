@@ -87,6 +87,8 @@ pub use sid::{
     mixed_source_rule_names, render_quantity, validate_mixed_source_query,
     verify_mixed_source_derivation,
 };
+#[allow(deprecated, reason = "the retained released name stays reachable")]
+pub use sid::MZ_TRANSPORT_MAX_OBSERVED;
 pub use sid::{
     BoundMzTransportFunctional, BoundTransportFunctional, BoundZTransportFunctional,
     CatalogTransportResult, ClassicalTransportDerivation, ClassicalTransportQuery,

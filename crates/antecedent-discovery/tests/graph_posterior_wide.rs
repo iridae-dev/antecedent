@@ -25,10 +25,13 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
+use antecedent_discovery::adjacency_mask::{
+    dag_from_adjacency_mask, mask_is_dag, parents_of, set_edge,
+};
 use antecedent_discovery::{
     AdjacencyMask, DiscoveryConstraints, DiscoveryWorkspace, EXACT_MARGINAL_MAX_NODES,
     ExactDagPosterior, GraphPosterior, GraphPrior, LaggedLink, MAX_POSTERIOR_NODES, OrderMcmc,
-    StructureMcmc, dag_from_adjacency_mask, exact_dag_marginals, mask_is_dag, parents_of, set_edge,
+    StructureMcmc, exact_dag_marginals,
 };
 use antecedent_state::GraphScoreFamily;
 
@@ -223,20 +226,20 @@ fn mcmc_matches_exhaustive_enumeration_on_five_variables() {
         )
         .unwrap();
     assert_eq!(exact.n_graphs, 29_281 - exact.rejected_invalid as usize);
-    let support: HashSet<AdjacencyMask> = exact.adjacency.iter().copied().collect();
-    assert!(exact.adjacency.iter().all(|&mask| mask_is_dag(mask, 5)));
+    let support: HashSet<AdjacencyMask> = exact.atoms.iter().copied().collect();
+    assert!(exact.atoms.iter().all(|&mask| mask_is_dag(mask, 5)));
 
     let structure =
         StructureMcmc::new().with_schedule(4, 1000, 8000, 1).with_diagnostics_gate(false);
     let post = run_structure(&structure, &data, &vars, &prior, 11);
     assert_marginals_match("structure", &post, &exact.edge_marginals);
-    assert!(post.adjacency.iter().all(|mask| support.contains(mask)));
+    assert!(post.atoms.iter().all(|mask| support.contains(mask)));
     assert_chain_diagnostics_consistent("structure", &post);
 
     let order = OrderMcmc::new().with_schedule(4, 1000, 8000, 1).with_diagnostics_gate(false);
     let post = run_order(&order, &data, &vars, &prior, 12);
     assert_marginals_match("order", &post, &exact.edge_marginals);
-    assert!(post.adjacency.iter().all(|mask| support.contains(mask)));
+    assert!(post.atoms.iter().all(|mask| support.contains(mask)));
     assert_chain_diagnostics_consistent("order", &post);
 }
 
@@ -379,10 +382,10 @@ fn assert_restricted_samplers_match_exact(cols: &[Vec<f64>], pairs: &[(usize, us
     assert!(post.diagnostics.converged, "structure: {:?}", post.diagnostics);
     assert_marginals_match("structure", &post, &exact);
     assert!(
-        n <= 8 || post.adjacency.iter().any(|mask| mask.to_word().is_none()),
+        n <= 8 || post.atoms.iter().any(|mask| mask.to_word().is_none()),
         "atoms use words past the first"
     );
-    assert!(post.adjacency.iter().all(|&mask| mask_is_dag(mask, n)));
+    assert!(post.atoms.iter().all(|&mask| mask_is_dag(mask, n)));
     assert_chain_diagnostics_consistent("structure", &post);
 
     // The order sampler has no candidate list: forbid every directed pair off the candidates.
@@ -398,7 +401,7 @@ fn assert_restricted_samplers_match_exact(cols: &[Vec<f64>], pairs: &[(usize, us
     let post = run_order(&published_order(), &data, &vars, &prior, 6);
     assert!(post.diagnostics.converged, "order: {:?}", post.diagnostics);
     assert_marginals_match("order", &post, &exact);
-    assert!(post.adjacency.iter().all(|&mask| mask_is_dag(mask, n)));
+    assert!(post.atoms.iter().all(|&mask| mask_is_dag(mask, n)));
     assert_chain_diagnostics_consistent("order", &post);
 }
 
@@ -474,22 +477,22 @@ fn strong_signal_concentrates_on_the_true_twelve_variable_structure() {
             .iter()
             .enumerate()
             .max_by(|a, b| a.1.total_cmp(b.1))
-            .map(|(i, _)| post.adjacency[i])
+            .map(|(i, _)| post.atoms[i])
             .unwrap();
         for &(from, to) in &truth_edges {
             assert!(
-                antecedent_discovery::has_edge(top, n, from, to)
-                    || antecedent_discovery::has_edge(top, n, to, from),
+                antecedent_discovery::adjacency_mask::has_edge(top, n, from, to)
+                    || antecedent_discovery::adjacency_mask::has_edge(top, n, to, from),
                 "{label}: the maximum-weight graph lacks the adjacency {from} - {to}"
             );
         }
-        assert!(post.adjacency.iter().all(|&mask| {
+        assert!(post.atoms.iter().all(|&mask| {
             mask_is_dag(mask, n) && (0..n).all(|v| parents_of(mask, n, v).len() <= 3)
         }));
         let dag = dag_from_adjacency_mask(top, n).unwrap();
         assert!(dag.edges().count() >= truth_edges.len());
         let keys: HashSet<u64> = post.graph_keys.iter().copied().collect();
-        let masks: HashSet<AdjacencyMask> = post.adjacency.iter().copied().collect();
+        let masks: HashSet<AdjacencyMask> = post.atoms.iter().copied().collect();
         assert_eq!(keys.len(), masks.len(), "{label}: one graph key per distinct graph");
     }
 }
@@ -647,9 +650,9 @@ fn structure_mcmc_runs_on_the_full_sixteen_variable_packing() {
     let post = run_structure(&structure, &data, &vars, &max_parents(3), 4);
     assert_eq!(post.n_vars, 16);
     assert_eq!(post.edge_marginals.len(), 256);
-    assert!(post.adjacency.iter().all(|&mask| mask_is_dag(mask, n)));
-    assert!(post.adjacency.iter().any(|mask| mask.words()[1] != 0), "edge bits past word 0");
-    let top = post.adjacency[0];
+    assert!(post.atoms.iter().all(|&mask| mask_is_dag(mask, n)));
+    assert!(post.atoms.iter().any(|mask| mask.words()[1] != 0), "edge bits past word 0");
+    let top = post.atoms[0];
     assert!(dag_from_adjacency_mask(top, n).is_ok());
 
     let seventeen = names(17);

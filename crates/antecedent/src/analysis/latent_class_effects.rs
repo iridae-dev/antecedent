@@ -31,6 +31,8 @@ pub use antecedent_estimate::latent_class_effects::{
     LATENT_CLASS_CAVEAT, LATENT_CLASS_INFERENCE_CLAIM, LATENT_CLASS_MAX_CLASSES, LatentClassConfig,
     LatentClassResult, PremiseStatus,
 };
+#[allow(deprecated, reason = "the retained released name stays reachable")]
+pub use antecedent_io::latent_class_artifact::LATENT_CLASS_ARTIFACT_MAX_ROWS;
 pub use antecedent_io::latent_class_artifact::{
     LATENT_CLASS_ARTIFACT_VERSION, LatentClassArtifact, LatentClassArtifactError,
     LatentClassBootstrapWire, LatentClassConfigWire, LatentClassDataWire, LatentClassIdentity,

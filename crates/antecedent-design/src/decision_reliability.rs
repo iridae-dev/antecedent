@@ -61,8 +61,9 @@ pub use artifact::{
 pub use calibration::{
     CANDIDATE_COUNT_BANDS, CalibrationCoordinate, ClosedRoute, DEFAULT_LICENSE_LEVEL,
     KnownOptimumDesign, NoiseCoupling, PublishedRoute, RECORD_QUERY, ReplicateOutcome,
-    calibration_basis, candidate_count_band, closed_routes, license_route, license_route_at,
-    record_functional, simulate_replicate, simulate_selection_draws,
+    banded_record_functional, calibration_basis, candidate_count_band, closed_routes,
+    license_route, license_route_at, record_functional, simulate_replicate,
+    simulate_selection_draws,
 };
 pub use coverage_design::{CoverageCell, TruthKind, coverage_design};
 pub use draws::{

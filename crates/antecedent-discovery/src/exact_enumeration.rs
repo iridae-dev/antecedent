@@ -145,7 +145,7 @@ impl ExactDagPosterior {
                  (e.g. a deterministic relation)"
             )));
         }
-        GraphPosterior::new(
+        GraphPosterior::from_atoms(
             n,
             weights,
             kept_masks,
@@ -256,7 +256,8 @@ mod tests {
     };
     use antecedent_state::GraphScoreFamily;
 
-    use crate::graph_posterior::{GraphPrior, edge_bit, has_edge, set_edge};
+    use crate::adjacency_mask::{has_edge, set_edge};
+    use crate::graph_posterior::{GraphPrior, edge_bit};
 
     fn chain_tabular(n_rows: usize, seed: u64) -> (TabularData, Vec<VariableId>) {
         let mut rng = antecedent_core::CausalRng::from_seed(seed);
@@ -287,7 +288,7 @@ mod tests {
         for n in 1..=4usize {
             let bits = n * (n - 1);
             let expected: Vec<AdjacencyMask> = (0..(1u64 << bits))
-                .filter(|&m| crate::graph_posterior::mask_is_dag(m, n))
+                .filter(|&m| crate::adjacency_mask::mask_is_dag(m, n))
                 .map(AdjacencyMask::from_word)
                 .collect();
             assert_eq!(enumerate_unique_dags(n), expected, "n={n}");

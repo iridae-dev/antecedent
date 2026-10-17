@@ -23,7 +23,9 @@ use super::{
     shared_circular_block_mixture_se, temporal_class_block_span,
 };
 use crate::result::{StructuralResponseAtom, StructuralResponseMixture, StructuralWeightBasis};
-use antecedent_discovery::{temporal_cpdag_from_dbn_masks, temporal_pag_from_dbn_masks};
+use antecedent_discovery::dbn_posterior::{
+    temporal_cpdag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
+};
 
 impl super::Study {
     /// Mix TemporalCpdag/Pag posterior atoms through the existing class response envelope.
@@ -181,12 +183,12 @@ impl super::Study {
                     })
                 });
             let mark = gp
-                .mark_masks
+                .mark_atoms
                 .as_ref()
                 .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
             let reconstructed = reconstruct_temporal_class_atom(
                 gp.atom_kind,
-                gp.adjacency[i],
+                gp.atoms[i],
                 lag_masks[i],
                 mark,
                 gp.n_vars,
@@ -789,10 +791,10 @@ fn identify_posterior_atom_pulse(
     pulse: &TemporalEffectQuery,
 ) -> Option<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>> {
     let mark =
-        gp.mark_masks.as_ref().map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
+        gp.mark_atoms.as_ref().map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
     let graph = reconstruct_temporal_class_atom(
         gp.atom_kind,
-        gp.adjacency[i],
+        gp.atoms[i],
         lag_masks[i],
         mark,
         gp.n_vars,
@@ -821,13 +823,13 @@ fn reconstruct_temporal_class_atom(
     match kind {
         antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
             let cpdag =
-                temporal_cpdag_from_dbn_masks(adjacency, lag_mask, n_vars, max_lag, variables)
+                temporal_cpdag_from_dbn_atoms(adjacency, lag_mask, n_vars, max_lag, variables)
                     .map_err(CausalError::rejected)?;
             Ok(AcceptedGraph::from(cpdag))
         }
         antecedent_discovery::GraphPosteriorAtomKind::Pag => {
             let pag =
-                temporal_pag_from_dbn_masks(adjacency, lag_mask, mark, n_vars, max_lag, variables)
+                temporal_pag_from_dbn_atoms(adjacency, lag_mask, mark, n_vars, max_lag, variables)
                     .map_err(CausalError::rejected)?;
             Ok(AcceptedGraph::from(pag))
         }

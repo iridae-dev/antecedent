@@ -14,7 +14,7 @@ use antecedent_core::{
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
-use antecedent_discovery::set_edge;
+use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_estimate::{BayesianBackendKind, BayesianGComputationAte};
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_prob::{
@@ -106,7 +106,7 @@ fn w_confounder_mask() -> u64 {
 fn graph_posterior(masks: Vec<u64>) -> GraphPosterior {
     let n = masks.len();
     let w = 1.0 / n as f64;
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         4,
         vec![w; n],
         masks,

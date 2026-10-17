@@ -190,12 +190,24 @@ pub fn candidate_count_band(count: u64) -> Option<(u64, u64)> {
 /// candidate-set size, the selection rule and the functional family are part of what
 /// was measured. `None` when the size lies in no measured band.
 #[must_use]
-pub fn record_functional(coordinate: &CalibrationCoordinate) -> Option<String> {
+pub fn banded_record_functional(coordinate: &CalibrationCoordinate) -> Option<String> {
     let (low, high) = candidate_count_band(coordinate.candidate_set_size)?;
     Some(format!(
         "candidates={low}-{high};rule={};functional={}",
         coordinate.selection_rule, coordinate.functional
     ))
+}
+
+/// The `functional` label of a record that measured one exact candidate count: the
+/// candidate-set size, the selection rule and the functional family. Records measured
+/// now key by band ([`banded_record_functional`]); this label still keys the records
+/// that were measured at one count.
+#[must_use]
+pub fn record_functional(coordinate: &CalibrationCoordinate) -> String {
+    format!(
+        "candidates={};rule={};functional={}",
+        coordinate.candidate_set_size, coordinate.selection_rule, coordinate.functional
+    )
 }
 
 /// The calibration basis of `route` at `coordinate` and nominal `level`: the key a
@@ -209,7 +221,7 @@ pub fn calibration_basis(
     coordinate: &CalibrationCoordinate,
     level: f64,
 ) -> Option<CalibrationBasisWire> {
-    basis_with_functional(route, coordinate, level, record_functional(coordinate)?)
+    basis_with_functional(route, coordinate, level, banded_record_functional(coordinate)?)
 }
 
 /// The basis under the key of records that measured one exact candidate count. Such a
@@ -220,11 +232,7 @@ fn exact_count_basis(
     coordinate: &CalibrationCoordinate,
     level: f64,
 ) -> Option<CalibrationBasisWire> {
-    let functional = format!(
-        "candidates={};rule={};functional={}",
-        coordinate.candidate_set_size, coordinate.selection_rule, coordinate.functional
-    );
-    basis_with_functional(route, coordinate, level, functional)
+    basis_with_functional(route, coordinate, level, record_functional(coordinate))
 }
 
 fn basis_with_functional(

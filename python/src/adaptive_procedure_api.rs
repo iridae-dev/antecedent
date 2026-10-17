@@ -469,7 +469,6 @@ fn report_json(report: &ProcedureReport) -> Json {
             mean_enrolled,
             rule_stop_fraction,
             replications,
-            receipt,
         } => json!({
             "truth_value": truth_value,
             "defined": summary.defined,
@@ -482,7 +481,7 @@ fn report_json(report: &ProcedureReport) -> Json {
             "mean_enrolled": mean_enrolled,
             "rule_stop_fraction": rule_stop_fraction,
             "replications": replications,
-            "receipt": receipt_json(receipt),
+            "receipt": report.receipt.as_ref().map(receipt_json),
         }),
         ProcedureReportBody::AnytimeValid { report, exclusion_probability } => json!({
             "bounds": report.as_ref().map(|r| json!({

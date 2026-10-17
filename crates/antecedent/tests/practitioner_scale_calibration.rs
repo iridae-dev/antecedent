@@ -44,7 +44,8 @@ use antecedent_core::{
     AverageEffectQuery, CausalQuery, ExecutionContext, MediationContrast, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosteriorAtomKind, adjacency_mask_from_cpdag};
+use antecedent_discovery::GraphPosteriorAtomKind;
+use antecedent_discovery::adjacency_mask::adjacency_mask_from_cpdag;
 use antecedent_estimate::{AipwAte, AnalyticSeKind, LinearAdjustmentAte};
 use antecedent_graph::{Cpdag, Dag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
@@ -489,7 +490,7 @@ fn class_posterior() -> GraphPosterior {
         adjacency_mask_from_cpdag(&oriented(false)).unwrap(),
         adjacency_mask_from_cpdag(&outcome_parent_cpdag()).unwrap(),
     ];
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         vec![0.6, 0.4],
         masks.to_vec(),

@@ -173,7 +173,7 @@ impl ConditionalIndependenceTest for KnnDependence {
                 for (r, &value) in y_perm.iter().enumerate() {
                     null_feats[r * dim + 1] = value;
                 }
-                MatchingIndex::kth_self_distances(
+                MatchingIndex::kth_self_distances_within(
                     &null_feats[..n * dim],
                     n,
                     dim,
@@ -257,7 +257,7 @@ fn ensure_knn_index(
         }
     }
     let donors: Vec<usize> = (0..n).collect();
-    let idx = MatchingIndex::exact(&feats, dim, &donors, MatchingDistance::Euclidean, ctx)?;
+    let idx = MatchingIndex::exact_within(&feats, dim, &donors, MatchingDistance::Euclidean, ctx)?;
     knn.features = feats;
     knn.index = Some(idx);
     knn.last_dim = dim;
@@ -280,7 +280,7 @@ fn knn_stat_from_index(
         knn.distances.truncate(n);
     }
     let idx = knn.index.as_ref().ok_or(StatsError::Shape { message: "missing kNN index" })?;
-    idx.kth_self_distances_of_donors(k, &mut knn.distances, ctx)?;
+    idx.kth_self_distances_of_donors_within(k, &mut knn.distances, ctx)?;
     let mean = knn.distances.iter().sum::<f64>() / n as f64;
     Ok(-mean)
 }

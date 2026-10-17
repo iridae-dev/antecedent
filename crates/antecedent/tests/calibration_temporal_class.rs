@@ -26,7 +26,8 @@ use antecedent_core::{
     TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_prob::InferenceDiagnostics;
 
 use common::calibration::{
@@ -153,7 +154,7 @@ fn temporal_atom(
     max_lag: u32,
     lag_mask: u64,
 ) -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![adjacency],

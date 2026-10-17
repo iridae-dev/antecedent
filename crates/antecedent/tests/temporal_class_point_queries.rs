@@ -14,8 +14,9 @@ use antecedent_core::{
     ResponseValue, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
+use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_discovery::{
-    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge,
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
 };
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use antecedent_prob::InferenceDiagnostics;
@@ -189,7 +190,7 @@ fn posterior_masks(
 
 fn class_posterior(n: usize, adjacency: AdjacencyMask, lag_mask: u64, pag: bool) -> GraphPosterior {
     let cell = n * n;
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![adjacency],

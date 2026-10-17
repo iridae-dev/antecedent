@@ -9,6 +9,7 @@ use antecedent_data::TabularData;
 use antecedent_state::GraphScoreFamily;
 
 use crate::adjacency_mask::AdjacencyMask;
+use crate::adjacency_mask::{has_edge, mask_is_dag, parent_bits, set_edge};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_mcmc::{
@@ -17,8 +18,7 @@ use crate::graph_mcmc::{
     validate_temperatures,
 };
 use crate::graph_posterior::{
-    GraphPosterior, GraphPosteriorEngine, GraphPrior, GraphPriorTable, edge_bit, has_edge,
-    mask_is_dag, parent_bits, set_edge,
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, GraphPriorTable, edge_bit,
 };
 use crate::graph_score::{
     ChainTarget, ScoredTarget, SharedTarget, initial_scored_mask, tabular_score_data,
@@ -722,7 +722,7 @@ mod tests {
             .run(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &mut ws, &ctx)
             .unwrap();
         for posterior in [structure, order] {
-            for mask in posterior.adjacency.iter() {
+            for mask in posterior.atoms.iter() {
                 assert!(has_edge(*mask, 3, 2, 1));
                 assert!(has_edge(*mask, 3, 1, 0));
                 assert!(mask_is_dag(*mask, 3));

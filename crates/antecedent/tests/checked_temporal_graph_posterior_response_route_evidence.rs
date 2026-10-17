@@ -15,7 +15,8 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
 /// `defect_t = 0.9 pressure_{t-1}` on uniform white-noise pressure: the law of
@@ -55,7 +56,7 @@ fn dbn_posterior(pin: &serde_json::Value) -> GraphPosterior {
         .iter()
         .map(|value| value.as_f64().unwrap())
         .collect();
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         2,
         weights.clone(),
         vec![identified_c, unidentified_c],
@@ -110,7 +111,7 @@ fn class_posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         }
         _ => (antecedent_discovery::AdjacencyMask::EMPTY, lag_bit(3, 0, 1) | lag_bit(3, 2, 1)),
     };
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![contemporaneous],

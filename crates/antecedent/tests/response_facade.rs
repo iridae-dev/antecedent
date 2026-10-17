@@ -739,11 +739,11 @@ fn known_truth_response_data(pin: &serde_json::Value) -> TabularData {
 }
 
 fn known_truth_mixture_posterior(weights: &[f64]) -> antecedent_discovery::GraphPosterior {
-    use antecedent_discovery::set_edge;
+    use antecedent_discovery::adjacency_mask::set_edge;
     let direct = set_edge(0, 3, 0, 1, true);
     let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
     let unidentified = set_edge(0, 3, 1, 0, true);
-    antecedent_discovery::GraphPosterior::new(
+    antecedent_discovery::GraphPosterior::from_atoms(
         3,
         weights.to_vec(),
         vec![direct, adjusted, unidentified],
@@ -1045,10 +1045,10 @@ fn two_covariate_response_data(n: usize, valid: [&dyn Fn(usize) -> bool; 2]) -> 
 
 /// Two identified DAG atoms: `z1` confounds `t → y` in the first, `z2` in the second.
 fn two_adjustment_posterior(weights: [f64; 2]) -> antecedent_discovery::GraphPosterior {
-    use antecedent_discovery::set_edge;
+    use antecedent_discovery::adjacency_mask::set_edge;
     let first = set_edge(set_edge(set_edge(0, 4, 0, 1, true), 4, 2, 0, true), 4, 2, 1, true);
     let second = set_edge(set_edge(set_edge(0, 4, 0, 1, true), 4, 3, 0, true), 4, 3, 1, true);
-    antecedent_discovery::GraphPosterior::new(
+    antecedent_discovery::GraphPosterior::from_atoms(
         4,
         weights.to_vec(),
         vec![first, second],
@@ -1253,7 +1253,7 @@ fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
 /// atoms plus one reverse-causal (unidentified) atom, all equally weighted.
 fn interactive_budget_fixture() -> (TabularData, antecedent_discovery::GraphPosterior, usize) {
     use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
-    use antecedent_discovery::set_edge;
+    use antecedent_discovery::adjacency_mask::set_edge;
 
     let n = 200;
     let wave = |i: usize, period: f64| (i as f64 / period).sin();
@@ -1302,7 +1302,7 @@ fn interactive_budget_fixture() -> (TabularData, antecedent_discovery::GraphPost
     // One reverse-causal Y -> T atom: structurally unidentified, never subsampled.
     masks.push(set_edge(0, n_vars, 1, 0, true));
     let weight = 1.0 / masks.len() as f64;
-    let gp = antecedent_discovery::GraphPosterior::new(
+    let gp = antecedent_discovery::GraphPosterior::from_atoms(
         n_vars,
         vec![weight; masks.len()],
         masks,

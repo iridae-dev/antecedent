@@ -4,7 +4,8 @@
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{GraphPosterior, SamplingSummary};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
 
@@ -40,7 +41,7 @@ fn posterior() -> GraphPosterior {
     let graph = adjusted_graph();
     let masks = vec![graph, graph];
     let weights = vec![0.5, 0.5];
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         weights.clone(),
         masks,

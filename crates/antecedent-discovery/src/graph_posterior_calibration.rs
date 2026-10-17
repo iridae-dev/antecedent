@@ -25,9 +25,10 @@ use antecedent_data::TabularData;
 use antecedent_state::GraphScoreFamily;
 
 use crate::adjacency_mask::AdjacencyMask;
+use crate::adjacency_mask::{has_edge, set_edge};
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
-use crate::graph_posterior::{GraphPosterior, GraphPrior, has_edge, set_edge};
+use crate::graph_posterior::{GraphPosterior, GraphPrior};
 use crate::order_mcmc::OrderMcmc;
 use crate::structure_mcmc::StructureMcmc;
 
@@ -297,8 +298,8 @@ mod tests {
     fn sparse_sem_returns_its_generating_graph() {
         for n in [10usize, 12] {
             let (cols, truth) = sparse_sem(n, N_ROWS, 17);
-            assert!(crate::graph_posterior::mask_is_dag(truth, n));
-            assert!((0..n).all(|v| crate::graph_posterior::parents_of(truth, n, v).len() <= 2));
+            assert!(crate::adjacency_mask::mask_is_dag(truth, n));
+            assert!((0..n).all(|v| crate::adjacency_mask::parents_of(truth, n, v).len() <= 2));
             assert!(cols.iter().all(|c| c.len() == N_ROWS && c.iter().all(|x| x.is_finite())));
         }
     }
@@ -312,7 +313,7 @@ mod tests {
         edge[1] = 0.25;
         edge[n] = 0.5; // P(1 -> 0) = 0.5: skeleton pair (0, 1) at 0.75
         edge[2] = 0.05; // pair (0, 2) at 0.05
-        let post = GraphPosterior::new(
+        let post = GraphPosterior::from_atoms(
             n,
             vec![1.0],
             vec![truth],

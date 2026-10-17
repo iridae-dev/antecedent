@@ -459,7 +459,7 @@ pub fn discover_lingam(
     clippy::too_many_arguments,
     reason = "public entry point whose parameters mirror the binding-level keyword list"
 )]
-pub fn discover_notears(
+pub fn discover_notears_with(
     data: &TabularData,
     variables: &[VariableId],
     params: &StaticDiscoverParams,
@@ -477,6 +477,25 @@ pub fn discover_notears(
     alg.missing = missing;
     let mut ws = DiscoveryWorkspace::default();
     Ok(alg.run(data, variables, &mut ws, ctx)?)
+}
+
+/// Discover a static DAG with NOTEARS (continuous SEM), refusing a table with a missing value.
+///
+/// [`discover_notears_with`] with no declared missing-data policy.
+///
+/// # Errors
+///
+/// Discovery / solver failures, and `missing_policy_required` for a missing value.
+pub fn discover_notears(
+    data: &TabularData,
+    variables: &[VariableId],
+    params: &StaticDiscoverParams,
+    lambda: f64,
+    threshold: f64,
+    standardize: bool,
+    ctx: &ExecutionContext,
+) -> Result<NotearsDiscoveryResult, CausalError> {
+    discover_notears_with(data, variables, params, lambda, threshold, standardize, None, ctx)
 }
 
 /// Exact DAG posterior enumeration (`n ≤ 6`, Gaussian BIC).

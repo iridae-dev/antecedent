@@ -7,7 +7,8 @@ use std::sync::Arc;
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ExecutionContext, Intervention, ResponseQuery, Value,
 };
-use antecedent_discovery::{GraphPosterior, dag_from_adjacency_mask};
+use antecedent_discovery::GraphPosterior;
+use antecedent_discovery::adjacency_mask::dag_from_adjacency_mask;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::{IdentificationEnvelope, IdentificationResult, IdentificationStatus};
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
@@ -144,7 +145,7 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
     use crate::strategy_table::{
         DEFAULT_ADMG_IDENTIFIER_ID, EstimatorId, identify_admg_query, select_estimand,
     };
-    use antecedent_discovery::admg_from_adjacency_mask;
+    use antecedent_discovery::adjacency_mask::admg_from_adjacency_mask;
 
     crate::analysis::execute::report_identify_compute(ctx);
     // `estimate_admg_posterior_atom_response` reuses this atom's cached
@@ -208,7 +209,7 @@ fn build_admg_graph_posterior_identification_cache(
     use crate::strategy_table::{
         DEFAULT_ADMG_IDENTIFIER_ID, EstimatorId, identify_admg, select_estimand,
     };
-    use antecedent_discovery::admg_from_adjacency_mask;
+    use antecedent_discovery::adjacency_mask::admg_from_adjacency_mask;
 
     crate::analysis::execute::report_identify_compute(ctx);
     let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
@@ -241,13 +242,15 @@ fn build_class_graph_posterior_identification_cache(
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
     use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER_ID, identify_cpdag, identify_pag};
-    use antecedent_discovery::{cpdag_from_adjacency_mask, pag_from_adjacency_mask};
+    use antecedent_discovery::adjacency_mask::{
+        cpdag_from_adjacency_mask, pag_from_adjacency_mask,
+    };
 
     crate::analysis::execute::report_identify_compute(ctx);
     let resolved = map_posterior_graphs(posterior, ctx, |i, _inner| {
-        let mask = posterior.adjacency[i];
+        let mask = posterior.atoms[i];
         let mark = posterior
-            .mark_masks
+            .mark_atoms
             .as_ref()
             .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
         let key = posterior.graph_keys[i];
@@ -335,7 +338,8 @@ fn cache_class_envelope<G>(
 mod tests {
     use super::*;
     use antecedent_core::VariableId;
-    use antecedent_discovery::{AdjacencyMask, SamplingSummary, set_edge};
+    use antecedent_discovery::adjacency_mask::set_edge;
+    use antecedent_discovery::{AdjacencyMask, SamplingSummary};
     use antecedent_prob::InferenceDiagnostics;
 
     /// A static posterior whose samples repeat a handful of confounding structures, as an
@@ -358,7 +362,7 @@ mod tests {
         ];
         let adjacency: Vec<AdjacencyMask> =
             (0..n_graphs).map(|i| structures[i % structures.len()]).collect();
-        GraphPosterior::new(
+        GraphPosterior::from_atoms(
             N,
             vec![1.0 / n_graphs as f64; n_graphs],
             adjacency,

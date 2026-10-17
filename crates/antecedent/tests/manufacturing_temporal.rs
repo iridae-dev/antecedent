@@ -21,7 +21,9 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_discovery::{AdjacencyMask, mask_is_dag, set_edge, temporal_dag_from_dbn_masks};
+use antecedent_discovery::AdjacencyMask;
+use antecedent_discovery::adjacency_mask::{mask_is_dag, set_edge};
+use antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_atoms;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::{
     IdentificationError, TemporalBackdoorIdentifier, TemporalMediationIdentifier,
@@ -219,7 +221,7 @@ fn known_truth_dbn_posterior(
     assert!(mask_is_dag(noncertified_contemporaneous, 2));
     assert_eq!(pin["unidentified_atom"]["identification_error"], "NotCertified");
     let variables = [VariableId::from_raw(0), VariableId::from_raw(1)];
-    let noncertified_graph = temporal_dag_from_dbn_masks(
+    let noncertified_graph = temporal_dag_from_dbn_atoms(
         noncertified_contemporaneous,
         pressure_ar_and_lag1_effect,
         2,
@@ -243,7 +245,7 @@ fn known_truth_dbn_posterior(
         .map(|value| value.as_f64().unwrap())
         .collect();
     assert_eq!(lagged_marginals, [weights[1], 1.0, 0.0, 0.0]);
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         2,
         weights.to_vec(),
         vec![valid_contemporaneous, noncertified_contemporaneous],
@@ -639,7 +641,7 @@ fn known_truth_dbn_mediation_posterior(pin: &serde_json::Value, weights: &[f64])
     assert_eq!(pin["unidentified_atom"]["identification_error"], "NotCertified");
     let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
     let unidentified_graph =
-        temporal_dag_from_dbn_masks(unidentified_c, unidentified_l, 3, 1, &variables).unwrap();
+        temporal_dag_from_dbn_atoms(unidentified_c, unidentified_l, 3, 1, &variables).unwrap();
     let q = MediationQuery::binary(
         VariableId::from_raw(0),
         VariableId::from_raw(2),
@@ -663,7 +665,7 @@ fn known_truth_dbn_mediation_posterior(pin: &serde_json::Value, weights: &[f64])
         .iter()
         .map(|value| value.as_f64().unwrap())
         .collect();
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         weights.to_vec(),
         vec![identified_c, unidentified_c],
@@ -1028,7 +1030,7 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     let lagged_mediator = l | (1 << 5);
     let weights = [0.5, 0.3, 0.2];
     let zeros = vec![0.0; 9];
-    let gp = GraphPosterior::new(
+    let gp = GraphPosterior::from_atoms(
         3,
         weights.to_vec(),
         vec![c, c, c],
@@ -1205,7 +1207,7 @@ fn manufacturing_dbn_posterior_bayesian_mediation_estimation_failure_is_not_unid
     let lagged_mediator = l | (1 << 5);
     let weights = [0.6, 0.4];
     let zeros = vec![0.0; 9];
-    let gp = GraphPosterior::new(
+    let gp = GraphPosterior::from_atoms(
         3,
         weights.to_vec(),
         vec![c, c],
@@ -1556,7 +1558,7 @@ fn dbn_posterior_response_agrees_with_independent_atom_mix() {
     let contemporaneous_a = AdjacencyMask::EMPTY;
     let contemporaneous_b = set_edge(0, 2, 0, 1, true);
     let lag = 2u64;
-    let gp = GraphPosterior::new(
+    let gp = GraphPosterior::from_atoms(
         2,
         vec![w_a, w_b],
         vec![contemporaneous_a, contemporaneous_b],

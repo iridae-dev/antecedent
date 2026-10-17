@@ -17,7 +17,8 @@ use antecedent_core::{
     TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::{MissingDeclaration, MissingPolicy, TabularData, TimeSeriesData};
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -1192,7 +1193,7 @@ fn class_posterior() -> GraphPosterior {
     let n = 4;
     let contemporaneous = set_edge(set_edge(0, n, 2, 0, true), n, 3, 0, true);
     let lag_mask = (1u64 << 1) | (1u64 << 9);
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![contemporaneous],
@@ -1430,7 +1431,7 @@ fn dbn_mediation_series(
 /// `t_1 -> y_0` at lag 1.
 fn dbn_mediation_posterior() -> GraphPosterior {
     let n = 3;
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![set_edge(0, n, 1, 2, true)],

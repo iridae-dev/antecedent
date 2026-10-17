@@ -234,6 +234,10 @@ impl core::clone::Clone for antecedent_identify::discovered_transport::EnvelopeS
 impl core::clone::Clone for antecedent_identify::discovered_transport::MemberVerdict
 impl core::clone::Clone for antecedent_identify::discovered_transport::StructuralTransportEnvelope
 impl core::clone::Clone for antecedent_identify::discovered_transport::UnresolvedPair
+impl core::clone::Clone for antecedent_identify::discovered_transport_temporal::LaggedEdge
+impl core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember
+impl core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope
+impl core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalWindow
 impl core::clone::Clone for antecedent_identify::sid::Rule
 impl core::clone::Clone for antecedent_identify::sid::SHedgeCertificate
 impl core::clone::Clone for antecedent_identify::sid::SHedgeRecord
@@ -386,6 +390,7 @@ impl core::cmp::Eq for antecedent_identify::cross_world::CrossWorldWitness
 impl core::cmp::Eq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::cmp::Eq for antecedent_identify::discovered_transport::EnvelopeStatus
 impl core::cmp::Eq for antecedent_identify::discovered_transport::UnresolvedPair
+impl core::cmp::Eq for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::cmp::Eq for antecedent_identify::sid::Rule
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionDag
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionRecord
@@ -413,6 +418,7 @@ impl core::cmp::Ord for antecedent_identify::CounterfactualSymbol
 impl core::cmp::Ord for antecedent_identify::counterfactual_id::CfSymbol
 impl core::cmp::Ord for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::Ord for antecedent_identify::cross_world::CounterfactualNode
+impl core::cmp::Ord for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::cmp::Ord for antecedent_identify::sid::scenario_invariance::SourceInvariance
 impl core::cmp::Ord for antecedent_identify::sid::scenario_invariance::TargetFactor
 impl core::cmp::PartialEq for antecedent_identify::BinaryIvLaw
@@ -555,6 +561,10 @@ impl core::cmp::PartialEq for antecedent_identify::discovered_transport::Envelop
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::MemberVerdict
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::StructuralTransportEnvelope
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::UnresolvedPair
+impl core::cmp::PartialEq for antecedent_identify::discovered_transport_temporal::LaggedEdge
+impl core::cmp::PartialEq for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember
+impl core::cmp::PartialEq for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope
+impl core::cmp::PartialEq for antecedent_identify::discovered_transport_temporal::TemporalWindow
 impl core::cmp::PartialEq for antecedent_identify::sid::Rule
 impl core::cmp::PartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::cmp::PartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -585,6 +595,7 @@ impl core::cmp::PartialOrd for antecedent_identify::CounterfactualSymbol
 impl core::cmp::PartialOrd for antecedent_identify::counterfactual_id::CfSymbol
 impl core::cmp::PartialOrd for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::PartialOrd for antecedent_identify::cross_world::CounterfactualNode
+impl core::cmp::PartialOrd for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::cmp::PartialOrd for antecedent_identify::sid::scenario_invariance::SourceInvariance
 impl core::cmp::PartialOrd for antecedent_identify::sid::scenario_invariance::TargetFactor
 impl core::convert::From<antecedent_graph::error::GraphError> for antecedent_identify::IdentificationError
@@ -839,6 +850,10 @@ impl core::fmt::Debug for antecedent_identify::discovered_transport::EnvelopeSta
 impl core::fmt::Debug for antecedent_identify::discovered_transport::MemberVerdict
 impl core::fmt::Debug for antecedent_identify::discovered_transport::StructuralTransportEnvelope
 impl core::fmt::Debug for antecedent_identify::discovered_transport::UnresolvedPair
+impl core::fmt::Debug for antecedent_identify::discovered_transport_temporal::LaggedEdge
+impl core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember
+impl core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope
+impl core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalWindow
 impl core::fmt::Debug for antecedent_identify::sid::Rule
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeCertificate
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeRecord
@@ -908,6 +923,7 @@ impl core::hash::Hash for antecedent_identify::RecoveryDetail
 impl core::hash::Hash for antecedent_identify::counterfactual_id::CfSymbol
 impl core::hash::Hash for antecedent_identify::counterfactual_id::CfValue
 impl core::hash::Hash for antecedent_identify::counterfactual_id::CounterfactualIdProblem
+impl core::hash::Hash for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::marker::Copy for antecedent_identify::BinaryIvLaw
 impl core::marker::Copy for antecedent_identify::ChainPartial
 impl core::marker::Copy for antecedent_identify::ChainRecoveryDetail
@@ -935,6 +951,7 @@ impl core::marker::Copy for antecedent_identify::counterfactual_id::CfValue
 impl core::marker::Copy for antecedent_identify::counterfactual_id::CounterfactualIdSearchRecord
 impl core::marker::Copy for antecedent_identify::counterfactual_id::CounterfactualIdShape
 impl core::marker::Copy for antecedent_identify::discovered_transport::EnvelopeStatus
+impl core::marker::Copy for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::marker::Copy for antecedent_identify::sid::Rule
 impl core::marker::Copy for antecedent_identify::sid::scenarios::ScenarioDecisionLimits
 impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::MechanismAssumption
@@ -1147,6 +1164,10 @@ impl core::marker::Freeze for antecedent_identify::discovered_transport::Envelop
 impl core::marker::Freeze for antecedent_identify::discovered_transport::MemberVerdict [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::StructuralTransportEnvelope [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::UnresolvedPair [auto]
+impl core::marker::Freeze for antecedent_identify::discovered_transport_temporal::LaggedEdge [auto]
+impl core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
+impl core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
+impl core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
 impl core::marker::Freeze for antecedent_identify::sid::Rule [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeRecord [auto]
@@ -1401,6 +1422,10 @@ impl core::marker::Send for antecedent_identify::discovered_transport::EnvelopeS
 impl core::marker::Send for antecedent_identify::discovered_transport::MemberVerdict [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::StructuralTransportEnvelope [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::UnresolvedPair [auto]
+impl core::marker::Send for antecedent_identify::discovered_transport_temporal::LaggedEdge [auto]
+impl core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
+impl core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
+impl core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
 impl core::marker::Send for antecedent_identify::sid::Rule [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeRecord [auto]
@@ -1586,6 +1611,10 @@ impl core::marker::StructuralPartialEq for antecedent_identify::discovered_trans
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::MemberVerdict
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::StructuralTransportEnvelope
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::UnresolvedPair
+impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport_temporal::LaggedEdge
+impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember
+impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope
+impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport_temporal::TemporalWindow
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::Rule
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -1819,6 +1848,10 @@ impl core::marker::Sync for antecedent_identify::discovered_transport::EnvelopeS
 impl core::marker::Sync for antecedent_identify::discovered_transport::MemberVerdict [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::StructuralTransportEnvelope [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::UnresolvedPair [auto]
+impl core::marker::Sync for antecedent_identify::discovered_transport_temporal::LaggedEdge [auto]
+impl core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
+impl core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
+impl core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
 impl core::marker::Sync for antecedent_identify::sid::Rule [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2073,6 +2106,10 @@ impl core::marker::Unpin for antecedent_identify::discovered_transport::Envelope
 impl core::marker::Unpin for antecedent_identify::discovered_transport::MemberVerdict [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::StructuralTransportEnvelope [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::UnresolvedPair [auto]
+impl core::marker::Unpin for antecedent_identify::discovered_transport_temporal::LaggedEdge [auto]
+impl core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
+impl core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
+impl core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
 impl core::marker::Unpin for antecedent_identify::sid::Rule [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2327,6 +2364,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::MemberVerdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::StructuralTransportEnvelope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::UnresolvedPair [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::LaggedEdge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2581,6 +2622,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_tr
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::MemberVerdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::StructuralTransportEnvelope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::UnresolvedPair [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::LaggedEdge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalWindow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2673,30 +2718,57 @@ impl serde_core::ser::Serialize for antecedent_identify::sid::SidStepRecord
 impl<'a> core::clone::Clone for antecedent_identify::ScheduleContrast<'a>
 impl<'a> core::clone::Clone for antecedent_identify::StoredRecovery<'a>
 impl<'a> core::clone::Clone for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a>
+impl<'a> core::clone::Clone for antecedent_identify::discovered_transport::PagTransportRequest<'a>
+impl<'a> core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
+impl<'a> core::clone::Clone for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_identify::ScheduleContrast<'a>
 impl<'a> core::fmt::Debug for antecedent_identify::StoredRecovery<'a>
 impl<'a> core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_identify::discovered_transport::PagTransportRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
+impl<'a> core::fmt::Debug for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a>
 impl<'a> core::marker::Copy for antecedent_identify::ScheduleContrast<'a>
 impl<'a> core::marker::Copy for antecedent_identify::StoredRecovery<'a>
 impl<'a> core::marker::Copy for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a>
+impl<'a> core::marker::Copy for antecedent_identify::discovered_transport::PagTransportRequest<'a>
+impl<'a> core::marker::Copy for antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
+impl<'a> core::marker::Copy for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a>
 impl<'a> core::marker::Freeze for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::marker::Send for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
+impl<'a> core::marker::Send for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::ScheduleContrast<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::StoredRecovery<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::PagTransportRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalClass<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalNonTransportabilityRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalObstructionRecord
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_identify::ConditionalTransportRecord
@@ -2882,6 +2954,7 @@ pub enum antecedent_identify::counterfactual_id::CounterfactualIdShape
 pub enum antecedent_identify::counterfactual_id::CounterfactualObstruction
 pub enum antecedent_identify::discovered_transport::EnvelopeStatus
 pub enum antecedent_identify::discovered_transport::MemberVerdict
+pub enum antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
 pub enum antecedent_identify::sid::Rule
 pub enum antecedent_identify::sid::cpdag_completion::CpdagEvidence
 pub enum antecedent_identify::sid::cpdag_completion::CpdagScenarioError
@@ -3047,6 +3120,7 @@ pub field antecedent_identify::EstimandClaim::status: antecedent_core::identific
 pub field antecedent_identify::FrontDoorIdentifier::config: antecedent_identify::FrontDoorSearchConfig
 pub field antecedent_identify::FrontDoorSearchConfig::max_mediator_set_size: usize
 pub field antecedent_identify::FrontDoorSearchConfig::max_results: usize
+pub field antecedent_identify::GeneralizedAdjustmentConfig::completion_operations: usize
 pub field antecedent_identify::GeneralizedAdjustmentConfig::max_candidates: usize
 pub field antecedent_identify::GeneralizedAdjustmentConfig::max_completions: usize
 pub field antecedent_identify::GeneralizedAdjustmentConfig::max_examinations: u64
@@ -3474,6 +3548,7 @@ pub field antecedent_identify::cross_world::CrossWorldWitness::treatment: u32
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::code: &'static str
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::detail: &'static str
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::exhausted_search_bounds: usize
+pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::member_reasons: alloc::vec::Vec<(usize, alloc::string::String)>
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::remedy: alloc::string::String
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::unknown_selection_targets: alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::unresolved: alloc::vec::Vec<antecedent_identify::discovered_transport::UnresolvedPair>
@@ -3481,11 +3556,37 @@ pub field antecedent_identify::discovered_transport::DiscoveredTransportRequest:
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRequest::exhausted_search_bounds: usize
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRequest::member_bound: usize
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRequest::selection_targets: &'a [antecedent_core::ids::VariableId]
+pub field antecedent_identify::discovered_transport::EnvelopeMember::bidirected_edges: alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)>
+pub field antecedent_identify::discovered_transport::EnvelopeMember::confounded_edges: alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)>
 pub field antecedent_identify::discovered_transport::EnvelopeMember::directed_edges: alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)>
 pub field antecedent_identify::discovered_transport::EnvelopeMember::verdict: antecedent_identify::discovered_transport::MemberVerdict
+pub field antecedent_identify::discovered_transport::PagTransportRequest::class: &'a antecedent_graph::pag::Pag
+pub field antecedent_identify::discovered_transport::PagTransportRequest::completion_operations: usize
+pub field antecedent_identify::discovered_transport::PagTransportRequest::exhausted_search_bounds: usize
+pub field antecedent_identify::discovered_transport::PagTransportRequest::member_bound: usize
+pub field antecedent_identify::discovered_transport::PagTransportRequest::selection_targets: &'a [antecedent_core::ids::VariableId]
 pub field antecedent_identify::discovered_transport::UnresolvedPair::a: antecedent_core::ids::VariableId
 pub field antecedent_identify::discovered_transport::UnresolvedPair::b: antecedent_core::ids::VariableId
 pub field antecedent_identify::discovered_transport::UnresolvedPair::reason: &'static str
+pub field antecedent_identify::discovered_transport_temporal::LaggedEdge::from: antecedent_core::ids::VariableId
+pub field antecedent_identify::discovered_transport_temporal::LaggedEdge::lag: u32
+pub field antecedent_identify::discovered_transport_temporal::LaggedEdge::to: antecedent_core::ids::VariableId
+pub field antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember::bidirected_edges: alloc::vec::Vec<antecedent_identify::discovered_transport_temporal::LaggedEdge>
+pub field antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember::confounded_edges: alloc::vec::Vec<antecedent_identify::discovered_transport_temporal::LaggedEdge>
+pub field antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember::directed_edges: alloc::vec::Vec<antecedent_identify::discovered_transport_temporal::LaggedEdge>
+pub field antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember::verdict: antecedent_identify::discovered_transport::MemberVerdict
+pub field antecedent_identify::discovered_transport_temporal::TemporalTransportRequest::class: antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
+pub field antecedent_identify::discovered_transport_temporal::TemporalTransportRequest::completion_operations: usize
+pub field antecedent_identify::discovered_transport_temporal::TemporalTransportRequest::exhausted_search_bounds: usize
+pub field antecedent_identify::discovered_transport_temporal::TemporalTransportRequest::history: core::option::Option<u32>
+pub field antecedent_identify::discovered_transport_temporal::TemporalTransportRequest::horizon_steps: u32
+pub field antecedent_identify::discovered_transport_temporal::TemporalTransportRequest::member_bound: usize
+pub field antecedent_identify::discovered_transport_temporal::TemporalTransportRequest::selection_targets: &'a [antecedent_core::ids::VariableId]
+pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::indexer: antecedent_core::temporal::TemporalIndexer
+pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::outcome: antecedent_core::ids::VariableId
+pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::query: antecedent_core::query::transport::TransportQuery
+pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::selection_targets: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_identify::discovered_transport_temporal::TemporalWindow::treatment: antecedent_core::ids::VariableId
 pub field antecedent_identify::sid::SHedgeCertificate::larger: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeCertificate::smaller: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeRecord::evidence_setting: alloc::string::String
@@ -3965,9 +4066,24 @@ pub fn <antecedent_identify::discovered_transport::StructuralTransportEnvelope>:
 pub fn <antecedent_identify::discovered_transport::StructuralTransportEnvelope>::const fn member_bound(&self) -> usize
 pub fn <antecedent_identify::discovered_transport::StructuralTransportEnvelope>::fn formulas_agree(&self) -> bool
 pub fn <antecedent_identify::discovered_transport::StructuralTransportEnvelope>::fn identified_members(&self) -> usize
+pub fn <antecedent_identify::discovered_transport::StructuralTransportEnvelope>::fn member_graph(&self, index: usize) -> core::option::Option<antecedent_graph::admg::Admg>
 pub fn <antecedent_identify::discovered_transport::StructuralTransportEnvelope>::fn members(&self) -> &[antecedent_identify::discovered_transport::EnvelopeMember]
 pub fn <antecedent_identify::discovered_transport::StructuralTransportEnvelope>::fn status(&self) -> antecedent_identify::discovered_transport::EnvelopeStatus
 pub fn <antecedent_identify::discovered_transport::StructuralTransportEnvelope>::fn unresolved(&self) -> &[antecedent_identify::discovered_transport::UnresolvedPair]
+pub fn <antecedent_identify::discovered_transport::StructuralTransportEnvelope>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember>::const fn window_graph(&self) -> &antecedent_graph::admg::Admg
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::const fn enumeration_complete(&self) -> bool
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::const fn history(&self) -> u32
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::const fn horizon_steps(&self) -> u32
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::const fn kind(&self) -> &'static str
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::const fn max_lag(&self) -> u32
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::const fn member_bound(&self) -> usize
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::const fn window(&self) -> &antecedent_identify::discovered_transport_temporal::TemporalWindow
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::fn formulas_agree(&self) -> bool
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::fn identified_members(&self) -> usize
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::fn members(&self) -> &[antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember]
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::fn status(&self) -> antecedent_identify::discovered_transport::EnvelopeStatus
+pub fn <antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope>::fn unresolved(&self) -> &[antecedent_identify::discovered_transport::UnresolvedPair]
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn from_record_checked(record: antecedent_identify::sid::SHedgeRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn to_record(&self) -> antecedent_identify::sid::SHedgeRecord
 pub fn <antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision>::const fn is_exportable(&self) -> bool
@@ -4003,6 +4119,7 @@ pub fn <antecedent_identify::sid::scenarios::TransportScenarioSet>::fn residual_
 pub fn <antecedent_identify::sid::scenarios::TransportScenarioSet>::fn scenarios(&self) -> &[antecedent_identify::sid::scenarios::TransportScenario]
 pub fn <antecedent_identify::sid::scenarios::TransportScenarioSet>::fn schema(&self) -> &[antecedent_identify::sid::scenarios::ScenarioCoordinate]
 pub fn <antecedent_identify::sid::scenarios::TransportScenarioSet>::fn try_new(scenarios: alloc::vec::Vec<antecedent_identify::sid::scenarios::TransportScenario>) -> core::result::Result<Self, antecedent_identify::sid::scenarios::ScenarioSetRefusal>
+pub fn <antecedent_identify::sid::scenarios::TransportScenarioSet>::fn try_new_within(scenarios: alloc::vec::Vec<antecedent_identify::sid::scenarios::TransportScenario>, max_scenarios: usize) -> core::result::Result<Self, antecedent_identify::sid::scenarios::ScenarioSetRefusal>
 pub fn <antecedent_identify::sid::scenarios::TransportScenarioSet>::fn variables(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_identify::sid::temporal_initial_shift::CheckedInitialShiftSource>::const fn arena(&self) -> &antecedent_expr::CausalExprArena
 pub fn <antecedent_identify::sid::temporal_initial_shift::CheckedInitialShiftSource>::const fn graph(&self) -> &antecedent_graph::admg::Admg
@@ -4051,8 +4168,11 @@ pub fn antecedent_identify::decide_observation_recovery(graph: &antecedent_graph
 pub fn antecedent_identify::decide_two_source_z_transport(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::TwoSourceZTransportQuery, catalogs: [&antecedent_core::query::transport_catalog::EvidenceCatalog; 2], limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::TwoSourceZTransportDecision, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::decide_z_transport_inspecting(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportOutcome, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::decide_z_transport_with_catalog(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::ZTransportDecision, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::discovered_transport::ancestral_subgraph(admg: &antecedent_graph::admg::Admg, seeds: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_graph::error::GraphError>
 pub fn antecedent_identify::discovered_transport::refuse_pag_transport(unresolved: alloc::vec::Vec<antecedent_identify::discovered_transport::UnresolvedPair>, exhausted_search_bounds: usize) -> antecedent_identify::discovered_transport::DiscoveredTransportError
 pub fn antecedent_identify::discovered_transport::transport_across_class(request: &antecedent_identify::discovered_transport::DiscoveredTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
+pub fn antecedent_identify::discovered_transport::transport_across_pag(request: &antecedent_identify::discovered_transport::PagTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport::StructuralTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
+pub fn antecedent_identify::discovered_transport_temporal::transport_across_temporal_class(request: &antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'_>, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent_identify::envelope::search_truncated(result: &antecedent_identify::IdentificationResult) -> bool
 pub fn antecedent_identify::execution_counts::count_checked_identifications<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
 pub fn antecedent_identify::identify_catalog_transport(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_identify::CatalogTransportResult, antecedent_identify::IdentificationError>
@@ -4107,6 +4227,7 @@ pub mod antecedent_identify::bounds
 pub mod antecedent_identify::counterfactual_id
 pub mod antecedent_identify::cross_world
 pub mod antecedent_identify::discovered_transport
+pub mod antecedent_identify::discovered_transport_temporal
 pub mod antecedent_identify::efficient
 pub mod antecedent_identify::envelope
 pub mod antecedent_identify::error
@@ -4325,9 +4446,17 @@ pub struct antecedent_identify::cross_world::CrossWorldRefusal
 pub struct antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 pub struct antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a>
 pub struct antecedent_identify::discovered_transport::EnvelopeMember
+pub struct antecedent_identify::discovered_transport::PagTransportRequest<'a>
 pub struct antecedent_identify::discovered_transport::StructuralTransportEnvelope
 pub struct antecedent_identify::discovered_transport::StructuralTransportEnvelope has private fields
 pub struct antecedent_identify::discovered_transport::UnresolvedPair
+pub struct antecedent_identify::discovered_transport_temporal::LaggedEdge
+pub struct antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember
+pub struct antecedent_identify::discovered_transport_temporal::TemporalEnvelopeMember has private fields
+pub struct antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope
+pub struct antecedent_identify::discovered_transport_temporal::TemporalTransportEnvelope has private fields
+pub struct antecedent_identify::discovered_transport_temporal::TemporalTransportRequest<'a>
+pub struct antecedent_identify::discovered_transport_temporal::TemporalWindow
 pub struct antecedent_identify::sid::SHedgeCertificate
 pub struct antecedent_identify::sid::SHedgeCertificate has private fields
 pub struct antecedent_identify::sid::SHedgeRecord
@@ -4826,6 +4955,7 @@ pub variant antecedent_identify::counterfactual_id::CounterfactualIdShape::Effec
 pub variant antecedent_identify::counterfactual_id::CounterfactualIdShape::ExactZero
 pub variant antecedent_identify::counterfactual_id::CounterfactualObstruction::ConflictingSubscripts { graph: antecedent_identify::counterfactual_id::CounterfactualGraphRecord, variable: u32, subscript: antecedent_identify::counterfactual_id::CfValue, event: core::option::Option<antecedent_identify::counterfactual_id::CfValue> }
 pub variant antecedent_identify::counterfactual_id::CounterfactualObstruction::Hedge { node_count: usize, directed: alloc::vec::Vec<(u32, u32)>, bidirected: alloc::vec::Vec<(u32, u32)>, treatments: alloc::vec::Vec<u32>, outcomes: alloc::vec::Vec<u32>, f: alloc::vec::Vec<u32>, f_prime: alloc::vec::Vec<u32> }
+pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Estimation(alloc::string::String)
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Identification(antecedent_identify::IdentificationError)
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Refused(antecedent_identify::discovered_transport::DiscoveredTransportRefusal)
 pub variant antecedent_identify::discovered_transport::EnvelopeStatus::IdentifiedInEveryMember
@@ -4835,6 +4965,9 @@ pub variant antecedent_identify::discovered_transport::EnvelopeStatus::Partial
 pub variant antecedent_identify::discovered_transport::MemberVerdict::Identified { rule: alloc::string::String, formula: antecedent_identify::TransportFormula }
 pub variant antecedent_identify::discovered_transport::MemberVerdict::MissingEvidence { reason: alloc::string::String }
 pub variant antecedent_identify::discovered_transport::MemberVerdict::NotCertified { reason: alloc::string::String }
+pub variant antecedent_identify::discovered_transport_temporal::TemporalClass::Cpdag(&'a antecedent_graph::cpdag::TemporalCpdag)
+pub variant antecedent_identify::discovered_transport_temporal::TemporalClass::Dag(&'a antecedent_graph::temporal::TemporalDag)
+pub variant antecedent_identify::discovered_transport_temporal::TemporalClass::Pag(&'a antecedent_graph::temporal_pag::TemporalPag)
 pub variant antecedent_identify::sid::Rule::Ancestors
 pub variant antecedent_identify::sid::Rule::DirectTransport
 pub variant antecedent_identify::sid::Rule::Districts

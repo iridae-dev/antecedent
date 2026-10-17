@@ -18,10 +18,11 @@ use antecedent_core::{
     TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge,
-    temporal_cpdag_from_dbn_masks, temporal_pag_from_dbn_masks,
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::dbn_posterior::{
+    temporal_cpdag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
 };
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_prob::InferenceDiagnostics;
 
 fn series() -> TimeSeriesData {
@@ -114,7 +115,7 @@ fn class_posterior(
     lag_masks: &[u64],
 ) -> GraphPosterior {
     let n = 3;
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         weights.to_vec(),
         adjacency.to_vec(),
@@ -169,9 +170,9 @@ fn fixture_temporal_effect_series(pin: &serde_json::Value) -> TimeSeriesData {
 
 fn reconstruct_temporal_class(contemp: u64, lag: u64, n: usize) {
     let variables: Vec<VariableId> = (0..n).map(|i| VariableId::from_raw(i as u32)).collect();
-    temporal_cpdag_from_dbn_masks(contemp, lag, n, 1, &variables)
+    temporal_cpdag_from_dbn_atoms(contemp, lag, n, 1, &variables)
         .expect("TemporalCpdag reconstructs from DBN masks");
-    temporal_pag_from_dbn_masks(contemp, lag, 0, n, 1, &variables)
+    temporal_pag_from_dbn_atoms(contemp, lag, 0, n, 1, &variables)
         .expect("TemporalPag reconstructs from DBN masks");
 }
 
@@ -193,7 +194,7 @@ fn fixture_class_posterior(
         .iter()
         .map(|value| value.as_f64().unwrap())
         .collect();
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         2,
         weights,
         vec![identified_c, unidentified_c],
@@ -298,7 +299,7 @@ fn temporal_cpdag_graph_posterior_pulse_mixes() {
     );
     let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
     let reconstructed =
-        temporal_cpdag_from_dbn_masks(two_completion_contemp(), identified, 3, 1, &variables)
+        temporal_cpdag_from_dbn_atoms(two_completion_contemp(), identified, 3, 1, &variables)
             .unwrap();
     assert!(reconstructed.undirected_edge_count() >= 1);
     for inference in [
@@ -363,7 +364,7 @@ fn temporal_class_graph_posterior_pulse_and_sustained_run() {
         if kind == GraphPosteriorAtomKind::Pag {
             let variables =
                 [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
-            temporal_pag_from_dbn_masks(0, identified, 0, 3, 1, &variables).unwrap();
+            temporal_pag_from_dbn_atoms(0, identified, 0, 3, 1, &variables).unwrap();
         }
         for query in [pulse(), sustained()] {
             for inference in [
@@ -699,7 +700,7 @@ fn known_truth_cpdag_mediation_posterior(
         .map(|value| value.as_f64().unwrap())
         .collect();
     reconstruct_temporal_class(identified_c, identified_l, 3);
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         weights.to_vec(),
         vec![identified_c, unidentified_c],

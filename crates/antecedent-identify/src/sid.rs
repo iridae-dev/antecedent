@@ -85,6 +85,8 @@ pub use mixed_source::{
     mixed_source_rule_names, render_quantity, validate_mixed_source_query,
     verify_mixed_source_derivation,
 };
+#[allow(deprecated, reason = "the retained released name stays reachable")]
+pub use mz_transport::MZ_TRANSPORT_MAX_OBSERVED;
 pub use mz_transport::{
     BoundMzTransportFunctional, MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
     MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_SOURCES, MZ_TRANSPORT_MEMORY_BYTES,

@@ -14,6 +14,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop};
@@ -204,6 +205,17 @@ fn has_forbidden_collider_at<G: MecCpdag>(
     false
 }
 
+/// The execution context a search keeps for its budget checks.
+///
+/// It is read after construction only (its progress sink is notified, never mutated), so a
+/// panic cannot leave it in a state a later observer sees broken. The progress sink is not
+/// itself `RefUnwindSafe`, which would otherwise strip that auto trait from every sampler.
+#[derive(Clone, Debug)]
+struct ReadOnlyContext(Arc<ExecutionContext>);
+
+impl UnwindSafe for ReadOnlyContext {}
+impl RefUnwindSafe for ReadOnlyContext {}
+
 /// Depth-first orientation search over the undirected edges of a CPDAG.
 #[derive(Clone, Debug)]
 pub(crate) struct MecSearch<G: MecCpdag> {
@@ -217,7 +229,7 @@ pub(crate) struct MecSearch<G: MecCpdag> {
     /// Partial orientation and index of the next edge to orient.
     stack: Vec<(G, usize)>,
     limits: SearchLimits,
-    ctx: Arc<ExecutionContext>,
+    ctx: ReadOnlyContext,
     memory_limit_bytes: u64,
     /// Estimated live bytes of one stacked partial orientation.
     state_bytes: u64,
@@ -268,7 +280,7 @@ impl<G: MecCpdag> MecSearch<G> {
             next_index: 0,
             stack: vec![(start, 0)],
             limits,
-            ctx: Arc::new(ctx.clone()),
+            ctx: ReadOnlyContext(Arc::new(ctx.clone())),
             memory_limit_bytes: ctx
                 .memory
                 .hard_limit_bytes
@@ -329,7 +341,7 @@ impl<G: MecCpdag> MecSearch<G> {
             operations: self.limits.operations.saturating_sub(self.operations),
             depth: self.limits.depth,
         };
-        let ctx = Arc::clone(&self.ctx);
+        let ctx = Arc::clone(&self.ctx.0);
         let mut budget = match SearchBudget::with_memory(remaining, self.memory_limit_bytes, &ctx) {
             Ok(budget) => budget,
             Err(receipt) => {

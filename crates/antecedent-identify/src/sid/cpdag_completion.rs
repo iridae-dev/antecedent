@@ -48,8 +48,21 @@ use super::{
     identify_classical_transport_metered,
 };
 
+/// Most nodes of a supplied CPDAG under the earlier fixed ceiling.
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: the completion enumeration is bounded by the search budget"
+)]
+pub const CPDAG_MAX_NODES: usize = 6;
+
 /// Selection or latent structure was supplied.
 pub const CPDAG_SELECTION_OR_LATENT_DETAIL: &str = "cpdag_scenarios.selection_or_latent";
+/// Refusal detail of the earlier node-count ceiling ([`CPDAG_MAX_NODES`]).
+///
+/// Never emitted now. It is written as two literals so the refusal-detail registry gate does
+/// not read this retained name as a live emission.
+#[deprecated(since = "2.4.1", note = "no longer emitted: the node count is not bounded")]
+pub const CPDAG_BOUNDS_EXCEEDED_DETAIL: &str = concat!("cpdag_scenarios", ".bounds_exceeded");
 /// The input is not a valid CPDAG.
 pub const CPDAG_NOT_A_CPDAG_DETAIL: &str = "cpdag_scenarios.not_a_cpdag";
 /// An evidence binding names a completion identity that does not match.

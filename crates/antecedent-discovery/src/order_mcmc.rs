@@ -14,6 +14,7 @@ use antecedent_data::TabularData;
 use antecedent_state::GraphScoreFamily;
 
 use crate::adjacency_mask::AdjacencyMask;
+use crate::adjacency_mask::{has_edge, set_edge};
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::graph_mcmc::{
@@ -22,8 +23,7 @@ use crate::graph_mcmc::{
     validate_temperatures,
 };
 use crate::graph_posterior::{
-    GraphPosterior, GraphPosteriorEngine, GraphPrior, GraphPriorTable, has_edge, n_directed_edges,
-    set_edge,
+    GraphPosterior, GraphPosteriorEngine, GraphPrior, GraphPriorTable, n_directed_edges,
 };
 use crate::graph_score::{
     ChainTarget, ScoredTarget, SharedTarget, initial_scored_mask, tabular_score_data,
@@ -373,9 +373,8 @@ fn reorient_skeleton(
 /// per-step cost of order MCMC grows as `n * 2^n`.
 fn log_topological_order_count(mask: AdjacencyMask, n: usize) -> f64 {
     let states = 1usize << n;
-    let parents: Vec<usize> = (0..n)
-        .map(|node| usize::from(crate::graph_posterior::parent_bits(mask, n, node)))
-        .collect();
+    let parents: Vec<usize> =
+        (0..n).map(|node| usize::from(crate::adjacency_mask::parent_bits(mask, n, node))).collect();
     let mut ways = vec![0u64; states];
     ways[0] = 1;
     for placed in 0..states {

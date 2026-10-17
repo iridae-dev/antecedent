@@ -78,6 +78,7 @@ impl core::clone::Clone for antecedent_validate::MsmSensitivityUncertainty
 impl core::clone::Clone for antecedent_validate::MsmStratum
 impl core::clone::Clone for antecedent_validate::MsmTipping
 impl core::clone::Clone for antecedent_validate::MsmTippingDirection
+impl core::clone::Clone for antecedent_validate::NeighborhoodSensitivity
 impl core::clone::Clone for antecedent_validate::NonparametricSensitivity
 impl core::clone::Clone for antecedent_validate::NullCalibrationReport
 impl core::clone::Clone for antecedent_validate::NullTransform
@@ -298,6 +299,7 @@ impl core::default::Default for antecedent_validate::EValue
 impl core::default::Default for antecedent_validate::GraphRefuter
 impl core::default::Default for antecedent_validate::JointSensitivityLimits
 impl core::default::Default for antecedent_validate::LinearSensitivity
+impl core::default::Default for antecedent_validate::NeighborhoodSensitivity
 impl core::default::Default for antecedent_validate::NonparametricSensitivity
 impl core::default::Default for antecedent_validate::OrientationStability
 impl core::default::Default for antecedent_validate::OverlapRefuter
@@ -372,6 +374,7 @@ impl core::fmt::Debug for antecedent_validate::MsmSensitivityUncertainty
 impl core::fmt::Debug for antecedent_validate::MsmStratum
 impl core::fmt::Debug for antecedent_validate::MsmTipping
 impl core::fmt::Debug for antecedent_validate::MsmTippingDirection
+impl core::fmt::Debug for antecedent_validate::NeighborhoodSensitivity
 impl core::fmt::Debug for antecedent_validate::NonparametricSensitivity
 impl core::fmt::Debug for antecedent_validate::NullCalibrationReport
 impl core::fmt::Debug for antecedent_validate::NullTransform
@@ -560,6 +563,7 @@ impl core::marker::Freeze for antecedent_validate::MsmSensitivityUncertainty [au
 impl core::marker::Freeze for antecedent_validate::MsmStratum [auto]
 impl core::marker::Freeze for antecedent_validate::MsmTipping [auto]
 impl core::marker::Freeze for antecedent_validate::MsmTippingDirection [auto]
+impl core::marker::Freeze for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::marker::Freeze for antecedent_validate::NonparametricSensitivity [auto]
 impl core::marker::Freeze for antecedent_validate::NullCalibrationReport [auto]
 impl core::marker::Freeze for antecedent_validate::NullTransform [auto]
@@ -689,6 +693,7 @@ impl core::marker::Send for antecedent_validate::MsmSensitivityUncertainty [auto
 impl core::marker::Send for antecedent_validate::MsmStratum [auto]
 impl core::marker::Send for antecedent_validate::MsmTipping [auto]
 impl core::marker::Send for antecedent_validate::MsmTippingDirection [auto]
+impl core::marker::Send for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::marker::Send for antecedent_validate::NonparametricSensitivity [auto]
 impl core::marker::Send for antecedent_validate::NullCalibrationReport [auto]
 impl core::marker::Send for antecedent_validate::NullTransform [auto]
@@ -901,6 +906,7 @@ impl core::marker::Sync for antecedent_validate::MsmSensitivityUncertainty [auto
 impl core::marker::Sync for antecedent_validate::MsmStratum [auto]
 impl core::marker::Sync for antecedent_validate::MsmTipping [auto]
 impl core::marker::Sync for antecedent_validate::MsmTippingDirection [auto]
+impl core::marker::Sync for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::marker::Sync for antecedent_validate::NonparametricSensitivity [auto]
 impl core::marker::Sync for antecedent_validate::NullCalibrationReport [auto]
 impl core::marker::Sync for antecedent_validate::NullTransform [auto]
@@ -1029,6 +1035,7 @@ impl core::marker::Unpin for antecedent_validate::MsmSensitivityUncertainty [aut
 impl core::marker::Unpin for antecedent_validate::MsmStratum [auto]
 impl core::marker::Unpin for antecedent_validate::MsmTipping [auto]
 impl core::marker::Unpin for antecedent_validate::MsmTippingDirection [auto]
+impl core::marker::Unpin for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::marker::Unpin for antecedent_validate::NonparametricSensitivity [auto]
 impl core::marker::Unpin for antecedent_validate::NullCalibrationReport [auto]
 impl core::marker::Unpin for antecedent_validate::NullTransform [auto]
@@ -1152,6 +1159,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmSensiti
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmStratum [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmTipping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::MsmTippingDirection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::NonparametricSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::NullCalibrationReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_validate::NullTransform [auto]
@@ -1270,6 +1278,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmSensitivit
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmStratum [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmTipping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::MsmTippingDirection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::NeighborhoodSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::NonparametricSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::NullCalibrationReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_validate::NullTransform [auto]
@@ -1365,6 +1374,7 @@ impl<'a> antecedent_validate::Validator<antecedent_validate::RefutationProblem<'
 impl<'a> antecedent_validate::Validator<antecedent_validate::RefutationProblem<'a>> for antecedent_validate::EValue
 impl<'a> antecedent_validate::Validator<antecedent_validate::RefutationProblem<'a>> for antecedent_validate::GraphRefuter
 impl<'a> antecedent_validate::Validator<antecedent_validate::RefutationProblem<'a>> for antecedent_validate::LinearSensitivity
+impl<'a> antecedent_validate::Validator<antecedent_validate::RefutationProblem<'a>> for antecedent_validate::NeighborhoodSensitivity
 impl<'a> antecedent_validate::Validator<antecedent_validate::RefutationProblem<'a>> for antecedent_validate::NonparametricSensitivity
 impl<'a> antecedent_validate::Validator<antecedent_validate::RefutationProblem<'a>> for antecedent_validate::OverlapRefuter
 impl<'a> antecedent_validate::Validator<antecedent_validate::RefutationProblem<'a>> for antecedent_validate::OverlapRuleRefuter
@@ -1750,6 +1760,10 @@ pub field antecedent_validate::MsmTipping::direction: antecedent_validate::MsmTi
 pub field antecedent_validate::MsmTipping::status: antecedent_validate::TippingStatus
 pub field antecedent_validate::MsmTipping::threshold: f64
 pub field antecedent_validate::MsmTipping::tolerance: f64
+pub field antecedent_validate::NeighborhoodSensitivity::bandwidth: core::option::Option<f64>
+pub field antecedent_validate::NeighborhoodSensitivity::neighbors: usize
+pub field antecedent_validate::NeighborhoodSensitivity::partial_r2_grid: alloc::vec::Vec<f64>
+pub field antecedent_validate::NeighborhoodSensitivity::pass_threshold: f64
 pub field antecedent_validate::NonparametricSensitivity::bandwidth: core::option::Option<f64>
 pub field antecedent_validate::NonparametricSensitivity::partial_r2_grid: alloc::vec::Vec<f64>
 pub field antecedent_validate::NonparametricSensitivity::pass_threshold: f64
@@ -1863,6 +1877,7 @@ pub field antecedent_validate::SyntheticNullCalibration::pcmci: antecedent_disco
 pub field antecedent_validate::TargetParentLawRow::parent_levels: alloc::vec::Vec<usize>
 pub field antecedent_validate::TargetParentLawRow::probability: f64
 pub field antecedent_validate::TargetParentLawRow::treatment_level: usize
+pub field antecedent_validate::TemporalRefitContext::gaps: bool
 pub field antecedent_validate::TemporalRefitContext::indexer: &'a antecedent_core::temporal::TemporalIndexer
 pub field antecedent_validate::TemporalRefitContext::kernel_policy: &'a antecedent_core::execution::KernelPolicy
 pub field antecedent_validate::TemporalRefitContext::panel: core::option::Option<&'a antecedent_data::panel::PanelData>
@@ -2077,6 +2092,8 @@ pub fn <antecedent_validate::MsmSensitivitySpec>::fn new(lambda_max: f64) -> Sel
 pub fn <antecedent_validate::MsmSensitivitySpec>::fn with_threshold(self, threshold: f64) -> Self
 pub fn <antecedent_validate::MsmSensitivityUncertainty>::const fn withheld() -> Self
 pub fn <antecedent_validate::MsmTippingDirection>::const fn name(self) -> &'static str
+pub fn <antecedent_validate::NeighborhoodSensitivity>::fn new() -> Self
+pub fn <antecedent_validate::NeighborhoodSensitivity>::fn refute(&self, problem: &antecedent_validate::RefutationProblem<'_>, workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::NonparametricSensitivity>::fn new() -> Self
 pub fn <antecedent_validate::NonparametricSensitivity>::fn refute(&self, problem: &antecedent_validate::RefutationProblem<'_>, workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
 pub fn <antecedent_validate::OrientationStability>::fn new() -> Self
@@ -2214,6 +2231,7 @@ pub fn antecedent_validate::joint_mechanism_sensitivity::z_transport_joint_mecha
 pub fn antecedent_validate::mechanism_sensitivity::z_transport_mechanism_sensitivity(diagram: &antecedent_graph::selection::SelectionDiagram, functional: &antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: &antecedent_expr::exact::ExactTransportData, max_fraction: f64, decision_threshold: core::option::Option<f64>, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_validate::ZTransportMechanismSensitivityResult, antecedent_validate::ZTransportSensitivityError>
 pub fn antecedent_validate::mediation::refute_static_mediation(data: &antecedent_data::dataset::TabularData, graph: &antecedent_graph::dag::Dag, query: &antecedent_core::query::mediation::MediationQuery, original: &antecedent_estimate::temporal_mediation::TemporalMediationEstimate, full: bool, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::RefutationReport>, antecedent_validate::ValidationError>
 pub fn antecedent_validate::mediation::refute_temporal_mediation_adjusted(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::mediation::MediationQuery, original: &antecedent_estimate::temporal_mediation::TemporalMediationEstimate, full: bool, adjustment: &[antecedent_data::sample::LaggedColumn], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::RefutationReport>, antecedent_validate::ValidationError>
+pub fn antecedent_validate::mediation::refute_temporal_mediation_with_gaps(data: &antecedent_data::dataset::TimeSeriesData, estimand: &antecedent_expr::estimand::IdentifiedEstimand, query: &antecedent_core::query::mediation::MediationQuery, original: &antecedent_estimate::temporal_mediation::TemporalMediationEstimate, full: bool, adjustment: &[antecedent_data::sample::LaggedColumn], gaps: bool, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_validate::RefutationReport>, antecedent_validate::ValidationError>
 pub fn antecedent_validate::msm_ate_bounds_at(strata: &[antecedent_validate::MsmStratum], lambda: f64) -> core::result::Result<antecedent_validate::MsmPoint, antecedent_validate::MsmSensitivityError>
 pub fn antecedent_validate::msm_ate_sensitivity(strata: &[antecedent_validate::MsmStratum], spec: &antecedent_validate::MsmSensitivitySpec) -> core::result::Result<antecedent_validate::MsmSensitivityResult, antecedent_validate::MsmSensitivityError>
 pub fn antecedent_validate::msm_dirichlet_posterior(strata: &[antecedent_validate::MsmStratum], request: antecedent_estimate::posterior_mean::PosteriorRequest) -> core::result::Result<f64, antecedent_estimate::error::EstimationError>
@@ -2305,6 +2323,7 @@ pub struct antecedent_validate::MsmSensitivitySpec
 pub struct antecedent_validate::MsmSensitivityUncertainty
 pub struct antecedent_validate::MsmStratum
 pub struct antecedent_validate::MsmTipping
+pub struct antecedent_validate::NeighborhoodSensitivity
 pub struct antecedent_validate::NonparametricSensitivity
 pub struct antecedent_validate::NullCalibrationReport
 pub struct antecedent_validate::OrientationStability
@@ -2378,9 +2397,11 @@ pub trait fn fn antecedent_validate::CustomEffectValidator::validate(&self, prob
 pub trait fn fn antecedent_validate::Validator::prepare(&self, artifact: &A, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<<Self as antecedent_validate::Validator>::Prepared, antecedent_validate::ValidationError>
 pub trait fn fn antecedent_validate::Validator::validate(&self, prepared: &mut <Self as antecedent_validate::Validator>::Prepared, workspace: &mut antecedent_estimate::adjustment::EstimationWorkspace, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<<Self as antecedent_validate::Validator>::Report, antecedent_validate::ValidationError>
 pub trait fn fn antecedent_validate::common::EffectRefit::prepare_aligned(&self, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::option::Option<core::result::Result<antecedent_validate::common::AlignedRefit, antecedent_validate::ValidationError>> {default}
+pub trait fn fn antecedent_validate::common::EffectRefit::prepare_aligned_windows(&self, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::ExecutionContext) -> core::option::Option<core::result::Result<(antecedent_validate::common::AlignedRefit, core::option::Option<antecedent_validate::common::WindowCompleteness>), antecedent_validate::ValidationError>> {default}
 pub trait fn fn antecedent_validate::common::EffectRefit::refit(&self, data: &antecedent_data::dataset::TabularData, extra_contemporaneous: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_validate::ValidationError>
 pub trait type antecedent_validate::Validator::Prepared
 pub trait type antecedent_validate::Validator::Report
+pub type antecedent_validate::common::WindowCompleteness = alloc::vec::Vec<bool>
 pub use antecedent_validate::bayesian_checks::ExternalAlphaSensitivity = antecedent_validate::ExternalAlphaSensitivity
 pub use antecedent_validate::bayesian_checks::PosteriorPredictiveCheck = antecedent_validate::PosteriorPredictiveCheck
 pub use antecedent_validate::bayesian_checks::PredictiveCheckKind = antecedent_validate::PredictiveCheckKind
@@ -2459,6 +2480,7 @@ pub use antecedent_validate::placebo::PlaceboTreatment = antecedent_validate::Pl
 pub use antecedent_validate::rcc::RandomCommonCause = antecedent_validate::RandomCommonCause
 pub use antecedent_validate::riesz::RieszSensitivity = antecedent_validate::RieszSensitivity
 pub use antecedent_validate::sensitivity::LinearSensitivity = antecedent_validate::LinearSensitivity
+pub use antecedent_validate::sensitivity::NeighborhoodSensitivity = antecedent_validate::NeighborhoodSensitivity
 pub use antecedent_validate::sensitivity::NonparametricSensitivity = antecedent_validate::NonparametricSensitivity
 pub use antecedent_validate::sensitivity::PartialLinearSensitivity = antecedent_validate::PartialLinearSensitivity
 pub use antecedent_validate::stability::AlphaThresholdSensitivity = antecedent_validate::AlphaThresholdSensitivity
@@ -2498,6 +2520,7 @@ pub variant antecedent_validate::ConfiguredValidator::DummyOutcome(antecedent_va
 pub variant antecedent_validate::ConfiguredValidator::EValue(antecedent_validate::EValue)
 pub variant antecedent_validate::ConfiguredValidator::Graph(antecedent_validate::GraphRefuter)
 pub variant antecedent_validate::ConfiguredValidator::LinearSensitivity(antecedent_validate::LinearSensitivity)
+pub variant antecedent_validate::ConfiguredValidator::NeighborhoodSensitivity(antecedent_validate::NeighborhoodSensitivity)
 pub variant antecedent_validate::ConfiguredValidator::NonparametricSensitivity(antecedent_validate::NonparametricSensitivity)
 pub variant antecedent_validate::ConfiguredValidator::Overlap(antecedent_validate::OverlapRefuter)
 pub variant antecedent_validate::ConfiguredValidator::OverlapRule(antecedent_validate::OverlapRuleRefuter)
@@ -2562,6 +2585,7 @@ pub variant antecedent_validate::ValidatorId::EValue
 pub variant antecedent_validate::ValidatorId::Graph
 pub variant antecedent_validate::ValidatorId::LinearSensitivity
 pub variant antecedent_validate::ValidatorId::McmcDiagnostics
+pub variant antecedent_validate::ValidatorId::NeighborhoodSensitivity
 pub variant antecedent_validate::ValidatorId::NonparametricSensitivity
 pub variant antecedent_validate::ValidatorId::Overlap
 pub variant antecedent_validate::ValidatorId::OverlapRule

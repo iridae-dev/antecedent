@@ -81,6 +81,9 @@ use super::{
 
 /// Scenarios in one set.
 pub const SCENARIO_MAX_COUNT: usize = 64;
+/// Observed variables in each scenario graph under the earlier fixed ceiling.
+#[deprecated(since = "2.4.1", note = "no longer enforced: scenario graphs of any size are admitted")]
+pub const SCENARIO_MAX_OBSERVED: usize = 12;
 /// Tolerance on declared weights summing to at most one.
 pub const SCENARIO_WEIGHT_TOLERANCE: f64 = 1e-12;
 

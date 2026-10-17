@@ -608,11 +608,14 @@ impl core::clone::Clone for antecedent_design::transport_sensitivity::ViolationF
 impl core::clone::Clone for antecedent_design::transported_bridge::BridgeSelectionDiagram
 impl core::clone::Clone for antecedent_design::transported_bridge::TransportedSurrogateBridge
 impl core::clone::Clone for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision
+impl core::clone::Clone for antecedent_design::transported_policy::ActionUtility
 impl core::clone::Clone for antecedent_design::transported_policy::MechanismStatus
 impl core::clone::Clone for antecedent_design::transported_policy::ModelMechanism
 impl core::clone::Clone for antecedent_design::transported_policy::SelectionDiagram
+impl core::clone::Clone for antecedent_design::transported_policy::TargetUtility
 impl core::clone::Clone for antecedent_design::transported_policy::TransportPremises
 impl core::clone::Clone for antecedent_design::transported_policy::TransportedPolicyEvaluation
+impl core::clone::Clone for antecedent_design::transported_policy::UtilityProvenance
 impl core::clone::Clone for antecedent_design::transported_synthesis::TransportedContribution
 impl core::clone::Clone for antecedent_design::transported_synthesis::TransportedSynthesis
 impl core::clone::Clone for antecedent_design::transported_synthesis::TransportedSynthesisMethod
@@ -845,6 +848,7 @@ impl core::cmp::Eq for antecedent_design::transported_policy::MechanismStatus
 impl core::cmp::Eq for antecedent_design::transported_policy::ModelMechanism
 impl core::cmp::Eq for antecedent_design::transported_policy::SelectionDiagram
 impl core::cmp::Eq for antecedent_design::transported_policy::TransportPremises
+impl core::cmp::Eq for antecedent_design::transported_policy::UtilityProvenance
 impl core::cmp::Ord for antecedent_design::DecisionProblemId
 impl core::cmp::Ord for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::cmp::Ord for antecedent_design::composition_bundle::NodeKind
@@ -1329,11 +1333,14 @@ impl core::cmp::PartialEq for antecedent_design::transport_sensitivity::Violatio
 impl core::cmp::PartialEq for antecedent_design::transported_bridge::BridgeSelectionDiagram
 impl core::cmp::PartialEq for antecedent_design::transported_bridge::TransportedSurrogateBridge
 impl core::cmp::PartialEq for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision
+impl core::cmp::PartialEq for antecedent_design::transported_policy::ActionUtility
 impl core::cmp::PartialEq for antecedent_design::transported_policy::MechanismStatus
 impl core::cmp::PartialEq for antecedent_design::transported_policy::ModelMechanism
 impl core::cmp::PartialEq for antecedent_design::transported_policy::SelectionDiagram
+impl core::cmp::PartialEq for antecedent_design::transported_policy::TargetUtility
 impl core::cmp::PartialEq for antecedent_design::transported_policy::TransportPremises
 impl core::cmp::PartialEq for antecedent_design::transported_policy::TransportedPolicyEvaluation
+impl core::cmp::PartialEq for antecedent_design::transported_policy::UtilityProvenance
 impl core::cmp::PartialEq for antecedent_design::transported_synthesis::TransportedContribution
 impl core::cmp::PartialEq for antecedent_design::transported_synthesis::TransportedSynthesis
 impl core::cmp::PartialEq for antecedent_design::transported_synthesis::TransportedSynthesisMethod
@@ -1972,11 +1979,14 @@ impl core::fmt::Debug for antecedent_design::transport_sensitivity::ViolationFam
 impl core::fmt::Debug for antecedent_design::transported_bridge::BridgeSelectionDiagram
 impl core::fmt::Debug for antecedent_design::transported_bridge::TransportedSurrogateBridge
 impl core::fmt::Debug for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision
+impl core::fmt::Debug for antecedent_design::transported_policy::ActionUtility
 impl core::fmt::Debug for antecedent_design::transported_policy::MechanismStatus
 impl core::fmt::Debug for antecedent_design::transported_policy::ModelMechanism
 impl core::fmt::Debug for antecedent_design::transported_policy::SelectionDiagram
+impl core::fmt::Debug for antecedent_design::transported_policy::TargetUtility
 impl core::fmt::Debug for antecedent_design::transported_policy::TransportPremises
 impl core::fmt::Debug for antecedent_design::transported_policy::TransportedPolicyEvaluation
+impl core::fmt::Debug for antecedent_design::transported_policy::UtilityProvenance
 impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedContribution
 impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedSynthesis
 impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedSynthesisMethod
@@ -2723,11 +2733,14 @@ impl core::marker::Freeze for antecedent_design::transport_sensitivity::Violatio
 impl core::marker::Freeze for antecedent_design::transported_bridge::BridgeSelectionDiagram [auto]
 impl core::marker::Freeze for antecedent_design::transported_bridge::TransportedSurrogateBridge [auto]
 impl core::marker::Freeze for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision [auto]
+impl core::marker::Freeze for antecedent_design::transported_policy::ActionUtility [auto]
 impl core::marker::Freeze for antecedent_design::transported_policy::MechanismStatus [auto]
 impl core::marker::Freeze for antecedent_design::transported_policy::ModelMechanism [auto]
 impl core::marker::Freeze for antecedent_design::transported_policy::SelectionDiagram [auto]
+impl core::marker::Freeze for antecedent_design::transported_policy::TargetUtility [auto]
 impl core::marker::Freeze for antecedent_design::transported_policy::TransportPremises [auto]
 impl core::marker::Freeze for antecedent_design::transported_policy::TransportedPolicyEvaluation [auto]
+impl core::marker::Freeze for antecedent_design::transported_policy::UtilityProvenance [auto]
 impl core::marker::Freeze for antecedent_design::transported_synthesis::TransportedContribution [auto]
 impl core::marker::Freeze for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::marker::Freeze for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
@@ -3271,11 +3284,14 @@ impl core::marker::Send for antecedent_design::transport_sensitivity::ViolationF
 impl core::marker::Send for antecedent_design::transported_bridge::BridgeSelectionDiagram [auto]
 impl core::marker::Send for antecedent_design::transported_bridge::TransportedSurrogateBridge [auto]
 impl core::marker::Send for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision [auto]
+impl core::marker::Send for antecedent_design::transported_policy::ActionUtility [auto]
 impl core::marker::Send for antecedent_design::transported_policy::MechanismStatus [auto]
 impl core::marker::Send for antecedent_design::transported_policy::ModelMechanism [auto]
 impl core::marker::Send for antecedent_design::transported_policy::SelectionDiagram [auto]
+impl core::marker::Send for antecedent_design::transported_policy::TargetUtility [auto]
 impl core::marker::Send for antecedent_design::transported_policy::TransportPremises [auto]
 impl core::marker::Send for antecedent_design::transported_policy::TransportedPolicyEvaluation [auto]
+impl core::marker::Send for antecedent_design::transported_policy::UtilityProvenance [auto]
 impl core::marker::Send for antecedent_design::transported_synthesis::TransportedContribution [auto]
 impl core::marker::Send for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::marker::Send for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
@@ -3753,11 +3769,14 @@ impl core::marker::StructuralPartialEq for antecedent_design::transport_sensitiv
 impl core::marker::StructuralPartialEq for antecedent_design::transported_bridge::BridgeSelectionDiagram
 impl core::marker::StructuralPartialEq for antecedent_design::transported_bridge::TransportedSurrogateBridge
 impl core::marker::StructuralPartialEq for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision
+impl core::marker::StructuralPartialEq for antecedent_design::transported_policy::ActionUtility
 impl core::marker::StructuralPartialEq for antecedent_design::transported_policy::MechanismStatus
 impl core::marker::StructuralPartialEq for antecedent_design::transported_policy::ModelMechanism
 impl core::marker::StructuralPartialEq for antecedent_design::transported_policy::SelectionDiagram
+impl core::marker::StructuralPartialEq for antecedent_design::transported_policy::TargetUtility
 impl core::marker::StructuralPartialEq for antecedent_design::transported_policy::TransportPremises
 impl core::marker::StructuralPartialEq for antecedent_design::transported_policy::TransportedPolicyEvaluation
+impl core::marker::StructuralPartialEq for antecedent_design::transported_policy::UtilityProvenance
 impl core::marker::StructuralPartialEq for antecedent_design::transported_synthesis::TransportedContribution
 impl core::marker::StructuralPartialEq for antecedent_design::transported_synthesis::TransportedSynthesis
 impl core::marker::StructuralPartialEq for antecedent_design::transported_synthesis::TransportedSynthesisMethod
@@ -4301,11 +4320,14 @@ impl core::marker::Sync for antecedent_design::transport_sensitivity::ViolationF
 impl core::marker::Sync for antecedent_design::transported_bridge::BridgeSelectionDiagram [auto]
 impl core::marker::Sync for antecedent_design::transported_bridge::TransportedSurrogateBridge [auto]
 impl core::marker::Sync for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision [auto]
+impl core::marker::Sync for antecedent_design::transported_policy::ActionUtility [auto]
 impl core::marker::Sync for antecedent_design::transported_policy::MechanismStatus [auto]
 impl core::marker::Sync for antecedent_design::transported_policy::ModelMechanism [auto]
 impl core::marker::Sync for antecedent_design::transported_policy::SelectionDiagram [auto]
+impl core::marker::Sync for antecedent_design::transported_policy::TargetUtility [auto]
 impl core::marker::Sync for antecedent_design::transported_policy::TransportPremises [auto]
 impl core::marker::Sync for antecedent_design::transported_policy::TransportedPolicyEvaluation [auto]
+impl core::marker::Sync for antecedent_design::transported_policy::UtilityProvenance [auto]
 impl core::marker::Sync for antecedent_design::transported_synthesis::TransportedContribution [auto]
 impl core::marker::Sync for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::marker::Sync for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
@@ -4850,11 +4872,14 @@ impl core::marker::Unpin for antecedent_design::transport_sensitivity::Violation
 impl core::marker::Unpin for antecedent_design::transported_bridge::BridgeSelectionDiagram [auto]
 impl core::marker::Unpin for antecedent_design::transported_bridge::TransportedSurrogateBridge [auto]
 impl core::marker::Unpin for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision [auto]
+impl core::marker::Unpin for antecedent_design::transported_policy::ActionUtility [auto]
 impl core::marker::Unpin for antecedent_design::transported_policy::MechanismStatus [auto]
 impl core::marker::Unpin for antecedent_design::transported_policy::ModelMechanism [auto]
 impl core::marker::Unpin for antecedent_design::transported_policy::SelectionDiagram [auto]
+impl core::marker::Unpin for antecedent_design::transported_policy::TargetUtility [auto]
 impl core::marker::Unpin for antecedent_design::transported_policy::TransportPremises [auto]
 impl core::marker::Unpin for antecedent_design::transported_policy::TransportedPolicyEvaluation [auto]
+impl core::marker::Unpin for antecedent_design::transported_policy::UtilityProvenance [auto]
 impl core::marker::Unpin for antecedent_design::transported_synthesis::TransportedContribution [auto]
 impl core::marker::Unpin for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::marker::Unpin for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
@@ -5391,11 +5416,14 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transport_se
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_bridge::BridgeSelectionDiagram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_bridge::TransportedSurrogateBridge [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::ActionUtility [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::MechanismStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::ModelMechanism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::SelectionDiagram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::TargetUtility [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::TransportPremises [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::TransportedPolicyEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::UtilityProvenance [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_synthesis::TransportedContribution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
@@ -5932,11 +5960,14 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transport_sensi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_bridge::BridgeSelectionDiagram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_bridge::TransportedSurrogateBridge [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_decision_artifact::ConsumedTransportedDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::ActionUtility [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::MechanismStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::ModelMechanism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::SelectionDiagram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::TargetUtility [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::TransportPremises [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::TransportedPolicyEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::UtilityProvenance [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_synthesis::TransportedContribution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
@@ -6441,6 +6472,7 @@ pub const antecedent_design::composition_verifiers::TRUST_UNVERIFIED: &str
 pub const antecedent_design::composition_verifiers::TRUST_VERIFIED: &str
 pub const antecedent_design::composition_verifiers::VERIFIABLE_KINDS: [antecedent_design::composition_bundle::NodeKind; 16]
 pub const antecedent_design::decision_artifact::MAX_DECISION_ARTIFACT_BYTES: usize
+pub const antecedent_design::decision_reliability::CANDIDATE_COUNT_BANDS: [(u64, u64); 4]
 pub const antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND: &str
 pub const antecedent_design::decision_reliability::DECISION_RELIABILITY_STREAM_DOMAIN: antecedent_core::execution::StreamDomain
 pub const antecedent_design::decision_reliability::DEFAULT_LICENSE_LEVEL: f64
@@ -8531,9 +8563,15 @@ pub field antecedent_design::transported_bridge::TransportedSurrogateBridge::val
 pub field antecedent_design::transported_bridge::TransportedSurrogateBridge::validation_evidence: alloc::string::String
 pub field antecedent_design::transported_decision_artifact::ConsumedTransportedDecision::decision: antecedent_design::decision_transported_source::TransportedDecision
 pub field antecedent_design::transported_decision_artifact::ConsumedTransportedDecision::response: antecedent_design::decision_transported_source::TransportedResponse
+pub field antecedent_design::transported_policy::ActionUtility::cost: f64
+pub field antecedent_design::transported_policy::ActionUtility::delayed: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_design::transported_policy::ActionUtility::immediate: alloc::vec::Vec<f64>
 pub field antecedent_design::transported_policy::SelectionDiagram::mechanisms: alloc::vec::Vec<(antecedent_design::transported_policy::ModelMechanism, antecedent_design::transported_policy::MechanismStatus)>
 pub field antecedent_design::transported_policy::SelectionDiagram::source_population: alloc::string::String
 pub field antecedent_design::transported_policy::SelectionDiagram::target_population: alloc::string::String
+pub field antecedent_design::transported_policy::TargetUtility::actions: alloc::vec::Vec<antecedent_design::transported_policy::ActionUtility>
+pub field antecedent_design::transported_policy::TargetUtility::provenance: antecedent_design::transported_policy::UtilityProvenance
+pub field antecedent_design::transported_policy::TargetUtility::terminal: alloc::vec::Vec<f64>
 pub field antecedent_design::transported_policy::TransportPremises::invariance: &'static str
 pub field antecedent_design::transported_policy::TransportPremises::overlap: &'static str
 pub field antecedent_design::transported_policy::TransportPremises::selection: &'static str
@@ -8550,6 +8588,7 @@ pub field antecedent_design::transported_policy::TransportedPolicyEvaluation::so
 pub field antecedent_design::transported_policy::TransportedPolicyEvaluation::target: antecedent_design::sequential_evaluation::PolicyEvaluation
 pub field antecedent_design::transported_policy::TransportedPolicyEvaluation::target_initial: alloc::vec::Vec<f64>
 pub field antecedent_design::transported_policy::TransportedPolicyEvaluation::target_population: alloc::string::String
+pub field antecedent_design::transported_policy::TransportedPolicyEvaluation::target_utility: core::option::Option<antecedent_design::transported_policy::TargetUtility>
 pub field antecedent_design::transported_policy::TransportedPolicyEvaluation::target_value: f64
 pub field antecedent_design::transported_policy::TransportedPolicyRequest::diagram: core::option::Option<&'a antecedent_design::transported_policy::SelectionDiagram>
 pub field antecedent_design::transported_policy::TransportedPolicyRequest::limits: antecedent_design::sequential_evaluation::EvaluationLimits
@@ -8557,6 +8596,9 @@ pub field antecedent_design::transported_policy::TransportedPolicyRequest::polic
 pub field antecedent_design::transported_policy::TransportedPolicyRequest::source: &'a antecedent_design::sequential_evaluation::FiniteSequentialModel
 pub field antecedent_design::transported_policy::TransportedPolicyRequest::target_initial: core::option::Option<&'a [f64]>
 pub field antecedent_design::transported_policy::TransportedPolicyRequest::target_population: &'a str
+pub field antecedent_design::transported_policy::TransportedPolicyRequest::target_utility: core::option::Option<&'a antecedent_design::transported_policy::TargetUtility>
+pub field antecedent_design::transported_policy::UtilityProvenance::digest: alloc::string::String
+pub field antecedent_design::transported_policy::UtilityProvenance::source: alloc::string::String
 pub field antecedent_design::transported_synthesis::TransportedContribution::estimate: f64
 pub field antecedent_design::transported_synthesis::TransportedContribution::sampling_variance: f64
 pub field antecedent_design::transported_synthesis::TransportedContribution::source: antecedent_contract::evidence_ledger::ids::SourceId
@@ -9075,6 +9117,7 @@ pub fn <antecedent_design::transported_bridge::TransportedSurrogateBridge>::fn d
 pub fn <antecedent_design::transported_policy::MechanismStatus>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::transported_policy::ModelMechanism>::fn name(self) -> alloc::string::String
 pub fn <antecedent_design::transported_policy::SelectionDiagram>::fn identity_hex(&self) -> alloc::string::String
+pub fn <antecedent_design::transported_policy::TargetUtility>::fn identity_hex(&self) -> alloc::string::String
 pub fn <antecedent_design::transported_synthesis::TransportedSynthesisMethod>::const fn as_str(&self) -> &'static str
 pub fn <antecedent_design::transported_synthesis::TransportedSynthesisRefusal>::fn code(&self) -> &'static str
 pub fn <antecedent_design::transported_synthesis::TransportedSynthesisRefusal>::fn detail(&self) -> &'static str
@@ -9117,7 +9160,9 @@ pub fn antecedent_design::decision_eval::evaluate_contract_on_means(contract: &a
 pub fn antecedent_design::decision_eval::evaluate_functional(contract: &antecedent_design::DecisionContract, action_id: &str, functional: antecedent_design::DecisionFunctional, source: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent_design::decision_eval::FunctionalValue, antecedent_design::decision_eval::DecisionEvalError>
 pub fn antecedent_design::decision_reliability::artifact::consume(bytes: &[u8], expected: &antecedent_design::decision_reliability::DecisionReliabilityExpectation, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::DecisionReliabilityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_design::decision_reliability::assess(draws: &antecedent_design::decision_reliability::DecisionDraws, validation: core::option::Option<&antecedent_design::decision_reliability::DecisionDraws>, request: &antecedent_design::decision_reliability::ReliabilityRequest, ctx: &antecedent_core::execution::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::ReliabilityReport, antecedent_design::decision_reliability::ReliabilityError>
+pub fn antecedent_design::decision_reliability::banded_record_functional(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::option::Option<alloc::string::String>
 pub fn antecedent_design::decision_reliability::calibration::calibration_basis(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> core::option::Option<antecedent_io_core::calibration::CalibrationBasisWire>
+pub fn antecedent_design::decision_reliability::calibration::candidate_count_band(count: u64) -> core::option::Option<(u64, u64)>
 pub fn antecedent_design::decision_reliability::calibration::closed_routes(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> alloc::vec::Vec<antecedent_design::decision_reliability::ClosedRoute>
 pub fn antecedent_design::decision_reliability::calibration::license_route(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::calibration::license_route_at(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> core::result::Result<(), antecedent_design::decision_reliability::ReliabilityError>
@@ -9682,10 +9727,13 @@ pub struct antecedent_design::transport_sensitivity::TransportSensitivitySpec
 pub struct antecedent_design::transported_bridge::BridgeSelectionDiagram
 pub struct antecedent_design::transported_bridge::TransportedSurrogateBridge
 pub struct antecedent_design::transported_decision_artifact::ConsumedTransportedDecision
+pub struct antecedent_design::transported_policy::ActionUtility
 pub struct antecedent_design::transported_policy::SelectionDiagram
+pub struct antecedent_design::transported_policy::TargetUtility
 pub struct antecedent_design::transported_policy::TransportPremises
 pub struct antecedent_design::transported_policy::TransportedPolicyEvaluation
 pub struct antecedent_design::transported_policy::TransportedPolicyRequest<'a>
+pub struct antecedent_design::transported_policy::UtilityProvenance
 pub struct antecedent_design::transported_synthesis::TransportedContribution
 pub struct antecedent_design::transported_synthesis::TransportedSynthesis
 pub trait antecedent_design::DecisionConstraint<A, O>: core::marker::Send + core::marker::Sync
@@ -9751,6 +9799,7 @@ pub use antecedent_design::decision_reliability::artifact::DECISION_RELIABILITY_
 pub use antecedent_design::decision_reliability::artifact::DecisionReliabilityArtifact = antecedent_design::decision_reliability::DecisionReliabilityArtifact
 pub use antecedent_design::decision_reliability::artifact::DecisionReliabilityExpectation = antecedent_design::decision_reliability::DecisionReliabilityExpectation
 pub use antecedent_design::decision_reliability::artifact::MAX_DECISION_RELIABILITY_BYTES = antecedent_design::decision_reliability::MAX_DECISION_RELIABILITY_BYTES
+pub use antecedent_design::decision_reliability::calibration::CANDIDATE_COUNT_BANDS = antecedent_design::decision_reliability::CANDIDATE_COUNT_BANDS
 pub use antecedent_design::decision_reliability::calibration::CalibrationCoordinate = antecedent_design::decision_reliability::CalibrationCoordinate
 pub use antecedent_design::decision_reliability::calibration::ClosedRoute = antecedent_design::decision_reliability::ClosedRoute
 pub use antecedent_design::decision_reliability::calibration::DEFAULT_LICENSE_LEVEL = antecedent_design::decision_reliability::DEFAULT_LICENSE_LEVEL
@@ -9759,7 +9808,9 @@ pub use antecedent_design::decision_reliability::calibration::NoiseCoupling = an
 pub use antecedent_design::decision_reliability::calibration::PublishedRoute = antecedent_design::decision_reliability::PublishedRoute
 pub use antecedent_design::decision_reliability::calibration::RECORD_QUERY = antecedent_design::decision_reliability::RECORD_QUERY
 pub use antecedent_design::decision_reliability::calibration::ReplicateOutcome = antecedent_design::decision_reliability::ReplicateOutcome
+pub use antecedent_design::decision_reliability::calibration::banded_record_functional = antecedent_design::decision_reliability::banded_record_functional
 pub use antecedent_design::decision_reliability::calibration_basis = antecedent_design::decision_reliability::calibration::calibration_basis
+pub use antecedent_design::decision_reliability::candidate_count_band = antecedent_design::decision_reliability::calibration::candidate_count_band
 pub use antecedent_design::decision_reliability::closed_routes = antecedent_design::decision_reliability::calibration::closed_routes
 pub use antecedent_design::decision_reliability::consume = antecedent_design::decision_reliability::artifact::consume
 pub use antecedent_design::decision_reliability::coverage_design::CoverageCell = antecedent_design::decision_reliability::CoverageCell

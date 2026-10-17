@@ -24,7 +24,7 @@ use antecedent_core::{
     ResponseQuery, ResponseUncertainty, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::set_edge;
+use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_prob::InferenceDiagnostics;
 
 const N: usize = 400;
@@ -83,7 +83,7 @@ fn continuous_data(seed: u64) -> TabularData {
 }
 
 fn posterior(masks: &[u64], weights: &[f64]) -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         weights.to_vec(),
         masks.to_vec(),

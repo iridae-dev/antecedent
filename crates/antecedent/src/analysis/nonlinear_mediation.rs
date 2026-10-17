@@ -33,6 +33,8 @@ pub use antecedent_estimate::nonlinear_mediation::{
     NONLINEAR_MEDIATION_MAX_DEGREE, NONLINEAR_MEDIATION_MAX_NODES, NonlinearMediationConfig,
     NonlinearMediationEstimand, NonlinearMediationEstimate, NonlinearMediationPremises,
 };
+#[allow(deprecated, reason = "the retained released name stays reachable")]
+pub use antecedent_io::nonlinear_mediation_artifact::NONLINEAR_MEDIATION_ARTIFACT_MAX_ROWS;
 pub use antecedent_io::nonlinear_mediation_artifact::{
     MediationBootstrapWire, MediationConfigWire, MediationDataWire, MediationMediatorWire,
     MediationModelSpecs, MediationOverlapWire, MediationPremiseRecord, MediationPremisesWire,

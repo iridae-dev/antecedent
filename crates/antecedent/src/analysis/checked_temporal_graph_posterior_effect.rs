@@ -242,7 +242,7 @@ impl CheckedTemporalGraphPosteriorEffect {
                 .iter()
                 .zip(posterior.weights.iter())
                 .all(|(a, b)| a.to_bits() == b.to_bits())
-            && sealed.adjacency == posterior.adjacency
+            && sealed.atoms == posterior.atoms
             && sealed.graph_keys == posterior.graph_keys
             && sealed.lag_masks == posterior.lag_masks
     }

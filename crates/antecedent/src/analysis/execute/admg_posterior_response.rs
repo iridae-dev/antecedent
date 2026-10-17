@@ -525,7 +525,7 @@ fn mask_for_atom_key(
 ) -> Result<antecedent_discovery::AdjacencyMask, CausalError> {
     gp.graph_keys
         .iter()
-        .zip(gp.adjacency.iter())
+        .zip(gp.atoms.iter())
         .find(|(candidate, _)| **candidate == key)
         .map(|(_, mask)| *mask)
         .ok_or_else(|| CausalError::Compile {
@@ -606,7 +606,7 @@ fn estimate_admg_mean_curve(
                       ResponseCurve",
         });
     };
-    let admg = antecedent_discovery::admg_from_adjacency_mask(mask, n_vars)?;
+    let admg = antecedent_discovery::adjacency_mask::admg_from_adjacency_mask(mask, n_vars)?;
     let levels = tx.grid.values()?;
     let mut means = Vec::with_capacity(levels.len());
     let mut grid = Vec::with_capacity(levels.len());

@@ -40,7 +40,8 @@ use antecedent_core::{
     InterventionalDistributionQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosteriorAtomKind, adjacency_mask_from_admg};
+use antecedent_discovery::GraphPosteriorAtomKind;
+use antecedent_discovery::adjacency_mask::adjacency_mask_from_admg;
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
@@ -116,7 +117,7 @@ fn frontdoor_admg() -> Admg {
 fn frontdoor_admg_gp() -> GraphPosterior {
     let graph = frontdoor_admg();
     let n = graph.node_count();
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![adjacency_mask_from_admg(&graph).unwrap()],

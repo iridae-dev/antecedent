@@ -47,7 +47,7 @@ use antecedent_core::{
     ResponseValue, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_discovery::set_edge;
+use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::IdentificationStatus;
 use common::calibration::{
@@ -884,7 +884,7 @@ fn bayesian_temporal_dag_multistep_sustained_nominal_90_coverage() {
 }
 
 fn single_atom_two_lag_dbn_posterior() -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         2,
         vec![1.0],
         vec![0],
@@ -991,7 +991,7 @@ fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
 }
 
 fn single_atom_xy_dbn_posterior() -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         2,
         vec![1.0],
         vec![0],
@@ -1610,7 +1610,7 @@ fn single_atom_mediation_dbn_posterior() -> GraphPosterior {
     for edge in lagged_edges {
         lagged_marginals[edge] = 1.0;
     }
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         VARIABLES,
         vec![1.0],
         vec![contemporaneous],

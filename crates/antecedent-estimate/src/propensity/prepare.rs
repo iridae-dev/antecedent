@@ -274,7 +274,7 @@ impl PropensityEstimationWorkspace {
         });
         if needs_rebuild {
             let donor_ids: Vec<usize> = (0..n_donors).collect();
-            let index = MatchingIndex::exact(donor_features, dim, &donor_ids, distance, ctx)
+            let index = MatchingIndex::exact_within(donor_features, dim, &donor_ids, distance, ctx)
                 .map_err(stats_err)?;
             self.matching_index = Some(index);
             self.matching_index_key = key;
@@ -705,7 +705,7 @@ mod tests {
             )
             .unwrap();
         let warm = workspace.matching_index.as_ref().unwrap().nearest(&query, None).unwrap();
-        let fresh = MatchingIndex::exact(
+        let fresh = MatchingIndex::exact_within(
             &changed,
             1,
             &[0, 1],

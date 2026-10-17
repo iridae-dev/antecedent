@@ -69,7 +69,7 @@ impl MatchingIndex {
     /// everything, so such a donor could never be matched and would silently corrupt every
     /// nearest-neighbour scan), cancellation, or a footprint above the context's hard
     /// memory limit.
-    pub fn exact(
+    pub fn exact_within(
         features_rowmajor: &[f64],
         dim: usize,
         donor_rows: &[usize],
@@ -225,8 +225,8 @@ impl MatchingIndex {
 
     /// `k`-th self-distances of a matrix against itself without building an index.
     ///
-    /// Equivalent to `MatchingIndex::exact(features, dim, &(0..n).collect(), distance, ctx)`
-    /// followed by [`Self::kth_self_distances_of_donors`] and equal, bit for bit, to the
+    /// Equivalent to `MatchingIndex::exact_within(features, dim, &(0..n).collect(), distance, ctx)`
+    /// followed by [`Self::kth_self_distances_of_donors_within`] and equal, bit for bit, to the
     /// `k`-th smallest of the `n - 1` row distances of an exhaustive scan. Each row is
     /// excluded from its own neighbour set by index; other rows at distance zero
     /// (duplicates) count. A k-d tree is built per call and each query keeps only its `k`
@@ -240,7 +240,7 @@ impl MatchingIndex {
     ///
     /// Shape mismatch, `k == 0`, `n <= k`, non-finite features, cancellation, or a
     /// footprint above the context's hard memory limit.
-    pub fn kth_self_distances(
+    pub fn kth_self_distances_within(
         features_rowmajor: &[f64],
         n: usize,
         dim: usize,
@@ -279,7 +279,7 @@ impl MatchingIndex {
     /// the queries are **external** to the donor set: no donor is skipped, so a query that
     /// coincides with a donor value matches it at distance zero.
     ///
-    /// For queries that *are* the donor rows use [`Self::kth_self_distances_of_donors`].
+    /// For queries that *are* the donor rows use [`Self::kth_self_distances_of_donors_within`].
     ///
     /// # Errors
     ///
@@ -326,7 +326,7 @@ impl MatchingIndex {
     ///
     /// `k == 0`, `len() <= k`, `out` shorter than the donor count, cancellation, or a
     /// footprint above the context's hard memory limit.
-    pub fn kth_self_distances_of_donors(
+    pub fn kth_self_distances_of_donors_within(
         &self,
         k: usize,
         out: &mut [f64],
@@ -354,9 +354,15 @@ impl MatchingIndex {
                     ctx,
                 )
             }
-            Layout::Sorted { .. } => {
-                Self::kth_self_distances(&self.features, n, self.dim, self.distance, k, out, ctx)
-            }
+            Layout::Sorted { .. } => Self::kth_self_distances_within(
+                &self.features,
+                n,
+                self.dim,
+                self.distance,
+                k,
+                out,
+                ctx,
+            ),
         }
     }
 
@@ -367,7 +373,7 @@ impl MatchingIndex {
     /// # Errors
     ///
     /// Shape mismatch, or cancellation.
-    pub fn match_all(
+    pub fn match_all_within(
         &self,
         queries_rowmajor: &[f64],
         n_queries: usize,
@@ -399,6 +405,105 @@ impl MatchingIndex {
         }
         Ok(matched)
     }
+}
+
+/// Soft upper bound the brute-force matching path had on its donor count.
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: the index scales with the donor count, bounded by the execution context's memory limit"
+)]
+pub const EXACT_MATCHING_ROW_LIMIT: usize = 10_000;
+
+/// Entry points of the earlier signatures, which carried no execution context. Each runs the
+/// `_within` form under a context with no memory limit and no cancellation.
+impl MatchingIndex {
+    /// [`Self::exact_within`] without an execution context.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::exact_within`], except no memory limit applies.
+    pub fn exact(
+        features_rowmajor: &[f64],
+        dim: usize,
+        donor_rows: &[usize],
+        distance: MatchingDistance,
+    ) -> Result<Self, StatsError> {
+        Self::exact_within(features_rowmajor, dim, donor_rows, distance, &unbounded_context())
+    }
+
+    /// [`Self::kth_self_distances_within`] without an execution context.
+    ///
+    /// `dist_scratch` is the earlier per-query distance buffer; the search no longer needs one
+    /// and leaves it untouched.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::kth_self_distances_within`], except no memory limit applies.
+    #[allow(
+        unused_variables,
+        clippy::ptr_arg,
+        reason = "the released signature, kept as it was; the search needs no scratch"
+    )]
+    pub fn kth_self_distances(
+        features_rowmajor: &[f64],
+        n: usize,
+        dim: usize,
+        distance: MatchingDistance,
+        k: usize,
+        out: &mut [f64],
+        dist_scratch: &mut Vec<f64>,
+    ) -> Result<(), StatsError> {
+        Self::kth_self_distances_within(
+            features_rowmajor,
+            n,
+            dim,
+            distance,
+            k,
+            out,
+            &unbounded_context(),
+        )
+    }
+
+    /// [`Self::kth_self_distances_of_donors_within`] without an execution context.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::kth_self_distances_of_donors_within`], except no memory limit applies.
+    pub fn kth_self_distances_of_donors(
+        &self,
+        k: usize,
+        out: &mut [f64],
+    ) -> Result<(), StatsError> {
+        self.kth_self_distances_of_donors_within(k, out, &unbounded_context())
+    }
+
+    /// [`Self::match_all_within`] without an execution context.
+    ///
+    /// # Errors
+    ///
+    /// Shape mismatch.
+    pub fn match_all(
+        &self,
+        queries_rowmajor: &[f64],
+        n_queries: usize,
+        caliper: Option<f64>,
+        out_donor_row: &mut [usize],
+        out_distance: &mut [f64],
+    ) -> Result<u32, StatsError> {
+        self.match_all_within(
+            queries_rowmajor,
+            n_queries,
+            caliper,
+            out_donor_row,
+            out_distance,
+            &unbounded_context(),
+        )
+    }
+}
+
+/// The context the earlier context-free entry points run under: no memory limit, not cancelled.
+fn unbounded_context() -> ExecutionContext {
+    ExecutionContext::production(0, 1)
 }
 
 /// Refuse when the context is cancelled or `bytes` exceeds its hard memory limit.
@@ -949,9 +1054,14 @@ mod tests {
     #[test]
     fn finds_nearest_euclidean() {
         let donors = [0.0, 0.0, 1.0, 1.0, 5.0, 5.0];
-        let idx =
-            MatchingIndex::exact(&donors, 2, &[10, 20, 30], MatchingDistance::Euclidean, &ctx())
-                .unwrap();
+        let idx = MatchingIndex::exact_within(
+            &donors,
+            2,
+            &[10, 20, 30],
+            MatchingDistance::Euclidean,
+            &ctx(),
+        )
+        .unwrap();
         let (row, d) = idx.nearest(&[0.1, 0.1], None).unwrap().unwrap();
         assert_eq!(row, 10);
         assert!(d < 0.2);
@@ -961,7 +1071,8 @@ mod tests {
     fn caliper_rejects_far_matches() {
         let donors = [0.0, 10.0];
         let idx =
-            MatchingIndex::exact(&donors, 1, &[0, 1], MatchingDistance::Absolute, &ctx()).unwrap();
+            MatchingIndex::exact_within(&donors, 1, &[0, 1], MatchingDistance::Absolute, &ctx())
+                .unwrap();
         assert!(idx.nearest(&[0.05], Some(0.1)).unwrap().is_some());
         assert!(idx.nearest(&[5.0], Some(0.1)).unwrap().is_none());
     }
@@ -983,7 +1094,7 @@ mod tests {
             ] {
                 let donors: Vec<f64> = (0..n * dim).map(|_| lattice_value(&mut rng)).collect();
                 let rows: Vec<usize> = (0..n).map(|i| 1000 + 3 * i).collect();
-                let idx = MatchingIndex::exact(&donors, dim, &rows, distance, &ctx).unwrap();
+                let idx = MatchingIndex::exact_within(&donors, dim, &rows, distance, &ctx).unwrap();
                 for _ in 0..150 {
                     let query: Vec<f64> = (0..dim).map(|_| lattice_value(&mut rng)).collect();
                     for caliper in [None, Some(0.0), Some(0.3)] {
@@ -1002,7 +1113,7 @@ mod tests {
     fn nearest_resolves_equal_distances_to_the_lowest_donor_position() {
         // Donors 1.0 (pos 0), -1.0 (pos 1), 1.0 (pos 2), -1.0 (pos 3): the query 0.0 is
         // equidistant from all four, and a linear scan keeps the first.
-        let idx = MatchingIndex::exact(
+        let idx = MatchingIndex::exact_within(
             &[1.0, -1.0, 1.0, -1.0],
             1,
             &[40, 41, 42, 43],
@@ -1012,7 +1123,7 @@ mod tests {
         .unwrap();
         assert_eq!(idx.nearest(&[0.0], None).unwrap(), Some((40, 1.0)));
         // Same donors listed with the negative value first.
-        let idx = MatchingIndex::exact(
+        let idx = MatchingIndex::exact_within(
             &[-1.0, 1.0, -1.0, 1.0],
             1,
             &[40, 41, 42, 43],
@@ -1022,9 +1133,14 @@ mod tests {
         .unwrap();
         assert_eq!(idx.nearest(&[0.0], None).unwrap(), Some((40, 1.0)));
         // A signed zero is the same value: position decides, not the sort order of -0.0.
-        let idx =
-            MatchingIndex::exact(&[0.0, -0.0], 1, &[7, 8], MatchingDistance::Absolute, &ctx())
-                .unwrap();
+        let idx = MatchingIndex::exact_within(
+            &[0.0, -0.0],
+            1,
+            &[7, 8],
+            MatchingDistance::Absolute,
+            &ctx(),
+        )
+        .unwrap();
         assert_eq!(idx.nearest(&[0.0], None).unwrap(), Some((7, 0.0)));
     }
 
@@ -1036,7 +1152,8 @@ mod tests {
         let donors: Vec<f64> = (0..n * dim).map(|_| lattice_value(&mut rng)).collect();
         let rows: Vec<usize> = (0..n).map(|i| 500 + i).collect();
         let idx =
-            MatchingIndex::exact(&donors, dim, &rows, MatchingDistance::Euclidean, &ctx).unwrap();
+            MatchingIndex::exact_within(&donors, dim, &rows, MatchingDistance::Euclidean, &ctx)
+                .unwrap();
         let mut out = Vec::new();
         for _ in 0..40 {
             let query: Vec<f64> = (0..dim).map(|_| lattice_value(&mut rng)).collect();
@@ -1053,7 +1170,7 @@ mod tests {
             }
         }
         let absolute =
-            MatchingIndex::exact(&[0.0, 1.0], 1, &[0, 1], MatchingDistance::Absolute, &ctx)
+            MatchingIndex::exact_within(&[0.0, 1.0], 1, &[0, 1], MatchingDistance::Absolute, &ctx)
                 .unwrap();
         assert!(absolute.nearest_k(&[0.0], 1, &mut out).is_err());
     }
@@ -1082,7 +1199,7 @@ mod tests {
             }
             for k in [1usize, 3, 7] {
                 let mut via_tree = vec![0.0; n];
-                MatchingIndex::kth_self_distances(
+                MatchingIndex::kth_self_distances_within(
                     &feats,
                     n,
                     dim,
@@ -1093,7 +1210,7 @@ mod tests {
                 )
                 .unwrap();
                 let mut via_pool = vec![0.0; n];
-                MatchingIndex::kth_self_distances(
+                MatchingIndex::kth_self_distances_within(
                     &feats,
                     n,
                     dim,
@@ -1104,9 +1221,10 @@ mod tests {
                 )
                 .unwrap();
                 let donors: Vec<usize> = (0..n).collect();
-                let idx = MatchingIndex::exact(&feats, dim, &donors, distance, &serial).unwrap();
+                let idx =
+                    MatchingIndex::exact_within(&feats, dim, &donors, distance, &serial).unwrap();
                 let mut via_index = vec![0.0; n];
-                idx.kth_self_distances_of_donors(k, &mut via_index, &serial).unwrap();
+                idx.kth_self_distances_of_donors_within(k, &mut via_index, &serial).unwrap();
                 for (q, expected) in scan_kth_self(&feats, n, dim, distance, k, 0..n) {
                     let want = expected.to_bits();
                     assert_eq!(via_tree[q].to_bits(), want, "n={n} dim={dim} k={k} query {q}");
@@ -1132,13 +1250,13 @@ mod tests {
             let dim = if distance == MatchingDistance::Absolute { 1 } else { 2 };
             let feats = &donors[..rows.len() * dim];
             assert!(matches!(
-                MatchingIndex::exact(feats, dim, &rows, distance, &limited),
+                MatchingIndex::exact_within(feats, dim, &rows, distance, &limited),
                 Err(StatsError::ResourceLimit { .. })
             ));
         }
         let mut out = vec![0.0; 2000];
         assert!(matches!(
-            MatchingIndex::kth_self_distances(
+            MatchingIndex::kth_self_distances_within(
                 &donors,
                 2000,
                 2,
@@ -1152,15 +1270,16 @@ mod tests {
         let cancelled = ctx();
         cancelled.cancellation.cancel();
         assert!(matches!(
-            MatchingIndex::exact(&donors, 2, &rows, MatchingDistance::Euclidean, &cancelled),
+            MatchingIndex::exact_within(&donors, 2, &rows, MatchingDistance::Euclidean, &cancelled),
             Err(StatsError::Cancelled)
         ));
         let idx =
-            MatchingIndex::exact(&donors, 2, &rows, MatchingDistance::Euclidean, &ctx()).unwrap();
+            MatchingIndex::exact_within(&donors, 2, &rows, MatchingDistance::Euclidean, &ctx())
+                .unwrap();
         let mut donor_rows = [0usize; 1];
         let mut dist = [0.0; 1];
         assert!(matches!(
-            idx.match_all(&[0.5, 0.5], 1, None, &mut donor_rows, &mut dist, &cancelled),
+            idx.match_all_within(&[0.5, 0.5], 1, None, &mut donor_rows, &mut dist, &cancelled),
             Err(StatsError::Cancelled)
         ));
     }
@@ -1169,11 +1288,17 @@ mod tests {
     fn nan_and_infinite_features_are_refused_not_matched() {
         let ctx = ctx();
         assert!(
-            MatchingIndex::exact(&[0.0, f64::NAN], 1, &[0, 1], MatchingDistance::Absolute, &ctx)
-                .is_err()
+            MatchingIndex::exact_within(
+                &[0.0, f64::NAN],
+                1,
+                &[0, 1],
+                MatchingDistance::Absolute,
+                &ctx
+            )
+            .is_err()
         );
         assert!(
-            MatchingIndex::exact(
+            MatchingIndex::exact_within(
                 &[f64::INFINITY, 1.0],
                 1,
                 &[0, 1],
@@ -1182,19 +1307,20 @@ mod tests {
             )
             .is_err()
         );
-        let idx = MatchingIndex::exact(&[0.0, 1.0], 1, &[7, 8], MatchingDistance::Absolute, &ctx)
-            .unwrap();
+        let idx =
+            MatchingIndex::exact_within(&[0.0, 1.0], 1, &[7, 8], MatchingDistance::Absolute, &ctx)
+                .unwrap();
         // A NaN query used to compare false against every donor and match donor 0 at +inf.
         assert!(idx.nearest(&[f64::NAN], None).is_err());
         let mut rows = [0usize; 1];
         let mut dist = [0.0; 1];
-        assert!(idx.match_all(&[f64::NAN], 1, None, &mut rows, &mut dist, &ctx).is_err());
+        assert!(idx.match_all_within(&[f64::NAN], 1, None, &mut rows, &mut dist, &ctx).is_err());
         // Squared differences overflow: no donor is at a finite distance, so no match.
-        let far =
-            MatchingIndex::exact(&[1e200], 1, &[3], MatchingDistance::Euclidean, &ctx).unwrap();
+        let far = MatchingIndex::exact_within(&[1e200], 1, &[3], MatchingDistance::Euclidean, &ctx)
+            .unwrap();
         assert_eq!(far.nearest(&[-1e200], None).unwrap(), None);
         // A finite donor beyond an overflowing one is still found, as the scan finds it.
-        let mixed = MatchingIndex::exact(
+        let mixed = MatchingIndex::exact_within(
             &[1e200, 0.0, 1e200],
             1,
             &[3, 4, 5],
@@ -1214,7 +1340,7 @@ mod tests {
     fn external_query_equal_to_a_donor_matches_it_at_distance_zero() {
         // Queries that are not the donor set must not have "their" zero-distance donor
         // skipped: the 1st neighbour of a query sitting on donor value 1.0 is at 0, not 1.
-        let idx = MatchingIndex::exact(
+        let idx = MatchingIndex::exact_within(
             &[0.0, 1.0, 2.0, 3.0],
             1,
             &[0, 1, 2, 3],
@@ -1228,9 +1354,14 @@ mod tests {
         idx.kth_distances(&[1.0], 1, 2, &mut out).unwrap();
         assert_eq!(out[0], 1.0);
         // Unit-free: the old absolute 1e-15 test misclassified small-unit queries.
-        let tiny =
-            MatchingIndex::exact(&[0.0, 1e-20], 1, &[0, 1], MatchingDistance::Absolute, &ctx())
-                .unwrap();
+        let tiny = MatchingIndex::exact_within(
+            &[0.0, 1e-20],
+            1,
+            &[0, 1],
+            MatchingDistance::Absolute,
+            &ctx(),
+        )
+        .unwrap();
         tiny.kth_distances(&[3e-21], 1, 1, &mut out).unwrap();
         assert!((out[0] - 3e-21).abs() < 1e-33, "{}", out[0]);
     }
@@ -1243,7 +1374,7 @@ mod tests {
     fn self_distances_exclude_by_index_and_count_duplicates() {
         // Donors 0, 1, 1, 3. For donor 1 (index 1): others are 0, 1, 3 at distances 1, 0, 2,
         // so its 1st nearest other is the duplicate at 0 and its 2nd is at 1.
-        let idx = MatchingIndex::exact(
+        let idx = MatchingIndex::exact_within(
             &[0.0, 1.0, 1.0, 3.0],
             1,
             &[0, 1, 2, 3],
@@ -1252,10 +1383,10 @@ mod tests {
         )
         .unwrap();
         let mut k1 = [0.0; 4];
-        idx.kth_self_distances_of_donors(1, &mut k1, &ctx()).unwrap();
+        idx.kth_self_distances_of_donors_within(1, &mut k1, &ctx()).unwrap();
         assert_eq!(k1, [1.0, 0.0, 0.0, 2.0]);
         let mut k2 = [0.0; 4];
-        idx.kth_self_distances_of_donors(2, &mut k2, &ctx()).unwrap();
+        idx.kth_self_distances_of_donors_within(2, &mut k2, &ctx()).unwrap();
         assert_eq!(k2, [1.0, 1.0, 1.0, 2.0]);
     }
 
@@ -1263,8 +1394,14 @@ mod tests {
     fn differential_vs_scalar() {
         let donors = [0.0, 0.0, 2.0, 0.0, 0.0, 3.0];
         let query = [0.1, 0.0];
-        let idx = MatchingIndex::exact(&donors, 2, &[0, 1, 2], MatchingDistance::Euclidean, &ctx())
-            .unwrap();
+        let idx = MatchingIndex::exact_within(
+            &donors,
+            2,
+            &[0, 1, 2],
+            MatchingDistance::Euclidean,
+            &ctx(),
+        )
+        .unwrap();
         let (row, d) = idx.nearest(&query, None).unwrap().unwrap();
         let (si, sd) = nearest_euclidean_scalar(&query, &donors, 3, 2).unwrap();
         assert_eq!(row, si);
@@ -1287,12 +1424,13 @@ mod tests {
         let donors = continuous(&mut rng, n);
         let rows: Vec<usize> = (0..n).collect();
         let index =
-            MatchingIndex::exact(&donors, 1, &rows, MatchingDistance::Absolute, &ctx).unwrap();
+            MatchingIndex::exact_within(&donors, 1, &rows, MatchingDistance::Absolute, &ctx)
+                .unwrap();
         let queries = continuous(&mut rng, n);
         let mut matched_rows = vec![0usize; n];
         let mut matched_d = vec![0.0; n];
         let matched = index
-            .match_all(&queries, n, Some(0.5), &mut matched_rows, &mut matched_d, &ctx)
+            .match_all_within(&queries, n, Some(0.5), &mut matched_rows, &mut matched_d, &ctx)
             .unwrap();
         assert!(matched > 0);
         for q in (0..n).step_by(step) {
@@ -1305,17 +1443,18 @@ mod tests {
         let dim = 4usize;
         let donors = continuous(&mut rng, n * dim);
         let index =
-            MatchingIndex::exact(&donors, dim, &rows, MatchingDistance::Euclidean, &ctx).unwrap();
+            MatchingIndex::exact_within(&donors, dim, &rows, MatchingDistance::Euclidean, &ctx)
+                .unwrap();
         let queries = continuous(&mut rng, n * dim);
         let mut matched_rows = vec![0usize; n];
         let mut matched_d = vec![0.0; n];
-        index.match_all(&queries, n, None, &mut matched_rows, &mut matched_d, &ctx).unwrap();
+        index.match_all_within(&queries, n, None, &mut matched_rows, &mut matched_d, &ctx).unwrap();
         for q in (0..n).step_by(step) {
             let expect = scan_nearest(&index, &queries[q * dim..(q + 1) * dim], None);
             assert_eq!(bits(Some((matched_rows[q], matched_d[q]))), bits(expect), "4-d query {q}");
         }
         let mut kth = vec![0.0; n];
-        MatchingIndex::kth_self_distances(
+        MatchingIndex::kth_self_distances_within(
             &donors,
             n,
             dim,

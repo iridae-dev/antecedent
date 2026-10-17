@@ -21,14 +21,14 @@ use antecedent_graph::{
 use antecedent_prob::kish_ess;
 use antecedent_state::{GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
-use crate::adjacency_mask::AdjacencyMask;
+use crate::adjacency_mask::{AdjacencyMask, has_edge, mask_is_dag, parents_of, set_edge};
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_mcmc::{MaskAccept, MaskCancel, MaskChain, MaskChainPlan, run_mask_chain};
 use crate::graph_posterior::{
     EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, SamplingSummary, accumulate_marginals,
-    analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_required, lagged_link,
-    log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights, parents_of, set_edge,
+    analytic_graph_diagnostics, edge_required, lagged_edge_required, lagged_link, log_prior_mask,
+    n_directed_edges, normalize_log_weights,
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
@@ -243,7 +243,7 @@ impl DbnPosterior {
         let (edge, orient) = accumulate_marginals(p, &weights, &kept_masks);
         let lagged = accumulate_lagged_marginals(p, max_lag, &weights, &kept_lag);
         let diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
-        GraphPosterior::new(
+        GraphPosterior::from_atoms(
             p,
             weights,
             kept_masks,
@@ -358,7 +358,7 @@ impl DbnPosterior {
         let ess = kish_ess(&weights);
         let (edge, orient) = accumulate_marginals(p, &weights, &masks);
         let lagged = accumulate_lagged_marginals(p, max_lag, &weights, &lags);
-        GraphPosterior::new(
+        GraphPosterior::from_atoms(
             p,
             weights,
             masks,
@@ -461,7 +461,7 @@ fn has_lag_edge(lmask: u64, p: usize, max_lag: u32, lag: u32, from: usize, to: u
 /// # Errors
 ///
 /// Invalid contemporaneous DAG or graph mutation failures.
-pub fn temporal_dag_from_dbn_masks(
+pub fn temporal_dag_from_dbn_atoms(
     cmask: impl Into<AdjacencyMask>,
     lmask: u64,
     n_vars: usize,
@@ -476,12 +476,12 @@ pub fn temporal_dag_from_dbn_masks(
 
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
-            "temporal_dag_from_dbn_masks: variables length != n_vars",
+            "temporal_dag_from_dbn_atoms: variables length != n_vars",
         ));
     }
     if !mask_is_dag(cmask, n_vars) {
         return Err(DiscoveryError::data_msg(
-            "temporal_dag_from_dbn_masks: contemporaneous mask is not a DAG",
+            "temporal_dag_from_dbn_atoms: contemporaneous mask is not a DAG",
         ));
     }
     let mut g = TemporalDag::empty();
@@ -580,14 +580,14 @@ fn insert_lagged_directed<G: LaggedGraph>(
 
 /// Build a [`TemporalCpdag`] from contemporaneous + lag masks.
 ///
-/// Contemporaneous packing matches [`crate::cpdag_from_adjacency_mask`]: both
+/// Contemporaneous packing matches [`crate::adjacency_mask::cpdag_from_adjacency_mask`]: both
 /// directed bits encode an undirected edge. Lag-`ℓ` bits are time-oriented
 /// `X_{t-ℓ} → Y_t` edges.
 ///
 /// # Errors
 ///
 /// Variable-count mismatch or a graph mutation the `TemporalCpdag` rejects.
-pub fn temporal_cpdag_from_dbn_masks(
+pub fn temporal_cpdag_from_dbn_atoms(
     cmask: impl Into<AdjacencyMask>,
     lmask: u64,
     n_vars: usize,
@@ -597,7 +597,7 @@ pub fn temporal_cpdag_from_dbn_masks(
     let cmask = cmask.into();
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
-            "temporal_cpdag_from_dbn_masks: variables length != n_vars",
+            "temporal_cpdag_from_dbn_atoms: variables length != n_vars",
         ));
     }
     let mut graph = TemporalCpdag::empty();
@@ -625,13 +625,13 @@ pub fn temporal_cpdag_from_dbn_masks(
 
 /// Build a [`TemporalPag`] from contemporaneous + lag + circle-mark masks.
 ///
-/// Contemporaneous packing matches [`crate::pag_from_adjacency_mask`]. Lag-`ℓ`
+/// Contemporaneous packing matches [`crate::adjacency_mask::pag_from_adjacency_mask`]. Lag-`ℓ`
 /// bits are time-oriented directed edges.
 ///
 /// # Errors
 ///
 /// Variable-count mismatch or a graph mutation the `TemporalPag` rejects.
-pub fn temporal_pag_from_dbn_masks(
+pub fn temporal_pag_from_dbn_atoms(
     cmask: impl Into<AdjacencyMask>,
     lmask: u64,
     mark_mask: impl Into<AdjacencyMask>,
@@ -642,7 +642,7 @@ pub fn temporal_pag_from_dbn_masks(
     let (cmask, mark_mask) = (cmask.into(), mark_mask.into());
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
-            "temporal_pag_from_dbn_masks: variables length != n_vars",
+            "temporal_pag_from_dbn_atoms: variables length != n_vars",
         ));
     }
     let mut graph = TemporalPag::empty();
@@ -682,6 +682,55 @@ pub fn temporal_pag_from_dbn_masks(
     }
     insert_lagged_directed(&mut graph, lmask, n_vars, max_lag, variables)?;
     Ok(graph)
+}
+
+/// Build a [`TemporalDag`](antecedent_graph::TemporalDag) from a single-word contemporaneous
+/// mask and a lag mask: [`temporal_dag_from_dbn_atoms`] for a graph on at most eight nodes.
+///
+/// # Errors
+///
+/// Invalid contemporaneous DAG or graph mutation failures.
+pub fn temporal_dag_from_dbn_masks(
+    cmask: u64,
+    lmask: u64,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+) -> Result<antecedent_graph::TemporalDag, DiscoveryError> {
+    temporal_dag_from_dbn_atoms(cmask, lmask, n_vars, max_lag, variables)
+}
+
+/// Build a [`TemporalCpdag`] from a single-word contemporaneous mask and a lag mask:
+/// [`temporal_cpdag_from_dbn_atoms`] for a graph on at most eight nodes.
+///
+/// # Errors
+///
+/// Variable-count mismatch or a graph mutation the `TemporalCpdag` rejects.
+pub fn temporal_cpdag_from_dbn_masks(
+    cmask: u64,
+    lmask: u64,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+) -> Result<TemporalCpdag, DiscoveryError> {
+    temporal_cpdag_from_dbn_atoms(cmask, lmask, n_vars, max_lag, variables)
+}
+
+/// Build a [`TemporalPag`] from single-word contemporaneous, lag and circle-mark masks:
+/// [`temporal_pag_from_dbn_atoms`] for a graph on at most eight nodes.
+///
+/// # Errors
+///
+/// Variable-count mismatch or a graph mutation the `TemporalPag` rejects.
+pub fn temporal_pag_from_dbn_masks(
+    cmask: u64,
+    lmask: u64,
+    mark_mask: u64,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+) -> Result<TemporalPag, DiscoveryError> {
+    temporal_pag_from_dbn_atoms(cmask, lmask, mark_mask, n_vars, max_lag, variables)
 }
 
 fn score_dbn_template(

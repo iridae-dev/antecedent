@@ -61,6 +61,12 @@ pub const LATENT_CLASS_ARTIFACT_VERSION: u16 = 1;
 pub const LATENT_CLASS_ARTIFACT_FEATURE: &str = "latent_class_effects_v1";
 /// Calibration coordinate of the bootstrap standard errors: coverage was not measured.
 pub const LATENT_CLASS_ARTIFACT_CALIBRATION: &str = "unmeasured";
+/// Most analysis rows an artifact embedded under the earlier fixed ceiling.
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: the fit has no row ceiling; the export and computation budgets bound the artifact"
+)]
+pub const LATENT_CLASS_ARTIFACT_MAX_ROWS: usize = 10_000;
 /// Most covariates an artifact may embed.
 pub const LATENT_CLASS_ARTIFACT_MAX_COVARIATES: usize = 32;
 /// Most bootstrap replicates a producer may request and a consumer will replay.

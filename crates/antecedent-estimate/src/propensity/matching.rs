@@ -456,7 +456,14 @@ pub(crate) fn match_diffs(
         let index = workspace.matching_index.as_ref().expect("ensured");
         if matches == 1 {
             index
-                .match_all(query_features, n_queries, caliper, &mut donor_rows, &mut distances, ctx)
+                .match_all_within(
+                    query_features,
+                    n_queries,
+                    caliper,
+                    &mut donor_rows,
+                    &mut distances,
+                    ctx,
+                )
                 .map_err(stats_err)?;
         } else {
             match_nearest_k(

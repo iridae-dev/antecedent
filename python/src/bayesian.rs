@@ -14,9 +14,12 @@ use antecedent::discovery::{
     discover_structure_mcmc as facade_discover_structure_mcmc,
 };
 use antecedent::discovery_defaults::resolve_ci;
+use antecedent_discovery::adjacency_mask::{
+    adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag, has_edge,
+    mask_is_dag,
+};
 use antecedent_discovery::{
-    AdjacencyMask, GraphPosteriorAtomKind, MAX_POSTERIOR_NODES, adjacency_mask_from_admg,
-    adjacency_mask_from_cpdag, adjacency_masks_from_pag, has_edge, mask_is_dag, n_directed_edges,
+    AdjacencyMask, GraphPosteriorAtomKind, MAX_POSTERIOR_NODES, n_directed_edges,
 };
 use antecedent_graph::Cpdag as RustCpdag;
 use antecedent_prob::InferenceDiagnostics;
@@ -132,7 +135,7 @@ impl PyGraphPosterior {
             n_vars: post.n_vars,
             n_graphs: post.n_graphs,
             weights: post.weights.as_ref().to_vec(),
-            adjacency: post.adjacency.as_ref().to_vec(),
+            adjacency: post.atoms.as_ref().to_vec(),
             edge_marginals: post.edge_marginals.as_ref().to_vec(),
             orientation_marginals: post.orientation_marginals.as_ref().to_vec(),
             ess: post.ess,
@@ -143,7 +146,7 @@ impl PyGraphPosterior {
             lag_masks: post.lag_masks.as_ref().map(|v| v.as_ref().to_vec()),
             algorithm: post.algorithm.as_deref().map(str::to_owned),
             atom_kind: post.atom_kind.as_str().to_owned(),
-            mark_masks: post.mark_masks.as_ref().map(|v| v.as_ref().to_vec()),
+            mark_masks: post.mark_atoms.as_ref().map(|v| v.as_ref().to_vec()),
             edge_mcse: post.edge_mcse.as_ref().map(|v| v.as_ref().to_vec()),
             edge_rhat: post.edge_rhat.as_ref().map(|v| v.as_ref().to_vec()),
             edge_ess: post.edge_ess.as_ref().map(|v| v.as_ref().to_vec()),
@@ -159,7 +162,7 @@ impl PyGraphPosterior {
     pub(crate) fn to_rust(&self) -> PyResult<RustGraphPosterior> {
         let mut diagnostics = InferenceDiagnostics::analytic(self.backend_id.as_str());
         diagnostics.converged = self.converged;
-        let mut post = RustGraphPosterior::new(
+        let mut post = RustGraphPosterior::from_atoms(
             self.n_vars,
             self.weights.clone(),
             self.adjacency.clone(),
@@ -176,7 +179,7 @@ impl PyGraphPosterior {
         }
         post = post.with_atom_kind(parse_atom_kind(&self.atom_kind)?);
         if let Some(mark_masks) = &self.mark_masks {
-            post = post.with_mark_masks(mark_masks.clone()).map_err(py_msg)?;
+            post = post.with_mark_atoms(mark_masks.clone()).map_err(py_msg)?;
         }
         if let Some(mcse) = &self.edge_mcse {
             post = post.with_edge_mcse(mcse.clone()).map_err(py_msg)?;
@@ -419,7 +422,7 @@ impl PyGraphPosterior {
         });
         let orientation_marginals = orientation_marginals.unwrap_or_else(|| edge_marginals.clone());
         let ess = ess.unwrap_or_else(|| 1.0 / weights.iter().map(|w| w * w).sum::<f64>());
-        let mut post = RustGraphPosterior::new(
+        let mut post = RustGraphPosterior::from_atoms(
             n_vars,
             weights,
             adjacency,
@@ -448,7 +451,7 @@ impl PyGraphPosterior {
         }
         post = post.with_atom_kind(kind);
         if let Some(mark_masks) = mark_masks {
-            post = post.with_mark_masks(mark_masks).map_err(py_msg)?;
+            post = post.with_mark_atoms(mark_masks).map_err(py_msg)?;
         }
         Ok(Self::from_rust(names, post.with_algorithm("from_atoms")))
     }

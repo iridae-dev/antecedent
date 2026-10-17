@@ -17,14 +17,14 @@ use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
-use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Endpoint, Pag};
+use antecedent_graph::{Admg, Cpdag, Dag, Pag};
 use antecedent_prob::{
     GraphIdentFlag, HessianFactorization, InferenceDiagnostics, WeightedGraphSamples,
     all_chains_moved, parameter_mcmc_diagnostics,
 };
 use antecedent_state::GraphScoreFamily;
 
-use crate::adjacency_mask::{AdjacencyMask, MAX_POSTERIOR_NODES};
+use crate::adjacency_mask::{AdjacencyMask, MAX_POSTERIOR_NODES, parent_bits};
 use crate::constraints::DiscoveryConstraints;
 use crate::error::DiscoveryError;
 use crate::result::LaggedLink;
@@ -157,8 +157,15 @@ pub struct GraphPosterior {
     pub n_graphs: usize,
     /// Normalized posterior weights (length `n_graphs`).
     pub weights: Arc<[f64]>,
-    /// Packed adjacency sets (length `n_graphs`); see [`edge_bit`].
-    pub adjacency: Arc<[AdjacencyMask]>,
+    /// Packed adjacency bitmasks (length `n_graphs`); see [`edge_bit`].
+    ///
+    /// The single-word packing of [`Self::atoms`], the earlier representation: populated when
+    /// every atom fits one word (a graph on at most eight nodes), empty otherwise. A posterior
+    /// over more than eight nodes carries its graphs in [`Self::atoms`] only.
+    pub adjacency: Arc<[u64]>,
+    /// Packed adjacency sets (length `n_graphs`); see [`edge_bit`]. Authoritative for every
+    /// node count up to [`MAX_POSTERIOR_NODES`].
+    pub atoms: Arc<[AdjacencyMask]>,
     /// Opaque keys: [`AdjacencyMask::key`] of each adjacency set (the single-word mask itself
     /// for a graph on at most eight nodes). Distinct sets always carry distinct keys.
     pub graph_keys: Arc<[u64]>,
@@ -209,8 +216,12 @@ pub struct GraphPosterior {
     pub atom_kind: GraphPosteriorAtomKind,
     /// Optional PAG circle-endpoint masks, same length as [`Self::adjacency`].
     /// Bit `(from, to)` means the `from` endpoint of that ordered pair is a
-    /// circle. Unused for DAG and CPDAG atoms.
-    pub mark_masks: Option<Arc<[AdjacencyMask]>>,
+    /// circle. Unused for DAG and CPDAG atoms. The single-word packing of
+    /// [`Self::mark_atoms`]: empty when an atom needs more than one word.
+    pub mark_masks: Option<Arc<[u64]>>,
+    /// Optional PAG circle-endpoint sets, same length as [`Self::atoms`]; authoritative for
+    /// every node count up to [`MAX_POSTERIOR_NODES`].
+    pub mark_atoms: Option<Arc<[AdjacencyMask]>>,
     /// Which structure-learning algorithm produced this posterior.
     ///
     /// `None` when the producer did not tag it. Carried so downstream plan records and
@@ -232,13 +243,40 @@ pub struct SamplingSummary {
 }
 
 impl GraphPosterior {
+    /// Fail-closed constructor over single-word adjacency bitmasks.
+    ///
+    /// The earlier constructor: [`Self::from_atoms`] with each `u64` read as the packing of a
+    /// graph on at most eight nodes. Use [`Self::from_atoms`] for [`AdjacencyMask`]s.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::from_atoms`].
+    pub fn new(
+        n_vars: usize,
+        weights: impl Into<Arc<[f64]>>,
+        adjacency: impl Into<Arc<[u64]>>,
+        edge_marginals: impl Into<Arc<[f64]>>,
+        orientation_marginals: impl Into<Arc<[f64]>>,
+        sampling: SamplingSummary,
+    ) -> Result<Self, DiscoveryError> {
+        let adjacency = adjacency.into();
+        Self::from_atoms(
+            n_vars,
+            weights,
+            adjacency.iter().copied(),
+            edge_marginals,
+            orientation_marginals,
+            sampling,
+        )
+    }
+
     /// Fail-closed constructor.
     ///
     /// Entries may repeat an adjacency mask (one entry per sample). They are
     /// kept as given, so `ess` and per-entry lag masks stay aligned; effect
     /// consumers treat repeated entries as one graph carrying their combined
-    /// weight. `adjacency` takes [`AdjacencyMask`]s or the single-word `u64` packing of a
-    /// graph on at most eight nodes.
+    /// weight. `atoms` takes [`AdjacencyMask`]s or the single-word `u64` packing of a graph on
+    /// at most eight nodes.
     ///
     /// # Errors
     ///
@@ -248,24 +286,24 @@ impl GraphPosterior {
         clippy::neg_cmp_op_on_partial_ord,
         reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
     )]
-    pub fn new(
+    pub fn from_atoms(
         n_vars: usize,
         weights: impl Into<Arc<[f64]>>,
-        adjacency: impl IntoIterator<Item = impl Into<AdjacencyMask>>,
+        atoms: impl IntoIterator<Item = impl Into<AdjacencyMask>>,
         edge_marginals: impl Into<Arc<[f64]>>,
         orientation_marginals: impl Into<Arc<[f64]>>,
         sampling: SamplingSummary,
     ) -> Result<Self, DiscoveryError> {
         let SamplingSummary { ess, diagnostics, rejected_invalid } = sampling;
         let weights = weights.into();
-        let adjacency: Arc<[AdjacencyMask]> = adjacency.into_iter().map(Into::into).collect();
+        let atoms: Arc<[AdjacencyMask]> = atoms.into_iter().map(Into::into).collect();
         let edge_marginals = edge_marginals.into();
         let orientation_marginals = orientation_marginals.into();
         let n_graphs = weights.len();
         if n_graphs == 0 {
             return Err(DiscoveryError::unsupported("empty graph posterior"));
         }
-        if adjacency.len() != n_graphs {
+        if atoms.len() != n_graphs {
             return Err(DiscoveryError::unsupported("adjacency/weights length mismatch"));
         }
         if n_vars > MAX_POSTERIOR_NODES {
@@ -290,12 +328,14 @@ impl GraphPosterior {
         if !ess.is_finite() || ess <= 0.0 {
             return Err(DiscoveryError::unsupported("invalid ESS"));
         }
-        let graph_keys = distinct_graph_keys(&adjacency)?;
+        let graph_keys = distinct_graph_keys(&atoms)?;
+        let adjacency = single_words(&atoms);
         Ok(Self {
             n_vars,
             n_graphs,
             weights,
             adjacency,
+            atoms,
             graph_keys,
             edge_marginals,
             orientation_marginals,
@@ -311,6 +351,7 @@ impl GraphPosterior {
             lag_masks: None,
             atom_kind: GraphPosteriorAtomKind::Dag,
             mark_masks: None,
+            mark_atoms: None,
             algorithm: None,
         })
     }
@@ -368,20 +409,32 @@ impl GraphPosterior {
         self
     }
 
-    /// Attach PAG circle-endpoint masks (same length as [`Self::adjacency`]).
+    /// Attach PAG circle-endpoint masks (same length as [`Self::adjacency`]), single-word
+    /// bitmasks: [`Self::with_mark_atoms`] for a graph on at most eight nodes.
     ///
     /// # Errors
     ///
     /// Length mismatch.
-    pub fn with_mark_masks(
+    pub fn with_mark_masks(self, masks: impl Into<Arc<[u64]>>) -> Result<Self, DiscoveryError> {
+        let masks = masks.into();
+        self.with_mark_atoms(masks.iter().copied())
+    }
+
+    /// Attach PAG circle-endpoint sets (same length as [`Self::atoms`]).
+    ///
+    /// # Errors
+    ///
+    /// Length mismatch.
+    pub fn with_mark_atoms(
         mut self,
-        masks: impl IntoIterator<Item = impl Into<AdjacencyMask>>,
+        marks: impl IntoIterator<Item = impl Into<AdjacencyMask>>,
     ) -> Result<Self, DiscoveryError> {
-        let masks: Arc<[AdjacencyMask]> = masks.into_iter().map(Into::into).collect();
-        if masks.len() != self.n_graphs {
+        let marks: Arc<[AdjacencyMask]> = marks.into_iter().map(Into::into).collect();
+        if marks.len() != self.n_graphs {
             return Err(DiscoveryError::unsupported("mark_masks/adjacency length mismatch"));
         }
-        self.mark_masks = Some(masks);
+        self.mark_masks = Some(single_words(&marks));
+        self.mark_atoms = Some(marks);
         Ok(self)
     }
 
@@ -488,83 +541,150 @@ pub(crate) fn ensure_nodes_fit(n: usize, message: &'static str) -> Result<(), Di
     if n > MAX_POSTERIOR_NODES { Err(DiscoveryError::unsupported(message)) } else { Ok(()) }
 }
 
+// The single-word functions below are the earlier `u64` API, kept for graphs on at most eight
+// nodes (`n * (n - 1) <= 64` edge bits). The same operations over [`AdjacencyMask`], for up to
+// `MAX_POSTERIOR_NODES` nodes, live in `crate::adjacency_mask`.
+
+/// Refuse a node count whose directed edges do not fit one `u64` (`n * (n - 1) > 64`).
+fn require_word_capacity(n_vars: usize, what: &str) -> Result<(), DiscoveryError> {
+    if n_directed_edges(n_vars) > 64 {
+        return Err(DiscoveryError::data_msg(format!(
+            "{what}: n_vars={n_vars} exceeds u64 adjacency packing"
+        )));
+    }
+    Ok(())
+}
+
+/// The single word of a mask built from single-word inputs on at most eight nodes.
+fn into_word(mask: AdjacencyMask, what: &str) -> Result<u64, DiscoveryError> {
+    mask.to_word().ok_or_else(|| {
+        DiscoveryError::data_msg(format!("{what}: the adjacency set does not fit one u64"))
+    })
+}
+
 /// Whether bit `from → to` is set.
 #[must_use]
-pub fn has_edge(mask: impl Into<AdjacencyMask>, n: usize, from: usize, to: usize) -> bool {
-    if from == to || from >= n || to >= n {
-        return false;
-    }
-    mask.into().bit(edge_bit(n, from, to))
+pub fn has_edge(mask: u64, n: usize, from: usize, to: usize) -> bool {
+    crate::adjacency_mask::has_edge(mask, n, from, to)
 }
 
 /// Set or clear directed edge `from → to`.
+///
+/// # Panics
+///
+/// When the edge's bit lies past bit 63 (a graph on more than eight nodes); use
+/// [`crate::adjacency_mask::set_edge`] for those.
 #[must_use]
-pub fn set_edge(
-    mask: impl Into<AdjacencyMask>,
-    n: usize,
-    from: usize,
-    to: usize,
-    present: bool,
-) -> AdjacencyMask {
-    mask.into().with_bit(edge_bit(n, from, to), present)
-}
-
-/// Parent set of `node` under `mask` as a bitset over the nodes (bit `p` is `p → node`).
-#[must_use]
-pub(crate) fn parent_bits(mask: AdjacencyMask, n: usize, node: usize) -> u16 {
-    debug_assert!(n <= MAX_POSTERIOR_NODES && node < n);
-    (0..n)
-        .filter(|&p| p != node && mask.bit(edge_bit(n, p, node)))
-        .fold(0u16, |bits, p| bits | (1 << p))
+pub fn set_edge(mask: u64, n: usize, from: usize, to: usize, present: bool) -> u64 {
+    crate::adjacency_mask::set_edge(mask, n, from, to, present).to_word().expect(
+        "edge bit past bit 63: use adjacency_mask::set_edge for graphs on more than eight nodes",
+    )
 }
 
 /// Parent indices of `node` under `mask`, in increasing parent index.
 #[must_use]
-pub fn parents_of(mask: impl Into<AdjacencyMask>, n: usize, node: usize) -> Vec<u32> {
-    let mut pa = Vec::new();
-    fill_parents(mask.into(), n, node, &mut pa);
-    pa
-}
-
-/// Write parent indices of `node` into `parents`, reusing its allocation.
-pub(crate) fn fill_parents(mask: AdjacencyMask, n: usize, node: usize, parents: &mut Vec<u32>) {
-    parents.clear();
-    for p in 0..n {
-        if p != node && has_edge(mask, n, p, node) {
-            parents.push(crate::indexing::dense_u32(p));
-        }
-    }
+pub fn parents_of(mask: u64, n: usize, node: usize) -> Vec<u32> {
+    crate::adjacency_mask::parents_of(mask, n, node)
 }
 
 /// Whether `mask` encodes a DAG on `n` nodes.
-///
-/// An allocation-free Kahn peel over per-node parent bitsets. A node count past
-/// [`MAX_POSTERIOR_NODES`] has no representable mask and is not a DAG.
 #[must_use]
-pub fn mask_is_dag(mask: impl Into<AdjacencyMask>, n: usize) -> bool {
-    if n > MAX_POSTERIOR_NODES {
-        return false;
-    }
-    let mask = mask.into();
-    let mut parents = [0u16; MAX_POSTERIOR_NODES];
-    for (node, pa) in parents.iter_mut().enumerate().take(n) {
-        *pa = parent_bits(mask, n, node);
-    }
-    let mut remaining: u16 = if n == 0 { 0 } else { u16::MAX >> (MAX_POSTERIOR_NODES - n) };
-    loop {
-        let before = remaining;
-        for (v, &pa) in parents.iter().enumerate().take(n) {
-            if remaining & (1 << v) != 0 && pa & remaining == 0 {
-                remaining &= !(1 << v);
-            }
-        }
-        if remaining == 0 {
-            return true;
-        }
-        if remaining == before {
-            return false;
-        }
-    }
+pub fn mask_is_dag(mask: u64, n: usize) -> bool {
+    crate::adjacency_mask::mask_is_dag(mask, n)
+}
+
+/// Build a [`Dag`] from a packed adjacency bitmask.
+///
+/// # Errors
+///
+/// When `mask` is not a DAG on `n_vars` nodes, or `n_vars` exceeds packing capacity.
+pub fn dag_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Dag, DiscoveryError> {
+    require_word_capacity(n_vars, "dag_from_adjacency_mask")?;
+    crate::adjacency_mask::dag_from_adjacency_mask(mask, n_vars)
+}
+
+/// Build a [`Cpdag`] from a packed adjacency bitmask.
+///
+/// Both directed bits of an unordered pair encode an undirected edge.
+///
+/// # Errors
+///
+/// Packing overflow, or an insert the CPDAG rejects.
+pub fn cpdag_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Cpdag, DiscoveryError> {
+    require_word_capacity(n_vars, "cpdag_from_adjacency_mask")?;
+    crate::adjacency_mask::cpdag_from_adjacency_mask(mask, n_vars)
+}
+
+/// Pack a [`Cpdag`] into a directed-edge bitmask (undirected = both bits).
+///
+/// # Errors
+///
+/// Packing overflow.
+pub fn adjacency_mask_from_cpdag(cpdag: &Cpdag) -> Result<u64, DiscoveryError> {
+    require_word_capacity(cpdag.node_count(), "adjacency_mask_from_cpdag")?;
+    into_word(crate::adjacency_mask::adjacency_mask_from_cpdag(cpdag)?, "adjacency_mask_from_cpdag")
+}
+
+/// Build a [`Pag`] from packed adjacency and optional circle-endpoint bitmasks.
+///
+/// Both directed bits encode a bidirected edge when neither end is circled.
+/// A circle bit on `(from, to)` marks the `from` endpoint as a circle.
+///
+/// # Errors
+///
+/// Packing overflow, or an insert the PAG rejects.
+pub fn pag_from_adjacency_mask(
+    mask: u64,
+    mark_mask: u64,
+    n_vars: usize,
+) -> Result<Pag, DiscoveryError> {
+    require_word_capacity(n_vars, "pag_from_adjacency_mask")?;
+    crate::adjacency_mask::pag_from_adjacency_mask(mask, mark_mask, n_vars)
+}
+
+/// Pack a [`Pag`] into adjacency and circle-endpoint bitmasks.
+///
+/// # Errors
+///
+/// Packing overflow.
+pub fn adjacency_masks_from_pag(pag: &Pag) -> Result<(u64, u64), DiscoveryError> {
+    require_word_capacity(pag.node_count(), "adjacency_masks_from_pag")?;
+    let (adjacency, marks) = crate::adjacency_mask::adjacency_masks_from_pag(pag)?;
+    Ok((
+        into_word(adjacency, "adjacency_masks_from_pag")?,
+        into_word(marks, "adjacency_masks_from_pag")?,
+    ))
+}
+
+/// Build an [`Admg`] from a packed adjacency bitmask.
+///
+/// Both directed bits of an unordered pair encode a bidirected edge; a single directed bit
+/// encodes a directed edge. Circle marks are ignored: this is ADMG semantics, not PAG.
+///
+/// # Errors
+///
+/// Packing overflow, a directed cycle, or an insert the ADMG rejects.
+pub fn admg_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Admg, DiscoveryError> {
+    require_word_capacity(n_vars, "admg_from_adjacency_mask")?;
+    crate::adjacency_mask::admg_from_adjacency_mask(mask, n_vars)
+}
+
+/// Pack an [`Admg`] into a directed-edge bitmask (bidirected = both bits).
+///
+/// # Errors
+///
+/// Packing overflow.
+pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<u64, DiscoveryError> {
+    require_word_capacity(admg.node_count(), "adjacency_mask_from_admg")?;
+    into_word(crate::adjacency_mask::adjacency_mask_from_admg(admg)?, "adjacency_mask_from_admg")
+}
+
+/// The single-word packing of every set, or an empty slice when one needs a wider word.
+fn single_words(sets: &[AdjacencyMask]) -> Arc<[u64]> {
+    sets.iter()
+        .map(|set| set.to_word())
+        .collect::<Option<Vec<u64>>>()
+        .map_or_else(|| Arc::from(Vec::new()), Arc::from)
 }
 
 /// One key per adjacency set, in atom order.
@@ -586,296 +706,6 @@ fn distinct_graph_keys(adjacency: &[AdjacencyMask]) -> Result<Arc<[u64]>, Discov
         keys.push(key);
     }
     Ok(Arc::from(keys))
-}
-
-/// Build a [`Dag`] from a packed adjacency set.
-///
-/// # Errors
-///
-/// When `mask` is not a DAG on `n_vars` nodes, or `n_vars` exceeds packing capacity.
-pub fn dag_from_adjacency_mask(
-    mask: impl Into<AdjacencyMask>,
-    n_vars: usize,
-) -> Result<Dag, DiscoveryError> {
-    let mask = mask.into();
-    require_mask_capacity(n_vars, "dag_from_adjacency_mask")?;
-    if !mask_is_dag(mask, n_vars) {
-        return Err(DiscoveryError::data_msg(format!(
-            "adjacency mask {mask:#x} is not a DAG on {n_vars} nodes"
-        )));
-    }
-    let n_u32 = u32::try_from(n_vars)
-        .map_err(|_| DiscoveryError::data_msg("n_vars too large for DenseNodeId"))?;
-    let mut dag = Dag::with_variables(n_u32);
-    for i in 0..n_vars {
-        for j in 0..n_vars {
-            if i != j && has_edge(mask, n_vars, i, j) {
-                dag.insert_directed(
-                    DenseNodeId::from_raw(crate::indexing::dense_u32(i)),
-                    DenseNodeId::from_raw(crate::indexing::dense_u32(j)),
-                )?;
-            }
-        }
-    }
-    Ok(dag)
-}
-
-fn require_mask_capacity(n_vars: usize, what: &str) -> Result<(), DiscoveryError> {
-    if n_vars == 0 {
-        return Err(DiscoveryError::data_msg(format!("{what}: n_vars must be > 0")));
-    }
-    if n_vars > MAX_POSTERIOR_NODES {
-        return Err(DiscoveryError::data_msg(format!(
-            "{what}: n_vars={n_vars} exceeds the {MAX_POSTERIOR_NODES}-variable adjacency packing"
-        )));
-    }
-    Ok(())
-}
-
-/// Build a [`Cpdag`] from a packed adjacency set.
-///
-/// Both directed bits of an unordered pair encode an undirected edge.
-///
-/// # Errors
-///
-/// Packing overflow, or an insert the CPDAG rejects.
-pub fn cpdag_from_adjacency_mask(
-    mask: impl Into<AdjacencyMask>,
-    n_vars: usize,
-) -> Result<Cpdag, DiscoveryError> {
-    let mask = mask.into();
-    require_mask_capacity(n_vars, "cpdag_from_adjacency_mask")?;
-    let n_u32 = u32::try_from(n_vars)
-        .map_err(|_| DiscoveryError::data_msg("n_vars too large for DenseNodeId"))?;
-    let mut cpdag = Cpdag::with_variables(n_u32);
-    for i in 0..n_vars {
-        for j in (i + 1)..n_vars {
-            let ij = has_edge(mask, n_vars, i, j);
-            let ji = has_edge(mask, n_vars, j, i);
-            let a = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
-            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
-            if ij && ji {
-                cpdag.insert_undirected(a, b)?;
-            } else if ij {
-                cpdag.insert_directed(a, b)?;
-            } else if ji {
-                cpdag.insert_directed(b, a)?;
-            }
-        }
-    }
-    Ok(cpdag)
-}
-
-/// Pack a [`Cpdag`] into a directed-edge set (undirected = both bits).
-///
-/// # Errors
-///
-/// Packing overflow.
-pub fn adjacency_mask_from_cpdag(cpdag: &Cpdag) -> Result<AdjacencyMask, DiscoveryError> {
-    let n_vars = cpdag.node_count();
-    require_mask_capacity(n_vars, "adjacency_mask_from_cpdag")?;
-    let mut mask = AdjacencyMask::EMPTY;
-    for edge in cpdag.edges() {
-        let i = edge.a.as_usize();
-        let j = edge.b.as_usize();
-        if edge.is_undirected() {
-            mask = set_edge(mask, n_vars, i, j, true);
-            mask = set_edge(mask, n_vars, j, i, true);
-        } else if edge.at_a == Endpoint::Tail && edge.at_b == Endpoint::Arrow {
-            mask = set_edge(mask, n_vars, i, j, true);
-        } else if edge.at_a == Endpoint::Arrow && edge.at_b == Endpoint::Tail {
-            mask = set_edge(mask, n_vars, j, i, true);
-        }
-    }
-    Ok(mask)
-}
-
-/// Build a [`Pag`] from packed adjacency and optional circle-endpoint sets.
-///
-/// Both directed bits encode a bidirected edge when neither end is circled.
-/// A circle bit on `(from, to)` marks the `from` endpoint as a circle.
-///
-/// # Errors
-///
-/// Packing overflow, or an insert the PAG rejects.
-pub fn pag_from_adjacency_mask(
-    mask: impl Into<AdjacencyMask>,
-    mark_mask: impl Into<AdjacencyMask>,
-    n_vars: usize,
-) -> Result<Pag, DiscoveryError> {
-    let (mask, mark_mask) = (mask.into(), mark_mask.into());
-    require_mask_capacity(n_vars, "pag_from_adjacency_mask")?;
-    let n_u32 = u32::try_from(n_vars)
-        .map_err(|_| DiscoveryError::data_msg("n_vars too large for DenseNodeId"))?;
-    let mut pag = Pag::with_variables(n_u32);
-    for i in 0..n_vars {
-        for j in (i + 1)..n_vars {
-            let ij = has_edge(mask, n_vars, i, j);
-            let ji = has_edge(mask, n_vars, j, i);
-            if !ij && !ji {
-                continue;
-            }
-            let a = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
-            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
-            let circle_a = has_edge(mark_mask, n_vars, i, j);
-            let circle_b = has_edge(mark_mask, n_vars, j, i);
-            if ij && ji {
-                if circle_a && circle_b {
-                    pag.insert_circle_circle(a, b)?;
-                } else if !circle_a && !circle_b {
-                    pag.insert_bidirected(a, b)?;
-                } else if circle_a {
-                    pag.insert_circle_arrow(a, b)?;
-                } else {
-                    pag.insert_circle_arrow(b, a)?;
-                }
-            } else if ij {
-                if circle_a {
-                    pag.insert_circle_arrow(a, b)?;
-                } else {
-                    pag.insert_directed(a, b)?;
-                }
-            } else if circle_b {
-                pag.insert_circle_arrow(b, a)?;
-            } else {
-                pag.insert_directed(b, a)?;
-            }
-        }
-    }
-    Ok(pag)
-}
-
-/// Pack a [`Pag`] into adjacency and circle-endpoint sets.
-///
-/// # Errors
-///
-/// Packing overflow.
-pub fn adjacency_masks_from_pag(
-    pag: &Pag,
-) -> Result<(AdjacencyMask, AdjacencyMask), DiscoveryError> {
-    let n_vars = pag.node_count();
-    require_mask_capacity(n_vars, "adjacency_masks_from_pag")?;
-    let mut adj = AdjacencyMask::EMPTY;
-    let mut marks = AdjacencyMask::EMPTY;
-    for i in 0..n_vars {
-        for j in (i + 1)..n_vars {
-            let a = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
-            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
-            let Some(edge) = pag.edge_between(a, b) else {
-                continue;
-            };
-            let (at_i, at_j) = if edge.a.as_usize() == i {
-                (edge.at_a, edge.at_b)
-            } else {
-                (edge.at_b, edge.at_a)
-            };
-            match (at_i, at_j) {
-                (Endpoint::Tail, Endpoint::Arrow) => {
-                    adj = set_edge(adj, n_vars, i, j, true);
-                }
-                (Endpoint::Arrow, Endpoint::Tail) => {
-                    adj = set_edge(adj, n_vars, j, i, true);
-                }
-                (Endpoint::Arrow, Endpoint::Arrow) => {
-                    adj = set_edge(adj, n_vars, i, j, true);
-                    adj = set_edge(adj, n_vars, j, i, true);
-                }
-                (Endpoint::Circle, Endpoint::Arrow) | (Endpoint::Tail, Endpoint::Circle) => {
-                    adj = set_edge(adj, n_vars, i, j, true);
-                    marks = set_edge(marks, n_vars, i, j, true);
-                }
-                (Endpoint::Arrow, Endpoint::Circle) | (Endpoint::Circle, Endpoint::Tail) => {
-                    adj = set_edge(adj, n_vars, j, i, true);
-                    marks = set_edge(marks, n_vars, j, i, true);
-                }
-                (Endpoint::Circle, Endpoint::Circle) => {
-                    adj = set_edge(adj, n_vars, i, j, true);
-                    adj = set_edge(adj, n_vars, j, i, true);
-                    marks = set_edge(marks, n_vars, i, j, true);
-                    marks = set_edge(marks, n_vars, j, i, true);
-                }
-                (Endpoint::Tail, Endpoint::Tail) => {
-                    return Err(DiscoveryError::unsupported(
-                        "PAG packing cannot represent a tail-tail edge; refusing to drop it",
-                    ));
-                }
-                (Endpoint::Conflict, _) | (_, Endpoint::Conflict) => {
-                    return Err(DiscoveryError::unsupported(
-                        "PAG packing cannot represent a conflict endpoint; refusing to drop it",
-                    ));
-                }
-            }
-        }
-    }
-    Ok((adj, marks))
-}
-
-/// Build an [`Admg`] from a packed adjacency set.
-///
-/// Both directed bits of an unordered pair encode a bidirected edge. A single
-/// directed bit encodes a directed edge. Circle marks are ignored: this is
-/// ADMG semantics, not PAG.
-///
-/// A pair that is both directed and bidirected cannot be packed into one
-/// bitmask (same limitation as PAG packing). Front-door `T→M→Y` with `T↔Y`
-/// packs cleanly because the bidirected pair is not also directed.
-///
-/// # Errors
-///
-/// Packing overflow, a directed cycle, or an insert the ADMG rejects.
-pub fn admg_from_adjacency_mask(
-    mask: impl Into<AdjacencyMask>,
-    n_vars: usize,
-) -> Result<Admg, DiscoveryError> {
-    let mask = mask.into();
-    require_mask_capacity(n_vars, "admg_from_adjacency_mask")?;
-    let n_u32 = u32::try_from(n_vars)
-        .map_err(|_| DiscoveryError::data_msg("n_vars too large for DenseNodeId"))?;
-    let mut admg = Admg::with_variables(n_u32);
-    for i in 0..n_vars {
-        for j in (i + 1)..n_vars {
-            let ij = has_edge(mask, n_vars, i, j);
-            let ji = has_edge(mask, n_vars, j, i);
-            if !ij && !ji {
-                continue;
-            }
-            let a = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
-            let b = DenseNodeId::from_raw(crate::indexing::dense_u32(j));
-            if ij && ji {
-                admg.insert_bidirected(a, b)?;
-            } else if ij {
-                admg.insert_directed(a, b)?;
-            } else {
-                admg.insert_directed(b, a)?;
-            }
-        }
-    }
-    Ok(admg)
-}
-
-/// Pack an [`Admg`] into a directed-edge set (bidirected = both bits).
-///
-/// # Errors
-///
-/// Packing overflow.
-pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<AdjacencyMask, DiscoveryError> {
-    let n_vars = admg.node_count();
-    require_mask_capacity(n_vars, "adjacency_mask_from_admg")?;
-    let mut mask = AdjacencyMask::EMPTY;
-    for i in 0..n_vars {
-        let from = DenseNodeId::from_raw(crate::indexing::dense_u32(i));
-        for &to in admg.children(from) {
-            mask = set_edge(mask, n_vars, i, to.as_usize(), true);
-        }
-        for &nbr in admg.bidirected_neighbors(from) {
-            let j = nbr.as_usize();
-            if i < j {
-                mask = set_edge(mask, n_vars, i, j, true);
-                mask = set_edge(mask, n_vars, j, i, true);
-            }
-        }
-    }
-    Ok(mask)
 }
 
 /// Contemporaneous `LaggedLink` for dense indices into `variables`.
@@ -1082,7 +912,7 @@ impl GraphPriorTable {
         {
             return None;
         }
-        if !mask_is_dag(mask, n) {
+        if !crate::adjacency_mask::mask_is_dag(mask, n) {
             return None;
         }
         let Some((lp, lq)) = self.edge_logs else {
@@ -1142,7 +972,7 @@ pub(crate) fn accumulate_marginals(
     for (&w, &mask) in weights.iter().zip(masks.iter()) {
         for i in 0..n {
             for j in 0..n {
-                if i != j && has_edge(mask, n, i, j) {
+                if i != j && crate::adjacency_mask::has_edge(mask, n, i, j) {
                     edge[i * n + j] += w;
                 }
             }
@@ -1420,7 +1250,14 @@ pub(crate) fn graph_chain_summary(
 
 #[cfg(test)]
 mod tests {
+    use antecedent_graph::{DenseNodeId, Endpoint};
+
     use super::*;
+    use crate::adjacency_mask::{
+        adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
+        admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask, has_edge,
+        mask_is_dag, pag_from_adjacency_mask, parents_of, set_edge,
+    };
 
     #[test]
     fn directed_masks_report_one_inclusion_probability() {
@@ -1726,7 +1563,7 @@ mod tests {
             diagnostics: InferenceDiagnostics::analytic("test"),
             rejected_invalid: 0,
         };
-        let post = GraphPosterior::new(
+        let post = GraphPosterior::from_atoms(
             n,
             vec![0.25, 0.25, 0.5],
             vec![a, b, a],
@@ -1737,7 +1574,8 @@ mod tests {
         .unwrap();
         assert_ne!(post.graph_keys[0], post.graph_keys[1]);
         assert_eq!(post.graph_keys[0], post.graph_keys[2]);
-        assert_eq!(post.adjacency[0], a);
+        assert_eq!(post.atoms[0], a);
+        assert!(post.adjacency.is_empty(), "a wide atom has no single-word packing");
     }
 
     /// Per-edge R̂ and ESS follow the summary: constant indicators report a perfect score and

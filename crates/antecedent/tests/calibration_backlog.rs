@@ -23,9 +23,8 @@ use antecedent_core::{
     TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
-use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg, set_edge,
-};
+use antecedent_discovery::adjacency_mask::{adjacency_mask_from_admg, set_edge};
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_graph::{
     Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag, TemporalPag,
     TieredBackground, WithinTier,
@@ -838,7 +837,7 @@ fn frontdoor_admg_gp() -> GraphPosterior {
     let graph = frontdoor_admg();
     let n = graph.node_count();
     let key = adjacency_mask_from_admg(&graph).unwrap();
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![key],
@@ -1386,7 +1385,7 @@ fn temporal_class_gp(kind: GraphPosteriorAtomKind) -> GraphPosterior {
     // w@-1 (no edge to y@0) is the visibility witness that makes t@-1 -> y@0
     // visible under the Pag atom kind (matches agreeing_temporal_cpdag / _pag).
     let contemporaneous = set_edge(set_edge(0, n, 2, 0, true), n, 3, 0, true);
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![contemporaneous],

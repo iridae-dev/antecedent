@@ -26,9 +26,8 @@ use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_discovery::{
-    GraphPosteriorAtomKind, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
-};
+use antecedent_discovery::GraphPosteriorAtomKind;
+use antecedent_discovery::adjacency_mask::{adjacency_mask_from_cpdag, adjacency_masks_from_pag};
 use antecedent_graph::{
     Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TieredBackground, WithinTier,
 };
@@ -144,7 +143,7 @@ fn class_posterior(graph: &Structure) -> Box<GraphPosterior> {
             panic!("a class graph posterior wraps a CPDAG or a PAG")
         }
     };
-    let posterior = GraphPosterior::new(
+    let posterior = GraphPosterior::from_atoms(
         n,
         vec![1.0],
         vec![adjacency],
@@ -159,7 +158,7 @@ fn class_posterior(graph: &Structure) -> Box<GraphPosterior> {
     .unwrap()
     .with_atom_kind(kind);
     Box::new(match marks {
-        Some(marks) => posterior.with_mark_masks(marks).unwrap(),
+        Some(marks) => posterior.with_mark_atoms(marks).unwrap(),
         None => posterior,
     })
 }

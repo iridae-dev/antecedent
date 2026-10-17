@@ -9,10 +9,9 @@ use antecedent_data::TabularData;
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::adjacency_mask::AdjacencyMask;
+use crate::adjacency_mask::{fill_parents, parent_bits, set_edge};
 use crate::error::DiscoveryError;
-use crate::graph_posterior::{
-    GraphPrior, GraphPriorTable, edge_required, fill_parents, parent_bits, set_edge,
-};
+use crate::graph_posterior::{GraphPrior, GraphPriorTable, edge_required};
 use crate::pc::collect_float_columns;
 
 /// Version stamped on every discovery [`GraphScoreCacheKey`].

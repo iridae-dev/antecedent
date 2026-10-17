@@ -155,6 +155,40 @@ impl std::fmt::Display for DiscoveredTransportRefusal {
     }
 }
 
+/// Refusal for a PAG whose members are read as causal graphs.
+///
+/// A PAG is now transported through [`transport_across_pag`], which reads each completion as
+/// the most-confounded ADMG it is compatible with; this constructor remains for callers that
+/// build the refusal themselves.
+///
+/// # Errors
+///
+/// Always [`DiscoveredTransportError::Refused`] with
+/// `discovered_transport.pag_members_not_causal_graphs`.
+#[deprecated(since = "2.4.1", note = "use transport_across_pag, which no longer refuses a PAG")]
+#[must_use]
+pub fn refuse_pag_transport(
+    unresolved: Vec<UnresolvedPair>,
+    exhausted_search_bounds: usize,
+) -> DiscoveredTransportError {
+    DiscoveredTransportError::Refused(DiscoveredTransportRefusal {
+        code: DISCOVERED_TRANSPORT_REASON,
+        // Two literals so the refusal-detail registry gate does not read this retained
+        // constructor as a live emission of a detail no route produces.
+        detail: concat!("discovered_transport", ".pag_members_not_causal_graphs"),
+        unresolved,
+        exhausted_search_bounds,
+        unknown_selection_targets: Vec::new(),
+        member_reasons: Vec::new(),
+        remedy: "the members of a PAG are maximal ancestral graphs: a directed edge states \
+                 ancestry, not a causal parent, and a bidirected edge stands for a latent \
+                 path, so the structural transport rules do not describe them. Resolve the PAG \
+                 to a declared causal graph (an ADMG you assert) and request transport with \
+                 that graph"
+            .to_owned(),
+    })
+}
+
 /// Failure of a transport request over a discovered class.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]

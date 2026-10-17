@@ -12,8 +12,9 @@ use antecedent_data::{
 };
 
 use crate::adjacency_mask::AdjacencyMask;
+use crate::adjacency_mask::has_edge;
 use crate::constraints::DiscoveryConstraints;
-use crate::graph_posterior::{GraphPrior, GraphPriorTable, has_edge};
+use crate::graph_posterior::{GraphPrior, GraphPriorTable};
 use crate::graph_score::ChainTarget;
 
 /// Named continuous columns, in order. Variable ids are `0..columns.len()`.

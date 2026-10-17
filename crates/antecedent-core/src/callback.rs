@@ -343,6 +343,14 @@ pub struct CallbackCall {
     args: Arc<[ValueExpr]>,
 }
 
+// A callback is invoked only through `&self` and its declaration is immutable, so a panic
+// inside a call cannot leave the binding (callback handle plus argument expressions) in a
+// state a later observer could see broken. Declaring this keeps every type that can hold a
+// program (`Intervention`, `CausalQuery`, ...) as panic-boundary safe as before callbacks
+// existed; implementors that mutate shared state own the consistency of that state.
+impl std::panic::UnwindSafe for CallbackCall {}
+impl std::panic::RefUnwindSafe for CallbackCall {}
+
 impl CallbackCall {
     /// Bind `callback` to `args`, one per declared input.
     #[must_use]

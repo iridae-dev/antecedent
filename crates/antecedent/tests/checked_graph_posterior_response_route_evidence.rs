@@ -16,7 +16,8 @@ use antecedent_core::{
     ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, set_edge};
+use antecedent_discovery::adjacency_mask::set_edge;
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::{GraphIdentFlag, InferenceDiagnostics};
 
@@ -47,7 +48,7 @@ fn reverse_mask() -> u64 {
 fn posterior(kind: GraphPosteriorAtomKind, masks: Vec<u64>, weights: Vec<f64>) -> GraphPosterior {
     let ess = 1.0 / weights.iter().map(|weight| weight * weight).sum::<f64>();
     let n = masks.len();
-    let posterior = GraphPosterior::new(
+    let posterior = GraphPosterior::from_atoms(
         3,
         weights,
         masks,

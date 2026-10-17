@@ -13,10 +13,12 @@ use antecedent::{
 };
 use antecedent_core::{AverageEffectQuery, ExecutionContext, IdentificationStatus, VariableId};
 use antecedent_data::TabularData;
-use antecedent_discovery::{
-    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
+use antecedent_discovery::adjacency_mask::{
     adjacency_mask_from_admg, admg_from_adjacency_mask, dag_from_adjacency_mask, mask_is_dag,
     set_edge,
+};
+use antecedent_discovery::{
+    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
 };
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
@@ -99,7 +101,7 @@ fn cyclic_mask(n: usize) -> AdjacencyMask {
 }
 
 fn admg_posterior(n: usize, weights: &[f64], masks: &[AdjacencyMask]) -> GraphPosterior {
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         weights.to_vec(),
         masks.to_vec(),

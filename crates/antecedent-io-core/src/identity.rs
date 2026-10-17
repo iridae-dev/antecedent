@@ -29,11 +29,14 @@ use antecedent_core::{
     CausalSchema, ExecutionContext, IDENTITY_FORMAT, IdentityDomain, NodeRef, SemanticDigest,
     VariableId,
 };
-use antecedent_discovery::{
-    AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, admg_from_adjacency_mask,
-    cpdag_from_adjacency_mask, dag_from_adjacency_mask, pag_from_adjacency_mask,
-    temporal_cpdag_from_dbn_masks, temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
+use antecedent_discovery::adjacency_mask::{
+    admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
+    pag_from_adjacency_mask,
 };
+use antecedent_discovery::dbn_posterior::{
+    temporal_cpdag_from_dbn_atoms, temporal_dag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
+};
+use antecedent_discovery::{AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{
     Admg, Cpdag, Dag, MarkedEdge, Pag, TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag,
@@ -1116,7 +1119,7 @@ pub fn graph_posterior_atom_identities(
     let max_lag = posterior.max_lag.unwrap_or(1);
     let mut atoms = Vec::with_capacity(posterior.n_graphs);
     for (index, (&adjacency, &weight)) in
-        posterior.adjacency.iter().zip(posterior.weights.iter()).enumerate()
+        posterior.atoms.iter().zip(posterior.weights.iter()).enumerate()
     {
         let graph = posterior_atom_graph_wire(posterior, index, adjacency, max_lag, &ids)?;
         atoms.push(PosteriorAtomIdentityWire {
@@ -1146,7 +1149,7 @@ fn posterior_atom_graph_wire(
             .ok_or_else(|| IoError::Convert("posterior lag masks must align with atoms".into()))?;
         return match posterior.atom_kind {
             GraphPosteriorAtomKind::Cpdag => {
-                let graph = temporal_cpdag_from_dbn_masks(
+                let graph = temporal_cpdag_from_dbn_atoms(
                     adjacency,
                     lag_mask,
                     posterior.n_vars,
@@ -1169,12 +1172,12 @@ fn posterior_atom_graph_wire(
             }
             GraphPosteriorAtomKind::Pag => {
                 let mark_mask = posterior
-                    .mark_masks
+                    .mark_atoms
                     .as_ref()
                     .and_then(|masks| masks.get(index))
                     .copied()
                     .unwrap_or(AdjacencyMask::EMPTY);
-                let graph = temporal_pag_from_dbn_masks(
+                let graph = temporal_pag_from_dbn_atoms(
                     adjacency,
                     lag_mask,
                     mark_mask,
@@ -1191,7 +1194,7 @@ fn posterior_atom_graph_wire(
                 Ok(PosteriorAtomGraphWire::TemporalClass(wire))
             }
             _ => {
-                let graph = temporal_dag_from_dbn_masks(
+                let graph = temporal_dag_from_dbn_atoms(
                     adjacency,
                     lag_mask,
                     posterior.n_vars,
@@ -1233,7 +1236,7 @@ fn posterior_atom_graph_wire(
         }
         GraphPosteriorAtomKind::Pag => {
             let mark_mask = posterior
-                .mark_masks
+                .mark_atoms
                 .as_ref()
                 .and_then(|masks| masks.get(index))
                 .copied()
@@ -3396,7 +3399,7 @@ mod tests {
 
     fn static_posterior(weights: [f64; 3], graphs: [AdjacencyMask; 3]) -> GraphPosterior {
         let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-        GraphPosterior::new(
+        GraphPosterior::from_atoms(
             3,
             weights.to_vec(),
             graphs.to_vec(),
@@ -3422,7 +3425,7 @@ mod tests {
 
     #[test]
     fn static_posterior_identity_binds_atom_graphs_and_weights() {
-        use antecedent_discovery::set_edge;
+        use antecedent_discovery::adjacency_mask::set_edge;
         let direct = set_edge(0, 3, 0, 1, true);
         let adjusted = set_edge(set_edge(direct, 3, 2, 0, true), 3, 2, 1, true);
         let reversed = set_edge(0, 3, 1, 0, true);
@@ -3445,7 +3448,8 @@ mod tests {
     /// and a twelve-variable atom (edge bits past the first word) encodes as its twelve nodes.
     #[test]
     fn static_posterior_atom_identity_is_independent_of_the_adjacency_packing() {
-        use antecedent_discovery::{edge_bit, set_edge};
+        use antecedent_discovery::adjacency_mask::set_edge;
+        use antecedent_discovery::edge_bit;
         let n = 3;
         let stored: u64 = (1 << edge_bit(n, 0, 1)) | (1 << edge_bit(n, 2, 0));
         let from_word = AdjacencyMask::from_word(stored);
@@ -3468,7 +3472,7 @@ mod tests {
         let chain =
             (0..n - 1).fold(AdjacencyMask::EMPTY, |mask, i| set_edge(mask, n, i, i + 1, true));
         assert_eq!(chain.to_word(), None, "twelve variables need more than one word");
-        let posterior = GraphPosterior::new(
+        let posterior = GraphPosterior::from_atoms(
             n,
             vec![1.0],
             vec![chain],
@@ -3493,7 +3497,7 @@ mod tests {
     /// A posterior of `n` variables whose atoms are `graphs`, equally weighted.
     fn equal_weight_posterior(n: usize, graphs: Vec<AdjacencyMask>) -> GraphPosterior {
         let weight = 1.0 / graphs.len() as f64;
-        GraphPosterior::new(
+        GraphPosterior::from_atoms(
             n,
             vec![weight; graphs.len()],
             graphs,
@@ -3515,7 +3519,7 @@ mod tests {
     /// encoding and still identify as their canonical graph.
     #[test]
     fn eight_variable_atoms_keep_the_stored_word_and_wider_atoms_carry_wide_encodings() {
-        use antecedent_discovery::set_edge;
+        use antecedent_discovery::adjacency_mask::set_edge;
         // The layout written out independently of the library's `edge_bit`.
         let bit =
             |n: usize, from: usize, to: usize| from * (n - 1) + if to < from { to } else { to - 1 };
@@ -3577,13 +3581,13 @@ mod tests {
 
     #[test]
     fn dbn_atom_identity_includes_lags_and_ignores_execution_key() {
-        use antecedent_discovery::set_edge;
+        use antecedent_discovery::adjacency_mask::set_edge;
 
         let contemporaneous = set_edge(0, 3, 2, 0, true);
         // Packing is `(lag-1)*n² + from*n + to` for lag=1, n=3.
         let confounder_to_outcome = 1_u64 << 7;
         let treatment_to_outcome = 1_u64 << 1;
-        let posterior = GraphPosterior::new(
+        let posterior = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.5],
             vec![contemporaneous; 2],

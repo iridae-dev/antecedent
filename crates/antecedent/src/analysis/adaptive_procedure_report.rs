@@ -169,8 +169,6 @@ pub enum ProcedureReportBody {
         rule_stop_fraction: f64,
         /// Replications run.
         replications: u32,
-        /// The work the simulation was admitted for and did.
-        receipt: ResourceReceipt,
     },
     /// Time-uniform bounds and their exact exclusion probability.
     AnytimeValid {
@@ -200,6 +198,9 @@ pub struct ProcedureReport {
     pub calibration: &'static str,
     /// The numbers.
     pub body: ProcedureReportBody,
+    /// The work a simulated report was admitted for and did; `None` for a report that ran no
+    /// simulation.
+    pub receipt: Option<ResourceReceipt>,
 }
 
 /// The exact law of the terminal state under a truth.
@@ -409,6 +410,7 @@ impl AdaptiveProcedure {
         let cancelled = || ctx.cancellation.is_cancelled();
         let spec = &self.spec;
         let fail = |e: AdaptiveInferenceError| refusal_of(&e);
+        let mut receipt = None;
         let (paradigm, body) = match request {
             ProcedureReportRequest::BayesianPosterior { prior, observed } => {
                 let posterior = if let Some(counts) = observed {
@@ -498,17 +500,15 @@ impl AdaptiveProcedure {
                         .map_err(fail)?;
                 let truth_value = self.estimand_value(simulation.estimand, truth)?;
                 let summary = simulated.summarize(truth_value, *z).map_err(fail)?;
-                (
-                    UncertaintyParadigm::FrequentistAdaptiveWeighting,
-                    ProcedureReportBody::AdaptiveWeighting {
-                        summary,
-                        truth_value,
-                        mean_enrolled: simulated.mean_enrolled(),
-                        rule_stop_fraction: simulated.rule_stop_fraction(),
-                        replications: simulation.replications,
-                        receipt: simulated.receipt,
-                    },
-                )
+                let body = ProcedureReportBody::AdaptiveWeighting {
+                    summary,
+                    truth_value,
+                    mean_enrolled: simulated.mean_enrolled(),
+                    rule_stop_fraction: simulated.rule_stop_fraction(),
+                    replications: simulation.replications,
+                };
+                receipt = Some(simulated.receipt);
+                (UncertaintyParadigm::FrequentistAdaptiveWeighting, body)
             }
             ProcedureReportRequest::AnytimeValid { alpha, tuning_samples, observed, truth } => {
                 admit(spec, UncertaintyParadigm::AnytimeValidFrequentist).map_err(fail)?;
@@ -546,6 +546,7 @@ impl AdaptiveProcedure {
             estimand,
             calibration: DERIVED_UNMEASURED,
             body,
+            receipt,
         })
     }
 

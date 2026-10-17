@@ -44,7 +44,8 @@ use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{AdjacencyMask, set_edge};
+use antecedent_discovery::AdjacencyMask;
+use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
     CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, map_replicates, n_sim,
@@ -132,7 +133,7 @@ fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
     let adjusted = set_edge(set_edge(set_edge(base, n, 0, 1, true), n, 2, 0, true), n, 2, 1, true);
     let unidentified = set_edge(base, n, 1, 0, true);
     let cells = n * n;
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         WEIGHTS.to_vec(),
         vec![direct, adjusted, unidentified],
@@ -155,7 +156,7 @@ fn same_estimand_mixture_posterior(modifier: bool) -> GraphPosterior {
     let outcome_parent = set_edge(set_edge(base, n, 0, 1, true), n, 2, 1, true);
     let unidentified = set_edge(base, n, 1, 0, true);
     let cells = n * n;
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         WEIGHTS.to_vec(),
         vec![direct, outcome_parent, unidentified],

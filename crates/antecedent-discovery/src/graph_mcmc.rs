@@ -413,7 +413,7 @@ pub(crate) fn aggregate_mask_posterior(
     }
     let ess = kish_ess(&weights);
     let (edge, orient) = accumulate_marginals(n, &weights, &masks);
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         weights,
         masks,

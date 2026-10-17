@@ -63,6 +63,12 @@ use super::z_transport::{
 };
 use super::{IdentificationError, SearchCharge, SharedSearch, SidLimits, SidMeter};
 
+/// Observed variables in the shared graph under the earlier fixed ceiling.
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: the number of observed variables is bounded by the search budget"
+)]
+pub const MZ_TRANSPORT_MAX_OBSERVED: usize = 12;
 /// Source populations in one query. One source is the single-source z route.
 pub const MZ_TRANSPORT_MAX_SOURCES: usize = 4;
 /// Controllable variables declared per source.

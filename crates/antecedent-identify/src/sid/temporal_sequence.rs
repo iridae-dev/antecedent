@@ -42,6 +42,12 @@ use super::{
 pub const TEMPORAL_HORIZON: usize = 2;
 /// Most actions in the discrete alphabet.
 pub const TEMPORAL_MAX_ACTIONS: usize = 8;
+/// Most coordinates the unrolled diagram had under the earlier fixed ceiling.
+#[deprecated(
+    since = "2.4.1",
+    note = "no longer enforced: the number of coordinates is bounded by the search budget"
+)]
+pub const TEMPORAL_MAX_OBSERVED: usize = 12;
 /// Most complete covariate histories (baseline, step-1 and step-2 covariates).
 pub const TEMPORAL_MAX_HISTORY_STATES: usize = 4096;
 

@@ -923,7 +923,7 @@ fn neighborhood_loo_predict_pair(
         sum2.push(rows.iter().map(|&i| y2[i]).sum::<f64>());
     }
     let cell_ids: Vec<usize> = (0..n_cells).collect();
-    let index = antecedent_stats::MatchingIndex::exact(
+    let index = antecedent_stats::MatchingIndex::exact_within(
         &cell_features,
         dim,
         &cell_ids,

@@ -19,10 +19,10 @@ use antecedent_core::{
     IdentificationStatus, Intervention, ResponseFunctional, ResponseQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{
-    GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_cpdag,
-    adjacency_masks_from_pag, set_edge,
+use antecedent_discovery::adjacency_mask::{
+    adjacency_mask_from_cpdag, adjacency_masks_from_pag, set_edge,
 };
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag};
 use antecedent_prob::InferenceDiagnostics;
 use antecedent_validate::{
@@ -128,7 +128,7 @@ fn cpdag_posterior(weights: &[f64], graphs: &[Cpdag]) -> GraphPosterior {
     let n = graphs[0].node_count();
     let masks: Vec<antecedent_discovery::AdjacencyMask> =
         graphs.iter().map(|graph| adjacency_mask_from_cpdag(graph).unwrap()).collect();
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         weights.to_vec(),
         masks,
@@ -161,7 +161,7 @@ fn pag_posterior(weights: &[f64], graphs: &[Pag]) -> GraphPosterior {
         masks.push(adj);
         mark_masks.push(mark_mask);
     }
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         n,
         weights.to_vec(),
         masks,
@@ -175,7 +175,7 @@ fn pag_posterior(weights: &[f64], graphs: &[Pag]) -> GraphPosterior {
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Pag)
-    .with_mark_masks(mark_masks)
+    .with_mark_atoms(mark_masks)
     .unwrap()
 }
 
@@ -678,7 +678,7 @@ fn class_posterior_frequentist_numeric_pins() {
 fn two_completion_cpdag_mask_identifies() {
     let cpdag = two_completion_cpdag();
     let mask = adjacency_mask_from_cpdag(&cpdag).unwrap();
-    let back = antecedent_discovery::cpdag_from_adjacency_mask(mask, 3).unwrap();
+    let back = antecedent_discovery::adjacency_mask::cpdag_from_adjacency_mask(mask, 3).unwrap();
     assert_eq!(back.undirected_edge_count(), 1);
     let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
         .identify_cpdag_envelope(&back, &ate());
@@ -705,7 +705,8 @@ fn identified_pag_mask_roundtrips() {
         .identify_pag_envelope(&pag, &ate());
     assert!(original.as_ref().is_ok_and(|e| e.identified_weight.0 > 0.0), "original {original:?}");
     let (mask, mark_mask) = adjacency_masks_from_pag(&pag).unwrap();
-    let back = antecedent_discovery::pag_from_adjacency_mask(mask, mark_mask, 3).unwrap();
+    let back =
+        antecedent_discovery::adjacency_mask::pag_from_adjacency_mask(mask, mark_mask, 3).unwrap();
     assert!(back.has_edge(d(2), d(0)));
     assert!(back.has_edge(d(0), d(1)));
     let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
@@ -955,7 +956,7 @@ fn class_posterior_graph_posterior_intervention_response_cheap_and_full_run() {
 fn class_posterior_atom_kind_defaults_to_dag_masks() {
     // A DAG-shaped posterior must not silently take the class path.
     let direct = set_edge(0, 3, 0, 1, true);
-    let gp = GraphPosterior::new(
+    let gp = GraphPosterior::from_atoms(
         3,
         vec![1.0],
         vec![direct],

@@ -235,7 +235,7 @@ use antecedent::discovery::{
     discover_ges as facade_discover_ges, discover_jpcmci_plus as facade_discover_jpcmci_plus,
     discover_lingam as facade_discover_lingam, discover_lpcmci as facade_discover_lpcmci,
     discover_lpcmci_panel as facade_discover_lpcmci_panel,
-    discover_notears as facade_discover_notears, discover_pc as facade_discover_pc,
+    discover_notears_with as facade_discover_notears, discover_pc as facade_discover_pc,
     discover_pcmci as facade_discover_pcmci, discover_pcmci_panel as facade_discover_pcmci_panel,
     discover_pcmci_plus as facade_discover_pcmci_plus,
     discover_pcmci_plus_panel as facade_discover_pcmci_plus_panel,

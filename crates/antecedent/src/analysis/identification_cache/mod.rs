@@ -54,7 +54,7 @@ where
     let mut unique = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for i in 0..posterior.n_graphs {
-        let mask = posterior.adjacency[i];
+        let mask = posterior.atoms[i];
         if seen.insert(mask) {
             unique.push(mask);
         }
@@ -113,7 +113,7 @@ fn collect_graph_posterior_atoms<A>(
         if let Some(progress) = &ctx.progress {
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
-        let mask = posterior.adjacency[i];
+        let mask = posterior.atoms[i];
         let key = posterior.graph_keys[i];
         keys.push(key);
         weights.push(posterior.weights[i]);
@@ -153,7 +153,7 @@ fn collect_mask_atoms(
     by_mask: &MaskIdentifications,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
     let (graphs, atoms) = collect_graph_posterior_atoms(posterior, ctx, |i, first_for_key| {
-        let Some(Some((estimand, identification))) = by_mask.get(&posterior.adjacency[i]) else {
+        let Some(Some((estimand, identification))) = by_mask.get(&posterior.atoms[i]) else {
             return Ok((GraphIdentFlag::Unidentified, None));
         };
         let atom = first_for_key.then(|| CachedGraphPosteriorAtomIdentification {

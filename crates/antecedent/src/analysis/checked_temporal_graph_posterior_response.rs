@@ -222,9 +222,9 @@ impl CheckedTemporalGraphPosteriorResponse {
             candidate.atom_kind == self.posterior.atom_kind
                 && candidate.n_graphs == self.posterior.n_graphs
                 && candidate.weights.as_ref() == self.posterior.weights.as_ref()
-                && candidate.adjacency.as_ref() == self.posterior.adjacency.as_ref()
+                && candidate.atoms.as_ref() == self.posterior.atoms.as_ref()
                 && candidate.lag_masks.as_deref() == self.posterior.lag_masks.as_deref()
-                && candidate.mark_masks.as_deref() == self.posterior.mark_masks.as_deref()
+                && candidate.mark_atoms.as_deref() == self.posterior.mark_atoms.as_deref()
         })
     }
 }

@@ -40,9 +40,8 @@ use antecedent_core::{
     ResponseIdentification, ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_discovery::{
-    GraphPosteriorAtomKind, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
-};
+use antecedent_discovery::GraphPosteriorAtomKind;
+use antecedent_discovery::adjacency_mask::{adjacency_mask_from_cpdag, adjacency_masks_from_pag};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
     Cpdag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TieredBackground, WithinTier,
@@ -216,11 +215,11 @@ const GP_WEIGHTS: [f64; 3] = [0.5, 0.3, 0.2];
 const GP_TRUTH: f64 = (0.5 * 3.24 + 0.3 * 3.0) / 0.8;
 
 fn graph_posterior() -> GraphPosterior {
-    use antecedent_discovery::set_edge;
+    use antecedent_discovery::adjacency_mask::set_edge;
     let direct = set_edge(0, 3, 0, 1, true);
     let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
     let unidentified = set_edge(0, 3, 1, 0, true);
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         GP_WEIGHTS.to_vec(),
         vec![direct, adjusted, unidentified],
@@ -239,9 +238,9 @@ fn graph_posterior() -> GraphPosterior {
 /// atom is `T -> Y` with isolated `Z`; the DGP randomizes `T` independently of
 /// `Z`, so the posterior target at level `a` is exactly `1 + 2a`.
 fn single_atom_response_posterior() -> GraphPosterior {
-    use antecedent_discovery::set_edge;
+    use antecedent_discovery::adjacency_mask::set_edge;
     let direct = set_edge(0, 3, 0, 1, true);
-    GraphPosterior::new(
+    GraphPosterior::from_atoms(
         3,
         vec![1.0],
         vec![direct],
@@ -514,7 +513,7 @@ fn single_class_graph_posterior(graph: &Structure) -> GraphPosterior {
             (GraphPosteriorAtomKind::Pag, vec![adjacency], Some(vec![marks]))
         }
     };
-    let posterior = GraphPosterior::new(
+    let posterior = GraphPosterior::from_atoms(
         4,
         vec![1.0],
         adjacency,
@@ -528,7 +527,7 @@ fn single_class_graph_posterior(graph: &Structure) -> GraphPosterior {
     )
     .unwrap()
     .with_atom_kind(atom_kind);
-    if let Some(marks) = mark_masks { posterior.with_mark_masks(marks).unwrap() } else { posterior }
+    if let Some(marks) = mark_masks { posterior.with_mark_atoms(marks).unwrap() } else { posterior }
 }
 
 /// Repeated-sampling evidence for a one-atom class-posterior response. The

@@ -280,7 +280,7 @@ that every mechanism reading it sees in every world, so latent confounding raise
 identification question when the model is declared. Model adequacy is a premise, not a check.";
 
 /// Every row, in a fixed order.
-pub static ROWS: [MatrixRow; 14] = [
+static ALL_ROWS: [MatrixRow; 14] = [
     MatrixRow {
         id: "counterfactual.finite_markovian_scm.marginal",
         quantity: QuantityClass::CounterfactualMarginal,
@@ -532,10 +532,26 @@ exogenous posterior state, so the contrast is computed from coupled worlds only.
     },
 ];
 
+/// The rows that predate the shared-exogenous-term model class, in their fixed order.
+///
+/// New rows are appended to the full matrix ([`rows`]); this array keeps its released length
+/// so existing code that names it keeps compiling.
+pub static ROWS: [MatrixRow; 11] = leading_rows(&ALL_ROWS);
+
+const fn leading_rows(all: &[MatrixRow; 14]) -> [MatrixRow; 11] {
+    let mut out = [all[0]; 11];
+    let mut i = 1;
+    while i < 11 {
+        out[i] = all[i];
+        i += 1;
+    }
+    out
+}
+
 /// Every row of the matrix.
 #[must_use]
 pub fn rows() -> &'static [MatrixRow] {
-    &ROWS
+    &ALL_ROWS
 }
 
 /// One request's coordinates in the matrix.
@@ -576,7 +592,7 @@ pub struct MatrixRefusal {
 pub type MatrixDecision = Result<&'static MatrixRow, MatrixRefusal>;
 
 fn closed(id: &'static str) -> MatrixRefusal {
-    let row = ROWS.iter().find(|r| r.id == id).unwrap_or(&ROWS[5]);
+    let row = ALL_ROWS.iter().find(|r| r.id == id).unwrap_or(&ALL_ROWS[5]);
     MatrixRefusal {
         code: row.refusal_code.unwrap_or(antecedent_core::reason_code!("cell_not_licensed")),
         detail: row.refusal_detail.unwrap_or("cross_world_execution.cell_not_in_matrix"),
@@ -605,7 +621,7 @@ fn transported_refusal() -> MatrixRefusal {
 /// executed row admits.
 pub fn decide(request: &MatrixRequest) -> MatrixDecision {
     if request.population == PopulationKind::Transported {
-        let own = ROWS.iter().find(|r| {
+        let own = ALL_ROWS.iter().find(|r| {
             r.status == CapabilityStatus::ExistingTheoremRoute
                 && r.quantity == request.quantity
                 && r.model == request.model
@@ -627,7 +643,7 @@ pub fn decide(request: &MatrixRequest) -> MatrixDecision {
         return Err(closed("evidence.fit_from_data"));
     }
     let candidates = || {
-        ROWS.iter().filter(|r| {
+        ALL_ROWS.iter().filter(|r| {
             r.status == CapabilityStatus::Executed
                 && r.quantity == request.quantity
                 && r.model == request.model
@@ -669,11 +685,11 @@ mod tests {
 
     #[test]
     fn row_ids_are_unique_and_closed_rows_carry_a_refusal() {
-        let mut ids: Vec<_> = ROWS.iter().map(|r| r.id).collect();
+        let mut ids: Vec<_> = ALL_ROWS.iter().map(|r| r.id).collect();
         ids.sort_unstable();
         ids.dedup();
-        assert_eq!(ids.len(), ROWS.len());
-        for row in &ROWS {
+        assert_eq!(ids.len(), ALL_ROWS.len());
+        for row in &ALL_ROWS {
             let closed = row.status == CapabilityStatus::Closed;
             assert_eq!(row.refusal_code.is_some(), closed, "{}", row.id);
             assert_eq!(row.refusal_detail.is_some(), closed, "{}", row.id);

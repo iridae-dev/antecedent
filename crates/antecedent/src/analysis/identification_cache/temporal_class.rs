@@ -5,8 +5,9 @@
 use std::sync::Arc;
 
 use antecedent_core::{CausalQuery, ExecutionContext, TemporalEffectQuery};
-use antecedent_discovery::{
-    GraphPosterior, temporal_cpdag_from_dbn_masks, temporal_pag_from_dbn_masks,
+use antecedent_discovery::GraphPosterior;
+use antecedent_discovery::dbn_posterior::{
+    temporal_cpdag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationResult;
@@ -86,13 +87,13 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
     let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let key = dbn_envelope_key(i)?;
         let mark = posterior
-            .mark_masks
+            .mark_atoms
             .as_ref()
             .map_or(antecedent_discovery::AdjacencyMask::EMPTY, |marks| marks[i]);
         let cached = match posterior.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
-                let Ok(cpdag) = temporal_cpdag_from_dbn_masks(
-                    posterior.adjacency[i],
+                let Ok(cpdag) = temporal_cpdag_from_dbn_atoms(
+                    posterior.atoms[i],
                     lag_masks[i],
                     posterior.n_vars,
                     max_lag,
@@ -112,8 +113,8 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
                 )
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                let Ok(pag) = temporal_pag_from_dbn_masks(
-                    posterior.adjacency[i],
+                let Ok(pag) = temporal_pag_from_dbn_atoms(
+                    posterior.atoms[i],
                     lag_masks[i],
                     mark,
                     posterior.n_vars,

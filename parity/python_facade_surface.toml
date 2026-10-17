@@ -1227,6 +1227,12 @@ status = "bound"
 python = "native:python/src/selective_discovery_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::sample_split_parent_set_effect::estimate_parent_set_effect_with_knowledge"
+kind = "fn"
+status = "bound"
+python = "native:python/src/selective_discovery_api.rs"
+
+[[entry]]
 rust = "antecedent::analysis::sample_split_parent_set_effect::measure_source"
 kind = "fn"
 status = "bound"
@@ -1658,6 +1664,12 @@ status = "bound"
 python = "antecedent._native.discover_notears"
 
 [[entry]]
+rust = "antecedent::discovery::discover_notears_with"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_notears"
+
+[[entry]]
 rust = "antecedent::discovery::discover_order_mcmc"
 kind = "fn"
 status = "bound"
@@ -1926,6 +1938,12 @@ rust = "antecedent::gcm::counterfactual_policy"
 kind = "fn"
 status = "bound"
 python = "antecedent.intervention_programs.counterfactual_policy"
+
+[[entry]]
+rust = "antecedent::gcm::policy_value"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_programs.policy_value"
 
 [[entry]]
 rust = "antecedent::gcm::counterfactual_temporal_policy"

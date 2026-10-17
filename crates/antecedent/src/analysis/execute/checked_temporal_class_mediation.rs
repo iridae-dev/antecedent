@@ -370,7 +370,7 @@ impl CheckedTemporalClassMediationOperation {
                 "{}:{}:{}:{}:{}:{}",
                 self.proof.name(),
                 join_bits(&posterior.weights),
-                join_masks(&posterior.adjacency),
+                join_masks(&posterior.atoms),
                 join_u64(&posterior.graph_keys),
                 posterior.lag_masks.as_deref().map_or_else(|| "none".to_string(), join_u64),
                 posterior.max_lag.map_or_else(|| "none".to_string(), |lag| lag.to_string()),
@@ -500,7 +500,7 @@ fn same_posterior(retained: &GraphPosterior, current: &GraphPosterior) -> bool {
         && retained.n_graphs == current.n_graphs
         && retained.atom_kind == current.atom_kind
         && retained.max_lag == current.max_lag
-        && retained.adjacency.as_ref() == current.adjacency.as_ref()
+        && retained.atoms.as_ref() == current.atoms.as_ref()
         && retained.graph_keys.as_ref() == current.graph_keys.as_ref()
         && retained.lag_masks.as_deref() == current.lag_masks.as_deref()
         && retained.weights.len() == current.weights.len()
