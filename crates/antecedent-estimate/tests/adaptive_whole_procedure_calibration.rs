@@ -9,7 +9,8 @@
 //!
 //! Scored per replicate (claims about the *procedure*, not about a component):
 //!
-//! * simultaneous coverage of the anytime-valid family: every arm's sequence contains its true
+//! * simultaneous coverage of the anytime-valid family: every arm's sequence (the variance-adaptive
+//!   predictable plug-in empirical Bernstein sequence at `alpha / K` per arm) contains its true
 //!   mean at every look up to the stop, and at the stopping look;
 //! * coverage of the selected-arm comparison with the control (the data-selected arm, the
 //!   contrast the procedure reports), at every look and at the stop;
@@ -28,6 +29,14 @@
 //! `adaptive_whole_procedure_summary` JSON line per case. Nothing is measured at implementation
 //! time: the cases are `#[ignore]`d and run only at the final measurement step.
 //!
+//! Each case emits two coverage records through the shared harness, measured over the three-point
+//! sample-size grid around the case's participants: every arm's mean covered by its sequence at
+//! every look to the stop, and the selected treatment's difference from the control covered at
+//! every look to the stop. Both are conservative by construction (a floor at the nominal level,
+//! as for any confidence sequence). The coverage floors hold at every grid point; the precision,
+//! selection and sample-use targets are the manifest's and are stated for the case's own
+//! participants, so they are asserted at the base point only.
+//!
 //! The default-suite tests check the harness against scenarios with an exactly known answer: a
 //! recruitment cap that fixes the stopping look and the sample used, a truth with an
 //! unmistakable best arm, and the summary arithmetic.
@@ -42,13 +51,20 @@
     reason = "bounded simulation sizes, small indices and rates of counts"
 )]
 
+#[path = "../../antecedent/tests/common/calibration.rs"]
+mod calibration;
+#[path = "common/candidate_calibration.rs"]
+mod candidate;
+
 use std::collections::BTreeMap;
 
+use antecedent_estimate::adaptive_measured_interval;
 use antecedent_stats::adaptive_inference::{
     AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, DecisionRules, HistoricalPrior,
     LookDecision, LookReading, ParticipantDeclaration, ParticipantSpec, StopReason,
     simulate_participant_history,
 };
+use calibration::{CoverageSide, CoverageTally, RecordKey};
 use serde_json::{Value, json};
 
 fn never() -> bool {
@@ -87,6 +103,27 @@ impl Scenario {
     }
 
     /// Effects over the control, as in the manifest.
+    /// Label of the data-generating process of this scenario's coverage records.
+    const fn dgp(self) -> &'static str {
+        match self {
+            Self::NullEffects => {
+                "participant_beta_binomial_four_arms_null_effects_thompson_expected_loss_plug_in_sequence"
+            }
+            Self::NearTies => {
+                "participant_beta_binomial_four_arms_near_ties_thompson_expected_loss_plug_in_sequence"
+            }
+            Self::SeparatedEffects => {
+                "participant_beta_binomial_four_arms_separated_effects_thompson_expected_loss_plug_in_sequence"
+            }
+            Self::StrongCorrelation => {
+                "participant_beta_binomial_four_arms_strong_correlation_thompson_expected_loss_plug_in_sequence"
+            }
+            Self::MisleadingPriors => {
+                "participant_beta_binomial_four_arms_misleading_priors_thompson_expected_loss_plug_in_sequence"
+            }
+        }
+    }
+
     const fn effects(self) -> [f64; ARMS] {
         match self {
             Self::NullEffects => [0.0, 0.0, 0.0, 0.0],
@@ -138,7 +175,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::NullEffects,
         participants: 600,
         seed: 4_688_630,
-        max_median_halfwidth: 0.2,
+        max_median_halfwidth: 0.17,
         extra: Extra::FalseSuperiorityAtMost(0.05),
     },
     Case {
@@ -146,7 +183,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::NullEffects,
         participants: 1200,
         seed: 8_547_647,
-        max_median_halfwidth: 0.14,
+        max_median_halfwidth: 0.12,
         extra: Extra::FalseSuperiorityAtMost(0.05),
     },
     Case {
@@ -162,7 +199,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::NearTies,
         participants: 600,
         seed: 3_364_870,
-        max_median_halfwidth: 0.2,
+        max_median_halfwidth: 0.17,
         extra: Extra::MeanRegretAtMost(0.02),
     },
     Case {
@@ -170,7 +207,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::NearTies,
         participants: 1200,
         seed: 1_599_552,
-        max_median_halfwidth: 0.14,
+        max_median_halfwidth: 0.13,
         extra: Extra::MeanRegretAtMost(0.02),
     },
     Case {
@@ -178,7 +215,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::NearTies,
         participants: 2400,
         seed: 3_922_140,
-        max_median_halfwidth: 0.1,
+        max_median_halfwidth: 0.11,
         extra: Extra::MeanRegretAtMost(0.02),
     },
     Case {
@@ -186,7 +223,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::SeparatedEffects,
         participants: 600,
         seed: 4_345_524,
-        max_median_halfwidth: 0.2,
+        max_median_halfwidth: 0.315,
         extra: Extra::BestIdentificationAtLeast(0.6),
     },
     Case {
@@ -194,7 +231,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::SeparatedEffects,
         participants: 1200,
         seed: 1_828_172,
-        max_median_halfwidth: 0.14,
+        max_median_halfwidth: 0.225,
         extra: Extra::BestIdentificationAtLeast(0.9),
     },
     Case {
@@ -202,7 +239,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::SeparatedEffects,
         participants: 2400,
         seed: 3_269_392,
-        max_median_halfwidth: 0.1,
+        max_median_halfwidth: 0.21,
         extra: Extra::BestIdentificationAtLeast(0.99),
     },
     Case {
@@ -210,7 +247,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::StrongCorrelation,
         participants: 600,
         seed: 2_966_363,
-        max_median_halfwidth: 0.2,
+        max_median_halfwidth: 0.255,
         extra: Extra::Nothing,
     },
     Case {
@@ -218,7 +255,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::StrongCorrelation,
         participants: 1200,
         seed: 4_097_367,
-        max_median_halfwidth: 0.14,
+        max_median_halfwidth: 0.215,
         extra: Extra::Nothing,
     },
     Case {
@@ -226,7 +263,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::StrongCorrelation,
         participants: 2400,
         seed: 1_627_083,
-        max_median_halfwidth: 0.1,
+        max_median_halfwidth: 0.2,
         extra: Extra::Nothing,
     },
     Case {
@@ -234,7 +271,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::MisleadingPriors,
         participants: 600,
         seed: 1_421_029,
-        max_median_halfwidth: 0.2,
+        max_median_halfwidth: 0.215,
         extra: Extra::Nothing,
     },
     Case {
@@ -242,7 +279,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::MisleadingPriors,
         participants: 1200,
         seed: 5_792_820,
-        max_median_halfwidth: 0.14,
+        max_median_halfwidth: 0.185,
         extra: Extra::Nothing,
     },
     Case {
@@ -250,7 +287,7 @@ const CASES: [Case; 15] = [
         scenario: Scenario::MisleadingPriors,
         participants: 2400,
         seed: 1_978_792,
-        max_median_halfwidth: 0.1,
+        max_median_halfwidth: 0.145,
         extra: Extra::Nothing,
     },
 ];
@@ -263,8 +300,11 @@ struct Design {
     correlation: f64,
     borrowing: BorrowingPlan,
     decisions: DecisionRules,
-    tuning_samples: f64,
 }
+
+/// The plug-in sequence follows the data's own variance and reads no tuning size; the declaration
+/// still carries a positive one.
+const UNUSED_TUNING_SAMPLES: f64 = 1.0;
 
 fn declare(design: &Design) -> ParticipantSpec {
     ParticipantSpec::new(ParticipantDeclaration {
@@ -277,7 +317,7 @@ fn declare(design: &Design) -> ParticipantSpec {
         lag_looks: design.lag_looks,
         min_exploration: Some(FLOOR),
         decisions: Some(design.decisions),
-        anytime: Some(AnytimeSettings { alpha: ALPHA, tuning_samples: design.tuning_samples }),
+        anytime: Some(AnytimeSettings { alpha: ALPHA, tuning_samples: UNUSED_TUNING_SAMPLES }),
     })
     .expect("a valid procedure")
 }
@@ -301,6 +341,12 @@ fn history_shifted(truth: &[f64], shift: f64) -> BorrowingPlan {
     }
 }
 
+/// Participants planned at this run's grid point: the case's participants on the base point, half
+/// and twice as many at the others.
+fn planned_participants(case: &Case) -> u32 {
+    u32::try_from(calibration::grid_n(case.participants as usize)).expect("a participant count")
+}
+
 fn case_design(case: &Case) -> Design {
     let truth = case.scenario.truth();
     let borrowing = if case.scenario == Scenario::MisleadingPriors {
@@ -309,7 +355,7 @@ fn case_design(case: &Case) -> Design {
         BorrowingPlan::uniform(ARMS, BetaPrior::UNIFORM)
     };
     Design {
-        schedule: vec![case.participants / LOOKS as u32; LOOKS],
+        schedule: vec![planned_participants(case) / LOOKS as u32; LOOKS],
         lag_looks: 1,
         correlation: case.scenario.correlation(),
         borrowing,
@@ -318,8 +364,6 @@ fn case_design(case: &Case) -> Design {
             futility: None,
             participant_cap: None,
         },
-        // The sequences are tightest around a quarter of the arm's final sample.
-        tuning_samples: f64::from(case.participants) / (ARMS as f64 * 4.0),
     }
 }
 
@@ -415,30 +459,10 @@ fn run(
     seed: u64,
     replications: u32,
 ) -> Vec<Option<Score>> {
-    let threads = std::thread::available_parallelism().map_or(1, usize::from).min(16);
-    let mut slots: Vec<Option<Score>> = vec![None; replications as usize];
-    std::thread::scope(|scope| {
-        let handles: Vec<_> = (0..threads)
-            .map(|t| {
-                scope.spawn(move || {
-                    (t..replications as usize)
-                        .step_by(threads)
-                        .map(|r| {
-                            let stream =
-                                seed.wrapping_add((r as u64 + 1).wrapping_mul(0x9E37_79B9));
-                            (r, replicate(spec, truth, correlation, stream))
-                        })
-                        .collect::<Vec<_>>()
-                })
-            })
-            .collect();
-        for handle in handles {
-            for (r, outcome) in handle.join().expect("a replicate thread") {
-                slots[r] = outcome;
-            }
-        }
-    });
-    slots
+    calibration::map_replicates(replications, |r| {
+        let stream = seed.wrapping_add((r + 1).wrapping_mul(0x9E37_79B9));
+        replicate(spec, truth, correlation, stream)
+    })
 }
 
 // -- The published summary -------------------------------------------------------------------------
@@ -509,11 +533,12 @@ fn summarize(scores: &[Option<Score>], planned: u32, looks: usize) -> Summary {
 }
 
 impl Summary {
-    fn to_json(&self, case: &Case) -> Value {
+    fn to_json(&self, case: &Case, planned: u32) -> Value {
         json!({
             "case": case.id,
             "scenario": case.scenario.name(),
-            "participants": case.participants,
+            "participants": planned,
+            "grid_point": calibration::grid_point(),
             "arms": ARMS,
             "responses_per_participant": RESPONSES,
             "looks": LOOKS,
@@ -540,13 +565,68 @@ impl Summary {
     }
 }
 
+/// Replicates of a case: the manifest's, or the reduced count of a wiring smoke run.
+fn replicates() -> u32 {
+    if calibration::smoke() { calibration::n_sim() } else { REPLICATES }
+}
+
+/// The two coverage records of a case: every arm's mean, and the selected treatment's difference
+/// from the control, each covered at every look up to the stop. A replicate that covers reports
+/// an interval around the truth of the width the procedure reported (the mean arm width, or the
+/// selected comparison's); a miss reports the same width away from it, and a replicate that did
+/// not report is a miss.
+fn record_coverage(case: &Case, planned: u32, scores: &[Option<Score>]) {
+    for selected in [false, true] {
+        let (functional, target) = if selected {
+            (
+                adaptive_measured_interval::PARTICIPANT_SELECTED_CONTRAST_FUNCTIONAL,
+                "the selected treatment's difference from the control covered at every look up to the stop",
+            )
+        } else {
+            (
+                adaptive_measured_interval::PARTICIPANT_ARMS_FUNCTIONAL,
+                "every arm's mean covered by its sequence at every look up to the stop, simultaneously",
+            )
+        };
+        let mut tally = CoverageTally::for_record(
+            RecordKey { test: case.id, dgp: case.scenario.dgp(), interval: "confidence_sequence" },
+            0.95,
+        );
+        if selected {
+            tally = tally.labelled("selected_contrast");
+        }
+        let basis = adaptive_measured_interval::participant_sequence_calibration_basis(
+            functional,
+            u64::from(planned),
+        );
+        for score in scores {
+            candidate::bind(&mut tally, &basis);
+            tally.record(
+                score.as_ref().map(|s| {
+                    let (covered, half) = if selected {
+                        (s.selected_every_look, 0.5 * s.selected_width)
+                    } else {
+                        (s.every_look, s.half_width)
+                    };
+                    let centre = if covered { 0.0 } else { half + 1.0 };
+                    (centre - half, centre + half)
+                }),
+                0.0,
+            );
+        }
+        tally.assert_one_sided(CoverageSide::Upper, target);
+    }
+}
+
 fn run_case(case: &Case) {
     let truth = case.scenario.truth();
     let design = case_design(case);
     let spec = declare(&design);
-    let scores = run(&spec, &truth, case.scenario.correlation(), case.seed, REPLICATES);
-    let summary = summarize(&scores, case.participants, LOOKS);
-    println!("adaptive_whole_procedure_summary {}", summary.to_json(case));
+    let planned = planned_participants(case);
+    let seed = calibration::grid_seed(case.seed);
+    let scores = run(&spec, &truth, case.scenario.correlation(), seed, replicates());
+    let summary = summarize(&scores, planned, LOOKS);
+    println!("adaptive_whole_procedure_summary {}", summary.to_json(case, planned));
 
     assert!(
         (summary.reporting_rate - 1.0).abs() < f64::EPSILON,
@@ -578,6 +658,11 @@ fn run_case(case: &Case) {
         case.id,
         summary.selected_coverage_at_stop
     );
+    record_coverage(case, planned, &scores);
+    // The precision, selection and sample-use targets are stated for the case's own participants.
+    if calibration::grid_point() != calibration::BASE_GRID_POINT {
+        return;
+    }
     assert!(
         summary.median_half_width <= case.max_median_halfwidth,
         "{}: median half-width {} exceeds {}",
@@ -713,7 +798,6 @@ fn small_design(cap: Option<u32>, loss_threshold: f64) -> Design {
         correlation: 0.3,
         borrowing: BorrowingPlan::uniform(ARMS, BetaPrior::UNIFORM),
         decisions: DecisionRules { loss_threshold, futility: None, participant_cap: cap },
-        tuning_samples: 20.0,
     }
 }
 

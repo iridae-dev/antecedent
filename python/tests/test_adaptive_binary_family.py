@@ -11,8 +11,9 @@ Truth is computed here in pure Python, never by native code:
   from the retained history;
 * the prior ``Beta(1 + sum a0 s, 1 + sum a0 (n - s))`` of the borrowed sources and its effective
   sample size ``alpha + beta``;
-* the running intersection of the closed-form mixture-Hoeffding radius for the confidence-sequence
-  reading at every look, at the level ``alpha / (2 (K - 1))`` per arm.
+* the running intersection of the predictable plug-in empirical Bernstein intervals (Waudby-Smith
+  and Ramdas 2024), written out from the paper's formulas, for the confidence-sequence reading at
+  every look, at the level ``alpha / K`` per arm.
 
 Every result is ``derived_unmeasured``. The posterior claim and the anytime-valid frequentist claim
 of a look are separate, labelled fields.
@@ -311,33 +312,40 @@ def test_simulating_an_estimated_correlation_needs_the_true_correlation():
     assert len(simulation.replicates) == 3
 
 
-def radius(n: int, alpha: float, tuning: float) -> float:
-    return 0.5 * math.sqrt((n + tuning) * math.log((n + tuning) / (tuning * alpha * alpha))) / n
-
-
-def running_intersection(values: list[float], alpha: float, tuning: float) -> tuple[float, float]:
-    lower, upper, total = 0.0, 1.0, 0.0
-    for index, value in enumerate(values, start=1):
-        total += value
-        mean = total / index
-        lower = max(lower, mean - radius(index, alpha, tuning))
-        upper = min(upper, mean + radius(index, alpha, tuning))
+def running_intersection(values: list[float], alpha: float) -> tuple[float, float]:
+    """The predictable plug-in empirical Bernstein sequence, intersected over the prefixes."""
+    lower, upper = 0.0, 1.0
+    total = squares = tilts = tilted = penalty = 0.0
+    log_term = math.log(2.0 / alpha)
+    for t, x in enumerate(values, start=1):
+        previous_mean = (0.5 + total) / t
+        previous_variance = (0.25 + squares) / t
+        lam = min(math.sqrt(2.0 * log_term / (previous_variance * t * math.log(1.0 + t))), 0.75)
+        tilts += lam
+        tilted += lam * x
+        penalty += (x - previous_mean) ** 2 * (-math.log(1.0 - lam) - lam)
+        total += x
+        squares += (x - (0.5 + total) / (t + 1.0)) ** 2
+        centre, radius = tilted / tilts, (log_term + penalty) / tilts
+        lower = max(lower, centre - radius)
+        upper = min(upper, centre + radius)
     return lower, upper
 
 
 def test_the_frequentist_claim_is_a_confidence_sequence_read_at_every_look(procedure, history):
     readings = procedure.read_history(history)
-    alpha_arm = ALPHA / (2 * 2)
+    alpha_arm = ALPHA / 3
     for look, reading in enumerate(readings.looks):
         claim = reading["frequentist"]
         assert claim["paradigm"] == "anytime_valid_frequentist"
         assert claim["calibration"] == "derived_unmeasured"
+        assert claim["sequence"] == "predictable_plug_in_empirical_bernstein"
         assert claim["alpha_per_arm"] == pytest.approx(alpha_arm)
-        assert claim["alpha_per_comparison"] == pytest.approx(ALPHA / 2)
+        assert claim["alpha_per_comparison"] == pytest.approx(2 * alpha_arm)
         done = completed(history, look, lag=1)
         for arm in range(3):
             proportions = [count / RESPONSES for a, count in done if a == arm]
-            lower, upper = running_intersection(proportions, alpha_arm, TUNING)
+            lower, upper = running_intersection(proportions, alpha_arm)
             assert claim["arms"][arm]["count"] == len(proportions)
             assert claim["arms"][arm]["lower"] == pytest.approx(lower, abs=1e-12)
             assert claim["arms"][arm]["upper"] == pytest.approx(upper, abs=1e-12)

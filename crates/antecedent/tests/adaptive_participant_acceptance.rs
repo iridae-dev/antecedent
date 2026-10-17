@@ -8,7 +8,8 @@
 //! control, with an intra-participant correlation of 0.3.
 //!
 //! Oracles are independent of the code under test: the confidence-sequence readings are compared
-//! with a hand-rolled running intersection of the closed-form mixture radius, the posterior
+//! with a hand-rolled running intersection of the predictable plug-in empirical Bernstein
+//! intervals written out from the paper's formulas, the posterior
 //! spread with the conjugate Beta that ignores the participant structure, the stopping rules with
 //! the expected losses and exceedances the readings themselves report, and coverage with the
 //! simulated truth.
@@ -678,21 +679,29 @@ fn adaptive_partial_participant_batch_refused() {
 
 // -- Confidence sequences at every look ------------------------------------------------------------------
 
-/// The closed-form radius of the normal-mixture Hoeffding sequence after `n` observations.
-fn radius(n: f64, alpha: f64, tuning: f64) -> f64 {
-    0.5 * ((n + tuning) * ((n + tuning) / (tuning * alpha * alpha)).ln()).sqrt() / n
-}
-
-/// The running-intersection sequence of `values` (in pull order).
-fn running_intersection(values: &[f64], alpha: f64, tuning: f64) -> (f64, f64) {
-    let (mut lower, mut upper, mut sum) = (0.0_f64, 1.0_f64, 0.0);
-    for (index, value) in values.iter().enumerate() {
-        sum += value;
-        let n = index as f64 + 1.0;
-        let mean = sum / n;
-        let r = radius(n, alpha, tuning);
-        lower = lower.max(mean - r);
-        upper = upper.min(mean + r);
+/// The running-intersection predictable plug-in empirical Bernstein sequence of `values` (in pull
+/// order), written out from Waudby-Smith and Ramdas (2024): tilt
+/// `min(sqrt(2 ln(2/alpha) / (var_{t-1} t ln(1+t))), 3/4)` with `mu_t = (1/2 + sum) / (t + 1)`
+/// and `var_t = (1/4 + sum (x - mu)^2) / (t + 1)`, centre `sum lambda x / sum lambda` and radius
+/// `(ln(2/alpha) + sum 4 (x - mu_{t-1})^2 psi(lambda)) / sum lambda` with
+/// `psi(lambda) = (-ln(1 - lambda) - lambda) / 4`.
+fn plug_in_intersection(values: &[f64], alpha: f64) -> (f64, f64) {
+    let (mut lower, mut upper) = (0.0_f64, 1.0_f64);
+    let (mut sum, mut squares, mut tilts, mut tilted, mut penalty) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    let log_term = (2.0 / alpha).ln();
+    for (index, &x) in values.iter().enumerate() {
+        let t = index as f64 + 1.0;
+        let previous_mean = (0.5 + sum) / t;
+        let previous_variance = (0.25 + squares) / t;
+        let lambda = (2.0 * log_term / (previous_variance * t * (1.0 + t).ln())).sqrt().min(0.75);
+        tilts += lambda;
+        tilted += lambda * x;
+        penalty += 4.0 * (x - previous_mean).powi(2) * (-(1.0 - lambda).ln() - lambda) / 4.0;
+        sum += x;
+        squares += (x - (0.5 + sum) / (t + 1.0)).powi(2);
+        let (centre, radius) = (tilted / tilts, (log_term + penalty) / tilts);
+        lower = lower.max(centre - radius);
+        upper = upper.min(centre + radius);
     }
     (lower, upper)
 }
@@ -706,14 +715,14 @@ fn adaptive_confidence_sequence_reported_at_every_look() {
     let readings = &report.readings;
     assert_eq!(readings.len(), 12, "twelve looks were performed");
     let history = &run.history;
-    let tuning = 1_200.0 / 16.0;
-    // Alpha over the three comparisons with the control, each over its two arms.
-    let per_arm = ALPHA / (3.0 * 2.0);
+    // Alpha over the four arms; a comparison with the control spends its two arms'.
+    let per_arm = ALPHA / 4.0;
     for (look, reading) in readings.iter().enumerate() {
         assert_eq!(reading.look, look);
         let f = &reading.frequentist;
         assert_eq!(f.paradigm, "anytime_valid_frequentist");
         assert_eq!(f.calibration, DERIVED_UNMEASURED);
+        assert_eq!(f.sequence, "predictable_plug_in_empirical_bernstein");
         assert!((f.alpha - ALPHA).abs() < 1e-15);
         assert!((f.alpha_per_arm - per_arm).abs() < 1e-15);
         assert_eq!(f.arms.len(), 4);
@@ -726,7 +735,7 @@ fn adaptive_confidence_sequence_reported_at_every_look() {
                 .map(|i| f64::from(history.successes[i].unwrap()) / 3.0)
                 .collect();
             assert_eq!(f.arms[arm].count as usize, proportions.len());
-            let (lower, upper) = running_intersection(&proportions, per_arm, tuning);
+            let (lower, upper) = plug_in_intersection(&proportions, per_arm);
             assert!((f.arms[arm].lower - lower).abs() < 1e-12, "look {look} arm {arm}");
             assert!((f.arms[arm].upper - upper).abs() < 1e-12, "look {look} arm {arm}");
             assert!(f.arms[arm].lower <= f.arms[arm].upper);
@@ -779,7 +788,7 @@ fn adaptive_simultaneous_comparisons_against_control() {
         let all = readings.iter().all(|reading| {
             let f = &reading.frequentist;
             assert_eq!(f.comparisons.len(), 3, "one contrast per arm versus the control");
-            assert!((f.alpha_per_comparison - ALPHA / 3.0).abs() < 1e-15);
+            assert!((f.alpha_per_comparison - ALPHA / 2.0).abs() < 1e-15);
             f.comparisons.iter().enumerate().all(|(index, c)| {
                 assert_eq!(c.arm, index + 1);
                 c.lower <= truth[c.arm] - truth[0] && truth[c.arm] - truth[0] <= c.upper
@@ -904,7 +913,7 @@ fn adaptive_posterior_and_frequentist_claims_separate() {
     }
 
     // Separate assumptions: the posterior rests on the declared priors and likelihood, the
-    // anytime-valid claim on the level and tuning alone. A procedure that differs only in the
+    // anytime-valid claim on the level alone (the plug-in sequence has no tuning). A procedure that differs only in the
     // level replays the same history with the same posterior claim and other sequences.
     let mut stricter = declaration(&shape, rules(NEVER), historical(4, 0.5));
     stricter.anytime = Some(AnytimeSettings { alpha: 0.01, tuning_samples: 75.0 });

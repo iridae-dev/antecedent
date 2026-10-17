@@ -26,8 +26,9 @@ use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError as Error, AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan,
     ContractGap, CorrelationPrior, DERIVED_UNMEASURED, DecisionRules, ExactPosterior, FutilityRule,
     HistoricalPrior, LookDecision, LookReading, ParticipantDeclaration, ParticipantHistory,
-    ParticipantSimulationRequest, ParticipantSpec, StopReason, apply_exploration_floor,
-    beta_binomial_pmf, design_effect, simulate_participant_history, simulate_participant_procedure,
+    ParticipantSimulationRequest, ParticipantSpec, SequenceKind, StopReason,
+    apply_exploration_floor, beta_binomial_pmf, design_effect, simulate_participant_history,
+    simulate_participant_procedure,
 };
 use antecedent_stats::ln_gamma;
 
@@ -635,6 +636,32 @@ fn running_intersection(values: &[f64], alpha: f64, tuning: f64) -> (f64, f64) {
     (lower, upper)
 }
 
+/// The running-intersection predictable plug-in empirical Bernstein sequence of `values` (in pull
+/// order), written out from Waudby-Smith and Ramdas (2024): tilt
+/// `min(sqrt(2 ln(2/alpha) / (var_{t-1} t ln(1+t))), 3/4)` with `mu_t = (1/2 + sum) / (t + 1)`
+/// and `var_t = (1/4 + sum (x - mu)^2) / (t + 1)`, centre `sum lambda x / sum lambda` and radius
+/// `(ln(2/alpha) + sum 4 (x - mu_{t-1})^2 psi(lambda)) / sum lambda`.
+fn plug_in_intersection(values: &[f64], alpha: f64) -> (f64, f64) {
+    let (mut lower, mut upper) = (0.0_f64, 1.0_f64);
+    let (mut sum, mut squares, mut tilts, mut tilted, mut penalty) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    let log_term = (2.0 / alpha).ln();
+    for (index, &x) in values.iter().enumerate() {
+        let t = index as f64 + 1.0;
+        let previous_mean = (0.5 + sum) / t;
+        let previous_variance = (0.25 + squares) / t;
+        let lambda = (2.0 * log_term / (previous_variance * t * (1.0 + t).ln())).sqrt().min(0.75);
+        tilts += lambda;
+        tilted += lambda * x;
+        penalty += 4.0 * (x - previous_mean).powi(2) * (-(1.0 - lambda).ln() - lambda) / 4.0;
+        sum += x;
+        squares += (x - (0.5 + sum) / (t + 1.0)).powi(2);
+        let (centre, radius) = (tilted / tilts, (log_term + penalty) / tilts);
+        lower = lower.max(centre - radius);
+        upper = upper.min(centre + radius);
+    }
+    (lower, upper)
+}
+
 #[test]
 fn confidence_sequence_readings_at_every_look_match_an_independent_computation() {
     let s = spec(|d| {
@@ -642,13 +669,44 @@ fn confidence_sequence_readings_at_every_look_match_an_independent_computation()
         d.enrolment = Some(vec![40; 5]);
         d.anytime = Some(AnytimeSettings { alpha: 0.06, tuning_samples: 25.0 });
     });
-    let history = history_of(&s, &[0.3, 0.4, 0.5], 31);
+    assert_eq!(s.sequence_kind(), SequenceKind::PredictablePlugInBernstein);
+    // Per-arm level: alpha over the K = 3 arms; a comparison spends its two arms'.
+    check_sequence_readings(&s, 0.06 / 3.0, 0.04, &|v| plug_in_intersection(v, 0.02));
+}
+
+#[test]
+fn a_retained_mixture_hoeffding_procedure_keeps_its_construction() {
+    let s = spec(|d| {
+        d.lag_looks = 1;
+        d.enrolment = Some(vec![40; 5]);
+        d.anytime = Some(AnytimeSettings { alpha: 0.06, tuning_samples: 25.0 });
+    });
+    let released = s.clone().with_sequence_kind(SequenceKind::MixtureHoeffding);
+    assert_ne!(released.identity(), s.identity());
+    // Alpha over the K - 1 = 2 comparisons against the control, each over its two arms.
+    check_sequence_readings(&released, 0.06 / 4.0, 0.03, &|v| {
+        running_intersection(v, 0.06 / 4.0, 25.0)
+    });
+}
+
+#[test]
+fn borrowing_amendment_keeps_the_sequence_construction() {
+    let released = spec(|_| {}).with_sequence_kind(SequenceKind::MixtureHoeffding);
+    let amended = released.amend_borrowing(released.borrowing(), 0).unwrap();
+    assert_eq!(amended.sequence_kind(), SequenceKind::MixtureHoeffding);
+}
+
+fn check_sequence_readings(
+    s: &ParticipantSpec,
+    alpha_arm: f64,
+    alpha_comparison: f64,
+    interval: &dyn Fn(&[f64]) -> (f64, f64),
+) {
+    let history = history_of(s, &[0.3, 0.4, 0.5], 31);
     let readings = s.read_history(&history, &never).unwrap();
     assert_eq!(readings.len(), history.batches.len(), "a reading at every performed look");
     assert!(readings.len() >= 3, "the run has several looks");
     let m = f64::from(s.responses());
-    // Per-arm level: alpha over the K - 1 = 2 comparisons, each over its two arms.
-    let alpha_arm = 0.06 / (2.0 * 2.0);
     for (look, reading) in readings.iter().enumerate() {
         assert_eq!(reading.look, look);
         assert_eq!(reading.posterior.paradigm, "bayesian_posterior");
@@ -656,7 +714,8 @@ fn confidence_sequence_readings_at_every_look_match_an_independent_computation()
         assert_eq!(f.paradigm, "anytime_valid_frequentist");
         assert_eq!(f.calibration, DERIVED_UNMEASURED);
         close(f.alpha, 0.06, 0.0, "family alpha");
-        close(f.alpha_per_comparison, 0.03, 1e-15, "alpha per comparison");
+        close(f.alpha_per_comparison, alpha_comparison, 1e-15, "alpha per comparison");
+        assert_eq!(f.sequence, s.sequence_kind().label());
         close(f.alpha_per_arm, alpha_arm, 1e-15, "alpha per arm");
         // Participants whose follow-up completed by this look, in enrolment order.
         let completed_batches = look; // lag of one look
@@ -668,7 +727,7 @@ fn confidence_sequence_readings_at_every_look_match_an_independent_computation()
                 .collect();
             assert_eq!(f.arms[arm].count as usize, proportions.len());
             assert_eq!(reading.completed[arm] as usize, proportions.len());
-            let (lower, upper) = running_intersection(&proportions, alpha_arm, 25.0);
+            let (lower, upper) = interval(&proportions);
             close(f.arms[arm].lower, lower, 1e-12, &format!("look {look} arm {arm} lower"));
             close(f.arms[arm].upper, upper, 1e-12, &format!("look {look} arm {arm} upper"));
             match f.arms[arm].mean {

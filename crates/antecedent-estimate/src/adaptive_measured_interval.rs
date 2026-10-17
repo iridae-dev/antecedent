@@ -27,6 +27,10 @@ pub const THOMPSON_ESTIMATOR: &str = "adaptive.thompson_beta_bernoulli.posterior
 pub const WEIGHTED_ESTIMATOR: &str = "adaptive.epsilon_greedy.weighted_aipw";
 /// Estimator of the time-uniform confidence sequence under epsilon-greedy.
 pub const SEQUENCE_ESTIMATOR: &str = "adaptive.epsilon_greedy.confidence_sequence";
+/// Estimator of the participant-level predictable plug-in confidence sequences under Thompson
+/// allocation with expected-loss stopping.
+pub const PARTICIPANT_SEQUENCE_ESTIMATOR: &str =
+    "adaptive.thompson_beta_bernoulli.participant_plug_in_confidence_sequence";
 /// Estimator of the repeated confidence interval under fixed randomization.
 pub const REPEATED_INTERVAL_ESTIMATOR: &str = "adaptive.group_sequential.repeated_interval";
 
@@ -40,6 +44,11 @@ pub const THOMPSON_FIXED_TRUTH_FUNCTIONAL: &str = "arm_success_probability:treat
 pub const CONTRAST_FUNCTIONAL: &str = "arm_contrast:treatment_minus_control";
 /// Mean of the second arm.
 pub const ARM_MEAN_FUNCTIONAL: &str = "arm_mean:treatment";
+/// Every arm's mean at once, read from the participants' success proportions.
+pub const PARTICIPANT_ARMS_FUNCTIONAL: &str = "arm_mean:every_arm_simultaneous";
+/// The data-selected best treatment's difference from the control.
+pub const PARTICIPANT_SELECTED_CONTRAST_FUNCTIONAL: &str =
+    "arm_contrast:selected_treatment_minus_control";
 
 /// Assignment adapts and a posterior rule may stop the trial.
 pub const STOPPED_DEPENDENCE: &str = "adaptive_assignment_stopped_by_posterior_rule";
@@ -98,6 +107,26 @@ pub fn calibration_basis(
         None,
         None,
         0.0,
+    )
+}
+
+/// The calibration key of the participant-level procedure's confidence sequences: the
+/// predictable plug-in empirical Bernstein sequences of the arms, read at every look of a
+/// Thompson-allocated procedure that an expected-loss rule stops. `functional` is
+/// [`PARTICIPANT_ARMS_FUNCTIONAL`] or [`PARTICIPANT_SELECTED_CONTRAST_FUNCTIONAL`] and
+/// `planned_participants` the participants of the plan, not the realized count at the stop.
+#[must_use]
+pub fn participant_sequence_calibration_basis(
+    functional: &str,
+    planned_participants: u64,
+) -> CalibrationBasis {
+    calibration_basis(
+        PARTICIPANT_SEQUENCE_ESTIMATOR,
+        "confidence_sequence",
+        "Frequentist",
+        functional,
+        STOPPED_DEPENDENCE,
+        planned_participants,
     )
 }
 

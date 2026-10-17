@@ -17,10 +17,12 @@
 //!   mean (Hadad, Hirshberg, Zhan, Wager and Athey 2021). Each score is a
 //!   martingale difference under the assignment history, so the weighted sum
 //!   is a martingale however the policy adapts.
-//! * [`confidence_sequence`]: a time-uniform normal-mixture Hoeffding
-//!   confidence sequence for the mean of a `[0, 1]`-bounded arm (Robbins 1970;
-//!   Howard, Ramdas, `McAuliffe` and Sekhon 2021), valid at every sample size
-//!   at once and so under data-dependent stopping.
+//! * [`confidence_sequence`]: time-uniform confidence sequences for the mean
+//!   of a `[0, 1]`-bounded arm, valid at every sample size at once and so
+//!   under data-dependent stopping: a normal-mixture Hoeffding sequence
+//!   (Robbins 1970; Howard, Ramdas, `McAuliffe` and Sekhon 2021) and the
+//!   variance-adaptive predictable plug-in empirical Bernstein betting
+//!   sequence (Waudby-Smith and Ramdas 2024).
 //! * [`group_sequential`]: alpha-spending boundaries (Lan and `DeMets`) for a
 //!   pre-specified set of interim looks, by recursive numerical integration of
 //!   the canonical joint distribution of the interim statistics (Armitage,
@@ -76,8 +78,9 @@ pub use capacity::{
     ResourceBudget, ResourceReceipt,
 };
 pub use confidence_sequence::{
-    ArmSequence, MAX_SEQUENCE_OBSERVATIONS, SequenceState, bounded_mean_confidence_sequence,
-    contrast_bounds, mixture_hoeffding_radius,
+    ArmSequence, MAX_SEQUENCE_OBSERVATIONS, PLUG_IN_LAMBDA_CAP, SequenceKind, SequenceState,
+    bounded_mean_confidence_sequence, contrast_bounds, mixture_hoeffding_radius,
+    plug_in_confidence_sequence,
 };
 pub use group_sequential::{
     Boundaries, MAX_LOOKS, Sidedness, SpendingFunction, StagewiseInference, StagewiseLook,

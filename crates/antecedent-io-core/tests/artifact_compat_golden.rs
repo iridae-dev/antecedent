@@ -439,9 +439,18 @@ fn the_adaptive_monitoring_contract_golden_is_consumed_and_gated() {
 
 const PARTICIPANT_GOLDEN: &str = "adaptive_monitoring_contract_participant_v1.bin";
 
-/// A retained run of the participant-level family and the procedure it ran under.
+/// A retained run of the participant-level family under the confidence sequence the released
+/// golden was written with, and the procedure it ran under.
 fn participant_run()
 -> (AdaptiveDesignContract, antecedent_stats::adaptive_inference::ParticipantSpec) {
+    participant_run_under(antecedent_stats::adaptive_inference::SequenceKind::MixtureHoeffding)
+}
+
+/// A retained run of the participant-level family and the procedure it ran under, reading the
+/// given confidence-sequence construction.
+fn participant_run_under(
+    sequence: antecedent_stats::adaptive_inference::SequenceKind,
+) -> (AdaptiveDesignContract, antecedent_stats::adaptive_inference::ParticipantSpec) {
     use antecedent_stats::adaptive_inference::{
         AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, CorrelationPrior, DecisionRules,
         HistoricalPrior, LookDecision, ParticipantDeclaration, ParticipantSpec,
@@ -479,7 +488,8 @@ fn participant_run()
         }),
         anytime: Some(AnytimeSettings { alpha: 0.05, tuning_samples: 10.0 }),
     })
-    .expect("a valid procedure");
+    .expect("a valid procedure")
+    .with_sequence_kind(sequence);
     let history = simulate_participant_history(&spec, &[0.4, 0.4, 0.4], Some(0.2), 5, &|| false)
         .expect("a history");
     let readings = spec.read_history(&history, &|| false).expect("replays");
@@ -568,11 +578,50 @@ fn the_adaptive_participant_procedure_golden_is_replayed_and_gated() {
     assert_eq!(consumed.contract().identity(), contract.identity());
     let record = consumed.procedure_record().expect("the procedure section is replayed");
     assert_eq!(record.spec().identity(), spec.identity());
+    // The released contract names no sequence construction and replays under its own.
+    assert_eq!(
+        record.spec().sequence_kind(),
+        antecedent_stats::adaptive_inference::SequenceKind::MixtureHoeffding
+    );
     assert_eq!(record.readings().len(), contract.looks());
     // A reading that was edited and resealed does not replay.
     let mut meta = AdaptiveMonitoringContractArtifact::decode_unchecked(&bytes).expect("meta");
     let look = &mut meta.participant_procedure.as_mut().expect("section").looks[0];
     look.numbers_bits[0] = (f64::from_bits(look.numbers_bits[0]) + 0.01).to_bits();
+    AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
+    assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
+}
+
+#[test]
+fn a_plug_in_sequence_procedure_records_its_construction_and_replays() {
+    use antecedent_stats::adaptive_inference::SequenceKind;
+    let plug_in = SequenceKind::PredictablePlugInBernstein;
+    let (contract, spec) = participant_run_under(plug_in);
+    let (_, released) = participant_run();
+    // The construction is part of the procedure's identity.
+    assert_ne!(spec.identity(), released.identity());
+    let bytes = AdaptiveMonitoringContractArtifact::to_bytes_with_procedure(
+        &contract,
+        InferenceParadigm::BayesianPosterior,
+        &spec,
+        "plug-in-sequence",
+    )
+    .unwrap();
+    let consumed = AdaptiveMonitoringContractArtifact::from_bytes(&bytes, None)
+        .expect("a fresh consumer replays the plug-in sequence");
+    let record = consumed.procedure_record().expect("the procedure section is replayed");
+    assert_eq!(record.spec().sequence_kind(), plug_in);
+    assert_eq!(record.spec().identity(), spec.identity());
+    // A section edited to name the released sequence, and resealed, does not replay.
+    let mut meta = AdaptiveMonitoringContractArtifact::decode_unchecked(&bytes).expect("meta");
+    let section = meta.participant_procedure.as_mut().expect("section");
+    assert_eq!(section.anytime_sequence.as_deref(), Some(plug_in.label()));
+    section.anytime_sequence = None;
+    AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
+    assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
+    // A construction the consumer does not know is refused, not defaulted.
+    let section = meta.participant_procedure.as_mut().expect("section");
+    section.anytime_sequence = Some("unknown_construction".to_owned());
     AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
     assert!(AdaptiveMonitoringContractArtifact::from_meta(&meta, None).is_err());
 }

@@ -223,6 +223,7 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::RepeatedMeasur
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ResolvedArmPrior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::clone::Clone for antecedent_stats::adaptive_inference::SequenceKind
 impl core::clone::Clone for antecedent_stats::adaptive_inference::SequenceState
 impl core::clone::Clone for antecedent_stats::adaptive_inference::Sidedness
 impl core::clone::Clone for antecedent_stats::adaptive_inference::SimulatedLaw
@@ -295,6 +296,7 @@ impl core::cmp::Eq for antecedent_stats::adaptive_inference::ProcedureContractEr
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::RepeatedMeasuresRequest
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::cmp::Eq for antecedent_stats::adaptive_inference::SequenceKind
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::Sidedness
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::SpendingFunction
 impl core::cmp::Eq for antecedent_stats::adaptive_inference::StopReason
@@ -445,6 +447,7 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::RepeatedMeas
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ResolvedArmPrior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::SequenceKind
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::SequenceState
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::Sidedness
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::SimulatedLaw
@@ -714,6 +717,7 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::RepeatedMeasures
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ResolvedArmPrior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::SequenceKind
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::SequenceState
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::Sidedness
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::SimulatedLaw
@@ -772,6 +776,7 @@ impl core::hash::Hash for antecedent_stats::GlmFamily
 impl core::hash::Hash for antecedent_stats::MatchingDistance
 impl core::hash::Hash for antecedent_stats::MultipleTestingMethod
 impl core::hash::Hash for antecedent_stats::SignificanceMethod
+impl core::hash::Hash for antecedent_stats::adaptive_inference::SequenceKind
 impl core::hash::Hash for antecedent_stats::adaptive_inference::UncertaintyParadigm
 impl core::hash::Hash for antecedent_stats::ci::AttainableP
 impl core::marker::Copy for antecedent_stats::BasisKind
@@ -860,6 +865,7 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::RepeatedMeasur
 impl core::marker::Copy for antecedent_stats::adaptive_inference::RepeatedMeasuresSummary
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::marker::Copy for antecedent_stats::adaptive_inference::SequenceKind
 impl core::marker::Copy for antecedent_stats::adaptive_inference::SequenceState
 impl core::marker::Copy for antecedent_stats::adaptive_inference::Sidedness
 impl core::marker::Copy for antecedent_stats::adaptive_inference::SimulatedReplicate
@@ -1061,6 +1067,7 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeas
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::Sidedness [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::SimulatedLaw [auto]
@@ -1281,6 +1288,7 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasur
 impl core::marker::Send for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::Sidedness [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::SimulatedLaw [auto]
@@ -1463,6 +1471,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ResolvedArmPrior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ResourceBudget
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ResourceReceipt
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::SequenceKind
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::SequenceState
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::Sidedness
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::SimulatedLaw
@@ -1683,6 +1692,7 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasur
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::Sidedness [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::SimulatedLaw [auto]
@@ -1903,6 +1913,7 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasu
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::Sidedness [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::SimulatedLaw [auto]
@@ -2123,6 +2134,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::Sidedness [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::SimulatedLaw [auto]
@@ -2343,6 +2355,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ResolvedArmPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ResourceBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ResourceReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::SequenceKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::SequenceState [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::Sidedness [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::SimulatedLaw [auto]
@@ -2542,6 +2555,7 @@ pub const antecedent_stats::adaptive_inference::MAX_UNIT_BATCHES: usize
 pub const antecedent_stats::adaptive_inference::MAX_UNIT_LAG: usize
 pub const antecedent_stats::adaptive_inference::MAX_WEIGHTED_ARMS: usize
 pub const antecedent_stats::adaptive_inference::PARTICIPANT_PROCEDURE_VERSION: u64
+pub const antecedent_stats::adaptive_inference::PLUG_IN_LAMBDA_CAP: f64
 pub const antecedent_stats::adaptive_inference::REPLAY_TOLERANCE: f64
 pub const antecedent_stats::adaptive_inference::participant_posterior::MAX_ARMS: usize
 pub const antecedent_stats::adaptive_inference::participant_posterior::MAX_RESPONSES: u32
@@ -2580,6 +2594,7 @@ pub enum antecedent_stats::adaptive_inference::Estimand
 pub enum antecedent_stats::adaptive_inference::EstimandStatement
 pub enum antecedent_stats::adaptive_inference::Functional
 pub enum antecedent_stats::adaptive_inference::LookDecision
+pub enum antecedent_stats::adaptive_inference::SequenceKind
 pub enum antecedent_stats::adaptive_inference::StopReason
 pub enum antecedent_stats::synthesis_transport::SummaryOrigin
 pub field antecedent_stats::BlockTest::x_cols: &'a [usize]
@@ -3011,6 +3026,7 @@ pub field antecedent_stats::adaptive_inference::FrequentistClaim::best_treatment
 pub field antecedent_stats::adaptive_inference::FrequentistClaim::calibration: &'static str
 pub field antecedent_stats::adaptive_inference::FrequentistClaim::comparisons: alloc::vec::Vec<antecedent_stats::adaptive_inference::ComparisonReading>
 pub field antecedent_stats::adaptive_inference::FrequentistClaim::paradigm: &'static str
+pub field antecedent_stats::adaptive_inference::FrequentistClaim::sequence: &'static str
 pub field antecedent_stats::adaptive_inference::FutilityRule::margin: f64
 pub field antecedent_stats::adaptive_inference::FutilityRule::threshold: f64
 pub field antecedent_stats::adaptive_inference::GaussianMixtureLaw::components: alloc::vec::Vec<antecedent_stats::adaptive_inference::MixtureComponent>
@@ -3492,6 +3508,8 @@ pub fn <antecedent_stats::adaptive_inference::ParticipantSpec>::const fn declara
 pub fn <antecedent_stats::adaptive_inference::ParticipantSpec>::const fn lag_looks(&self) -> usize
 pub fn <antecedent_stats::adaptive_inference::ParticipantSpec>::const fn min_exploration(&self) -> f64
 pub fn <antecedent_stats::adaptive_inference::ParticipantSpec>::const fn responses(&self) -> u32
+pub fn <antecedent_stats::adaptive_inference::ParticipantSpec>::const fn sequence_kind(&self) -> antecedent_stats::adaptive_inference::SequenceKind
+pub fn <antecedent_stats::adaptive_inference::ParticipantSpec>::const fn with_sequence_kind(self, sequence: antecedent_stats::adaptive_inference::SequenceKind) -> Self
 pub fn <antecedent_stats::adaptive_inference::ParticipantSpec>::const fn work_per_participant(&self) -> u32
 pub fn <antecedent_stats::adaptive_inference::ParticipantSpec>::fn alpha_per_arm(&self) -> f64
 pub fn <antecedent_stats::adaptive_inference::ParticipantSpec>::fn amend_borrowing(&self, proposed: &antecedent_stats::adaptive_inference::BorrowingPlan, looks_performed: usize) -> core::result::Result<Self, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
@@ -3545,8 +3563,12 @@ pub fn <antecedent_stats::adaptive_inference::RepeatedMeasuresSpec>::fn revealed
 pub fn <antecedent_stats::adaptive_inference::RepeatedMeasuresSpec>::fn total_units(&self) -> u32
 pub fn <antecedent_stats::adaptive_inference::RepeatedMeasuresSpec>::fn unit_summary_variance(&self) -> f64
 pub fn <antecedent_stats::adaptive_inference::ResourceBudget>::fn from_context(ctx: &antecedent_core::execution::ExecutionContext) -> Self
+pub fn <antecedent_stats::adaptive_inference::SequenceKind>::const fn label(self) -> &'static str
+pub fn <antecedent_stats::adaptive_inference::SequenceKind>::fn from_label(label: &str) -> core::option::Option<Self>
 pub fn <antecedent_stats::adaptive_inference::SequenceState>::const fn count(&self) -> u64
 pub fn <antecedent_stats::adaptive_inference::SequenceState>::fn new(alpha: f64, tuning_samples: f64) -> core::result::Result<Self, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::SequenceState>::fn of_kind(kind: antecedent_stats::adaptive_inference::SequenceKind, alpha: f64, tuning_samples: f64) -> core::result::Result<Self, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::SequenceState>::fn predictable_plug_in(alpha: f64) -> core::result::Result<Self, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn <antecedent_stats::adaptive_inference::SequenceState>::fn push(&mut self, value: f64) -> core::result::Result<(), antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn <antecedent_stats::adaptive_inference::SequenceState>::fn reading(&self) -> core::result::Result<antecedent_stats::adaptive_inference::ArmSequence, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn <antecedent_stats::adaptive_inference::Sidedness>::const fn as_str(self) -> &'static str
@@ -3600,6 +3622,7 @@ pub fn antecedent_stats::adaptive_inference::boundaries(fractions: &[f64], alpha
 pub fn antecedent_stats::adaptive_inference::bounded_mean_confidence_sequence(values: &[f64], alpha: f64, tuning_samples: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ArmSequence, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::confidence_sequence::contrast_bounds(a: &antecedent_stats::adaptive_inference::ArmSequence, b: &antecedent_stats::adaptive_inference::ArmSequence) -> (f64, f64)
 pub fn antecedent_stats::adaptive_inference::confidence_sequence::mixture_hoeffding_radius(count: u64, alpha: f64, tuning_samples: f64) -> core::result::Result<f64, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_stats::adaptive_inference::confidence_sequence::plug_in_confidence_sequence(values: &[f64], alpha: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ArmSequence, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::crossing_probabilities(fractions: &[f64], critical: &[f64], sidedness: antecedent_stats::adaptive_inference::Sidedness, drift: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::decision_report(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, truth: &[f64], cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::DecisionReport, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::derive_repeated_measures(spec: &antecedent_stats::adaptive_inference::RepeatedMeasuresSpec, arm_means: &[f64], request: &antecedent_stats::adaptive_inference::RepeatedMeasuresRequest, z: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
@@ -4059,6 +4082,8 @@ pub use antecedent_stats::adaptive_inference::capacity::ResourceBudget = anteced
 pub use antecedent_stats::adaptive_inference::capacity::ResourceReceipt = antecedent_stats::adaptive_inference::ResourceReceipt
 pub use antecedent_stats::adaptive_inference::confidence_sequence::ArmSequence = antecedent_stats::adaptive_inference::ArmSequence
 pub use antecedent_stats::adaptive_inference::confidence_sequence::MAX_SEQUENCE_OBSERVATIONS = antecedent_stats::adaptive_inference::MAX_SEQUENCE_OBSERVATIONS
+pub use antecedent_stats::adaptive_inference::confidence_sequence::PLUG_IN_LAMBDA_CAP = antecedent_stats::adaptive_inference::PLUG_IN_LAMBDA_CAP
+pub use antecedent_stats::adaptive_inference::confidence_sequence::SequenceKind = antecedent_stats::adaptive_inference::SequenceKind
 pub use antecedent_stats::adaptive_inference::confidence_sequence::SequenceState = antecedent_stats::adaptive_inference::SequenceState
 pub use antecedent_stats::adaptive_inference::confidence_sequence::bounded_mean_confidence_sequence = antecedent_stats::adaptive_inference::bounded_mean_confidence_sequence
 pub use antecedent_stats::adaptive_inference::contrast_bounds = antecedent_stats::adaptive_inference::confidence_sequence::contrast_bounds
@@ -4113,6 +4138,7 @@ pub use antecedent_stats::adaptive_inference::participant_procedure::StopFractio
 pub use antecedent_stats::adaptive_inference::participant_procedure::StopReason = antecedent_stats::adaptive_inference::StopReason
 pub use antecedent_stats::adaptive_inference::participant_procedure::beta_binomial_pmf = antecedent_stats::adaptive_inference::beta_binomial_pmf
 pub use antecedent_stats::adaptive_inference::participant_procedure::design_effect = antecedent_stats::adaptive_inference::design_effect
+pub use antecedent_stats::adaptive_inference::plug_in_confidence_sequence = antecedent_stats::adaptive_inference::confidence_sequence::plug_in_confidence_sequence
 pub use antecedent_stats::adaptive_inference::probability_exceeds = antecedent_stats::adaptive_inference::beta_bernoulli::probability_exceeds
 pub use antecedent_stats::adaptive_inference::probability_superior = antecedent_stats::adaptive_inference::beta_bernoulli::probability_superior
 pub use antecedent_stats::adaptive_inference::procedure_contract::AssignmentRule = antecedent_stats::adaptive_inference::AssignmentRule
@@ -4638,6 +4664,8 @@ pub variant antecedent_stats::adaptive_inference::OutcomeKernel::Fixed { success
 pub variant antecedent_stats::adaptive_inference::OutcomeKernel::PriorPredictive { priors: alloc::vec::Vec<antecedent_stats::adaptive_inference::BetaPrior> }
 pub variant antecedent_stats::adaptive_inference::OutcomeStructure::Hierarchical { members: u32, between_variance: core::option::Option<f64>, within_variance: core::option::Option<f64> }
 pub variant antecedent_stats::adaptive_inference::OutcomeStructure::RepeatedMeasures { measurements: u32, variance: f64, correlation: core::option::Option<antecedent_stats::adaptive_inference::WithinUnitCorrelation> }
+pub variant antecedent_stats::adaptive_inference::SequenceKind::MixtureHoeffding
+pub variant antecedent_stats::adaptive_inference::SequenceKind::PredictablePlugInBernstein
 pub variant antecedent_stats::adaptive_inference::Sidedness::OneSidedUpper
 pub variant antecedent_stats::adaptive_inference::Sidedness::TwoSidedSymmetric
 pub variant antecedent_stats::adaptive_inference::SpendingFunction::OBrienFlemingType

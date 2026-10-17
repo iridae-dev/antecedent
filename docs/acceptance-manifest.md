@@ -13,13 +13,13 @@ Cases are grouped by `area` (ingest, identifiers, missing data, adaptive procedu
 | `workflow` | The public Python call or Rust facade function a practitioner uses. |
 | `configuration` | Inline table of the supported configuration: sizes, arms, responses, variables, steps, draws, candidates, studies. |
 | `expected` | `kind` is `value`, `refusal`, `interval`, `calibrated_interval` or `receipt`, with the required `outputs`. A refusal also states `refusal`. |
-| `targets` | `runtime_seconds` and `memory_bytes` on the reference workstation (8 cores, 16 GiB), plus the rates the kind needs, and a `rationale`. |
+| `targets` | `runtime_seconds` and `memory_bytes` on the reference workstation (8 cores, 16 GiB), plus the rates the kind needs, and a `rationale`. A target that was later re-derived also carries `target_change`, the recorded reason, the old and new value and how the new one was derived. |
 | `dataset` | `generator`, `seed`, `n` and the effect sizes, correlation or priors, with `simulated_representative = true`. |
 | `evidence` | `status = "planned"` until a test binds it; then `status = "bound"` and `test = "<path>::<fn>"`. |
 
 Interval cases state `nominal_coverage` and a `coverage_floor` below it. A `calibrated_interval` case also requires at least 2,000 replicates, a reporting rate of at least 0.90 and a precision target (`max_median_*`).
 
-Targets are frozen. Later work may bind evidence but may not loosen a target without a recorded reason in the change that does so.
+Targets are frozen. Later work may bind evidence but may not loosen a target without a recorded reason in the change that does so. The reason is written into the case itself as `targets.target_change` (the checker requires it to be non-empty text when present), so the record travels with the target it explains.
 
 ## Run the checker
 

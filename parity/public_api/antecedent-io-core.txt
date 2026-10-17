@@ -9651,6 +9651,7 @@ pub field antecedent_io_core::adaptive_monitoring_contract_artifact::MonitoringC
 pub field antecedent_io_core::adaptive_monitoring_contract_artifact::PolicyEpochWire::first_unit: u32
 pub field antecedent_io_core::adaptive_monitoring_contract_artifact::PolicyEpochWire::identity: alloc::string::String
 pub field antecedent_io_core::adaptive_monitoring_contract_artifact::ProcedureWire::anytime_alpha_bits: u64
+pub field antecedent_io_core::adaptive_monitoring_contract_artifact::ProcedureWire::anytime_sequence: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::adaptive_monitoring_contract_artifact::ProcedureWire::anytime_tuning_bits: u64
 pub field antecedent_io_core::adaptive_monitoring_contract_artifact::ProcedureWire::arms: alloc::vec::Vec<antecedent_io_core::adaptive_monitoring_contract_artifact::ArmPriorWire>
 pub field antecedent_io_core::adaptive_monitoring_contract_artifact::ProcedureWire::correlation_bits: u64

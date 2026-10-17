@@ -62,7 +62,7 @@ use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError, AnytimeSettings, ArmPrior, BetaPrior, BorrowingPlan, Boundaries,
     CapacityError, CorrelationPrior, DecisionRules, FutilityRule, HistoricalPrior, LookDecision,
     LookReading, MAX_RETAINED_LOOKS, ParticipantDeclaration, ParticipantHistory, ParticipantSpec,
-    Sidedness, SpendingFunction, boundaries as spend_boundaries,
+    SequenceKind, Sidedness, SpendingFunction, boundaries as spend_boundaries,
 };
 use serde::{Deserialize, Serialize};
 
@@ -380,6 +380,11 @@ pub struct ProcedureWire {
     pub anytime_alpha_bits: u64,
     /// Tuning sample size of the sequences, as `f64` bits.
     pub anytime_tuning_bits: u64,
+    /// Construction of the confidence sequences ([`SequenceKind::label`]);
+    /// absent for the mixture-Hoeffding sequence of earlier contracts, which
+    /// replay under it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anytime_sequence: Option<String>,
     /// Identity (hex) of the declared procedure.
     pub procedure_identity: String,
     /// The reading at every performed look.
@@ -847,6 +852,8 @@ fn procedure_to_wire(spec: &ParticipantSpec, readings: &[LookReading]) -> Proced
         participant_cap: decisions.participant_cap,
         anytime_alpha_bits: spec.anytime().alpha.to_bits(),
         anytime_tuning_bits: spec.anytime().tuning_samples.to_bits(),
+        anytime_sequence: (spec.sequence_kind() != SequenceKind::MixtureHoeffding)
+            .then(|| spec.sequence_kind().label().to_owned()),
         procedure_identity: spec.identity(),
         looks: readings
             .iter()
@@ -914,19 +921,26 @@ fn spec_from_wire(wire: &ProcedureWire, arms: usize) -> Result<ParticipantSpec, 
             tuning_samples: f64::from_bits(wire.anytime_tuning_bits),
         }),
     };
-    ParticipantSpec::new(declaration).map_err(|error| Error::Refused {
-        code: error
-            .gaps
-            .first()
-            .map_or(antecedent_core::reason_code!("invalid_argument"), |gap| gap.reason_code()),
-        detail: error.gaps.first().map_or_else(String::new, |gap| gap.detail().to_owned()),
-        message: error
-            .gaps
-            .iter()
-            .map(|gap| format!("{}: {}", gap.detail(), gap.remedy()))
-            .collect::<Vec<_>>()
-            .join("; "),
-    })
+    let sequence = match wire.anytime_sequence.as_deref() {
+        None => SequenceKind::MixtureHoeffding,
+        Some(label) => SequenceKind::from_label(label)
+            .ok_or(Error::UnsupportedSemantics("confidence sequence construction"))?,
+    };
+    ParticipantSpec::new(declaration)
+        .map_err(|error| Error::Refused {
+            code: error
+                .gaps
+                .first()
+                .map_or(antecedent_core::reason_code!("invalid_argument"), |gap| gap.reason_code()),
+            detail: error.gaps.first().map_or_else(String::new, |gap| gap.detail().to_owned()),
+            message: error
+                .gaps
+                .iter()
+                .map(|gap| format!("{}: {}", gap.detail(), gap.remedy()))
+                .collect::<Vec<_>>()
+                .join("; "),
+        })
+        .map(|spec| spec.with_sequence_kind(sequence))
 }
 
 /// The retained history of a contract in the terms of the procedure.

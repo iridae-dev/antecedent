@@ -144,6 +144,10 @@ def case_problems(case: dict[str, Any]) -> list[str]:
                 errors.append(f"{prefix}: targets.{key} must be a positive number")
         if not isinstance(targets.get("rationale"), str) or not targets["rationale"].strip():
             errors.append(f"{prefix}: targets.rationale is required")
+        if "target_change" in targets and (
+            not isinstance(targets["target_change"], str) or not targets["target_change"].strip()
+        ):
+            errors.append(f"{prefix}: targets.target_change must state the reason a target was re-derived")
         for key in RATE_KEYS:
             if key in targets and not (isinstance(targets[key], (int, float))
                                        and not isinstance(targets[key], bool)
@@ -399,6 +403,9 @@ def self_test() -> int:
     expect("hc ids allowed", mutate(lambda c, d: c.update(id="hc0_covariance_100000_rows")), None)
     expect("missing area", mutate(lambda c, d: d["case"].pop()), "has no case")
     expect("no rationale", mutate(lambda c, d: c["targets"].pop("rationale")), "rationale")
+    expect("target change recorded", mutate(lambda c, d: c["targets"].update(target_change="Re-derived at the realized size.")), None)
+    expect("empty target change", mutate(lambda c, d: c["targets"].update(target_change=" ")), "target_change")
+    expect("target change not text", mutate(lambda c, d: c["targets"].update(target_change=3)), "target_change")
     expect("refusal needs reason", mutate(lambda c, d: c["expected"].update(kind="refusal")), "expected.refusal")
     expect("calibrated needs replicates", mutate(lambda c, d: c["expected"].update(kind="calibrated_interval")), "nominal_coverage")
     expect("not simulated", mutate(lambda c, d: c["dataset"].update(simulated_representative=False)), "simulated_representative")

@@ -2170,9 +2170,12 @@ class ParticipantDecisions:
 class AnytimeSettings:
     """The confidence sequences read at every look.
 
-    ``alpha`` is the total miscoverage of the simultaneous family over the ``K - 1`` comparisons
-    against the control; ``tuning_samples`` is the participants per arm at which the sequences are
-    tightest.
+    ``alpha`` is the total miscoverage of the simultaneous family over the ``K`` arms (each arm's
+    sequence is built at ``alpha / K``). The sequences are the variance-adaptive predictable
+    plug-in empirical Bernstein sequences, which follow the data's own spread and are not tuned
+    to a sample size: ``tuning_samples`` must be positive but is read only when a retained
+    mixture-Hoeffding procedure is replayed, where it is the participants per arm at which that
+    sequence is tightest.
     """
 
     alpha: float

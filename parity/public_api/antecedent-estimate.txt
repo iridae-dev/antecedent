@@ -6476,6 +6476,9 @@ pub const antecedent_estimate::adaptive_measured_interval::FINAL_DEPENDENCE: &st
 pub const antecedent_estimate::adaptive_measured_interval::GROUP_SEQUENTIAL_DEPENDENCE: &str
 pub const antecedent_estimate::adaptive_measured_interval::MEASURED_EXPLORATION: f64
 pub const antecedent_estimate::adaptive_measured_interval::MEASURED_LEVEL: f64
+pub const antecedent_estimate::adaptive_measured_interval::PARTICIPANT_ARMS_FUNCTIONAL: &str
+pub const antecedent_estimate::adaptive_measured_interval::PARTICIPANT_SELECTED_CONTRAST_FUNCTIONAL: &str
+pub const antecedent_estimate::adaptive_measured_interval::PARTICIPANT_SEQUENCE_ESTIMATOR: &str
 pub const antecedent_estimate::adaptive_measured_interval::QUERY: &str
 pub const antecedent_estimate::adaptive_measured_interval::REPEATED_INTERVAL_ESTIMATOR: &str
 pub const antecedent_estimate::adaptive_measured_interval::SEQUENCE_ALPHA: f64
@@ -10048,6 +10051,7 @@ pub fn antecedent_estimate::adaptive_inference::group_sequential_decision(plan: 
 pub fn antecedent_estimate::adaptive_inference::standardized_difference(control: &[f64], treatment: &[f64]) -> core::result::Result<f64, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_estimate::adaptive_measured_interval::beta_credible_interval(alpha: f64, beta: f64, level: f64) -> core::option::Option<(f64, f64)>
 pub fn antecedent_estimate::adaptive_measured_interval::calibration_basis(estimator: &str, interval_method: &str, inference: &str, functional: &str, dependence: &str, rows: u64) -> antecedent_core::calibration_basis::CalibrationBasis
+pub fn antecedent_estimate::adaptive_measured_interval::participant_sequence_calibration_basis(functional: &str, planned_participants: u64) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn antecedent_estimate::adaptive_measured_interval::repeated_confidence_interval(estimate: f64, standard_error: f64, critical: f64) -> core::option::Option<(f64, f64)>
 pub fn antecedent_estimate::adaptive_measured_interval::weighted_wald_interval(estimate: f64, variance: f64, level: f64) -> core::option::Option<(f64, f64)>
 pub fn antecedent_estimate::adaptive_measured_interval::welch_difference(control: &[f64], treatment: &[f64]) -> core::option::Option<(f64, f64)>

@@ -234,6 +234,7 @@ fn reading_json(reading: &LookReading) -> Json {
         "frequentist": {
             "paradigm": frequentist.paradigm,
             "calibration": frequentist.calibration,
+            "sequence": frequentist.sequence,
             "alpha": frequentist.alpha,
             "alpha_per_comparison": frequentist.alpha_per_comparison,
             "alpha_per_arm": frequentist.alpha_per_arm,
@@ -319,6 +320,7 @@ impl ParticipantProcedureHandle {
             "anytime": {
                 "alpha": spec.anytime().alpha,
                 "tuning_samples": spec.anytime().tuning_samples,
+                "sequence": spec.sequence_kind().label(),
                 "alpha_per_arm": spec.alpha_per_arm(),
             },
             "cell": cell.id(),
