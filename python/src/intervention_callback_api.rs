@@ -13,13 +13,15 @@ use std::sync::Arc;
 
 use antecedent_core::{
     BatchCallback, CallbackError, CallbackImplementation, CallbackOutput, CallbackSpec,
-    PinnedDependency, Portability, RecoveryRecord, ValueExpr, VariableId,
+    Intervention, PinnedDependency, Portability, RecoveryRecord, ValueExpr, VariableId,
 };
+use antecedent_io::policy_program_artifact as artifact;
 use numpy::{PyArray1, PyReadonlyArray1};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyTuple};
 
 use crate::interrupt::callback_failure;
+use crate::intervention_program_api::{index_resolver, io_err};
 use crate::{refusal, value_err};
 
 /// A Python function behind the [`BatchCallback`] interface.
@@ -292,8 +294,160 @@ pub(crate) fn program_intervention(
     }
 }
 
+/// One program of a mixed list, as Python hands it over: a closed-form program (its
+/// one-element program text) or a callback program `(mode, variable, callback, reads)` with
+/// `reads` naming variables (`None` is the node's own generated value).
+type ProgramItem =
+    (Option<String>, Option<(String, String, Py<PyBatchCallbackHandle>, Vec<Option<String>>)>);
+
+/// Encode a list of closed-form and callback programs, in order, as a versioned portable
+/// artifact. Every callback must be recoverable: the artifact then carries its recovery record
+/// and never its code, under an encoding version that only a program with callbacks uses.
+///
+/// # Errors
+///
+/// `policy_callback_not_portable` for a runtime-bound callback, or a malformed program.
+#[pyfunction]
+pub fn encode_callback_policy_program(
+    py: Python<'_>,
+    names: Vec<String>,
+    items: Vec<ProgramItem>,
+) -> PyResult<Bound<'_, PyBytes>> {
+    let resolve = index_resolver(&names);
+    let mut interventions: Vec<Intervention> = Vec::with_capacity(items.len());
+    for (closed, callback) in &items {
+        match (closed, callback) {
+            (Some(text), None) => interventions
+                .extend(artifact::interventions_from_named_json(text, &resolve).map_err(io_err)?),
+            (None, Some((mode, variable, handle, reads))) => {
+                let id = resolve(variable)
+                    .map(VariableId::from_raw)
+                    .ok_or_else(|| value_err(format!("unknown variable {variable:?}")))?;
+                let args = reads
+                    .iter()
+                    .map(|read| match read {
+                        Some(name) => resolve(name)
+                            .map(|raw| ValueExpr::var(VariableId::from_raw(raw)))
+                            .ok_or_else(|| value_err(format!("unknown variable {name:?}"))),
+                        None => Ok(ValueExpr::generated()),
+                    })
+                    .collect::<PyResult<Vec<_>>>()?;
+                interventions.push(program_intervention(mode, id, handle.get(), args)?);
+            }
+            _ => return Err(value_err("a program item is either closed-form or a callback")),
+        }
+    }
+    let bytes = artifact::encode_policy_program(&interventions).map_err(io_err)?;
+    Ok(PyBytes::new(py, &bytes))
+}
+
+/// The recovery records an encoded program carries, in the order its callbacks run: what a
+/// consumer must supply implementations for. The artifact's version, identity and validity are
+/// checked first.
+#[pyfunction]
+pub fn policy_program_callback_records(py: Python<'_>, data: &[u8]) -> PyResult<Vec<Py<PyDict>>> {
+    artifact::policy_program_callback_records(data)
+        .map_err(io_err)?
+        .iter()
+        .map(|record| {
+            let out = PyDict::new(py);
+            out.set_item("name", &record.name)?;
+            out.set_item("inputs", record.inputs.to_vec())?;
+            let (kind, params) = output_parts(&record.output);
+            out.set_item("output_kind", kind)?;
+            out.set_item("output_params", params)?;
+            out.set_item("source_sha256", &record.source_sha256)?;
+            out.set_item("entry_point", &record.entry_point)?;
+            let dependencies: Vec<(String, String)> =
+                record.dependencies.iter().map(|d| (d.name.clone(), d.version.clone())).collect();
+            out.set_item("dependencies", dependencies)?;
+            Ok(out.unbind())
+        })
+        .collect()
+}
+
+/// Decode an encoded program that may carry callbacks, binding each recovery record to the
+/// supplied callback of that name and re-verifying it against the record first.
+///
+/// Returns the programs in order as `("closed", program_text, None, None, None)` or
+/// `("callback", mode, variable, callback_name, reads)`.
+///
+/// # Errors
+///
+/// The artifact's own refusals, and `policy_callback_unrecoverable` for a record with no
+/// supplied callback or one that does not match.
+#[pyfunction]
+#[allow(clippy::type_complexity, reason = "the flat tuple the Python facade unpacks")]
+pub fn decode_callback_policy_program(
+    names: Vec<String>,
+    data: &[u8],
+    supplied: Vec<PyRef<'_, PyBatchCallbackHandle>>,
+) -> PyResult<Vec<(String, String, Option<String>, Option<String>, Option<Vec<Option<String>>>)>> {
+    let by_name: Vec<(&str, Arc<dyn BatchCallback>)> = supplied
+        .iter()
+        .map(|h| (h.inner.spec.name.as_str(), Arc::clone(&h.inner) as Arc<dyn BatchCallback>))
+        .collect();
+    let interventions = artifact::decode_policy_program_with(data, &|record| {
+        by_name.iter().find(|(name, _)| *name == record.name).map(|(_, cb)| Arc::clone(cb))
+    })
+    .map_err(io_err)?;
+    let spell = |id: VariableId| {
+        names
+            .get(id.raw() as usize)
+            .cloned()
+            .ok_or_else(|| value_err(format!("variable id {} has no name", id.raw())))
+    };
+    interventions
+        .iter()
+        .map(|iv| {
+            let callback_program = match iv {
+                Intervention::Transform { variable, expr: ValueExpr::Callback(call), .. } => {
+                    Some(("transform", variable, call))
+                }
+                Intervention::Assign { variable, expr: ValueExpr::Callback(call), .. } => {
+                    Some(("assign", variable, call))
+                }
+                _ => None,
+            };
+            if let Some((mode, variable, call)) = callback_program {
+                let reads = call
+                    .args()
+                    .iter()
+                    .map(|arg| match arg {
+                        ValueExpr::Var(id) => spell(*id).map(Some),
+                        ValueExpr::Generated => Ok(None),
+                        _ => Err(value_err(format!(
+                            "callback {} is applied to an expression; Python programs apply a \
+                             callback to variables or the generated value only",
+                            call.spec().name
+                        ))),
+                    })
+                    .collect::<PyResult<Vec<_>>>()?;
+                return Ok((
+                    "callback".to_string(),
+                    mode.to_string(),
+                    Some(spell(*variable)?),
+                    Some(call.spec().name.clone()),
+                    Some(reads),
+                ));
+            }
+            if matches!(iv.portability(), Portability::Recoverable(_)) {
+                return Err(value_err(
+                    "a callback nested inside a larger expression has no Python program form",
+                ));
+            }
+            let text = artifact::named_json_from_interventions(std::slice::from_ref(iv), &names)
+                .map_err(io_err)?;
+            Ok(("closed".to_string(), text, None, None, None))
+        })
+        .collect()
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBatchCallbackHandle>()?;
+    m.add_function(wrap_pyfunction!(encode_callback_policy_program, m)?)?;
+    m.add_function(wrap_pyfunction!(policy_program_callback_records, m)?)?;
+    m.add_function(wrap_pyfunction!(decode_callback_policy_program, m)?)?;
     m.add_function(wrap_pyfunction!(callback_export_refusal, m)?)?;
     m.add_function(wrap_pyfunction!(verify_callback_recovery, m)?)
 }

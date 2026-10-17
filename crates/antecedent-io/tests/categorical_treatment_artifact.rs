@@ -318,7 +318,12 @@ impl Draws {
 /// `n` rows over the unordered levels `a`, `b`, `c` with one adjustment column `z` and a
 /// level-dependent heteroskedastic outcome.
 fn synthetic(n: usize, covariance: &str) -> CategoricalTreatmentRequest {
-    let mut draws = Draws(0xcafe);
+    synthetic_seeded(n, covariance, 0xcafe)
+}
+
+/// [`synthetic`] on the stream started from `seed`.
+fn synthetic_seeded(n: usize, covariance: &str, seed: u64) -> CategoricalTreatmentRequest {
+    let mut draws = Draws(seed);
     let (mut outcome, mut z, mut levels) = (vec![], vec![], vec![]);
     for i in 0..n {
         let zi = draws.next();
@@ -416,6 +421,70 @@ fn categorical_robust_fit_runs_at_one_hundred_thousand_rows() {
     let bytes = artifact.to_bytes("big").unwrap();
     assert!(bytes.len() < 64 * 1024);
     assert!(CategoricalTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).is_ok());
+}
+
+/// The first `rows` rows of a request.
+fn head(request: &CategoricalTreatmentRequest, rows: usize) -> CategoricalTreatmentRequest {
+    let mut head = request.clone();
+    head.outcome.truncate(rows);
+    head.levels.truncate(rows);
+    for column in &mut head.adjustment {
+        column.values.truncate(rows);
+    }
+    head
+}
+
+/// A robust covariance of `kind` at 100,000 rows: the summary fit equals the row-based sandwich
+/// bit for bit, the exported summary does not grow with the rows, and on a checkable subsample
+/// the covariance equals an independent dense computation from the textbook definitions.
+fn assert_robust_covariance_at_100k_rows(kind: &str, seed: u64) {
+    let started = std::time::Instant::now();
+    let big = synthetic_seeded(100_000, kind, seed);
+    let artifact = CategoricalTreatmentArtifact::seal(&big).unwrap();
+    assert_eq!(artifact.meta().n_rows, 100_000);
+    assert_eq!(artifact.report().result.covariance_kind, kind);
+    assert_eq!(artifact.fit(), &row_fit(&big), "{kind}: the summary is the row-based sandwich");
+    let bytes = artifact.to_bytes("big").unwrap();
+    assert!(bytes.len() < 64 * 1024);
+    let consumed =
+        CategoricalTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
+    assert_eq!(consumed.fit(), artifact.fit());
+    assert!(started.elapsed().as_secs() < 600, "{:?}", started.elapsed());
+
+    // The dense reference: design `[1, z, level:b, level:c]` against reference level `a`.
+    let sample = head(&big, 4_000);
+    let sealed = CategoricalTreatmentArtifact::seal(&sample).unwrap();
+    let dummy = |level: &str| -> Vec<f64> {
+        sample.levels.iter().map(|l| f64::from(u8::from(l == level))).collect()
+    };
+    let design = vec![
+        vec![1.0; sample.outcome.len()],
+        sample.adjustment[0].values.clone(),
+        dummy("b"),
+        dummy("c"),
+    ];
+    let full = common::dense_sandwich(&design, &sample.outcome, kind);
+    common::assert_block_matches(&sealed.fit().covariance, &full, 4, 2, kind);
+}
+
+#[test]
+fn categorical_treatment_hc0_covariance_100k_rows() {
+    assert_robust_covariance_at_100k_rows("hc0", 7_840_663);
+}
+
+#[test]
+fn categorical_treatment_hc1_covariance_100k_rows() {
+    assert_robust_covariance_at_100k_rows("hc1", 7_248_023);
+}
+
+#[test]
+fn categorical_treatment_hc2_covariance_100k_rows() {
+    assert_robust_covariance_at_100k_rows("hc2", 1_288_919);
+}
+
+#[test]
+fn categorical_treatment_hc3_covariance_100k_rows() {
+    assert_robust_covariance_at_100k_rows("hc3", 6_336_663);
 }
 
 #[test]

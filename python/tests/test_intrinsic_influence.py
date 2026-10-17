@@ -98,3 +98,37 @@ def test_undeclared_and_latent_confounded_noise_is_refused_with_its_reason():
     with pytest.raises(Exception, match="intrinsic_influence.correlated_noise") as e:
         intrinsic_influence(_data(), EDGES, "z", bidirected_edges=[("x", "z")])
     assert getattr(e.value, "reason_code", None) == "route_not_supported"
+
+
+def test_exact_enumeration_reports_exactly_zero_permutation_error_and_keeps_simulation_error():
+    # a -> b -> c -> y over 100000 rows: b = 2a + e_b, c = 1.5b + e_c, y = 0.5c + e_y with
+    # noise scales (1, 0.5, 1, 0.8). The total coefficients of the noise terms on y are
+    # (1.5, 0.75, 0.5, 1), so the exact contributions are c_i^2 sigma_i^2.
+    rng = np.random.default_rng(3192000)
+    rows = 100_000
+    a = rng.normal(size=rows)
+    b = 2.0 * a + 0.5 * rng.normal(size=rows)
+    c = 1.5 * b + rng.normal(size=rows)
+    y = 0.5 * c + 0.8 * rng.normal(size=rows)
+    truth = {"a": 2.25, "b": 0.140625, "c": 0.25, "y": 0.64}
+    result = intrinsic_influence(
+        {"a": a, "b": b, "c": c, "y": y},
+        [("a", "b"), ("b", "c"), ("c", "y")],
+        "y",
+        independent_noise=True,
+        allocation="exact",
+        outer_draws=2500,
+        inner_draws=10,
+        seed=2,
+    )
+    assert result.method["shapley"] == {"kind": "exact"}
+    assert result.budget["permutations"] == 0 and result.budget["exact_coalitions"] == 16
+    for name, source in _by_source(result).items():
+        permutation = source.component("permutation_sampling")
+        assert permutation.status == "not_applicable" and permutation.stderr == 0.0
+        simulation = source.component("simulation")
+        assert simulation.status == "quantified"
+        assert simulation.stderr is not None and simulation.stderr > 0.0
+        assert abs(source.contribution - truth[name]) <= 6 * max(
+            simulation.stderr, 0.02 * truth[name]
+        )

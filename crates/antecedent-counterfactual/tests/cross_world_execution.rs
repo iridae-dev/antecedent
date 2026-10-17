@@ -790,3 +790,153 @@ fn a_declared_but_oversized_joint_state_is_unsupported_not_unidentified() {
     );
     assert_eq!(exec.counters().abductions, 0);
 }
+
+// One exogenous term U ~ (0.7, 0.3) is named by all three mechanisms:
+// X = U, M = U and Y = X xor U (so Y = 0 factually). Observing any one of them
+// fixes the single draw every other mechanism reads, in every world.
+fn three_mechanisms_one_term() -> FiniteScm {
+    let shared = |name: &str, parents: Vec<usize>, table: Vec<u8>| FiniteVariable {
+        name: name.to_owned(),
+        levels: 2,
+        parents,
+        exogenous: 0,
+        table,
+    };
+    FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: vec![ExogenousVariable { name: "u".to_owned(), pmf: vec![0.7, 0.3] }],
+        variables: vec![
+            shared("x", vec![], vec![0, 1]),
+            shared("m", vec![], vec![0, 1]),
+            // [u * 2 + x]: u xor x.
+            shared("y", vec![0], vec![0, 1, 1, 0]),
+        ],
+    }
+}
+
+#[test]
+fn one_exogenous_draw_is_used_by_every_mechanism_that_names_it() {
+    let worlds = vec![do_x("x0", 0), do_x("x1", 1)];
+    let mut exec = FiniteScmExecutor::new();
+    // Hand enumeration over the two joint states: u = 0 (0.7) gives (x, m, y) =
+    // (0, 0, 0); u = 1 (0.3) gives (1, 1, 0). Under do(x0), Y = u.
+    for (observed, evidence_mass, y_x0) in [
+        (vec![(1usize, 1u8)], 0.3, 1.0),
+        (vec![(1, 0)], 0.7, 0.0),
+        (vec![(0, 1)], 0.3, 1.0),
+        (vec![(2, 0)], 1.0, 0.3),
+    ] {
+        let out = exec
+            .execute(
+                &request(
+                    three_mechanisms_one_term(),
+                    vec![unit("case", &observed)],
+                    worlds.clone(),
+                    FiniteQuantity::Probability(atom(0, 2, 1)),
+                ),
+                &ctx(),
+            )
+            .unwrap();
+        assert_eq!(out.matrix_row, "counterfactual.finite_shared_exogenous_scm.marginal");
+        assert!((out.units[0].evidence_probability - evidence_mass).abs() < TOL, "{observed:?}");
+        assert!((out.value - y_x0).abs() < TOL, "{observed:?}");
+    }
+    // The three mechanisms agree on one draw: a mediator reading u = 1 cannot
+    // coexist with a treatment reading u = 0, whichever of them is observed.
+    let contradictory = request(
+        three_mechanisms_one_term(),
+        vec![unit("case", &[(0, 1), (1, 0)])],
+        worlds,
+        FiniteQuantity::Probability(atom(0, 2, 1)),
+    );
+    assert_eq!(
+        refusal_of(exec.execute(&contradictory, &ctx())).1,
+        "cross_world_execution.evidence_outside_model_support"
+    );
+}
+
+// Six exogenous terms: five with the largest number of states plus a sixth.
+// Two states give exactly the documented bound; three states exceed it.
+fn bound_probe(last_states: usize) -> FiniteScm {
+    let states = |k: usize| if k == 5 { last_states } else { 8 };
+    FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: (0..6)
+            .map(|k| ExogenousVariable {
+                name: format!("u{k}"),
+                pmf: vec![1.0 / f64::from(u8::try_from(states(k)).unwrap()); states(k)],
+            })
+            .collect(),
+        variables: (0..6)
+            .map(|k| FiniteVariable {
+                name: format!("v{k}"),
+                levels: 2,
+                parents: vec![],
+                exogenous: k,
+                table: (0..states(k)).map(|s| u8::from(s % 2 == 1)).collect(),
+            })
+            .collect(),
+    }
+}
+
+#[test]
+fn the_joint_state_bound_holds_at_its_edge_and_refuses_one_term_past_it() {
+    use antecedent_counterfactual::selective::finite_scm::MAX_JOINT_STATES;
+    assert_eq!(8usize.pow(5) * 2, MAX_JOINT_STATES);
+    let ask = |scm: FiniteScm| {
+        request(
+            scm,
+            vec![unit("u", &[])],
+            vec![do_x("w", 0)],
+            FiniteQuantity::Probability(atom(0, 1, 1)),
+        )
+    };
+    let mut exec = FiniteScmExecutor::new();
+    let at_edge = exec.execute(&ask(bound_probe(2)), &ctx()).unwrap();
+    // v1 takes the odd state of an eight-state term: probability 1/2.
+    assert!((at_edge.value - 0.5).abs() < TOL);
+    assert_eq!(at_edge.work.abduction_states_enumerated, u64::try_from(MAX_JOINT_STATES).unwrap());
+
+    let (code, detail) = refusal_of(exec.execute(&ask(bound_probe(3)), &ctx()));
+    assert_eq!(
+        (code.as_str(), detail.as_str()),
+        ("route_not_supported", "cross_world_execution.joint_state_bound_exceeded")
+    );
+    // The refusal did no abduction and retained nothing beyond the accepted run.
+    assert_eq!(exec.counters().abductions, 1);
+}
+
+#[test]
+fn a_law_to_be_fitted_is_unsupported_execution_while_latent_confounding_is_nonidentification() {
+    use antecedent_counterfactual::selective::matrix::{
+        ConditioningKind, EvidenceKind, HistoryKind, InterventionKind, MatrixRequest, ModelClass,
+        PopulationKind, QuantityClass, decide,
+    };
+    let shape = MatrixRequest {
+        quantity: QuantityClass::CounterfactualMarginal,
+        model: ModelClass::FiniteMarkovianScm,
+        conditioning: ConditioningKind::FactualEvidence,
+        interventions: InterventionKind::Hard,
+        population: PopulationKind::Single,
+        history: HistoryKind::NoHistory,
+        evidence: EvidenceKind::DeclaredMechanisms,
+    };
+    assert!(decide(&shape).is_ok());
+
+    // The exogenous law is not declared and would have to be fitted: this
+    // route does not execute that, and says nothing about identification.
+    let undeclared = decide(&MatrixRequest { evidence: EvidenceKind::DataToFit, ..shape })
+        .expect_err("a law to be fitted is not executed");
+    assert_eq!(undeclared.code, "route_not_supported");
+    assert_eq!(undeclared.detail, "cross_world_execution.finite_fitting_not_executed");
+
+    // Latent confounding without declared mechanisms is a statement about
+    // identification, and carries the nonidentification code instead.
+    let latent = decide(&MatrixRequest { model: ModelClass::SemiMarkovian, ..shape })
+        .expect_err("latent confounding is not identified");
+    assert_eq!(latent.code, "cross_world_not_identified");
+    assert_eq!(latent.detail, "cross_world_execution.latent_confounding_not_identified");
+    assert_ne!(undeclared.code, latent.code);
+}

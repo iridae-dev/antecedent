@@ -173,8 +173,8 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-model/tests/noise_replay.rs"
 evidence_assertion = "replaying_a_sampled_table_reproduces_the_draws_bit_for_bit"
-python_facade = "none"
-limitations = "Rust-level API; the tests check bit-identical replay, selective fixing with closed-form conditional variances and counterfactual-engine agreement, but no numerical-truth conformance fixture backs it and it is not exposed through the Python facade."
+python_facade = "full"
+limitations = "The tests check bit-identical replay, selective fixing with closed-form conditional variances and counterfactual-engine agreement, but no numerical-truth conformance fixture backs it. Python reaches a sample with its retained noise (FittedGcm.sample_noise) and the replay of any noise matrix under interventions, shifts and callback programs (FittedGcm.replay_noise); the table's per-column provenance, fixing and redrawing stay Rust-level."
 notes = "NoiseTable / NoiseReplayer: retained per-node noise with sampled, fixed, abducted and assumed provenance, replayed through the compiled model under an overlay with forward-sampling precedence; coalition replay from two tables and a node mask"
 
 [[capabilities]]
@@ -193,9 +193,29 @@ status = "done"
 evidence_kind = "implementation_exists"
 evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
 evidence_assertion = "each_route_is_licensed_separately"
-python_facade = "none"
+python_facade = "full"
 limitations = "Validation is structural: declared reads equal referenced variables, the combined read and parent graph is acyclic, the output type fits the node, directives do not conflict. Observational identification is licensed only for programs reducing to a hard level; history reads are refused on static models, beyond a rollout's declared window and before the first available step."
 notes = "Coded refusals (policy_dependency_circular, policy_dependency_unavailable, policy_directive_conflict, policy_output_type_invalid, policy_history_unavailable, policy_route_not_licensed) and policy_support, a separate licensing decision for simulation, counterfactual execution and observational identification"
+
+[[capabilities]]
+id = "gcm.model.policy_workflows"
+status = "done"
+evidence_kind = "internal_known_truth"
+evidence_test = "crates/antecedent/tests/policy_python_parity.rs"
+evidence_assertion = "a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_licence"
+python_facade = "full"
+limitations = "Model-based values of a fitted structural model: only the Monte Carlo error of the draws is quantified, the model's own uncertainty is reported unquantified, and no interval or calibration claim is made. A transform or computed assignment has no observational identification (its identification route is refused with policy_route_not_licensed), so it is answered by simulation on the fitted model; the retained handles are the fitted model (FittedGcm, PreparedPolicy) and the practitioner handle antecedent.prepare with a PolicyProgramValue question, which runs the same retained program. A recoverable callback leaves the process as its recovery record and replays only against an implementation the consumer supplies and that verifies."
+notes = "Policy value (policy mean, unintervened mean on the same noise, paired difference and simulation errors) with per-route support decisions and reason codes; counterfactual rollout of a factual panel through the temporal executor; sample with retained noise and noise replay; versioned portable encoding of programs with recoverable callback records, re-verified on decode; Python intervention_programs.policy_value / policy_support / prepare_policy / counterfactual_temporal_policy and FittedGcm.sample_noise / replay_noise; PreparedPolicy compiles the overlay and resolves the licence once and rebinds to a refitted model without compiling the program again"
+
+[[capabilities]]
+id = "gcm.model.prepared_policy"
+status = "done"
+evidence_kind = "internal_known_truth"
+evidence_test = "crates/antecedent/tests/policy_python_parity.rs"
+evidence_assertion = "a_prepared_policy_reruns_the_one_shot_value_without_compiling_the_program_again"
+python_facade = "full"
+limitations = "The prepared value is the model-based policy value: only its Monte Carlo error is quantified, the fitted model's uncertainty is reported unquantified and no interval or calibration claim is made. Observational identification of a hard level is reported in the support decision but the value is the model's, not an identified estimand; a refresh refits the model and resolves the overlay and licence against it (the program is not compiled again). The handle has no refutation, retargeting or portable claim."
+notes = "PreparedPolicy retains the program, its compiled overlay and the licence of each route, and runs the policy-value executor on them: equal to policy_value bit for bit at the same context, with program_compilations and model_bindings as the receipt that a rerun compiled nothing; Python antecedent.prepare(data, query=PolicyProgramValue(...), graph=...) returns a PreparedAnalysis whose estimate / refresh rerun it and whose result reports support, contract, provenance and the receipt"
 
 [[capabilities]]
 id = "gcm.attribution.intrinsic_influence"

@@ -19,10 +19,11 @@ use antecedent_contract::adaptive_design::{
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_stats::adaptive_inference::{
-    BorrowingPlan, CellLabel, DERIVED_UNMEASURED, LookDecision, LookReading,
-    ParticipantDeclaration, ParticipantHistory, ParticipantSimulation,
+    ArmBorrowing, BorrowingPlan, CellLabel, DERIVED_UNMEASURED, LookDecision, LookReading,
+    ParticipantDeclaration, ParticipantHistory, ParticipantRun, ParticipantSimulation,
     ParticipantSimulationRequest, ParticipantSimulationSummary, ParticipantSpec, ResolvedArmPrior,
-    ResourceBudget, simulate_participant_history, simulate_participant_procedure_within,
+    ResourceBudget, run_participant_procedure_within, simulate_participant_history,
+    simulate_participant_procedure_within,
 };
 
 use super::adaptive_inference::AdaptiveInferenceRefusal;
@@ -52,6 +53,19 @@ pub struct ParticipantSimulationReport {
     pub summary: ParticipantSimulationSummary,
 }
 
+/// One run of the procedure with the identity of what ran, complete or ended
+/// early by cancellation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParticipantRunReport {
+    /// Identity (hex) of the declared procedure.
+    pub procedure_identity: String,
+    /// Always `derived_unmeasured`.
+    pub calibration: &'static str,
+    /// The run: its retained history, the reading of every completed look,
+    /// its receipt and whether it reached its stopping look.
+    pub run: ParticipantRun,
+}
+
 /// Every look of a retained history, recomputed under the declared procedure.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParticipantHistoryReport {
@@ -62,6 +76,10 @@ pub struct ParticipantHistoryReport {
     /// The prior of each arm with its sources, discounts and effective
     /// sample size.
     pub priors: Vec<ResolvedArmPrior>,
+    /// Per arm, every source with its discount, the effective historical
+    /// sample size and the prior-data conflict diagnostic against the
+    /// participants whose responses had completed.
+    pub borrowing: Vec<ArmBorrowing>,
     /// The reading at every performed look. The posterior claim and the
     /// frequentist claim of each are separate fields.
     pub readings: Vec<LookReading>,
@@ -154,6 +172,41 @@ impl ParticipantProcedure {
         })
     }
 
+    /// Run the procedure once under the arm means `truth` and retain it, within
+    /// the library work bound and the memory budget of `ctx`.
+    ///
+    /// Cancellation of `ctx` is honoured within one batch and is not a
+    /// refusal: the report holds the batches that completed, its receipt
+    /// counts what was done, and `run.complete` is `false`.
+    ///
+    /// # Errors
+    /// A truth of the wrong shape, a capacity refusal (work or memory) or a
+    /// numerical failure.
+    pub fn run(
+        &self,
+        truth: &[f64],
+        true_correlation: Option<f64>,
+        seed: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<ParticipantRunReport, AdaptiveInferenceRefusal> {
+        let cancelled = || ctx.cancellation.is_cancelled();
+        let budget = ResourceBudget::from_context(ctx);
+        let run = run_participant_procedure_within(
+            &self.spec,
+            truth,
+            true_correlation,
+            seed,
+            &budget,
+            &cancelled,
+        )
+        .map_err(|e| refusal_of(&e))?;
+        Ok(ParticipantRunReport {
+            procedure_identity: self.identity.clone(),
+            calibration: DERIVED_UNMEASURED,
+            run,
+        })
+    }
+
     /// Run the procedure once under the arm means `truth`, and the true
     /// intra-participant correlation `true_correlation` (the declared one when
     /// absent; a procedure that estimates the correlation needs it), and
@@ -191,11 +244,14 @@ impl ParticipantProcedure {
     ) -> Result<ParticipantHistoryReport, AdaptiveInferenceRefusal> {
         let cancelled = || ctx.cancellation.is_cancelled();
         let readings = self.spec.read_history(history, &cancelled).map_err(|e| refusal_of(&e))?;
+        let borrowing =
+            self.spec.borrowing_receipt(history, &cancelled).map_err(|e| refusal_of(&e))?;
         let decision = readings.last().map_or(LookDecision::Continue, |r| r.decision);
         Ok(ParticipantHistoryReport {
             procedure_identity: self.identity.clone(),
             calibration: DERIVED_UNMEASURED,
             priors: self.spec.priors().to_vec(),
+            borrowing,
             readings,
             decision,
         })

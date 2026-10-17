@@ -655,7 +655,16 @@ pub fn infer_noise_column_rng(
             output[..n].copy_from_slice(&value[..n]);
             Ok(NoiseInferenceMode::Invertible)
         }
-        MechanismSlot::Dynamic { mechanism, .. } => {
+        MechanismSlot::Dynamic { id, mechanism } => {
+            if !mechanism.supports_noise_inference() {
+                return Err(ModelError::Unsupported {
+                    message: format!(
+                        "mechanism operation unsupported: the user-defined mechanism of `{id}` \
+                         does not support noise inference (abduction for counterfactuals); \
+                         evaluation, sampling and likelihood remain available where declared"
+                    ),
+                });
+            }
             mechanism.infer_noise_column(value, parents, output)?;
             Ok(mechanism.noise_inference_mode())
         }

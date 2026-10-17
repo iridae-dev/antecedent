@@ -31,10 +31,15 @@ use crate::graph_posterior::{GraphPosterior, GraphPrior, has_edge, set_edge};
 use crate::order_mcmc::OrderMcmc;
 use crate::structure_mcmc::StructureMcmc;
 
-/// Rows per simulated dataset.
+/// Rows per simulated dataset of the standing designs.
 const N_ROWS: usize = 400;
-/// Replicates (datasets) per test.
+/// Replicates (datasets) per standing design.
 const N_SIM: u64 = 100;
+/// Rows and replicates of the acceptance designs: the practitioner-scale study (2,000 rows) at
+/// the replicate count the claims are frozen at, with the publication rate the manifest freezes.
+const ACCEPTANCE_ROWS: usize = 2000;
+const ACCEPTANCE_REPLICATES: u64 = 2000;
+const ACCEPTANCE_PUBLISHED_FRACTION: f64 = 0.9;
 /// Equal-width bins of the predicted skeleton marginal.
 const N_BINS: usize = 10;
 /// A bin enters the check with at least this many pairs, from at least [`MIN_BIN_CLUSTERS`]
@@ -54,7 +59,7 @@ fn normal(rng: &mut CausalRng) -> f64 {
 }
 
 /// A random sparse linear-Gaussian SEM on `n` nodes and its rows: columns and the true graph.
-fn sparse_sem(n: usize, seed: u64) -> (Vec<Vec<f64>>, AdjacencyMask) {
+fn sparse_sem(n: usize, rows: usize, seed: u64) -> (Vec<Vec<f64>>, AdjacencyMask) {
     let mut rng = CausalRng::from_seed(seed);
     let mut order: Vec<usize> = (0..n).collect();
     for i in (1..n).rev() {
@@ -79,8 +84,8 @@ fn sparse_sem(n: usize, seed: u64) -> (Vec<Vec<f64>>, AdjacencyMask) {
             truth = set_edge(truth, n, pick, order[pos], true);
         }
     }
-    let mut cols = vec![vec![0.0; N_ROWS]; n];
-    for row in 0..N_ROWS {
+    let mut cols = vec![vec![0.0; rows]; n];
+    for row in 0..rows {
         for &node in &order {
             let mean: f64 = parents[node].iter().map(|&(p, b)| b * cols[p][row]).sum();
             cols[node][row] = mean + normal(&mut rng);
@@ -122,6 +127,26 @@ fn assert_skeleton_marginals_calibrated(
         &ExecutionContext,
     ) -> Option<GraphPosterior>,
 ) {
+    assert_skeleton_marginals_calibrated_at(
+        label,
+        n,
+        (N_ROWS, N_SIM, MIN_PUBLISHED_FRACTION),
+        sampler,
+    );
+}
+
+/// The design at `(rows, replicates, minimum published fraction)`.
+fn assert_skeleton_marginals_calibrated_at(
+    label: &str,
+    n: usize,
+    (rows, replicates, min_published): (usize, u64, f64),
+    sampler: impl Fn(
+        &TabularData,
+        &[VariableId],
+        &GraphPrior,
+        &ExecutionContext,
+    ) -> Option<GraphPosterior>,
+) {
     let vars: Vec<VariableId> =
         (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
     let prior = GraphPrior::uniform().with_constraints(DiscoveryConstraints {
@@ -130,8 +155,8 @@ fn assert_skeleton_marginals_calibrated(
     });
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
     let mut published: Vec<BinCells> = Vec::new();
-    for rep in 0..N_SIM {
-        let (cols, truth) = sparse_sem(n, 0x00ED_6E00 + rep);
+    for rep in 0..replicates {
+        let (cols, truth) = sparse_sem(n, rows, 0x00ED_6E00 + rep);
         let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
         let data = crate::test_tables::continuous_table(&name_refs, cols);
         if let Some(post) = sampler(&data, &vars, &prior, &ExecutionContext::for_tests(9_000 + rep))
@@ -139,12 +164,15 @@ fn assert_skeleton_marginals_calibrated(
             published.push(bin_skeleton(n, &post, truth));
         }
     }
-    let rate = published.len() as f64 / N_SIM as f64;
-    println!("edge-marginal-calibration {label} n={n} published={}/{N_SIM}", published.len());
+    let rate = published.len() as f64 / replicates as f64;
+    println!(
+        "edge-marginal-calibration {label} n={n} rows={rows} published={}/{replicates}",
+        published.len()
+    );
     assert!(
-        rate >= MIN_PUBLISHED_FRACTION,
+        rate >= min_published,
         "{label} n={n}: the publication gate passed {rate:.2} of replicates, below \
-         {MIN_PUBLISHED_FRACTION}; the published conditions do not support the claim"
+         {min_published}; the published conditions do not support the claim"
     );
     let mut checked = 0;
     for bin in 0..N_BINS {
@@ -241,6 +269,24 @@ fn order_mcmc_skeleton_marginals_calibrated_at_twelve_variables() {
     assert_skeleton_marginals_calibrated("order_mcmc", 12, order_sampler);
 }
 
+/// The claims of the ten-variable workflow, each sampler, at 2,000 rows and 2,000 replicates.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn graph_posterior_10_variable_claims_calibrated() {
+    let design = (ACCEPTANCE_ROWS, ACCEPTANCE_REPLICATES, ACCEPTANCE_PUBLISHED_FRACTION);
+    assert_skeleton_marginals_calibrated_at("structure_mcmc", 10, design, structure_sampler);
+    assert_skeleton_marginals_calibrated_at("order_mcmc", 10, design, order_sampler);
+}
+
+/// The claims of the twelve-variable workflow, each sampler, at 2,000 rows and 2,000 replicates.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn graph_posterior_12_variable_claims_calibrated() {
+    let design = (ACCEPTANCE_ROWS, ACCEPTANCE_REPLICATES, ACCEPTANCE_PUBLISHED_FRACTION);
+    assert_skeleton_marginals_calibrated_at("structure_mcmc", 12, design, structure_sampler);
+    assert_skeleton_marginals_calibrated_at("order_mcmc", 12, design, order_sampler);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,7 +296,7 @@ mod tests {
     #[test]
     fn sparse_sem_returns_its_generating_graph() {
         for n in [10usize, 12] {
-            let (cols, truth) = sparse_sem(n, 17);
+            let (cols, truth) = sparse_sem(n, N_ROWS, 17);
             assert!(crate::graph_posterior::mask_is_dag(truth, n));
             assert!((0..n).all(|v| crate::graph_posterior::parents_of(truth, n, v).len() <= 2));
             assert!(cols.iter().all(|c| c.len() == N_ROWS && c.iter().all(|x| x.is_finite())));

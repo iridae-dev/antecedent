@@ -1168,6 +1168,10 @@ pub fn execute_with_receipt(
     ctx: &ExecutionContext,
 ) -> Result<RecalcOutcome, RecalcRunError> {
     request.validate()?;
+    // A cancelled run stops before any stage runs and leaves the session as it was.
+    if ctx.cancellation.is_cancelled() {
+        return Err(RecalcRunError::Request("recalc.cancelled"));
+    }
     let plan = session.plan(request, ctx);
     if !plan.is_executable() {
         return Err(RecalcRunError::Refused(Box::new(plan)));

@@ -26,9 +26,9 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    AdjacencyMask, DiscoveryConstraints, DiscoveryWorkspace, ExactDagPosterior, GraphPosterior,
-    GraphPrior, LaggedLink, MAX_POSTERIOR_NODES, OrderMcmc, StructureMcmc, dag_from_adjacency_mask,
-    mask_is_dag, parents_of, set_edge,
+    AdjacencyMask, DiscoveryConstraints, DiscoveryWorkspace, EXACT_MARGINAL_MAX_NODES,
+    ExactDagPosterior, GraphPosterior, GraphPrior, LaggedLink, MAX_POSTERIOR_NODES, OrderMcmc,
+    StructureMcmc, dag_from_adjacency_mask, exact_dag_marginals, mask_is_dag, parents_of, set_edge,
 };
 use antecedent_state::GraphScoreFamily;
 
@@ -666,4 +666,275 @@ fn structure_mcmc_runs_on_the_full_sixteen_variable_packing() {
         )
         .unwrap_err();
     assert!(err.to_string().contains("at most 16 variables"), "{err}");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Exact marginals by dynamic programming, against enumeration and against the samplers.
+// ---------------------------------------------------------------------------------------------
+
+/// Seven variables of a connected linear model with a collider at `x2`: roots `x0`, `x1`;
+/// `x2 <- x0, x1`; `x3 <- x2`; `x4 <- x3, x0`; `x5 <- x4`; `x6 <- x5, x2`. The first `n` are used.
+fn tractable_columns(n: usize, rows: usize, seed: u64) -> Vec<Vec<f64>> {
+    assert!((5..=7).contains(&n));
+    let mut rng = CausalRng::from_seed(seed);
+    let mut cols = vec![vec![0.0; rows]; 7];
+    for r in 0..rows {
+        let x0 = uniform(&mut rng);
+        let x1 = uniform(&mut rng);
+        let x2 = 0.7 * x0 + 0.7 * x1 + 0.6 * uniform(&mut rng);
+        let x3 = 0.8 * x2 + 0.6 * uniform(&mut rng);
+        let x4 = 0.6 * x3 + 0.5 * x0 + 0.6 * uniform(&mut rng);
+        let x5 = 0.7 * x4 + 0.6 * uniform(&mut rng);
+        let x6 = 0.6 * x5 + 0.5 * x2 + 0.6 * uniform(&mut rng);
+        for (col, value) in cols.iter_mut().zip([x0, x1, x2, x3, x4, x5, x6]) {
+            col[r] = value;
+        }
+    }
+    cols.truncate(n);
+    cols
+}
+
+/// Every labelled DAG visited once, by assigning each node its parent set in turn: the state
+/// is the ancestors and descendants of every node, so a parent set that would close a cycle is
+/// never offered. The mass of each `(node, parent set)` is the total weight of the DAGs that
+/// give the node that set, kept relative to the best weight seen so far.
+struct Enumeration {
+    n: usize,
+    log_factor: Vec<Vec<f64>>,
+    mass: Vec<Vec<f64>>,
+    top: f64,
+    chosen: [usize; 8],
+}
+
+impl Enumeration {
+    fn visit(&mut self, node: usize, weight: f64, descendants: [usize; 8], ancestors: [usize; 8]) {
+        // A parent of `node` can be neither `node` itself nor one of its descendants.
+        let allowed = ((1usize << self.n) - 1) & !descendants[node] & !(1 << node);
+        let mut parents = allowed;
+        loop {
+            let factor = self.log_factor[node][parents];
+            if factor > f64::NEG_INFINITY {
+                self.chosen[node] = parents;
+                if node + 1 == self.n {
+                    self.record(weight + factor);
+                } else {
+                    let (below, above) = Self::add_edges(descendants, ancestors, node, parents);
+                    self.visit(node + 1, weight + factor, below, above);
+                }
+            }
+            if parents == 0 {
+                break;
+            }
+            parents = (parents - 1) & allowed;
+        }
+    }
+
+    /// The closure after the edges `parent -> node` for every parent in the set.
+    fn add_edges(
+        mut descendants: [usize; 8],
+        mut ancestors: [usize; 8],
+        node: usize,
+        parents: usize,
+    ) -> ([usize; 8], [usize; 8]) {
+        let below = (1 << node) | descendants[node];
+        let mut rest = parents;
+        while rest != 0 {
+            let parent = rest.trailing_zeros() as usize;
+            rest &= rest - 1;
+            let above = (1 << parent) | ancestors[parent];
+            let mut sinks = below;
+            while sinks != 0 {
+                ancestors[sinks.trailing_zeros() as usize] |= above;
+                sinks &= sinks - 1;
+            }
+            let mut sources = above;
+            while sources != 0 {
+                descendants[sources.trailing_zeros() as usize] |= below;
+                sources &= sources - 1;
+            }
+        }
+        (descendants, ancestors)
+    }
+
+    fn record(&mut self, log_weight: f64) {
+        if log_weight > self.top {
+            let scale = (self.top - log_weight).exp();
+            for row in &mut self.mass {
+                for cell in row.iter_mut() {
+                    *cell *= scale;
+                }
+            }
+            self.top = log_weight;
+        }
+        let weight = (log_weight - self.top).exp();
+        for node in 0..self.n {
+            self.mass[node][self.chosen[node]] += weight;
+        }
+    }
+}
+
+/// `P(i -> j)` of the uniform-prior Gaussian-BIC posterior with at most `max_parents` parents,
+/// by visiting every DAG, scored by [`local_bic`] (an implementation that shares no code with
+/// the library).
+fn enumerated_marginals(cols: &[Vec<f64>], max_parents: usize) -> Vec<f64> {
+    let n = cols.len();
+    let mut log_factor = vec![vec![f64::NEG_INFINITY; 1 << n]; n];
+    for (node, row) in log_factor.iter_mut().enumerate() {
+        for (parents, slot) in row.iter_mut().enumerate() {
+            if parents & (1 << node) != 0 || parents.count_ones() as usize > max_parents {
+                continue;
+            }
+            let list: Vec<usize> = (0..n).filter(|p| (parents >> p) & 1 == 1).collect();
+            *slot = local_bic(cols, node, &list);
+        }
+    }
+    let mut walk = Enumeration {
+        n,
+        log_factor,
+        mass: vec![vec![0.0; 1 << n]; n],
+        top: f64::NEG_INFINITY,
+        chosen: [0; 8],
+    };
+    walk.visit(0, 0.0, [0; 8], [0; 8]);
+    let total: f64 = walk.mass[0].iter().sum();
+    let mut marginals = vec![0.0; n * n];
+    for target in 0..n {
+        for (parents, mass) in walk.mass[target].iter().enumerate() {
+            for source in (0..n).filter(|s| (parents >> s) & 1 == 1) {
+                marginals[source * n + target] += mass / total;
+            }
+        }
+    }
+    marginals
+}
+
+fn assert_close(label: &str, got: &[f64], want: &[f64]) {
+    assert_eq!(got.len(), want.len(), "{label}");
+    for (cell, (&g, &w)) in got.iter().zip(want).enumerate() {
+        assert!((g - w).abs() < 1e-9, "{label}: cell {cell} is {g}, enumeration {w}");
+    }
+}
+
+/// The dynamic programme (and, up to six variables, the library's enumerating engine) against
+/// the independent enumeration, cell by cell.
+fn assert_exact_posterior_matches_enumeration(n: usize, seed: u64) {
+    let cols = tractable_columns(n, 1000, seed);
+    let (data, vars) = table(&names(n), &cols);
+    let prior = GraphPrior::uniform();
+    let reference = enumerated_marginals(&cols, n - 1);
+    let total_edge_mass: f64 = reference.iter().sum();
+    assert!(total_edge_mass > 0.5, "the posterior is not degenerate: {reference:?}");
+    let dp = exact_dag_marginals(
+        &data,
+        &vars,
+        &prior,
+        GraphScoreFamily::GaussianBic,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
+    assert_eq!(dp.n_vars, n);
+    assert_close(&format!("dynamic programme, {n} variables"), &dp.edge_marginals, &reference);
+    if n <= 6 {
+        let engine = ExactDagPosterior::new()
+            .run(
+                &data,
+                &vars,
+                &prior,
+                GraphScoreFamily::GaussianBic,
+                &mut DiscoveryWorkspace::default(),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert_close(
+            &format!("enumerating engine, {n} variables"),
+            &engine.edge_marginals,
+            &reference,
+        );
+    }
+}
+
+#[test]
+fn exact_marginals_equal_an_independent_enumeration_on_five_and_six_variables() {
+    assert_exact_posterior_matches_enumeration(5, 4_604_603);
+    assert_exact_posterior_matches_enumeration(6, 4_604_604);
+}
+
+/// Seven variables have 1,138,779,265 labelled DAGs: the enumeration visits every one.
+#[test]
+#[ignore = "acceptance workload: 1.1 billion DAGs at seven variables; run with --ignored in a release build"]
+fn exact_posterior_matches_independent_enumeration_on_tractable_cases() {
+    assert_exact_posterior_matches_enumeration(5, 4_604_603);
+    assert_exact_posterior_matches_enumeration(6, 4_604_604);
+    assert_exact_posterior_matches_enumeration(7, 4_604_605);
+    // The enumerating engine stops at six; the recursion is what reaches seven.
+    let cols = tractable_columns(7, 200, 1);
+    let (data, vars) = table(&names(7), &cols);
+    let refused = ExactDagPosterior::new()
+        .run(
+            &data,
+            &vars,
+            &GraphPrior::uniform(),
+            GraphScoreFamily::GaussianBic,
+            &mut DiscoveryWorkspace::default(),
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+    assert!(refused.to_string().contains("n ≤ 6"), "{refused}");
+}
+
+#[test]
+fn exact_marginals_respect_the_parent_cap_and_refuse_beyond_their_size() {
+    let cols = tractable_columns(6, 1000, 77);
+    let (data, vars) = table(&names(6), &cols);
+    let capped = max_parents(2);
+    let dp = exact_dag_marginals(
+        &data,
+        &vars,
+        &capped,
+        GraphScoreFamily::GaussianBic,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
+    assert_close("parent cap of two", &dp.edge_marginals, &enumerated_marginals(&cols, 2));
+
+    let too_wide = EXACT_MARGINAL_MAX_NODES + 1;
+    let cols: Vec<Vec<f64>> = (0..too_wide).map(|i| cols[i % cols.len()].clone()).collect();
+    let (data, vars) = table(&names(too_wide), &cols);
+    let refused = exact_dag_marginals(
+        &data,
+        &vars,
+        &max_parents(3),
+        GraphScoreFamily::GaussianBic,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap_err();
+    assert!(refused.to_string().contains("at most 12 variables"), "{refused}");
+}
+
+/// The published-condition samplers against the exact posterior at ten and twelve variables on
+/// 2,000 rows: every edge marginal within `0.03 + 5 x` its Monte-Carlo standard error.
+#[test]
+fn samplers_agree_with_the_exact_marginals_at_ten_and_twelve_variables() {
+    for (label, k, coef, seed) in [("ten", 5, 0.5, 4_867_969), ("twelve", 6, 1.0, 5_398_576)] {
+        let n = 2 * k;
+        let cols = ring_columns(k, coef, 2000, seed);
+        let (data, vars) = table(&names(n), &cols);
+        let prior = max_parents(3);
+        let exact = exact_dag_marginals(
+            &data,
+            &vars,
+            &prior,
+            GraphScoreFamily::GaussianBic,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        let structure = run_structure(&published_structure(), &data, &vars, &prior, 21);
+        assert!(structure.diagnostics.converged, "{label} structure: {:?}", structure.diagnostics);
+        assert_marginals_match(&format!("{label} structure"), &structure, &exact.edge_marginals);
+        assert_chain_diagnostics_consistent(&format!("{label} structure"), &structure);
+        let order = run_order(&published_order(), &data, &vars, &prior, 22);
+        assert!(order.diagnostics.converged, "{label} order: {:?}", order.diagnostics);
+        assert_marginals_match(&format!("{label} order"), &order, &exact.edge_marginals);
+        assert_chain_diagnostics_consistent(&format!("{label} order"), &order);
+    }
 }

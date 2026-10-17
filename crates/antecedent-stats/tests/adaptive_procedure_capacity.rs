@@ -21,9 +21,9 @@ use antecedent_stats::adaptive_inference::{
     ParticipantSimulationRequest, ParticipantSpec, ProcedureDeclaration, ProcedureSpec,
     RepeatedMeasuresDeclaration, RepeatedMeasuresRequest, RepeatedMeasuresSpec, ResourceBudget,
     SimulationRequest, StoppingRule, UnitAssignment, UnitSummary, WeightScheme,
-    WithinUnitCorrelation, enumerate_law, simulate_participant_procedure,
-    simulate_participant_procedure_within, simulate_procedure, simulate_procedure_within,
-    simulate_repeated_measures, simulate_repeated_measures_within,
+    WithinUnitCorrelation, enumerate_law, simulate_participant_history,
+    simulate_participant_procedure, simulate_participant_procedure_within, simulate_procedure,
+    simulate_procedure_within, simulate_repeated_measures, simulate_repeated_measures_within,
 };
 
 fn never() -> bool {
@@ -554,4 +554,155 @@ fn cancellation_stops_every_large_simulation_route() {
     let law = fixed_law_spec(2, 1, 40);
     let kernel = OutcomeKernel::Fixed { success_probabilities: vec![0.4, 0.6] };
     assert_eq!(enumerate_law(&law, &kernel, &|| true).unwrap_err(), Error::Cancelled);
+}
+
+// -- acceptance cases of the capacity classes ---------------------------------------------------------
+
+#[test]
+fn adaptive_repeated_measures_batch_ceiling_removed() {
+    // 2,400 participants in batches of 200 with six measurements each: a batch the repeated-measures
+    // routes once refused.
+    let spec = repeated(2_400, 12, 6);
+    assert_eq!(spec.enrolment().len(), 12);
+    assert!(spec.enrolment().iter().all(|&batch| batch == 200));
+    let request = RepeatedMeasuresRequest { replications: 3, seed: 5_641_339 };
+    let law = simulate_repeated_measures(&spec, &[0.0, 0.3], &request, &never)
+        .expect("a batch of 200 participants x 6 measurements is accepted");
+    assert_eq!(law.replicates.len(), 3);
+    assert!(law.replicates.iter().all(|r| r.enrolled == 2_400 && r.estimate.is_some()));
+    let receipt = law.receipt;
+    assert_eq!(receipt.replications, 3);
+    assert_eq!(receipt.work_planned, 3 * 2_400 * 6);
+    assert_eq!(receipt.work_done, receipt.work_planned);
+    assert_eq!(receipt.looks, 3 * 12);
+    assert_eq!(receipt.states, 4, "a sum and a count for each of two arms");
+    assert_eq!(receipt.peak_units, 2_400);
+    assert!(receipt.estimated_peak_bytes > 0);
+
+    // The participant-level family takes the same batch: 200 participants x 6 responses each.
+    let family = participant_spec(2_400, 12);
+    let history = simulate_participant_history(&family, &EQUAL_ARMS, None, 5_641_339, &never)
+        .expect("a retained history");
+    assert_eq!(history.batches, vec![200; 12]);
+    assert_eq!(history.arms.len(), 2_400);
+    assert!(history.successes.iter().flatten().all(|&successes| successes <= 6));
+    assert_eq!(history.successes.iter().flatten().count(), 2_200, "the last batch is in follow-up");
+    let request =
+        ParticipantSimulationRequest { replications: 2, seed: 5_641_339, true_correlation: None };
+    let receipt = simulate_participant_procedure(&family, &EQUAL_ARMS, &request, &never)
+        .expect("a simulation")
+        .receipt;
+    assert_eq!((receipt.replications, receipt.looks, receipt.states), (2, 24, 4 * 7));
+    assert_eq!(receipt.work_planned, 2 * 2_400 * 6);
+    assert_eq!(receipt.work_done, receipt.work_planned);
+}
+
+#[test]
+fn adaptive_declared_capacity_separate_from_exact_law_limits() {
+    // 2,400 participants are declared without complaint...
+    let spec = fixed_law_spec(4, 2, 2_400);
+    assert_eq!(spec.enrolment().iter().map(|&n| u64::from(n)).sum::<u64>(), 2_400);
+    // ...and it is the exact law that cannot hold their histories: the refusal names the exact-law
+    // state limit, not the declared capacity.
+    let refused = law_error(&spec);
+    assert!(matches!(refused, CapacityError::LawStates { limit: 1_000_000, .. }), "{refused:?}");
+    assert_eq!(refused.class(), "exact_law_states");
+    assert_eq!(refused.detail(), "adaptive_inference.exact_law_states_exceeded");
+    assert!(refused.requested() > refused.limit());
+    assert!(refused.remedy().contains("simulate"));
+    for declared in
+        ["adaptive_inference.declared_units_exceeded", "adaptive_inference.declared_looks_exceeded"]
+    {
+        assert_ne!(refused.detail(), declared);
+    }
+    // The simulation route runs the same declaration.
+    let simulated =
+        simulate_procedure(&spec, &[0.3, 0.4, 0.5, 0.6, 0.3, 0.4, 0.5, 0.6], &weighting(2), &never);
+    assert!(simulated.is_ok(), "{simulated:?}");
+
+    // The converse: a declaration past the declared capacity is refused as that class, before any
+    // law is asked for.
+    let past = ProcedureSpec::new(ProcedureDeclaration {
+        arms: 4,
+        context_probabilities: Some(vec![0.5, 0.5]),
+        assignment: Some(AssignmentRule::Fixed { probabilities: vec![0.25; 4] }),
+        enrolment: Some(vec![MAX_PROCEDURE_UNITS + 1]),
+        observation: Some(OutcomeObservation::COMPLETE),
+        exposure: Some(ExposureModel::none(4)),
+        stopping: Some(StoppingRule::NoStopping),
+        selection: Some(FinalSelection::NoSelection),
+    })
+    .expect_err("past the declaration capacity");
+    assert_eq!(
+        past.gaps,
+        vec![ContractGap::Capacity(CapacityError::DeclaredUnits {
+            limit: u64::from(MAX_PROCEDURE_UNITS),
+            requested: u64::from(MAX_PROCEDURE_UNITS) + 1,
+        })]
+    );
+}
+
+#[test]
+fn adaptive_simulation_work_and_memory_limits_refuse() {
+    let family = participant_spec(2_400, 12);
+    let request = |replications| ParticipantSimulationRequest {
+        replications,
+        seed: 9_827_611,
+        true_correlation: None,
+    };
+    // Work: 300,000 replications of 2,400 participants x 6 responses is 4.32e9 response draws,
+    // over the 4e9 bound; refused before a replicate runs, naming the bound and the request.
+    let refused = simulate_participant_procedure(&family, &EQUAL_ARMS, &request(300_000), &never)
+        .unwrap_err();
+    assert_eq!(
+        refused,
+        Error::Capacity(CapacityError::SimulationWork {
+            limit: 4_000_000_000,
+            requested: 4_320_000_000,
+        })
+    );
+    let Error::Capacity(work) = refused else { unreachable!() };
+    assert_eq!(work.detail(), "adaptive_inference.simulation_work_exceeded");
+    assert!(work.to_string().contains("4000000000") && work.to_string().contains("4320000000"));
+    assert!(work.remedy().contains("work budget"));
+    // Just inside the bound is admitted (checked on the budget, not run).
+    let inside = simulate_participant_procedure_within(
+        &family,
+        &EQUAL_ARMS,
+        &request(1),
+        &work_budget(2_400 * 6),
+        &never,
+    );
+    assert_eq!(inside.unwrap().receipt.work_planned, 2_400 * 6);
+    let one_short = simulate_participant_procedure_within(
+        &family,
+        &EQUAL_ARMS,
+        &request(1),
+        &work_budget(2_400 * 6 - 1),
+        &never,
+    )
+    .unwrap_err();
+    assert_eq!(
+        one_short,
+        Error::Capacity(CapacityError::SimulationWork {
+            limit: 2_400 * 6 - 1,
+            requested: 2_400 * 6
+        })
+    );
+
+    // Memory: the replicate records and the retained history of one replicate against the budget.
+    let refused = simulate_participant_procedure_within(
+        &family,
+        &EQUAL_ARMS,
+        &request(1_000),
+        &memory_budget(100_000),
+        &never,
+    )
+    .unwrap_err();
+    let Error::Capacity(memory) = refused else { panic!("{refused:?}") };
+    assert!(matches!(memory, CapacityError::SimulationMemory { limit: 100_000, .. }));
+    assert_eq!(memory.detail(), "adaptive_inference.simulation_memory_exceeded");
+    assert!(memory.requested() > 100_000);
+    assert!(memory.to_string().contains("100000"));
+    assert_ne!(memory.detail(), work.detail());
 }

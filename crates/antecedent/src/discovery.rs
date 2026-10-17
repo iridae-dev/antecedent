@@ -20,13 +20,13 @@ use antecedent_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
 pub use antecedent_discovery::{
     BackgroundKnowledge, CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult,
     DagDiscoveryResult, DbnPosterior, DirectLingam, DiscoveryPerformanceRecord,
-    EXACT_ENUM_MAX_NODES, ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorAtomKind,
-    GraphPosteriorEngine, GraphPrior, JpcmciNodeRole, JpcmciPlus, LaggedParent, Lpcmci,
-    MultiDatasetConstraints, Notears, NotearsDiscoveryResult, OrderMcmc, PagDiscoveryResult, Pc,
-    PcSepsets, RegimeAssignment, RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult,
-    SamplingSummary, ScoredLink, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
-    StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode,
-    adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
+    EXACT_ENUM_MAX_NODES, EXACT_MARGINAL_MAX_NODES, ExactDagMarginals, ExactDagPosterior, Fci, Ges,
+    GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
+    JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult,
+    OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment, RegimeGraphCollection, Rfci,
+    Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink, SpaceDummyCiMode,
+    StaticCpdagDiscoveryResult, StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc,
+    TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
 };
 use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, PcmciPlus};
 use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};
@@ -495,6 +495,31 @@ pub fn discover_exact_dag_posterior(
     Ok(eng
         .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
         .with_algorithm("exact_dag_posterior"))
+}
+
+/// Exact edge marginals of the DAG posterior for `7 ≤ n ≤ 12` variables (Gaussian BIC).
+///
+/// Above [`EXACT_ENUM_MAX_NODES`] the enumerating engine cannot list the graphs, but the
+/// marginal `P(i → j)` of every ordered pair and the normalizing constant are still exact
+/// (sink recursion over node subsets). Graph atoms, a MAP graph and any quantity that needs the
+/// list of graphs are not computed and are not approximated.
+///
+/// # Errors
+///
+/// More than [`EXACT_MARGINAL_MAX_NODES`] variables, invalid constraints, score/data errors.
+pub fn discover_exact_dag_marginals(
+    data: &TabularData,
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<ExactDagMarginals, CausalError> {
+    Ok(antecedent_discovery::exact_dag_marginals(
+        data,
+        variables,
+        &params.prior,
+        params.score_family,
+        ctx,
+    )?)
 }
 
 /// Order MCMC DAG posterior (Gaussian BIC).

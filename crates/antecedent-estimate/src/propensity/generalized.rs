@@ -38,7 +38,7 @@ use antecedent_stats::{
     fit_multinomial_logit_weighted,
 };
 
-use super::levels::OtherLevels;
+use super::levels::{OtherLevels, describe_observed_levels};
 use super::prepare::{clip_of, default_propensity_overlap};
 use crate::adjustment::EffectEstimate;
 use crate::aipw::{AipwAte, AipwWorkspace, predict_colmajor};
@@ -649,10 +649,11 @@ impl PreparedLevels {
                 "treatment_levels.full_population_undeclared_level",
                 &format!(
                     "{undeclared} complete-case rows have a treatment value outside the declared \
-                     level set; first found {value}. The full-population estimate averages over \
-                     every row, so each row must be at a declared level: declare the missing \
-                     level, or use the pairwise-subpopulation target to restrict the population \
-                     to the rows at two levels"
+                     level set; first found {value}; {}. The full-population estimate averages \
+                     over every row, so each row must be at a declared level: declare the \
+                     missing level, or use the pairwise-subpopulation target to restrict the \
+                     population to the rows at two levels",
+                    describe_observed_levels(&t)
                 ),
             ));
         }

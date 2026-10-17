@@ -278,6 +278,12 @@ enum Op {
     Read(usize),
     Neg,
     Arith(ArithOp),
+    /// `op(constant, x)` or `op(x, constant)` on the top column.
+    ArithConst {
+        op: ArithOp,
+        constant: f64,
+        constant_left: bool,
+    },
     Clip,
     Compare(CompareOp),
     Not,
@@ -494,12 +500,23 @@ fn emit(
             emit(model, a, ops, depth, max_stack);
             ops.push(Op::Neg);
         }
-        ValueExpr::Arith { op, lhs, rhs } => {
-            emit(model, lhs, ops, depth, max_stack);
-            emit(model, rhs, ops, depth, max_stack);
-            ops.push(Op::Arith(*op));
-            *depth -= 1;
-        }
+        // A constant operand is applied as a scalar rather than materialized as a column.
+        ValueExpr::Arith { op, lhs, rhs } => match (lhs.as_ref(), rhs.as_ref()) {
+            (ValueExpr::Const(c), other) => {
+                emit(model, other, ops, depth, max_stack);
+                ops.push(Op::ArithConst { op: *op, constant: c.get(), constant_left: true });
+            }
+            (other, ValueExpr::Const(c)) => {
+                emit(model, other, ops, depth, max_stack);
+                ops.push(Op::ArithConst { op: *op, constant: c.get(), constant_left: false });
+            }
+            _ => {
+                emit(model, lhs, ops, depth, max_stack);
+                emit(model, rhs, ops, depth, max_stack);
+                ops.push(Op::Arith(*op));
+                *depth -= 1;
+            }
+        },
         ValueExpr::Clip { value, lower, upper } => {
             emit(model, value, ops, depth, max_stack);
             emit(model, lower, ops, depth, max_stack);
@@ -552,6 +569,55 @@ fn emit(
     }
 }
 
+/// `a[i] = f(a[i], b[i])`, dispatched on the operator once per column so that each loop is
+/// the operator's own (inlined, vectorizable) arithmetic. The function applied is
+/// [`ArithOp::apply`] itself, so the result stays bit-identical to scalar evaluation.
+fn arith_columns(f: ArithOp, a: &mut [f64], b: &[f64]) {
+    macro_rules! each {
+        ($($variant:ident),*) => {
+            match f {
+                $(ArithOp::$variant => {
+                    for (x, y) in a.iter_mut().zip(b) {
+                        *x = ArithOp::$variant.apply(*x, *y);
+                    }
+                })*
+                // `ArithOp` is non-exhaustive across crates.
+                _ => {
+                    for (x, y) in a.iter_mut().zip(b) {
+                        *x = f.apply(*x, *y);
+                    }
+                }
+            }
+        };
+    }
+    each!(Add, Sub, Mul, Div, Min, Max);
+}
+
+/// `x = f(c, x)` (`constant_left`) or `x = f(x, c)` over a column, dispatched once per
+/// column like [`arith_columns`], with the same [`ArithOp::apply`].
+fn arith_scalar(f: ArithOp, a: &mut [f64], c: f64, constant_left: bool) {
+    macro_rules! each {
+        ($($variant:ident),*) => {
+            match (f, constant_left) {
+                $((ArithOp::$variant, true) => {
+                    for x in a.iter_mut() {
+                        *x = ArithOp::$variant.apply(c, *x);
+                    }
+                }
+                (ArithOp::$variant, false) => {
+                    for x in a.iter_mut() {
+                        *x = ArithOp::$variant.apply(*x, c);
+                    }
+                })*
+                // `ArithOp` is non-exhaustive across crates.
+                (_, true) => a.iter_mut().for_each(|x| *x = f.apply(c, *x)),
+                (_, false) => a.iter_mut().for_each(|x| *x = f.apply(*x, c)),
+            }
+        };
+    }
+    each!(Add, Sub, Mul, Div, Min, Max);
+}
+
 /// Apply a column-local operator to the top of the work stack; returns the new height.
 #[allow(
     clippy::float_cmp,
@@ -571,11 +637,11 @@ fn step_columns(op: Op, scratch: &mut [f64], mut sp: usize, n: usize) -> usize {
         }
         Op::Arith(f) => {
             let (head, tail) = scratch.split_at_mut((sp - 1) * n);
-            let a = &mut head[(sp - 2) * n..];
-            for (x, y) in a.iter_mut().zip(&tail[..n]) {
-                *x = f.apply(*x, *y);
-            }
+            arith_columns(f, &mut head[(sp - 2) * n..], &tail[..n]);
             sp -= 1;
+        }
+        Op::ArithConst { op, constant, constant_left } => {
+            arith_scalar(op, &mut scratch[(sp - 1) * n..sp * n], constant, constant_left);
         }
         Op::Compare(f) => {
             let (head, tail) = scratch.split_at_mut((sp - 1) * n);
@@ -685,7 +751,11 @@ pub fn apply_node_program(
             message: "intervention program refers to a node outside the value batch".into(),
         });
     }
-    let need = program.max_stack.saturating_mul(n);
+    // A program without callbacks is evaluated in row blocks, so its stack stays in cache;
+    // every operator is row-wise, so the result does not depend on the block size. A callback
+    // is called once on the whole batch, so a program with one runs on every row at once.
+    let block = if program.callbacks.is_empty() { n.min(PROGRAM_BLOCK_ROWS) } else { n };
+    let need = program.max_stack.saturating_mul(block);
     if let Some(limit) = ctx.and_then(|c| c.memory.hard_limit_bytes) {
         let bytes = (need as u64).saturating_mul(8);
         if bytes > limit {
@@ -699,24 +769,46 @@ pub fn apply_node_program(
     if scratch.len() < need {
         scratch.resize(need, 0.0);
     }
-    let mut sp = 0usize;
-    for op in program.ops.iter() {
+    let mut start = 0usize;
+    while start < n {
         if ctx.is_some_and(|c| c.cancellation.is_cancelled()) {
             return Err(ModelError::Cancelled);
         }
+        let rows = block.min(n - start);
+        run_block(program, values, node, start, rows, scratch)?;
+        start += rows;
+    }
+    Ok(())
+}
+
+/// Rows of one evaluation block of a callback-free program: 4,096 rows keep a stack of a
+/// few columns within a core's L2 cache.
+const PROGRAM_BLOCK_ROWS: usize = 4096;
+
+/// Evaluate `program` for rows `start..start + rows` and write them to the node's column.
+fn run_block(
+    program: &NodeProgram,
+    values: &mut ValueBatchMut<'_>,
+    node: usize,
+    start: usize,
+    rows: usize,
+    scratch: &mut [f64],
+) -> Result<(), ModelError> {
+    let (n, m) = (values.n_rows, rows);
+    let column = |dense: usize| dense * n + start..dense * n + start + m;
+    let mut sp = 0usize;
+    for op in program.ops.iter() {
         match *op {
             Op::Const(c) => {
-                scratch[sp * n..(sp + 1) * n].fill(c);
+                scratch[sp * m..(sp + 1) * m].fill(c);
                 sp += 1;
             }
             Op::Generated => {
-                scratch[sp * n..(sp + 1) * n]
-                    .copy_from_slice(&values.values[node * n..(node + 1) * n]);
+                scratch[sp * m..(sp + 1) * m].copy_from_slice(&values.values[column(node)]);
                 sp += 1;
             }
             Op::Read(dense) => {
-                scratch[sp * n..(sp + 1) * n]
-                    .copy_from_slice(&values.values[dense * n..(dense + 1) * n]);
+                scratch[sp * m..(sp + 1) * m].copy_from_slice(&values.values[column(dense)]);
                 sp += 1;
             }
             Op::Callback(k) => {
@@ -725,24 +817,29 @@ pub fn apply_node_program(
                     node,
                     scratch,
                     sp,
-                    n,
+                    m,
                     program.max_stack - 1,
                 )?;
             }
-            op => sp = step_columns(op, scratch, sp, n),
+            op => sp = step_columns(op, scratch, sp, m),
         }
     }
-    let result = &scratch[..n];
-    if let Some(row) = result.iter().position(|v| !v.is_finite()) {
+    let result = &scratch[..m];
+    // A vectorizable check first (an OR over the rows, which has no ordering dependency);
+    // the failing row is located only when one fails.
+    let any_non_finite = result.iter().fold(false, |acc, v| acc | !v.is_finite());
+    let failed = if any_non_finite { result.iter().position(|v| !v.is_finite()) } else { None };
+    if let Some(row) = failed {
         return Err(ModelError::Numerical {
             message: format!(
-                "intervention program for dense node {node} is not finite at row {row} ({}); \
+                "intervention program for dense node {node} is not finite at row {} ({}); \
                  guard a division or restrict the clip bounds",
+                start + row,
                 result[row]
             ),
         });
     }
-    values.column_mut(node)?.copy_from_slice(result);
+    values.values[column(node)].copy_from_slice(result);
     Ok(())
 }
 

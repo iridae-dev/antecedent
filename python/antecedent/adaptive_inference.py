@@ -2306,7 +2306,8 @@ class ParticipantSimulation(ScientificResult):
     """Replicates of the whole participant-level procedure under a hypothesized truth.
 
     ``receipt`` records the work the simulation was admitted for and did (``work_planned``,
-    ``work_done``, ``replications``, ``peak_units``, ``estimated_peak_bytes``); ``summary`` holds
+    ``work_done``, ``replications``, ``looks``, ``states``, ``peak_units``,
+    ``estimated_peak_bytes``); ``summary`` holds
     measured properties of this simulation, not a coverage statement.
     """
 

@@ -24,12 +24,15 @@ papers = [
  { title = "Gaussian Processes for Machine Learning", doi = "10.7551/mitpress/3206.001.0001", sections = ["Ch. 2: GP regression, exact Cholesky-based marginal likelihood"] },
 ]
 
-upstream_implementations_observed = []
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
 
 test_sources = [
  "crates/antecedent-model/tests/scm_oracle.rs (discrete_and_hierarchical_glm_match_their_independent_oracles, minnesota_bvar_matches_independent_standardized_ridge_solve, kalman_filter_and_rts_smoother_match_clean_room_recursion)",
  "crates/antecedent-model/tests/mechanism_selection.rs (known-truth recovery of quadratic, threshold, interaction and sinusoidal mechanisms, noise-inversion round trips, constraints, split schemes, failure records)",
  "crates/antecedent-model/src/registry/selection.rs (fold geometry of the time-ordered and clustered schemes)",
+ "python/tests/test_dowhy_comparison.py (conditional means of the selected mechanisms against gcm.auto.assign_causal_mechanisms; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
  "conformance/gcm/discrete_hierarchical_glm",
  "conformance/gcm/gaussian_process",
  "conformance/gcm/minnesota_bvar",

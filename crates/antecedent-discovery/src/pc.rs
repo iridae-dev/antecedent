@@ -302,7 +302,17 @@ pub(crate) fn orient_fixed_directions(
                 continue;
             };
             let (from, to) = (dense_of(fixed.from)?, dense_of(fixed.to)?);
-            if !cpdag.has_edge(from, to) {
+            let Some(edge) = cpdag.edge_between(from, to) else {
+                continue;
+            };
+            if !edge.is_undirected() {
+                // A score search can hand over an edge it has already directed. As stated there
+                // is nothing to orient; against the statement the data compelled it, which is
+                // recorded as a conflict like a collider that disagrees.
+                if edge.parent_child().is_some_and(|(parent, _)| parent == to) {
+                    state.record_conflict(&mut delta, from, to, "knowledge");
+                    let _ = cpdag.mark_conflict(from, to);
+                }
                 continue;
             }
             let premise = format!("background knowledge: {}→{}", fixed.from.raw(), fixed.to.raw());
@@ -459,6 +469,41 @@ mod tests {
     use super::*;
     use crate::result::LaggedLink;
     use crate::test_tables::tabular_n;
+
+    #[test]
+    fn fixed_directions_leave_an_edge_the_search_already_directed_alone_or_mark_it_a_conflict() {
+        // 0 → 1 and 2 → 3 are directed; 4 - 5 is undirected. Knowledge fixes 0 → 1 (as it is),
+        // 3 → 2 (against the search) and 4 → 5 (open).
+        let variables: Vec<VariableId> = (0..6).map(VariableId::from_raw).collect();
+        let node = |raw: u32| DenseNodeId::from_raw(raw);
+        let mut cpdag = Cpdag::with_variables(6);
+        cpdag.insert_directed(node(0), node(1)).unwrap();
+        cpdag.insert_directed(node(2), node(3)).unwrap();
+        cpdag.insert_undirected(node(4), node(5)).unwrap();
+        let constraints = DiscoveryConstraints {
+            required: Arc::from([
+                crate::constraints::contemp_link(variables[0], variables[1]),
+                crate::constraints::contemp_link(variables[3], variables[2]),
+                crate::constraints::contemp_link(variables[4], variables[5]),
+            ]),
+            ..DiscoveryConstraints::default()
+        };
+        let index: HashMap<VariableId, usize> =
+            variables.iter().enumerate().map(|(i, v)| (*v, i)).collect();
+        let dense = |v| crate::pipeline::dense_of(&index, v);
+        let mut state = OrientationState::default();
+        orient_fixed_directions(&mut cpdag, &constraints, &variables, &dense, &mut state).unwrap();
+        let direction = |a: u32, b: u32| {
+            cpdag
+                .edge_between(node(a), node(b))
+                .and_then(antecedent_graph::MarkedEdge::parent_child)
+                .map(|(p, c)| (p.raw(), c.raw()))
+        };
+        assert_eq!(direction(0, 1), Some((0, 1)), "an edge already as stated is untouched");
+        assert_eq!(direction(4, 5), Some((4, 5)), "an open edge is oriented as stated");
+        assert_eq!(direction(2, 3), None, "an edge compelled against the statement is a conflict");
+        assert_eq!(state.conflicts, 1);
+    }
 
     #[test]
     fn map_sepset_refuses_an_unknown_variable() {

@@ -18,7 +18,7 @@ configuration = { rows = 2000, declared_columns = 4, unused_string_columns = 2, 
 expected = { kind = "value", outputs = ["estimate identical to the same analysis on the projected frame", "no numeric-conversion error for unused columns"] }
 targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Ingest is a linear-time projection; one second per 100k cells is generous and the frame is copied at most twice." }
 dataset = { generator = "frame_with_nuisance_columns", seed = 2644802, n = 2000, effect = 0.5, covariates = 2, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_unused_string_date_and_identifier_columns_are_never_converted" }
 
 [[case]]
 id = "python_ingest_suppresses_pandas_index_export"
@@ -28,7 +28,7 @@ configuration = { rows = 2000, index = "filtered_non_default", preserve_index = 
 expected = { kind = "value", outputs = ["no __index_level column in the exported table", "row count equals filtered frame length"] }
 targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Ingest is a linear-time projection; one second per 100k cells is generous and the frame is copied at most twice." }
 dataset = { generator = "frame_with_nuisance_columns", seed = 8525629, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_the_pandas_index_is_not_exported_as_a_column" }
 
 [[case]]
 id = "python_ingest_reordered_columns_typed_graph"
@@ -38,7 +38,7 @@ configuration = { rows = 2000, columns_reordered = true, graph = "typed_dag" }
 expected = { kind = "value", outputs = ["estimate identical under every column permutation of the frame"] }
 targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Ingest is a linear-time projection; one second per 100k cells is generous and the frame is copied at most twice." }
 dataset = { generator = "frame_with_nuisance_columns", seed = 8773591, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_every_column_permutation_gives_the_same_estimate_under_a_typed_graph" }
 
 [[case]]
 id = "python_ingest_reordered_columns_prepare_and_refresh"
@@ -48,7 +48,7 @@ configuration = { rows = 2000, prepare_order = "a,b,c,d", refresh_order = "d,c,b
 expected = { kind = "value", outputs = ["refresh binds columns by name", "refreshed estimate equals one-shot estimate"] }
 targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Ingest is a linear-time projection; one second per 100k cells is generous and the frame is copied at most twice." }
 dataset = { generator = "frame_with_nuisance_columns", seed = 8987131, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_refresh_binds_columns_by_name_and_equals_the_one_shot_estimate" }
 
 [[case]]
 id = "python_ingest_filtered_non_default_index_frame"
@@ -58,7 +58,7 @@ configuration = { rows = 2000, index = "filtered_non_default" }
 expected = { kind = "value", outputs = ["estimate identical to a reset-index frame"] }
 targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Ingest is a linear-time projection; one second per 100k cells is generous and the frame is copied at most twice." }
 dataset = { generator = "frame_with_nuisance_columns", seed = 4364692, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_a_filtered_frame_with_a_non_default_index_equals_its_reset_index_frame" }
 
 [[case]]
 id = "python_ingest_missing_required_column_refused"
@@ -68,7 +68,7 @@ configuration = { rows = 500, missing_declared_columns = 1 }
 expected = { kind = "refusal", outputs = ["names the missing column"], refusal = "ingest column missing" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "A static check must be immediate and unchanged by projection." }
 dataset = { generator = "frame_with_nuisance_columns", seed = 2685029, n = 500, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_a_missing_declared_column_is_refused_by_name" }
 
 [[case]]
 id = "python_ingest_duplicate_column_name_refused"
@@ -78,7 +78,7 @@ configuration = { rows = 500, duplicate_declared_names = 1 }
 expected = { kind = "refusal", outputs = ["names the duplicated column"], refusal = "ingest duplicate column" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "A static check must be immediate and unchanged by projection." }
 dataset = { generator = "frame_with_nuisance_columns", seed = 7926377, n = 500, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_a_duplicated_declared_column_name_is_refused_by_name" }
 
 [[case]]
 id = "python_ingest_declared_column_type_mismatch_refused"
@@ -88,7 +88,7 @@ configuration = { rows = 500, declared_numeric_column_holds_strings = 1 }
 expected = { kind = "refusal", outputs = ["names the column and its observed type"], refusal = "ingest column type" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "A static check must be immediate and unchanged by projection." }
 dataset = { generator = "frame_with_nuisance_columns", seed = 1039316, n = 500, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_a_declared_numeric_column_holding_strings_is_refused_with_its_name_and_type" }
 
 [[case]]
 id = "string_participant_identifiers_align_with_final_mask"
@@ -98,7 +98,7 @@ configuration = { rows = 3000, identifier = "participant_label", identifier_type
 expected = { kind = "value", outputs = ["identifiers reported for exactly the rows in the final analysis mask", "row accounting by exclusion reason"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Identifier handling is linear in rows; the budgets match ordinary one-shot analysis plus one string table." }
 dataset = { generator = "labelled_participants", seed = 7880483, n = 3000, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_string_participant_labels_follow_the_rows_of_the_final_analysis_mask" }
 
 [[case]]
 id = "string_cluster_identifiers_drive_clustered_variance"
@@ -108,7 +108,7 @@ configuration = { rows = 3000, cluster_identifier = "site_label", cluster_identi
 expected = { kind = "value", outputs = ["cluster count equals distinct labels in the final mask", "clustered standard error equals independent oracle"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Identifier handling is linear in rows; the budgets match ordinary one-shot analysis plus one string table." }
 dataset = { generator = "labelled_participants", seed = 4593730, n = 3000, icc = 0.1, effect = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_string_cluster_labels_drive_the_clustered_variance_over_the_final_mask" }
 
 [[case]]
 id = "identifiers_one_shot_and_prepared_agree"
@@ -118,7 +118,7 @@ configuration = { rows = 3000, identifier_type = "string" }
 expected = { kind = "value", outputs = ["byte-identical identifiers and estimate between routes"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Identifier handling is linear in rows; the budgets match ordinary one-shot analysis plus one string table." }
 dataset = { generator = "labelled_participants", seed = 3653141, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_one_shot_and_prepared_routes_report_the_same_identifiers_and_estimate" }
 
 [[case]]
 id = "identifiers_changed_on_refresh_detected"
@@ -128,7 +128,7 @@ configuration = { rows = 3000, changed_identifiers = 25 }
 expected = { kind = "receipt", outputs = ["refresh receipt lists changed identities", "downstream claim marked recompute"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Identifier handling is linear in rows; the budgets match ordinary one-shot analysis plus one string table." }
 dataset = { generator = "labelled_participants", seed = 5310927, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_a_refresh_with_changed_identifiers_lists_them_and_marks_the_claim_for_recompute" }
 
 [[case]]
 id = "identifiers_with_missing_outcomes_preserve_row_identity"
@@ -138,7 +138,7 @@ configuration = { rows = 3000, missing_outcomes = 300, identifier_type = "string
 expected = { kind = "value", outputs = ["dropped identities listed with reason", "retained identities in original order"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Identifier handling is linear in rows; the budgets match ordinary one-shot analysis plus one string table." }
 dataset = { generator = "labelled_participants", seed = 3416502, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_missing_outcomes_keep_the_identity_of_every_dropped_and_retained_row" }
 
 [[case]]
 id = "invalid_refresh_with_identifiers_is_atomic"
@@ -148,7 +148,7 @@ configuration = { rows = 3000, invalid_refresh = "duplicate identifier" }
 expected = { kind = "refusal", outputs = ["prepared state byte-identical before and after the failed refresh"], refusal = "identifier duplicate on refresh" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Atomic failure is checked by digest equality." }
 dataset = { generator = "labelled_participants", seed = 9438851, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_an_invalid_refresh_leaves_the_prepared_study_exactly_as_it_was" }
 
 [[case]]
 id = "identifiers_preserved_through_split_and_replay"
@@ -158,7 +158,7 @@ configuration = { rows = 3000, identifier_type = "string", partitions = 2 }
 expected = { kind = "receipt", outputs = ["original identities in both partitions", "replay reproduces identities and estimate"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Identifier handling is linear in rows; the budgets match ordinary one-shot analysis plus one string table." }
 dataset = { generator = "labelled_participants", seed = 6371941, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_ingest_acceptance.py::test_participants_survive_the_split_and_its_replay" }
 
 [[case]]
 id = "rct_route_refuses_missing_values_by_default"
@@ -228,7 +228,7 @@ configuration = { participants = 600, arms = 2, missing_outcome_fraction = 0.15,
 expected = { kind = "calibrated_interval", outputs = ["interval for the average effect", "row accounting"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Missing-at-random weighting changes the variance construction so it earns its own record; 0.90 reporting follows the release rule. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "randomized_trial_with_attrition", seed = 2329479, n = 600, effect = 0.3, missing_mechanism = "mar_on_baseline", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/missing_outcome_calibration.rs::responder_weighted_mar_interval" }
 
 [[case]]
 id = "did_missing_outcomes_preserve_panel_structure"
@@ -278,7 +278,7 @@ configuration = { estimator = "propensity", participants = 2000, treatment_value
 expected = { kind = "value", outputs = ["estimate matches the same data recoded to 1/0", "estimand states the declared levels"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Declared-level contrasts reuse the binary fits; the per-run budget is the ordinary adjusted estimate." }
 dataset = { generator = "confounded_binary_treatment_recoded", seed = 2307708, n = 2000, effect = 0.5, confounding = "moderate", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/treatment_levels.rs::propensity_weighting_honors_declared_active_two_control_one" }
 
 [[case]]
 id = "aipw_honors_declared_active_two_control_one"
@@ -288,7 +288,7 @@ configuration = { estimator = "aipw", participants = 2000, treatment_values = [1
 expected = { kind = "value", outputs = ["estimate matches the same data recoded to 1/0", "estimand states the declared levels"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Declared-level contrasts reuse the binary fits; the per-run budget is the ordinary adjusted estimate." }
 dataset = { generator = "confounded_binary_treatment_recoded", seed = 8932728, n = 2000, effect = 0.5, confounding = "moderate", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/treatment_levels.rs::aipw_honors_declared_active_two_control_one" }
 
 [[case]]
 id = "matching_honors_declared_active_two_control_one"
@@ -298,7 +298,7 @@ configuration = { estimator = "matching", participants = 2000, treatment_values 
 expected = { kind = "value", outputs = ["estimate matches the same data recoded to 1/0", "estimand states the declared levels"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Declared-level contrasts reuse the binary fits; the per-run budget is the ordinary adjusted estimate." }
 dataset = { generator = "confounded_binary_treatment_recoded", seed = 8959944, n = 2000, effect = 0.5, confounding = "moderate", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/treatment_levels.rs::matching_honors_declared_active_two_control_one" }
 
 [[case]]
 id = "reversed_contrast_negates_estimate"
@@ -308,7 +308,7 @@ configuration = { estimator = "aipw", participants = 2000, active = 1, control =
 expected = { kind = "value", outputs = ["estimate equals the negation of the 2-versus-1 estimate within numerical tolerance"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Declared-level contrasts reuse the binary fits; the per-run budget is the ordinary adjusted estimate." }
 dataset = { generator = "confounded_binary_treatment_recoded", seed = 9609035, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/treatment_levels.rs::reversing_the_declared_contrast_negates_the_aipw_estimate" }
 
 [[case]]
 id = "equivalent_treatment_recodings_agree"
@@ -318,7 +318,7 @@ configuration = { recodings = ["0/1", "1/2", "a/b", "10/20"] }
 expected = { kind = "value", outputs = ["identical estimates and estimand text across recodings"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Declared-level contrasts reuse the binary fits; the per-run budget is the ordinary adjusted estimate." }
 dataset = { generator = "confounded_binary_treatment_recoded", seed = 7866192, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_treatment_level_recodings.py::test_equivalent_treatment_recodings_agree" }
 
 [[case]]
 id = "multilevel_pairwise_population_exclusions_reported"
@@ -328,7 +328,7 @@ configuration = { levels = 3, contrast = [2, 1], participants = 3000 }
 expected = { kind = "receipt", outputs = ["rows excluded because their level is neither active nor control", "target population stated as the active-or-control population"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Declared-level contrasts reuse the binary fits; the per-run budget is the ordinary adjusted estimate." }
 dataset = { generator = "confounded_three_level_treatment", seed = 5088953, n = 3000, effects = [0.0, 0.4, 0.9], simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/treatment_levels.rs::multilevel_pairwise_population_exclusions_are_reported" }
 
 [[case]]
 id = "multilevel_generalized_propensity_standardization"
@@ -338,7 +338,7 @@ configuration = { levels = 3, participants = 3000, target = "full_population_sta
 expected = { kind = "value", outputs = ["standardized mean per level", "contrast equals independent oracle", "target population stated as the full observed population"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, rationale = "Declared-level contrasts reuse the binary fits; the per-run budget is the ordinary adjusted estimate." }
 dataset = { generator = "confounded_three_level_treatment", seed = 6818193, n = 3000, effects = [0.0, 0.4, 0.9], simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/treatment_levels.rs::multilevel_generalized_propensity_standardizes_to_the_full_population" }
 
 [[case]]
 id = "multilevel_generalized_propensity_interval_calibrated"
@@ -348,7 +348,7 @@ configuration = { levels = 3, participants = 3000 }
 expected = { kind = "calibrated_interval", outputs = ["interval for the standardized contrast"] }
 targets = { runtime_seconds = 90, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Newly advertised standardization interval requires its own record. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "confounded_three_level_treatment", seed = 9224800, n = 3000, effects = [0.0, 0.4, 0.9], simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/multilevel_interval_calibration.rs::multilevel_generalized_propensity_interval" }
 
 [[case]]
 id = "undeclared_multilevel_contrast_refused"
@@ -358,7 +358,7 @@ configuration = { levels = 3, declared_levels = "absent" }
 expected = { kind = "refusal", outputs = ["refusal names the observed levels; estimand never silently reduced"], refusal = "treatment levels undeclared" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "A silent estimand change is the defect; refusal is a pre-fit check." }
 dataset = { generator = "confounded_three_level_treatment", seed = 1279651, n = 600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/treatment_levels.rs::an_undeclared_multilevel_contrast_is_refused_naming_the_observed_levels" }
 
 [[case]]
 id = "sampling_weights_linear_adjustment_match_weighted_population_oracle"
@@ -498,7 +498,7 @@ configuration = { participants = 600, arms = 4, responses_per_participant = 3, b
 expected = { kind = "receipt", outputs = ["procedure runs to a declared stop", "resource receipt with checked counters (looks, states, work units, bytes)"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Run budgets follow the work of the planned design: at most 2,400 participants x 6 responses x 4 arms with batch looks and exact-law work counters." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 6562783, n = 600, effects = [0, 0.05, 0.1, 0.15], simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_procedure_executes_600_participants" }
 
 [[case]]
 id = "adaptive_procedure_executes_1200_participants"
@@ -508,7 +508,7 @@ configuration = { participants = 1200, arms = 4, responses_per_participant = 3, 
 expected = { kind = "receipt", outputs = ["procedure runs to a declared stop", "resource receipt with checked counters (looks, states, work units, bytes)"] }
 targets = { runtime_seconds = 240, memory_bytes = 4294967296, rationale = "Run budgets follow the work of the planned design: at most 2,400 participants x 6 responses x 4 arms with batch looks and exact-law work counters." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 6860415, n = 1200, effects = [0, 0.05, 0.1, 0.15], simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_procedure_executes_1200_participants" }
 
 [[case]]
 id = "adaptive_procedure_executes_2400_participants"
@@ -518,7 +518,7 @@ configuration = { participants = 2400, arms = 4, responses_per_participant = 3, 
 expected = { kind = "receipt", outputs = ["procedure runs to a declared stop", "resource receipt with checked counters (looks, states, work units, bytes)"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, rationale = "Run budgets follow the work of the planned design: at most 2,400 participants x 6 responses x 4 arms with batch looks and exact-law work counters." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 7453855, n = 2400, effects = [0, 0.05, 0.1, 0.15], simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_procedure_executes_2400_participants" }
 
 [[case]]
 id = "adaptive_repeated_measures_batch_ceiling_removed"
@@ -528,7 +528,7 @@ configuration = { participants = 2400, arms = 4, responses_per_participant = 6, 
 expected = { kind = "receipt", outputs = ["batch of 200 participants x 6 responses accepted", "resource receipt"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, rationale = "Run budgets follow the work of the planned design: at most 2,400 participants x 6 responses x 4 arms with batch looks and exact-law work counters." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 5641339, n = 2400, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs::adaptive_repeated_measures_batch_ceiling_removed" }
 
 [[case]]
 id = "adaptive_declared_capacity_separate_from_exact_law_limits"
@@ -538,7 +538,7 @@ configuration = { participants = 2400, exact_law_state_limit_exceeded = true }
 expected = { kind = "refusal", outputs = ["refusal identifies the exact-law state limit, not the declared capacity"], refusal = "exact law state limit" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Limits must be distinguishable." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 7967817, n = 2400, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs::adaptive_declared_capacity_separate_from_exact_law_limits" }
 
 [[case]]
 id = "adaptive_simulation_work_and_memory_limits_refuse"
@@ -548,7 +548,7 @@ configuration = { simulation_work_units = "above limit" }
 expected = { kind = "refusal", outputs = ["refusal names the simulation work or memory limit and the limit value"], refusal = "simulation work limit" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Resource refusals precede allocation." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 9827611, n = 2400, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs::adaptive_simulation_work_and_memory_limits_refuse" }
 
 [[case]]
 id = "adaptive_artifact_size_limit_distinct_refusal"
@@ -558,7 +558,7 @@ configuration = { artifact_bytes = "above limit" }
 expected = { kind = "refusal", outputs = ["refusal names the artifact limit; the run itself completed"], refusal = "artifact size limit" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Artifact limits are separate from run limits." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 5827042, n = 2400, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_artifact_size_limit_distinct_refusal" }
 
 [[case]]
 id = "adaptive_run_cancellation_returns_partial_receipt"
@@ -568,7 +568,7 @@ configuration = { participants = 2400, cancel_after_looks = 3 }
 expected = { kind = "receipt", outputs = ["cancellation honoured within one batch", "receipt marks the run incomplete"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Run budgets follow the work of the planned design: at most 2,400 participants x 6 responses x 4 arms with batch looks and exact-law work counters." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 6718126, n = 2400, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_run_cancellation_returns_partial_receipt" }
 
 [[case]]
 id = "adaptive_counters_checked_arithmetic_refuses_overflow"
@@ -578,7 +578,7 @@ configuration = { participants = "usize overflow product" }
 expected = { kind = "refusal", outputs = ["checked-counter refusal; no wrapped value"], refusal = "counter overflow" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Pre-allocation validation." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 9209988, n = 2400, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/src/adaptive_inference/capacity.rs::adaptive_counters_checked_arithmetic_refuses_overflow" }
 
 [[case]]
 id = "adaptive_beta_binomial_three_arm_600_three_responses"
@@ -588,7 +588,7 @@ configuration = { participants = 600, arms = 3, responses_per_participant = 3, r
 expected = { kind = "receipt", outputs = ["all four capabilities executed in one procedure", "assignment probabilities >= minimum exploration at every participant", "historical sources, discounts and effective sample sizes recorded"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Runtime scales with participants x responses x arms x looks; 2,400 participants with 4 arms is the largest planned case." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 7103449, n = 600, correlation = 0.3, priors = "informative_historical", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_beta_binomial_three_arm_600_three_responses" }
 
 [[case]]
 id = "adaptive_beta_binomial_four_arm_1200_six_responses"
@@ -598,7 +598,7 @@ configuration = { participants = 1200, arms = 4, responses_per_participant = 6, 
 expected = { kind = "receipt", outputs = ["all four capabilities executed in one procedure", "assignment probabilities >= minimum exploration at every participant", "historical sources, discounts and effective sample sizes recorded"] }
 targets = { runtime_seconds = 240, memory_bytes = 4294967296, rationale = "Runtime scales with participants x responses x arms x looks; 2,400 participants with 4 arms is the largest planned case." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 5402708, n = 1200, correlation = 0.3, priors = "informative_historical", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_beta_binomial_four_arm_1200_six_responses" }
 
 [[case]]
 id = "adaptive_beta_binomial_four_arm_2400"
@@ -608,7 +608,7 @@ configuration = { participants = 2400, arms = 4, responses_per_participant = 6, 
 expected = { kind = "receipt", outputs = ["all four capabilities executed in one procedure", "assignment probabilities >= minimum exploration at every participant", "historical sources, discounts and effective sample sizes recorded"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, rationale = "Runtime scales with participants x responses x arms x looks; 2,400 participants with 4 arms is the largest planned case." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 6681309, n = 2400, correlation = 0.3, priors = "informative_historical", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_beta_binomial_four_arm_2400" }
 
 [[case]]
 id = "adaptive_participant_aware_likelihood_matches_oracle"
@@ -618,7 +618,7 @@ configuration = { participants = 600, arms = 3, responses_per_participant = 3 }
 expected = { kind = "value", outputs = ["posterior parameters equal independent beta-binomial conjugate computation"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Runtime scales with participants x responses x arms x looks; 2,400 participants with 4 arms is the largest planned case." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 7944575, n = 600, correlation = 0.3, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/tests/adaptive_participant_family.rs::adaptive_participant_aware_likelihood_matches_oracle" }
 
 [[case]]
 id = "adaptive_historical_borrowing_receipt"
@@ -628,7 +628,7 @@ configuration = { historical_sources = 2, discount = 0.5, arms = 4 }
 expected = { kind = "receipt", outputs = ["per-source discount", "effective historical sample size per arm", "prior-data conflict diagnostic"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Runtime scales with participants x responses x arms x looks; 2,400 participants with 4 arms is the largest planned case." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 4278190, n = 1200, priors = "informative_historical", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/tests/adaptive_participant_family.rs::adaptive_historical_borrowing_receipt" }
 
 [[case]]
 id = "adaptive_borrowing_frozen_before_recruitment"
@@ -638,7 +638,7 @@ configuration = { change_borrowing_after_first_participant = true }
 expected = { kind = "refusal", outputs = ["refusal names the frozen borrowing declaration"], refusal = "borrowing declaration frozen" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Freezing is a pre-run state check." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 2756012, n = 600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_borrowing_frozen_before_recruitment" }
 
 [[case]]
 id = "adaptive_minimum_exploration_enforced"
@@ -648,7 +648,7 @@ configuration = { arms = 4, min_allocation = 0.1, dominated_arm = true }
 expected = { kind = "value", outputs = ["no assignment probability below 0.1 including dominated arms"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Runtime scales with participants x responses x arms x looks; 2,400 participants with 4 arms is the largest planned case." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 3445060, n = 1200, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_minimum_exploration_enforced" }
 
 [[case]]
 id = "adaptive_expected_loss_stop_at_completed_batch_boundary"
@@ -658,7 +658,7 @@ configuration = { participants = 1200, arms = 4, stopping = "expected_loss", bou
 expected = { kind = "receipt", outputs = ["decision recorded with look index and completed-participant count", "no decision on partial participants"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, rationale = "Looks are batch-wise; inference is closed-form per look so budgets mirror the family run." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 9274147, n = 1200, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_expected_loss_stop_at_completed_batch_boundary" }
 
 [[case]]
 id = "adaptive_futility_stop_at_completed_batch_boundary"
@@ -668,7 +668,7 @@ configuration = { participants = 1200, arms = 4, stopping = "futility", boundary
 expected = { kind = "receipt", outputs = ["decision recorded with look index and completed-participant count", "no decision on partial participants"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, rationale = "Looks are batch-wise; inference is closed-form per look so budgets mirror the family run." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 7073496, n = 1200, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_futility_stop_at_completed_batch_boundary" }
 
 [[case]]
 id = "adaptive_recruitment_cap_stop_at_completed_batch_boundary"
@@ -678,7 +678,7 @@ configuration = { participants = 600, arms = 4, stopping = "recruitment_cap", bo
 expected = { kind = "receipt", outputs = ["decision recorded with look index and completed-participant count", "no decision on partial participants"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, rationale = "Looks are batch-wise; inference is closed-form per look so budgets mirror the family run." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 2822811, n = 600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_recruitment_cap_stop_at_completed_batch_boundary" }
 
 [[case]]
 id = "adaptive_partial_participant_batch_refused"
@@ -688,7 +688,7 @@ configuration = { incomplete_participants = 7 }
 expected = { kind = "refusal", outputs = ["refusal names incomplete participants"], refusal = "batch has incomplete participants" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Pre-look check." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 3914842, n = 600, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_partial_participant_batch_refused" }
 
 [[case]]
 id = "adaptive_confidence_sequence_reported_at_every_look"
@@ -698,7 +698,7 @@ configuration = { participants = 1200, arms = 4, looks = 12 }
 expected = { kind = "receipt", outputs = ["confidence-sequence reading at each performed look"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, rationale = "Looks are batch-wise; inference is closed-form per look so budgets mirror the family run." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 7634056, n = 1200, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_confidence_sequence_reported_at_every_look" }
 
 [[case]]
 id = "adaptive_simultaneous_comparisons_against_control"
@@ -708,7 +708,7 @@ configuration = { arms = 4, comparisons = 3 }
 expected = { kind = "interval", outputs = ["simultaneous confidence-sequence per arm-versus-control contrast"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, rationale = "Looks are batch-wise; inference is closed-form per look so budgets mirror the family run." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 7574789, n = 1200, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_simultaneous_comparisons_against_control" }
 
 [[case]]
 id = "adaptive_selected_alternative_data_chosen"
@@ -718,7 +718,7 @@ configuration = { arms = 4, selection = "data_chosen_best_alternative" }
 expected = { kind = "interval", outputs = ["interval valid for the data-selected alternative"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, rationale = "Looks are batch-wise; inference is closed-form per look so budgets mirror the family run." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 9173130, n = 1200, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_selected_alternative_data_chosen" }
 
 [[case]]
 id = "adaptive_replay_contract_retains_assignment_outcomes_priors_decisions"
@@ -728,7 +728,7 @@ configuration = { participants = 1200 }
 expected = { kind = "receipt", outputs = ["assignment probabilities", "outcome availability", "prior updates", "decisions", "replay reproduces the result"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, rationale = "Looks are batch-wise; inference is closed-form per look so budgets mirror the family run." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 5803458, n = 1200, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_replay_contract_retains_assignment_outcomes_priors_decisions" }
 
 [[case]]
 id = "adaptive_posterior_and_frequentist_claims_separate"
@@ -738,7 +738,7 @@ configuration = { participants = 1200 }
 expected = { kind = "receipt", outputs = ["posterior claims and confidence-sequence claims in separate fields with separate assumptions"] }
 targets = { runtime_seconds = 480, memory_bytes = 4294967296, rationale = "Looks are batch-wise; inference is closed-form per look so budgets mirror the family run." }
 dataset = { generator = "adaptive_beta_binomial_trial", seed = 3827572, n = 1200, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/adaptive_participant_acceptance.rs::adaptive_posterior_and_frequentist_claims_separate" }
 
 [[case]]
 id = "adaptive_full_procedure_null_effects_600"
@@ -1058,7 +1058,7 @@ configuration = { algorithm = "pc", constraint = "required_edges", variables = 1
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 2224256, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_pc_required_edges_supported_positive_example" }
 
 [[case]]
 id = "pc_forbidden_edges_supported_positive_example"
@@ -1068,7 +1068,7 @@ configuration = { algorithm = "pc", constraint = "forbidden_edges", variables = 
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 9200245, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_pc_forbidden_edges_supported_positive_example" }
 
 [[case]]
 id = "pc_tiers_supported_positive_example"
@@ -1078,7 +1078,7 @@ configuration = { algorithm = "pc", constraint = "tiers", variables = 10, rows =
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 6727714, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_pc_tiers_supported_positive_example" }
 
 [[case]]
 id = "pc_parent_limits_supported_positive_example"
@@ -1088,7 +1088,7 @@ configuration = { algorithm = "pc", constraint = "parent_limits", variables = 10
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 7015513, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_pc_parent_limits_supported_positive_example" }
 
 [[case]]
 id = "fci_required_edges_supported_positive_example"
@@ -1098,7 +1098,7 @@ configuration = { algorithm = "fci", constraint = "required_edges", variables = 
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 1725022, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_fci_required_edges_supported_positive_example" }
 
 [[case]]
 id = "fci_forbidden_edges_supported_positive_example"
@@ -1108,7 +1108,7 @@ configuration = { algorithm = "fci", constraint = "forbidden_edges", variables =
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 3516709, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_fci_forbidden_edges_supported_positive_example" }
 
 [[case]]
 id = "fci_tiers_supported_positive_example"
@@ -1118,7 +1118,7 @@ configuration = { algorithm = "fci", constraint = "tiers", variables = 10, rows 
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 1439864, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_fci_tiers_supported_positive_example" }
 
 [[case]]
 id = "fci_parent_limits_supported_positive_example"
@@ -1128,7 +1128,7 @@ configuration = { algorithm = "fci", constraint = "parent_limits", variables = 1
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 4814368, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_fci_parent_limits_supported_positive_example" }
 
 [[case]]
 id = "ges_required_edges_supported_positive_example"
@@ -1138,7 +1138,7 @@ configuration = { algorithm = "ges", constraint = "required_edges", variables = 
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 7417349, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_ges_required_edges_supported_positive_example" }
 
 [[case]]
 id = "ges_forbidden_edges_supported_positive_example"
@@ -1148,7 +1148,7 @@ configuration = { algorithm = "ges", constraint = "forbidden_edges", variables =
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 2216938, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_ges_forbidden_edges_supported_positive_example" }
 
 [[case]]
 id = "ges_tiers_supported_positive_example"
@@ -1158,7 +1158,7 @@ configuration = { algorithm = "ges", constraint = "tiers", variables = 10, rows 
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 6032544, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_ges_tiers_supported_positive_example" }
 
 [[case]]
 id = "ges_parent_limits_supported_positive_example"
@@ -1168,7 +1168,7 @@ configuration = { algorithm = "ges", constraint = "parent_limits", variables = 1
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 7457181, n = 2000, variables = 10, series = false, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_ges_parent_limits_supported_positive_example" }
 
 [[case]]
 id = "pcmci_required_edges_supported_positive_example"
@@ -1178,7 +1178,7 @@ configuration = { algorithm = "pcmci", constraint = "required_edges", variables 
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 5273497, n = 2000, variables = 10, series = true, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_pcmci_required_edges_supported_positive_example" }
 
 [[case]]
 id = "pcmci_forbidden_edges_supported_positive_example"
@@ -1188,7 +1188,7 @@ configuration = { algorithm = "pcmci", constraint = "forbidden_edges", variables
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 6139562, n = 2000, variables = 10, series = true, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_pcmci_forbidden_edges_supported_positive_example" }
 
 [[case]]
 id = "pcmci_tiers_supported_positive_example"
@@ -1198,7 +1198,7 @@ configuration = { algorithm = "pcmci", constraint = "tiers", variables = 10, row
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 4108448, n = 2000, variables = 10, series = true, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_pcmci_tiers_supported_positive_example" }
 
 [[case]]
 id = "pcmci_parent_limits_supported_positive_example"
@@ -1208,7 +1208,7 @@ configuration = { algorithm = "pcmci", constraint = "parent_limits", variables =
 expected = { kind = "value", outputs = ["constraint honoured in the returned graph", "algorithm-specific semantics documented", "constraint included in identity"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 8250015, n = 2000, variables = 10, series = true, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_pcmci_parent_limits_supported_positive_example" }
 
 [[case]]
 id = "contradictory_background_knowledge_refused"
@@ -1218,7 +1218,7 @@ configuration = { required_and_forbidden_same_edge = true }
 expected = { kind = "refusal", outputs = ["names the contradicting constraints"], refusal = "contradictory constraints" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Pre-run check." }
 dataset = { generator = "constrained_discovery_scm", seed = 5502476, n = 500, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_contradictory_background_knowledge_is_refused_naming_the_statements" }
 
 [[case]]
 id = "background_knowledge_unknown_variable_refused"
@@ -1228,7 +1228,7 @@ configuration = { unknown_variable = "not_a_column" }
 expected = { kind = "refusal", outputs = ["names the unknown variable"], refusal = "constraint unknown variable" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Pre-run check." }
 dataset = { generator = "constrained_discovery_scm", seed = 9458383, n = 500, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_background_knowledge_naming_an_unknown_variable_is_refused_by_name" }
 
 [[case]]
 id = "background_knowledge_carried_through_dispatch_refresh_serialization_replay"
@@ -1238,7 +1238,7 @@ configuration = { algorithms = ["pc", "fci", "ges", "pcmci"], variables = 10 }
 expected = { kind = "receipt", outputs = ["identical constraint set after each stage", "replay identity changes when constraints change"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Constraint handling is a small overhead on 10-variable discovery." }
 dataset = { generator = "constrained_discovery_scm", seed = 5649596, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_discovery_knowledge_acceptance.py::test_background_knowledge_is_carried_through_dispatch_refresh_serialization_and_replay" }
 
 [[case]]
 id = "masked_weighted_split_preserves_masks_weights_and_row_identity"
@@ -1248,7 +1248,7 @@ configuration = { participants = 3000, weights = "unequal_survey", masked_rows =
 expected = { kind = "receipt", outputs = ["masks", "weights", "row identities in both partitions"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Splitting adds a single partition pass to the held-out run." }
 dataset = { generator = "survey_weighted_sparse_scm", seed = 9290586, n = 3000, weight_cv = 0.8, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_survey_weighted_split.py::test_a_masked_weighted_split_keeps_masks_weights_and_original_row_identity" }
 
 [[case]]
 id = "masked_weighted_split_filter_then_split_order_is_declared_and_reproducible"
@@ -1258,7 +1258,7 @@ configuration = { participants = 3000, weights = "unequal_survey", masked_rows =
 expected = { kind = "receipt", outputs = ["documented order: filter, then split"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Splitting adds a single partition pass to the held-out run." }
 dataset = { generator = "survey_weighted_sparse_scm", seed = 8571308, n = 3000, weight_cv = 0.8, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_survey_weighted_split.py::test_filtering_happens_before_the_split_and_the_order_is_declared_and_reproducible" }
 
 [[case]]
 id = "masked_weighted_split_zero_and_unequal_weights_handled"
@@ -1268,7 +1268,7 @@ configuration = { participants = 3000, weights = "unequal_survey", masked_rows =
 expected = { kind = "receipt", outputs = ["zero-weight rows excluded with accounting", "unequal weights carried"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Splitting adds a single partition pass to the held-out run." }
 dataset = { generator = "survey_weighted_sparse_scm", seed = 9983411, n = 3000, weight_cv = 0.8, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_weighted_acceptance.rs::zero_weight_rows_are_excluded_and_counted_and_unequal_weights_are_carried" }
 
 [[case]]
 id = "masked_weighted_split_exclusions_recorded_in_split_receipt"
@@ -1278,7 +1278,7 @@ configuration = { participants = 3000, weights = "unequal_survey", masked_rows =
 expected = { kind = "receipt", outputs = ["excluded rows listed by reason"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Splitting adds a single partition pass to the held-out run." }
 dataset = { generator = "survey_weighted_sparse_scm", seed = 2266102, n = 3000, weight_cv = 0.8, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_survey_weighted_split.py::test_the_split_receipt_lists_every_exclusion_by_its_reason" }
 
 [[case]]
 id = "masked_weighted_split_replay_reproduces_split_receipt"
@@ -1288,7 +1288,7 @@ configuration = { participants = 3000, weights = "unequal_survey", masked_rows =
 expected = { kind = "receipt", outputs = ["replay yields identical receipt"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Splitting adds a single partition pass to the held-out run." }
 dataset = { generator = "survey_weighted_sparse_scm", seed = 1346138, n = 3000, weight_cv = 0.8, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_survey_weighted_split.py::test_replaying_the_split_reproduces_the_receipt" }
 
 [[case]]
 id = "weighted_discovery_and_downstream_estimation"
@@ -1298,7 +1298,7 @@ configuration = { participants = 3000, weights = "unequal_survey", variables = 1
 expected = { kind = "value", outputs = ["weighted effect equals independent weighted-population oracle", "target population", "normalization", "effective sample size"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Splitting adds a single partition pass to the held-out run." }
 dataset = { generator = "survey_weighted_sparse_scm", seed = 1264134, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_weighted_acceptance.rs::weighted_discovery_and_downstream_estimation_equal_the_weighted_population_oracle" }
 
 [[case]]
 id = "weighted_split_effect_interval_calibrated"
@@ -1308,7 +1308,7 @@ configuration = { participants = 3000, weights = "unequal_survey", variables = 1
 expected = { kind = "calibrated_interval", outputs = ["weighted held-out interval"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Weighted held-out uncertainty is a new construction. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "survey_weighted_sparse_scm", seed = 2762083, n = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/sample_split_weighted_effect_calibration.rs::weighted_split_effect_interval_calibrated" }
 
 [[case]]
 id = "discovery_then_estimation_linear_hub_confounded_multi_path_10_variables_1000"
@@ -1728,7 +1728,7 @@ configuration = { passing_points = [800, 1600, 3200], failed_point = 400 }
 expected = { kind = "receipt", outputs = ["contiguous passing upper subrange accepted", "failed lower point and its evidence preserved"] }
 targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 6812707, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/src/calibration.rs::independently_confirmed_upper_subrange_recovered" }
 
 [[case]]
 id = "unconfirmed_subrange_not_recovered"
@@ -1738,7 +1738,7 @@ configuration = { confirmation = "absent" }
 expected = { kind = "refusal", outputs = ["names missing independent confirmation"], refusal = "subrange unconfirmed" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 4208387, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/src/calibration.rs::unconfirmed_subrange_not_recovered" }
 
 [[case]]
 id = "non_contiguous_passing_points_not_merged"
@@ -1748,7 +1748,7 @@ configuration = { passing_points = [400, 1600], failed_between = 800 }
 expected = { kind = "refusal", outputs = ["names the failed interior point"], refusal = "passing region not contiguous" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 7616916, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io-core/src/calibration.rs::non_contiguous_passing_points_not_merged" }
 
 [[case]]
 id = "calibration_subrange_construction_mismatch_refused"
@@ -1758,7 +1758,7 @@ configuration = { mismatched = "construction" }
 expected = { kind = "refusal", outputs = ["records differing in construction are not combined"], refusal = "calibration construction mismatch" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 1209280, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_collect_coverage_records.py::test_calibration_subrange_construction_mismatch_refused" }
 
 [[case]]
 id = "calibration_subrange_estimand_mismatch_refused"
@@ -1768,7 +1768,7 @@ configuration = { mismatched = "estimand" }
 expected = { kind = "refusal", outputs = ["records differing in estimand are not combined"], refusal = "calibration estimand mismatch" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 8490916, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_collect_coverage_records.py::test_calibration_subrange_estimand_mismatch_refused" }
 
 [[case]]
 id = "calibration_subrange_nominal_level_mismatch_refused"
@@ -1778,7 +1778,7 @@ configuration = { mismatched = "nominal_level" }
 expected = { kind = "refusal", outputs = ["records differing in nominal_level are not combined"], refusal = "calibration nominal_level mismatch" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 4818705, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_collect_coverage_records.py::test_calibration_subrange_nominal_level_mismatch_refused" }
 
 [[case]]
 id = "calibration_subrange_dependence_mismatch_refused"
@@ -1788,7 +1788,7 @@ configuration = { mismatched = "dependence" }
 expected = { kind = "refusal", outputs = ["records differing in dependence are not combined"], refusal = "calibration dependence mismatch" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 5065032, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_collect_coverage_records.py::test_calibration_subrange_dependence_mismatch_refused" }
 
 [[case]]
 id = "calibration_subrange_identification_mismatch_refused"
@@ -1798,7 +1798,7 @@ configuration = { mismatched = "identification" }
 expected = { kind = "refusal", outputs = ["records differing in identification are not combined"], refusal = "calibration identification mismatch" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 2146442, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_collect_coverage_records.py::test_calibration_subrange_identification_mismatch_refused" }
 
 [[case]]
 id = "calibration_subrange_attestation_mismatch_refused"
@@ -1808,7 +1808,7 @@ configuration = { mismatched = "attestation" }
 expected = { kind = "refusal", outputs = ["records differing in attestation are not combined"], refusal = "calibration attestation mismatch" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Record-set logic is static; no data are generated." }
 dataset = { generator = "calibration_records_fixture", seed = 2517197, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_collect_coverage_records.py::test_calibration_subrange_attestation_mismatch_refused" }
 
 [[case]]
 id = "practitioner_linear_adjustment_interval_10000_rows"
@@ -1988,7 +1988,7 @@ configuration = { draws = 2000, participants = 1000 }
 expected = { kind = "calibrated_interval", outputs = ["interval from the supplied draws", "actual draws and seeds in replay identity", "Monte Carlo error and convergence diagnostics"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Draw-based intervals cost linear time in draws; 8,000 draws remain seconds. MCSE controls cap numerical error below a tenth of the interval half-width. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "bayesian_linear_scm", seed = 3272793, n = 1000, effect = 0.4, draws = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/calibration_posterior_draws.rs::posterior_draws_2000_rows_1000_l95" }
 
 [[case]]
 id = "posterior_interval_with_3000_draws_calibrated"
@@ -1998,7 +1998,7 @@ configuration = { draws = 3000, participants = 1000 }
 expected = { kind = "calibrated_interval", outputs = ["interval from the supplied draws", "actual draws and seeds in replay identity", "Monte Carlo error and convergence diagnostics"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Draw-based intervals cost linear time in draws; 8,000 draws remain seconds. MCSE controls cap numerical error below a tenth of the interval half-width. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "bayesian_linear_scm", seed = 1520647, n = 1000, effect = 0.4, draws = 3000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/calibration_posterior_draws.rs::posterior_draws_3000_rows_1000_l95" }
 
 [[case]]
 id = "posterior_interval_with_4000_draws_calibrated"
@@ -2008,7 +2008,7 @@ configuration = { draws = 4000, participants = 1000 }
 expected = { kind = "calibrated_interval", outputs = ["interval from the supplied draws", "actual draws and seeds in replay identity", "Monte Carlo error and convergence diagnostics"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Draw-based intervals cost linear time in draws; 8,000 draws remain seconds. MCSE controls cap numerical error below a tenth of the interval half-width. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "bayesian_linear_scm", seed = 5482399, n = 1000, effect = 0.4, draws = 4000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/calibration_posterior_draws.rs::posterior_draws_4000_rows_1000_l95" }
 
 [[case]]
 id = "posterior_interval_with_8000_draws_calibrated"
@@ -2018,7 +2018,7 @@ configuration = { draws = 8000, participants = 1000 }
 expected = { kind = "calibrated_interval", outputs = ["interval from the supplied draws", "actual draws and seeds in replay identity", "Monte Carlo error and convergence diagnostics"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Draw-based intervals cost linear time in draws; 8,000 draws remain seconds. MCSE controls cap numerical error below a tenth of the interval half-width. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5, min_power = 0.75 }
 dataset = { generator = "bayesian_linear_scm", seed = 4550226, n = 1000, effect = 0.4, draws = 8000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/calibration_posterior_draws.rs::posterior_draws_8000_rows_1000_l95" }
 
 [[case]]
 id = "posterior_draws_below_minimum_refused"
@@ -2028,7 +2028,7 @@ configuration = { draws = 200 }
 expected = { kind = "refusal", outputs = ["names supported minimum"], refusal = "draw count below minimum" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Draw-based intervals cost linear time in draws; 8,000 draws remain seconds. MCSE controls cap numerical error below a tenth of the interval half-width." }
 dataset = { generator = "bayesian_linear_scm", seed = 2969080, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/bayesian_draw_controls.rs::a_draw_count_below_the_supported_minimum_is_refused_naming_it" }
 
 [[case]]
 id = "posterior_numerical_error_controls_enforced"
@@ -2038,7 +2038,7 @@ configuration = { draws = 3000, forced_poor_mixing = true }
 expected = { kind = "refusal", outputs = ["convergence control failure names the diagnostic"], refusal = "posterior convergence" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Draw-based intervals cost linear time in draws; 8,000 draws remain seconds. MCSE controls cap numerical error below a tenth of the interval half-width." }
 dataset = { generator = "bayesian_linear_scm", seed = 8863563, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/bayesian_draw_controls.rs::a_sampler_that_mixes_poorly_is_refused_naming_the_chain_diagnostics" }
 
 [[case]]
 id = "posterior_draws_and_seeds_in_replay_identity"
@@ -2048,7 +2048,7 @@ configuration = { draws = 3000 }
 expected = { kind = "receipt", outputs = ["changing draws or seed changes identity", "replay reproduces draws"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Draw-based intervals cost linear time in draws; 8,000 draws remain seconds. MCSE controls cap numerical error below a tenth of the interval half-width." }
 dataset = { generator = "bayesian_linear_scm", seed = 9483778, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/bayesian_draw_controls.rs::draws_and_seed_are_in_the_replay_identity_and_replay_reproduces_the_draws" }
 
 [[case]]
 id = "decision_reliability_3_candidates_calibrated"
@@ -2388,7 +2388,7 @@ configuration = { defect = "release note says 400, 800 and 1,600 cases upward wh
 expected = { kind = "receipt", outputs = ["wording states the actual supported iid scope", "runtime limits, examples, release notes and calibration records agree", "no unqualified 'upward'"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Scores are O(n); iid interval at 100k cases is seconds." }
 dataset = { generator = "documentation_check", seed = 1695710, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "scripts/test_check_predictive_score_scope.py::test_an_unqualified_upward_in_a_release_note_is_found" }
 
 [[case]]
 id = "balanced_300_participant_independent_assignment_score_interval"
@@ -2498,7 +2498,7 @@ configuration = { donors = 20000, treated = 2000 }
 expected = { kind = "value", outputs = ["result identical to quadratic reference on a checkable subsample", "deterministic replay"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "propensity_matching_population", seed = 1598979, n = 20000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_exact_one_dimensional_propensity_matching_20000_donors" }
 
 [[case]]
 id = "sorted_exact_one_dimensional_propensity_matching_100000_donors"
@@ -2508,7 +2508,7 @@ configuration = { donors = 100000, treated = 10000 }
 expected = { kind = "value", outputs = ["result identical to quadratic reference on a checkable subsample", "deterministic replay"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "propensity_matching_population", seed = 7674962, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_exact_one_dimensional_propensity_matching_100000_donors" }
 
 [[case]]
 id = "sorted_matching_preserves_ties"
@@ -2518,7 +2518,7 @@ configuration = { donors = 20000, feature = "ties" }
 expected = { kind = "value", outputs = ["ties behave exactly as in the reference path"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "propensity_matching_population", seed = 7297538, n = 20000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_matching_preserves_ties" }
 
 [[case]]
 id = "sorted_matching_preserves_calipers"
@@ -2528,7 +2528,7 @@ configuration = { donors = 20000, feature = "calipers" }
 expected = { kind = "value", outputs = ["calipers behave exactly as in the reference path"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "propensity_matching_population", seed = 3706826, n = 20000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_matching_preserves_calipers" }
 
 [[case]]
 id = "sorted_matching_preserves_duplicates"
@@ -2538,7 +2538,7 @@ configuration = { donors = 20000, feature = "duplicates" }
 expected = { kind = "value", outputs = ["duplicates behave exactly as in the reference path"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "propensity_matching_population", seed = 8730913, n = 20000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_matching_preserves_duplicates" }
 
 [[case]]
 id = "sorted_matching_preserves_deterministic_replay"
@@ -2548,7 +2548,7 @@ configuration = { donors = 20000, feature = "deterministic_replay" }
 expected = { kind = "value", outputs = ["deterministic_replay behave exactly as in the reference path"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "propensity_matching_population", seed = 9941869, n = 20000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/matching/scale_tests.rs::sorted_matching_preserves_deterministic_replay" }
 
 [[case]]
 id = "multivariate_distance_matching_bounded_resources_10000"
@@ -2558,7 +2558,7 @@ configuration = { donors = 10000, covariates = 8 }
 expected = { kind = "value", outputs = ["match set under bounded memory"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "propensity_matching_population", seed = 4237894, n = 10000, covariates = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/distance/scale_tests.rs::multivariate_distance_matching_bounded_resources_10000" }
 
 [[case]]
 id = "knn_ci_path_10000"
@@ -2568,7 +2568,7 @@ configuration = { donors = 10000, covariates = 8, k = 3 }
 expected = { kind = "calibrated_interval", outputs = ["interval with matching calibration"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "propensity_matching_population", seed = 3151358, n = 10000, covariates = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/knn_matching_calibration.rs::knn_matching_interval_ci_coverage" }
 
 [[case]]
 id = "multivariate_distance_matching_bounded_resources_100000"
@@ -2578,7 +2578,7 @@ configuration = { donors = 100000, covariates = 8 }
 expected = { kind = "value", outputs = ["match set under bounded memory"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "propensity_matching_population", seed = 3506513, n = 100000, covariates = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/src/propensity/distance/scale_tests.rs::multivariate_distance_matching_bounded_resources_100000" }
 
 [[case]]
 id = "knn_ci_path_100000"
@@ -2588,7 +2588,7 @@ configuration = { donors = 100000, covariates = 8, k = 3 }
 expected = { kind = "calibrated_interval", outputs = ["interval with matching calibration"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "propensity_matching_population", seed = 2351493, n = 100000, covariates = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/knn_matching_calibration.rs::knn_matching_interval_ci_coverage" }
 
 [[case]]
 id = "matching_changed_numerical_construction_has_own_identity"
@@ -2598,7 +2598,7 @@ configuration = { constructions = "changed numerical" }
 expected = { kind = "receipt", outputs = ["any changed numerical construction carries a distinct identity and evidence"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Sorted one-dimensional matching is O(n log n); multivariate paths use bounded-memory blocked search." }
 dataset = { generator = "registry_check", seed = 1937933, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-estimate/tests/matching_construction_identity.rs::matching_changed_numerical_construction_has_own_identity" }
 
 [[case]]
 id = "latent_class_fit_beyond_old_row_ceiling_20000"
@@ -2608,7 +2608,7 @@ configuration = { rows = 20000 }
 expected = { kind = "value", outputs = ["fit completes", "declared inferential standing unchanged", "explicit computation, export and replay budgets"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "latent_class_population", seed = 9804607, n = 20000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/latent_class_artifact.rs::latent_class_fit_beyond_old_row_ceiling_20000" }
 
 [[case]]
 id = "latent_class_fit_beyond_old_row_ceiling_100000"
@@ -2618,7 +2618,7 @@ configuration = { rows = 100000 }
 expected = { kind = "value", outputs = ["fit completes", "declared inferential standing unchanged", "explicit computation, export and replay budgets"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "latent_class_population", seed = 1689014, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/latent_class_artifact.rs::latent_class_fit_beyond_old_row_ceiling_100000" }
 
 [[case]]
 id = "nonlinear_mediation_fit_beyond_old_row_ceiling_50000"
@@ -2628,7 +2628,7 @@ configuration = { rows = 50000 }
 expected = { kind = "value", outputs = ["fit completes", "declared inferential standing unchanged", "explicit computation, export and replay budgets"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "nonlinear_mediation_population", seed = 6777711, n = 50000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs::nonlinear_mediation_fit_beyond_old_row_ceiling_50000" }
 
 [[case]]
 id = "nonlinear_mediation_fit_beyond_old_row_ceiling_100000"
@@ -2638,7 +2638,7 @@ configuration = { rows = 100000 }
 expected = { kind = "value", outputs = ["fit completes", "declared inferential standing unchanged", "explicit computation, export and replay budgets"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "nonlinear_mediation_population", seed = 5293885, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs::nonlinear_mediation_fit_beyond_old_row_ceiling_100000" }
 
 [[case]]
 id = "categorical_treatment_hc0_covariance_100k_rows"
@@ -2648,7 +2648,7 @@ configuration = { rows = 100000, covariance = "HC0" }
 expected = { kind = "value", outputs = ["HC0 covariance equals dense reference on checkable subsample"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "categorical_treatment_population", seed = 7840663, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/categorical_treatment_artifact.rs::categorical_treatment_hc0_covariance_100k_rows" }
 
 [[case]]
 id = "categorical_treatment_hc1_covariance_100k_rows"
@@ -2658,7 +2658,7 @@ configuration = { rows = 100000, covariance = "HC1" }
 expected = { kind = "value", outputs = ["HC1 covariance equals dense reference on checkable subsample"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "categorical_treatment_population", seed = 7248023, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/categorical_treatment_artifact.rs::categorical_treatment_hc1_covariance_100k_rows" }
 
 [[case]]
 id = "categorical_treatment_hc2_covariance_100k_rows"
@@ -2668,7 +2668,7 @@ configuration = { rows = 100000, covariance = "HC2" }
 expected = { kind = "value", outputs = ["HC2 covariance equals dense reference on checkable subsample"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "categorical_treatment_population", seed = 1288919, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/categorical_treatment_artifact.rs::categorical_treatment_hc2_covariance_100k_rows" }
 
 [[case]]
 id = "categorical_treatment_hc3_covariance_100k_rows"
@@ -2678,7 +2678,7 @@ configuration = { rows = 100000, covariance = "HC3" }
 expected = { kind = "value", outputs = ["HC3 covariance equals dense reference on checkable subsample"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "categorical_treatment_population", seed = 6336663, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/categorical_treatment_artifact.rs::categorical_treatment_hc3_covariance_100k_rows" }
 
 [[case]]
 id = "vector_treatment_hc0_covariance_100k_rows"
@@ -2688,7 +2688,7 @@ configuration = { rows = 100000, covariance = "HC0" }
 expected = { kind = "value", outputs = ["HC0 covariance equals dense reference on checkable subsample"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "vector_treatment_population", seed = 3162219, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/vector_treatment_artifact.rs::vector_treatment_hc0_covariance_100k_rows" }
 
 [[case]]
 id = "vector_treatment_hc1_covariance_100k_rows"
@@ -2698,7 +2698,7 @@ configuration = { rows = 100000, covariance = "HC1" }
 expected = { kind = "value", outputs = ["HC1 covariance equals dense reference on checkable subsample"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "vector_treatment_population", seed = 5418411, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/vector_treatment_artifact.rs::vector_treatment_hc1_covariance_100k_rows" }
 
 [[case]]
 id = "vector_treatment_hc2_covariance_100k_rows"
@@ -2708,7 +2708,7 @@ configuration = { rows = 100000, covariance = "HC2" }
 expected = { kind = "value", outputs = ["HC2 covariance equals dense reference on checkable subsample"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "vector_treatment_population", seed = 8522155, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/vector_treatment_artifact.rs::vector_treatment_hc2_covariance_100k_rows" }
 
 [[case]]
 id = "vector_treatment_hc3_covariance_100k_rows"
@@ -2718,7 +2718,7 @@ configuration = { rows = 100000, covariance = "HC3" }
 expected = { kind = "value", outputs = ["HC3 covariance equals dense reference on checkable subsample"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "vector_treatment_population", seed = 5919723, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/vector_treatment_artifact.rs::vector_treatment_hc3_covariance_100k_rows" }
 
 [[case]]
 id = "fit_artifact_export_and_replay_budgets_explicit"
@@ -2728,7 +2728,7 @@ configuration = { rows = 100000 }
 expected = { kind = "receipt", outputs = ["computation, export and replay budgets reported separately"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "latent_class_population", seed = 8179773, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/latent_class_artifact.rs::fit_artifact_export_and_replay_budgets_explicit" }
 
 [[case]]
 id = "fit_artifact_data_binding_verified"
@@ -2738,7 +2738,7 @@ configuration = { rows = 100000 }
 expected = { kind = "receipt", outputs = ["artifact verifies against bound data digest", "mismatched data refused"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "latent_class_population", seed = 7534003, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/latent_class_artifact.rs::fit_artifact_data_binding_verified" }
 
 [[case]]
 id = "fit_never_truncates_data_silently"
@@ -2748,7 +2748,7 @@ configuration = { rows = "above computation budget" }
 expected = { kind = "refusal", outputs = ["precise resource refusal; no row dropped"], refusal = "computation budget" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Fit time is linear (or n x classes x iterations) in rows; artifact export is separately budgeted." }
 dataset = { generator = "latent_class_population", seed = 4739124, n = 1000000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-io/tests/latent_class_artifact.rs::fit_never_truncates_data_silently" }
 
 [[case]]
 id = "recalculation_bridge_100000_rows_by_20_columns"
@@ -2758,7 +2758,7 @@ configuration = { rows = 100000, columns = 20 }
 expected = { kind = "value", outputs = ["bridge accepts the table", "recalculated result equals direct native result"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Bridge conversion is linear in cells; 2M cells plus one copy fit comfortably." }
 dataset = { generator = "wide_numeric_table", seed = 5655702, n = 100000, columns = 20, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_recalc_bridge_conformance.py::test_the_bridge_accepts_wide_tables_and_equals_the_direct_native_result" }
 
 [[case]]
 id = "recalculation_bridge_500000_rows_by_20_columns"
@@ -2768,7 +2768,7 @@ configuration = { rows = 500000, columns = 20 }
 expected = { kind = "value", outputs = ["bridge accepts the table", "recalculated result equals direct native result"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Bridge conversion is linear in cells; 2M cells plus one copy fit comfortably." }
 dataset = { generator = "wide_numeric_table", seed = 8117741, n = 500000, columns = 20, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_recalc_bridge_conformance.py::test_the_bridge_accepts_wide_tables_and_equals_the_direct_native_result" }
 
 [[case]]
 id = "recalculation_bridge_1000000_rows_by_10_columns"
@@ -2778,7 +2778,7 @@ configuration = { rows = 1000000, columns = 10 }
 expected = { kind = "value", outputs = ["bridge accepts the table", "recalculated result equals direct native result"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Bridge conversion is linear in cells; 2M cells plus one copy fit comfortably." }
 dataset = { generator = "wide_numeric_table", seed = 1488588, n = 1000000, columns = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_recalc_bridge_conformance.py::test_the_bridge_accepts_wide_tables_and_equals_the_direct_native_result" }
 
 [[case]]
 id = "recalculation_bridge_overflow_checked"
@@ -2788,7 +2788,7 @@ configuration = { rows_times_columns = "usize overflow" }
 expected = { kind = "refusal", outputs = ["checked-arithmetic refusal"], refusal = "size overflow" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Bridge conversion is linear in cells; 2M cells plus one copy fit comfortably." }
 dataset = { generator = "wide_numeric_table", seed = 1079590, n = 1, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_recalc_bridge_conformance.py::test_a_size_that_overflows_the_checked_byte_arithmetic_is_refused" }
 
 [[case]]
 id = "recalculation_bridge_validates_before_preallocation"
@@ -2798,7 +2798,7 @@ configuration = { declared_rows = "exceeds data" }
 expected = { kind = "refusal", outputs = ["refusal precedes any large allocation; peak memory under 512 MiB"], refusal = "declared size mismatch" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Bridge conversion is linear in cells; 2M cells plus one copy fit comfortably." }
 dataset = { generator = "wide_numeric_table", seed = 2361209, n = 1, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_recalc_bridge_conformance.py::test_a_declared_size_above_the_budget_is_refused_before_any_large_allocation" }
 
 [[case]]
 id = "recalculation_bridge_cancellation_honoured"
@@ -2808,7 +2808,7 @@ configuration = { rows = 500000, cancel = true }
 expected = { kind = "receipt", outputs = ["cancelled within one chunk", "no partial state retained"] }
 targets = { runtime_seconds = 120, memory_bytes = 8589934592, rationale = "Bridge conversion is linear in cells; 2M cells plus one copy fit comfortably." }
 dataset = { generator = "wide_numeric_table", seed = 9554969, n = 500000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_recalc_bridge_conformance.py::test_a_cancelled_run_stops_at_once_and_retains_no_partial_state" }
 
 [[case]]
 id = "recalculation_bridge_resource_refusal_useful"
@@ -2818,7 +2818,7 @@ configuration = { rows = "above downstream execution capacity" }
 expected = { kind = "refusal", outputs = ["names the downstream limit and the requested size"], refusal = "downstream capacity" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Bridge conversion is linear in cells; 2M cells plus one copy fit comfortably." }
 dataset = { generator = "wide_numeric_table", seed = 4333607, n = 1, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_recalc_bridge_conformance.py::test_a_request_above_the_downstream_limit_names_the_limit_and_the_requested_size" }
 
 [[case]]
 id = "conditional_gpdc_beyond_4k_8000_rows"
@@ -2828,7 +2828,7 @@ configuration = { rows = 8000, conditioning_variables = 2 }
 expected = { kind = "value", outputs = ["type I error near nominal under conditional independence", "power under dependence"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest." }
 dataset = { generator = "conditional_independence_testbed", seed = 5996245, n = 8000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/src/ci/calibration.rs::conditional_gpdc_beyond_4k_8000_rows" }
 
 [[case]]
 id = "conditional_gpdc_beyond_4k_20000_rows"
@@ -2838,7 +2838,7 @@ configuration = { rows = 20000, conditioning_variables = 2 }
 expected = { kind = "value", outputs = ["type I error near nominal under conditional independence", "power under dependence"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest." }
 dataset = { generator = "conditional_independence_testbed", seed = 6766463, n = 20000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/src/ci/calibration.rs::conditional_gpdc_beyond_4k_20000_rows" }
 
 [[case]]
 id = "nonparametric_sensitivity_beyond_20k_50000_rows"
@@ -2848,7 +2848,7 @@ configuration = { rows = 50000 }
 expected = { kind = "value", outputs = ["bounds equal exact reference on checkable subsample", "bounds contain known truth"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest." }
 dataset = { generator = "sensitivity_testbed", seed = 4965697, n = 50000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-validate/src/sensitivity.rs::nonparametric_sensitivity_beyond_20k_50000_rows" }
 
 [[case]]
 id = "nonparametric_sensitivity_beyond_20k_100000_rows"
@@ -2858,7 +2858,7 @@ configuration = { rows = 100000 }
 expected = { kind = "value", outputs = ["bounds equal exact reference on checkable subsample", "bounds contain known truth"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest." }
 dataset = { generator = "sensitivity_testbed", seed = 3409095, n = 100000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-validate/src/sensitivity.rs::nonparametric_sensitivity_beyond_20k_100000_rows" }
 
 [[case]]
 id = "exact_conditional_gpdc_retained_at_small_sizes"
@@ -2868,7 +2868,7 @@ configuration = { rows = 2000 }
 expected = { kind = "value", outputs = ["bit-identical to previous exact behaviour"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest." }
 dataset = { generator = "conditional_independence_testbed", seed = 6075547, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/src/ci/advanced.rs::exact_conditional_gpdc_retained_at_small_sizes" }
 
 [[case]]
 id = "exact_sensitivity_retained_at_small_sizes"
@@ -2878,7 +2878,7 @@ configuration = { rows = 10000 }
 expected = { kind = "value", outputs = ["bit-identical to previous exact behaviour"] }
 targets = { runtime_seconds = 60, memory_bytes = 4294967296, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest." }
 dataset = { generator = "sensitivity_testbed", seed = 4539636, n = 10000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-validate/src/sensitivity.rs::exact_sensitivity_retained_at_small_sizes" }
 
 [[case]]
 id = "scalable_gpdc_replacement_validated_separately"
@@ -2888,7 +2888,7 @@ configuration = { rows = 8000, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["replacement construction has its own identity and record"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "conditional_independence_testbed", seed = 6101623, n = 8000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-stats/src/ci/calibration.rs::scalable_gpdc_replacement_validated_separately" }
 
 [[case]]
 id = "scalable_sensitivity_replacement_validated_separately"
@@ -2898,7 +2898,7 @@ configuration = { rows = 50000, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["replacement construction has its own identity and record"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Scalable replacements must be near-linear; the old 4k/20k boundaries set the lower scale of interest. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "sensitivity_testbed", seed = 5211204, n = 50000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-validate/src/sensitivity.rs::scalable_sensitivity_replacement_validated_separately" }
 
 [[case]]
 id = "completed_cpdag_with_more_than_64_undirected_edges"
@@ -2908,7 +2908,7 @@ configuration = { undirected_edges = 72 }
 expected = { kind = "value", outputs = ["audit completes", "completion membership and equivalence-audit semantics preserved"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 8275301, undirected_edges = 72, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-identify/tests/cpdag_completion.rs::a_seventy_two_edge_class_completes_with_the_oracle_completions_and_audited_identities" }
 
 [[case]]
 id = "completed_pag_with_more_than_16_circle_endpoints"
@@ -2918,7 +2918,7 @@ configuration = { circle_endpoints = 20 }
 expected = { kind = "value", outputs = ["audit completes", "completion membership and equivalence-audit semantics preserved"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 1478658, circle_endpoints = 20, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-graph/src/completion.rs::twenty_circle_endpoints_complete_and_audit_beyond_the_old_sixteen_site_ceiling" }
 
 [[case]]
 id = "completed_z_transport_with_more_than_12_nodes"
@@ -2928,7 +2928,7 @@ configuration = { nodes = 14 }
 expected = { kind = "value", outputs = ["audit completes", "completion membership and equivalence-audit semantics preserved"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 6262955, nodes = 14, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-identify/src/sid/z_transport.rs::a_fourteen_node_graph_completes_and_its_derivation_audit_is_reproduced" }
 
 [[case]]
 id = "completed_conditional_independence_query_with_more_than_32_columns"
@@ -2938,7 +2938,7 @@ configuration = { columns = 40 }
 expected = { kind = "value", outputs = ["audit completes", "completion membership and equivalence-audit semantics preserved"] }
 targets = { runtime_seconds = 600, memory_bytes = 8589934592, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 1160236, columns = 40, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/src/engine_tests.rs::a_forty_column_conditioning_set_matches_an_independent_partial_correlation" }
 
 [[case]]
 id = "graph_search_visited_state_work_memory_controls"
@@ -2948,7 +2948,7 @@ configuration = { budget = "visited-state, work, memory" }
 expected = { kind = "receipt", outputs = ["controls reported in receipts"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 5321997, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-graph/src/cpdag_completion.rs::search_receipts_report_the_visited_state_work_and_memory_controls" }
 
 [[case]]
 id = "graph_search_cancellation_honoured"
@@ -2958,7 +2958,7 @@ configuration = { cancel = true }
 expected = { kind = "receipt", outputs = ["cancelled within one state expansion"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 7705069, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-graph/src/cpdag_completion.rs::cancellation_is_honoured_within_one_state_expansion" }
 
 [[case]]
 id = "graph_partial_search_distinguished_from_completed_audit"
@@ -2968,7 +2968,7 @@ configuration = { budget = "exhausted" }
 expected = { kind = "receipt", outputs = ["partial search labelled partial", "no class-wide claim from a partial search"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 2694156, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-identify/tests/cpdag_completion.rs::a_partial_search_is_labelled_partial_and_supports_no_class_wide_claim" }
 
 [[case]]
 id = "graph_search_budget_exhaustion_refused_precisely"
@@ -2978,7 +2978,7 @@ configuration = { budget = "exhausted" }
 expected = { kind = "refusal", outputs = ["names the exhausted budget"], refusal = "graph search budget" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Search is exponential in the limiting structure; completed cases are chosen to finish within minutes with explicit visited-state caps." }
 dataset = { generator = "structured_graph_family", seed = 1870145, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-identify/src/sid/z_transport.rs::an_exhausted_search_budget_is_refused_naming_the_budget_and_its_limits" }
 
 [[case]]
 id = "shared_exogenous_finite_scm_one_realization_across_mechanisms"
@@ -2988,7 +2988,7 @@ configuration = { mechanisms = 3, exogenous_terms_shared = 1 }
 expected = { kind = "value", outputs = ["a single exogenous draw used by every mechanism that names it"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Finite SCM enumeration of bounded joint states is exact and fast." }
 dataset = { generator = "finite_scm_enumeration", seed = 8584385, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs::one_exogenous_draw_is_used_by_every_mechanism_that_names_it" }
 
 [[case]]
 id = "shared_exogenous_finite_scm_one_realization_across_factual_and_counterfactual_worlds"
@@ -2998,7 +2998,7 @@ configuration = { mechanisms = 3, exogenous_terms_shared = 1 }
 expected = { kind = "value", outputs = ["exogenous value identical across worlds"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Finite SCM enumeration of bounded joint states is exact and fast." }
 dataset = { generator = "finite_scm_enumeration", seed = 2270213, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs::a_shared_term_keeps_one_realization_across_the_factual_and_counterfactual_worlds" }
 
 [[case]]
 id = "shared_exogenous_finite_scm_joint_state_bounds_retained"
@@ -3008,7 +3008,7 @@ configuration = { mechanisms = 3, exogenous_terms_shared = 1 }
 expected = { kind = "value", outputs = ["joint-state count bound retained and enforced"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Finite SCM enumeration of bounded joint states is exact and fast." }
 dataset = { generator = "finite_scm_enumeration", seed = 8307012, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs::the_joint_state_bound_holds_at_its_edge_and_refuses_one_term_past_it" }
 
 [[case]]
 id = "shared_exogenous_finite_scm_values_match_independent_enumeration"
@@ -3018,7 +3018,7 @@ configuration = { mechanisms = 3, exogenous_terms_shared = 1 }
 expected = { kind = "value", outputs = ["every value equals independent enumeration"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Finite SCM enumeration of bounded joint states is exact and fast." }
 dataset = { generator = "finite_scm_enumeration", seed = 6240757, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs::shared_exogenous_cross_world_values_equal_an_independent_enumeration" }
 
 [[case]]
 id = "shared_exogenous_finite_scm_public_example_and_replay"
@@ -3028,7 +3028,7 @@ configuration = { mechanisms = 3, exogenous_terms_shared = 1 }
 expected = { kind = "value", outputs = ["public example executes", "replay reproduces values"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Finite SCM enumeration of bounded joint states is exact and fast." }
 dataset = { generator = "finite_scm_enumeration", seed = 7537813, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_shared_exogenous_conformance.py::test_the_public_example_executes_and_its_artifact_replays_the_values" }
 
 [[case]]
 id = "unsupported_execution_distinguished_from_nonidentification"
@@ -3038,7 +3038,7 @@ configuration = { unsupported = "undeclared exogenous law" }
 expected = { kind = "refusal", outputs = ["refusal class: unsupported execution, not nonidentification"], refusal = "unsupported execution" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Finite SCM enumeration of bounded joint states is exact and fast." }
 dataset = { generator = "finite_scm_enumeration", seed = 5349220, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs::a_law_to_be_fitted_is_unsupported_execution_while_latent_confounding_is_nonidentification" }
 
 [[case]]
 id = "observational_nonidentification_not_reported_as_unsupported"
@@ -3048,7 +3048,7 @@ configuration = { graph = "nonidentified" }
 expected = { kind = "refusal", outputs = ["refusal class: nonidentification"], refusal = "observational nonidentification" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Finite SCM enumeration of bounded joint states is exact and fast." }
 dataset = { generator = "finite_scm_enumeration", seed = 2003140, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_shared_exogenous_conformance.py::test_observational_nonidentification_is_not_reported_as_unsupported_execution" }
 
 [[case]]
 id = "transported_policy_target_utility_accepted_and_validated"
@@ -3058,7 +3058,7 @@ configuration = { target_utility = "declared" }
 expected = { kind = "value", outputs = ["target utility mechanism accepted and validated"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Target-value calculations are enumerations or closed forms; refresh and replay add a second pass." }
 dataset = { generator = "transported_policy_mdp", seed = 5943336, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/transported_evaluation.rs::a_declared_target_utility_is_validated_then_accepted_and_echoed" }
 
 [[case]]
 id = "transported_policy_target_utility_used_in_target_evaluation"
@@ -3068,7 +3068,7 @@ configuration = { target_utility = "declared" }
 expected = { kind = "value", outputs = ["target value equals independent calculation"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Target-value calculations are enumerations or closed forms; refresh and replay add a second pass." }
 dataset = { generator = "transported_policy_mdp", seed = 5956528, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/transported_evaluation.rs::a_target_native_utility_is_evaluated_against_hand_dynamic_programming" }
 
 [[case]]
 id = "transported_policy_target_utility_provenance_bound_into_artifacts_and_identity"
@@ -3078,7 +3078,7 @@ configuration = { target_utility = "declared" }
 expected = { kind = "value", outputs = ["provenance in artifact and identity"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Target-value calculations are enumerations or closed forms; refresh and replay add a second pass." }
 dataset = { generator = "transported_policy_mdp", seed = 8253754, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_transported_constructors.py::test_a_target_native_utility_is_evaluated_bound_into_the_identity_and_replayed" }
 
 [[case]]
 id = "transported_policy_target_utility_transition_observation_support_assumptions_preserved"
@@ -3088,7 +3088,7 @@ configuration = { target_utility = "declared" }
 expected = { kind = "value", outputs = ["required assumptions retained"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Target-value calculations are enumerations or closed forms; refresh and replay add a second pass." }
 dataset = { generator = "transported_policy_mdp", seed = 5879948, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/transported_evaluation.rs::a_target_utility_keeps_the_transition_observation_and_support_premises" }
 
 [[case]]
 id = "transported_policy_target_utility_refresh_and_replay"
@@ -3098,7 +3098,7 @@ configuration = { target_utility = "declared" }
 expected = { kind = "value", outputs = ["refresh and replay reproduce the value"] }
 targets = { runtime_seconds = 60, memory_bytes = 2147483648, rationale = "Target-value calculations are enumerations or closed forms; refresh and replay add a second pass." }
 dataset = { generator = "transported_policy_mdp", seed = 9338664, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/transported_evaluation.rs::refreshing_the_source_model_keeps_the_utility_declaration_and_recomputes_the_rest" }
 
 [[case]]
 id = "transported_policy_invalid_target_utility_refused"
@@ -3108,7 +3108,7 @@ configuration = { target_utility = "invalid" }
 expected = { kind = "refusal", outputs = ["names the invalid utility declaration"], refusal = "target utility invalid" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Target-value calculations are enumerations or closed forms; refresh and replay add a second pass." }
 dataset = { generator = "transported_policy_mdp", seed = 6082539, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-design/tests/transported_evaluation.rs::a_target_utility_must_match_the_source_and_declare_its_provenance" }
 
 [[case]]
 id = "graph_posterior_above_eight_variables_no_longer_refused"
@@ -3118,7 +3118,7 @@ configuration = { variables = 9 }
 expected = { kind = "value", outputs = ["posterior returned for 9 variables (previously limited by u64 masks)"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP." }
 dataset = { generator = "tractable_posterior_scm", seed = 9116002, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_a_nine_variable_posterior_is_returned_where_the_eight_variable_word_ended" }
 
 [[case]]
 id = "graph_posterior_10_variable_workflow"
@@ -3128,7 +3128,7 @@ configuration = { variables = 10, rows = 2000 }
 expected = { kind = "value", outputs = ["posterior with diagnostics", "published computational and model conditions"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP." }
 dataset = { generator = "tractable_posterior_scm", seed = 4867969, n = 2000, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics" }
 
 [[case]]
 id = "graph_posterior_10_variable_claims_calibrated"
@@ -3138,7 +3138,7 @@ configuration = { variables = 10, rows = 2000, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["each newly advertised inferential claim calibrated"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "tractable_posterior_scm", seed = 8113836, n = 2000, variables = 10, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/src/graph_posterior_calibration.rs::graph_posterior_10_variable_claims_calibrated" }
 
 [[case]]
 id = "graph_posterior_12_variable_workflow"
@@ -3148,7 +3148,7 @@ configuration = { variables = 12, rows = 2000 }
 expected = { kind = "value", outputs = ["posterior with diagnostics", "published computational and model conditions"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP." }
 dataset = { generator = "tractable_posterior_scm", seed = 5398576, n = 2000, variables = 12, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_ten_and_twelve_variable_workflows_publish_a_posterior_with_diagnostics" }
 
 [[case]]
 id = "graph_posterior_12_variable_claims_calibrated"
@@ -3158,7 +3158,7 @@ configuration = { variables = 12, rows = 2000, replicates = 2000 }
 expected = { kind = "calibrated_interval", outputs = ["each newly advertised inferential claim calibrated"] }
 targets = { runtime_seconds = 900, memory_bytes = 8589934592, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "tractable_posterior_scm", seed = 7573334, n = 2000, variables = 12, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/src/graph_posterior_calibration.rs::graph_posterior_12_variable_claims_calibrated" }
 
 [[case]]
 id = "graph_posterior_matches_independent_enumeration_on_tractable_cases"
@@ -3168,7 +3168,7 @@ configuration = { variables = [5, 6, 7], reference = "brute_force_enumeration" }
 expected = { kind = "value", outputs = ["posterior probabilities agree with brute-force enumeration to 1e-9"] }
 targets = { runtime_seconds = 120, memory_bytes = 4294967296, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP." }
 dataset = { generator = "tractable_posterior_scm", seed = 4604603, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-discovery/tests/graph_posterior_wide.rs::exact_posterior_matches_independent_enumeration_on_tractable_cases" }
 
 [[case]]
 id = "graph_posterior_artifact_compatibility_with_eight_variable_artifacts"
@@ -3178,7 +3178,7 @@ configuration = { variables = 8 }
 expected = { kind = "receipt", outputs = ["previously exported artifacts still consumed", "new artifacts carry wide encodings"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP." }
 dataset = { generator = "tractable_posterior_scm", seed = 9787367, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_eight_variable_artifacts_are_still_consumed_and_wider_ones_carry_wide_encodings" }
 
 [[case]]
 id = "graph_posterior_beyond_supported_size_refused"
@@ -3188,7 +3188,7 @@ configuration = { variables = 16 }
 expected = { kind = "refusal", outputs = ["names the published supported size"], refusal = "posterior size" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Exact order-based posteriors are exponential in variables; 12 variables stay within minutes with subset DP." }
 dataset = { generator = "tractable_posterior_scm", seed = 1677237, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_graph_posterior_acceptance.py::test_posteriors_beyond_the_supported_size_are_refused_naming_the_size" }
 
 [[case]]
 id = "observational_survival_effect_calibrated_1000"
@@ -3298,7 +3298,7 @@ configuration = { structure = "pag", variables = 8 }
 expected = { kind = "calibrated_interval", outputs = ["complete-procedure coverage including discovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "discovered_transport_study", seed = 5618494, n = 4000, structure = "pag", variables = 8, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_calibration.rs::discovered_pag_transport_contrast_complete_procedure_coverage" }
 
 [[case]]
 id = "discovered_identified_pag_transport_unidentified_returns_range_or_refusal"
@@ -3328,7 +3328,7 @@ configuration = { structure = "temporal", lags = 2, variables = 6 }
 expected = { kind = "calibrated_interval", outputs = ["complete-procedure coverage including discovery"] }
 targets = { runtime_seconds = 300, memory_bytes = 4294967296, nominal_coverage = 0.95, coverage_floor = 0.93, min_replicates = 2000, min_reporting_rate = 0.9, rationale = "Discovery plus transport adds one PAG or lag-structure pass to the transport route. Precision default: median interval width at most 1.5 times the simulated effect magnitude.", max_median_width_over_effect = 1.5 }
 dataset = { generator = "discovered_transport_study", seed = 9770421, n = 4000, structure = "temporal", lags = 2, variables = 6, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent/tests/discovered_transport_calibration.rs::discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage" }
 
 [[case]]
 id = "discovered_temporal_structure_transport_unidentified_returns_range_or_refusal"
@@ -3628,7 +3628,7 @@ configuration = { rows = 100000, callback = "numpy clip of 0.85 * price at floor
 expected = { kind = "value", outputs = ["callback result bit-identical to the same policy written as an expression", "callback invoked once per batch, not once per row"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "A batch callback is invoked once per batch, so cost is the callback plus one marshalling pass over the declared input columns." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 1885751, n = 100000, price_location = 3.0, price_scale = 0.4, demand_slope = -0.8, revenue_noise = 0.5, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_a_numpy_callback_is_the_same_policy_as_its_expression_and_runs_once_per_batch" }
 
 [[case]]
 id = "python_callback_wrong_output_length_refused"
@@ -3638,7 +3638,7 @@ configuration = { rows = 1000, callback_returns_rows = 999 }
 expected = { kind = "refusal", outputs = ["names expected and returned lengths"], refusal = "callback output length" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 7850999, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_a_callback_returning_the_wrong_number_of_rows_names_both_lengths" }
 
 [[case]]
 id = "python_callback_non_finite_output_refused"
@@ -3648,7 +3648,7 @@ configuration = { rows = 1000, callback_returns = "nan" }
 expected = { kind = "refusal", outputs = ["reports the first offending row"], refusal = "callback output non-finite" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 4007062, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_a_callback_returning_nan_reports_the_first_offending_row" }
 
 [[case]]
 id = "python_callback_wrong_output_dtype_refused"
@@ -3658,7 +3658,7 @@ configuration = { rows = 1000, declared_output = "float64", callback_returns = "
 expected = { kind = "refusal", outputs = ["names declared and observed dtype"], refusal = "callback output schema" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 2001332, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_a_callback_returning_strings_names_the_declared_and_observed_dtype" }
 
 [[case]]
 id = "python_callback_exception_propagates_as_typed_failure"
@@ -3668,7 +3668,7 @@ configuration = { rows = 1000, callback_raises = "ValueError" }
 expected = { kind = "refusal", outputs = ["failure carries the callback name and original message", "no partial result is returned"], refusal = "callback failed" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 3022533, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_an_exception_in_the_callback_carries_its_name_and_message_and_returns_nothing" }
 
 [[case]]
 id = "python_callback_undeclared_input_read_refused"
@@ -3678,7 +3678,7 @@ configuration = { rows = 1000, declared_inputs = ["price"], callback_reads = "de
 expected = { kind = "refusal", outputs = ["names the undeclared column"], refusal = "callback undeclared input" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 1500505, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_a_callback_reading_a_column_it_did_not_declare_is_refused_naming_the_column" }
 
 [[case]]
 id = "python_callback_missing_runtime_dependency_refused"
@@ -3688,7 +3688,7 @@ configuration = { rows = 1000, dependency = "module_not_installed" }
 expected = { kind = "refusal", outputs = ["names the missing dependency and the callback"], refusal = "callback dependency unavailable" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 7918164, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_a_missing_runtime_dependency_is_refused_naming_it_and_the_callback" }
 
 [[case]]
 id = "python_callback_export_refused_when_implementation_not_recoverable"
@@ -3698,7 +3698,7 @@ configuration = { rows = 1000, callback = "lambda defined interactively", export
 expected = { kind = "refusal", outputs = ["states that the implementation is not recoverable", "runtime binding stays usable in session"], refusal = "callback not portable" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 3873110, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_an_interactive_callback_is_refused_for_export_but_stays_usable_in_session" }
 
 [[case]]
 id = "python_callback_export_refused_when_dependencies_unverifiable"
@@ -3708,7 +3708,7 @@ configuration = { rows = 1000, callback = "importable function", dependency_vers
 expected = { kind = "refusal", outputs = ["names the unverifiable dependency"], refusal = "callback not portable" }
 targets = { runtime_seconds = 10, memory_bytes = 536870912, rationale = "Output and dependency checks are linear in the batch and run before any downstream propagation." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 1197540, n = 1000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_a_callback_with_an_unpinned_dependency_is_refused_for_export_naming_it" }
 
 [[case]]
 id = "python_callback_portable_export_replays_with_verified_dependencies"
@@ -3718,7 +3718,7 @@ configuration = { rows = 10000, callback = "importable pinned function", depende
 expected = { kind = "value", outputs = ["implementation hash and dependency versions recorded in the artifact", "replay in a fresh process reproduces the draws bit-for-bit", "a changed implementation hash refuses replay"] }
 targets = { runtime_seconds = 120, memory_bytes = 1073741824, rationale = "Export hashes the implementation source and dependency set; replay adds one fresh-process load." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 6736828, n = 10000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_a_portable_callback_artifact_replays_bit_for_bit_in_a_fresh_process" }
 
 [[case]]
 id = "policy_semantics_agree_across_sampling_counterfactual_and_temporal_routes"
@@ -3768,7 +3768,7 @@ configuration = { rows = 10000, replays = 3, processes = "fresh" }
 expected = { kind = "value", outputs = ["three replays in separate processes give identical results", "replay identity matches the identity recorded at save"] }
 targets = { runtime_seconds = 180, memory_bytes = 1073741824, rationale = "Three fresh-process loads dominate; each is bounded by artifact decode." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 3999629, n = 10000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_callback_cases.py::test_a_saved_policy_replays_identically_in_three_fresh_processes" }
 
 [[case]]
 id = "portable_policy_artifact_unknown_encoding_version_refused"
@@ -3898,7 +3898,7 @@ configuration = { family = "family_without_noise_inference", operation = "counte
 expected = { kind = "refusal", outputs = ["names the family and the unsupported operation", "likelihood and sampling remain available where declared"], refusal = "mechanism operation unsupported" }
 targets = { runtime_seconds = 30, memory_bytes = 1073741824, rationale = "Capability lookup is a registry read." }
 dataset = { generator = "nonlinear_mechanism_known_truth", seed = 3465696, n = 2000, family = "quadratic", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/tests/mechanism_operations.rs::a_mechanism_without_noise_inference_is_refused_for_abduction_but_samples_and_scores" }
 
 [[case]]
 id = "graph_falsification_rejects_misspecified_graph"
@@ -4148,7 +4148,7 @@ configuration = { rows = 100000, players = 4, method = "exact" }
 expected = { kind = "value", outputs = ["permutation error reported as exactly zero", "inner simulation error still reported"] }
 targets = { runtime_seconds = 180, memory_bytes = 2147483648, rationale = "Separating permutation error from inner simulation error needs repeated outer and inner runs on the same small model." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3192000, n = 100000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_intrinsic_influence.py::test_exact_enumeration_reports_exactly_zero_permutation_error_and_keeps_simulation_error" }
 
 [[case]]
 id = "fitted_model_exposes_expression_intervention_mechanism_selection_and_influence"
@@ -4158,7 +4158,7 @@ configuration = { rows = 5000, methods = ["sample_interventional", "fit(candidat
 expected = { kind = "value", outputs = ["each capability reachable from the fitted-model handle", "results identical to the underlying shared Rust execution"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each workflow runs once on a few thousand rows through the shared Rust path." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 5286255, n = 5000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_workflows.py::test_the_fitted_handle_reaches_expression_policies_selection_influence_and_noise_replay" }
 
 [[case]]
 id = "prepared_study_and_analysis_support_policy_workflows"
@@ -4168,7 +4168,7 @@ configuration = { rows = 5000, policy = "x := max(1, 0.85 * x)" }
 expected = { kind = "value", outputs = ["prepared handle reruns the policy workflow without recompiling", "support decision, contract and provenance reported", "result equals the one-shot result"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each workflow runs once on a few thousand rows through the shared Rust path." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 6512894, n = 5000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_workflows.py::test_prepare_reruns_the_policy_workflow_without_recompiling_and_equals_the_one_shot_result" }
 
 [[case]]
 id = "new_capabilities_record_reason_codes_and_provenance"
@@ -4178,7 +4178,7 @@ configuration = { workflows = ["policy", "callback", "mechanism_selection", "gra
 expected = { kind = "value", outputs = ["each refusal carries a registered reason code", "each result names its provenance record"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Each workflow runs once on a few thousand rows through the shared Rust path." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 4100773, n = 2000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_workflows.py::test_every_new_workflow_refuses_with_a_registered_code_and_names_its_provenance" }
 
 [[case]]
 id = "older_artifacts_load_after_new_capabilities_added"
@@ -4188,7 +4188,7 @@ configuration = { artifact = "saved before the new capabilities" }
 expected = { kind = "value", outputs = ["older artifact loads and replays", "results unchanged"] }
 targets = { runtime_seconds = 60, memory_bytes = 1073741824, rationale = "Loading is a decode plus the replay identity check." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2366583, n = 2000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_policy_workflows.py::test_an_artifact_in_the_released_layout_still_loads_and_replays_unchanged" }
 
 [[case]]
 id = "batch_policy_sampling_meets_hot_path_requirements"
@@ -4198,7 +4198,7 @@ configuration = { rows = 1000000, policy = "x := max(10, 0.85 * x)", baseline = 
 expected = { kind = "value", outputs = ["throughput within 10 percent of the recorded interventional-sample baseline", "workspace reuse asserted: no growth after warm-up"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "The designated hot path allows no more than the recorded baseline plus a ten percent noise margin." }
 dataset = { generator = "pricing_chain_lognormal_price", seed = 4691094, n = 1000000, price_location = 3.0, price_scale = 0.4, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/benches/policy_sampling.rs::bench_policy_sampling" }
 
 [[case]]
 id = "batch_noise_replay_meets_hot_path_requirements"
@@ -4208,7 +4208,7 @@ configuration = { coalitions = 4096, baseline = "benches/baselines/shapley.md", 
 expected = { kind = "value", outputs = ["coalition throughput within 10 percent of the recorded attribution baseline", "one execution context across coalitions"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "Coalition replay must not cost more than the recorded attribution baseline." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2929415, n = 100000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-model/benches/noise_replay.rs::bench_noise_replay" }
 
 [[case]]
 id = "batch_counterfactual_with_policy_meets_hot_path_requirements"
@@ -4218,7 +4218,7 @@ configuration = { rows = 1000000, baseline = "benches/baselines/counterfactual_b
 expected = { kind = "value", outputs = ["throughput within 10 percent of the recorded counterfactual baseline", "streaming result identical to retained"] }
 targets = { runtime_seconds = 120, memory_bytes = 2147483648, rationale = "The designated hot path allows the recorded baseline plus a ten percent margin." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 3076196, n = 1000000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "crates/antecedent-counterfactual/benches/counterfactual_batch.rs::bench_cf_policy" }
 
 [[case]]
 id = "dowhy_interventional_mean_matches_pinned_version"
@@ -4228,7 +4228,7 @@ configuration = { rows = 5000, dowhy_version = "pinned", quantity = "interventio
 expected = { kind = "value", outputs = ["both libraries agree within Monte Carlo error", "pinned version recorded in the docs page"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Each comparison runs one fitted model in each library at a pinned version on a few thousand rows." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 9766501, n = 5000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_dowhy_comparison.py::test_interventional_mean_under_a_hard_set_matches_dowhy" }
 
 [[case]]
 id = "dowhy_counterfactual_matches_pinned_version"
@@ -4238,7 +4238,7 @@ configuration = { rows = 5000, dowhy_version = "pinned", quantity = "unit counte
 expected = { kind = "value", outputs = ["unit counterfactuals agree to numerical tolerance for additive noise models"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Each comparison runs one fitted model in each library at a pinned version on a few thousand rows." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 6804289, n = 5000, truth = "a -> b -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_dowhy_comparison.py::test_unit_counterfactuals_match_dowhy_for_additive_noise" }
 
 [[case]]
 id = "dowhy_intrinsic_influence_matches_pinned_version"
@@ -4248,7 +4248,7 @@ configuration = { rows = 5000, dowhy_version = "pinned", quantity = "intrinsic c
 expected = { kind = "value", outputs = ["per-source contributions agree within Monte Carlo error"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Each comparison runs one fitted model in each library at a pinned version on a few thousand rows." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 7000055, n = 5000, truth = "a -> b -> c -> y", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_dowhy_comparison.py::test_intrinsic_influence_matches_dowhy_on_a_linear_gaussian_chain" }
 
 [[case]]
 id = "dowhy_graph_falsification_matches_pinned_version"
@@ -4258,7 +4258,7 @@ configuration = { rows = 5000, dowhy_version = "pinned", quantity = "graph permu
 expected = { kind = "value", outputs = ["same rejected or not-rejected outcome on correct and misspecified graphs"] }
 targets = { runtime_seconds = 300, memory_bytes = 2147483648, rationale = "Each comparison runs one fitted model in each library at a pinned version on a few thousand rows." }
 dataset = { generator = "linear_gaussian_dag_known_structure", seed = 2738613, n = 5000, truth = "a -> b -> c, a -> c", simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_dowhy_comparison.py::test_graph_falsification_on_the_case_dataset_agrees_with_dowhy_and_states_why_neither_rejects" }
 
 [[case]]
 id = "dowhy_comparison_pages_state_semantic_differences"
@@ -4268,7 +4268,7 @@ configuration = { pages = ["interventions", "mechanism_selection", "attribution"
 expected = { kind = "receipt", outputs = ["each page names overlapping semantics and where the libraries differ", "executable examples run in Rust and Python"] }
 targets = { runtime_seconds = 600, memory_bytes = 2147483648, rationale = "Docs examples execute once in CI." }
 dataset = { generator = "documentation_examples", seed = 9507423, n = 2000, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_dowhy_comparison_pages.py::test_the_page_states_overlap_and_differences_at_the_pinned_version" }
 
 [[case]]
 id = "conformance_gates_cover_every_new_capability"
@@ -4278,4 +4278,4 @@ configuration = { scope = "policy, callback, mechanism selection, graph falsific
 expected = { kind = "receipt", outputs = ["each capability has a bound conformance test", "parity inventories and provenance updated only for demonstrated capabilities"] }
 targets = { runtime_seconds = 7200, memory_bytes = 17179869184, rationale = "Closure runs the installed package against the release candidate; budgets are those of the slowest bound case." }
 dataset = { generator = "release_candidate", seed = 2056149, simulated_representative = true, provenance = "Simulated representative of the described study; the authors' original dataset is not available." }
-evidence = { status = "planned" }
+evidence = { status = "bound", test = "python/tests/test_gcm_conformance_registry.py::test_the_conformance_gate_covers_every_capability_and_is_registered" }

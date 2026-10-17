@@ -73,6 +73,9 @@ estimator.propensity_weighting crates/antecedent-estimate/src/propensity/weighti
 key estimator.propensity_weighting estimator propensity.weighting
 estimator.propensity_matching crates/antecedent-estimate/src/propensity/matching.rs
 key estimator.propensity_matching estimator propensity.matching
+estimator.multi_level_aipw crates/antecedent-estimate/src/propensity/generalized.rs
+estimator.multi_level_aipw crates/antecedent/src/analysis/multi_level_treatment.rs
+key estimator.multi_level_aipw estimator propensity.generalized_aipw
 estimator.rd crates/antecedent-estimate/src/rd.rs
 key estimator.rd estimator rd.*
 estimator.response crates/antecedent-estimate/src/response/
@@ -171,6 +174,7 @@ key identity.backdoor estimator conditional.linear.*
 key identity.backdoor estimator conditional.bayesian
 key identity.backdoor estimator propensity.weighting
 key identity.backdoor estimator propensity.matching
+key identity.backdoor estimator propensity.generalized_aipw
 key identity.backdoor estimator glm.*
 identity.frontdoor crates/antecedent-identify/src/frontdoor.rs
 key identity.frontdoor estimator frontdoor.*
@@ -347,6 +351,7 @@ suite.calibration_estimate crates/antecedent/tests/calibration_estimate.rs
 suite.calibration_temporal crates/antecedent/tests/calibration_temporal.rs
 suite.calibration_backlog crates/antecedent/tests/calibration_backlog.rs
 suite.calibration_bayesian_static crates/antecedent/tests/calibration_bayesian_static.rs
+suite.calibration_posterior_draws crates/antecedent/tests/calibration_posterior_draws.rs
 suite.calibration_counterfactual crates/antecedent/tests/calibration_counterfactual.rs
 suite.calibration_anomaly_bayesian crates/antecedent/tests/calibration_anomaly_bayesian.rs
 suite.calibration_attribution_bayesian crates/antecedent/tests/calibration_attribution_bayesian.rs
@@ -367,6 +372,7 @@ suite.joint_sensitivity_calibration crates/antecedent/tests/joint_sensitivity_ca
 suite.batch_retarget_calibration crates/antecedent/tests/batch_retarget_calibration.rs
 suite.cluster_dml_calibration crates/antecedent/tests/cluster_dml_calibration.rs
 suite.missing_outcome_calibration crates/antecedent/tests/missing_outcome_calibration.rs
+suite.multilevel_interval_calibration crates/antecedent/tests/multilevel_interval_calibration.rs
 suite.weighted_interval_calibration crates/antecedent/tests/weighted_interval_calibration.rs
 suite.practitioner_scale_calibration crates/antecedent/tests/practitioner_scale_calibration.rs
 suite.learned_continuous_calibration crates/antecedent/tests/learned_continuous_calibration.rs
@@ -444,6 +450,7 @@ allow design crates/antecedent/src/analysis/checked_class_graph_posterior_effect
 allow design crates/antecedent/src/analysis/checked_conditional.rs prepare
 allow design crates/antecedent/src/analysis/checked_graph_posterior.rs names prepare
 allow design crates/antecedent/src/analysis/checked_propensity.rs build prepare
+allow design crates/antecedent/src/analysis/multi_level_treatment.rs antecedent_io evaluate invalid names refused
 allow design crates/antecedent/src/analysis/checked_temporal_class_response.rs names
 allow design crates/antecedent/src/analysis/checked_temporal_graph_posterior_effect.rs names prepare
 allow design crates/antecedent/src/analysis/checked_temporal_graph_posterior_response.rs prepare
@@ -613,6 +620,7 @@ allow mechanism crates/antecedent-estimate/src/nested_markov_binary.rs canonical
 allow mechanism crates/antecedent-estimate/src/nonlinear_mediation.rs invalid
 allow mechanism crates/antecedent-estimate/src/policy_value.rs evaluate
 allow mechanism crates/antecedent-estimate/src/propensity/penalized.rs invalid
+allow mechanism crates/antecedent/src/analysis/multi_level_treatment.rs evaluate invalid
 allow mechanism crates/antecedent-estimate/src/recovery.rs evaluate
 allow mechanism crates/antecedent-estimate/src/recovery_sampled.rs invalid
 allow mechanism crates/antecedent-estimate/src/scenario_covariance.rs invalid
@@ -896,6 +904,8 @@ allow registry_mirror crates/antecedent-estimate/src/joint_cell_factorized.rs ta
 allow registry_mirror crates/antecedent-estimate/src/observation.rs table
 allow registry_mirror crates/antecedent-estimate/src/prepare.rs registry
 allow registry_mirror crates/antecedent-estimate/src/propensity/mod.rs registry
+allow registry_mirror crates/antecedent-estimate/src/propensity/generalized.rs table
+allow registry_mirror crates/antecedent/src/analysis/multi_level_treatment.rs interval_method table
 allow registry_mirror crates/antecedent-estimate/src/propensity/penalized_report.rs table
 allow registry_mirror crates/antecedent-estimate/src/propensity/prepare.rs registry
 allow registry_mirror crates/antecedent-estimate/src/quantile.rs table
@@ -1381,6 +1391,7 @@ allow cross_world_interval crates/antecedent/src/analysis/execute/response_path.
 allow cross_world_interval crates/antecedent/src/analysis/execute/static_path.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/joint_law_composed_basis.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/joint_law_propagation.rs resolve
+allow cross_world_interval crates/antecedent/src/analysis/multi_level_treatment.rs refused
 allow cross_world_interval crates/antecedent/src/analysis/prepared/prepare_identification.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/prepared/seal.rs resolve
 allow cross_world_interval crates/antecedent/src/analysis/prepared/sealers/adjustment.rs resolve
@@ -1487,6 +1498,7 @@ allow adaptive_interval crates/antecedent-estimate/src/policy_value.rs anteceden
 allow adaptive_interval crates/antecedent-estimate/src/prediction.rs antecedent_stats
 allow adaptive_interval crates/antecedent-estimate/src/propensity/distance.rs antecedent_stats
 allow adaptive_interval crates/antecedent-estimate/src/propensity/matching.rs antecedent_stats
+allow adaptive_interval crates/antecedent-estimate/src/propensity/generalized.rs antecedent_stats
 allow adaptive_interval crates/antecedent-estimate/src/propensity/penalized.rs antecedent_stats
 allow adaptive_interval crates/antecedent-estimate/src/propensity/penalized_report.rs antecedent_stats cancelled
 allow adaptive_interval crates/antecedent-estimate/src/propensity/prepare.rs antecedent_stats
@@ -1593,3 +1605,4 @@ allow adaptive_interval crates/antecedent/src/error.rs antecedent_stats cancelle
 allow adaptive_interval crates/antecedent/src/gcm.rs cancelled
 allow adaptive_interval crates/antecedent/src/options.rs antecedent_stats
 allow adaptive_interval crates/antecedent/src/result.rs antecedent_stats
+suite.knn_matching_calibration crates/antecedent-estimate/tests/knn_matching_calibration.rs

@@ -54,3 +54,11 @@ serde_json = { workspace = true }
 [[bench]]
 name = "sample_overlay"
 harness = false
+
+[[bench]]
+name = "policy_sampling"
+harness = false
+
+[[bench]]
+name = "noise_replay"
+harness = false

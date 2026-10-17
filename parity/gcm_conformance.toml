@@ -1,0 +1,414 @@
+# Conformance registry for programmable interventions, mechanism selection, graph
+# falsification, batch noise replay and intrinsic causal influence.
+#
+# Every row names one test that must pass in `scripts/gate_gcm_conformance.sh`; the rows are
+# executed by `scripts/run_evidence_rows.py` (exactly one test per Rust row, at least one
+# per Python row). `scripts/check_gcm_conformance.py` requires every clause below to have
+# evidence, every cited test to exist, and every benchmark to be registered and to assert its
+# regression bound.
+
+[clauses]
+policy_floor_downstream = "price := max(10, 0.85 * price) floors every realized price and its effect reaches every descendant"
+policy_route_agreement = "one policy means the same on sampling, counterfactual and temporal routes"
+callback_validation = "callback inputs, outputs and failures are validated and reported"
+dependency_failures = "circular, unavailable, conflicting and unsupported-history dependencies are refused before any draw"
+portability_restrictions = "a policy is licensed route by route and only a recoverable callback has a durable form"
+mechanism_selection_known_truth = "nonlinear mechanism selection recovers the family that suits known truths"
+unsupported_mechanism_operation = "an operation a mechanism family lacks is refused naming both, with the others kept"
+falsification_correct = "a correct graph is not rejected"
+falsification_misspecified = "a misspecified graph is rejected"
+falsification_uninformative = "a graph with no testable or too few distinguishing implications is uninformative"
+falsification_budget_limited = "a budget that cannot cover the tests yields an incomplete result"
+intrinsic_influence_linear_variance = "intrinsic influence equals the analytic variance contribution of each noise term"
+shapley_allocation_identities = "the Shapley allocation is efficient, symmetric and agrees between exact and sampled"
+exact_enumeration_zero_permutation_error = "exact enumeration reports exactly zero permutation error and keeps simulation error"
+artifact_round_trip = "portable policy and execution artifacts replay with the same identity and draws"
+replay_reproducible = "noise replay is bit-reproducible across calls, encodings and fresh processes"
+shared_exogenous_execution = "one exogenous realization is shared by every mechanism that names it, in every world"
+recalculation_bridge = "the recalculation bridge accepts wide tables under budgets and refuses before copying"
+conformance_registry = "the registry covers every capability and the gate is wired into the release gates"
+
+[[conformance]]
+id = "price_floor_every_realized_price"
+clause = "policy_floor_downstream"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "a_price_floor_holds_for_every_realized_price_and_flows_downstream_on_the_same_noise"
+
+[[conformance]]
+id = "price_floor_downstream_closed_form"
+clause = "policy_floor_downstream"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "downstream_means_under_a_price_floor_match_the_closed_form_expectation"
+
+[[conformance]]
+id = "price_floor_python_matches_hand_policy"
+clause = "policy_floor_downstream"
+evidence_test = "python/tests/test_intervention_programs.py"
+evidence_assertion = "test_a_price_floor_is_the_hand_applied_policy_on_the_same_noise"
+
+[[conformance]]
+id = "policy_sampling_and_counterfactual_agree"
+clause = "policy_route_agreement"
+evidence_test = "crates/antecedent-counterfactual/tests/policy_routes.rs"
+evidence_assertion = "a_policy_agrees_between_sampling_and_counterfactual_execution_on_shared_noise"
+
+[[conformance]]
+id = "policy_three_routes_agree"
+clause = "policy_route_agreement"
+evidence_test = "crates/antecedent-counterfactual/tests/policy_routes.rs"
+evidence_assertion = "policy_semantics_agree_across_sampling_counterfactual_and_temporal_routes"
+
+[[conformance]]
+id = "policy_lagged_temporal_recursion"
+clause = "policy_route_agreement"
+evidence_test = "crates/antecedent-counterfactual/tests/policy_routes.rs"
+evidence_assertion = "a_lagged_policy_matches_a_hand_recursion_on_every_temporal_route"
+
+[[conformance]]
+id = "callback_outputs_validated"
+clause = "callback_validation"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "callback_outputs_are_validated_and_failures_keep_their_message"
+
+[[conformance]]
+id = "callback_inputs_are_reads"
+clause = "callback_validation"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "callback_inputs_are_reads_like_any_expression_variable"
+
+[[conformance]]
+id = "callback_equals_expression"
+clause = "callback_validation"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "a_callback_floor_equals_the_expression_floor_on_every_node_with_one_call_per_batch"
+
+[[conformance]]
+id = "dependency_cycle_refused"
+clause = "dependency_failures"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "circular_dependencies_are_refused_naming_the_cycle_before_any_draw"
+
+[[conformance]]
+id = "dependency_unavailable_refused"
+clause = "dependency_failures"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "unavailable_dependencies_are_refused_before_any_draw"
+
+[[conformance]]
+id = "dependency_conflict_refused"
+clause = "dependency_failures"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "conflicting_directives_on_one_node_are_refused_but_identical_repeats_are_not"
+
+[[conformance]]
+id = "dependency_history_refused"
+clause = "dependency_failures"
+evidence_test = "crates/antecedent-counterfactual/tests/policy_routes.rs"
+evidence_assertion = "history_the_route_cannot_supply_is_refused"
+
+[[conformance]]
+id = "portability_routes_licensed_separately"
+clause = "portability_restrictions"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "each_route_is_licensed_separately"
+
+[[conformance]]
+id = "portability_callback_licences"
+clause = "portability_restrictions"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "a_callback_is_licensed_for_simulation_and_conditionally_for_counterfactuals"
+
+[[conformance]]
+id = "portability_durable_form"
+clause = "portability_restrictions"
+evidence_test = "crates/antecedent-model/tests/intervention_programs.rs"
+evidence_assertion = "only_a_recoverable_callback_has_a_durable_form"
+
+[[conformance]]
+id = "selection_basis_families_known_truths"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "basis_families_recover_the_family_that_suits_each_known_truth"
+
+[[conformance]]
+id = "selection_every_candidate_scored_on_shared_folds"
+clause = "mechanism_selection_known_truth"
+evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs"
+evidence_assertion = "every_candidate_is_scored_on_the_same_folds_with_a_comparable_decomposition"
+
+[[conformance]]
+id = "mechanism_operation_refused_by_name"
+clause = "unsupported_mechanism_operation"
+evidence_test = "crates/antecedent-model/tests/mechanism_operations.rs"
+evidence_assertion = "a_mechanism_without_noise_inference_is_refused_for_abduction_but_samples_and_scores"
+
+[[conformance]]
+id = "mechanism_operation_declared_invertible"
+clause = "unsupported_mechanism_operation"
+evidence_test = "crates/antecedent-model/tests/mechanism_operations.rs"
+evidence_assertion = "the_same_family_declared_invertible_recovers_the_noise_it_sampled"
+
+[[conformance]]
+id = "falsification_correct_graph"
+clause = "falsification_correct"
+evidence_test = "crates/antecedent-model/src/falsify.rs"
+evidence_assertion = "a_correct_graph_is_not_rejected_without_fitted_mechanisms"
+
+[[conformance]]
+id = "falsification_misspecified_graph"
+clause = "falsification_misspecified"
+evidence_test = "crates/antecedent-model/src/falsify.rs"
+evidence_assertion = "a_graph_claiming_false_independencies_is_rejected"
+
+[[conformance]]
+id = "falsification_nonlinear_violation"
+clause = "falsification_misspecified"
+evidence_test = "crates/antecedent-model/src/falsify.rs"
+evidence_assertion = "a_nonlinear_test_finds_the_violation_partial_correlation_misses"
+
+[[conformance]]
+id = "falsification_uninformative_graphs"
+clause = "falsification_uninformative"
+evidence_test = "crates/antecedent-model/src/falsify.rs"
+evidence_assertion = "complete_and_tiny_graphs_are_uninformative"
+
+[[conformance]]
+id = "falsification_test_budget_incomplete"
+clause = "falsification_budget_limited"
+evidence_test = "crates/antecedent-model/src/falsify.rs"
+evidence_assertion = "a_budget_that_cannot_cover_the_tests_is_incomplete"
+
+[[conformance]]
+id = "falsification_permutation_budget_incomplete"
+clause = "falsification_budget_limited"
+evidence_test = "crates/antecedent-model/src/falsify.rs"
+evidence_assertion = "a_budget_exhausted_before_the_minimum_permutations_is_incomplete"
+
+[[conformance]]
+id = "falsification_cancellation_incomplete"
+clause = "falsification_budget_limited"
+evidence_test = "crates/antecedent-model/src/falsify.rs"
+evidence_assertion = "cancellation_is_incomplete"
+
+[[conformance]]
+id = "influence_linear_chain"
+clause = "intrinsic_influence_linear_variance"
+evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+evidence_assertion = "a_linear_chain_recovers_squared_path_coefficients_times_noise_variance"
+
+[[conformance]]
+id = "influence_collider"
+clause = "intrinsic_influence_linear_variance"
+evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+evidence_assertion = "a_collider_recovers_each_parent_noise_share"
+
+[[conformance]]
+id = "influence_nonlinear_moments"
+clause = "intrinsic_influence_linear_variance"
+evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+evidence_assertion = "a_nonlinear_mechanism_matches_the_moment_closed_form"
+
+[[conformance]]
+id = "shapley_efficiency"
+clause = "shapley_allocation_identities"
+evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+evidence_assertion = "shapley_efficiency_holds_within_estimation_error"
+
+[[conformance]]
+id = "shapley_symmetry"
+clause = "shapley_allocation_identities"
+evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+evidence_assertion = "exchangeable_sources_receive_equal_contributions"
+
+[[conformance]]
+id = "shapley_exact_matches_sampled"
+clause = "shapley_allocation_identities"
+evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+evidence_assertion = "exact_and_sampled_shapley_agree_on_a_game_with_interaction"
+
+[[conformance]]
+id = "shapley_nested_bias_removed"
+clause = "shapley_allocation_identities"
+evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+evidence_assertion = "the_inner_variance_correction_removes_the_nested_bias"
+
+[[conformance]]
+id = "exact_zero_permutation_error"
+clause = "exact_enumeration_zero_permutation_error"
+evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"
+evidence_assertion = "exact_enumeration_reports_zero_permutation_error_and_still_reports_simulation_error"
+
+[[conformance]]
+id = "exact_zero_permutation_error_python"
+clause = "exact_enumeration_zero_permutation_error"
+evidence_test = "python/tests/test_intrinsic_influence.py"
+evidence_assertion = "test_exact_enumeration_reports_exactly_zero_permutation_error_and_keeps_simulation_error"
+
+[[conformance]]
+id = "artifact_policy_round_trip"
+clause = "artifact_round_trip"
+evidence_test = "crates/antecedent-io-core/tests/policy_program_execution.rs"
+evidence_assertion = "a_saved_policy_replays_with_the_same_identity_and_the_same_draws"
+
+[[conformance]]
+id = "artifact_lagged_policy_round_trip"
+clause = "artifact_round_trip"
+evidence_test = "crates/antecedent-io-core/tests/policy_program_execution.rs"
+evidence_assertion = "a_saved_lagged_policy_replays_over_time"
+
+[[conformance]]
+id = "artifact_callback_policy_round_trip"
+clause = "artifact_round_trip"
+evidence_test = "crates/antecedent-io-core/tests/policy_program_execution.rs"
+evidence_assertion = "a_saved_recoverable_callback_policy_replays_the_same_draws_and_equals_its_expression"
+
+[[conformance]]
+id = "artifact_future_version_refused"
+clause = "artifact_round_trip"
+evidence_test = "crates/antecedent-io-core/src/policy_program_artifact.rs"
+evidence_assertion = "a_future_encoding_version_is_refused_before_its_body_is_read"
+
+[[conformance]]
+id = "artifact_tampered_expression_refused"
+clause = "artifact_round_trip"
+evidence_test = "crates/antecedent-io-core/src/policy_program_artifact.rs"
+evidence_assertion = "an_edited_expression_is_an_identity_mismatch"
+
+[[conformance]]
+id = "replay_sampled_table_bit_for_bit"
+clause = "replay_reproducible"
+evidence_test = "crates/antecedent-model/tests/noise_replay.rs"
+evidence_assertion = "replaying_a_sampled_table_reproduces_the_draws_bit_for_bit"
+
+[[conformance]]
+id = "replay_coalitions_reuse_scratch"
+clause = "replay_reproducible"
+evidence_test = "crates/antecedent-model/tests/noise_replay.rs"
+evidence_assertion = "coalitions_replay_from_two_tables_without_copying_or_growing_scratch"
+
+[[conformance]]
+id = "replay_encodings_and_fresh_process"
+clause = "replay_reproducible"
+evidence_test = "python/tests/test_noise_replay_conformance.py"
+evidence_assertion = "test_replay_is_bit_reproducible_in_a_fresh_process"
+
+[[conformance]]
+id = "replay_encodings"
+clause = "replay_reproducible"
+evidence_test = "python/tests/test_noise_replay_conformance.py"
+evidence_assertion = "test_replay_does_not_depend_on_how_the_noise_array_is_encoded"
+
+[[conformance]]
+id = "shared_term_one_realization_across_mechanisms"
+clause = "shared_exogenous_execution"
+evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs"
+evidence_assertion = "one_exogenous_draw_is_used_by_every_mechanism_that_names_it"
+
+[[conformance]]
+id = "shared_term_across_factual_and_counterfactual_worlds"
+clause = "shared_exogenous_execution"
+evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs"
+evidence_assertion = "a_shared_term_keeps_one_realization_across_the_factual_and_counterfactual_worlds"
+
+[[conformance]]
+id = "shared_term_values_equal_enumeration"
+clause = "shared_exogenous_execution"
+evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs"
+evidence_assertion = "shared_exogenous_cross_world_values_equal_an_independent_enumeration"
+
+[[conformance]]
+id = "shared_term_joint_state_bound"
+clause = "shared_exogenous_execution"
+evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs"
+evidence_assertion = "the_joint_state_bound_holds_at_its_edge_and_refuses_one_term_past_it"
+
+[[conformance]]
+id = "shared_term_unsupported_is_not_nonidentification"
+clause = "shared_exogenous_execution"
+evidence_test = "crates/antecedent-counterfactual/tests/cross_world_execution.rs"
+evidence_assertion = "a_law_to_be_fitted_is_unsupported_execution_while_latent_confounding_is_nonidentification"
+
+[[conformance]]
+id = "shared_term_artifact_replay"
+clause = "shared_exogenous_execution"
+evidence_test = "crates/antecedent-io-core/tests/cross_world_execution_artifact.rs"
+evidence_assertion = "a_shared_exogenous_execution_replays_bit_for_bit_in_a_fresh_consumer"
+
+[[conformance]]
+id = "shared_term_public_example_and_replay"
+clause = "shared_exogenous_execution"
+evidence_test = "python/tests/test_shared_exogenous_conformance.py"
+evidence_assertion = "test_the_public_example_executes_and_its_artifact_replays_the_values"
+
+[[conformance]]
+id = "shared_term_observational_nonidentification"
+clause = "shared_exogenous_execution"
+evidence_test = "python/tests/test_shared_exogenous_conformance.py"
+evidence_assertion = "test_observational_nonidentification_is_not_reported_as_unsupported_execution"
+
+[[conformance]]
+id = "bridge_wide_tables"
+clause = "recalculation_bridge"
+evidence_test = "python/tests/test_recalc_bridge_conformance.py"
+evidence_assertion = "test_the_bridge_accepts_wide_tables_and_equals_the_direct_native_result"
+
+[[conformance]]
+id = "bridge_overflow"
+clause = "recalculation_bridge"
+evidence_test = "python/tests/test_recalc_bridge_conformance.py"
+evidence_assertion = "test_a_size_that_overflows_the_checked_byte_arithmetic_is_refused"
+
+[[conformance]]
+id = "bridge_declared_size_before_allocation"
+clause = "recalculation_bridge"
+evidence_test = "python/tests/test_recalc_bridge_conformance.py"
+evidence_assertion = "test_a_declared_size_above_the_budget_is_refused_before_any_large_allocation"
+
+[[conformance]]
+id = "bridge_declared_size_mismatch"
+clause = "recalculation_bridge"
+evidence_test = "python/tests/test_recalc_bridge_conformance.py"
+evidence_assertion = "test_a_column_that_holds_fewer_values_than_it_declared_is_a_size_mismatch"
+
+[[conformance]]
+id = "bridge_cancellation"
+clause = "recalculation_bridge"
+evidence_test = "python/tests/test_recalc_bridge_conformance.py"
+evidence_assertion = "test_a_cancelled_run_stops_at_once_and_retains_no_partial_state"
+
+[[conformance]]
+id = "bridge_downstream_limit"
+clause = "recalculation_bridge"
+evidence_test = "python/tests/test_recalc_bridge_conformance.py"
+evidence_assertion = "test_a_request_above_the_downstream_limit_names_the_limit_and_the_requested_size"
+
+[[conformance]]
+id = "registry_covers_every_capability"
+clause = "conformance_registry"
+evidence_test = "python/tests/test_gcm_conformance_registry.py"
+evidence_assertion = "test_the_conformance_gate_covers_every_capability_and_is_registered"
+
+# Batch execution preserves the repository's performance requirements. Each benchmark asserts
+# its own regression bound (`MAX_REGRESSION`, relative to a baseline measured in the same
+# process, so the bound holds on any machine) and its workspace or context reuse, in the
+# Criterion `--test` smoke as well as in a full run.
+[[performance]]
+id = "program_sampling_against_plain_sampling"
+package = "antecedent-model"
+bench = "policy_sampling"
+file = "crates/antecedent-model/benches/policy_sampling.rs"
+function = "bench_policy_sampling"
+
+[[performance]]
+id = "coalition_replay_against_model_cloning"
+package = "antecedent-model"
+bench = "noise_replay"
+file = "crates/antecedent-model/benches/noise_replay.rs"
+function = "bench_noise_replay"
+
+[[performance]]
+id = "program_counterfactual_marginal_against_a_direct_loop"
+package = "antecedent-counterfactual"
+bench = "counterfactual_batch"
+file = "crates/antecedent-counterfactual/benches/counterfactual_batch.rs"
+function = "bench_cf_policy"

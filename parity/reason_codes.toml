@@ -110,6 +110,16 @@ applies_to = ["runtime_refusal"]
 meaning = "The Bayesian route fits a Gaussian identity-link model only, or cannot carry a transferred prior onto a non-Gaussian link; a Bernoulli or Poisson likelihood is refused rather than fitted as Gaussian."
 
 [[code]]
+id = "posterior_draws_below_supported"
+applies_to = ["runtime_refusal"]
+meaning = "A posterior draw count below the supported minimum of the backend was requested under draw controls. The refusal names the minimum; the count is never rewritten."
+
+[[code]]
+id = "posterior_draws_not_converged"
+applies_to = ["runtime_refusal"]
+meaning = "Under draw controls the Monte Carlo standard error of an interval endpoint exceeds the accepted fraction of the interval width, because the draws (too few, or autocorrelated by a sampler that mixes poorly) rather than the posterior set the endpoints. The refusal names the endpoint errors, the effective draws and the tolerance."
+
+[[code]]
 id = "stage_stream_unavailable"
 applies_to = ["runtime_refusal"]
 meaning = "The route fits its point and uncertainty together, or mixes identifications, so it has no progressive stages."
@@ -771,9 +781,9 @@ meaning = "A batch callback returned an output that violates its declaration: th
 [[code]]
 id = "policy_callback_not_portable"
 applies_to = ["runtime_refusal"]
-meaning = "A value program contains a callback that is a runtime binding (an in-process function with no verifiable recoverable implementation), so no artifact, identity or wire encoding can carry it. A callback is exportable only when declared with a content digest of its self-contained source and pinned dependency versions that the consumer re-verifies; the refusal names the callback."
+meaning = "A value program contains a callback that is a runtime binding (an in-process function with no verifiable recoverable implementation), so no artifact, identity or wire encoding can carry it. A callback is exportable only when declared with a content digest of its self-contained source and pinned dependency versions that the consumer re-verifies; a dependency declared without a pinned version leaves nothing to verify and is refused the same way. The refusal names the callback."
 
 [[code]]
 id = "policy_callback_unrecoverable"
 applies_to = ["runtime_refusal"]
-meaning = "A recovery record for a callback does not verify against the implementation supplied for replay: the source digest, entry point, input labels, output declaration or a pinned dependency version differs, or a pinned dependency is not installed. The refusal names the first mismatching field."
+meaning = "A recovery record for a callback does not verify against the implementation supplied for replay: the source digest, entry point, input labels, output declaration or a pinned dependency version differs, a pinned dependency is not installed, or no implementation was supplied for a record the artifact carries. The refusal names the callback and the first mismatching field."

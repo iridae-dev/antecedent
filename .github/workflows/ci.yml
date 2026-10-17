@@ -539,7 +539,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        section: [inventory, promotion-python, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, feature-core, feature-composition, feature-transport, feature-exits]
+        section: [inventory, promotion-python, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, feature-core, feature-composition, feature-transport, feature-conformance, feature-exits]
     steps: &domain_test_steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

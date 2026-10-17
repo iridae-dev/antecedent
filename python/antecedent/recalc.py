@@ -872,19 +872,28 @@ class _Arguments:
     target_depends_on: list[str] | None
 
 
-def _arguments(request: RecalcRequest) -> _Arguments:
-    names = [str(name) for name in request.data]
-    columns = [_column(name, request.data[name]) for name in request.data]
+def _arguments(
+    request: RecalcRequest,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> _Arguments:
+    from ._recalc_bounds import _float_columns
+
     target = request.target
+    named = [(str(name), values) for name, values in request.data.items()]
+    if target is not None:
+        named.append(("target weights", target.weights))
+    columns = _float_columns(named, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
     return _Arguments(
-        names=names,
-        columns=columns,
+        names=[name for name, _ in named[: len(request.data)]],
+        columns=columns[: len(request.data)],
         edges=[(str(a), str(b)) for a, b in request.edges],
         treatment=request.treatment,
         outcome=request.outcome,
         benefit_per_unit=float(request.utility.benefit_per_unit),
         cost=float(request.utility.cost),
-        target_weights=None if target is None else _column("target weights", target.weights),
+        target_weights=None if target is None else columns[-1],
         target_depends_on=None if target is None else [str(v) for v in target.depends_on],
     )
 
@@ -975,7 +984,7 @@ class RecalcSession:
         cancel: _native.CancellationToken | None = None,
     ) -> RecalcPlan:
         """The plan ``request`` would run under, without running it."""
-        a = _arguments(request)
+        a = _arguments(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
         wire = self._handle.plan(
             a.names,
             a.columns,
@@ -1024,7 +1033,7 @@ class RecalcSession:
             RecalcNoLiveState: the plan reuses a derived stage this session cannot back with a
                 live artifact (for example declared portable scores no loader supplies).
         """
-        a = _arguments(request)
+        a = _arguments(request, memory_limit_bytes=memory_limit_bytes, cancel=cancel)
         result, artifact, refusal = self._handle.execute(
             a.names,
             a.columns,

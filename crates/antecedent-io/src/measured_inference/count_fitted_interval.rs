@@ -39,9 +39,8 @@ pub const MEASURED_PRIOR_ALPHA: f64 = 1.0;
 /// has its own coverage record.
 pub const MEASURED_DRAWS: u32 = 2000;
 /// Largest accepted ratio of an endpoint's Monte Carlo standard error to the interval
-/// width. The measured design sits near 0.015 at the minimum draw count; five times
-/// that or more is a sign the draws, not the posterior, set the endpoints.
-pub const MAX_ENDPOINT_MCSE_FRACTION: f64 = 0.05;
+/// width; one rule shared with every posterior-draw route.
+pub use antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION;
 const MAX_NODES: usize = 16;
 const MAX_LEVELS: usize = 16;
 
@@ -206,6 +205,28 @@ impl CountFittedIntervalArtifactWire {
         Ok(())
     }
 
+    /// Identity of the premises the interval is conditional on: the model, the question,
+    /// the level and prior, and the actual draw count and seed.
+    fn premises_identity(&self) -> Result<String, IoError> {
+        crate::digest_hex(
+            IdentityDomain::Claim,
+            &(
+                "count_fitted_premises_v1",
+                self.nodes
+                    .iter()
+                    .map(|n| (&n.name, &n.levels, &n.parents, &n.declared_bits))
+                    .collect::<Vec<_>>(),
+                &self.target,
+                &self.target_level,
+                &self.evidence,
+                self.level_bits,
+                self.prior_alpha_bits,
+                self.draws,
+                self.seed,
+            ),
+        )
+    }
+
     /// Replay the posterior draws from the retained counts, check the measured protocol
     /// and the Monte Carlo error of the endpoints against `mcse_tolerance`.
     fn replay(&self, mcse_tolerance: f64) -> Result<PosteriorInterval, IoError> {
@@ -257,23 +278,7 @@ impl CountFittedIntervalArtifactWire {
             ));
         }
         let interval = wire.replay(MAX_ENDPOINT_MCSE_FRACTION)?;
-        let premises = crate::digest_hex(
-            IdentityDomain::Claim,
-            &(
-                "count_fitted_premises_v1",
-                wire.nodes
-                    .iter()
-                    .map(|n| (&n.name, &n.levels, &n.parents, &n.declared_bits))
-                    .collect::<Vec<_>>(),
-                &wire.target,
-                &wire.target_level,
-                &wire.evidence,
-                wire.level_bits,
-                wire.prior_alpha_bits,
-                wire.draws,
-                wire.seed,
-            ),
-        )?;
+        let premises = wire.premises_identity()?;
         let data = crate::digest_hex(
             IdentityDomain::Claim,
             &(wire.rows, wire.nodes.iter().map(|n| &n.counts).collect::<Vec<_>>()),
@@ -432,5 +437,67 @@ mod tests {
         let message = detail(&source.replay(fraction * 0.999).unwrap_err());
         assert!(message.contains("measured_interval.draws_not_converged"), "{message}");
         assert!(message.contains("more posterior draws"), "{message}");
+    }
+
+    #[test]
+    fn a_draw_count_below_the_supported_minimum_is_refused_naming_it() {
+        let error = wire(200).replay(MAX_ENDPOINT_MCSE_FRACTION).unwrap_err();
+        let message = detail(&error);
+        assert!(message.contains("measured_interval.protocol_not_measured"), "{message}");
+        assert!(message.contains("2000..=100000, got 200"), "{message}");
+        assert_eq!(MEASURED_DRAWS, 2000);
+        assert!(wire(200).check_draws().is_err() && wire(MEASURED_DRAWS).check_draws().is_ok());
+        // The refusal comes before any draw is made, so no interval can carry the count.
+        assert!(wire(1999).replay(1.0).is_err());
+        assert!(wire(MEASURED_DRAWS).replay(1.0).is_ok());
+    }
+
+    #[test]
+    fn three_thousand_draws_that_have_not_converged_are_refused_naming_the_diagnostic() {
+        let source = wire(3000);
+        let interval = source.replay(1.0).expect("replays at any tolerance");
+        let fraction = interval.mcse_width_fraction();
+        assert!(fraction > 0.0 && fraction < MAX_ENDPOINT_MCSE_FRACTION, "{fraction}");
+        // Forcing the endpoint error above the tolerance (a tolerance just under the
+        // error these draws have, as draws that mix poorly would leave) is refused with
+        // the diagnostic, both endpoint errors and the tolerance named.
+        let message = detail(&source.replay(fraction * 0.5).unwrap_err());
+        assert!(message.contains("measured_interval.draws_not_converged"), "{message}");
+        assert!(message.contains("Monte Carlo standard error"), "{message}");
+        assert!(message.contains(&format!("{:.3e} lower", interval.lower_mcse)), "{message}");
+        assert!(message.contains(&format!("{:.3e} upper", interval.upper_mcse)), "{message}");
+        assert!(message.contains(&format!("{} tolerance", fraction * 0.5)), "{message}");
+    }
+
+    #[test]
+    fn draws_and_seed_are_in_the_replay_identity_and_replay_reproduces_the_draws() {
+        let source = wire(3000);
+        let identity = source.premises_identity().unwrap();
+        assert_eq!(identity, wire(3000).premises_identity().unwrap());
+        // Changing the draw count or the seed changes the identity and the retained bytes.
+        let other_draws = wire(4000);
+        let other_seed = CountFittedIntervalArtifactWire { seed: 8, ..wire(3000) };
+        for other in [&other_draws, &other_seed] {
+            assert_ne!(other.premises_identity().unwrap(), identity);
+            assert_ne!(other.encode().unwrap(), source.encode().unwrap());
+        }
+        // Replaying the retained source reproduces the actual draws, bit for bit, from the
+        // bytes alone.
+        let decoded: CountFittedIntervalArtifactWire =
+            crate::from_cbor(&source.encode().unwrap()).unwrap();
+        assert_eq!(decoded, source);
+        let (first, again) = (source.replay(1.0).unwrap(), decoded.replay(1.0).unwrap());
+        assert_eq!(first.draws, 3000);
+        for (a, b) in [
+            (first.lower, again.lower),
+            (first.upper, again.upper),
+            (first.lower_mcse, again.lower_mcse),
+            (first.upper_mcse, again.upper_mcse),
+        ] {
+            assert_eq!(a.to_bits(), b.to_bits());
+        }
+        // A different seed draws different tables: the interval is not the same one.
+        let moved = other_seed.replay(1.0).unwrap();
+        assert_ne!(moved.lower.to_bits(), first.lower.to_bits());
     }
 }

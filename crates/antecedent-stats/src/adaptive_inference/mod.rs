@@ -93,13 +93,14 @@ pub use participant_posterior::{
     exact_posterior,
 };
 pub use participant_procedure::{
-    AnytimeSettings, ArmReading, ComparisonReading, DecisionRules, FrequentistClaim, FutilityRule,
-    LookDecision, LookReading, MAX_PARTICIPANT_LOOKS, MAX_PARTICIPANT_RESPONSES,
+    AnytimeSettings, ArmBorrowing, ArmReading, ComparisonReading, DecisionRules, FrequentistClaim,
+    FutilityRule, LookDecision, LookReading, MAX_PARTICIPANT_LOOKS, MAX_PARTICIPANT_RESPONSES,
     PARTICIPANT_PROCEDURE_VERSION, ParticipantDeclaration, ParticipantHistory,
-    ParticipantReplicate, ParticipantSimulation, ParticipantSimulationRequest,
-    ParticipantSimulationSummary, ParticipantSpec, PosteriorClaim, REPLAY_TOLERANCE, StopFractions,
-    StopReason, beta_binomial_pmf, design_effect, simulate_participant_history,
-    simulate_participant_procedure, simulate_participant_procedure_within,
+    ParticipantReplicate, ParticipantRun, ParticipantSimulation, ParticipantSimulationRequest,
+    ParticipantSimulationSummary, ParticipantSpec, PosteriorClaim, PriorDataConflict,
+    REPLAY_TOLERANCE, StopFractions, StopReason, beta_binomial_pmf, design_effect,
+    run_participant_procedure_within, simulate_participant_history, simulate_participant_procedure,
+    simulate_participant_procedure_within,
 };
 pub use procedure_contract::{
     AssignmentRule, Attribution, BetaPrior, ContractGap, DelayMechanism, ExposureModel,

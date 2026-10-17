@@ -314,6 +314,31 @@ impl AdaptiveInferenceSession {
         .map_err(|error| artifact_refusal(&error.to_string(), error.refusal()))
     }
 
+    /// [`Self::export_contract_with_procedure`] when the whole artifact fits
+    /// `export_budget` bytes.
+    ///
+    /// # Errors
+    /// As [`Self::export_contract_with_procedure`], and
+    /// `adaptive_inference.artifact_size_exceeded` (`route_not_supported`)
+    /// when the artifact is over the budget; the refusal names the bytes
+    /// needed and the budget, and the run and its procedure are untouched.
+    pub fn export_contract_with_procedure_within(
+        &self,
+        paradigm: InferenceParadigm,
+        procedure: &ParticipantProcedure,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, AdaptiveInferenceRefusal> {
+        AdaptiveMonitoringContractArtifact::to_bytes_with_procedure_within(
+            &self.contract,
+            paradigm,
+            procedure.spec(),
+            artifact_id,
+            export_budget,
+        )
+        .map_err(|error| artifact_refusal(&error.to_string(), error.refusal()))
+    }
+
     /// Export a result bound to its monitoring contract.
     ///
     /// # Errors

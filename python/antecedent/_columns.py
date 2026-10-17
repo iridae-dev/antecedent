@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass, replace
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from typing import Any, TypeVar, cast, overload
 
 import numpy as np
@@ -327,7 +327,10 @@ class IdentifierBinding:
     the per-row codes. A refreshed table that encodes differently holds different
     identifiers (other labels, or the same labels on other rows) and is refused.
     ``row_labels`` keeps the original label of every row for a participant column, whose
-    values the caller reads back; it is empty for a cluster column. A ``kind="weights"``
+    values the caller reads back; it is empty for a cluster column. ``codes`` are the per-row
+    codes (little-endian ``u32``) that name the rows whose identity changed when a refreshed
+    table is refused; neither takes part in equality, which is the identity of the column
+    (labels, codes digest, row count). A ``kind="weights"``
     binding covers a sampling-weight column: its ``digest`` is over the exact weight bits, and
     it has no labels.
     """
@@ -336,8 +339,9 @@ class IdentifierBinding:
     labels: tuple[str, ...]
     digest: str
     rows: int
-    row_labels: tuple[str, ...] = ()
+    row_labels: tuple[str, ...] = field(default=(), compare=False)
     kind: str = "identifier"
+    codes: bytes = field(default=b"", repr=False, compare=False)
 
     def contract_binding(self) -> dict[str, Any]:
         """The digests that enter the exported contract's data snapshot: rows, labels, codes."""
@@ -405,6 +409,7 @@ def encode_identifier(
         digest=digest,
         rows=len(codes),
         row_labels=tuple(str(value) for value in row_values) if keep_rows else (),
+        codes=np.asarray(codes, dtype="<u4").tobytes(),
     )
     return binding, codes
 
@@ -599,8 +604,91 @@ def resolve_estimator_identifiers(
     return resolved, bindings
 
 
+@dataclass(frozen=True, slots=True)
+class IdentifierChange:
+    """One row whose identifier differs from the label frozen at prepare."""
+
+    row: int
+    frozen: str
+    supplied: str
+
+
+@dataclass(frozen=True, slots=True)
+class IdentifierRefreshReceipt:
+    """What a refused refresh found in a frozen identifier column.
+
+    ``changes`` lists every row whose label differs from the frozen one, in row order.
+    ``duplicated`` lists the labels the supplied column repeats although every frozen label was
+    unique. ``standing`` is ``recompute``: a claim computed under the frozen identifiers does
+    not describe the supplied table, and only ``reprepare`` binds the new ones; the prepared
+    study and its last result are untouched.
+    """
+
+    column: str
+    rows: int
+    changes: tuple[IdentifierChange, ...]
+    duplicated: tuple[str, ...]
+    standing: str = "recompute"
+
+
+def _refresh_receipt(
+    frozen: IdentifierBinding, supplied: IdentifierBinding
+) -> IdentifierRefreshReceipt:
+    """The rows whose label moved between the frozen identifiers and a supplied column."""
+    frozen_codes = np.frombuffer(frozen.codes, dtype="<u4")
+    frozen_labels = (
+        [frozen.labels[int(code)] for code in frozen_codes]
+        if frozen_codes.size == frozen.rows
+        else []
+    )
+    changes = tuple(
+        IdentifierChange(row, before, after)
+        for row, (before, after) in enumerate(zip(frozen_labels, supplied.row_labels, strict=False))
+        if before != after
+    )
+    seen: dict[str, int] = {}
+    for label in supplied.row_labels:
+        seen[label] = seen.get(label, 0) + 1
+    unique_when_frozen = len(frozen.labels) == frozen.rows
+    duplicated = (
+        tuple(sorted(label for label, count in seen.items() if count > 1))
+        if unique_when_frozen
+        else ()
+    )
+    return IdentifierRefreshReceipt(frozen.column, frozen.rows, changes, duplicated)
+
+
+def _refresh_refusal(receipt: IdentifierRefreshReceipt) -> CausalValueError:
+    shown = ", ".join(
+        f"row {change.row} {change.frozen!r} -> {change.supplied!r}"
+        for change in receipt.changes[:5]
+    )
+    detail = f"{len(receipt.changes)} row(s) differ ({shown}{', ...' if len(receipt.changes) > 5 else ''})"
+    if receipt.duplicated:
+        duplicated = receipt.duplicated
+        detail += (
+            f"; duplicate identifier on refresh: {list(duplicated[:5])}"
+            f"{'...' if len(duplicated) > 5 else ''} repeat in the supplied column although every "
+            "frozen identifier was unique"
+        )
+    refusal = CausalValueError(
+        f"frozen identifier column {receipt.column!r} changed labels or row order"
+        f"{': ' + detail if receipt.changes else ''}; claims computed under the frozen identifiers "
+        "are marked recompute, use study.reprepare(data) to declare new identifiers",
+        reason_code="invalid_argument",
+    )
+    setattr(refusal, "offending", receipt.column)  # noqa: B010 — structured optional error field
+    setattr(refusal, "receipt", receipt)  # noqa: B010 — structured optional error field
+    refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+    return refusal
+
+
 def guard_identifiers(study: Any, data: Any) -> None:
-    """Refuse a table whose frozen identifier columns changed, before anything runs."""
+    """Refuse a table whose frozen identifier columns changed, before anything runs.
+
+    The refusal of a changed label column carries an :class:`IdentifierRefreshReceipt` as
+    ``receipt``: the rows whose identity moved and the claim standing ``recompute``.
+    """
     bindings: Mapping[str, IdentifierBinding] = getattr(study, "_identifier_bindings", {})
     if not bindings or data is None:
         return
@@ -621,20 +709,19 @@ def guard_identifiers(study: Any, data: Any) -> None:
         if frozen.kind == "weights":
             supplied, _ = encode_weights(data, column, estimator=None)
             digest = hashlib.sha256(np.asarray(supplied, dtype="<f8").tobytes()).hexdigest()
-            changed = digest != frozen.digest
-        else:
-            supplied_binding, _ = encode_identifier(data, column, what="cluster")
-            changed = supplied_binding != frozen
-        if changed:
-            refusal = CausalValueError(
-                f"frozen {'weights' if frozen.kind == 'weights' else 'identifier'} column "
-                f"{column!r} changed {'values' if frozen.kind == 'weights' else 'labels or row order'}; "
-                "use study.reprepare(data) to declare new identifiers",
-                reason_code="invalid_argument",
-            )
-            setattr(refusal, "offending", column)  # noqa: B010 — structured optional error field
-            refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
-            raise refusal
+            if digest != frozen.digest:
+                refusal = CausalValueError(
+                    f"frozen weights column {column!r} changed values; "
+                    "use study.reprepare(data) to declare new identifiers",
+                    reason_code="invalid_argument",
+                )
+                setattr(refusal, "offending", column)  # noqa: B010 — structured optional error field
+                refusal.remedy = "use study.reprepare(data) to bind the new identifiers"
+                raise refusal
+            continue
+        supplied_binding, _ = encode_identifier(data, column, what="cluster", keep_rows=True)
+        if supplied_binding != frozen:
+            raise _refresh_refusal(_refresh_receipt(frozen, supplied_binding))
 
 
 @dataclass(frozen=True, slots=True)

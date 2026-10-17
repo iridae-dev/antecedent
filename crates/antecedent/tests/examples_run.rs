@@ -132,6 +132,41 @@ mod transport_meta_grid;
 #[path = "../../../examples/rust/transport_statistical.rs"]
 mod transport_statistical;
 
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
+#[path = "../../../examples/rust/intervention_programs.rs"]
+mod intervention_programs;
+
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
+#[path = "../../../examples/rust/mechanism_selection.rs"]
+mod mechanism_selection;
+
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
+#[path = "../../../examples/rust/graph_falsification.rs"]
+mod graph_falsification;
+
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
+#[path = "../../../examples/rust/noise_replay.rs"]
+mod noise_replay;
+
+#[allow(
+    dead_code,
+    reason = "the example keeps its own `main`, which this test never calls; only `run` is used"
+)]
+#[path = "../../../examples/rust/intrinsic_influence.rs"]
+mod intrinsic_influence;
+
 #[test]
 fn example_ate_quickstart_runs() {
     ate_quickstart::run().unwrap();
@@ -228,4 +263,29 @@ fn example_transport_statistical_runs() {
 #[test]
 fn example_shared_exogenous_counterfactual_runs() {
     shared_exogenous_counterfactual::run().unwrap();
+}
+
+#[test]
+fn example_intervention_programs_runs() {
+    intervention_programs::run().unwrap();
+}
+
+#[test]
+fn example_mechanism_selection_runs() {
+    mechanism_selection::run().unwrap();
+}
+
+#[test]
+fn example_graph_falsification_runs() {
+    graph_falsification::run().unwrap();
+}
+
+#[test]
+fn example_noise_replay_runs() {
+    noise_replay::run().unwrap();
+}
+
+#[test]
+fn example_intrinsic_influence_runs() {
+    intrinsic_influence::run().unwrap();
 }

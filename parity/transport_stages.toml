@@ -11965,6 +11965,17 @@ evidence_test = "crates/antecedent-stats/tests/adaptive_participant_family.rs"
 evidence_assertion = "a_retained_history_replays_and_a_tampered_one_is_refused"
 
 [[routes]]
+route = "antecedent_stats.adaptive_inference.participant_procedure.run_participant_procedure_within"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_inputs"
+evidence = "declared_evidence_of_the_record"
+functional = "value_of_the_record_quantity"
+guarantee = "point_only_under_declared_premises_no_interval"
+evidence_test = "crates/antecedent/tests/adaptive_participant_acceptance.rs"
+evidence_assertion = "adaptive_run_cancellation_returns_partial_receipt"
+
+[[routes]]
 route = "antecedent_stats.adaptive_inference.historical_prior.ArmPrior.resolve"
 stage = "prepare"
 status = "licensed"
@@ -12007,6 +12018,17 @@ functional = "value_of_the_record_quantity"
 guarantee = "point_only_under_declared_premises_no_interval"
 evidence_test = "crates/antecedent/tests/adaptive_participant_facade.rs"
 evidence_assertion = "a_retained_run_seals_with_its_procedure_and_a_fresh_consumer_replays_it"
+
+[[routes]]
+route = "antecedent.adaptive_participant_procedure.ParticipantProcedure.run"
+stage = "evaluate"
+status = "licensed"
+graph = "not_applicable_declared_inputs"
+evidence = "declared_evidence_of_the_record"
+functional = "value_of_the_record_quantity"
+guarantee = "point_only_under_declared_premises_no_interval"
+evidence_test = "crates/antecedent/tests/adaptive_participant_acceptance.rs"
+evidence_assertion = "adaptive_run_cancellation_returns_partial_receipt"
 
 [[routes]]
 route = "antecedent.adaptive_participant_procedure.ParticipantProcedure.amend_borrowing"
@@ -12198,7 +12220,7 @@ functional = "active_minus_control_contrast_of_a_multi_level_treatment_over_the_
 guarantee = "multi_level_treatment_contrast_with_stated_target_population_point_only_standard_error_unmeasured"
 evidence_test = "crates/antecedent-estimate/tests/treatment_levels.rs"
 evidence_assertion = "the_full_population_and_pairwise_targets_recover_their_own_truths"
-notes = "Point-only; the standard error is an unmeasured diagnostic. No interval."
+notes = "Point-only; the standard error is an unmeasured diagnostic. The full-population interval is withheld as scope_not_assessed until a coverage record measures it."
 
 [[routes]]
 route = "antecedent.missing.declared_policy"

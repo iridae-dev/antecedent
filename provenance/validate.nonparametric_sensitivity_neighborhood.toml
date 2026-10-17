@@ -25,4 +25,5 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-validate/src/sensitivity.rs unit tests (equality with the exact smoother when neighbours cover all rows, thread invariance, leave-one-out fixtures, 30000-row regression recovery)",
  "crates/antecedent-validate/src/tests.rs (neighborhood_sensitivity_reproduces_the_tipping_value_of_the_true_residuals)",
+ "crates/antecedent-validate/src/sensitivity.rs (scalable_cases: exact_sensitivity_retained_at_small_sizes, nonparametric_sensitivity_beyond_20k_50000_rows, nonparametric_sensitivity_beyond_20k_100000_rows, scalable_sensitivity_replacement_validated_separately)",
 ]

@@ -953,6 +953,46 @@ fn dbn_bayesian_diagnostics(
     diagnostics
 }
 
+/// Under draw controls the MCMC publication gate refusing a fit is the convergence control
+/// failing, so it carries that reason code; every other fit error is unchanged.
+pub(super) fn chain_refusal_under_draw_controls(
+    controlled: bool,
+    cfg: &crate::BayesianConfig,
+    error: antecedent_estimate::EstimationError,
+) -> CausalError {
+    match error {
+        antecedent_estimate::EstimationError::Prob(
+            antecedent_prob::ProbError::MissingDiagnostics { message },
+        ) if controlled && cfg.backend == antecedent_estimate::BayesianBackendKind::Hmc => {
+            crate::compile_reason!("posterior_draws_not_converged", "{message}")
+        }
+        other => CausalError::from(other),
+    }
+}
+
+/// Refuse a posterior whose interval endpoints are not set by the posterior: the Monte Carlo
+/// standard error of the larger endpoint must be within the accepted fraction of the width.
+/// The endpoint errors are recorded with the posterior's inference diagnostics.
+pub(super) fn enforce_draw_controls(posterior: &mut CausalPosterior) -> Result<(), CausalError> {
+    let error = antecedent_estimate::endpoint_monte_carlo_error(posterior)?;
+    if error.exceeds_tolerance() {
+        return Err(crate::compile_reason!(
+            "posterior_draws_not_converged",
+            "the Monte Carlo standard error of an interval endpoint ({:.3e} lower, {:.3e} upper) \
+             is {:.3} of the interval width from {:.0} effective draws of {}, above the {} \
+             tolerance; use more posterior draws or a sampler that mixes better",
+            error.lower_mcse,
+            error.upper_mcse,
+            error.width_fraction,
+            error.effective_draws,
+            error.draws,
+            antecedent_estimate::count_fitted_posterior::MAX_ENDPOINT_MCSE_FRACTION
+        ));
+    }
+    posterior.diagnostics.notes.push(error.note());
+    Ok(())
+}
+
 impl super::Study {
     pub(super) fn execute_bayesian(
         &self,
@@ -1099,7 +1139,12 @@ impl super::Study {
             resolve_bayesian_prior_with_conflict(cfg, &prep, Some(ctx))?;
         est.prior = resolved_prior;
         let mut ws = BayesianGCompWorkspace::default();
-        let mut posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
+        let mut posterior = est.fit(&prep, status, &mut ws, ctx).map_err(|error| {
+            chain_refusal_under_draw_controls(self.draw_controls.is_some(), cfg, error)
+        })?;
+        if self.draw_controls.is_some() {
+            enforce_draw_controls(&mut posterior)?;
+        }
         if let Some(summary) = conflict_summary {
             posterior = with_conflict_summary(posterior, summary);
         }

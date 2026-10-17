@@ -85,29 +85,22 @@ impl ArithOp {
     /// Apply to one pair. The batch kernel calls exactly this, so batch and scalar
     /// evaluation are bit-identical.
     #[must_use]
+    #[inline]
     pub fn apply(self, a: f64, b: f64) -> f64 {
         match self {
             Self::Add => a + b,
             Self::Sub => a - b,
             Self::Mul => a * b,
             Self::Div => a / b,
+            // Written as selects (non-short-circuit `|`) so a column loop vectorizes; the
+            // values are those of the branching form, signed zeros included.
             Self::Min => {
-                if a.is_nan() || b.is_nan() {
-                    f64::NAN
-                } else if b < a {
-                    b
-                } else {
-                    a
-                }
+                let m = if b < a { b } else { a };
+                if a.is_nan() | b.is_nan() { f64::NAN } else { m }
             }
             Self::Max => {
-                if a.is_nan() || b.is_nan() {
-                    f64::NAN
-                } else if b > a {
-                    b
-                } else {
-                    a
-                }
+                let m = if b > a { b } else { a };
+                if a.is_nan() | b.is_nan() { f64::NAN } else { m }
             }
         }
     }
@@ -116,6 +109,7 @@ impl ArithOp {
 /// `value` limited to `[lower, upper]`; NaN when any input is NaN or the bounds are
 /// inverted.
 #[must_use]
+#[inline]
 pub fn clip_value(value: f64, lower: f64, upper: f64) -> f64 {
     if value.is_nan() || lower.is_nan() || upper.is_nan() || lower > upper {
         f64::NAN
@@ -149,6 +143,7 @@ impl CompareOp {
         clippy::float_cmp,
         reason = "an explicit equality comparison is the operator's meaning"
     )]
+    #[inline]
     pub fn apply(self, a: f64, b: f64) -> bool {
         match self {
             Self::Lt => a < b,

@@ -321,3 +321,47 @@ design!(
     LARGE_DRAWS,
     true
 );
+
+/// Rows of the practitioner-scale designs: the grid measures half, one and twice this base,
+/// so one thousand rows is the middle point.
+const PRACTITIONER_ROWS: usize = 1000;
+
+/// The confounded-signal design at one thousand rows (500 to 2,000) with `draws` posterior
+/// draws: the same construction for each draw count a practitioner may request.
+fn practitioner_rows(test: &'static str, draws: u32) {
+    run(
+        Design {
+            test,
+            dgp: "common_cause_z_of_s_and_y_with_s_to_y_counts_fitted_dirichlet_posterior_evidence_s1",
+            signal: false,
+            boundary: Boundary::None,
+            level: 0.95,
+            draws,
+        },
+        PRACTITIONER_ROWS,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn count_fitted_confounded_signal_l95_rows_1000_draws_2000() {
+    practitioner_rows("count_fitted_confounded_signal_l95_rows_1000_draws_2000", MIN_DRAWS);
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn count_fitted_confounded_signal_l95_rows_1000_draws_3000() {
+    practitioner_rows("count_fitted_confounded_signal_l95_rows_1000_draws_3000", 3000);
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn count_fitted_confounded_signal_l95_rows_1000_draws_4000() {
+    practitioner_rows("count_fitted_confounded_signal_l95_rows_1000_draws_4000", 4000);
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn count_fitted_confounded_signal_l95_rows_1000_draws_8000() {
+    practitioner_rows("count_fitted_confounded_signal_l95_rows_1000_draws_8000", LARGE_DRAWS);
+}

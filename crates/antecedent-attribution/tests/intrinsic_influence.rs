@@ -694,3 +694,66 @@ fn permutation_and_simulation_errors_shrink_with_their_own_budgets() {
         / component(&large_perm, UncertaintyComponent::PermutationSampling);
     assert!(perm_ratio >= 1.5, "permutation error ratio {perm_ratio}");
 }
+
+/// `a -> b -> c -> y`: `b = 2a + e_b`, `c = 1.5b + e_c`, `y = 0.5c + e_y`, noise scales
+/// `(1, 0.5, 1, 0.8)`. The total coefficients of the four noise terms on `y` are
+/// `(1.5, 0.75, 0.5, 1)`, so the exact contributions are `c_i² σ_i²`.
+fn four_player_chain() -> (CompiledCausalModel, [f64; 4]) {
+    let m = model(
+        &[(0, 1), (1, 2), (2, 3)],
+        vec![
+            linear(0.0, &[], 1.0),
+            linear(0.0, &[2.0], 0.5),
+            linear(0.0, &[1.5], 1.0),
+            linear(0.0, &[0.5], 0.8),
+        ],
+    );
+    (m, [2.25, 0.140_625, 0.25, 0.64])
+}
+
+#[test]
+fn exact_enumeration_reports_zero_permutation_error_and_still_reports_simulation_error() {
+    let (m, truth) = four_player_chain();
+    // 2500 outer draws x 10 inner draws x 4 replicate batches = 100000 rows per coalition.
+    let (outer, inner, batches) = (2500, 10, 4);
+    let exact = IntrinsicInfluenceQuery::new(var(3))
+        .with_simulation(outer, inner, batches)
+        .with_allocation(IntrinsicAllocation::Exact)
+        .with_seed(17);
+    let result = run(&m, 3, &exact).unwrap();
+    assert_eq!(result.sources.len(), 4);
+    assert_eq!(result.budget.exact_coalitions, 16);
+    assert_eq!(result.budget.permutations, 0);
+    assert_eq!(result.budget.rows_replayed, 16 * u64::try_from(outer * inner * batches).unwrap());
+    for source in result.sources.iter() {
+        // No permutation is sampled, so that component is exactly zero, not merely small.
+        assert_eq!(source.component_stderr(UncertaintyComponent::PermutationSampling), Some(0.0));
+        assert!(matches!(
+            source.status(UncertaintyComponent::PermutationSampling),
+            Some(ComponentStatus::NotApplicable { .. })
+        ));
+        // The inner simulation error is still measured, and is strictly positive.
+        let simulation = source.component_stderr(UncertaintyComponent::Simulation).unwrap();
+        assert!(simulation.is_finite() && simulation > 0.0, "{simulation}");
+        // The unmeasured component is not reported as zero.
+        assert_eq!(source.component_stderr(UncertaintyComponent::MechanismFit), None);
+    }
+    assert_matches_truth(&result, &truth, outer, batches);
+
+    // A game with interaction allocated by sampled permutations does carry a permutation error.
+    let sampled = IntrinsicInfluenceQuery::new(var(2))
+        .with_simulation(400, 10, 4)
+        .with_allocation(IntrinsicAllocation::Permutation { n_permutations: 50 })
+        .with_seed(17);
+    let result = run(&product(), 2, &sampled).unwrap();
+    // The factors of the product share the interaction, so their marginal contributions
+    // differ across permutations; no source reports a negative or non-finite error.
+    for source in result.sources.iter() {
+        let permutation =
+            source.component_stderr(UncertaintyComponent::PermutationSampling).unwrap();
+        assert!(permutation.is_finite() && permutation >= 0.0, "{permutation}");
+    }
+    let factor =
+        result.sources[0].component_stderr(UncertaintyComponent::PermutationSampling).unwrap();
+    assert!(factor > 0.0, "{factor}");
+}

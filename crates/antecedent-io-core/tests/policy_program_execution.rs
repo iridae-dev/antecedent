@@ -7,12 +7,14 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    CausalRng, ExecutionContext, Intervention, InterventionSequence, SequencedIntervention,
+    BatchCallback, CallbackError, CallbackImplementation, CallbackOutput, CallbackSpec, CausalRng,
+    ExecutionContext, Intervention, InterventionSequence, PinnedDependency, SequencedIntervention,
     TemporalPolicy, ValueExpr, VariableId,
 };
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io_core::policy_program_artifact::{
-    decode_policy_program, encode_policy_program, policy_program_identity,
+    decode_policy_program, decode_policy_program_with, encode_policy_program,
+    policy_program_identity,
 };
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismSlot, MechanismWorkspace, TemporalNoise,
@@ -104,4 +106,63 @@ fn a_saved_lagged_policy_replays_over_time() {
         price = 10.0_f64.max(0.85 * price);
         assert!(step.column(0).unwrap().iter().all(|p| *p == price));
     }
+}
+
+/// `clip(0.85 * x, 10, inf)` as a recoverable batch callback.
+#[derive(Debug)]
+struct Discount(CallbackSpec);
+
+impl BatchCallback for Discount {
+    fn spec(&self) -> &CallbackSpec {
+        &self.0
+    }
+
+    fn call(&self, inputs: &[&[f64]], out: &mut [f64]) -> Result<(), CallbackError> {
+        for (o, x) in out.iter_mut().zip(inputs[0]) {
+            *o = (0.85 * x).max(10.0);
+        }
+        Ok(())
+    }
+}
+
+#[test]
+#[allow(clippy::float_cmp, reason = "a replayed callback program is the same program")]
+fn a_saved_recoverable_callback_policy_replays_the_same_draws_and_equals_its_expression() {
+    let model = price_model();
+    let ctx = ExecutionContext::for_tests(5);
+    let spec = CallbackSpec {
+        name: "discount".into(),
+        inputs: Arc::from(["price".to_string()]),
+        output: CallbackOutput::Real,
+        dependencies: Arc::from([PinnedDependency {
+            name: "numpy".into(),
+            version: "2.0.0".into(),
+        }]),
+        implementation: CallbackImplementation::Recoverable {
+            source_sha256: "c".repeat(64),
+            entry_point: "discount".into(),
+        },
+    };
+    let callback: Arc<dyn BatchCallback> = Arc::new(Discount(spec));
+    let saved = vec![Intervention::transform(
+        PRICE,
+        ValueExpr::callback(Arc::clone(&callback), [ValueExpr::generated()]),
+    )];
+    let bytes = encode_policy_program(&saved).unwrap();
+    // The consumer re-supplies the implementation; the record is verified before replay.
+    let consumer: Arc<dyn BatchCallback> = Arc::new(Discount(callback.spec().clone()));
+    let loaded = decode_policy_program_with(&bytes, &|_| Some(Arc::clone(&consumer))).unwrap();
+    assert_eq!(policy_program_identity(&loaded).unwrap(), policy_program_identity(&saved).unwrap());
+    let draw = |program: &[Intervention]| {
+        let mut ws = MechanismWorkspace::default();
+        sample_interventional(&model, program, 4_000, &mut CausalRng::from_seed(9), &mut ws, &ctx)
+            .unwrap()
+    };
+    let expression = vec![Intervention::transform(
+        PRICE,
+        ValueExpr::constant(10.0).max(ValueExpr::constant(0.85).mul(ValueExpr::generated())),
+    )];
+    let (before, after, written) = (draw(&saved), draw(&loaded), draw(&expression));
+    assert_eq!(before.values, after.values);
+    assert_eq!(before.values, written.values, "callback equals the same policy as an expression");
 }

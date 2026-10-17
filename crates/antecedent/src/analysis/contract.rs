@@ -1912,7 +1912,9 @@ fn inference_binding_wire(study: &Study, inference: String) -> InferenceBindingW
         inference,
         bootstrap_replicates: study.bootstrap_replicates,
         bayesian: match &study.inference {
-            InferenceMode::Bayesian(cfg) => Some(super::contract_identity::bayesian_binding(cfg)),
+            InferenceMode::Bayesian(cfg) => {
+                Some(super::contract_identity::bayesian_binding(cfg, study.draw_controls))
+            }
             InferenceMode::Frequentist => None,
         },
         validation_suite: study.refute.validation_suite_id().map(str::to_string),

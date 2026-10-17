@@ -80,6 +80,7 @@ fn interaction(n: usize) -> Truth {
     truth(&[("x1", x1), ("x2", x2)], &y)
 }
 
+#[cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]
 fn sinusoidal(n: usize) -> Truth {
     let mut rng = CausalRng::from_seed(14);
     let x: Vec<f64> = (0..n).map(|_| uniform(&mut rng, -3.0, 3.0)).collect();
@@ -88,6 +89,7 @@ fn sinusoidal(n: usize) -> Truth {
     truth(&[("x", x)], &y)
 }
 
+#[cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]
 fn linear(n: usize) -> Truth {
     let mut rng = CausalRng::from_seed(15);
     let x: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
@@ -97,6 +99,7 @@ fn linear(n: usize) -> Truth {
 }
 
 /// A binary child with `logit P(t = 1) = 3 x² − 3`.
+#[cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]
 fn quadratic_logit(n: usize) -> Truth {
     let mut rng = CausalRng::from_seed(16);
     let x: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
@@ -111,6 +114,7 @@ fn quadratic_logit(n: usize) -> Truth {
 }
 
 /// Linear against the tree families, for both outcome types.
+#[cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]
 fn trees_against_linear() -> MechanismRegistry {
     MechanismRegistry {
         continuous: Arc::from([
@@ -427,6 +431,56 @@ fn every_candidate_is_scored_on_the_same_folds_with_a_comparable_decomposition()
     }
     assert_eq!(node.provenance.folds, 5);
     assert!(node.provenance.seed.is_some());
+}
+
+/// Two parents, `y = x1^2 + sin(2 x2) + e`: additive and smooth, with no cross-parent term.
+fn additive_smooth(n: usize) -> Truth {
+    let mut rng = CausalRng::from_seed(17);
+    let x1: Vec<f64> = (0..n).map(|_| uniform(&mut rng, -2.0, 2.0)).collect();
+    let x2: Vec<f64> = (0..n).map(|_| uniform(&mut rng, -2.0, 2.0)).collect();
+    let e = gaussian_noise(&mut rng, n, 0.3);
+    let y: Vec<f64> =
+        x1.iter().zip(&x2).zip(&e).map(|((a, b), e)| a * a + (2.0 * b).sin() + e).collect();
+    truth(&[("x1", x1), ("x2", x2)], &y)
+}
+
+/// Two parents, `y = 1 + 2 x1 - x2 + e`.
+fn linear_two_parents(n: usize) -> Truth {
+    let mut rng = CausalRng::from_seed(18);
+    let x1: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
+    let x2: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
+    let e = gaussian_noise(&mut rng, n, 0.3);
+    let y: Vec<f64> = x1.iter().zip(&x2).zip(&e).map(|((a, b), e)| 1.0 + 2.0 * a - b + e).collect();
+    truth(&[("x1", x1), ("x2", x2)], &y)
+}
+
+/// Without a tree provider the basis families still recover the truth that suits each one,
+/// and the linear family keeps a linear truth: the selected family is the simplest one that
+/// earns its held-out score.
+#[test]
+fn basis_families_recover_the_family_that_suits_each_known_truth() {
+    let registry = MechanismRegistry::with_heterogeneity_families();
+    let cases: [(&str, Truth, MechanismFamily); 3] = [
+        ("product", interaction(900), MechanismFamily::LinearInteractions),
+        ("additive smooth", additive_smooth(1500), MechanismFamily::LinearSpline),
+        ("linear", linear_two_parents(1500), MechanismFamily::LinearGaussian),
+    ];
+    for (name, truth, expected) in cases {
+        let assignments =
+            fit(&truth, &registry, SelectionPolicy::BestScore, &SelectionOptions::default())
+                .unwrap()
+                .2;
+        let node = child(&assignments, truth.y_node);
+        assert_eq!(node.selected, expected, "{name}: {:?}", node.candidates);
+        if expected != MechanismFamily::LinearGaussian {
+            // The nonlinear truth is worth the extra parameters: it beats the linear family.
+            assert!(
+                score(node, expected) > score(node, MechanismFamily::LinearGaussian) + 0.1,
+                "{name}: {:?}",
+                node.candidates
+            );
+        }
+    }
 }
 
 #[cfg(all(feature = "ml-gbdt", feature = "ml-forest"))]

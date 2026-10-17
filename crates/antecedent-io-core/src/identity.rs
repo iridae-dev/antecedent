@@ -2252,6 +2252,10 @@ pub struct BayesianBindingWire {
     pub prior_mapping: Option<PriorMappingIdentityWire>,
     /// External prior-bank composition.
     pub external_compose: Option<ExternalComposeIdentityWire>,
+    /// Numerical draw controls requested on the posterior (`measured`); absent when none
+    /// were, so a configuration without them keeps its identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draw_controls: Option<String>,
 }
 
 /// Discovery / estimation window split.
@@ -3256,6 +3260,7 @@ mod tests {
                 prior_source_snapshot: None,
                 prior_mapping: None,
                 external_compose: None,
+                draw_controls: None,
             }),
             validation_suite: None,
             overlap_policy: None,
@@ -3275,6 +3280,16 @@ mod tests {
         assert_ne!(minus_zero, plus_zero);
         binding.bayesian.as_mut().unwrap().backend = "conjugate_gaussian".into();
         assert_ne!(inference_binding_digest(&binding).unwrap(), minus_zero);
+
+        // Draw controls enter the identity only when requested: absent, the field is not
+        // encoded, so a binding without them keeps the bytes it had before they existed.
+        let uncontrolled = inference_binding_digest(&binding).unwrap();
+        let uncontrolled_bytes = to_cbor(&binding.bayesian).unwrap();
+        let encoded = serde_json::to_value(binding.bayesian.as_ref().unwrap()).unwrap();
+        assert!(encoded.get("draw_controls").is_none());
+        binding.bayesian.as_mut().unwrap().draw_controls = Some("measured".into());
+        assert_ne!(inference_binding_digest(&binding).unwrap(), uncontrolled);
+        assert_ne!(to_cbor(&binding.bayesian).unwrap(), uncontrolled_bytes);
     }
 
     #[test]
@@ -3473,6 +3488,91 @@ mod tests {
         assert_eq!(wire.node_count, 12);
         let expected: Vec<(u32, u32)> = (0..11).map(|i| (i, i + 1)).collect();
         assert_eq!(wire.edges, expected);
+    }
+
+    /// A posterior of `n` variables whose atoms are `graphs`, equally weighted.
+    fn equal_weight_posterior(n: usize, graphs: Vec<AdjacencyMask>) -> GraphPosterior {
+        let weight = 1.0 / graphs.len() as f64;
+        GraphPosterior::new(
+            n,
+            vec![weight; graphs.len()],
+            graphs,
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: antecedent_prob::InferenceDiagnostics::analytic("packing"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+    }
+
+    /// Posteriors of eight variables or fewer keep the single-word packing every earlier
+    /// artifact stored: the stored word, its key and the canonical graph an atom identifies as
+    /// are the ones the layout `from * (n - 1) + (to, less one past the diagonal)` defines.
+    /// A ninth variable needs edge bits past the first word, and such atoms carry the wide
+    /// encoding and still identify as their canonical graph.
+    #[test]
+    fn eight_variable_atoms_keep_the_stored_word_and_wider_atoms_carry_wide_encodings() {
+        use antecedent_discovery::set_edge;
+        // The layout written out independently of the library's `edge_bit`.
+        let bit =
+            |n: usize, from: usize, to: usize| from * (n - 1) + if to < from { to } else { to - 1 };
+        let eight = 8;
+        // The edge 7 -> 6 sits at bit 55, the last of an eight-variable word.
+        let edges: [(usize, usize); 4] = [(0, 1), (3, 4), (7, 6), (2, 0)];
+        let stored: u64 =
+            edges.iter().fold(0, |word, &(from, to)| word | (1 << bit(eight, from, to)));
+        assert!((stored >> 55) & 1 == 1 && stored < 1 << 56);
+        let mask = AdjacencyMask::from_word(stored);
+        let built = edges
+            .iter()
+            .fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, eight, from, to, true));
+        assert_eq!(mask, built);
+        assert_eq!(mask.to_word(), Some(stored));
+        assert_eq!(mask.key(), stored, "an eight-variable atom keeps its word as its key");
+        let posterior = equal_weight_posterior(eight, vec![mask, AdjacencyMask::EMPTY]);
+        assert_eq!(posterior.graph_keys[0], stored);
+        let atoms = graph_posterior_atom_identities(&posterior).unwrap();
+        let mut dag = Dag::with_variables(8);
+        for &(from, to) in &edges {
+            dag.insert_directed(
+                DenseNodeId::from_raw(u32::try_from(from).unwrap()),
+                DenseNodeId::from_raw(u32::try_from(to).unwrap()),
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            atoms[0].graph,
+            PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag).unwrap())
+        );
+
+        // Nine variables: the edge 8 -> 7 is at bit 71.
+        let nine = 9;
+        let wide_edges: [(usize, usize); 3] = [(0, 1), (8, 7), (4, 2)];
+        let wide = wide_edges
+            .iter()
+            .fold(AdjacencyMask::EMPTY, |mask, &(from, to)| set_edge(mask, nine, from, to, true));
+        assert_eq!(wide.to_word(), None, "bit {} is past the first word", bit(nine, 8, 7));
+        assert_eq!(bit(nine, 8, 7), 71);
+        assert_ne!(wide.key(), wide.words()[0], "a wide atom's key is a hash of every word");
+        let posterior = equal_weight_posterior(nine, vec![wide, AdjacencyMask::EMPTY]);
+        let atoms = graph_posterior_atom_identities(&posterior).unwrap();
+        let PosteriorAtomGraphWire::Static(wire) = &atoms[0].graph else {
+            panic!("a nine-variable DAG atom encodes as a static graph");
+        };
+        assert_eq!(wire.node_count, 9);
+        let mut expected: Vec<(u32, u32)> = wide_edges
+            .iter()
+            .map(|&(from, to)| (u32::try_from(from).unwrap(), u32::try_from(to).unwrap()))
+            .collect();
+        expected.sort_unstable();
+        assert_eq!(wire.edges, expected);
+        // The premises bind the wide edge: without it the posterior is another posterior.
+        let without =
+            equal_weight_posterior(nine, vec![AdjacencyMask::EMPTY, AdjacencyMask::EMPTY]);
+        assert_ne!(posterior_premises(&posterior), posterior_premises(&without));
     }
 
     #[test]

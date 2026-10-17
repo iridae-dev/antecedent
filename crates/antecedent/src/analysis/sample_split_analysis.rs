@@ -30,7 +30,9 @@
 //! under any rescaling); the standard error is the sampling-weighted sandwich (HC1, or the
 //! cluster sandwich over declared analysis-part clusters); rows of weight zero are excluded and
 //! counted; and the Kish effective sample size is reported beside the row count. The interval
-//! it supports is a separate, unmeasured claim: no interval is published.
+//! it supports ([`SplitAnalysisEffect::interval`]) is a Student interval at the effective sample
+//! size, a computed value whose whole-method coverage is a separate claim that stays unmeasured
+//! until `tests/sample_split_weighted_effect_calibration.rs` has been measured.
 //!
 //! # What the binding licenses
 //!
@@ -382,7 +384,8 @@ pub struct AnalysisEffectRequest {
 /// and is never read as a population size.
 ///
 /// **Uncertainty.** The standard error is the sampling-weighted HC1 sandwich, or the cluster
-/// sandwich when clusters are declared; no interval is published (its coverage is unmeasured).
+/// sandwich when clusters are declared; [`Self::interval`] turns it into a Student interval
+/// at the effective sample size, labelled with its unmeasured whole-method calibration.
 ///
 /// **Effective sample size.** The Kish size of the weights of the rows used is in
 /// [`Self::sampling_weights`]; `None` for an unweighted source.
@@ -398,6 +401,8 @@ pub struct SplitAnalysisEffect {
     pub sampling_weights: Option<SamplingWeightRecord>,
     /// Rows the effect was estimated on.
     pub rows: u64,
+    /// Coefficients of the regression: the intercept, the treatment and the adjustment columns.
+    pub coefficients: u64,
     /// Original row index of each analysis row, in the part's row order (including rows that
     /// had weight zero).
     pub analysis_row_ids: Vec<usize>,
@@ -405,10 +410,69 @@ pub struct SplitAnalysisEffect {
     pub binding: AnalysisBinding,
 }
 
+/// A Student interval around a [`SplitAnalysisEffect`]: a computed value whose coverage is
+/// unmeasured, never an attested claim.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SplitEffectInterval {
+    /// Nominal level.
+    pub level: f64,
+    /// Lower endpoint.
+    pub lower: f64,
+    /// Upper endpoint.
+    pub upper: f64,
+    /// Degrees of freedom of the Student quantile: the effective sample size of the rows used
+    /// (the row count when unweighted) less the regression's coefficients.
+    pub degrees_of_freedom: f64,
+    /// Standing of the whole-method calibration: always [`WHOLE_METHOD_CALIBRATION`]. The
+    /// design that measures it is `tests/sample_split_weighted_effect_calibration.rs`.
+    pub calibration: &'static str,
+}
+
 impl SplitAnalysisEffect {
     /// The population the effect speaks for.
     pub const TARGET_POPULATION: &'static str =
         "the weighted population the analysis part's weights represent, given the selected graph";
+
+    /// The `level` interval of the effect: `effect ± t · standard_error`, with the Student
+    /// quantile at the effective sample size of the rows used less the regression's
+    /// coefficients, because unequal weights carry less information than the row count says.
+    /// Its coverage over discovery, acceptance and estimation together is unmeasured
+    /// ([`SplitEffectInterval::calibration`]).
+    ///
+    /// # Errors
+    ///
+    /// A level outside `(0, 1)`, or an effective sample size that does not exceed the
+    /// regression's coefficients.
+    pub fn interval(&self, level: f64) -> Result<SplitEffectInterval, EstimationError> {
+        if !(level > 0.0 && level < 1.0) {
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("invalid_argument"),
+                "the interval level must lie strictly between 0 and 1",
+            ));
+        }
+        #[allow(clippy::cast_precision_loss, reason = "row and coefficient counts are small")]
+        let information = self
+            .sampling_weights
+            .as_ref()
+            .map_or(self.rows as f64, |record| record.effective_sample_size);
+        #[allow(clippy::cast_precision_loss, reason = "coefficient counts are small")]
+        let degrees_of_freedom = information - self.coefficients as f64;
+        if !(degrees_of_freedom.is_finite() && degrees_of_freedom > 0.0) {
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("invalid_argument"),
+                "the effective sample size does not exceed the regression's coefficients",
+            ));
+        }
+        let quantile =
+            antecedent_stats::student_t_ppf(1.0 - (1.0 - level) / 2.0, degrees_of_freedom);
+        Ok(SplitEffectInterval {
+            level,
+            lower: self.effect - quantile * self.standard_error,
+            upper: self.effect + quantile * self.standard_error,
+            degrees_of_freedom,
+            calibration: WHOLE_METHOD_CALIBRATION,
+        })
+    }
 }
 
 impl SplitDiscovery {
@@ -477,6 +541,7 @@ impl SplitDiscovery {
             se_kind: fit.uncertainty.analytic.kind.unwrap_or(AnalyticSeKind::Hc1),
             sampling_weights: fit.diagnostics.sampling_weights,
             rows: fit.provenance.n_obs.unwrap_or(0),
+            coefficients: 2 + request.adjustment.len() as u64,
             analysis_row_ids: self.analysis_row_ids().to_vec(),
             binding,
         })

@@ -51,6 +51,7 @@ pub mod engine;
 pub mod error;
 pub mod evidence;
 pub mod exact_enumeration;
+pub mod exact_marginals;
 pub mod fci;
 pub mod ges;
 pub mod graph_mcmc;
@@ -107,6 +108,7 @@ pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
 pub use evidence::threshold_scored_links;
 pub use exact_enumeration::ExactDagPosterior;
+pub use exact_marginals::{EXACT_MARGINAL_MAX_NODES, ExactDagMarginals, exact_dag_marginals};
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
 pub use graph_posterior::{

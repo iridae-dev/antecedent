@@ -201,12 +201,13 @@ def as_columns(
     )
 
 
-def _arrow_float64(column: Any) -> Any:
+def _arrow_float64(column: Any, name: str | None = None) -> Any:
     """An Arrow-exporting column as float64, so every Arrow route casts alike.
 
     Integer, boolean and floating columns cast (Arrow refuses an integer beyond
-    2**53); any other type is refused, as strings and dates are on the numpy
-    route. Without PyArrow the column passes through for the native reader.
+    2**53); any other type is refused naming the column and its type, as strings and
+    dates are on the numpy route. Without PyArrow the column passes through for the
+    native reader.
     """
     try:
         import pyarrow as pa
@@ -221,9 +222,10 @@ def _arrow_float64(column: Any) -> Any:
         return col
     if pa.types.is_integer(kind) or pa.types.is_boolean(kind) or pa.types.is_floating(kind):
         return col.cast(pa.float64())
+    label = f" {name!r}" if name is not None else ""
     raise _refuse_column(
-        f"column type {kind} is not numeric; only float, integer and boolean columns are "
-        "accepted (encode categories and parse dates explicitly)"
+        f"column{label} has type {kind}, which is not numeric; only float, integer and boolean "
+        "columns are accepted (encode categories and parse dates explicitly)"
     )
 
 
@@ -244,7 +246,7 @@ def try_as_arrow_c_columns(
         names = list(data.keys())
         cols = [data[n] for n in names]
         if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
-            return names, [_arrow_float64(c) for c in cols]
+            return names, [_arrow_float64(c, n) for n, c in zip(names, cols, strict=True)]
         return None
 
     # PyArrow Table / RecordBatch style
@@ -261,7 +263,7 @@ def try_as_arrow_c_columns(
                 c = c.combine_chunks()
             flat.append(c)
         if flat and all(hasattr(c, "__arrow_c_array__") for c in flat):
-            return names, [_arrow_float64(c) for c in flat]
+            return names, [_arrow_float64(c, n) for n, c in zip(names, flat, strict=True)]
         return None
 
     # Frame columns that export CDI, but not pandas (it has to_numpy and
@@ -271,7 +273,7 @@ def try_as_arrow_c_columns(
             names = [str(c) for c in data.columns]
             cols = [data[c] for c in data.columns]
             if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
-                return names, [_arrow_float64(c) for c in cols]
+                return names, [_arrow_float64(c, n) for n, c in zip(names, cols, strict=True)]
         except (AttributeError, KeyError, TypeError):
             pass  # not a column-indexable frame; try a table-level stream next
 
@@ -289,7 +291,9 @@ def try_as_arrow_c_columns(
             else pa.table(data)
         )
         names = [str(n) for n in table.column_names]
-        cols = [_arrow_float64(table.column(i).combine_chunks()) for i in range(len(names))]
+        cols = [
+            _arrow_float64(table.column(i).combine_chunks(), names[i]) for i in range(len(names))
+        ]
         if names:
             return names, cols
     return None

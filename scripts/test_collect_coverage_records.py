@@ -555,5 +555,147 @@ class ConfirmedPassingRangeTest(unittest.TestCase):
         self.assertLess(text.index("confirmed_passing_range = "), text.index("grid = ["))
 
 
+class ConfirmationMatchingTest(unittest.TestCase):
+    """A confirmation combines with its measurement only when every matching axis agrees."""
+
+    CONSTRUCTION = {
+        "estimator": "aipw",
+        "interval_method": "bootstrap_se",
+        "se_kind": "",
+        "dependence": "iid",
+        "functional": "all_observed.mean",
+        "identification": "point",
+    }
+
+    def measured(self) -> dict:
+        points = {
+            k: _point(k, 0.90 if k == 0 else 0.95, "gated", boundary=k == 0, **self.CONSTRUCTION)
+            for k in range(3)
+        }
+        return collector.merge_grid("rid", points)
+
+    def refused(self, **changed) -> str:
+        """The refusal of a confirmation whose construction differs by `changed`."""
+        record = self.measured()
+        confirmation = {
+            k: _point(k, 0.951, "gated", **{**self.CONSTRUCTION, **changed}) for k in (1, 2)
+        }
+        with self.assertRaises(SystemExit) as raised:
+            collector.attach_confirmation("rid", record, confirmation)
+        self.assertNotIn("confirmation", record, "nothing of a refused confirmation is combined")
+        self.assertNotIn("confirmed_passing_range", record)
+        self.assertTrue(record["boundary"] and record["grid"][0]["boundary"])
+        return str(raised.exception)
+
+    def test_an_identical_construction_combines(self) -> None:
+        record = self.measured()
+        confirmation = {k: _point(k, 0.951, "gated", **self.CONSTRUCTION) for k in (1, 2)}
+        collector.attach_confirmation("rid", record, confirmation)
+        self.assertEqual(record["confirmed_passing_range"], [400, 800])
+
+    def test_calibration_subrange_construction_mismatch_refused(self) -> None:
+        for field, other in (
+            ("estimator", "linear_regression"),
+            ("interval_method", "percentile_bootstrap"),
+            ("se_kind", "hc3"),
+        ):
+            message = self.refused(**{field: other})
+            self.assertIn("another construction", message)
+            self.assertIn(field, message)
+
+    def test_calibration_subrange_estimand_mismatch_refused(self) -> None:
+        message = self.refused(functional="treated.mean_difference")
+        self.assertIn("another construction", message)
+        self.assertIn("functional", message)
+
+    def test_calibration_subrange_nominal_level_mismatch_refused(self) -> None:
+        message = self.refused(nominal=0.90)
+        self.assertIn("another construction", message)
+        self.assertIn("nominal", message)
+
+    def test_calibration_subrange_dependence_mismatch_refused(self) -> None:
+        message = self.refused(dependence="panel_cluster")
+        self.assertIn("another construction", message)
+        self.assertIn("dependence", message)
+
+    def test_calibration_subrange_identification_mismatch_refused(self) -> None:
+        message = self.refused(identification="partial")
+        self.assertIn("another construction", message)
+        self.assertIn("identification", message)
+
+    def test_calibration_subrange_attestation_mismatch_refused(self) -> None:
+        def line(k: int, measured_at: str, confirmation: bool = False) -> str:
+            failing = k == 0 and not confirmation
+            payload = _point(
+                k,
+                0.90 if failing else 0.951,
+                "gated",
+                boundary=failing,
+                measured_at=measured_at,
+                **self.CONSTRUCTION,
+            )
+            if confirmation:
+                payload["confirmation"] = True
+            return "calibration-record " + json.dumps(payload)
+
+        attested, other = "a" * 40, "b" * 40
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            logs = []
+            for k in range(3):
+                measured = root / f"g.p{k}.log"
+                write_text(measured, line(k, attested) + "\n")
+                logs.append(measured)
+            for k in (1, 2):
+                confirm = root / f"g.p{k}.confirm.log"
+                write_text(confirm, line(k, other, confirmation=True) + "\n")
+                logs.append(confirm)
+            # A confirmation measured at another commit is not combined with the measurement.
+            with self.assertRaisesRegex(
+                SystemExit, f"says it was measured at {other}, not at {attested}"
+            ):
+                collector.merged_records(logs, sha=attested)
+            # The same commit combines.
+            for k in (1, 2):
+                write_text(root / f"g.p{k}.confirm.log", line(k, attested, confirmation=True) + "\n")
+            records = collector.merged_records(logs, sha=attested)
+            self.assertEqual(next(iter(records.values()))["confirmed_passing_range"], [400, 800])
+
+
+class FourPointRangeTest(unittest.TestCase):
+    """The derivation of a passing range does not depend on a grid of three points."""
+
+    SIZES = (400, 800, 1600, 3200)
+
+    def grid(self, failing: tuple[int, ...]) -> list[dict]:
+        return [
+            {"point": k, "n_min": n, "n_max": n, "boundary": k in failing}
+            for k, n in enumerate(self.SIZES)
+        ]
+
+    def confirmed(self, points: tuple[int, ...]) -> list[dict]:
+        return [{"point": k, "n_min": self.SIZES[k], "n_max": self.SIZES[k], "boundary": False} for k in points]
+
+    def test_the_upper_three_points_recover_800_to_3200(self) -> None:
+        self.assertEqual(
+            collector.confirmed_passing_range(self.grid((0,)), self.confirmed((1, 2, 3))),
+            [800, 3200],
+        )
+
+    def test_without_confirmation_or_with_a_gap_in_it_nothing_is_recovered(self) -> None:
+        self.assertIsNone(collector.confirmed_passing_range(self.grid((0,)), []))
+        self.assertIsNone(collector.confirmed_passing_range(self.grid((0,)), self.confirmed((1, 3))))
+
+    def test_a_failed_interior_point_is_never_inside_a_range(self) -> None:
+        # 400 passed, 800 failed, 1600 and 3200 passed: only the upper run is a subrange.
+        grid = self.grid((1,))
+        self.assertEqual(
+            collector.confirmed_passing_range(grid, self.confirmed((0, 2, 3))), [1600, 3200]
+        )
+        # With three points the passing ends are lone points: no range at all.
+        three = self.grid((1,))[:3]
+        self.assertIsNone(collector.confirmed_passing_range(three, self.confirmed((0, 2))))
+
+
 if __name__ == "__main__":
     unittest.main()

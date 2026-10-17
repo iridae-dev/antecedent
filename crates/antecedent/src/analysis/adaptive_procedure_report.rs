@@ -269,6 +269,9 @@ fn premise_remedy(detail: &str) -> &'static str {
         "adaptive_inference.stopping_not_replayed" => {
             "retain the looks the declared decisions performed, or declare the decisions the procedure actually ran under"
         }
+        "adaptive_inference.batch_incomplete" => {
+            "retain the responses of every participant of a batch whose follow-up has elapsed, or end the history at the last batch whose participants all completed"
+        }
         _ => {
             "declare a procedure that meets the paradigm's premise, or choose the paradigm the procedure meets"
         }
@@ -277,10 +280,11 @@ fn premise_remedy(detail: &str) -> &'static str {
 
 /// Details whose premise is an assumption of the retained history or of a
 /// frozen declaration, not the licence of a cell.
-const ASSUMPTION_DETAILS: [&str; 3] = [
+const ASSUMPTION_DETAILS: [&str; 4] = [
     "adaptive_inference.borrowing_frozen",
     "adaptive_inference.assignment_not_replayed",
     "adaptive_inference.stopping_not_replayed",
+    "adaptive_inference.batch_incomplete",
 ];
 
 /// Map a numerical refusal to the facade's coded refusal.

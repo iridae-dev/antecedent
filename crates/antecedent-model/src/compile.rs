@@ -108,6 +108,17 @@ pub trait DynamicMechanism: Send + Sync {
         Ok(())
     }
 
+    /// Whether this mechanism can recover its noise from an observation.
+    ///
+    /// The default is `true`: the additive inversion of [`Self::infer_noise_column`]. A
+    /// mechanism whose noise is not recoverable returns `false`, so every operation that
+    /// needs abduction (counterfactuals, replay of observed rows) is refused with a typed
+    /// error that names the mechanism and the operation, while evaluation, sampling and
+    /// likelihood stay available wherever they are declared.
+    fn supports_noise_inference(&self) -> bool {
+        true
+    }
+
     /// How [`Self::infer_noise_column`] recovers noise.
     ///
     /// The default is [`crate::NoiseInferenceMode::Invertible`], matching the

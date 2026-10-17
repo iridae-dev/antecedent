@@ -1316,6 +1316,7 @@ pub fn simulate_repeated_measures_within(
         fixed_bytes: 0,
     })?;
     let summary_kind = spec.analysis_summary();
+    let states = 2 * spec.arms as u64;
     let mut replicates = Vec::with_capacity(request.replications as usize);
     let mut receipt = ResourceReceipt {
         work_planned: admitted.work_planned,
@@ -1373,11 +1374,14 @@ pub fn simulate_repeated_measures_within(
             analysed_units: revealed.len(),
             units_per_arm: counts,
         });
-        receipt.replications += 1;
-        receipt.work_done = receipt
-            .work_done
-            .saturating_add(u64::from(spec.total_units()).saturating_mul(measurements));
-        receipt.peak_units = receipt.peak_units.max(spec.total_units());
+        receipt
+            .record_replicate(
+                spec.enrolment.len(),
+                spec.total_units(),
+                spec.covariance.measurements as u32,
+                states,
+            )
+            .map_err(Error::Capacity)?;
     }
     Ok(RepeatedMeasuresLaw { replicates, receipt })
 }

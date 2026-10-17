@@ -18,7 +18,9 @@ use antecedent::gcm::{
     attribute_unit_change as facade_attribute_unit_change,
     counterfactual_ite as facade_counterfactual_ite, fit_gcm, fit_gcm_with,
     mechanism_change_detection as facade_mechanism_change_detection,
-    rank_root_causes as facade_rank_root_causes, sample_do as facade_sample_do,
+    noise_table_from_columns as facade_noise_table_from_columns,
+    rank_root_causes as facade_rank_root_causes, replay_noise as facade_replay_noise,
+    sample_do as facade_sample_do, sample_with_noise as facade_sample_with_noise,
 };
 use antecedent_attribution::{
     AnomalyScores as RustAnomalyScores, CacheStats, ComponentContribution, ComputeBudget,
@@ -34,7 +36,7 @@ use antecedent_model::{
     CompiledCausalModel, MechanismAssignment, MechanismFamily, MechanismRegistry,
     NodeFamilyConstraint, SelectionOptions, ValidationSplits, ValueBatch,
 };
-use numpy::{PyArray1, PyArrayMethods};
+use numpy::{PyArray1, PyArrayMethods, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
@@ -46,6 +48,46 @@ use crate::{
 
 /// `(mode, variable, callback, inputs)` of one callback program; see `FittedGcm.sample_do`.
 type CallbackProgramArgs = (String, String, Py<PyBatchCallbackHandle>, Vec<Option<String>>);
+
+/// The interventions of one call: hard `do` values, additive shifts and callback programs, all
+/// named by variable. A variable both pinned and shifted is rejected.
+fn interventions_of(
+    data: &TabularData,
+    interventions: &HashMap<String, f64>,
+    shifts: Option<&HashMap<String, f64>>,
+    programs: Option<&[CallbackProgramArgs]>,
+) -> PyResult<Vec<Intervention>> {
+    if let Some(shifts) = shifts {
+        if let Some(name) = interventions.keys().find(|k| shifts.contains_key(*k)) {
+            return Err(py_msg(format!(
+                "variable {name:?} is present in both `interventions` and `shifts`; \
+                 a variable cannot be simultaneously pinned (do(X := v)) and shifted \
+                 (do(X := X + delta))"
+            )));
+        }
+    }
+    let mut ints = Vec::with_capacity(interventions.len() + shifts.map_or(0, HashMap::len));
+    for (name, value) in interventions {
+        let id = data.schema().id_of(name).map_err(py_err)?;
+        ints.push(Intervention::set(id, Value::f64(*value)));
+    }
+    for (name, delta) in shifts.into_iter().flatten() {
+        let id = data.schema().id_of(name).map_err(py_err)?;
+        ints.push(Intervention::shift(id, Value::f64(*delta)));
+    }
+    for (mode, variable, callback, inputs) in programs.into_iter().flatten() {
+        let id = data.schema().id_of(variable).map_err(py_err)?;
+        let args = inputs
+            .iter()
+            .map(|input| match input {
+                Some(name) => data.schema().id_of(name).map(ValueExpr::var).map_err(py_err),
+                None => Ok(ValueExpr::generated()),
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        ints.push(program_intervention(mode, id, callback.get(), args)?);
+    }
+    Ok(ints)
+}
 
 fn var_name(names: &[String], id: VariableId) -> String {
     names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("V{}", id.raw()))
@@ -504,36 +546,8 @@ impl PyFittedGcm {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
         let (flat, n_rows, n_nodes) = detach_catch(py, move || {
-            if let Some(shifts) = &shifts {
-                if let Some(name) = interventions.keys().find(|k| shifts.contains_key(*k)) {
-                    return Err(py_msg(format!(
-                        "variable {name:?} is present in both `interventions` and `shifts`; \
-                         a variable cannot be simultaneously pinned (do(X := v)) and shifted \
-                         (do(X := X + delta))"
-                    )));
-                }
-            }
-            let mut ints =
-                Vec::with_capacity(interventions.len() + shifts.as_ref().map_or(0, HashMap::len));
-            for (name, value) in &interventions {
-                let id = data.schema().id_of(name).map_err(py_err)?;
-                ints.push(Intervention::set(id, Value::f64(*value)));
-            }
-            for (name, delta) in shifts.into_iter().flatten() {
-                let id = data.schema().id_of(&name).map_err(py_err)?;
-                ints.push(Intervention::shift(id, Value::f64(delta)));
-            }
-            for (mode, variable, callback, inputs) in programs.iter().flatten() {
-                let id = data.schema().id_of(variable).map_err(py_err)?;
-                let args = inputs
-                    .iter()
-                    .map(|input| match input {
-                        Some(name) => data.schema().id_of(name).map(ValueExpr::var).map_err(py_err),
-                        None => Ok(ValueExpr::generated()),
-                    })
-                    .collect::<PyResult<Vec<_>>>()?;
-                ints.push(program_intervention(mode, id, callback.get(), args)?);
-            }
+            let ints =
+                interventions_of(&data, &interventions, shifts.as_ref(), programs.as_deref())?;
             let ctx = Self::ctx(seed, threads);
             let mut rng = CausalRng::from_seed(seed);
             let samples =
@@ -542,6 +556,147 @@ impl PyFittedGcm {
         })?;
         let batch = ValueBatch { values: Arc::from(flat), n_rows, n_nodes };
         value_batch_to_sample_result(py, batch)
+    }
+
+    /// Interventional draws together with the exogenous noise that produced them.
+    ///
+    /// Returns `(draws, noise)`; `noise` is a `(n_variables, n)` array in the model's
+    /// variable order. Replaying it with :meth:`replay_noise` under the same interventions
+    /// reproduces the draws bit for bit, and replaying it under another policy gives that
+    /// policy's counterfactual on the same units. Arguments are as in :meth:`sample_do`.
+    #[pyo3(signature = (interventions, n, *, shifts=None, seed=0, threads=None, programs=None))]
+    fn sample_noise<'py>(
+        &self,
+        py: Python<'py>,
+        interventions: HashMap<String, f64>,
+        n: usize,
+        shifts: Option<HashMap<String, f64>>,
+        seed: u64,
+        threads: Option<u32>,
+        programs: Option<Vec<CallbackProgramArgs>>,
+    ) -> PyResult<(GcmSampleResult, Bound<'py, PyAny>)> {
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let (draws, noise) = detach_catch(py, move || {
+            let ints =
+                interventions_of(&data, &interventions, shifts.as_ref(), programs.as_deref())?;
+            let ctx = Self::ctx(seed, threads);
+            let (draws, table) =
+                facade_sample_with_noise(&inner.model, &ints, n, &ctx).map_err(py_err)?;
+            Ok::<_, PyErr>((draws, table.values().to_vec()))
+        })?;
+        let n_nodes = draws.n_nodes;
+        let noise = PyArray1::from_vec(py, noise).reshape([n_nodes, n])?;
+        Ok((value_batch_to_sample_result(py, draws)?, noise.into_any()))
+    }
+
+    /// Replay retained exogenous noise through the model under interventions.
+    ///
+    /// `noise` is a `(n_variables, n_rows)` float64 array in the model's variable order, as
+    /// :meth:`sample_noise` returns it (or edited, or drawn elsewhere): it must be finite, and
+    /// inside (0, 1) for a categorical variable. `interventions`, `shifts` and `programs` are
+    /// as in :meth:`sample_do`. A stochastic policy draws from the stream keyed by
+    /// `policy_salt`.
+    #[pyo3(signature = (noise, interventions=None, *, shifts=None, policy_salt=0, seed=0, threads=None, programs=None))]
+    #[allow(clippy::too_many_arguments, reason = "keyword options of one Python call")]
+    fn replay_noise(
+        &self,
+        py: Python<'_>,
+        noise: PyReadonlyArray2<'_, f64>,
+        interventions: Option<HashMap<String, f64>>,
+        shifts: Option<HashMap<String, f64>>,
+        policy_salt: u64,
+        seed: u64,
+        threads: Option<u32>,
+        programs: Option<Vec<CallbackProgramArgs>>,
+    ) -> PyResult<GcmSampleResult> {
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let (n_nodes, n_rows) = noise.as_array().dim();
+        if n_nodes != inner.model.n_nodes() {
+            return Err(py_msg(format!(
+                "noise has {n_nodes} rows but the model has {} variables; pass a \
+                 (n_variables, n_rows) array",
+                inner.model.n_nodes()
+            )));
+        }
+        let values: Vec<f64> = noise.as_array().iter().copied().collect();
+        let batch = detach_catch(py, move || {
+            let ints = interventions_of(
+                &data,
+                &interventions.unwrap_or_default(),
+                shifts.as_ref(),
+                programs.as_deref(),
+            )?;
+            let ctx = Self::ctx(seed, threads);
+            let table = facade_noise_table_from_columns(&inner.model, n_rows, &values, &ctx)
+                .map_err(py_err)?;
+            facade_replay_noise(&inner.model, &ints, &table, policy_salt, &ctx).map_err(py_err)
+        })?;
+        value_batch_to_sample_result(py, batch)
+    }
+
+    /// Intrinsic causal influence of the noise terms upstream of `target` on its variance, from
+    /// this fitted model (nothing is refitted, except the row-bootstrap refits `fit_bootstrap`
+    /// asks for). Returns the result as JSON; see `antecedent.intrinsic_influence`.
+    #[pyo3(signature = (target, *, independent_noise=false, bidirected_edges=None, allocation="auto", n_permutations=200, outer_draws=200, inner_draws=40, replicates=4, fit_bootstrap=0, level=0.95, max_sources=64, seed=0, threads=None, cancel=None))]
+    #[allow(clippy::too_many_arguments, reason = "keyword options of one Python call")]
+    fn attribute_intrinsic_influence(
+        &self,
+        py: Python<'_>,
+        target: String,
+        independent_noise: bool,
+        bidirected_edges: Option<Vec<(String, String)>>,
+        allocation: &str,
+        n_permutations: usize,
+        outer_draws: usize,
+        inner_draws: usize,
+        replicates: usize,
+        fit_bootstrap: u32,
+        level: f64,
+        max_sources: usize,
+        seed: u64,
+        threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
+        let allocation = crate::intrinsic_influence_api::allocation_of(allocation, n_permutations)?;
+        let inner = Arc::clone(&self.inner);
+        let data = Arc::clone(&self.data);
+        let names = Arc::clone(&self.names);
+        detach_catch(py, move || {
+            let graph = &inner.model.graph;
+            let mut edges = Vec::new();
+            for child in 0..graph.node_count() {
+                let child_id = u32::try_from(child)
+                    .map(antecedent_graph::DenseNodeId::from_raw)
+                    .map_err(|_| py_msg("model has more nodes than a node id holds"))?;
+                for parent in graph.parents(child_id) {
+                    edges.push((names[parent.as_usize()].clone(), names[child].clone()));
+                }
+            }
+            let options = crate::intrinsic_influence_api::IntrinsicOptions {
+                independent_noise,
+                bidirected_edges,
+                allocation,
+                outer_draws,
+                inner_draws,
+                replicates,
+                fit_bootstrap,
+                level,
+                max_sources,
+                seed,
+                threads,
+                cancel,
+            };
+            crate::intrinsic_influence_api::attribute(
+                &inner.model,
+                &data,
+                &names,
+                &edges,
+                &target,
+                options,
+            )
+        })
     }
 
     /// Unit-level ITE under hard interventions on `treatment`.
@@ -968,6 +1123,7 @@ fn selection_record<'py>(
 ) -> PyResult<Bound<'py, PyDict>> {
     let record = PyDict::new(py);
     record.set_item("variable", var_name(names, a.variable))?;
+    record.set_item("provenance_id", "estimate.gcm.fit")?;
     record.set_item("selected", a.selected.id())?;
     record.set_item("typing", a.typing.id())?;
     record.set_item("noise_inference", a.selected.noise_inference_mode().id())?;

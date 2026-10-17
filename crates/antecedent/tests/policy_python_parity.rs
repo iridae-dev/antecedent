@@ -7,18 +7,31 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::gcm::{fit_gcm, sample_do};
-use antecedent_core::{CausalRng, ExecutionContext, Intervention, ValueExpr, VariableId};
-use antecedent_data::TabularData;
+use antecedent::gcm::{
+    FittedGcm, PreparedPolicy, TemporalPlan, counterfactual_policy, counterfactual_temporal_policy,
+    fit_gcm, noise_table_from_columns, policy_value, replay_noise, sample_do, sample_with_noise,
+};
+use antecedent_core::{
+    CausalRng, ExecutionContext, Intervention, InterventionSequence, SequencedIntervention,
+    TemporalPolicy, Value, ValueExpr, VariableId,
+};
+use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 
 /// Sum (mod 2^64) of the IEEE-754 bits of every draw of the policy run in the Python test.
 const PRICE_FLOOR_DRAW_CHECKSUM: u64 = 15_163_479_412_849_571_691;
 
-#[test]
-fn a_price_floor_draws_the_same_bits_from_rust_as_from_python() {
+fn price_floor() -> Intervention {
+    Intervention::transform(
+        VariableId::from_raw(0),
+        ValueExpr::constant(10.0).max(ValueExpr::constant(0.85).mul(ValueExpr::generated())),
+    )
+}
+
+/// The deterministic two-variable data of the Python test, fitted with default selection.
+fn fitted_price_model(shift: f64) -> (FittedGcm, TabularData) {
     let price: Vec<f64> =
-        (0..600_u32).map(|i| 11.0 + (f64::from((i * 37) % 101) - 50.0) * 0.04).collect();
+        (0..600_u32).map(|i| 11.0 + shift + (f64::from((i * 37) % 101) - 50.0) * 0.04).collect();
     let demand: Vec<f64> = (0..600_u32)
         .zip(&price)
         .map(|(i, p)| 50.0 - 0.8 * p + (f64::from((i * 13) % 23) - 11.0) * 0.05)
@@ -28,16 +41,192 @@ fn a_price_floor_draws_the_same_bits_from_rust_as_from_python() {
             .unwrap();
     let mut graph = Dag::with_variables(2);
     graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    let fitted = fit_gcm(graph, &data).unwrap();
+    (fit_gcm(graph, &data).unwrap(), data)
+}
 
-    let floor = Intervention::transform(
-        VariableId::from_raw(0),
-        ValueExpr::constant(10.0).max(ValueExpr::constant(0.85).mul(ValueExpr::generated())),
-    );
+#[test]
+#[allow(clippy::float_cmp, reason = "a replay of retained noise is bit-identical to its sample")]
+fn a_sample_with_its_noise_replays_bit_for_bit_and_accepts_caller_noise() {
+    let (fitted, _) = fitted_price_model(0.0);
+    let ctx = ExecutionContext::for_tests(3);
+    let floor = [price_floor()];
+    let (drawn, noise) = sample_with_noise(&fitted.model, &floor, 256, &ctx).unwrap();
+    let replayed = replay_noise(&fitted.model, &floor, &noise, 0, &ctx).unwrap();
+    assert_eq!(drawn.values, replayed.values);
+
+    // The same noise handed back as plain columns is the same table.
+    let caller = noise_table_from_columns(&fitted.model, 256, noise.values(), &ctx).unwrap();
+    let again = replay_noise(&fitted.model, &floor, &caller, 0, &ctx).unwrap();
+    assert_eq!(drawn.values, again.values);
+
+    // Replay under another policy keeps the noise: the unfloored sample is the floor's
+    // counterfactual on the same units.
+    let free = replay_noise(&fitted.model, &[], &noise, 0, &ctx).unwrap();
+    let (price, floored) = (free.column(0).unwrap(), drawn.column(0).unwrap());
+    for (free, floored) in price.iter().zip(floored) {
+        assert_eq!(*floored, (0.85 * free).max(10.0));
+    }
+
+    // A noise column of the wrong length or with a non-finite value is refused.
+    assert!(noise_table_from_columns(&fitted.model, 256, &noise.values()[1..], &ctx).is_err());
+    let mut poisoned = noise.values().to_vec();
+    poisoned[3] = f64::NAN;
+    assert!(noise_table_from_columns(&fitted.model, 256, &poisoned, &ctx).is_err());
+}
+
+#[test]
+#[allow(clippy::float_cmp, reason = "the temporal route replays the static route's noise")]
+fn the_temporal_counterfactual_without_a_lag_read_is_the_static_counterfactual_per_step() {
+    let (fitted, first) = fitted_price_model(0.0);
+    let (_, second) = fitted_price_model(0.5);
+    let ctx = ExecutionContext::for_tests(11);
+    let floor = price_floor();
+    let outcomes = [VariableId::from_raw(0), VariableId::from_raw(1)];
+
+    let schedule = InterventionSequence::new(vec![SequencedIntervention::new(
+        floor.clone(),
+        TemporalPolicy::sustained(0, 100),
+    )]);
+    let plan = TemporalPlan {
+        sequence: &schedule,
+        n_steps: 2,
+        n_rows: first.row_count(),
+        window: 0,
+        initial_history: &[],
+    };
+    let steps = [first.clone(), second.clone()];
+    let path = counterfactual_temporal_policy(fitted.model.clone(), &steps, &plan, &ctx).unwrap();
+    for (t, data) in steps.iter().enumerate() {
+        let statics = counterfactual_policy(
+            fitted.model.clone(),
+            data,
+            std::slice::from_ref(&floor),
+            &outcomes,
+            &ctx,
+        )
+        .unwrap();
+        for (node, id) in outcomes.iter().enumerate() {
+            let dense = fitted.model.dense_of(*id).unwrap();
+            let column = path.column(t, node).unwrap();
+            for (unit, value) in column.iter().enumerate() {
+                assert_eq!(*value, statics.get(0, dense, unit), "step {t} node {node} unit {unit}");
+            }
+        }
+    }
+
+    // One table per step is required.
+    let short = counterfactual_temporal_policy(fitted.model.clone(), &steps[..1], &plan, &ctx);
+    assert!(short.is_err());
+}
+
+#[test]
+fn a_price_floor_draws_the_same_bits_from_rust_as_from_python() {
+    let (fitted, _) = fitted_price_model(0.0);
+    let floor = price_floor();
     let ctx = ExecutionContext::for_tests(7);
     let draws =
         sample_do(&fitted.model, &[floor], 512, &mut CausalRng::from_seed(7), &ctx).unwrap();
     let checksum = draws.values.iter().fold(0_u64, |sum, v| sum.wrapping_add(v.to_bits()));
     assert_eq!(checksum, PRICE_FLOOR_DRAW_CHECKSUM);
     assert!(draws.column(0).unwrap().iter().all(|p| *p >= 10.0));
+}
+
+#[test]
+fn a_policy_value_is_the_paired_difference_against_the_same_noise_with_its_licence() {
+    let (fitted, _) = fitted_price_model(0.0);
+    let ctx = ExecutionContext::for_tests(21);
+    let n = 2_000;
+    let (price, demand) = (VariableId::from_raw(0), VariableId::from_raw(1));
+    let level = Intervention::set(price, Value::f64(20.0));
+
+    // The noise does not depend on the overlay, so the unintervened draws on the same context
+    // are an independent baseline.
+    let (baseline, _) = sample_with_noise(&fitted.model, &[], n, &ctx).unwrap();
+    let base_price = baseline.column(0).unwrap();
+    let mean = base_price.iter().sum::<f64>() / n as f64;
+    let sd = (base_price.iter().map(|p| (p - mean).powi(2)).sum::<f64>() / (n as f64 - 1.0)).sqrt();
+
+    let on_price =
+        policy_value(&fitted.model, std::slice::from_ref(&level), price, n, &ctx).unwrap();
+    assert_eq!(on_price.n_draws, n);
+    assert!((on_price.policy_mean - 20.0).abs() < 1e-12);
+    assert!((on_price.baseline_mean - mean).abs() < 1e-9);
+    assert!((on_price.mean_difference - (20.0 - mean)).abs() < 1e-9);
+    assert!((on_price.difference_simulation_stderr - sd / (n as f64).sqrt()).abs() < 1e-9);
+    assert!(on_price.policy_simulation_stderr.abs() < 1e-12, "a constant has no spread");
+
+    // Demand follows price with the generating slope, and the noise cancels in the pairing.
+    let on_demand =
+        policy_value(&fitted.model, std::slice::from_ref(&level), demand, n, &ctx).unwrap();
+    let slope = on_demand.mean_difference / on_price.mean_difference;
+    assert!((slope + 0.8).abs() < 0.02, "slope {slope}");
+    // The pairing removes the demand noise both arms share: the paired error is below the
+    // error of differencing two independent samples of the same sizes.
+    let base_demand = baseline.column(demand.as_usize()).unwrap();
+    let demand_mean = base_demand.iter().sum::<f64>() / n as f64;
+    let demand_var =
+        base_demand.iter().map(|d| (d - demand_mean).powi(2)).sum::<f64>() / (n as f64 - 1.0);
+    let unpaired = (on_demand.policy_simulation_stderr.powi(2) + demand_var / n as f64).sqrt();
+    assert!(on_demand.difference_simulation_stderr < unpaired);
+
+    // A hard level is identifiable; a transform of the generated value is simulation-only.
+    assert!(on_price.support.identification.is_licensed());
+    let floor = policy_value(&fitted.model, &[price_floor()], price, n, &ctx).unwrap();
+    assert!(floor.support.simulation.is_licensed() && floor.support.counterfactual.is_licensed());
+    match &floor.support.identification {
+        antecedent::gcm::RouteDecision::Refused { code, .. } => {
+            assert_eq!(code, "policy_route_not_licensed");
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+    assert!(floor.mean_difference < 0.0, "a 15% cut outweighs the units the floor lifts");
+
+    // One draw cannot report an error; an unknown outcome is refused.
+    assert!(policy_value(&fitted.model, &[], price, 1, &ctx).is_err());
+    assert!(policy_value(&fitted.model, &[], VariableId::from_raw(9), n, &ctx).is_err());
+}
+
+#[test]
+#[allow(clippy::float_cmp, reason = "the prepared value is the one-shot value, bit for bit")]
+fn a_prepared_policy_reruns_the_one_shot_value_without_compiling_the_program_again() {
+    let (fitted, _) = fitted_price_model(0.0);
+    let (price, demand) = (VariableId::from_raw(0), VariableId::from_raw(1));
+    let floor = price_floor();
+
+    let prepared = PreparedPolicy::prepare(&fitted.model, vec![floor.clone()]).unwrap();
+    assert_eq!((prepared.program_compilations(), prepared.model_bindings()), (1, 1));
+    assert!(prepared.support().simulation.is_licensed());
+    assert!(!prepared.support().identification.is_licensed());
+
+    // Each rerun, at any seed and outcome, is the one-shot call to the last bit, and compiles
+    // nothing.
+    for seed in [3_u64, 4, 5] {
+        let ctx = ExecutionContext::for_tests(seed);
+        for outcome in [price, demand] {
+            let rerun = prepared.value(&fitted.model, outcome, 800, &ctx).unwrap();
+            let one_shot =
+                policy_value(&fitted.model, std::slice::from_ref(&floor), outcome, 800, &ctx)
+                    .unwrap();
+            assert_eq!(rerun, one_shot);
+        }
+    }
+    assert_eq!(prepared.program_compilations(), 1);
+
+    // A refit model rebinds the program: the licence and overlay are resolved against it, the
+    // program is not compiled again, and the value equals the one-shot value on that model.
+    let (refit, _) = fitted_price_model(0.5);
+    let rebound = prepared.rebind(&refit.model).unwrap();
+    assert_eq!((rebound.program_compilations(), rebound.model_bindings()), (1, 2));
+    let ctx = ExecutionContext::for_tests(9);
+    assert_eq!(
+        rebound.value(&refit.model, demand, 800, &ctx).unwrap(),
+        policy_value(&refit.model, std::slice::from_ref(&floor), demand, 800, &ctx).unwrap(),
+    );
+
+    // A program the model refuses is refused at preparation; a request that cannot report a
+    // simulation error is refused when run.
+    let unknown = Intervention::set(VariableId::from_raw(9), Value::f64(1.0));
+    assert!(PreparedPolicy::prepare(&fitted.model, vec![unknown]).is_err());
+    assert!(prepared.value(&fitted.model, price, 1, &ctx).is_err());
+    assert!(prepared.value(&fitted.model, VariableId::from_raw(9), 800, &ctx).is_err());
 }

@@ -49,6 +49,8 @@ pub(crate) struct InferenceSpec {
     pub composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
     /// Outcome likelihood; `None` keeps the Gaussian identity-link default.
     pub likelihood: Option<antecedent_prob::BayesLikelihood>,
+    /// Numerical draw controls; `None` leaves the draw count unconstrained.
+    pub draw_controls: Option<antecedent::PosteriorDrawControls>,
 }
 
 impl InferenceSpec {
@@ -75,6 +77,9 @@ impl InferenceSpec {
             likelihood: item("likelihood")?
                 .map(|value| parse_likelihood(&value.extract::<String>()?))
                 .transpose()?,
+            draw_controls: item("draw_controls")?
+                .map(|value| parse_draw_controls(&value.extract::<String>()?))
+                .transpose()?,
         })
     }
 
@@ -99,6 +104,17 @@ fn parse_likelihood(name: &str) -> PyResult<antecedent_prob::BayesLikelihood> {
             ));
         }
     })
+}
+
+/// Rust draw controls of a Python `Bayesian(draw_controls=...)` name.
+fn parse_draw_controls(name: &str) -> PyResult<antecedent::PosteriorDrawControls> {
+    match name {
+        "measured" => Ok(antecedent::PosteriorDrawControls::Measured),
+        other => Err(crate::refusal(
+            antecedent_core::reason_code!("invalid_argument"),
+            format!("unknown Bayesian draw controls {other:?}; use measured"),
+        )),
+    }
 }
 
 /// Parsed shared prepare options.
@@ -226,6 +242,10 @@ impl PrepareOptions {
     /// Apply the declared inference, moving any prior transfer onto the builder.
     pub(crate) fn apply_inference(&mut self, builder: StudyBuilder) -> PyResult<StudyBuilder> {
         let spec = &mut self.inference;
+        let builder = match spec.draw_controls {
+            Some(controls) => builder.draw_controls(controls),
+            None => builder,
+        };
         let artifact = spec.prior_artifact.take();
         crate::temporal_api::apply_temporal_inference_transfer(
             builder,

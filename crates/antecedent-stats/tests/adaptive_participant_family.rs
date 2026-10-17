@@ -822,9 +822,14 @@ fn a_retained_history_replays_and_a_tampered_one_is_refused() {
     let mut wrong_batches = history.clone();
     wrong_batches.batches[0] = 39;
     assert!(matches!(s.read_history(&wrong_batches, &never), Err(Error::Shape(_))));
+    // A missing response in a batch whose follow-up delay has elapsed is a partial batch,
+    // refused as such rather than as a structural disagreement.
     let mut wrong_availability = history.clone();
     wrong_availability.successes[0] = None;
-    assert!(matches!(s.read_history(&wrong_availability, &never), Err(Error::Shape(_))));
+    assert!(matches!(
+        s.read_history(&wrong_availability, &never),
+        Err(Error::PremiseFailed { detail: "adaptive_inference.batch_incomplete", .. })
+    ));
     let mut too_many = history.clone();
     too_many.successes[0] = Some(9);
     assert!(matches!(s.read_history(&too_many, &never), Err(Error::InvalidParameter(_))));
@@ -1248,4 +1253,246 @@ fn the_simulation_with_an_estimated_correlation_matches_an_exhaustive_enumeratio
             "{key:?}: exact {p}, simulated {q} (tolerance {tolerance})"
         );
     }
+}
+
+// -- Acceptance cases: the likelihood and the borrowing receipt ------------------------------------
+
+/// Normalized weights of the dense midpoint grid over an arm mean for `prior` and the
+/// beta-binomial likelihood of `histogram` (all zero: the prior alone).
+fn dense_weights(m: u32, rho: f64, histogram: &[u32], prior: (f64, f64), grid: usize) -> Vec<f64> {
+    let mut log_weight = Vec::with_capacity(grid);
+    for g in 0..grid {
+        let mu = (g as f64 + 0.5) / grid as f64;
+        let pmf = gamma_form_pmf(m, mu, rho);
+        let log_likelihood: f64 =
+            histogram.iter().zip(&pmf).map(|(&count, p)| f64::from(count) * p.ln()).sum();
+        log_weight
+            .push(log_likelihood + (prior.0 - 1.0) * mu.ln() + (prior.1 - 1.0) * (1.0 - mu).ln());
+    }
+    let peak = log_weight.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let weights: Vec<f64> = log_weight.iter().map(|w| (w - peak).exp()).collect();
+    let total: f64 = weights.iter().sum();
+    weights.into_iter().map(|w| w / total).collect()
+}
+
+/// `P(current > prior)` for independent draws from two grid distributions.
+fn dense_exceedance(current: &[f64], prior: &[f64]) -> f64 {
+    let (mut below, mut total) = (0.0, 0.0);
+    for (c, p) in current.iter().zip(prior) {
+        total += c * (below + 0.5 * p);
+        below += p;
+    }
+    total
+}
+
+/// The success-count histogram of each arm's completed participants among the first `enrolled`
+/// participants of a history without delay.
+fn histograms(
+    history: &ParticipantHistory,
+    arms: usize,
+    responses: u32,
+    enrolled: usize,
+) -> Vec<Vec<u32>> {
+    let mut out = vec![vec![0_u32; responses as usize + 1]; arms];
+    for (&arm, success) in history.arms.iter().zip(&history.successes).take(enrolled) {
+        out[arm][success.expect("no delay: every participant has completed") as usize] += 1;
+    }
+    out
+}
+
+#[test]
+fn adaptive_participant_aware_likelihood_matches_oracle() {
+    // 600 participants, three arms, three responses each, correlation 0.3, in twelve batches
+    // without delay, under a Beta(2.5, 4) initial prior.
+    let prior = (2.5, 4.0);
+    let s = spec(|d| {
+        d.responses = Some(3);
+        d.correlation = Some(0.3);
+        d.enrolment = Some(vec![50; 12]);
+        d.borrowing = Some(BorrowingPlan::uniform(3, BetaPrior { alpha: prior.0, beta: prior.1 }));
+    });
+    let history = simulate_participant_history(&s, &[0.3, 0.4, 0.5], None, 7_944_575, &never)
+        .expect("a history");
+    assert_eq!(history.arms.len(), 600);
+    let readings = s.read_history(&history, &never).expect("the history replays");
+    assert_eq!(readings.len(), 12);
+    // The posterior at looks early, middle and last equals the dense quadrature of the
+    // gamma-function beta-binomial likelihood times the prior, arm by arm.
+    for look in [0, 5, 11] {
+        let reading = &readings[look];
+        let enrolled = 50 * (look + 1);
+        assert_eq!(reading.completed.iter().sum::<u32>() as usize, enrolled);
+        let by_arm = histograms(&history, 3, 3, enrolled);
+        for arm in 0..3 {
+            let (mean, sd) = exact_posterior(3, 0.3, &by_arm[arm], prior);
+            let what = format!("look {look} arm {arm}");
+            close(reading.posterior.mean[arm], mean, 2e-6, &format!("{what}: mean"));
+            close(reading.posterior.sd[arm], sd, 2e-6, &format!("{what}: sd"));
+        }
+    }
+
+    // At zero correlation the same update is the conjugate Beta of the pooled responses.
+    let independent = spec(|d| {
+        d.responses = Some(3);
+        d.correlation = Some(0.0);
+        d.enrolment = Some(vec![50; 12]);
+        d.borrowing = Some(BorrowingPlan::uniform(3, BetaPrior { alpha: prior.0, beta: prior.1 }));
+    });
+    let history =
+        simulate_participant_history(&independent, &[0.3, 0.4, 0.5], None, 7_944_575, &never)
+            .expect("a history");
+    let readings = independent.read_history(&history, &never).expect("replays");
+    let last = readings.last().unwrap();
+    let by_arm = histograms(&history, 3, 3, 600);
+    for arm in 0..3 {
+        let successes: f64 =
+            by_arm[arm].iter().enumerate().map(|(s, &n)| s as f64 * f64::from(n)).sum();
+        let trials = 3.0 * f64::from(by_arm[arm].iter().sum::<u32>());
+        let (a, b) = (prior.0 + successes, prior.1 + trials - successes);
+        close(last.posterior.mean[arm], a / (a + b), 1e-9, "conjugate mean");
+        close(
+            last.posterior.sd[arm],
+            (a * b / ((a + b).powi(2) * (a + b + 1.0))).sqrt(),
+            1e-9,
+            "conjugate sd",
+        );
+    }
+}
+
+#[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "declared discounts and the borrowed size are copied, not recomputed"
+)]
+#[allow(clippy::too_many_lines, reason = "one receipt checked field by field for every arm")]
+fn adaptive_historical_borrowing_receipt() {
+    // Four arms, two historical sources each at a discount of one half, 1,200 participants.
+    let truth = [0.3, 0.4, 0.5, 0.6];
+    let plan = |shift: f64| BorrowingPlan {
+        arms: truth
+            .iter()
+            .enumerate()
+            .map(|(arm, &rate)| ArmPrior {
+                initial: BetaPrior::UNIFORM,
+                historical: vec![
+                    source(
+                        &format!("registry {arm}"),
+                        ((rate + shift) * 200.0_f64).round() as u64,
+                        200,
+                        0.5,
+                    ),
+                    source(
+                        &format!("pilot {arm}"),
+                        ((rate + shift) * 80.0_f64).round() as u64,
+                        80,
+                        0.5,
+                    ),
+                ],
+            })
+            .collect(),
+    };
+    let run = |shift: f64| {
+        let s = spec(|d| {
+            d.arms = 4;
+            d.responses = Some(3);
+            d.correlation = Some(0.3);
+            d.enrolment = Some(vec![100; 12]);
+            d.borrowing = Some(plan(shift));
+        });
+        let history =
+            simulate_participant_history(&s, &truth, None, 4_278_190, &never).expect("a history");
+        (s, history)
+    };
+
+    let (s, history) = run(0.0);
+    assert_eq!(history.arms.len(), 1_200);
+    let receipt = s.borrowing_receipt(&history, &never).expect("a receipt");
+    assert_eq!(receipt.len(), 4);
+    let by_arm = histograms(&history, 4, 3, 1_200);
+    let (mut agreement, mut shifted_agreement) = (Vec::new(), Vec::new());
+    for (arm, entry) in receipt.iter().enumerate() {
+        assert_eq!(entry.arm, arm);
+        // Per-source discounts, and the effective historical sample size they are worth.
+        assert_eq!(entry.sources.len(), 2);
+        assert_eq!(entry.sources[0].source, format!("registry {arm}"));
+        assert_eq!(entry.sources[1].source, format!("pilot {arm}"));
+        assert!(entry.sources.iter().all(|source| source.discount == 0.5));
+        assert_eq!((entry.sources[0].trials, entry.sources[1].trials), (200, 80));
+        close(entry.effective_historical_sample_size, 0.5 * 280.0, 1e-12, "borrowed responses");
+        close(entry.prior_effective_sample_size, 2.0 + 140.0, 1e-12, "prior effective size");
+        assert_eq!(entry.effective_historical_sample_size, s.priors()[arm].borrowed_sample_size);
+        assert_eq!(entry.current_participants, u64::from(by_arm[arm].iter().sum::<u32>()));
+        // The prior-data conflict is the exact probability that the arm mean from the current
+        // data alone exceeds the borrowed prior's, by a dense two-dimensional quadrature.
+        let conflict = entry.conflict.expect("an arm that borrowed has a diagnostic");
+        let grid = 100_000;
+        let borrowed = &s.priors()[arm].prior;
+        let current = dense_weights(3, 0.3, &by_arm[arm], (1.0, 1.0), grid);
+        let historical =
+            dense_weights(3, 0.3, &[0, 0, 0, 0], (borrowed.alpha, borrowed.beta), grid);
+        let oracle = dense_exceedance(&current, &historical);
+        close(conflict.current_exceeds_prior, oracle, 1e-5, &format!("arm {arm} exceedance"));
+        close(
+            conflict.agreement,
+            2.0 * oracle.min(1.0 - oracle),
+            2e-5,
+            &format!("arm {arm} agreement"),
+        );
+        assert!((0.0..=1.0).contains(&conflict.agreement));
+        agreement.push(conflict.agreement);
+    }
+    let means: Vec<f64> = by_arm
+        .iter()
+        .map(|h| {
+            let n = f64::from(h.iter().sum::<u32>());
+            h.iter().enumerate().map(|(s, &c)| s as f64 * f64::from(c)).sum::<f64>() / (3.0 * n)
+        })
+        .collect();
+    assert!(
+        agreement.iter().all(|&a| a > 1e-3),
+        "history centred on the truth: agreement {agreement:?}, per-response means {means:?}, histograms {by_arm:?}"
+    );
+
+    // History centred 0.2 above the truth conflicts with the data of every arm: the current
+    // data fall below the borrowed prior. The adaptive allocation gives the weakest arms the
+    // fewest participants, so their evidence of conflict is the weakest; each arm's agreement
+    // still falls far below its agreement with a centred history.
+    let (shifted, shifted_history) = run(0.2);
+    for entry in shifted.borrowing_receipt(&shifted_history, &never).unwrap() {
+        shifted_agreement.push(entry.conflict.unwrap().agreement);
+        assert!(entry.conflict.unwrap().current_exceeds_prior < 1e-2);
+    }
+    assert!(
+        shifted_agreement.iter().zip(&agreement).all(|(&s, &c)| s < 1e-2 && s < 0.1 * c),
+        "shifted {shifted_agreement:?}, centred {agreement:?}"
+    );
+
+    // An arm that borrowed nothing has no diagnostic, and so has an arm nobody completed.
+    let mixed = BorrowingPlan {
+        arms: vec![
+            ArmPrior::without_history(BetaPrior::UNIFORM),
+            ArmPrior {
+                initial: BetaPrior::UNIFORM,
+                historical: vec![source("registry", 40, 100, 0.5)],
+            },
+        ],
+    };
+    let two = spec(|d| {
+        d.arms = 2;
+        d.responses = Some(3);
+        d.borrowing = Some(mixed);
+        d.enrolment = Some(vec![40, 40]);
+    });
+    let two_history =
+        simulate_participant_history(&two, &[0.4, 0.4], None, 4_278_190, &never).unwrap();
+    let receipt = two.borrowing_receipt(&two_history, &never).unwrap();
+    assert!(receipt[0].sources.is_empty() && receipt[0].conflict.is_none());
+    close(receipt[0].effective_historical_sample_size, 0.0, 0.0, "nothing borrowed");
+    assert!(receipt[1].conflict.is_some());
+    let mut nobody = two_history;
+    nobody.successes.iter_mut().for_each(|s| *s = None);
+    let receipt = two.borrowing_receipt(&nobody, &never).unwrap();
+    assert!(
+        receipt.iter().all(|entry| entry.conflict.is_none() && entry.current_participants == 0)
+    );
 }

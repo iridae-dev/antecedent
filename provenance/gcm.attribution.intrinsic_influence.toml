@@ -33,4 +33,5 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-attribution/tests/intrinsic_influence.rs (linear chain and collider with closed-form contributions, a product mechanism with interaction, moment closed form of a quadratic mechanism)",
  "python/tests/test_intrinsic_influence.py",
+ "python/tests/test_dowhy_comparison.py (per-source shares on a linear Gaussian chain against gcm.intrinsic_causal_influence; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
 ]

@@ -310,6 +310,7 @@ _EXPECTED_STAGE_ALL = {
         "run_static_discovery",
         "run_temporal_discovery",
         "two_regime_half_split",
+        "ExactDagMarginals",
     },
     "errors": {
         "ExternalRefusal",
@@ -440,6 +441,7 @@ _EXPECTED_STAGE_ALL = {
         "IntrinsicInfluence",
         "SourceInfluence",
         "intrinsic_influence",
+        "fitted_intrinsic_influence",
     },
     "graph": {
         "Admg",

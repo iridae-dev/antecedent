@@ -24,4 +24,6 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-stats/src/ci/advanced.rs (gpdc_nystrom unit tests: dense independent reference, known-truth residual recovery, agreement with the exact GP, 6000-row dependence)",
  "crates/antecedent-stats/src/ci/calibration.rs (gpdc_nystrom_conditional_null_gate, gpdc_nystrom_conditional_null_large_n_gate, gpdc_nystrom_conditional_power_gate)",
+ "crates/antecedent-stats/src/ci/calibration.rs (conditional_gpdc_beyond_4k_8000_rows, conditional_gpdc_beyond_4k_20000_rows, scalable_gpdc_replacement_validated_separately: two conditioning variables, Type I error, power and 2000-replicate coverage)",
+ "crates/antecedent-stats/src/ci/advanced.rs (exact_conditional_gpdc_retained_at_small_sizes: the exact test at 2000 rows is bit-identical to its dense construction)",
 ]

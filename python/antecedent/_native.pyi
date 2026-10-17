@@ -2062,6 +2062,45 @@ class FittedGcm:
         threads: int | None = None,
         programs: list[tuple[str, str, BatchCallbackHandle, list[str | None]]] | None = None,
     ) -> GcmSampleResult: ...
+    def sample_noise(
+        self,
+        interventions: dict[str, float],
+        n: int,
+        *,
+        shifts: dict[str, float] | None = None,
+        seed: int = 0,
+        threads: int | None = None,
+        programs: list[tuple[str, str, BatchCallbackHandle, list[str | None]]] | None = None,
+    ) -> tuple[GcmSampleResult, NDArray[np.float64]]: ...
+    def replay_noise(
+        self,
+        noise: NDArray[np.float64],
+        interventions: dict[str, float] | None = None,
+        *,
+        shifts: dict[str, float] | None = None,
+        policy_salt: int = 0,
+        seed: int = 0,
+        threads: int | None = None,
+        programs: list[tuple[str, str, BatchCallbackHandle, list[str | None]]] | None = None,
+    ) -> GcmSampleResult: ...
+    def attribute_intrinsic_influence(
+        self,
+        target: str,
+        *,
+        independent_noise: bool = False,
+        bidirected_edges: list[tuple[str, str]] | None = None,
+        allocation: str = "auto",
+        n_permutations: int = 200,
+        outer_draws: int = 200,
+        inner_draws: int = 40,
+        replicates: int = 4,
+        fit_bootstrap: int = 0,
+        level: float = 0.95,
+        max_sources: int = 64,
+        seed: int = 0,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
     def counterfactual_ite(
         self,
         treatment: str,
@@ -2205,6 +2244,21 @@ class BatchCallbackHandle:
 def callback_export_refusal(
     callbacks: list[BatchCallbackHandle],
 ) -> tuple[str, str] | None: ...
+def encode_callback_policy_program(
+    names: list[str],
+    items: list[
+        tuple[
+            str | None,
+            tuple[str, str, BatchCallbackHandle, list[str | None]] | None,
+        ]
+    ],
+) -> bytes: ...
+def policy_program_callback_records(data: bytes) -> list[dict[str, Any]]: ...
+def decode_callback_policy_program(
+    names: list[str],
+    data: bytes,
+    supplied: list[BatchCallbackHandle],
+) -> list[tuple[str, str, str | None, str | None, list[str | None] | None]]: ...
 def verify_callback_recovery(
     name: str,
     inputs: list[str],
@@ -2278,6 +2332,44 @@ def sample_temporal_policy(
     history: list[dict[str, list[float]]] | None = None,
     threads: int | None = None,
 ) -> list[GcmSampleResult]: ...
+def counterfactual_temporal_policy(
+    fitted: FittedGcm,
+    policies: str,
+    steps: list[dict[str, NDArray[np.float64]]],
+    window: int,
+    seed: int,
+    start: int = 0,
+    history: list[dict[str, list[float]]] | None = None,
+    threads: int | None = None,
+) -> list[GcmSampleResult]: ...
+def policy_support(fitted: FittedGcm, policies: str) -> dict[str, dict[str, Any]]: ...
+def policy_value(
+    fitted: FittedGcm,
+    policies: str,
+    outcome: str,
+    n: int,
+    seed: int,
+    threads: int | None = None,
+) -> dict[str, Any]: ...
+
+class PreparedPolicy:
+    def __init__(self, fitted: FittedGcm, policies: str) -> None: ...
+    @property
+    def identity(self) -> str | None: ...
+    @property
+    def program_compilations(self) -> int: ...
+    @property
+    def model_bindings(self) -> int: ...
+    def support(self) -> dict[str, dict[str, Any]]: ...
+    def rebind(self, fitted: FittedGcm) -> PreparedPolicy: ...
+    def sample(self, n: int, seed: int, threads: int | None = None) -> GcmSampleResult: ...
+    def counterfactual(
+        self, outcomes: list[str], seed: int, threads: int | None = None
+    ) -> dict[str, NDArray[np.float64]]: ...
+    def value(
+        self, outcome: str, n: int, seed: int, threads: int | None = None
+    ) -> dict[str, Any]: ...
+
 def encode_policy_program(names: list[str], policies: str) -> bytes: ...
 def decode_policy_program(names: list[str], data: bytes) -> str: ...
 def policy_program_identity(names: list[str], policies: str) -> str: ...
@@ -2724,6 +2816,14 @@ def discover_exact_dag_posterior(
     seed: int = 1,
     threads: int | None = None,
 ) -> GraphPosterior: ...
+def discover_exact_dag_marginals(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    *,
+    max_parents: int | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+) -> tuple[list[float], float]: ...
 def discover_order_mcmc(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],

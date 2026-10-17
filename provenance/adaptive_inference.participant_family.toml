@@ -27,6 +27,7 @@ test_sources = [
  "crates/antecedent-stats/tests/adaptive_participant_family.rs",
  "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs",
  "crates/antecedent-stats/tests/adaptive_procedure_uncertainty_oracle.rs",
+ "crates/antecedent/tests/adaptive_participant_acceptance.rs",
  "crates/antecedent/tests/adaptive_participant_facade.rs",
  "python/tests/test_adaptive_binary_family.py",
 ]

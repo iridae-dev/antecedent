@@ -39,7 +39,7 @@ mechanisms.
 Tree ensembles are piecewise constant. Beyond the observed range of a parent an
 ensemble reads its boundary leaf, so an intervention to an unobserved value returns
 the nearest observed behaviour, not an extrapolated trend. A tree family needs at
-least one parent and 50 complete rows; a root, a shorter table, or a missing value
+least one parent and 40 complete rows; a root, a shorter table, or a missing value
 is recorded as a failed candidate with that reason.
 
 Fitting uses the optional `antecedent-learn` providers: build with the `ml-gbdt` (boosted
@@ -119,3 +119,41 @@ thread, and exact ties broken by listing order (the simpler family first).
 - Heteroscedastic noise and quantile-forest conditional laws are not modelled.
 - A weighted refit (`refit_weighted`) accepts only the standard families and refuses a
   tree-ensemble assignment.
+
+## Examples
+
+`examples/rust/mechanism_selection.rs` and `examples/python/mechanism_selection.py` fit a quadratic
+mechanism against linear, spline and tree candidates, read the scores, the failed families and the
+selection rule, require a family for one node, refuse a contradictory constraint, and (Python)
+cut the scores by forward chaining for serially dependent rows. Both assert their results and run
+in the example suites. A tree family is scored when its provider is compiled in and listed as
+failed with its reason otherwise; the examples hold in either build.
+
+## Differences from DoWhy
+
+Compared against DoWhy 0.14, the version pinned in `parity/baselines/dowhy.toml`, by
+`python/tests/test_dowhy_comparison.py` (skipped when DoWhy is not installed; every DoWhy value is
+computed at test time).
+
+Overlapping semantics. `gcm.auto.assign_causal_mechanisms` gives each non-root continuous node an
+additive-noise model `X = f(parents) + N` whose regression model is the candidate with the
+smallest mean squared error, gives a categorical node a classifier with uniform noise through its
+class probabilities, and gives a root an empirical distribution. The additive-noise and
+categorical forms are the `*_additive` and `*_categorical` families here. On a quadratic node and
+a linear node, the mechanisms the two libraries choose predict the same conditional means, and
+both follow the structural function.
+
+Where they differ.
+
+- The candidate set is the caller's. DoWhy chooses among its own regression models by a quality
+  level (`GOOD`, `BETTER`, `BEST`); here the candidates, per-node `allowed`, `excluded` and
+  `required` families and the validation scheme are declared and recorded.
+- The criterion is held-out log-likelihood less a parameter-count charge on shared folds, the same
+  for every family and outcome type; DoWhy compares regression models by mean squared error and
+  classifiers by log loss.
+- Every candidate's score, every failed candidate with its reason, the folds, the seed and the rule
+  that selected are returned with the fit. A requirement that cannot be scored refuses the fit.
+- Rows that are dependent are declared (`time_ordered` with a purge, `clustered`) and the scores
+  are cut accordingly; `assign_causal_mechanisms` has no option to declare dependent rows.
+- Roots are fitted by the registry (a Gaussian by default), not resampled from the data; there is
+  no empirical-residual noise variant for the additive tree families.

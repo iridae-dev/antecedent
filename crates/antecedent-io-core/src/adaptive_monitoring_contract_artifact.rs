@@ -1139,12 +1139,28 @@ fn check(
     Ok(AdaptiveMonitoringContractArtifact { contract, paradigm, boundaries, procedure, identity })
 }
 
-fn encode_meta(meta: &MonitoringContractMeta, artifact_id: &str) -> Result<Vec<u8>, Error> {
+/// A finished artifact over the export budget: the bytes it needs and the
+/// budget, and that the run it describes is complete and stays available.
+fn export_refusal(needed: usize, budget: usize) -> Error {
+    Error::Refused {
+        code: antecedent_core::reason_code!("route_not_supported"),
+        detail: "adaptive_inference.artifact_size_exceeded".to_owned(),
+        message: format!(
+            "the artifact needs {needed} bytes, over the export budget of {budget} bytes; the run is complete and its result stays in memory; retain fewer looks or participants, or raise the export budget"
+        ),
+    }
+}
+
+fn encode_meta_within(
+    meta: &MonitoringContractMeta,
+    artifact_id: &str,
+    export_budget: usize,
+) -> Result<Vec<u8>, Error> {
     if artifact_id.trim().is_empty() {
         return Err(Error::Encode("missing artifact id".into()));
     }
     let meta_bytes = to_cbor(meta).map_err(|error| Error::Encode(error.to_string()))?;
-    crate::encode_container(
+    let bytes = crate::encode_container(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
             note: "adaptive_monitoring_contract",
@@ -1158,7 +1174,14 @@ fn encode_meta(meta: &MonitoringContractMeta, artifact_id: &str) -> Result<Vec<u
             bytes: &meta_bytes,
         }],
     )
-    .map_err(|error| crate::map_artifact_check!(error, AdaptiveMonitoringContractError))
+    .map_err(|error| crate::map_artifact_check!(error, AdaptiveMonitoringContractError))?;
+    if bytes.len() > export_budget.min(MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES) {
+        return Err(export_refusal(
+            bytes.len(),
+            export_budget.min(MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES),
+        ));
+    }
+    Ok(bytes)
 }
 
 fn decode_meta(bytes: &[u8]) -> Result<MonitoringContractMeta, Error> {
@@ -1311,8 +1334,29 @@ impl AdaptiveMonitoringContractArtifact {
         paradigm: InferenceParadigm,
         artifact_id: &str,
     ) -> Result<Vec<u8>, Error> {
+        Self::to_bytes_within(
+            contract,
+            paradigm,
+            artifact_id,
+            MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES,
+        )
+    }
+
+    /// Serialize a sealed contract when the whole artifact fits `export_budget`
+    /// bytes (at most [`MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES`]).
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes`], and `adaptive_inference.artifact_size_exceeded`
+    /// when the artifact is over the budget, which names the bytes needed and
+    /// the budget. The run the contract describes is untouched by the refusal.
+    pub fn to_bytes_within(
+        contract: &AdaptiveDesignContract,
+        paradigm: InferenceParadigm,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, Error> {
         let (_, meta) = Self::seal(contract, paradigm)?;
-        encode_meta(&meta, artifact_id)
+        encode_meta_within(&meta, artifact_id, export_budget)
     }
 
     /// Serialize a contract sealed with its participant-level procedure.
@@ -1326,8 +1370,30 @@ impl AdaptiveMonitoringContractArtifact {
         procedure: &ParticipantSpec,
         artifact_id: &str,
     ) -> Result<Vec<u8>, Error> {
+        Self::to_bytes_with_procedure_within(
+            contract,
+            paradigm,
+            procedure,
+            artifact_id,
+            MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES,
+        )
+    }
+
+    /// [`Self::to_bytes_with_procedure`] when the whole artifact fits
+    /// `export_budget` bytes (at most [`MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES`]).
+    ///
+    /// # Errors
+    /// As [`Self::to_bytes_with_procedure`], and
+    /// `adaptive_inference.artifact_size_exceeded` as [`Self::to_bytes_within`].
+    pub fn to_bytes_with_procedure_within(
+        contract: &AdaptiveDesignContract,
+        paradigm: InferenceParadigm,
+        procedure: &ParticipantSpec,
+        artifact_id: &str,
+        export_budget: usize,
+    ) -> Result<Vec<u8>, Error> {
         let (_, meta) = Self::seal_with_procedure(contract, paradigm, procedure)?;
-        encode_meta(&meta, artifact_id)
+        encode_meta_within(&meta, artifact_id, export_budget)
     }
 
     /// Consume an artifact by replay and recomputation.

@@ -50,7 +50,7 @@ use antecedent_design::temporal_policy_transport::{
 };
 use antecedent_design::transported_policy::{
     ActionUtility, MechanismStatus, ModelMechanism, SelectionDiagram, TargetUtility,
-    TransportedPolicyRequest, UtilityProvenance, evaluate_transported_policy,
+    TransportPremises, TransportedPolicyRequest, UtilityProvenance, evaluate_transported_policy,
     verify_transported_policy,
 };
 
@@ -806,6 +806,122 @@ fn refreshing_the_source_model_keeps_the_utility_declaration_and_recomputes_the_
         "transported_policy.value_mismatch"
     );
     verify_transported_policy(&new, &request, &ctx()).unwrap();
+}
+
+#[test]
+fn a_declared_target_utility_is_validated_then_accepted_and_echoed() {
+    let source = model([0.5, 0.5]);
+    let policy = policy();
+    let law = [0.2, 0.8];
+    let diagram = diagram_with_shifted_utility(&source);
+    let utility = target_utility(TARGET_DIGEST);
+    let request = TransportedPolicyRequest {
+        source: &source,
+        policy: &policy,
+        target_population: "plant_b",
+        target_initial: Some(&law),
+        diagram: Some(&diagram),
+        target_utility: Some(&utility),
+        limits: EvaluationLimits::default(),
+    };
+    // Validation passes for a declaration that matches the source's actions and states,
+    // carries provenance and has finite values: the evaluation runs and reports the
+    // declaration it accepted.
+    let evaluation = evaluate_transported_policy(&request, &ctx()).unwrap();
+    assert_eq!(evaluation.target_utility.as_ref(), Some(&utility));
+    assert!((evaluation.target_value - target_value_by_hand(0.8)).abs() < 1e-12);
+    verify_transported_policy(&evaluation, &request, &ctx()).unwrap();
+
+    // Each validated property, broken alone, is refused with its own detail.
+    let broken = |edit: &dyn Fn(&mut TargetUtility)| {
+        let mut bad = utility.clone();
+        edit(&mut bad);
+        evaluate_transported_policy(
+            &TransportedPolicyRequest { target_utility: Some(&bad), ..request },
+            &ctx(),
+        )
+        .unwrap_err()
+        .detail
+    };
+    assert_eq!(
+        broken(&|u| u.provenance.source.clear()),
+        "transported_policy.target_utility_provenance_missing"
+    );
+    assert_eq!(
+        broken(&|u| u.provenance.digest = "zz".into()),
+        "transported_policy.target_utility_digest"
+    );
+    assert_eq!(broken(&|u| u.terminal.push(0.0)), "transported_policy.target_utility_support");
+    assert_eq!(
+        broken(&|u| u.actions[SHIP].immediate[0] = f64::NAN),
+        "transported_policy.target_utility_value"
+    );
+}
+
+#[test]
+fn a_target_utility_keeps_the_transition_observation_and_support_premises() {
+    let source = model([0.5, 0.5]);
+    let policy = policy();
+    let law = [0.2, 0.8];
+    let diagram = diagram_with_shifted_utility(&source);
+    let utility = target_utility(TARGET_DIGEST);
+    let request = TransportedPolicyRequest {
+        source: &source,
+        policy: &policy,
+        target_population: "plant_b",
+        target_initial: Some(&law),
+        diagram: Some(&diagram),
+        target_utility: Some(&utility),
+        limits: EvaluationLimits::default(),
+    };
+    let evaluation = evaluate_transported_policy(&request, &ctx()).unwrap();
+    // The premises the value is conditional on still name the invariant transitions and
+    // observation channels, the target-initial-law overlap and the g-formula premises;
+    // only the utility moved out of the invariant set.
+    let premises = evaluation.premises;
+    assert!(premises.invariance.contains("transitions, observation channels"));
+    assert!(premises.invariance.contains("unless a target utility is supplied"));
+    assert!(premises.selection.contains("when a target utility is supplied"));
+    assert!(premises.overlap.contains("absolutely continuous"));
+    assert_eq!(premises, TransportPremises::DECLARED);
+    assert_eq!(
+        evaluation.shifted_mechanisms,
+        vec![ModelMechanism::InitialState, ModelMechanism::Utility]
+    );
+
+    // A shifted transition or observation is still refused with the mechanism named, and a
+    // target law outside the source's support is still refused.
+    for dynamic in [
+        ModelMechanism::Transition { action: INSPECT },
+        ModelMechanism::Observation { action: INSPECT },
+    ] {
+        let mut shifted = diagram.clone();
+        for row in &mut shifted.mechanisms {
+            if row.0 == dynamic {
+                row.1 = MechanismStatus::Shifted;
+            }
+        }
+        let err = evaluate_transported_policy(
+            &TransportedPolicyRequest { diagram: Some(&shifted), ..request },
+            &ctx(),
+        )
+        .unwrap_err();
+        assert_eq!(err.detail, "transported_policy.mechanism_not_invariant");
+        assert!(err.message.contains(&dynamic.name()));
+    }
+    let narrow = model([1.0, 0.0]);
+    let narrow_diagram = diagram_with_shifted_utility(&narrow);
+    let err = evaluate_transported_policy(
+        &TransportedPolicyRequest {
+            source: &narrow,
+            diagram: Some(&narrow_diagram),
+            target_initial: Some(&[0.5, 0.5]),
+            ..request
+        },
+        &ctx(),
+    )
+    .unwrap_err();
+    assert_eq!(err.detail, "transported_policy.target_support_outside_source");
 }
 
 // ---------------------------------------------------------------------------

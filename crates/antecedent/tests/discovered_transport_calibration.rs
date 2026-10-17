@@ -25,7 +25,7 @@ use antecedent::analysis::discovered_transport_temporal::{
     transport_discovered_temporal_structure,
 };
 use antecedent_core::{
-    ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
+    ContinuousDomain, ExecutionContext, GridSpec, Lag, ResponseFunctional, ResponseQuery,
     TransportQuery, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
@@ -244,6 +244,100 @@ fn discovered_temporal_transport_contrast_complete_procedure_coverage() {
         let report = transport_discovered_temporal_structure(
             adapter.outcome()?,
             TemporalHorizon { horizon_steps: 1, history: None },
+            &[v(2)],
+            &query(),
+            256,
+        )
+        .ok()?;
+        let mut evidence = TransportEvidence::new(&source_table, &target_table);
+        evidence.bootstrap_replicates = REPLICATES;
+        let estimate =
+            estimate_discovered_temporal_transport(&report, &query(), &evidence, &ctx).ok()?;
+        (estimate.answer().kind == AnswerKind::Point)
+            .then(|| estimate.answer().interval.map(|i| (i.low, i.high)))
+            .flatten()
+    }) {
+        tally.bind(
+            &temporal_construction(),
+            ScopeFacts {
+                row_count: steps as u64,
+                replicates_ok: Some(REPLICATES),
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        );
+        tally.record(outcome, effect);
+    }
+    tally.assert();
+}
+
+/// Six binary variables with two lags. `x` (variable 0) is randomized; `y` (1) is caused by
+/// `x_{t-2}` and `z_{t-2}`; `z` (2) is autoregressive with a population-specific mechanism and is
+/// the selected cause; `w` (3) is a nuisance autoregressive at lag two; `q` (4) is caused by
+/// `z_{t-1}`; `r` (5) is caused by `y_{t-1}`. The template's largest lag is two.
+fn series_two_lags(steps: usize, target: bool, seed: u64) -> (TimeSeriesData, TabularData) {
+    let mut columns: Vec<Vec<f64>> = (0..6).map(|_| vec![0.0; 2]).collect();
+    for t in 2..steps {
+        let draw = |k: u64| stream_seed(seed, t as u64 * 8 + k);
+        let (x, y, z, w) = (0, 1, 2, 3);
+        let pz = if target { 0.6 - 0.4 * columns[z][t - 1] } else { 0.2 + 0.5 * columns[z][t - 1] };
+        let values = [
+            bern(draw(1), 0.5),
+            bern(draw(2), p_y_lagged(columns[x][t - 2], columns[z][t - 2])),
+            bern(draw(0), pz),
+            bern(draw(3), 0.2 + 0.5 * columns[w][t - 2]),
+            bern(draw(4), 0.1 + 0.7 * columns[z][t - 1]),
+            bern(draw(5), 0.2 + 0.6 * columns[y][t - 1]),
+        ];
+        for (column, value) in columns.iter_mut().zip(values) {
+            column.push(value);
+        }
+    }
+    let named: Vec<(String, &[f64])> =
+        columns.iter().enumerate().map(|(i, c)| (format!("v{i}"), c.as_slice())).collect();
+    let pairs = || named.iter().map(|(name, column)| (name.as_str(), *column));
+    (
+        TimeSeriesData::from_f64_columns(pairs(), 1_000_000_000).unwrap(),
+        TabularData::from_f64_columns(pairs()).unwrap(),
+    )
+}
+
+/// Complete-procedure coverage of the temporal contrast interval on six variables with two
+/// lags: PCMCI+ (maximum lag two) on the source series, the temporal class at horizon two,
+/// identification in every member, the estimate over the windowed tables and the circular block
+/// bootstrap interval, in every replicate.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage() {
+    let steps = grid_n(4000);
+    let pi = 0.6 / 1.4;
+    let truth = |a: f64| (1.0 - pi) * p_y_lagged(a, 0.0) + pi * p_y_lagged(a, 1.0);
+    let effect = truth(1.0) - truth(0.0);
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage",
+            dgp: "lag_two_selection_on_autoregressive_z_six_variables",
+            interval: "block_percentile_bootstrap",
+        },
+        REPORTED_LEVEL,
+    );
+    for outcome in map_replicates(n_sim(), |rep| {
+        let seed = rep.wrapping_mul(1_000_003);
+        let (source, source_table) = series_two_lags(steps, false, seed);
+        let (_, target_table) = series_two_lags(steps, true, seed ^ 0x5eed);
+        let ctx = ExecutionContext::for_tests(rep);
+        let mut contract = TemporalDiscoveryContract::new(
+            TemporalAlgorithm::PcmciPlus,
+            (0..6).map(VariableId::from_raw).collect(),
+            CiTestSpec::named("gsquared"),
+            rep,
+        );
+        contract.constraints.temporal.max_lag = Lag::from_raw(2);
+        let mut adapter = TemporalSelectiveDiscovery::new();
+        adapter.run(&contract, &source, &ctx).ok()?;
+        let report = transport_discovered_temporal_structure(
+            adapter.outcome()?,
+            TemporalHorizon { horizon_steps: 2, history: None },
             &[v(2)],
             &query(),
             256,

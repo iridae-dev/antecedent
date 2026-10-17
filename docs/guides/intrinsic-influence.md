@@ -14,7 +14,10 @@ total path coefficient times the noise variance, so each source's share is that 
 
 Rust surface: `antecedent_attribution::{intrinsic_influence, IntrinsicInfluenceQuery,
 IntrinsicAllocation, NoiseIndependence, IntrinsicInfluenceResult}` and
-`antecedent::gcm::attribute_intrinsic_influence`. Python: `antecedent.gcm.intrinsic_influence`.
+`antecedent::gcm::attribute_intrinsic_influence`. Python: `antecedent.gcm.intrinsic_influence`. On a model already fitted, `antecedent.gcm.fitted_intrinsic_influence(fitted, target, ...)`
+uses its structure, mechanisms and rows without refitting and gives the result `intrinsic_influence`
+gives on the data and edges it was fitted from; the result names its provenance record
+(`gcm.attribution.intrinsic_influence`).
 Provenance record: `gcm.attribution.intrinsic_influence`. Reference: Janzing, Blöbaum,
 Mastakouri, Faller, Minorics and Budhathoki (2024), "Quantifying intrinsic causal
 contributions via structure preserving interventions", AISTATS (the same quantity as
@@ -102,3 +105,38 @@ result = intrinsic_influence(
 for source in result.sources:
     print(source.source, source.contribution)  # about 9, 2.25, 0.25
 ```
+
+## Examples
+
+`examples/rust/intrinsic_influence.rs` and `examples/python/intrinsic_influence.py` attribute the
+variance of `z` on `x -> y -> z` to the three noise terms (closed form 9, 2.25 and 0.25), show
+which uncertainty components are quantified, not applicable or unquantified, and refuse a call
+that does not declare independent noise. Both assert their results and run in the example suites.
+
+## Differences from DoWhy
+
+Compared against DoWhy 0.14, the version pinned in `parity/baselines/dowhy.toml`, by
+`python/tests/test_dowhy_comparison.py` (skipped when DoWhy is not installed; every DoWhy value is
+computed at test time).
+
+Overlapping semantics. `gcm.intrinsic_causal_influence(model, target)` returns, for each noise
+term upstream of the target and the target's own, its share of the target's variance: the same
+quantity (Janzing et al.), attributed by Shapley values. On a linear Gaussian chain
+`a -> b -> c -> y` with noise scales 1, 1, 0.5 and 0.8 and 5000 rows, both libraries recover the
+closed-form shares 9, 2.25, 0.25 and 0.64 and agree with each other within the tolerance recorded
+in the baseline file; both shares sum to the variance of `y`.
+
+Where they differ.
+
+- DoWhy's default `prediction_model="approx"` trains a regressor on samples from the graph to
+  approximate the map from noise terms to the target (`"exact"` propagates noise through the
+  fitted mechanisms). This route always replays the fitted model itself, so there is no surrogate.
+- The nested simulation subtracts the inner-sampling bias of `Var(E[Y | U_S])`, uses exact Shapley
+  values up to ten sources and permutation sampling beyond, and reports the efficiency gap.
+- Uncertainty is reported by component (permutation sampling, simulation, mechanism fit), never
+  combined, and an unmeasured component is `unquantified`; DoWhy returns point values.
+- Independence of the noise terms is a declaration the call must make, and a latent common cause
+  is refused: a compiled DAG here cannot certify it. DoWhy's structural causal model has
+  independent noise by construction.
+- An attribution of entropy or another property through `attribution_func` is DoWhy only; this
+  route attributes variance.

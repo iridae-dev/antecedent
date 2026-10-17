@@ -94,16 +94,32 @@ starts with an empty look or enrols no one.
 | simulation work | replications x units x measurements per unit, 4,000,000,000 | `simulation_work_exceeded` | reduce the product |
 | simulation memory | estimated peak bytes, the smaller soft or hard limit of the execution context's memory budget (4 GiB when it sets none) | `simulation_memory_exceeded` | fewer replications, or a larger budget |
 | retained record | 64 looks of one exported record | `retained_record_exceeded` | retain fewer looks |
+| artifact size | the export budget of one exported contract (at most 256 MiB) | `artifact_size_exceeded` | retain less, or raise the export budget |
 
 Exact enumeration is bounded by the distinct histories it holds, not by
 participants, so a procedure of a few hundred units is already beyond it. Large
 procedures route to the whole-procedure simulation, which checks its work and
 memory budget before any replicate runs, checks for cancellation at every look
-and replicate, and returns a receipt: replications run, work planned and done
-(units enrolled times measurements, which is less than planned when a stopping
-rule ends runs early), the largest retained state and the estimated peak bytes.
-Planned procedures of 600, 1,200 and 2,400 participants run on the
-single-outcome, repeated-measures and participant-level simulation routes.
+and replicate, and returns a receipt: replications run, looks performed, work
+planned and done (units enrolled times measurements, which is less than planned
+when a stopping rule ends runs early), the largest retained state (`states`:
+the cells of the observed-state tally one replication holds), the peak units and
+the estimated peak bytes. Every counter is added with checked arithmetic and a
+product that would wrap is refused as the largest representable work, even under
+a budget of `u64::MAX`; it is never compared as a wrapped value. Planned
+procedures of 600, 1,200 and 2,400 participants run on the single-outcome,
+repeated-measures and participant-level simulation routes.
+
+`ParticipantProcedure::run` runs the procedure once and retains it. Cancellation
+is polled before the first batch and after each batch that does not end the run,
+so it is honoured within one batch: the result holds the whole batches already
+taken, its receipt counts what was done against what was admitted, and
+`complete` is `false`. A cancelled run is a partial result, not a refusal, and a
+history that stops short of a stopping look does not replay as a finished run.
+The artifact is a separate limit again: an exported monitoring contract above its
+export budget is refused as `artifact_size_exceeded` (naming the bytes needed and
+the budget) by `export_contract_with_procedure_within`, and the run and its
+procedure are untouched.
 
 ## The participant-level family
 
@@ -211,6 +227,25 @@ record exists. `simulate_participant_procedure` runs the whole procedure end to
 end and records, per replicate, how it ended and whether the sequences covered
 the truth at every look and at the end; it is the entry point a calibration
 design calls.
+
+**Borrowing receipt and prior-data conflict.** `ParticipantSpec::borrowing_receipt`
+(and `ParticipantHistoryReport::borrowing`) reports, per arm, every historical
+source with its discount, the effective historical sample size the discounts are
+worth, the effective sample size of the resolved prior and the participants whose
+responses had completed. For an arm that borrowed, it also reports the
+prior-data conflict: the exact probability that the arm mean drawn from the
+current data alone (the declared initial prior and the participant-aware
+likelihood of the completed participants) exceeds the mean drawn from the
+borrowed prior, and `agreement = 2 min(p, 1 - p)`, near zero when the current data
+sit entirely on one side of what was borrowed. It is a diagnostic of how far the
+borrowed information is from the new data, not a test with an error rate.
+
+**Batches are whole.** Decisions are taken only on batches of completed
+participants. A retained history in which a batch whose follow-up delay has elapsed
+holds participants without complete responses is refused with
+`adaptive_inference.batch_incomplete`, in `read_history`, in
+`retained_declaration` and when a contract with the procedure section is
+consumed; a recruitment cap between two batch boundaries waits for the next one.
 
 **Retention and replay.** `ParticipantProcedure.prepare_session` builds the
 retained analysis contract of a history (the allocation probabilities, outcome

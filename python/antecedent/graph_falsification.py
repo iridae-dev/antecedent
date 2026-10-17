@@ -65,6 +65,11 @@ class GraphFalsification:
     search_receipt: dict[str, Any] | None
     limitations: tuple[str, ...]
 
+    @property
+    def provenance_id(self) -> str:
+        """The provenance record (``provenance/<id>.toml``) the test is defined in."""
+        return "gcm.model.graph_falsification"
+
 
 def evaluate_graph(
     data: Any,

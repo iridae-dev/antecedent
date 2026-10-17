@@ -287,7 +287,7 @@ pub enum CallbackError {
         expected: usize,
     },
     /// The callback returned something other than a one-dimensional real-valued column.
-    #[error("returned {found}, not a one-dimensional real-valued column")]
+    #[error("returned {found}, but the declared output is a one-dimensional float64 column")]
     NotRealValued {
         /// What was returned (a dtype or type name).
         found: String,

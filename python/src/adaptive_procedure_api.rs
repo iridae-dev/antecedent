@@ -393,6 +393,8 @@ fn request_of(value: &Json) -> PyResult<ProcedureReportRequest> {
 pub(crate) fn receipt_json(receipt: &ResourceReceipt) -> Json {
     json!({
         "replications": receipt.replications,
+        "looks": receipt.looks,
+        "states": receipt.states,
         "work_planned": receipt.work_planned,
         "work_done": receipt.work_done,
         "peak_units": receipt.peak_units,

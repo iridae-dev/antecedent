@@ -205,6 +205,23 @@ impl DistanceMatching {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.fit_with_matches(problem, workspace, ctx, assumptions, 1)
+    }
+
+    /// [`Self::fit`] averaging the `matches` nearest donors of each unit (`1` is the single
+    /// nearest neighbour).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::fit`]; also `matches == 0` and a donor arm with fewer than `matches` rows.
+    pub(crate) fn fit_with_matches(
+        &self,
+        problem: &PreparedPropensityProblem,
+        workspace: &mut PropensityEstimationWorkspace,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        matches: usize,
+    ) -> Result<EffectEstimate, EstimationError> {
         // `bootstrap_replicates` is intentionally unread: the nonparametric bootstrap is
         // invalid for fixed-M NN matching (Abadie–Imbens 2008) and must not land in
         // `se_bootstrap` even when a caller still requests replicates.
@@ -280,6 +297,7 @@ impl DistanceMatching {
                 features: &f_used,
                 dim,
                 distance: MatchingDistance::Euclidean,
+                matches,
                 ctx,
             },
             &problem.target_population,
@@ -336,6 +354,9 @@ fn standardize_rowmajor_inplace(features: &mut [f64], n: usize, dim: usize) {
         }
     }
 }
+
+#[cfg(test)]
+mod scale_tests;
 
 #[cfg(test)]
 mod tests {

@@ -67,6 +67,17 @@ class Bayesian:
         ``reason_code="likelihood_not_supported"``. A Gaussian fit to an
         outcome that is binary or count-valued reports the
         ``estimate.bayesian.gaussian_likelihood_discrete_outcome`` diagnostic.
+    draw_controls:
+        ``"measured"`` bounds the draws behind the interval of a tabular
+        ``AverageEffect`` on a ``Dag``. ``n_draws`` must reach the backend's
+        supported minimum (2000 for ``laplace`` and ``conjugate``, 3000 for
+        ``hmc``) or the study is refused with
+        ``reason_code="posterior_draws_below_supported"`` naming it; an interval
+        whose larger endpoint Monte Carlo standard error exceeds a twentieth of its
+        width (draws discounted by their tail effective sample size under ``hmc``) is
+        refused with ``reason_code="posterior_draws_not_converged"``. The endpoint
+        errors are reported with the posterior's inference notes. Any other route
+        refuses the option rather than ignore it.
     """
 
     n_draws: int | None = None
@@ -76,6 +87,7 @@ class Bayesian:
     backend: Literal["laplace", "conjugate", "hmc"] = "laplace"
     kind: Literal["bayesian"] = "bayesian"
     likelihood: Literal["gaussian", "logit", "probit", "poisson"] = "gaussian"
+    draw_controls: Literal["measured"] | None = None
 
     @property
     def n_draws_explicit(self) -> bool:

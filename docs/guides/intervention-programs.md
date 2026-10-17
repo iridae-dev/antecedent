@@ -58,6 +58,13 @@ policies are applied in dependency order whatever the order they are declared in
 | `policy_output_type_invalid` | `output_type`, `categorical_output` | a boolean written to a number, or a value that is not a level of a categorical node's support (a 0/1 indicator is allowed when the support holds 0 and 1) |
 | `policy_history_unavailable` | `history_unavailable`, `history_not_past` | a lagged read on a static model, or a look-back of zero steps |
 
+Faults of the program itself are `invalid_argument` with a namespaced detail:
+`intervention_program.operand_type` (mismatched operand or branch types),
+`intervention_program.expression_invalid` (a non-finite constant or a tree over the size bound),
+`intervention_program.callback_declaration` (a callback without a name, with repeated input labels,
+or called with the wrong number of arguments) and `intervention_program.memory_budget_exceeded`
+(a batch over the context's hard memory limit).
+
 Conditional sampling refuses to condition on a node carrying a program. Nested counterfactuals
 and the closed-form temporal response paths refuse programs rather than ignore them; the
 temporal rollout below executes them.
@@ -74,6 +81,37 @@ temporal rollout below executes them.
   A transform depends on each unit's own noise and an assignment from other variables is a
   function rather than a level, so both refuse with `policy_route_not_licensed` while remaining
   simulable.
+
+A policy value is a property of the fitted model, not an identified estimand, so the same
+program is posed to the practitioner handle as a `PolicyProgramValue` question, on the declared
+graph rather than as an estimand query:
+
+```python
+handle = antecedent.prepare(
+    data,
+    query=PolicyProgramValue([transform("price", maximum(1, 0.85 * generated()))], "demand", n_draws=4000),
+    graph=Dag.from_edges(list(data), [("price", "demand"), ("demand", "revenue")]),
+    seed=5,
+)
+result = handle.estimate()            # or estimate(seed=9), refresh(new_data)
+result.value                          # equals policy_value on the same model and seed, to the bit
+result.support                        # simulation / counterfactual / identification decisions
+result.contract.assumptions           # independent noise, fitted mechanisms taken as exact, ...
+result.provenance_id                  # "model.intervention_programs"
+handle.preparation                    # program_compilations stays 1 across every rerun
+```
+
+`prepare` fits the model once, compiles the program's overlay against it and resolves the licence of
+each route once (the same `PreparedPolicy` that `prepare_policy` returns); each `estimate` runs the
+policy-value executor on the retained overlay. `refresh(new_data)` refits the model and rebinds the
+program to it: the program is not compiled again (`model_bindings` counts the models it was
+resolved against). The value reports the Monte Carlo error of the draws only; the fitted model's
+uncertainty is `"unquantified"`. A hard level is licensed for observational identification too and
+the support decision says so, but the handle always reports the model's value; the identified
+estimand of a level is asked of `prepare` with an `AverageEffect` or `ResponseCurve` question. The
+handle has no refutation, retargeting or portable claim, and `analyze()` refuses the question.
+`prepare_policy` remains the lower-level handle for sampling and counterfactual replay on a model
+you fitted yourself; `PreparedPolicy.rebind` carries it to a refitted model.
 
 ## Wire
 
@@ -106,6 +144,12 @@ assumption (`RouteDecision::LicensedUnder`): the callback returns a function of 
 inputs alone, with no hidden state, clock or randomness. That assumption is not verifiable from a
 function and is reported with the licence. A callback is a function, not a level, so it has no
 observational identification.
+
+A callback may read only what it declares: a program that passes a callback any other variable is
+refused (`policy_dependency_unavailable`, naming the variable) before anything runs. A dependency
+declared without a version is usable but unpinned, so the callback is refused for export
+(`policy_callback_not_portable`, naming the dependency): a consumer cannot verify what the record
+does not pin.
 
 ### Portability
 
@@ -142,6 +186,16 @@ reaches before the first available step is refused at the step where it happens,
 than the window at compile time; both are `policy_history_unavailable`
 (`history_not_yet_observed`, `history_beyond_window`). A window of zero is the static model.
 
+### Counterfactual rollout of a factual panel
+
+`antecedent::gcm::counterfactual_temporal_policy` takes the factual units at every step (one table
+per step, the same units in the same order), abducts each step's noise from its own table and
+replays it through `predict_temporal`, so a lagged read sees the counterfactual earlier steps. A
+program without a lagged read gives, at each step, what `counterfactual_policy` gives for that
+step's table; with one, a hand recursion from the unit's last observed value. Python:
+`intervention_programs.counterfactual_temporal_policy(fitted, programs, steps, window=, history=)`.
+Each step's abduction carries the rank-preservation disclosure of the counterfactual engine.
+
 ## Portable encoding
 
 `antecedent_io::policy_program_artifact` encodes a program (any mix of transforms, assignments and
@@ -155,7 +209,69 @@ interventions; a query without a program encodes byte for byte as before. A prog
 runtime-bound callback has no encoding and is refused with `policy_callback_not_portable` before
 any byte is written.
 
+A program whose callbacks are all recoverable is written under a second encoding version, in which
+each callback is its recovery record (name, inputs, output declaration, source SHA-256, entry point,
+pinned dependencies) and its arguments, never its code (`ValueExprWire::Callback`, written only by
+`InterventionWire::from_domain_recoverable`). Programs without callbacks keep version 1, their bytes
+and their identity; a version-1 envelope that carries a record, or a version-2 envelope without
+one, is refused. `decode_policy_program_with` takes the implementations the consumer supplies and
+verifies each against its record (`RecoveryRecord::verify`: source digest, entry point, inputs,
+output, dependency pins) before the program is returned, so nothing replays against an
+implementation the artifact does not identify; `policy_program_callback_records` lists the records
+to supply for, and `decode_policy_program` refuses such a program with
+`policy_callback_unrecoverable`. Python: `encode_policy_program` accepts `CallbackProgram`s,
+`required_callbacks(data)` lists the records, `recover_callback(source, record)` rebuilds each
+callback and `decode_policy_program(names, data, callbacks=...)` verifies them again.
+
 From Python, `antecedent.intervention_programs` builds programs (`transform`, `assign`, `var`,
 `lag`, `generated`, `maximum`, `clip`, `where`, ...) as the library's wire text and runs them with
 `sample_policy`, `counterfactual_policy` and `sample_temporal_policy`; it evaluates nothing itself.
+
+## Examples
+
+`examples/rust/intervention_programs.rs` and `examples/python/intervention_programs.py` apply the
+price floor `max(10, 0.85 * price)` to a fitted model: sampled forward, replayed on each factual
+unit's own noise, licensed per route and valued against the unintervened model, saved as a portable
+artifact, and written as a batch callback (refused as portable while it is an in-process function,
+saved as a verified record once it is declared from source). Each asserts its results and runs in
+the example suites (`crates/antecedent/tests/examples_run.rs`, `python/tests/test_examples_run.py`).
+
+Python reaches the licences through `antecedent.intervention_programs.policy_support`, the paired
+value against the unintervened model through `policy_value`, a program compiled and licensed once
+through `prepare_policy` (or `antecedent.prepare` with a `PolicyProgramValue`), and the portable encoding of callbacks declared from source through
+`encode_policy_program` / `decode_policy_program(..., callbacks=)`.
+
+## Differences from DoWhy
+
+Compared against DoWhy 0.14, the version pinned in `parity/baselines/dowhy.toml`, by
+`python/tests/test_dowhy_comparison.py`, which skips when DoWhy is not installed and otherwise
+computes every DoWhy value at test time.
+
+Overlapping semantics. `gcm.interventional_samples(model, {node: f})` draws from the model and
+replaces the node's generated value `v` by `f(v)`, recomputing the descendants on their own noise.
+That is a `transform` program: the node keeps its incoming edges and its noise, and a constant
+`f` is a hard `do`. For `max(10, 0.85 * price)` the two libraries agree on every variable's
+interventional mean within Monte Carlo error. `gcm.counterfactual_samples` with the same callables
+gives, for additive-noise models, the numbers `counterfactual_policy` gives on the same rows
+(agreement to `1e-6`).
+
+Where they differ.
+
+- A DoWhy intervention is a function of the node's own generated value. A program may also read
+  other variables (`var`) and earlier steps (`lag`), and `assign` replaces the mechanism by an
+  expression of other variables, discarding the node's noise and incoming edges; DoWhy has no
+  counterpart to that distinction.
+- A program is a closed, typed expression that is validated before anything runs (reads declared,
+  cycles refused, output type and categorical support checked) and executed once, column-wise. A
+  DoWhy callable is arbitrary Python; Antecedent's counterpart is a batch callback, whose output
+  is validated before it reaches the draws and which is refused for export while it is bound to a
+  running process.
+- Each route is licensed separately (`policy_support`): simulation and counterfactual execution
+  for a valid program, observational identification only for a hard level. DoWhy's
+  interventional sampling makes no such statement.
+- Programs have a versioned encoding and an identity that moves with every expression, lag,
+  target and kind.
+- Root nodes: DoWhy's automatic assignment resamples a root from the data
+  (`EmpiricalDistribution`); the default registry here fits a Gaussian. The interventional means
+  above agree because the root is set or enters through a linear mechanism.
 

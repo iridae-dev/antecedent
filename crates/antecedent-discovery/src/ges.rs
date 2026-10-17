@@ -180,7 +180,7 @@ impl Ges {
         seed_required_edges(&mut cpdag, variables, &self.constraints)?;
 
         let max_parents = self.constraints.max_parents.unwrap_or(n_vars.saturating_sub(1));
-        let max_subset = max_parents.min(self.max_subset.unwrap_or(12));
+        let max_subset = self.max_subset.unwrap_or(12);
         let search = GesSearch {
             data: &score_data,
             max_parents,
@@ -770,13 +770,15 @@ fn best_insert(
                 cpdag.undirected_neighbors(y).into_iter().filter(|n| !adj_x.contains(n)).collect();
             candidates.sort_unstable_by_key(|node| node.raw());
             let mut subsets: Vec<Vec<DenseNodeId>> = Vec::new();
-            if candidates.len() > max_subset {
+            // A T larger than the parent limit scores more parents than the limit allows, so the
+            // subsets that can be accepted are exactly those of at most `max_parents` members.
+            let reach = candidates.len().min(max_parents);
+            if reach > max_subset {
                 return Err(DiscoveryError::Resource(format!(
-                    "GES Insert T-subset cap {max_subset} < {} neighbours; refusing an incomplete operator search",
-                    candidates.len()
+                    "GES Insert T-subset cap {max_subset} < {reach} neighbours; refusing an incomplete operator search"
                 )));
             }
-            for_each_subset(&candidates, max_subset, |t| subsets.push(t.to_vec()));
+            for_each_subset(&candidates, reach, |t| subsets.push(t.to_vec()));
             for t in subsets {
                 if !insert_valid(cpdag, x, y, &t) {
                     continue;
@@ -885,14 +887,14 @@ fn best_reverse(
             let mut candidates: Vec<DenseNodeId> =
                 tmp.undirected_neighbors(x).into_iter().filter(|n| !adj_y.contains(n)).collect();
             candidates.sort_unstable_by_key(|node| node.raw());
-            if candidates.len() > max_subset {
+            let reach = candidates.len().min(max_parents);
+            if reach > max_subset {
                 return Err(DiscoveryError::Resource(format!(
-                    "GES Reverse T-subset cap {max_subset} < {} neighbours; refusing an incomplete operator search",
-                    candidates.len()
+                    "GES Reverse T-subset cap {max_subset} < {reach} neighbours; refusing an incomplete operator search"
                 )));
             }
             let mut t_subsets: Vec<Vec<DenseNodeId>> = Vec::new();
-            for_each_subset(&candidates, max_subset, |t| t_subsets.push(t.to_vec()));
+            for_each_subset(&candidates, reach, |t| t_subsets.push(t.to_vec()));
             for t in t_subsets {
                 if !insert_valid(&tmp, y, x, &t) {
                     continue;
@@ -1383,6 +1385,19 @@ mod tests {
         let g = ges_chain_under(c);
         assert!(g.has_edge(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
         assert_ne!(parent_child(&g, 1, 2), Some((1, 2)));
+    }
+
+    #[test]
+    fn a_parent_limit_below_the_neighbour_count_restricts_the_search_without_refusing_it() {
+        // The middle variable of the chain has two undirected neighbours in the class, more
+        // than a limit of one: the subsets larger than the limit cannot be accepted, so the
+        // search is complete over the subsets that can, and it still finds the chain.
+        let mut limited = Ges::new().constraints;
+        limited.max_parents = Some(1);
+        let graph = ges_chain_under(limited);
+        let node = DenseNodeId::from_raw;
+        assert!(graph.has_edge(node(0), node(1)) && graph.has_edge(node(1), node(2)));
+        assert!(!graph.has_edge(node(0), node(2)));
     }
 
     #[test]

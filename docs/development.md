@@ -78,6 +78,7 @@ bash scripts/gate_causal_artifacts.sh
 bash scripts/gate_estimate_reuse.sh
 bash scripts/gate_composition.sh   # composition consuming contract/claim tests must actually run
 bash scripts/gate_transport.sh     # transport stage contracts; every fixture family runs a positive and a counterexample
+bash scripts/gate_gcm_conformance.sh   # policies, mechanism selection, falsification, noise replay, intrinsic influence: every clause runs a cited test; batch benches assert their regression bound
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
@@ -168,6 +169,20 @@ reports that range as the scope. A row count in the failing region, or between
 it and the range, is still `scope_not_assessed` / `boundary_record`.
 `scripts/gate_parity_schema.sh` checks that the stated range is exactly what the
 grid and the confirmation establish.
+
+`antecedent_io_core::calibration::resolve_passing_range(record, rows)` says why a
+row count of a boundary record is, or is not, recovered: `Recovered` (with the
+confirmed region), `FailedPoint` (the grid point whose range or neighbourhood
+governs, with its coverage), `Unconfirmed` (the points passed the measurement and
+reach an end of the grid, but no confirmation passed at every one of them),
+`NotContiguous` (a failed interior point separates the passing points and is
+named), `InteriorRun` (failed points on both sides) and `LonePassingPoint`. The
+slot of the row count stays the matcher's: `calibrated` exactly when this is
+`Recovered`. The collector combines a confirmation with its measurement only when
+every construction field (estimator, interval method, standard-error kind,
+dependence, estimand, identification) and the nominal level agree, and only when
+both were measured at the commit it collects; a confirmation that differs in any
+of them is refused naming the field, and nothing of it is combined.
 
 A named boundary asserts its measured coverage at every grid point with
 `CoverageTally::assert_boundary_at([Some(m0), Some(m1), Some(m2)])`, so a
@@ -407,7 +422,7 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   wheel (outside `python/`, so the source tree cannot shadow it).
 
 Each gate that decides a release has a `--self-test` mode that feeds it
-deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`,
+deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`, `gate_gcm_conformance.sh`,
 `gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
 `gate_release_candidate.sh` and `gate_calibration_attestation.sh`, plus the
 citation, reachability, metadata and support-matrix gates.

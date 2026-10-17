@@ -11,6 +11,18 @@ report = study.inspect()        # includes cached identification; does not estim
 result = study.estimate()      # uses retained data and preparation's seed/threads
 ```
 
+### Ask a policy question
+
+`ant.prepare(data, graph=dag, query=PolicyProgramValue(programs, outcome, n_draws=...))`
+(from `antecedent.intervention_programs`) prepares the value of an intervention program such as
+`price := max(1, 0.85 * price)` on a fitted structural model. The model is fitted and the program
+compiled and licensed once; `estimate(seed=...)` and `refresh(new_data)` rerun the value without
+compiling the program again (`study.preparation.program_compilations` stays 1), and each result
+equals `policy_value` on the same model and seed. The result reports the support decision of the
+simulation, counterfactual and identification routes, the contract (the structural assumptions the
+value rests on) and the provenance record. Estimand options such as `estimator=` and `refute=`
+do not apply and are refused; see the [intervention programs guide](guides/intervention-programs.md).
+
 ### Defaults and latency
 
 `analyze` and `prepare` use the same defaults. Set `bootstrap`, `refute`, or
@@ -199,6 +211,35 @@ likelihood is part of the inference-binding identity and of the calibration
 key's posterior construction. A Bayesian fit under the Gaussian likelihood to
 an outcome that is 0/1 or nonnegative-integer valued reports the warning
 diagnostic `estimate.bayesian.gaussian_likelihood_discrete_outcome`.
+
+## Bound the draws behind a Bayesian interval
+
+An interval from posterior draws is a finite-sample quantile, so each endpoint
+carries a Monte Carlo standard error that belongs to the draws, not the
+posterior. `Bayesian(n_draws=..., draw_controls="measured")` bounds it for a
+tabular `AverageEffect` on a `Dag`:
+
+- `n_draws` must reach the backend's supported minimum, 2000 for `laplace` and
+  `conjugate` and 3000 for `hmc` (the floor its chain diagnostics need). A
+  smaller count, or the default count, is refused when the study is built with
+  `reason_code="posterior_draws_below_supported"`, naming the minimum. The
+  count is never rewritten.
+- The Monte Carlo standard error of the larger interval endpoint must be at most
+  a twentieth of the interval width. Independent draws (`laplace`, `conjugate`)
+  carry the order-statistic error of the draw count. An `hmc` chain's draws are
+  autocorrelated, so the same error is discounted by the tail effective sample
+  size; a sampler that mixes poorly is refused with
+  `reason_code="posterior_draws_not_converged"`, naming R-hat and the effective
+  sample sizes (or the endpoint errors and the tolerance). The reported errors
+  are the `estimate.bayesian.draw_controls` diagnostic.
+- The actual draw count is part of the inference-binding identity, the controls
+  enter it only when requested, and the seed is part of the execution identity,
+  so changing either changes the identity and replaying with both reproduces
+  every draw.
+
+Any other route refuses the option with `reason_code="invalid_argument"` rather
+than ignore it. The interval stays `scope_not_assessed` until a coverage record
+covers the draw count and sample size.
 
 ## Clip or trim propensity scores
 

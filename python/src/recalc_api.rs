@@ -386,6 +386,7 @@ enum Ran {
     Done(Box<RecalcOutcome>),
     Refused(Box<RecalcPlan>),
     NoLiveState(Stage),
+    Cancelled,
     Failed(PyErr),
 }
 
@@ -588,6 +589,7 @@ impl PyRecalcSession {
                 Ok(outcome) => Ran::Done(Box::new(outcome)),
                 Err(RecalcRunError::Refused(plan)) => Ran::Refused(plan),
                 Err(RecalcRunError::NoLiveState(stage)) => Ran::NoLiveState(stage),
+                Err(RecalcRunError::Request("recalc.cancelled")) => Ran::Cancelled,
                 Err(RecalcRunError::Request(detail)) => {
                     Ran::Failed(invalid(detail, "the request is malformed"))
                 }
@@ -614,6 +616,22 @@ impl PyRecalcSession {
                             .to_owned(),
                     ),
                     &format!("no live artifact to reuse for stage {stage}"),
+                    Some(&planned),
+                )),
+            )),
+            Ran::Cancelled => Ok((
+                None,
+                None,
+                Some(refusal_json(
+                    antecedent_core::reason_code!("cancelled_no_claim"),
+                    "score_artifact",
+                    "recalc.cancelled",
+                    None,
+                    Some(
+                        "run again without cancelling; the session kept its previous state"
+                            .to_owned(),
+                    ),
+                    "the run was cancelled before any stage ran, so nothing was retained",
                     Some(&planned),
                 )),
             )),

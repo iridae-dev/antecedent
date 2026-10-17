@@ -28,11 +28,14 @@
 
 mod distance;
 mod generalized;
+mod knn;
 mod levels;
 mod matching;
 mod penalized;
 mod penalized_report;
 mod prepare;
+#[cfg(test)]
+pub(crate) mod scale_fixture;
 mod stratification;
 pub(crate) mod weighting;
 
@@ -42,6 +45,7 @@ pub use generalized::{
     GENERALIZED_PROPENSITY_PROVENANCE, LevelMean, LevelRows, MultiLevelAipw, MultiLevelEstimate,
     MultiLevelPopulation, MultiLevelTarget,
 };
+pub use knn::{KNN_DISTANCE_MATCHING_CONSTRUCTION, KnnDistanceMatching};
 pub use levels::{DeclaredTreatmentLevels, OtherLevels};
 pub use matching::{CaliperScale, PropensityMatching};
 pub use penalized::{

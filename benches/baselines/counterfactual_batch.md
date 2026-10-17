@@ -15,6 +15,13 @@ Owner: `antecedent-counterfactual` / `CounterfactualEngine::predict`
   - `counterfactual_predict_n100` — `unit_rows: None` (full column).
   - `counterfactual_predict_n100_unit_rows` — `unit_rows: [0..10]`. Nested CF /
     LGSSM is out of scope (separate P1).
+- Batch policy execution (`counterfactual_policy` group): a three-node linear-Gaussian chain
+  with 1,000,000 abduced units, outcomes-only `predict_retaining_outcomes`. Bench targets
+  `counterfactual_plain_n1000000` and `counterfactual_price_floor_program_n1000000`.
+  The bench asserts `MAX_REGRESSION = 6.0` (the time a value-program policy adds to a world
+  without one is at most six times the same floor written as a direct loop over the column,
+  fastest of five interleaved runs) and that streaming (outcomes-only) output equals the
+  retained output bit for bit.
 
 ## Measured mean
 

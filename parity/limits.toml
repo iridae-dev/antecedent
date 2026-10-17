@@ -2027,8 +2027,8 @@ record = "adaptive_inference.procedure_weighting_simulation"
 key = "max_simulation_work"
 implementation = [{ path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", constant = "MAX_SIMULATION_WORK" }]
 documentation = [{ path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", constant = "MAX_SIMULATION_WORK" }]
-guard = { path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", pattern = "if\\ work\\ >\\ self\\.max_work\\ \\{" }
-refusal = { path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", pattern = "if\\ work\\ >\\ self\\.max_work\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", pattern = "let\\ Some\\(work\\)\\ =\\ work\\.filter\\(\\|&w\\|\\ w\\ <=\\ self\\.max_work\\)\\ else\\ \\{" }
+refusal = { path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", pattern = "let\\ Some\\(work\\)\\ =\\ work\\.filter\\(\\|&w\\|\\ w\\ <=\\ self\\.max_work\\)\\ else\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs", pattern = "\\ba_work_budget_refusal_names_the_work_class_before_any_replicate_runs\\b" }
 
 [[bound]]
@@ -2036,8 +2036,8 @@ record = "adaptive_inference.procedure_weighting_simulation"
 key = "max_simulation_memory_bytes"
 implementation = [{ path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", constant = "MAX_SIMULATION_MEMORY_BYTES" }]
 documentation = [{ path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", constant = "MAX_SIMULATION_MEMORY_BYTES" }]
-guard = { path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", pattern = "if\\ bytes\\ >\\ self\\.max_memory_bytes\\ \\{" }
-refusal = { path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", pattern = "if\\ bytes\\ >\\ self\\.max_memory_bytes\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", pattern = "let\\ Some\\(bytes\\)\\ =\\ bytes\\.filter\\(\\|&b\\|\\ b\\ <=\\ self\\.max_memory_bytes\\)\\ else\\ \\{" }
+refusal = { path = "crates/antecedent-stats/src/adaptive_inference/capacity.rs", pattern = "let\\ Some\\(bytes\\)\\ =\\ bytes\\.filter\\(\\|&b\\|\\ b\\ <=\\ self\\.max_memory_bytes\\)\\ else\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent-stats/tests/adaptive_procedure_capacity.rs", pattern = "\\ba_memory_budget_refusal_names_the_memory_class\\b" }
 
 [[bound]]

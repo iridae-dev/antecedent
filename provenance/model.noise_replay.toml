@@ -22,4 +22,6 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-model/tests/noise_replay.rs (linear Gaussian chain with closed-form conditional variances)",
  "crates/antecedent-counterfactual/tests/noise_replay_abduction.rs (agreement with CounterfactualEngine::predict)",
+ "crates/antecedent/tests/policy_python_parity.rs (a sample with its noise replays bit for bit, caller-supplied noise columns give the same table, replay under a policy is its counterfactual on the same units)",
+ "python/tests/test_policy_workflows.py (FittedGcm.sample_noise and replay_noise: bit-identical replay, closed-form counterfactual of a linear chain, refusal of a wrong-width or non-finite matrix)",
 ]

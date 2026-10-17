@@ -266,6 +266,7 @@ pub fn simulate_procedure_within(
             + 4 * arms as u64 * std::mem::size_of::<f64>() as u64,
         fixed_bytes: CACHES * SIMULATION_CACHE_ENTRIES as u64 * CACHE_ENTRY_BYTES,
     })?;
+    let states = 2 * spec.cells() as u64;
     let mut rules = Rules::new(spec, cancelled, SIMULATION_CACHE_ENTRIES);
     let mut replicates = Vec::with_capacity(request.replications as usize);
     let mut receipt = ResourceReceipt {
@@ -385,12 +386,12 @@ pub fn simulate_procedure_within(
                     enrolled: cumulative[look],
                     analysed_units: revealed.len(),
                 });
-                receipt.work_done = receipt.work_done.saturating_add(u64::from(cumulative[look]));
-                receipt.peak_units = receipt.peak_units.max(cumulative[look]);
+                receipt
+                    .record_replicate(look + 1, cumulative[look], 1, states)
+                    .map_err(Error::Capacity)?;
                 break;
             }
         }
-        receipt.replications += 1;
     }
     Ok(SimulatedLaw { replicates, receipt })
 }

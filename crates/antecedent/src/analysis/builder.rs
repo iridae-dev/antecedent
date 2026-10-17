@@ -572,6 +572,8 @@ pub struct StudyBuilder {
     /// Numerical/inference options for response-family estimators.
     response_options: Option<ContinuousResponseOptions>,
     observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    /// Numerical controls on the Bayesian posterior draws behind the interval.
+    draw_controls: Option<crate::PosteriorDrawControls>,
     observation_delayed_entry: Option<antecedent_core::VariableId>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
@@ -758,6 +760,61 @@ pub(super) fn population_estimable(query: &CausalQuery) -> bool {
     }
 }
 
+/// Refuse [`crate::PosteriorDrawControls`] where they would not be enforced or are not met.
+///
+/// The controls bound the draws behind a Bayesian g-computation interval of a tabular
+/// average effect on one fixed `Dag`; any other route refuses them rather than ignore them.
+/// A draw count below the backend's supported minimum is refused naming it, never rewritten.
+pub(super) fn refuse_unsupported_draw_controls(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    structure_fixed: bool,
+    estimator: Option<EstimatorId>,
+    controls: Option<crate::PosteriorDrawControls>,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    if controls.is_none() {
+        return Ok(());
+    }
+    let cfg = match inference {
+        InferenceMode::Bayesian(cfg) => Some(cfg),
+        InferenceMode::Frequentist => None,
+    };
+    let enforced = cfg.is_some()
+        && matches!(query, CausalQuery::AverageEffect(_))
+        && matches!(data, DataInput::Tabular(_))
+        && class == GraphClass::Dag
+        && structure_fixed
+        && matches!(estimator, None | Some(EstimatorId::BayesianGcomp));
+    if !enforced {
+        return Err(crate::unsupported_reason!(
+            "invalid_argument",
+            "posterior draw controls bound the draws behind a Bayesian g-computation interval of \
+             a tabular AverageEffect on one fixed Dag; this route does not enforce them, so it \
+             refuses them rather than publish an interval they do not bound"
+        ));
+    }
+    let Some(cfg) = cfg else {
+        return Ok(());
+    };
+    if cfg.n_draws >= antecedent_estimate::supported_min_draws(cfg.backend) {
+        return Ok(());
+    }
+    Err(if cfg.backend == antecedent_estimate::BayesianBackendKind::Hmc {
+        crate::unsupported_reason!(
+            "posterior_draws_below_supported",
+            "the supported minimum is 3000 posterior draws for the hmc backend, the floor its \
+             chain diagnostics need; request at least 3000 draws"
+        )
+    } else {
+        crate::unsupported_reason!(
+            "posterior_draws_below_supported",
+            "the supported minimum is 2000 posterior draws; request at least 2000 draws"
+        )
+    })
+}
+
 /// Refuse a non-Gaussian Bayesian likelihood where no executor fits it.
 ///
 /// The one owner of which routes honour [`crate::BayesianConfig::likelihood`].
@@ -893,6 +950,7 @@ impl StudyBuilder {
             estimator_spec: None,
             response_options: None,
             observation_options: antecedent_estimate::ObservationEstimatorOptions::default(),
+            draw_controls: None,
             observation_delayed_entry: None,
             rd: None,
             inference: InferenceMode::Frequentist,
@@ -1164,6 +1222,18 @@ impl StudyBuilder {
         self
     }
 
+    /// Bound the Bayesian posterior draws behind the published interval.
+    ///
+    /// See [`crate::PosteriorDrawControls`]: the draw count must reach the backend's
+    /// supported minimum, and the interval is refused when its endpoint Monte Carlo
+    /// error is too large. Only a tabular `AverageEffect` on a fixed `Dag` under
+    /// Bayesian g-computation enforces them; any other route refuses them at build.
+    #[must_use]
+    pub fn draw_controls(mut self, controls: crate::PosteriorDrawControls) -> Self {
+        self.draw_controls = Some(controls);
+        self
+    }
+
     /// Select the estimator for the static ATE path.
     ///
     /// Defaults to [`EstimatorId::LinearAdjustmentAte`] when unset. Wire strings such as
@@ -1393,6 +1463,7 @@ impl StudyBuilder {
             estimator_spec: self.estimator_spec,
             response_options: self.response_options,
             observation_options: self.observation_options,
+            draw_controls: self.draw_controls,
             observation_delayed_entry: self.observation_delayed_entry,
             rd: self.rd,
             inference: self.inference,

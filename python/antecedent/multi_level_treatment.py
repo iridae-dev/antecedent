@@ -27,9 +27,14 @@ average it over different populations.
 What the answer is **not**:
 
 * No graph is checked: the caller owns that ``adjust`` is a valid adjustment set.
-* The standard error is the plug-in influence-function variance of cross-fitted scores. Its
-  calibration is **unmeasured** (``calibration == "unmeasured"``): no interval is produced and
-  no coverage claim is made.
+* The standard error is the plug-in influence-function variance of cross-fitted scores. The
+  95% interval ``effect ± z · se_analytic`` is published (``interval`` set,
+  ``interval_status == "calibrated"``) only when a current coverage record measured this
+  construction (the full-population target, its number of levels, folds and row count).
+  Otherwise ``interval`` is ``None``, ``interval_status == "scope_not_assessed"``,
+  ``interval_reason`` names why, and the standard error is labelled ``calibration ==
+  "unmeasured"``. The pairwise-subpopulation target has no coverage measurement and always
+  withholds its interval.
 * With ``target="full_population"`` every row must be at a declared level; a row at an
   undeclared level refuses ``treatment_level_undeclared`` instead of being dropped.
 
@@ -50,7 +55,7 @@ import numpy as np
 from ._native import evaluate_multi_level_treatment as _evaluate
 from .errors import CausalTypeError, CausalValueError
 
-__all__ = ["LevelMean", "LevelRows", "MultiLevelEffect", "multi_level_effect"]
+__all__ = ["LevelMean", "LevelRows", "MultiLevelEffect", "MultiLevelInterval", "multi_level_effect"]
 
 MultiLevelTargetName = Literal["pairwise_subpopulation", "full_population"]
 _TARGETS = ("pairwise_subpopulation", "full_population")
@@ -77,6 +82,16 @@ class LevelMean:
 
 
 @dataclass(frozen=True, slots=True)
+class MultiLevelInterval:
+    """The published ``effect ± z · se_analytic`` interval and the record that governs it."""
+
+    lower: float
+    upper: float
+    level: float
+    coverage_record: str
+
+
+@dataclass(frozen=True, slots=True)
 class MultiLevelEffect:
     """An active-minus-control contrast with the population it speaks for."""
 
@@ -87,7 +102,7 @@ class MultiLevelEffect:
     active: float
     control: float
     effect: float
-    #: Influence-function standard error of the contrast (calibration unmeasured).
+    #: Influence-function standard error of the contrast.
     se_analytic: float
     n_obs: int
     rows_by_level: tuple[LevelRows, ...]
@@ -95,7 +110,14 @@ class MultiLevelEffect:
     excluded_rows: int
     #: Standardized mean per declared level (full-population target only).
     level_means: tuple[LevelMean, ...]
+    #: ``"calibrated"`` when a coverage record governs the interval, else ``"unmeasured"``.
     calibration: str
+    #: The 95% interval, present only when a current coverage record covers this construction.
+    interval: MultiLevelInterval | None
+    #: ``"calibrated"`` when the interval is published, ``"scope_not_assessed"`` when withheld.
+    interval_status: str
+    #: Why the interval is withheld, when it is.
+    interval_reason: str | None
 
     def to_dict(self) -> dict[str, Any]:
         """A plain, JSON-serializable view."""
@@ -120,6 +142,16 @@ class MultiLevelEffect:
                 for m in self.level_means
             ],
             "calibration": self.calibration,
+            "interval": None
+            if self.interval is None
+            else {
+                "lower": self.interval.lower,
+                "upper": self.interval.upper,
+                "level": self.interval.level,
+                "coverage_record": self.interval.coverage_record,
+            },
+            "interval_status": self.interval_status,
+            "interval_reason": self.interval_reason,
         }
 
 
@@ -198,4 +230,7 @@ def multi_level_effect(
             for m in report["level_means"]
         ),
         calibration=report["calibration"],
+        interval=None if report["interval"] is None else MultiLevelInterval(**report["interval"]),
+        interval_status=report["interval_status"],
+        interval_reason=report["interval_reason"],
     )

@@ -437,7 +437,10 @@ pub(crate) fn population_registry(
 }
 
 /// Backend, likelihood, draws, and the resolved prior contents.
-pub(crate) fn bayesian_binding(cfg: &BayesianConfig) -> BayesianBindingWire {
+pub(crate) fn bayesian_binding(
+    cfg: &BayesianConfig,
+    draw_controls: Option<crate::PosteriorDrawControls>,
+) -> BayesianBindingWire {
     BayesianBindingWire {
         backend: match cfg.backend {
             antecedent_estimate::BayesianBackendKind::ConjugateGaussian => "conjugate_gaussian",
@@ -474,6 +477,7 @@ pub(crate) fn bayesian_binding(cfg: &BayesianConfig) -> BayesianBindingWire {
                 compose.conflict_policy.map(|policy| (policy.p_min, policy.kl_scale)),
             )
         }),
+        draw_controls: draw_controls.map(|controls| controls.as_str().into()),
     }
 }
 

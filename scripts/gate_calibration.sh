@@ -74,7 +74,7 @@ grid_group() {
     "antecedent-estimate: bayesian_"*) return 1 ;;
     antecedent-estimate:*) return 0 ;;
     # The antecedent coverage suites: every label is `<test file>: <test>`.
-    bayesian_temporal:*|calibration_admg:*|calibration_anomaly_bayesian:*|calibration_attribution_bayesian:*|calibration_backlog:*|calibration_bayesian_static:*|calibration_counterfactual:*|calibration_design:*|calibration_design_bayesian:*|calibration_distribution_admg:*|calibration_estimate:*|calibration_response:*|calibration_temporal:*|calibration_temporal_class:*|class_posterior_calibration:*|derivative_calibration:*|mixture_interval_calibration:*|panel_calibration:*|static_calibration:*|static_envelope_calibration:*|static_mixture_calibration:*|temporal_class_calibration:*|temporal_frequentist:*|temporal_response_calibration:*|transport_statistical_calibration:*|discovered_transport_calibration:*) return 0 ;;
+    bayesian_temporal:*|calibration_admg:*|calibration_anomaly_bayesian:*|calibration_attribution_bayesian:*|calibration_backlog:*|calibration_bayesian_static:*|calibration_counterfactual:*|calibration_design:*|calibration_design_bayesian:*|calibration_distribution_admg:*|calibration_posterior_draws:*|calibration_estimate:*|calibration_response:*|calibration_temporal:*|calibration_temporal_class:*|class_posterior_calibration:*|derivative_calibration:*|mixture_interval_calibration:*|panel_calibration:*|static_calibration:*|static_envelope_calibration:*|static_mixture_calibration:*|temporal_class_calibration:*|temporal_frequentist:*|temporal_response_calibration:*|transport_statistical_calibration:*|discovered_transport_calibration:*) return 0 ;;
     # Multi-source limited-experiment (both mz suites) and the two learned continuous trial
     # transport coverage records. The learned-transport weak-overlap and misspecified-nuisance tests print measurements, emit no record,
     # and run once at the base point.
@@ -83,6 +83,8 @@ grid_group() {
     sample_split_effect_calibration:*) return 0 ;;
     # Whole-method coverage after discovery accepted on the treatment's parent set.
     sample_split_parent_set_effect_calibration:*) return 0 ;;
+    # Whole-method coverage of the survey-weighted effect after discovery on a row split.
+    sample_split_weighted_effect_calibration:*) return 0 ;;
     # Interval of an expected predictive score or score difference under a declared dependence.
     predictive_score_interval_calibration:*) return 0 ;;
     evidence_synthesis_calibration:*|joint_law_composed_interval_calibration:*|cross_world_interval_calibration:*) return 0 ;;
@@ -90,7 +92,7 @@ grid_group() {
     scientific_bridge_interval_calibration:*) return 0 ;;
     # Whole-file groups: one invocation runs every ignored test in the file, once per grid point.
     panel_calibration|temporal_response_calibration) return 0 ;;
-    bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
+    bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|knn_matching_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
     # Adaptive-procedure coverage records. The group-sequential power comparison is a
     # pass/fail gate against the integrated crossing probability and runs once; the
@@ -120,6 +122,8 @@ grid_group() {
     # Sampling-weighted effects: the candidate intervals of the weighted routes (designs only;
     # nothing is published until a record measures them).
     weighted_interval_calibration:*) return 0 ;;
+    # Multi-level observational contrast: the full-population normal interval (wired, unmeasured).
+    multilevel_interval_calibration:*) return 0 ;;
     # Practitioner-scale intervals: 1,000 to 100,000 rows and 320 to 4,160 steps, each record
     # measured at the three points of its own grid and limited to that span.
     practitioner_scale_calibration:*) return 0 ;;
@@ -593,7 +597,7 @@ run_count_fitted_posterior() {
   check "count_fitted_posterior_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test count_fitted_posterior_calibration "$name" -- --ignored --exact --nocapture
 }
 echo "== count-fitted finite table posterior interval =="
-for name in count_fitted_confounded_signal_l90 count_fitted_confounded_signal_l95 count_fitted_measured_signal_l90 count_fitted_measured_signal_l95 count_fitted_confounded_signal_l90_draws_8000 count_fitted_confounded_signal_l95_draws_8000 count_fitted_measured_signal_l90_draws_8000 count_fitted_measured_signal_l95_draws_8000 count_fitted_sparse_parent_configuration_boundary_l95 count_fitted_rare_evidence_boundary_l95; do
+for name in count_fitted_confounded_signal_l90 count_fitted_confounded_signal_l95 count_fitted_measured_signal_l90 count_fitted_measured_signal_l95 count_fitted_confounded_signal_l90_draws_8000 count_fitted_confounded_signal_l95_draws_8000 count_fitted_measured_signal_l90_draws_8000 count_fitted_measured_signal_l95_draws_8000 count_fitted_confounded_signal_l95_rows_1000_draws_2000 count_fitted_confounded_signal_l95_rows_1000_draws_3000 count_fitted_confounded_signal_l95_rows_1000_draws_4000 count_fitted_confounded_signal_l95_rows_1000_draws_8000 count_fitted_sparse_parent_configuration_boundary_l95 count_fitted_rare_evidence_boundary_l95; do
   run_count_fitted_posterior "${name}"
 done
 
@@ -620,6 +624,13 @@ run_retained_score_precision retained_cell_weighted_score_precision
 
 run_mechanism_discrepancy_calibration independent_mechanism_full_coefficient_diagnostic
 run_mechanism_discrepancy_calibration independent_mechanism_slope_mdd_diagnostic
+
+# Covariate-distance matching with three nearest donors: coverage of the analytic interval at
+# 10,000, 25,000 and 100,000 rows (pass/fail, no coverage record).
+echo "== antecedent-estimate: knn matching interval coverage =="
+check "knn_matching_calibration: knn_matching_interval_ci_coverage" \
+  cargo test --release -p antecedent-estimate --test knn_matching_calibration \
+  knn_matching_interval_ci_coverage -- --ignored --exact --nocapture
 
 run_bootstrap_effect_precision nonlinear_mediation_whole_method_bootstrap_se
 run_bootstrap_effect_precision latent_class_whole_method_bootstrap_se
@@ -1034,6 +1045,11 @@ run_ignored antecedent-stats gpdc_conditional_null_gate
 run_ignored antecedent-stats gpdc_nystrom_conditional_null_gate
 run_ignored antecedent-stats gpdc_nystrom_conditional_null_large_n_gate
 run_ignored antecedent-stats gpdc_nystrom_conditional_power_gate
+run_ignored antecedent-stats conditional_gpdc_beyond_4k_8000_rows
+run_ignored antecedent-stats conditional_gpdc_beyond_4k_20000_rows
+run_ignored antecedent-stats scalable_gpdc_replacement_validated_separately
+run_ignored antecedent-validate nonparametric_sensitivity_beyond_20k_100000_rows
+run_ignored antecedent-validate scalable_sensitivity_replacement_validated_separately
 run_ignored antecedent-stats parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
 run_ignored antecedent-stats weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate
 
@@ -1047,6 +1063,9 @@ run_ignored antecedent-discovery structure_mcmc_skeleton_marginals_calibrated_at
 run_ignored antecedent-discovery structure_mcmc_skeleton_marginals_calibrated_at_twelve_variables
 run_ignored antecedent-discovery order_mcmc_skeleton_marginals_calibrated_at_ten_variables
 run_ignored antecedent-discovery order_mcmc_skeleton_marginals_calibrated_at_twelve_variables
+# The same claims at 2,000 rows and 2,000 replicates (the practitioner-scale workflows).
+run_ignored antecedent-discovery graph_posterior_10_variable_claims_calibrated
+run_ignored antecedent-discovery graph_posterior_12_variable_claims_calibrated
 
 echo "== coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
 run_suite() {
@@ -1175,6 +1194,11 @@ run_suite calibration_bayesian_static elasticity_bayesian_default_nominal_covera
 run_suite calibration_bayesian_static directional_derivative_bayesian_default_nominal_coverage
 # Boundary cell: the Jacobian band's measured coverage is asserted, not nominal.
 run_suite calibration_bayesian_static response_jacobian_bayesian_default_coverage
+# Bayesian linear-adjustment interval at supplied posterior draw counts, under the draw controls.
+run_suite calibration_posterior_draws posterior_draws_2000_rows_1000_l95
+run_suite calibration_posterior_draws posterior_draws_3000_rows_1000_l95
+run_suite calibration_posterior_draws posterior_draws_4000_rows_1000_l95
+run_suite calibration_posterior_draws posterior_draws_8000_rows_1000_l95
 run_suite calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
 run_suite calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
 run_suite class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
@@ -1184,6 +1208,8 @@ run_suite sample_split_effect_calibration sample_split_weak_edges_boundary_95
 run_suite sample_split_effect_calibration sample_split_cancelling_edge_boundary_95
 run_suite sample_split_effect_calibration sample_split_misspecified_test_boundary_95
 run_suite sample_split_effect_calibration sample_split_full_row_reuse_boundary_95
+# Sample-split discovery then the survey-weighted effect and its interval at the effective sample size.
+run_suite sample_split_weighted_effect_calibration weighted_split_effect_interval_calibrated
 # Sample-split discovery accepted on the treatment's parent set: sparse linear and log-linear
 # studies of ten, fifteen and twenty variables, one record per topology, the background-knowledge regimes, and the named boundaries.
 run_suite sample_split_parent_set_effect_calibration parent_set_linear_10_variables_hub_confounded_multi_path_nominal_95_coverage
@@ -1293,6 +1319,7 @@ run_discovered_transport() {
 }
 run_discovered_transport discovered_pag_transport_contrast_complete_procedure_coverage
 run_discovered_transport discovered_temporal_transport_contrast_complete_procedure_coverage
+run_discovered_transport discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage
 
 echo "== multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
 run_mz() {
@@ -1370,6 +1397,18 @@ run_cd() {
     -- --ignored --exact --nocapture
 }
 run_cd cluster_dml_t_wald_interval
+
+echo "== multi-level treatment full-population interval (antecedent) =="
+# Design for the normal interval of the standardized contrast of a three-level observational
+# treatment; the route publishes no interval until a coverage record measures it.
+run_ml() {
+  local filter="$1"
+  echo "== antecedent: multilevel_interval_calibration ${filter} =="
+  check "multilevel_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --test multilevel_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_ml multilevel_generalized_propensity_interval
 
 echo "== sampling-weighted candidate intervals (antecedent) =="
 # Designs for the intervals of the weighted linear, inverse-probability, augmented, stratified,

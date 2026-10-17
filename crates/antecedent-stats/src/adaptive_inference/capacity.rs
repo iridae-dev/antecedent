@@ -253,6 +253,12 @@ impl Default for ResourceBudget {
 pub struct ResourceReceipt {
     /// Replications run.
     pub replications: u32,
+    /// Looks performed, summed over the replications.
+    pub looks: u64,
+    /// Cells of the observed-state tally one replication holds (the
+    /// sufficient statistic its allocation and decisions are computed from),
+    /// at most over the replications.
+    pub states: u64,
     /// Work the request was admitted for: replications times units times
     /// measurements per unit.
     pub work_planned: u64,
@@ -264,6 +270,34 @@ pub struct ResourceReceipt {
     pub peak_units: u32,
     /// Estimated peak bytes the request was admitted for.
     pub estimated_peak_bytes: u64,
+}
+
+impl ResourceReceipt {
+    /// Count one finished replication: the `looks` it performed, the `units`
+    /// it enrolled with `measurements` per unit, and the `states` of its
+    /// tally. Every counter is added with checked arithmetic; one that would
+    /// wrap is refused as the largest representable work, never wrapped.
+    pub(crate) fn record_replicate(
+        &mut self,
+        looks: usize,
+        units: u32,
+        measurements: u32,
+        states: u64,
+    ) -> Result<(), CapacityError> {
+        let overflow =
+            CapacityError::SimulationWork { limit: self.work_planned, requested: u64::MAX };
+        let work = u64::from(units).checked_mul(u64::from(measurements)).ok_or(overflow)?;
+        let looks = u64::try_from(looks).map_err(|_| overflow)?;
+        let work_done = self.work_done.checked_add(work).ok_or(overflow)?;
+        let looks = self.looks.checked_add(looks).ok_or(overflow)?;
+        let replications = self.replications.checked_add(1).ok_or(overflow)?;
+        self.work_done = work_done;
+        self.looks = looks;
+        self.replications = replications;
+        self.peak_units = self.peak_units.max(units);
+        self.states = self.states.max(states);
+        Ok(())
+    }
 }
 
 /// The size of a simulation, for admission against a [`ResourceBudget`].
@@ -295,22 +329,112 @@ impl ResourceBudget {
     pub(crate) fn admit(&self, shape: &SimulationShape) -> Result<Admitted, CapacityError> {
         let work = u64::from(shape.replications)
             .checked_mul(u64::from(shape.units))
-            .and_then(|w| w.checked_mul(u64::from(shape.measurements)))
-            .unwrap_or(u64::MAX);
-        if work > self.max_work {
-            return Err(CapacityError::SimulationWork { limit: self.max_work, requested: work });
-        }
+            .and_then(|w| w.checked_mul(u64::from(shape.measurements)));
+        let Some(work) = work.filter(|&w| w <= self.max_work) else {
+            return Err(CapacityError::SimulationWork {
+                limit: self.max_work,
+                requested: work.unwrap_or(u64::MAX),
+            });
+        };
         let bytes = u64::from(shape.replications)
             .checked_mul(shape.record_bytes)
             .and_then(|b| b.checked_add(u64::from(shape.units).checked_mul(shape.unit_bytes)?))
-            .and_then(|b| b.checked_add(shape.fixed_bytes))
-            .unwrap_or(u64::MAX);
-        if bytes > self.max_memory_bytes {
+            .and_then(|b| b.checked_add(shape.fixed_bytes));
+        let Some(bytes) = bytes.filter(|&b| b <= self.max_memory_bytes) else {
             return Err(CapacityError::SimulationMemory {
                 limit: self.max_memory_bytes,
-                requested: bytes,
+                requested: bytes.unwrap_or(u64::MAX),
             });
-        }
+        };
         Ok(Admitted { work_planned: work, estimated_peak_bytes: bytes })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adaptive_inference::{
+        AnytimeSettings, BetaPrior, BorrowingPlan, ContractGap, DecisionRules, MAX_PROCEDURE_UNITS,
+        ParticipantDeclaration, ParticipantSpec,
+    };
+
+    const fn shape(replications: u32, units: u32, measurements: u32) -> SimulationShape {
+        SimulationShape {
+            replications,
+            units,
+            measurements,
+            record_bytes: 1,
+            unit_bytes: 1,
+            fixed_bytes: 0,
+        }
+    }
+
+    #[test]
+    fn adaptive_counters_checked_arithmetic_refuses_overflow() {
+        // A product that wraps a 64-bit counter is refused as the largest representable size,
+        // even under a budget that admits every representable work, and the wrapped value is
+        // never compared with the budget.
+        let widest = ResourceBudget { max_work: u64::MAX, max_memory_bytes: u64::MAX };
+        assert_eq!(
+            widest.admit(&shape(u32::MAX, u32::MAX, u32::MAX)).unwrap_err(),
+            CapacityError::SimulationWork { limit: u64::MAX, requested: u64::MAX }
+        );
+        let mut heavy = shape(2, 1, 1);
+        heavy.record_bytes = u64::MAX;
+        assert_eq!(
+            widest.admit(&heavy).unwrap_err(),
+            CapacityError::SimulationMemory { limit: u64::MAX, requested: u64::MAX }
+        );
+        // A product just inside the counter is admitted exactly.
+        assert_eq!(
+            widest.admit(&shape(1_000_000, 65_535, 32)).map(|a| a.work_planned),
+            Ok(1_000_000 * 65_535 * 32)
+        );
+
+        // The receipt adds every counter with checked arithmetic and changes nothing on refusal.
+        let mut receipt = ResourceReceipt { work_planned: 7, ..ResourceReceipt::default() };
+        receipt.record_replicate(3, 2, 2, 8).unwrap();
+        assert_eq!((receipt.replications, receipt.looks, receipt.work_done), (1, 3, 4));
+        assert_eq!((receipt.peak_units, receipt.states), (2, 8));
+        receipt.work_done = u64::MAX - 3;
+        let before = receipt;
+        assert_eq!(
+            receipt.record_replicate(1, 2, 2, 8).unwrap_err(),
+            CapacityError::SimulationWork { limit: 7, requested: u64::MAX }
+        );
+        assert_eq!(receipt, before, "a refused count leaves the receipt as it was");
+        receipt.work_done = 0;
+        receipt.looks = u64::MAX;
+        assert!(receipt.record_replicate(1, 1, 1, 1).is_err());
+        receipt.looks = 0;
+        receipt.replications = u32::MAX;
+        assert!(receipt.record_replicate(1, 1, 1, 1).is_err());
+
+        // A declaration whose enrolments overflow a 32-bit count is refused with the exact
+        // 64-bit total, not a wrapped one.
+        let declaration = ParticipantDeclaration {
+            arms: 3,
+            responses: Some(3),
+            correlation: Some(0.2),
+            correlation_prior: None,
+            borrowing: Some(BorrowingPlan::uniform(3, BetaPrior::UNIFORM)),
+            enrolment: Some(vec![u32::MAX, u32::MAX, u32::MAX]),
+            lag_looks: 0,
+            min_exploration: Some(0.1),
+            decisions: Some(DecisionRules {
+                loss_threshold: 0.01,
+                futility: None,
+                participant_cap: None,
+            }),
+            anytime: Some(AnytimeSettings { alpha: 0.05, tuning_samples: 30.0 }),
+        };
+        let gaps = ParticipantSpec::new(declaration).unwrap_err().gaps;
+        assert_eq!(
+            gaps,
+            vec![ContractGap::Capacity(CapacityError::DeclaredUnits {
+                limit: u64::from(MAX_PROCEDURE_UNITS),
+                requested: 3 * u64::from(u32::MAX),
+            })]
+        );
     }
 }

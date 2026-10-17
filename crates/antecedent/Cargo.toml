@@ -147,6 +147,26 @@ path = "../../examples/rust/transport_meta_grid.rs"
 name = "shared_exogenous_counterfactual"
 path = "../../examples/rust/shared_exogenous_counterfactual.rs"
 
+[[example]]
+name = "intervention_programs"
+path = "../../examples/rust/intervention_programs.rs"
+
+[[example]]
+name = "mechanism_selection"
+path = "../../examples/rust/mechanism_selection.rs"
+
+[[example]]
+name = "graph_falsification"
+path = "../../examples/rust/graph_falsification.rs"
+
+[[example]]
+name = "noise_replay"
+path = "../../examples/rust/noise_replay.rs"
+
+[[example]]
+name = "intrinsic_influence"
+path = "../../examples/rust/intrinsic_influence.rs"
+
 [[bench]]
 name = "staged_handle"
 harness = false
@@ -238,6 +258,14 @@ path = "tests/calibration_backlog.rs"
 [[test]]
 name = "calibration_bayesian_static"
 path = "tests/calibration_bayesian_static.rs"
+
+[[test]]
+name = "bayesian_draw_controls"
+path = "tests/bayesian_draw_controls.rs"
+
+[[test]]
+name = "calibration_posterior_draws"
+path = "tests/calibration_posterior_draws.rs"
 
 [[test]]
 name = "calibration_counterfactual"
@@ -380,6 +408,10 @@ name = "mixture_interval_calibration"
 path = "tests/mixture_interval_calibration.rs"
 
 [[test]]
+name = "multilevel_interval_calibration"
+path = "tests/multilevel_interval_calibration.rs"
+
+[[test]]
 name = "mz_transport_calibration"
 path = "tests/mz_transport_calibration.rs"
 
@@ -438,6 +470,10 @@ path = "tests/sample_split_effect_calibration.rs"
 [[test]]
 name = "sample_split_parent_set_effect_calibration"
 path = "tests/sample_split_parent_set_effect_calibration.rs"
+
+[[test]]
+name = "sample_split_weighted_effect_calibration"
+path = "tests/sample_split_weighted_effect_calibration.rs"
 
 [[test]]
 name = "scientific_bridge_interval_calibration"

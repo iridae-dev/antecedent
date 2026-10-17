@@ -25,8 +25,9 @@ class ComponentUncertainty:
     ``status`` is ``"quantified"`` (``stderr`` and a Student-t interval ``ci_low`` to
     ``ci_high`` at ``level`` with ``df`` degrees of freedom, for this component only),
     ``"not_applicable"`` (the component does not arise, for example no permutation is sampled
-    when every coalition is enumerated) or ``"unquantified"`` (it arises but was not measured;
-    this is not zero uncertainty). ``reason`` explains the last two.
+    when every coalition is enumerated, and its ``stderr`` is exactly ``0.0``) or
+    ``"unquantified"`` (it arises but was not measured; this is not zero uncertainty).
+    ``reason`` explains the last two.
     """
 
     component: Component
@@ -74,6 +75,11 @@ class IntrinsicInfluence:
     level: float
     method: dict[str, Any]
     budget: dict[str, int]
+
+    @property
+    def provenance_id(self) -> str:
+        """The provenance record (``provenance/<id>.toml``) the attribution is defined in."""
+        return "gcm.attribution.intrinsic_influence"
 
 
 def intrinsic_influence(
@@ -139,6 +145,10 @@ def intrinsic_influence(
             cancel=cancel,
         )
     )
+    return _influence(raw)
+
+
+def _influence(raw: dict[str, Any]) -> IntrinsicInfluence:
     sources = tuple(
         SourceInfluence(
             source=s["source"],
@@ -150,4 +160,59 @@ def intrinsic_influence(
     return IntrinsicInfluence(sources=sources, **raw)
 
 
-__all__ = ["ComponentUncertainty", "IntrinsicInfluence", "SourceInfluence", "intrinsic_influence"]
+def fitted_intrinsic_influence(
+    fitted: Any,
+    target: str,
+    *,
+    independent_noise: bool = False,
+    bidirected_edges: Sequence[tuple[str, str]] | None = None,
+    allocation: Literal["auto", "exact", "permutation"] = "auto",
+    n_permutations: int = 200,
+    outer_draws: int = 200,
+    inner_draws: int = 40,
+    replicates: int = 4,
+    fit_bootstrap: int = 0,
+    level: float = 0.95,
+    max_sources: int = 64,
+    seed: int = 0,
+    threads: int | None = None,
+    cancel: Any = None,
+) -> IntrinsicInfluence:
+    """:func:`intrinsic_influence` on an already fitted model, without refitting it.
+
+    ``fitted`` is the handle ``fit_gcm`` returned: its structure, mechanisms and rows are the
+    ones the attribution uses, so the result equals ``intrinsic_influence`` on the data and edges
+    it was fitted from. Arguments and refusals are those of :func:`intrinsic_influence`.
+    """
+    raw = json.loads(
+        fitted.attribute_intrinsic_influence(
+            target,
+            independent_noise=independent_noise,
+            bidirected_edges=(
+                None
+                if bidirected_edges is None
+                else [(str(a), str(b)) for a, b in bidirected_edges]
+            ),
+            allocation=allocation,
+            n_permutations=n_permutations,
+            outer_draws=outer_draws,
+            inner_draws=inner_draws,
+            replicates=replicates,
+            fit_bootstrap=fit_bootstrap,
+            level=level,
+            max_sources=max_sources,
+            seed=seed,
+            threads=threads,
+            cancel=cancel,
+        )
+    )
+    return _influence(raw)
+
+
+__all__ = [
+    "ComponentUncertainty",
+    "IntrinsicInfluence",
+    "SourceInfluence",
+    "fitted_intrinsic_influence",
+    "intrinsic_influence",
+]

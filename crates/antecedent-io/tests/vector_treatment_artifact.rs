@@ -198,7 +198,12 @@ impl Draws {
 
 /// `n` rows of one adjustment column `w`, two treatments and a heteroskedastic outcome.
 fn synthetic(n: usize, covariance: &str) -> VectorTreatmentRequest {
-    let mut draws = Draws(0x5eed);
+    synthetic_seeded(n, covariance, 0x5eed)
+}
+
+/// [`synthetic`] on the stream started from `seed`.
+fn synthetic_seeded(n: usize, covariance: &str, seed: u64) -> VectorTreatmentRequest {
+    let mut draws = Draws(seed);
     let (mut w, mut a, mut b, mut y) = (vec![], vec![], vec![], vec![]);
     for _ in 0..n {
         let wi = draws.next();
@@ -439,6 +444,64 @@ fn vector_robust_fit_runs_at_one_hundred_thousand_rows() {
     let bytes = artifact.to_bytes("big").unwrap();
     assert!(bytes.len() < 64 * 1024);
     assert!(VectorTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).is_ok());
+}
+
+/// The first `rows` rows of a request.
+fn head(request: &VectorTreatmentRequest, rows: usize) -> VectorTreatmentRequest {
+    let mut head = request.clone();
+    head.outcome.truncate(rows);
+    for column in &mut head.adjustment {
+        column.values.truncate(rows);
+    }
+    for treatment in &mut head.treatments {
+        treatment.values.truncate(rows);
+    }
+    head
+}
+
+/// A robust covariance of `kind` at 100,000 rows: the summary fit equals the row-based sandwich
+/// bit for bit, the exported summary does not grow with the rows, and on a checkable subsample
+/// the covariance equals the independent dense sandwich of this file.
+fn assert_robust_covariance_at_100k_rows(kind: &str, kind_enum: VectorCovariance, seed: u64) {
+    let started = std::time::Instant::now();
+    let big = synthetic_seeded(100_000, kind, seed);
+    let artifact = VectorTreatmentArtifact::seal(&big).unwrap();
+    assert_eq!(artifact.meta().n_rows, 100_000);
+    assert_eq!(
+        artifact.fit(),
+        &row_fit(&big, kind_enum),
+        "{kind}: the summary is the row sandwich"
+    );
+    let bytes = artifact.to_bytes("big").unwrap();
+    assert!(bytes.len() < 64 * 1024);
+    let consumed = VectorTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
+    assert_eq!(consumed.fit(), artifact.fit());
+    assert!(started.elapsed().as_secs() < 600, "{:?}", started.elapsed());
+
+    let sample = head(&big, 4_000);
+    let sealed = VectorTreatmentArtifact::seal(&sample).unwrap();
+    let full = oracle_covariance(&sample, kind);
+    common::assert_block_matches(&sealed.fit().covariance, &full, 4, 2, kind);
+}
+
+#[test]
+fn vector_treatment_hc0_covariance_100k_rows() {
+    assert_robust_covariance_at_100k_rows("hc0", VectorCovariance::Hc0, 3_162_219);
+}
+
+#[test]
+fn vector_treatment_hc1_covariance_100k_rows() {
+    assert_robust_covariance_at_100k_rows("hc1", VectorCovariance::Hc1, 5_418_411);
+}
+
+#[test]
+fn vector_treatment_hc2_covariance_100k_rows() {
+    assert_robust_covariance_at_100k_rows("hc2", VectorCovariance::Hc2, 8_522_155);
+}
+
+#[test]
+fn vector_treatment_hc3_covariance_100k_rows() {
+    assert_robust_covariance_at_100k_rows("hc3", VectorCovariance::Hc3, 5_919_723);
 }
 
 #[test]

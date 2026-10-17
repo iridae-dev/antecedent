@@ -352,7 +352,16 @@ fn exercise_budgets(copies: usize) {
     let rows = u64::try_from(40 * copies).unwrap();
     let artifact = LatentClassArtifact::seal(&request).unwrap();
     assert_fixed_point(&artifact, rows);
+    exercise_export_and_replay(&request, &artifact, &|artifact| assert_fixed_point(artifact, rows));
+}
 
+/// Export `artifact` under a budget, bind it to `request`'s dataset by digest and replay it;
+/// `recovered` states what the fit must still hold after each step.
+fn exercise_export_and_replay(
+    request: &LatentClassRequestWire,
+    artifact: &LatentClassArtifact,
+    recovered: &dyn Fn(&LatentClassArtifact),
+) {
     // Export: the dataset is embedded only inside the budget, and a refusal names the bytes.
     let embedded = artifact.to_bytes("scaled").unwrap();
     assert_eq!(artifact.to_bytes_within("scaled", embedded.len()).unwrap(), embedded);
@@ -367,7 +376,7 @@ fn exercise_budgets(copies: usize) {
     assert_eq!(refusal(&error).1, "latent_class.export_budget_exceeded");
     // The refusal costs the caller nothing: the fit is still complete in memory.
     assert_eq!(artifact.report().responsibilities.len(), request.data.outcome.len());
-    assert_fixed_point(&artifact, rows);
+    recovered(artifact);
 
     // Replay: the digest-bound record carries no rows and needs the dataset it is bound to.
     let bound = artifact.to_bytes_digest_bound("bound").unwrap();
@@ -397,6 +406,90 @@ fn exercise_budgets(copies: usize) {
     assert_eq!(replay.meta(), artifact.meta());
 }
 
+/// Deterministic draws: a `SplitMix64` stream with Box-Muller normals.
+struct Population(u64);
+
+impl Population {
+    fn uniform(&mut self) -> f64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+    }
+
+    fn normal(&mut self) -> f64 {
+        let (u, v) = (1.0 - self.uniform(), self.uniform());
+        (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
+    }
+}
+
+/// `rows` units of the two-class population of the oracle above: class `P` (weight 0.6,
+/// `y = a + 0.5 x + e`, effect 1) and class `Q` (weight 0.4, `y = 20 - 2 a - 0.5 x + e`, effect
+/// -2), `a` a fair coin, `x` uniform on `{-1, 0, 1}` and `e` normal with scale 0.5.
+fn population_request(rows: usize, seed: u64) -> LatentClassRequestWire {
+    let mut draws = Population(seed);
+    let mut data = LatentClassDataWire {
+        outcome: Vec::with_capacity(rows),
+        treatment: Vec::with_capacity(rows),
+        covariate_names: vec!["x".into()],
+        covariates: vec![Vec::with_capacity(rows)],
+    };
+    for _ in 0..rows {
+        let class_p = draws.uniform() < 0.6;
+        let a = f64::from(u8::from(draws.uniform() < 0.5));
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a uniform draw in [0, 1) scaled by the level count indexes a level"
+        )]
+        let x = [-1.0, 0.0, 1.0][((draws.uniform() * 3.0) as usize).min(2)];
+        let e = 0.5 * draws.normal();
+        data.outcome.push(if class_p { a + 0.5 * x + e } else { 20.0 - 2.0 * a - 0.5 * x + e });
+        data.treatment.push(a);
+        data.covariates[0].push(x);
+    }
+    LatentClassRequestWire { config: config(7, 0), data }
+}
+
+/// The population's classes in canonical (ascending effect) order, within sampling error.
+fn assert_population_recovered(artifact: &LatentClassArtifact, rows: usize) {
+    let meta = artifact.meta();
+    assert_eq!(meta.n_rows, u64::try_from(rows).unwrap());
+    assert_eq!(meta.responsibilities.rows, meta.n_rows);
+    close(meta.classes[0].effect, -2.0, 0.08, "tau q");
+    close(meta.classes[0].weight, 0.4, 0.03, "pi q");
+    close(meta.classes[1].effect, 1.0, 0.08, "tau p");
+    close(meta.classes[1].weight, 0.6, 0.03, "pi p");
+    close(meta.mixture_average_effect, -0.2, 0.06, "mixture average");
+}
+
+/// The fit completes on `rows` rows with its inferential standing exactly that of the small
+/// oracle fit, inside its runtime target, and exports and replays under explicit budgets.
+fn exercise_population(rows: usize, seed: u64, runtime_seconds: u64) {
+    let request = population_request(rows, seed);
+    let started = std::time::Instant::now();
+    let artifact = LatentClassArtifact::seal(&request).unwrap();
+    assert_population_recovered(&artifact, rows);
+    assert!(started.elapsed().as_secs() < runtime_seconds, "{:?}", started.elapsed());
+
+    let standing = artifact.meta();
+    let small = seal(11, 0).0;
+    let reference = small.meta();
+    assert_eq!(standing.calibration, "unmeasured");
+    assert_eq!(
+        (&standing.calibration, &standing.inference_claim, &standing.caveat, &standing.feature),
+        (&reference.calibration, &reference.inference_claim, &reference.caveat, &reference.feature),
+        "the declared inferential standing does not move with the number of rows"
+    );
+    assert_eq!(standing.premises, reference.premises);
+    assert!(standing.mixture_average_se.is_none(), "no standard error without replicates");
+
+    exercise_export_and_replay(&request, &artifact, &|artifact| {
+        assert_population_recovered(artifact, rows);
+    });
+}
+
 #[test]
 fn latent_fit_has_no_row_ceiling_and_export_and_replay_are_budgeted() {
     // 30,000 rows: three times the former embedded-row ceiling.
@@ -407,6 +500,127 @@ fn latent_fit_has_no_row_ceiling_and_export_and_replay_are_budgeted() {
 #[ignore = "fits 100,000 rows; run with --ignored"]
 fn latent_fit_runs_at_one_hundred_thousand_rows() {
     exercise_budgets(2_500);
+}
+
+#[test]
+fn latent_class_fit_beyond_old_row_ceiling_20000() {
+    exercise_population(20_000, 9_804_607, 900);
+}
+
+#[test]
+#[ignore = "fits 100,000 rows; run with --ignored"]
+fn latent_class_fit_beyond_old_row_ceiling_100000() {
+    exercise_population(100_000, 1_689_014, 900);
+}
+
+#[test]
+#[ignore = "fits 100,000 rows; run with --ignored"]
+fn fit_artifact_export_and_replay_budgets_explicit() {
+    let rows = 100_000;
+    let request = population_request(rows, 8_179_773);
+    let artifact = LatentClassArtifact::seal(&request).unwrap();
+    let embedded = artifact.to_bytes("budgets").unwrap();
+    let bound = artifact.to_bytes_digest_bound("budgets").unwrap();
+    let identity = artifact.identity();
+    let ctx = ExecutionContext::production(0, 1);
+
+    // Each budget is its own bound with its own refusal; exhausting one leaves the others, and
+    // the fit itself, untouched.
+    let computation = LatentClassArtifact::seal_with(&request, &context_with_memory(1_000_000));
+    let (code, detail, text) = computation.unwrap_err().refusal().expect("a registered refusal");
+    assert_eq!(
+        (code, detail.as_str()),
+        ("route_not_supported", "latent_class.memory_budget_exceeded")
+    );
+    assert!(text.contains("1000000-byte memory budget"), "{text}");
+
+    let export = artifact.to_bytes_within("budgets", embedded.len() - 1).unwrap_err();
+    assert_eq!(refusal(&export).1, "latent_class.export_budget_exceeded");
+
+    let replay = LatentClassArtifact::from_bytes_with(
+        &bound,
+        Some(identity),
+        Some(&request.data),
+        &context_with_memory(1_000_000),
+    );
+    assert_eq!(refusal(&replay.unwrap_err()).1, "latent_class.memory_budget_exceeded");
+
+    // A roomy replay budget with the dataset replays the fit; the export budget was never in play.
+    let replayed =
+        LatentClassArtifact::from_bytes_with(&bound, Some(identity), Some(&request.data), &ctx)
+            .unwrap();
+    assert_eq!(replayed.meta(), artifact.meta());
+    assert_eq!(artifact.to_bytes_within("budgets", embedded.len()).unwrap(), embedded);
+    assert_population_recovered(&artifact, rows);
+}
+
+#[test]
+#[ignore = "fits 100,000 rows; run with --ignored"]
+fn fit_artifact_data_binding_verified() {
+    let rows = 100_000;
+    let request = population_request(rows, 7_534_003);
+    let artifact = LatentClassArtifact::seal(&request).unwrap();
+    let bound = artifact.to_bytes_digest_bound("bound").unwrap();
+    let identity = artifact.identity();
+    let ctx = ExecutionContext::production(0, 1);
+    assert_eq!(artifact.meta().data_binding, None, "the sealed fit embeds its dataset");
+    assert_eq!(decode_parts(&bound).unwrap().0.data_binding.as_deref(), Some("digest"));
+
+    // The bound dataset verifies and replays the fit.
+    let replay =
+        LatentClassArtifact::from_bytes_with(&bound, Some(identity), Some(&request.data), &ctx)
+            .unwrap();
+    assert_eq!(replay.meta().identity, artifact.meta().identity);
+    assert_population_recovered(&replay, rows);
+
+    // Any other dataset is refused, whether one value moved or one row was dropped.
+    let mut changed = request.data.clone();
+    changed.treatment[rows / 2] = 1.0 - changed.treatment[rows / 2];
+    assert!(matches!(
+        LatentClassArtifact::from_bytes_with(&bound, Some(identity), Some(&changed), &ctx),
+        Err(LatentClassArtifactError::IdentityMismatch { field: "data" })
+    ));
+    let mut shorter = request.data.clone();
+    shorter.outcome.pop();
+    shorter.treatment.pop();
+    shorter.covariates[0].pop();
+    assert!(matches!(
+        LatentClassArtifact::from_bytes_with(&bound, Some(identity), Some(&shorter), &ctx),
+        Err(LatentClassArtifactError::IdentityMismatch { field: "data" })
+    ));
+}
+
+#[test]
+fn fit_never_truncates_data_silently() {
+    let rows = 1_000_000;
+    let request = population_request(rows, 4_739_124);
+    let tight = context_with_memory(64 * 1024 * 1024);
+    let started = std::time::Instant::now();
+    let error = LatentClassArtifact::seal_with(&request, &tight).unwrap_err();
+    let (code, detail, text) = error.refusal().expect("a registered refusal");
+    assert_eq!(
+        (code, detail.as_str()),
+        ("route_not_supported", "latent_class.memory_budget_exceeded")
+    );
+    assert!(started.elapsed().as_secs() < 10, "the refusal comes before any work");
+    assert!(text.contains("67108864-byte memory budget"), "{text}");
+
+    // The refusal counts every row: the planned bytes of the full request are exactly twice those
+    // of its first half, so nothing was dropped to fit the budget.
+    let planned = |request: &LatentClassRequestWire| -> u64 {
+        let error =
+            LatentClassArtifact::seal_with(request, &context_with_memory(1_000)).unwrap_err();
+        let text = error.refusal().unwrap().2;
+        let after = text.split("needs about ").nth(1).expect("the planned bytes are named");
+        after.split(' ').next().unwrap().parse().unwrap()
+    };
+    let mut half = request.clone();
+    half.data.outcome.truncate(rows / 2);
+    half.data.treatment.truncate(rows / 2);
+    half.data.covariates[0].truncate(rows / 2);
+    assert_eq!(planned(&request), 2 * planned(&half));
+    assert_eq!(request.data.outcome.len(), rows);
+    assert!(planned(&request) >= u64::try_from(rows * 8).unwrap());
 }
 
 #[test]

@@ -32,7 +32,8 @@ use antecedent_data::{
 };
 use antecedent_estimate::{
     AipwAte, AipwWorkspace, DmlAte, EffectEstimate, MultiLevelAipw, MultiLevelPopulation,
-    MultiLevelTarget, OtherLevels, PropensityEstimationWorkspace, PropensityWeighting,
+    MultiLevelTarget, OtherLevels, PropensityEstimationWorkspace, PropensityMatching,
+    PropensityWeighting,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::{sigmoid, standard_normal};
@@ -429,4 +430,348 @@ fn a_consumer_replays_the_contrast_and_the_level_means_from_the_score_table() {
         "{replayed_se} vs {}",
         full.effect.se_analytic()
     );
+}
+
+// --- Acceptance datasets -----------------------------------------------------------------------
+
+/// Effect of the treatment in the confounded binary acceptance dataset.
+const BINARY_EFFECT: f64 = 0.5;
+
+/// Moderately confounded binary treatment of the acceptance cases:
+/// `P(T=1|z) = expit(-0.2 + 0.8 z)` and `Y = 0.5 T + 0.7 z + 0.5 noise`.
+fn confounded_binary(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xB2);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        let zi = standard_normal(&mut rng);
+        let ti = f64::from(rng.next_f64() < sigmoid(-0.2 + 0.8 * zi));
+        z[i] = zi;
+        t[i] = ti;
+        y[i] = BINARY_EFFECT * ti + 0.7 * zi + 0.5 * standard_normal(&mut rng);
+    }
+    (t, y, z)
+}
+
+/// Mean outcome of each level of the confounded three-level acceptance dataset.
+const LEVEL_EFFECTS: [f64; 3] = [0.0, 0.4, 0.9];
+/// Multinomial-logit intercept and slope of levels 1 and 2 against level 0.
+const CONFOUNDED_LOGIT: [(f64, f64); 2] = [(0.3, 0.6), (-0.2, -0.5)];
+/// Slope of the outcome on the covariate, common to the three levels so the effect of every
+/// pair of levels is constant in the covariate.
+const OUTCOME_SLOPE: f64 = 0.6;
+
+/// Three-level treatment drawn from a multinomial logit of the covariate, with level means
+/// `LEVEL_EFFECTS`: `E[Y(k) | z] = LEVEL_EFFECTS[k] + 0.6 z`, so the effect of level `a` against
+/// level `b` is `LEVEL_EFFECTS[a] - LEVEL_EFFECTS[b]` over every population.
+fn confounded_three_level(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xC4);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        let zi = standard_normal(&mut rng);
+        let weights = [
+            1.0,
+            (CONFOUNDED_LOGIT[0].0 + CONFOUNDED_LOGIT[0].1 * zi).exp(),
+            (CONFOUNDED_LOGIT[1].0 + CONFOUNDED_LOGIT[1].1 * zi).exp(),
+        ];
+        let u = rng.next_f64() * weights.iter().sum::<f64>();
+        let level = if u < weights[0] {
+            0
+        } else if u < weights[0] + weights[1] {
+            1
+        } else {
+            2
+        };
+        z[i] = zi;
+        t[i] = level as f64;
+        y[i] = LEVEL_EFFECTS[level] + OUTCOME_SLOPE * zi + 0.5 * standard_normal(&mut rng);
+    }
+    (t, y, z)
+}
+
+fn fit_matching(
+    data: &TabularData,
+    estimand: &IdentifiedEstimand,
+    query: &AverageEffectQuery,
+) -> EffectEstimate {
+    let estimator = PropensityMatching::new();
+    let problem = estimator.prepare(data, estimand, query).unwrap();
+    estimator
+        .fit(&problem, &mut PropensityEstimationWorkspace::default(), &ctx(), AssumptionSet::new())
+        .unwrap()
+}
+
+/// Rows at a level of the column.
+fn rows_at(t: &[f64], level: f64) -> u64 {
+    t.iter().filter(|&&v| v == level).count() as u64
+}
+
+/// The declared contrast of a fit as its result states it: active and control level and the
+/// rows each arm and the exclusion hold.
+fn stated_contrast(effect: &EffectEstimate) -> (f64, f64, u64, u64, u64) {
+    let levels = effect.diagnostics.treatment_levels.expect("the fit states its declared levels");
+    (
+        levels.active,
+        levels.control,
+        levels.rows_at_active,
+        levels.rows_at_control,
+        levels.excluded_rows,
+    )
+}
+
+/// Fit the same units coded 0/1 and coded 1/2 with active 2 and control 1: the estimate is
+/// bit-identical to the 0/1 estimate, and the result states the declared levels.
+fn assert_declared_two_over_one_matches_zero_one(
+    seed: u64,
+    fit: impl Fn(&TabularData, &IdentifiedEstimand, &AverageEffectQuery) -> EffectEstimate,
+) {
+    let (t, y, z) = confounded_binary(2000, seed);
+    let (zero_one, estimand) = dataset(&t, &y, &z);
+    let (one_two, _) = dataset(&recode(&t, |v| v + 1.0), &y, &z);
+    let base = fit(&zero_one, &estimand, &AverageEffectQuery::with_levels(T, Y, 0.0, 1.0));
+    let declared = fit(&one_two, &estimand, &AverageEffectQuery::with_levels(T, Y, 1.0, 2.0));
+
+    // The recoding changes nothing about the units, so the estimate is the same number.
+    assert_eq!(base.ate.to_bits(), declared.ate.to_bits(), "{} vs {}", base.ate, declared.ate);
+    // It is the contrast of the arms, not scaled by the distance between the labels, and it
+    // lands on the simulated effect.
+    assert!((declared.ate - BINARY_EFFECT).abs() < 0.25, "ate={}", declared.ate);
+
+    // The estimand states the declared levels and the arms they selected.
+    let (active, control, at_active, at_control, excluded) = stated_contrast(&declared);
+    assert_eq!((active, control), (2.0, 1.0));
+    assert_eq!((at_active, at_control, excluded), (rows_at(&t, 1.0), rows_at(&t, 0.0), 0));
+    assert_eq!(declared.diagnostics.treatment_levels.unwrap().restricted_population(), None);
+    let reference = stated_contrast(&base);
+    assert_eq!((reference.0, reference.1), (1.0, 0.0));
+    assert_eq!((reference.2, reference.3, reference.4), (at_active, at_control, excluded));
+}
+
+#[test]
+fn propensity_weighting_honors_declared_active_two_control_one() {
+    assert_declared_two_over_one_matches_zero_one(2_307_708, fit_weighting);
+}
+
+#[test]
+fn aipw_honors_declared_active_two_control_one() {
+    assert_declared_two_over_one_matches_zero_one(8_932_728, |data, estimand, query| {
+        let estimate = fit_aipw(&aipw(), data, estimand, query);
+        assert!(estimate.se_analytic() > 0.0);
+        estimate
+    });
+}
+
+#[test]
+fn matching_honors_declared_active_two_control_one() {
+    assert_declared_two_over_one_matches_zero_one(8_959_944, fit_matching);
+}
+
+#[test]
+fn reversing_the_declared_contrast_negates_the_aipw_estimate() {
+    let (t, y, z) = confounded_binary(2000, 9_609_035);
+    // The column is coded 1/2: 2 is the treated arm.
+    let (data, estimand) = dataset(&recode(&t, |v| v + 1.0), &y, &z);
+    let forward =
+        fit_aipw(&aipw(), &data, &estimand, &AverageEffectQuery::with_levels(T, Y, 1.0, 2.0));
+    let reversed =
+        fit_aipw(&aipw(), &data, &estimand, &AverageEffectQuery::with_levels(T, Y, 2.0, 1.0));
+    assert!((forward.ate - BINARY_EFFECT).abs() < 0.25, "ate={}", forward.ate);
+    // The cross-fit folds are dealt on the column's own levels, so swapping the arms refits
+    // the same models and the contrasts are exact negatives, as are the influence-function
+    // standard errors' squares.
+    assert!(
+        (forward.ate + reversed.ate).abs() < 1e-9,
+        "2-versus-1 {} and 1-versus-2 {}",
+        forward.ate,
+        reversed.ate
+    );
+    assert!((forward.se_analytic() - reversed.se_analytic()).abs() < 1e-9);
+    let (active, control, ..) = stated_contrast(&reversed);
+    assert_eq!((active, control), (1.0, 2.0));
+}
+
+#[test]
+fn equivalent_treatment_recodings_agree() {
+    let (t, y, z) = confounded_binary(2000, 7_866_192);
+    let (base, estimand) = dataset(&t, &y, &z);
+    // Control first, active second: 0/1, 1/2, 10/20 and the labels `a`/`b` carried as the
+    // arbitrary codes a caller assigns them (`a` = -2.5, `b` = 7.25).
+    let codings = [(0.0, 1.0), (1.0, 2.0), (10.0, 20.0), (-2.5, 7.25)];
+    let fits = |data: &TabularData, query: &AverageEffectQuery| {
+        [
+            fit_aipw(&aipw(), data, &estimand, query),
+            fit_weighting(data, &estimand, query),
+            fit_matching(data, &estimand, query),
+        ]
+    };
+    let reference = fits(&base, &AverageEffectQuery::with_levels(T, Y, 0.0, 1.0));
+    for (control, active) in codings {
+        let (data, _) = dataset(&recode(&t, |v| if v == 1.0 { active } else { control }), &y, &z);
+        let recoded = fits(&data, &AverageEffectQuery::with_levels(T, Y, control, active));
+        for (got, want) in recoded.iter().zip(&reference) {
+            assert_eq!(got.ate.to_bits(), want.ate.to_bits(), "coding {control}/{active}");
+            // The estimand in words is the same contrast over the same arms and rows; only
+            // the labels it names differ, and they are the declared ones.
+            let (a, c, at_active, at_control, excluded) = stated_contrast(got);
+            let (_, _, ref_active, ref_control, ref_excluded) = stated_contrast(want);
+            assert_eq!((a, c), (active, control));
+            assert_eq!((at_active, at_control, excluded), (ref_active, ref_control, ref_excluded));
+        }
+    }
+}
+
+// --- Pairwise and full-population multi-level contrasts -----------------------------------------
+
+/// Cross-fitted pairwise contrast of level 2 against level 1 on three-level data.
+#[test]
+fn multilevel_pairwise_population_exclusions_are_reported() {
+    let (t, y, z) = confounded_three_level(3000, 5_088_953);
+    let (data, estimand) = dataset(&t, &y, &z);
+    let query = AverageEffectQuery::with_levels(T, Y, 1.0, 2.0);
+    let pairwise = MultiLevelAipw::pairwise_subpopulation()
+        .fit(&data, &estimand, &query, &ctx(), AssumptionSet::new())
+        .unwrap();
+
+    // The rows at the third level are excluded, counted, and the population is stated.
+    let at_other = rows_at(&t, 0.0);
+    assert!(at_other > 0);
+    assert_eq!(pairwise.excluded_rows, at_other);
+    assert_eq!(pairwise.target, MultiLevelTarget::PairwiseSubpopulation);
+    assert_eq!(pairwise.target_population, MultiLevelPopulation::RowsAtTheTwoDeclaredLevels);
+    assert_eq!(pairwise.target_population.as_str(), "rows at the two declared levels");
+    let mut by_level: Vec<(f64, u64)> =
+        pairwise.rows_by_level.iter().map(|r| (r.level, r.rows)).collect();
+    by_level.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert_eq!(by_level, vec![(1.0, rows_at(&t, 1.0)), (2.0, rows_at(&t, 2.0))]);
+    let used = pairwise.effect.diagnostics.treatment_levels.expect("levels are reported");
+    assert_eq!((used.active, used.control, used.excluded_rows), (2.0, 1.0, at_other));
+    assert_eq!(used.restricted_population(), Some("rows at the two declared levels"));
+    // The effect of level 2 against level 1 is constant in the covariate, so the pairwise
+    // population does not move it away from the simulated 0.5.
+    let truth = LEVEL_EFFECTS[2] - LEVEL_EFFECTS[1];
+    let se = pairwise.effect.se_analytic();
+    assert!(se > 0.0 && se < 0.1, "se={se}");
+    assert!((pairwise.effect.ate - truth).abs() < 4.0 * se, "{} vs {truth}", pairwise.effect.ate);
+}
+
+/// Least-squares coefficients by the normal equations, solved with partial pivoting:
+/// a computation of the oracle that shares no code with the estimators.
+fn least_squares(design: &[Vec<f64>], y: &[f64]) -> Vec<f64> {
+    let p = design[0].len();
+    let mut a = vec![vec![0.0; p + 1]; p];
+    for (row, &yi) in design.iter().zip(y) {
+        for j in 0..p {
+            for k in 0..p {
+                a[j][k] += row[j] * row[k];
+            }
+            a[j][p] += row[j] * yi;
+        }
+    }
+    for col in 0..p {
+        let pivot = (col..p).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
+        a.swap(col, pivot);
+        for row in col + 1..p {
+            let factor = a[row][col] / a[col][col];
+            for k in col..=p {
+                a[row][k] -= factor * a[col][k];
+            }
+        }
+    }
+    let mut beta = vec![0.0; p];
+    for col in (0..p).rev() {
+        let tail: f64 = (col + 1..p).map(|k| a[col][k] * beta[k]).sum();
+        beta[col] = (a[col][p] - tail) / a[col][col];
+    }
+    beta
+}
+
+/// Standardized mean of every level by g-computation on a linear outcome model with level
+/// intercepts and a common covariate slope: the outcome model of the simulation, fitted by
+/// least squares and averaged over every row's covariate.
+fn standardized_means_by_regression(t: &[f64], y: &[f64], z: &[f64]) -> [f64; 3] {
+    let design: Vec<Vec<f64>> = t
+        .iter()
+        .zip(z)
+        .map(|(&level, &zi)| vec![1.0, f64::from(level == 1.0), f64::from(level == 2.0), zi])
+        .collect();
+    let beta = least_squares(&design, y);
+    let mean_z = z.iter().sum::<f64>() / z.len() as f64;
+    [
+        beta[0] + beta[3] * mean_z,
+        beta[0] + beta[1] + beta[3] * mean_z,
+        beta[0] + beta[2] + beta[3] * mean_z,
+    ]
+}
+
+#[test]
+fn multilevel_generalized_propensity_standardizes_to_the_full_population() {
+    let (t, y, z) = confounded_three_level(3000, 6_818_193);
+    let (data, estimand) = dataset(&t, &y, &z);
+    let query = AverageEffectQuery::with_levels(T, Y, 0.0, 2.0);
+    let full = MultiLevelAipw::full_population(vec![0.0, 1.0, 2.0])
+        .fit(&data, &estimand, &query, &ctx(), AssumptionSet::new())
+        .unwrap();
+
+    // The population is the full observed population, stated and never inferred.
+    assert!(matches!(full.target, MultiLevelTarget::FullPopulation { .. }));
+    assert_eq!(full.target_population, MultiLevelPopulation::AllCompleteCaseRows);
+    assert_eq!(full.target_population.as_str(), "all complete-case rows");
+    assert_eq!(full.excluded_rows, 0);
+    assert_eq!(full.rows_by_level.iter().map(|r| r.rows).sum::<u64>(), 3000);
+
+    // A standardized mean per declared level, each over the whole population.
+    assert_eq!(full.level_means.len(), 3);
+    let oracle = standardized_means_by_regression(&t, &y, &z);
+    for ((mean, truth), regression) in full.level_means.iter().zip(LEVEL_EFFECTS).zip(oracle) {
+        assert!(mean.se > 0.0 && mean.se < 0.1, "{mean:?}");
+        assert!((mean.mean - truth).abs() < 4.0 * mean.se, "{mean:?} truth={truth}");
+        assert!((mean.mean - regression).abs() < 4.0 * mean.se, "{mean:?} oracle={regression}");
+    }
+
+    // The contrast is the difference of the standardized means, and agrees with both the
+    // simulated truth and the regression g-computation computed independently of it.
+    let contrast = full.level_means[2].mean - full.level_means[0].mean;
+    assert!((contrast - full.effect.ate).abs() < 1e-9);
+    let (full_se, oracle_contrast) = (full.effect.se_analytic(), oracle[2] - oracle[0]);
+    assert!(
+        (full.effect.ate - (LEVEL_EFFECTS[2] - LEVEL_EFFECTS[0])).abs() < 4.0 * full_se,
+        "ate={}",
+        full.effect.ate
+    );
+    assert!(
+        (full.effect.ate - oracle_contrast).abs() < 4.0 * full_se,
+        "ate={} oracle={oracle_contrast}",
+        full.effect.ate
+    );
+}
+
+#[test]
+fn an_undeclared_multilevel_contrast_is_refused_naming_the_observed_levels() {
+    let (t, y, z) = confounded_three_level(600, 1_279_651);
+    let (data, estimand) = dataset(&t, &y, &z);
+    // Only two of the three levels are declared and no exclusion policy is: nothing reduces
+    // the estimand to the pair silently.
+    let query = AverageEffectQuery::with_levels(T, Y, 0.0, 2.0);
+    let at = [rows_at(&t, 0.0), rows_at(&t, 1.0), rows_at(&t, 2.0)];
+    for refusal in [
+        aipw().prepare(&data, &estimand, &query).unwrap_err(),
+        PropensityWeighting::new().prepare(&data, &estimand, &query).unwrap_err(),
+        PropensityMatching::new().prepare(&data, &estimand, &query).unwrap_err(),
+        DmlAte::new().prepare(&data, &estimand, &query).unwrap_err(),
+    ] {
+        let (code, message) = checks::coded_refusal(refusal);
+        assert_eq!(code, "treatment_level_undeclared");
+        assert!(message.starts_with("treatment_levels.undeclared_level:"), "{message}");
+        let listing = format!(
+            "observed treatment levels: 0 ({} rows), 1 ({} rows), 2 ({} rows)",
+            at[0], at[1], at[2]
+        );
+        assert!(message.contains(&listing), "{message}");
+    }
+    // The full-population estimator refuses a level set that leaves a level out the same way.
+    let error = MultiLevelAipw::full_population(vec![0.0, 2.0])
+        .fit(&data, &estimand, &query, &ctx(), AssumptionSet::new())
+        .unwrap_err();
+    let (code, message) = checks::coded_refusal(error);
+    assert_eq!(code, "treatment_level_undeclared");
+    assert!(message.contains("observed treatment levels: 0 ("), "{message}");
 }

@@ -92,3 +92,34 @@ def test_the_target_has_no_default_and_full_population_needs_its_levels() -> Non
         multi_level_treatment.multi_level_effect(
             data["y"], data["t"], active=2.0, control=0.0, target="full_population"
         )
+
+
+def test_the_interval_is_withheld_until_a_coverage_record_covers_the_construction() -> None:
+    data = _draw(2000, seed=9)
+    common = {"active": 2.0, "control": 0.0, "adjust": {"z": data["z"]}}
+    pair = multi_level_treatment.multi_level_effect(
+        data["y"], data["t"], target="pairwise_subpopulation", **common
+    )
+    # The pairwise subpopulation target has no coverage measurement: always withheld.
+    assert pair.interval is None
+    assert pair.interval_status == "scope_not_assessed"
+    assert pair.interval_reason is not None
+    assert pair.calibration == "unmeasured"
+    assert pair.to_dict()["interval"] is None
+
+    full = multi_level_treatment.multi_level_effect(
+        data["y"], data["t"], target="full_population", levels=[0.0, 1.0, 2.0], **common
+    )
+    z = 1.959963984540054
+    if full.interval is None:
+        assert full.interval_status == "scope_not_assessed"
+        assert full.interval_reason is not None
+        assert full.calibration == "unmeasured"
+    else:
+        # Once a current record covers the construction the interval is the published normal one.
+        assert full.interval_status == "calibrated"
+        assert full.calibration == "calibrated"
+        assert full.interval.level == 0.95
+        assert full.interval.lower == pytest.approx(full.effect - z * full.se_analytic)
+        assert full.interval.upper == pytest.approx(full.effect + z * full.se_analytic)
+        assert full.interval.coverage_record

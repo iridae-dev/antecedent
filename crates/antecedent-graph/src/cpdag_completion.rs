@@ -308,6 +308,97 @@ mod tests {
     }
 
     #[test]
+    fn a_seventy_two_edge_class_completes_and_its_membership_audit_rejects_a_collider() {
+        // 72 undirected edges, past the old 64-edge ceiling: one DAG per source, every one a
+        // member of the class, found without any bound being reached.
+        let n = 73u32;
+        let g = undirected_tree(n, |i| i - 1);
+        assert_eq!(g.undirected_edge_count(), 72);
+        let mut sampler = CpdagCompletionSampler::new(g.clone(), 128).unwrap();
+        let collected: Vec<_> = sampler.by_ref().collect();
+        assert_eq!(sampler.n_undirected(), 72);
+        assert!(!sampler.hit_cap());
+        assert_eq!(sampler.search_stop(), None);
+        assert!(sampler.search_receipt().is_none());
+        assert_one_dag_per_rooting(&g, n, &collected);
+        // Membership is audited, not assumed: two sources make a collider the class does not
+        // have, and the path read in one direction with one edge flipped is exactly that.
+        let mut collider = Dag::with_variables(n);
+        for i in 1..n {
+            let (from, to) = if i == 40 { (i, i - 1) } else { (i - 1, i) };
+            collider
+                .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
+                .unwrap();
+        }
+        assert!(!is_mec_member(&g, &collider));
+    }
+
+    #[test]
+    fn search_receipts_report_the_visited_state_work_and_memory_controls() {
+        // K8 has 8! = 40320 members; the receipt of a starved search states every control in
+        // force and what it consumed.
+        let g = complete_undirected(8);
+        let mut ctx = ExecutionContext::for_tests(0);
+        ctx.memory.hard_limit_bytes = Some(64 * 1024 * 1024);
+        let limits = SearchLimits { operations: 500, depth: 40 };
+        let mut sampler =
+            CpdagCompletionSampler::with_budget(g.clone(), usize::MAX, limits, &ctx).unwrap();
+        let _ = sampler.by_ref().count();
+        let receipt = sampler.search_receipt().expect("the work limit stops the search");
+        assert_eq!(receipt.stop, SearchStop::Operations);
+        assert_eq!(receipt.operations_limit, 500, "work control");
+        assert_eq!(receipt.operations_consumed, Some(500), "visited states");
+        assert_eq!(receipt.depth_limit, 40);
+        assert!(receipt.depth_reached.is_some_and(|depth| depth <= 40));
+        assert_eq!(receipt.memory_limit_bytes, Some(64 * 1024 * 1024), "memory control");
+        assert!(receipt.explored[0].contains("500 orientation states visited"));
+        assert!(!receipt.unevaluated.is_empty());
+
+        // A memory limit that cannot hold one partial orientation reports itself as the stop.
+        let mut tight = ExecutionContext::for_tests(0);
+        tight.memory.hard_limit_bytes = Some(1);
+        let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
+        let mut sampler =
+            CpdagCompletionSampler::with_budget(g, usize::MAX, limits, &tight).unwrap();
+        assert!(sampler.next().is_none());
+        let receipt = sampler.search_receipt().expect("the memory limit stops the search");
+        assert_eq!(receipt.stop, SearchStop::Memory);
+        assert_eq!(receipt.memory_limit_bytes, Some(1));
+        assert_eq!(receipt.operations_limit, 1_000_000);
+    }
+
+    #[test]
+    fn cancellation_is_honoured_within_one_state_expansion() {
+        let g = complete_undirected(8);
+        let limits = SearchLimits { operations: 1_000_000, depth: usize::MAX };
+
+        // Cancelled before the first state: nothing is expanded or yielded.
+        let ctx = ExecutionContext::for_tests(0);
+        ctx.cancellation.cancel();
+        let mut sampler =
+            CpdagCompletionSampler::with_budget(g.clone(), usize::MAX, limits, &ctx).unwrap();
+        assert!(sampler.next().is_none());
+        let receipt = sampler.search_receipt().expect("cancellation is a typed stop");
+        assert_eq!(receipt.stop, SearchStop::Cancelled);
+        assert_eq!(receipt.operations_consumed, None, "no state was expanded");
+
+        // Cancelled after a fixed number of checks: the search charges one check per state, so
+        // it has expanded at most that many states, and a stopped search expands no more.
+        let mut ctx = ExecutionContext::for_tests(0);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(25);
+        let mut sampler = CpdagCompletionSampler::with_budget(g, usize::MAX, limits, &ctx).unwrap();
+        let yielded = sampler.by_ref().count();
+        assert!(yielded < 40_320);
+        let receipt = sampler.search_receipt().expect("cancellation is a typed stop");
+        assert_eq!(receipt.stop, SearchStop::Cancelled);
+        let consumed = receipt.operations_consumed.expect("states were expanded before the stop");
+        assert!(consumed <= 25, "{consumed} states expanded under 25 cancellation checks");
+        assert!(sampler.next().is_none(), "a cancelled search is sticky");
+        assert_eq!(sampler.search_receipt().unwrap().operations_consumed, Some(consumed));
+        assert!(sampler.hit_cap(), "a cancelled search is not read as the whole class");
+    }
+
+    #[test]
     fn an_eighty_node_binary_tree_completes_with_one_dag_per_rooting() {
         let n = 80u32;
         let g = undirected_tree(n, |i| (i - 1) / 2);

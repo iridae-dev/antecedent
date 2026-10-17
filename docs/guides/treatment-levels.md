@@ -23,13 +23,27 @@ The prepared problem and the result record the declared levels (Rust:
 `PreparedPropensityProblem::treatment_levels`, `EffectEstimate::diagnostics.treatment_levels`):
 the active and control level, the rows at each, and the rows excluded.
 
+## Label-coded treatments
+
+A string- or category-coded column is declared by its labels:
+`AverageEffect("t", "y", control_level="a", active_level="b")`. Both levels must be labels (or
+both numbers). The labels are mapped to the arm codes before preparation and the contrast runs
+the same declared-level path as numeric levels, so `a/b`, `0/1`, `1/2` and `10/20` codings of the
+same units give bit-identical estimates. The declaration is frozen with the study: `refresh`
+encodes a new table by the same labels, and a row at any other label is refused
+(`treatment_level_undeclared`, listing the observed levels) rather than dropped.
+`result.estimand_text` states the contrast with the declared levels, for example
+`E[y | do(t='b')] - E[y | do(t='a')]`.
+
 ## Rows at neither level
 
 A row whose treatment is at neither declared level is outside the contrast. Dropping it
 changes the population the estimate speaks for, so it is never dropped silently:
 
 - By default the fit refuses with `treatment_level_undeclared`
-  (`treatment_levels.undeclared_level`), counting the rows and naming the first value.
+  (`treatment_levels.undeclared_level`), counting the rows, naming the first value and
+  listing every observed treatment level with its row count, so the estimand is never reduced
+  without saying which levels it would have left out.
 - `other_levels = OtherLevels::ExcludeUndeclared` (Rust: `with_other_levels`; Python:
   `other_levels="exclude_undeclared"` on `Aipw`, `PropensityWeighting`, `PropensityMatching`,
   `PropensityStratification` and `DML`) declares the exclusion. The target population is then "rows at the two declared levels" and the
@@ -67,4 +81,7 @@ would redefine the common-support population of every contrast.
 The result states which semantics produced it (`target`) and the population it speaks for
 (`target_population`). The standard error is the plug-in iid score variance of cross-fitted
 scores: it assumes consistent nuisances and positivity, and no coverage record measures it,
-so interval claims remain closed.
+so the 95% interval of the full-population contrast is withheld as `scope_not_assessed`
+(`interval_status`, with the matcher's code in `interval_reason`) until a coverage record
+measured by `multilevel_generalized_propensity_interval` covers the configuration. The pairwise
+target never publishes an interval.

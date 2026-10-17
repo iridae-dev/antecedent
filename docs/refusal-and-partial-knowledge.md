@@ -734,6 +734,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `adaptive_inference.simulation_work_exceeded` | `invalid_argument` | Reduce replications, units or measurements per unit so that their product is within the work budget. |
 | `adaptive_inference.simulation_memory_exceeded` | `invalid_argument` | Reduce the replications or the units, or raise the memory budget of the execution context. |
 | `adaptive_inference.retained_record_exceeded` | `invalid_argument` | Retain fewer looks or participants in the exported record. |
+| `adaptive_inference.artifact_size_exceeded` | `route_not_supported` | Retain fewer looks or participants, or raise the export budget; the run is complete and stays in memory. |
 | `adaptive_inference.historical_borrowing_missing` | `adaptive_contract_incomplete` | Declare the prior of every arm, with its historical sources and discounts, before recruitment. |
 | `adaptive_inference.anytime_settings_missing` | `adaptive_contract_incomplete` | Declare the miscoverage level and tuning sample size of the confidence sequences. |
 | `adaptive_inference.historical_prior_invalid` | `invalid_argument` | Declare one prior per arm with valid sources: successes within trials, a discount in [0, 1], a label. |
@@ -741,6 +742,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `adaptive_inference.borrowing_frozen` | `adaptive_assumption_violated` | Declare the borrowing before recruitment and keep it; a different plan is a new declaration. |
 | `adaptive_inference.assignment_not_replayed` | `adaptive_assumption_violated` | Retain the allocation probabilities the declared procedure computed, or declare the procedure that ran. |
 | `adaptive_inference.stopping_not_replayed` | `adaptive_assumption_violated` | Retain the looks the declared decisions performed, or declare the decisions that ran. |
+| `adaptive_inference.batch_incomplete` | `adaptive_assumption_violated` | Retain the responses of every participant of a batch whose follow-up has elapsed, or end the history at the last batch whose participants all completed. |
 | `adaptive_inference.outcome_availability_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.exposure_invalid` | `invalid_argument` | Correct the declared element. |
 | `adaptive_inference.posterior_premise_outcome_dependent_delay` | `cell_not_licensed` | Declare ignorable loss and delay, or analyse a paradigm that models the loss. |

@@ -124,6 +124,7 @@ pub struct StudyConfig {
     pub(crate) estimator_spec_identity: Option<antecedent_io::EstimatorSpecWire>,
     pub(crate) response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
     pub(crate) observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    pub(crate) draw_controls: Option<crate::PosteriorDrawControls>,
     pub(crate) observation_delayed_entry: Option<antecedent_core::VariableId>,
     pub(crate) rd: Option<RdConfig>,
     pub(crate) stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,

@@ -181,6 +181,18 @@ runtime = "up to 1 min"
 claim = "Declared Bernoulli factorial cell means, main effects and interaction."
 
 [[example]]
+id = "graph_falsification"
+title = "Graph falsification"
+summary = "Compare a DAG with random relabellings of itself through the independencies it asserts"
+python = "examples/python/graph_falsification.py"
+rust = "examples/rust/graph_falsification.rs"
+topic = "Graphical causal models"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Permutation comparison of declared graph independencies under the named conditional-independence test; not rejected does not show the graph correct, and nothing is fitted."
+
+[[example]]
 id = "ihdp_propensity_e2e"
 title = "IHDP-style propensity / AIPW"
 summary = "Synthetic IHDP-like covariates \u2192 assumed DAG \u2192 IPW + AIPW + refute"
@@ -190,6 +202,30 @@ level = "intermediate"
 dependencies = []
 runtime = "up to 1 min"
 claim = "Synthetic IHDP-like covariates under an assumed DAG; IPW and AIPW effects and refutation."
+
+[[example]]
+id = "intervention_programs"
+title = "Intervention programs"
+summary = "Apply a price floor to a fitted model, replay it on factual units, save it and test its callback form"
+python = "examples/python/intervention_programs.py"
+rust = "examples/rust/intervention_programs.rs"
+topic = "Graphical causal models"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Typed value programs and batch callbacks executed on declared mechanisms; routes are licensed separately and a runtime callback is not portable."
+
+[[example]]
+id = "intrinsic_influence"
+title = "Intrinsic causal influence"
+summary = "Split a target's variance among the noise terms of its ancestors"
+python = "examples/python/intrinsic_influence.py"
+rust = "examples/rust/intrinsic_influence.rs"
+topic = "Graphical causal models"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Variance shares of independent, declared noise terms under fitted mechanisms; each interval names the one uncertainty component it covers and none is calibrated."
 
 [[example]]
 id = "manufacturing_temporal"
@@ -226,6 +262,18 @@ runtime = "up to 1 min"
 claim = "Diagnostic comparison of source and target mechanisms; a diagnostic does not prove invariance."
 
 [[example]]
+id = "mechanism_selection"
+title = "Mechanism selection"
+summary = "Score linear, spline and tree families on shared held-out folds and keep the audit trail"
+python = "examples/python/mechanism_selection.py"
+rust = "examples/rust/mechanism_selection.rs"
+topic = "Graphical causal models"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Held-out comparison of declared candidate mechanisms with constraints and split schemes; the choice is a model-fit decision, not a causal one."
+
+[[example]]
 id = "msm_sensitivity"
 title = "MSM sensitivity"
 summary = "Marginal-sensitivity bounds and tipping point for a stratified ATE"
@@ -235,6 +283,18 @@ level = "intermediate"
 dependencies = []
 runtime = "up to 1 min"
 claim = "Assumption-sensitivity range and tipping point for a stratified average effect; not a confidence interval."
+
+[[example]]
+id = "noise_replay"
+title = "Noise replay"
+summary = "Keep a model's exogenous noise, fix or redraw coordinates and evaluate again"
+python = "examples/python/noise_replay.py"
+rust = "examples/rust/noise_replay.rs"
+topic = "Graphical causal models"
+level = "intermediate"
+dependencies = []
+runtime = "up to 1 min"
+claim = "Replay of a compiled model on retained noise with fixed, redrawn and coalition coordinates; closed-form variances on a linear Gaussian chain."
 
 [[example]]
 id = "notebook_to_system_24"

@@ -22,15 +22,23 @@ implementation_deviations = [
  "Counterfactual execution replays the abduced noise through the transform; for categorical noise the rank-preservation disclosure of the counterfactual engine applies unchanged.",
  "Temporal execution is a rollout of the one-slice model: lagged reads load realised values of earlier steps from a history window laid out beside the current columns, so the shared executor is unchanged; the slice model has no lagged parents of its own, so history enters a rollout only through value programs.",
  "Division, clipping with inverted bounds and any non-finite result are refused at execution; both branches of a conditional are evaluated and only the selected value is used.",
+ "A prepared policy compiles the program's overlay and resolves the licence of each route once against one model and runs the same policy-value executor on them, so a rerun equals the one-shot value bit for bit; rebinding to a refitted model resolves the overlay and licence against it and does not compile the program again. The practitioner handle (antecedent.prepare with a policy-program question) fits the model along the declared graph and reports the same support decision, a contract of the structural assumptions and this provenance record.",
+ "The policy value reports the mean of an outcome under a program, the mean with no intervention on the same noise and their paired difference, with the Monte Carlo error of the draws only; the fitted model's own uncertainty is reported unquantified and no interval is claimed, so the value is a property of the fitted model and not of the population.",
+ "The counterfactual rollout of a factual panel abduces each step's noise from that step's table independently and replays it through the temporal executor; a unit's earlier steps enter only through the programs' lagged reads of the replayed (counterfactual) steps, and the rank-preservation disclosure of the counterfactual engine applies at every step.",
+ "A recoverable callback is encoded as its recovery record (source digest, entry point, declared inputs and output, pinned dependency versions) under a separate encoding version; programs without callbacks keep their version and identity. A consumer supplies the implementation and the record is verified against it before replay. The record identifies source text and pins, not behaviour: a function that reads a clock, randomness or hidden state is not detectable from its source.",
 ]
 
-upstream_implementations_observed = []
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
 
 test_sources = [
  "crates/antecedent-model/tests/intervention_programs.rs (hand simulation on identical noise, scalar interpreter, Gaussian closed forms)",
  "crates/antecedent-counterfactual/src/engine.rs unit tests (forward sampling and counterfactual replay agree)",
  "crates/antecedent-io-core/src/query_wire.rs unit tests (wire round trip)",
  "crates/antecedent-counterfactual/tests/policy_routes.rs (sampling, counterfactual execution and temporal rollout agree bit for bit on shared noise; hand recursions with lagged reads)",
- "crates/antecedent-io-core/src/policy_program_artifact.rs and tests/policy_program_execution.rs (versioned encoding, identity, tamper and version refusals, replay)",
+ "crates/antecedent-io-core/src/policy_program_artifact.rs and crates/antecedent-io-core/tests/policy_program_execution.rs (versioned encoding, identity, tamper and version refusals, replay)",
+ "crates/antecedent/tests/policy_python_parity.rs and python/tests/test_policy_workflows.py (a prepared policy and the prepare handle equal the one-shot value bit for bit and compile the program once)",
  "python/tests/test_intervention_programs.py (Python programs run the same executor; identity pinned to the Rust digest)",
+ "python/tests/test_dowhy_comparison.py (functional intervention and hard-set interventional means, and unit counterfactuals, against gcm.interventional_samples and gcm.counterfactual_samples; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
 ]

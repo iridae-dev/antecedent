@@ -59,6 +59,7 @@ from ._native import (
     identify_ate_admg as _identify_ate_admg,
 )
 from ._study_lifecycle import guard_design, replay_declaration, retain, retain_preparation
+from ._treatment_labels import TreatmentLabels
 from .discovery import (
     DbnPosterior,
     ExactDagPosterior,
@@ -85,6 +86,7 @@ from .inference import (
 from .interference import (
     InterferenceQuery,
 )
+from .intervention_programs import PolicyProgramResult, PolicyProgramValue
 from .missing import MissingPolicy, coerce_missing, native_declaration
 from .policy import (
     ConditionalDoseResponse,
@@ -224,6 +226,13 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
     }
     if inference.n_draws_explicit:
         kw["n_draws"] = inference.n_draws
+    if inference.draw_controls is not None:
+        if inference.draw_controls != "measured":
+            raise CausalValueError(
+                f"unknown Bayesian draw_controls {inference.draw_controls!r}; use 'measured'",
+                reason_code="invalid_argument",
+            )
+        kw["draw_controls"] = inference.draw_controls
     prior_from = inference.prior_from
     if prior_from is not None:
         # Local import avoids circular import with priors ↔ estimation.
@@ -538,6 +547,7 @@ _PreparedQuery = (
     | SurvivalOutcome
     | CompetingRisksOutcome
     | LongitudinalRegime
+    | PolicyProgramValue
 )
 
 
@@ -762,7 +772,7 @@ def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
             "to map without prior_from=<artifact>",
             reason_code="option_not_applicable",
         )
-    return {
+    wire = {
         "mode": kw.pop("inference"),
         "n_draws": kw.get("n_draws"),
         "prior_scale": kw["prior_scale"],
@@ -771,6 +781,10 @@ def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
         "composed_prior": kw.get("composed_prior"),
         "likelihood": kw["likelihood"],
     }
+    if "draw_controls" in kw:
+        # Sent only when requested, so routes with a closed inference vocabulary refuse it.
+        wire["draw_controls"] = kw["draw_controls"]
+    return wire
 
 
 def _accept_live_discovery(
@@ -851,6 +865,7 @@ _PreparedResult = (
     | ExactTransportDistribution
     | StatisticalTransportDistribution
     | TransportResponseGrid
+    | PolicyProgramResult
 )
 
 ResultT = TypeVar("ResultT", covariant=True)
@@ -903,6 +918,7 @@ class PreparedAnalysis(Generic[ResultT]):
             "transport_grid",
             "learned_trial",
             "z_transport",
+            "policy",
         ] = "average",
         query: _PreparedQuery | None = None,
         display_query: Any = None,
@@ -938,6 +954,9 @@ class PreparedAnalysis(Generic[ResultT]):
         # table schema (frames, design routes).
         self._column_names = column_names
         self._identifier_bindings: dict[str, IdentifierBinding] = {}
+        # Declared treatment labels of a label-coded binary treatment; later tables are
+        # encoded by the same declaration before ingest.
+        self._treatment_labels: TreatmentLabels | None = None
         self._seed = seed
         self._threads = threads
         self._controls = controls or _Controls()
@@ -966,6 +985,7 @@ class PreparedAnalysis(Generic[ResultT]):
         )
         for name in (
             "_identifier_bindings",
+            "_treatment_labels",
             "_preparation_request",
             "_named_design_bindings",
             "_declared_query",
@@ -1098,6 +1118,14 @@ class PreparedAnalysis(Generic[ResultT]):
         routes that have them. The handle retains all three; a click may
         override them.
 
+        ``PolicyProgramValue(programs, outcome, n_draws=...)`` with ``graph=Dag(...)`` (or an
+        edge list) prepares a policy question: the structural model is fitted on ``data`` once,
+        the program is compiled and the licence of each route resolved once, and every
+        ``estimate`` / ``refresh`` reruns the policy value without compiling the program again
+        (``handle.preparation`` is the receipt). Its result carries the support decision, the
+        contract and the provenance record, and equals ``policy_value`` on the same model and
+        seed. Estimand-only options (``discovery``, ``estimator``, ``refute``, ...) are refused.
+
         ``missing=`` declares how missing values are handled (a policy name or an
         :class:`antecedent.missing.MissingPolicy`). Average-effect routes keep their
         complete-case selection by default and report the rows it dropped; randomized,
@@ -1119,6 +1147,39 @@ class PreparedAnalysis(Generic[ResultT]):
         refuse_transport_only_kwargs(
             query, provider=provider, inference=inference, controls=controls
         )
+        if isinstance(query, PolicyProgramValue):
+            from ._prepared_policy import PreparedPolicyAnalysis
+
+            return PreparedPolicyAnalysis.build(
+                data,
+                query=query,
+                graph=graph,
+                seed=seed,
+                threads=threads,
+                accept_discovered=accept_discovered,
+                options={
+                    "discovery": discovery,
+                    "inference": inference,
+                    "identifier": identifier,
+                    "estimator": estimator,
+                    "estimator_config": estimator_config,
+                    "refute": refute,
+                    "bootstrap": bootstrap,
+                    "latency": latency,
+                    "class_prior": class_prior,
+                    "max_completions": max_completions,
+                    "participant": participant,
+                    "missing": missing,
+                    "population_registry": population_registry,
+                    "cancel": cancel,
+                    "on_progress": on_progress,
+                    "on_stage": on_stage,
+                    "validators": validators,
+                    "regimes": regimes,
+                    "provider": provider,
+                    "controls": controls,
+                },
+            )
         if participant is not None and (
             isinstance(
                 query,
@@ -1356,6 +1417,12 @@ class PreparedAnalysis(Generic[ResultT]):
 
         display_query = query
         query = coerce_query(query)
+        # Label-declared treatment levels are mapped to the arm codes of the numeric
+        # declared-level path here, once; the mapping is frozen with the study.
+        treatment_labels = TreatmentLabels.of(query)
+        if treatment_labels is not None:
+            data = treatment_labels.encode(data)
+            query = treatment_labels.native_query(query)
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
         estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
@@ -1434,8 +1501,15 @@ class PreparedAnalysis(Generic[ResultT]):
         structure_accepted = isinstance(graph, AcceptedGraph)
         discovery_algorithm = None
         if structure_accepted:
-            discovery_algorithm = cast(AcceptedGraph, graph).algorithm_id
-            graph = cast(AcceptedGraph, graph).graph
+            accepted_graph = cast(AcceptedGraph, graph)
+            discovery_algorithm = accepted_graph.algorithm_id
+            if accepted_graph.background_knowledge is not None:
+                # The statements the discovery ran under are part of what the claim rests on:
+                # the same graph found under other knowledge is another procedure's result.
+                discovery_algorithm = (
+                    f"{discovery_algorithm}+knowledge:{accepted_graph.background_knowledge}"
+                )
+            graph = accepted_graph.graph
         if class_prior is not None and (
             not isinstance(graph, (TemporalCpdag, TemporalPag))
             or not isinstance(inference, Bayesian)
@@ -1548,6 +1622,7 @@ class PreparedAnalysis(Generic[ResultT]):
             column_names=table_names,
         )
         prepared._identifier_bindings = identifier_bindings
+        prepared._treatment_labels = treatment_labels
         if on_stage is not None and not native.streams_stages():
             raise CausalUnsupportedError(
                 "on_stage streams identify, estimate_point, uncertainty and validate for one "
@@ -1894,6 +1969,8 @@ class PreparedAnalysis(Generic[ResultT]):
 
     def _prepared_table(self, data: Any) -> Any:
         """``data`` without the named design columns, reduced to the prepared schema by name."""
+        if self._treatment_labels is not None:
+            data = self._treatment_labels.encode(data)
         data = drop_columns(data, self._named_design_columns)
         if self._column_names is None:
             return data

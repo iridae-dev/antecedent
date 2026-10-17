@@ -178,6 +178,61 @@ fn corrupted_bytes_and_cancellation_are_refused() {
     assert_eq!(error, CrossWorldExecutionArtifactError::Cancelled);
 }
 
+// A term shared by two mechanisms: U ~ (0.7, 0.3), X = U and Y = X xor U. Observing
+// X = 1 fixes U = 1 (mass 0.3), so Y under do(x0) is 1 with certainty.
+fn shared_term_request() -> FiniteExecutionRequest {
+    let variable = |name: &str, parents: Vec<usize>, table: Vec<u8>| FiniteVariable {
+        name: name.to_owned(),
+        levels: 2,
+        parents,
+        exogenous: 0,
+        table,
+    };
+    let scm = FiniteScm {
+        population: "pop-a".to_owned(),
+        history: "regime-1".to_owned(),
+        exogenous: vec![ExogenousVariable { name: "u".to_owned(), pmf: vec![0.7, 0.3] }],
+        variables: vec![
+            variable("x", vec![], vec![0, 1]),
+            variable("y", vec![0], vec![0, 1, 1, 0]),
+        ],
+    };
+    FiniteExecutionRequest {
+        evidence_history: scm.history.clone(),
+        scm,
+        units: vec![FactualUnit { unit: "case".to_owned(), observed: vec![(0, 1)] }],
+        worlds: vec![do_x("x0", 0), do_x("x1", 1)],
+        quantity: FiniteQuantity::Probability(WorldAtom { world: 0, variable: 1, level: 1 }),
+        coupling: NoiseCoupling::SharedAbducedExogenous,
+        exogenous: ExogenousInference::ExactEnumeration,
+        target_population: None,
+        reading: RequestedReading::Point,
+    }
+}
+
+#[test]
+fn a_shared_exogenous_execution_replays_bit_for_bit_in_a_fresh_consumer() {
+    let sealed = CrossWorldExecutionArtifact::seal(&shared_term_request(), &ctx()).unwrap();
+    assert!((sealed.result().value - 1.0).abs() < 1e-12);
+    assert!((sealed.result().units[0].evidence_probability - 0.3).abs() < 1e-12);
+    let bytes = sealed.to_bytes("shared").unwrap();
+    // Two consumers with different contexts replay the same values and encoding.
+    for seed in [5, 99] {
+        let consumed = CrossWorldExecutionArtifact::from_bytes(
+            &bytes,
+            Some(sealed.identity()),
+            &ExecutionContext::for_tests(seed),
+        )
+        .unwrap();
+        assert_eq!(consumed.result().value.to_bits(), sealed.result().value.to_bits());
+        assert_eq!(consumed.identity(), sealed.identity());
+        assert_eq!(consumed.to_bytes("shared").unwrap(), bytes);
+    }
+    // Sealed again from scratch is identical: the encoding has no hidden state.
+    let again = CrossWorldExecutionArtifact::seal(&shared_term_request(), &ctx()).unwrap();
+    assert_eq!(again.to_bytes("shared").unwrap(), bytes);
+}
+
 #[cfg(feature = "test-util")]
 mod resealed {
     use super::*;

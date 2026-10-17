@@ -249,13 +249,20 @@ def _coordinate_values(
 
 @dataclass(frozen=True, slots=True)
 class AverageEffect:
-    """Average treatment effect (static tabular)."""
+    """Average treatment effect (static tabular).
+
+    ``control_level`` and ``active_level`` name the two arms of the treatment column: numbers
+    for a numerically coded column, or both labels (``str``) for a string- or category-coded
+    one (``control_level="a", active_level="b"``). Labels are mapped to the arm codes and run
+    the declared-level contrast of the numeric path; a row at any other label is refused
+    (``treatment_level_undeclared``).
+    """
 
     treatment: str
     outcome: str
     _: KW_ONLY
-    control_level: float = 0.0
-    active_level: float = 1.0
+    control_level: float | str = 0.0
+    active_level: float | str = 1.0
     target_population: object | None = None
     outcome_functional: object | None = None
     kind: Literal["average"] = field(default="average", init=False, repr=False)

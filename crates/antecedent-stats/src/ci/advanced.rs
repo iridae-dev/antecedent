@@ -2206,6 +2206,67 @@ mod tests {
         assert!(pearson(&rx, &e1) > 0.99);
     }
 
+    /// At 2000 rows the exact GPDC test keeps its construction: the statistic and p-value are,
+    /// bit for bit, those of the dense kernel factorization, GP residuals and residual
+    /// permutation null it has always run, and the low-rank test is a different construction.
+    #[test]
+    fn exact_conditional_gpdc_retained_at_small_sizes() {
+        let n = 2_000usize;
+        assert!(n <= GPDC_ROW_LIMIT);
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 2 }];
+        let z_flat = [2usize, 3];
+        let significance = SignificanceMethod::BlockShuffle { replicates: 49, block_size: 1 };
+        for (y_on_x, label) in [(0.0, "independent"), (0.3, "dependent")] {
+            let (data, _, _) = nystrom_sample(n, 6_075_547, y_on_x);
+            let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance,
+                confidence: ConfidenceMethod::None,
+            };
+            let ctx = ExecutionContext::for_tests(12);
+            let mut ws = CiWorkspace::default();
+            let got = Gpdc::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0];
+
+            let gp = Gpdc::new();
+            let factor = gp_factor(&cols, &z_flat, n, &gp).unwrap();
+            let rx = gp_residual(cols[0], Some(&factor), gp.ridge).unwrap();
+            let ry = gp_residual(cols[1], Some(&factor), gp.ridge).unwrap();
+            let want = residual_dcor_permutation_result(
+                &rx,
+                &ry,
+                ResidualNull {
+                    salt: 0x69DC_u64 ^ query_stream_salt(&[0], &[1], &z_flat),
+                    n_perm: nonparametric_permutation_count(significance),
+                    block_size: 1,
+                },
+                &ctx,
+            );
+            assert_eq!(got.statistic.to_bits(), want.statistic.to_bits(), "{label} statistic");
+            assert_eq!(got.p_value.to_bits(), want.p_value.to_bits(), "{label} p-value");
+
+            let low_rank =
+                GpdcNystrom::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0];
+            assert_ne!(low_rank.statistic.to_bits(), got.statistic.to_bits(), "{label}");
+        }
+        // The exact test's boundary is unchanged and names the low-rank construction.
+        let (data, _, _) = nystrom_sample(GPDC_ROW_LIMIT + 1, 6_075_547, 0.0);
+        let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
+        let req = CiBatchRequest {
+            columns: &cols,
+            queries: &queries,
+            z_flat: &z_flat,
+            significance,
+            confidence: ConfidenceMethod::None,
+        };
+        let refused = Gpdc::new()
+            .test_batch_adhoc(&req, &mut CiWorkspace::default(), &ExecutionContext::for_tests(12))
+            .unwrap_err();
+        assert!(refused.to_string().contains("gpdc_nystrom"), "{refused}");
+    }
+
     #[test]
     fn knn_dependence_runs_beyond_the_former_ten_thousand_row_limit() {
         let n = 12_000usize;

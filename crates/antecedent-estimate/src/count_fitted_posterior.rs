@@ -111,9 +111,23 @@ impl PosteriorInterval {
     /// error, zero when both are zero.
     #[must_use]
     pub fn mcse_width_fraction(&self) -> f64 {
-        let worst = self.lower_mcse.max(self.upper_mcse);
-        if worst <= 0.0 { 0.0 } else { worst / (self.upper - self.lower) }
+        endpoint_mcse_width_fraction(self.lower_mcse, self.upper_mcse, self.upper - self.lower)
     }
+}
+
+/// Largest accepted ratio of an interval endpoint's Monte Carlo standard error to the
+/// interval width. The measured count-fitted design sits near 0.015 at the minimum draw
+/// count; five times that or more is a sign the draws, not the posterior, set the
+/// endpoints.
+pub const MAX_ENDPOINT_MCSE_FRACTION: f64 = 0.05;
+
+/// The larger endpoint Monte Carlo standard error as a fraction of the interval `width`;
+/// infinite for an interval of zero width with nonzero error, zero when both errors are
+/// zero.
+#[must_use]
+pub fn endpoint_mcse_width_fraction(lower_mcse: f64, upper_mcse: f64, width: f64) -> f64 {
+    let worst = lower_mcse.max(upper_mcse);
+    if worst <= 0.0 { 0.0 } else { worst / width }
 }
 
 /// A topologically ordered finite model with count-fitted or declared conditionals.
@@ -351,7 +365,8 @@ impl CountFittedModel {
 /// quantile's standard error is half the spread of the draws between the ranks one
 /// standard deviation either side of `m p` (the distribution-free order-statistic
 /// estimate; it needs no density estimate at the quantile).
-fn quantile_mcse(sorted: &[f64], p: f64) -> f64 {
+#[must_use]
+pub fn quantile_mcse(sorted: &[f64], p: f64) -> f64 {
     let m = sorted.len() as f64;
     let spread = (m * p * (1.0 - p)).sqrt();
     let last = sorted.len() - 1;

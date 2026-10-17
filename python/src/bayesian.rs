@@ -8,6 +8,7 @@ use antecedent::discovery::{
     discover_ci_screened_posterior as facade_discover_ci_screened,
     discover_dbn_posterior as facade_discover_dbn,
     discover_dbn_posterior_panel as facade_discover_dbn_panel,
+    discover_exact_dag_marginals as facade_discover_exact_marginals,
     discover_exact_dag_posterior as facade_discover_exact,
     discover_order_mcmc as facade_discover_order_mcmc,
     discover_structure_mcmc as facade_discover_structure_mcmc,
@@ -575,6 +576,36 @@ fn discover_exact_dag_posterior(
     })
 }
 
+/// Exact edge marginals of the DAG posterior (Gaussian BIC) for up to 12 variables.
+///
+/// Returns the row-major `P(i -> j)` (`from * n + to`) and the log normalizing constant. No
+/// graph atoms exist at this size.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, max_parents=None, seed=1, threads=None))]
+fn discover_exact_dag_marginals(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    max_parents: Option<usize>,
+    seed: u64,
+    threads: Option<u32>,
+) -> PyResult<(Vec<f64>, f64)> {
+    let batch = columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let marginals = facade_discover_exact_marginals(
+            &data,
+            &variables,
+            &bayesian_params_capped(max_parents),
+            &ctx,
+        )
+        .map_err(py_err)?;
+        Ok((marginals.edge_marginals.to_vec(), marginals.log_evidence))
+    })
+}
+
 /// Order MCMC DAG posterior (Gaussian BIC), up to 16 variables.
 ///
 /// `max_parents` caps the number of parents of any node (`None`: no cap).
@@ -812,6 +843,7 @@ fn discover_dbn_posterior(
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyGraphPosterior>()?;
     m.add_function(wrap_pyfunction!(discover_exact_dag_posterior, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_exact_dag_marginals, m)?)?;
     m.add_function(wrap_pyfunction!(discover_order_mcmc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_structure_mcmc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_ci_screened_posterior, m)?)?;

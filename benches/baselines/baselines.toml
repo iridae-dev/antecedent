@@ -260,6 +260,13 @@ Owner: `antecedent-counterfactual` / `CounterfactualEngine::predict`
   - `counterfactual_predict_n100` — `unit_rows: None` (full column).
   - `counterfactual_predict_n100_unit_rows` — `unit_rows: [0..10]`. Nested CF /
     LGSSM is out of scope (separate P1).
+- Batch policy execution (`counterfactual_policy` group): a three-node linear-Gaussian chain
+  with 1,000,000 abduced units, outcomes-only `predict_retaining_outcomes`. Bench targets
+  `counterfactual_plain_n1000000` and `counterfactual_price_floor_program_n1000000`.
+  The bench asserts `MAX_REGRESSION = 6.0` (the time a value-program policy adds to a world
+  without one is at most six times the same floor written as a direct loop over the column,
+  fastest of five interleaved runs) and that streaming (outcomes-only) output equals the
+  retained output bit for bit.
 
 ## Measured mean
 
@@ -2520,4 +2527,85 @@ P4 hunts only what those profiles name. Known leftovers after this cut:
 - `PY_DEFAULT_CACHE_MAX_BYTES` (4 MB) is on; `CacheBudget` refuses (`StateError::CacheBudget`) rather than growing into OOM.
 - No architecture-specific kernel is compiled in. No `simd-runtime` unless a profiled path matches scalar tests bit-for-bit.
 - Arrow CDI borrow is the ingest win; pandas/dict `as_columns` stays the explicit copy.
+'''
+
+[[baseline]]
+id = "policy_sampling"
+title = "Program-executed interventional sampling baselines"
+required = false
+established = "2026-10-17"
+established_note = "(the date this file was first committed; no timing has been measured yet)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "9f2a661e4"
+commit_note = "(the commit the benchmark was written against; no timing has been measured yet)"
+waiver = "none published"
+narrative = '''
+# Program-executed interventional sampling baselines
+
+Established: 2026-10-17 (the date this file was first committed; no timing has been measured yet)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 9f2a661e4 (the commit the benchmark was written against; no timing has been measured yet)
+
+Owner: `antecedent-model` / `sample_interventional`
+
+## Criteria
+
+- Pricing chain `price -> demand -> revenue` (and `price -> revenue`) with a lognormal price
+  (location 3.0, scale 0.4), n = 1,000,000 rows. The policy `price := max(10, 0.85 * price)`
+  is one extra value-program pass over the price column.
+- Bench targets: `sample_plain_n1000000` and `sample_price_floor_program_n1000000`.
+- Regression bound (`MAX_REGRESSION = 1.1`, asserted in the bench): the fastest of five
+  interleaved program-executed draws takes at most 1.1 times the fastest plain draw.
+- Reuse (asserted in the bench): one `ExecutionContext` and one `MechanismWorkspace` serve every
+  draw, and `ws.grow_count` stays flat after the warm-up draw.
+
+## How to refresh
+
+```bash
+cargo bench -p antecedent-model --bench policy_sampling
+```
+
+Numeric wall-time gate: none published. The regression bound is relative and asserted in the
+bench itself, so it holds on any machine and in the `--test` smoke.
+'''
+
+[[baseline]]
+id = "noise_replay"
+title = "Batch coalition noise replay baselines"
+required = false
+established = "2026-10-17"
+established_note = "(the date this file was first committed; no timing has been measured yet)"
+machine_class = "not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references"
+commit = "9f2a661e4"
+commit_note = "(the commit the benchmark was written against; no timing has been measured yet)"
+waiver = "none published"
+narrative = '''
+# Batch coalition noise replay baselines
+
+Established: 2026-10-17 (the date this file was first committed; no timing has been measured yet)
+Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
+Commit: 9f2a661e4 (the commit the benchmark was written against; no timing has been measured yet)
+
+Owner: `antecedent-model` / `NoiseReplayer`
+
+## Criteria
+
+- Chain `a -> b -> c`, 4096 coalitions replayed from two retained noise tables of 100,000
+  rows. The batch route borrows the model and reuses one replayer and one execution context; the
+  baseline clones the compiled model and starts from empty scratch for every coalition.
+- Bench targets: `coalitions_4096_n1000_batch` and `coalitions_4096_n1000_cloning_baseline`
+  (Criterion, 1,000-row tables), plus the 100,000-row regression gate in the bench body.
+- Regression bound (`MAX_REGRESSION = 1.1`, asserted in the bench): the fastest of three batch
+  runs takes at most 1.1 times the fastest cloning run.
+- Reuse (asserted in the bench): `scratch_footprint` is constant across all coalitions, and the
+  two routes replay identical values.
+
+## How to refresh
+
+```bash
+cargo bench -p antecedent-model --bench noise_replay
+```
+
+Numeric wall-time gate: none published. The regression bound is relative and asserted in the
+bench itself, so it holds on any machine and in the `--test` smoke.
 '''

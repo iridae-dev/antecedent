@@ -569,6 +569,7 @@ catalog search is sound and incomplete.
 * inverse probability weighting;
 * propensity matching;
 * covariate-distance matching;
+* covariate-distance matching averaging several nearest donors (`KnnDistanceMatching`; a separate construction from one-nearest-neighbour matching, with its own provenance record and coverage design, exact at any donor count);
 * stratification;
 * AIPW;
 * front-door functional plug-in estimation (`frontdoor.functional`);

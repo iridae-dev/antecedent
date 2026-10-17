@@ -12,7 +12,12 @@
 //!
 //! No graph is identified or checked: the caller owns that the declared adjustment columns are
 //! a valid adjustment set. The point estimate and the influence-function standard error are
-//! reported; the standard error's calibration is **unmeasured** and no interval is produced.
+//! always reported. The 95% normal interval `effect ± z · se_analytic` is published only when a
+//! current attesting coverage record measured this construction (the target, the number of
+//! declared levels, the folds and the row count are part of the key); otherwise it is withheld
+//! with status `scope_not_assessed` and the standard error is labelled **unmeasured**. Only the
+//! full-population target has a measurement design; the pairwise subpopulation target has none
+//! and stays withheld.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,12 +29,30 @@ use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, Varia
 use antecedent_data::TabularData;
 use antecedent_estimate::{EstimationError, MultiLevelAipw, MultiLevelEstimate};
 use antecedent_expr::{ExprId, IdentifiedEstimand};
+use antecedent_io::calibration::{
+    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::error::CausalError;
 
-/// Calibration standing of the reported standard error.
+/// Calibration standing of the reported standard error while no coverage record governs it.
 pub const MULTI_LEVEL_TREATMENT_CALIBRATION: &str = "unmeasured";
+/// Calibration standing once a current attesting coverage record governs the interval.
+pub const MULTI_LEVEL_TREATMENT_CALIBRATED: &str = "calibrated";
+/// Interval status when a governing coverage record measured the construction at this scope.
+pub const MULTI_LEVEL_INTERVAL_CALIBRATED: &str = "calibrated";
+/// Interval status when no current attesting record covers this construction and scope.
+pub const MULTI_LEVEL_INTERVAL_WITHHELD: &str = "scope_not_assessed";
+/// Reason when the contrast has no positive finite standard error to build an interval from.
+pub const MULTI_LEVEL_NO_STANDARD_ERROR: &str = "no_positive_standard_error";
+
+/// Query axis of the multi-level contrast coverage records.
+pub const MULTI_LEVEL_QUERY: &str = "MultiLevelContrast";
+/// Estimator label of the cross-fitted multinomial generalized-propensity AIPW.
+pub const MULTI_LEVEL_ESTIMATOR: &str = "propensity.generalized_aipw";
+/// Standard-error kind: the plug-in iid influence-function variance of the cross-fitted scores.
+pub const MULTI_LEVEL_SE_KIND: &str = "influence";
 
 /// Which population semantics a request asks for.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -108,6 +131,23 @@ pub struct LevelMeanWire {
     pub propensity_max: f64,
 }
 
+/// The published 95% interval of the contrast, bound to its governing coverage record.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct MultiLevelIntervalWire {
+    /// Lower end, `effect - z · se_analytic`.
+    pub lower: f64,
+    /// Upper end, `effect + z · se_analytic`.
+    pub upper: f64,
+    /// Nominal level.
+    pub level: f64,
+    /// Identity of the governing coverage record.
+    pub coverage_record: String,
+}
+
+fn interval_status_default() -> String {
+    MULTI_LEVEL_INTERVAL_WITHHELD.into()
+}
+
 /// The self-describing result.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct MultiLevelReportWire {
@@ -131,8 +171,64 @@ pub struct MultiLevelReportWire {
     pub excluded_rows: u64,
     /// Standardized mean per declared level (full-population target only).
     pub level_means: Vec<LevelMeanWire>,
-    /// Calibration standing of the standard error.
+    /// Calibration standing of the standard error: `calibrated` when a coverage record governs
+    /// the interval, `unmeasured` otherwise.
     pub calibration: String,
+    /// The 95% interval `effect ± z · se_analytic`; present only when a current attesting
+    /// coverage record measured this construction at this row count.
+    #[serde(default)]
+    pub interval: Option<MultiLevelIntervalWire>,
+    /// `calibrated` when the interval is published, `scope_not_assessed` when it is withheld.
+    #[serde(default = "interval_status_default")]
+    pub interval_status: String,
+    /// Why the interval is withheld (the matcher's reason code), when it is.
+    #[serde(default)]
+    pub interval_reason: Option<String>,
+}
+
+/// Calibration match key and scope of the interval a request would publish.
+///
+/// `levels` is the size of the declared level set (full-population target) and `folds` the
+/// cross-fit fold count; both change the construction, so a record binds only the values it
+/// measured. The measurement design builds the same key.
+#[must_use]
+pub fn multi_level_interval_basis(
+    target: MultiLevelTargetWire,
+    levels: usize,
+    folds: usize,
+    row_count: u64,
+) -> CalibrationBasisWire {
+    let functional = match target {
+        MultiLevelTargetWire::FullPopulation => {
+            format!("multi_level.full_population.contrast;levels={levels};folds={folds}")
+        }
+        MultiLevelTargetWire::PairwiseSubpopulation => {
+            "multi_level.pairwise_subpopulation.contrast".to_owned()
+        }
+    };
+    CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            query: MULTI_LEVEL_QUERY.to_owned(),
+            graph_class: "NotApplicable".to_owned(),
+            structure: "fixed".to_owned(),
+            modality: "tabular".to_owned(),
+            inference: "Frequentist".to_owned(),
+            estimator: MULTI_LEVEL_ESTIMATOR.to_owned(),
+            interval_method: antecedent_core::IntervalMethod::AnalyticSe.as_str().to_owned(),
+            se_kind: MULTI_LEVEL_SE_KIND.to_owned(),
+            dependence: "iid".to_owned(),
+            posterior: String::new(),
+            functional,
+            level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+            identification: "point".to_owned(),
+        },
+        scope: CalibrationScopeWire {
+            row_count,
+            replicates_ok: None,
+            posterior_draws: None,
+            unidentified_mass: 0.0,
+        },
+    }
 }
 
 /// Multi-level observational contrasts.
@@ -222,11 +318,54 @@ impl MultiLevelTreatment {
         let estimate = estimator
             .fit(&table, &estimand, &query, &ctx, AssumptionSet::new())
             .map_err(CausalError::from)?;
-        Ok(report(&estimate, spec))
+        Ok(report(&estimate, spec, estimator.folds))
     }
 }
 
-fn report(estimate: &MultiLevelEstimate, spec: &MultiLevelSpecWire) -> MultiLevelReportWire {
+/// The 95% normal interval `effect ± z · se` at the reported level, when the standard error is
+/// positive and finite.
+///
+/// The one construction a coverage record measures: the publishing path and the measurement
+/// design both form the interval here, so a record describes exactly what is published.
+#[must_use]
+pub fn multi_level_normal_interval(effect: f64, se: f64) -> Option<(f64, f64)> {
+    (effect.is_finite() && se.is_finite() && se > 0.0).then(|| {
+        let half = crate::result::reported_se_interval_z() * se;
+        (effect - half, effect + half)
+    })
+}
+
+/// The interval, its status and the withholding reason of one estimate.
+fn publish_interval(
+    estimate: &MultiLevelEstimate,
+    spec: &MultiLevelSpecWire,
+    folds: usize,
+    n_obs: u64,
+) -> (Option<MultiLevelIntervalWire>, &'static str, Option<String>) {
+    let levels = spec.levels.as_ref().map_or(0, Vec::len);
+    let slot = calibration_slot(&multi_level_interval_basis(spec.target, levels, folds, n_obs));
+    let interval = multi_level_normal_interval(estimate.effect.ate, estimate.effect.se_analytic());
+    match (slot.record_id, interval) {
+        (Some(record), Some((lower, upper))) if slot.status == "calibrated" => {
+            let level = crate::result::REPORTED_SE_INTERVAL_LEVEL;
+            let wire = MultiLevelIntervalWire { lower, upper, level, coverage_record: record };
+            (Some(wire), MULTI_LEVEL_INTERVAL_CALIBRATED, None)
+        }
+        (Some(_), None) if slot.status == "calibrated" => {
+            (None, MULTI_LEVEL_INTERVAL_WITHHELD, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into()))
+        }
+        _ => (None, MULTI_LEVEL_INTERVAL_WITHHELD, slot.reason),
+    }
+}
+
+fn report(
+    estimate: &MultiLevelEstimate,
+    spec: &MultiLevelSpecWire,
+    folds: usize,
+) -> MultiLevelReportWire {
+    let n_obs = estimate.effect.provenance.n_obs.unwrap_or(0);
+    let (interval, interval_status, interval_reason) =
+        publish_interval(estimate, spec, folds, n_obs);
     MultiLevelReportWire {
         target: estimate.target.as_str().into(),
         target_population: estimate.target_population.as_str().into(),
@@ -234,7 +373,7 @@ fn report(estimate: &MultiLevelEstimate, spec: &MultiLevelSpecWire) -> MultiLeve
         control: spec.control,
         effect: estimate.effect.ate,
         se_analytic: estimate.effect.se_analytic(),
-        n_obs: estimate.effect.provenance.n_obs.unwrap_or(0),
+        n_obs,
         rows_by_level: estimate
             .rows_by_level
             .iter()
@@ -252,6 +391,14 @@ fn report(estimate: &MultiLevelEstimate, spec: &MultiLevelSpecWire) -> MultiLeve
                 propensity_max: m.propensity_range.1,
             })
             .collect(),
-        calibration: MULTI_LEVEL_TREATMENT_CALIBRATION.into(),
+        calibration: if interval.is_some() {
+            MULTI_LEVEL_TREATMENT_CALIBRATED
+        } else {
+            MULTI_LEVEL_TREATMENT_CALIBRATION
+        }
+        .into(),
+        interval,
+        interval_status: interval_status.into(),
+        interval_reason,
     }
 }

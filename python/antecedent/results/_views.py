@@ -911,6 +911,18 @@ class AnalysisResult(ResultModel, ResultAPI):
             )
 
     @property
+    def estimand_text(self) -> str | None:
+        """The average effect as declared, naming the active and control levels.
+
+        ``E[y | do(t='b')] - E[y | do(t='a')]`` for label-declared levels and
+        ``E[y | do(t=2)] - E[y | do(t=1)]`` for numeric ones; ``None`` for queries that
+        are not an average effect.
+        """
+        from .._treatment_labels import estimand_text
+
+        return estimand_text(self.query)
+
+    @property
     def effect(self) -> float | None:
         """Primary requested contrast, including mediation and mean ITE.
 

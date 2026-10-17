@@ -14,6 +14,7 @@ from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .missing import MissingPolicy
 from .interference import InterferenceQuery
+from .intervention_programs import PolicyProgramValue
 from .policy import ConditionalDoseResponse, MultiActionPolicyValue, PolicyValue
 from .quasi import (
     AugmentedPanelDiD,
@@ -348,6 +349,16 @@ def analyze(
             query_family=registered.spec.query_family,
             provider_result=provider_result,
             query=query,
+        )
+
+    if isinstance(query, PolicyProgramValue):
+        from .errors import CausalUnsupportedError
+
+        raise CausalUnsupportedError(
+            "a policy-program question is posed through antecedent.prepare(...) and its "
+            "retained handle, or answered once with intervention_programs.policy_value; "
+            "analyze() returns identified-estimand results",
+            reason_code="option_not_applicable",
         )
 
     if return_posterior_artifact:

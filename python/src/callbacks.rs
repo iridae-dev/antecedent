@@ -230,6 +230,18 @@ impl DynamicMechanism for PyDynamicMechanism {
         })
     }
 
+    fn supports_noise_inference(&self) -> bool {
+        // An object that declares `supports_noise_inference = False` opts out of abduction;
+        // one that does not declare it keeps the additive default.
+        Python::attach(|py| {
+            self.obj
+                .bind(py)
+                .getattr("supports_noise_inference")
+                .and_then(|flag| flag.is_truthy())
+                .unwrap_or(true)
+        })
+    }
+
     fn infer_noise_column(
         &self,
         value: &[f64],

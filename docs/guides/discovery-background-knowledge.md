@@ -83,7 +83,10 @@ groups and the parent limit. Reordering the links leaves it unchanged; any other
 alters it. A result that was given knowledge also records the digest in its algorithm
 configuration, and an accepted graph serializes it in `to_json`, so a graph discovered under
 different knowledge is a different artifact. `AcceptedGraph.rediscover` and `accept()` run
-the configuration they are handed, knowledge included.
+the configuration they are handed, knowledge included. A study prepared on a discovery that ran under knowledge states it in its contract:
+`discovery_algorithm` reads `pc+knowledge:<digest>` (the bare algorithm id without knowledge), and a
+refresh or a replayed preparation keeps it. A refusal that names a statement names its variables
+by the names you wrote, not by position.
 
 ## Splitting rows for discovery and analysis
 

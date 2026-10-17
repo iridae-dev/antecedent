@@ -26,6 +26,7 @@ from .intrinsic_influence import (
     ComponentUncertainty,
     IntrinsicInfluence,
     SourceInfluence,
+    fitted_intrinsic_influence,
     intrinsic_influence,
 )
 
@@ -153,5 +154,6 @@ __all__ = [
     "attribute_paths_discovered",
     "evaluate_graph",
     "fit_gcm_discovered",
+    "fitted_intrinsic_influence",
     "intrinsic_influence",
 ]

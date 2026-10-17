@@ -2147,6 +2147,59 @@ mod tests {
     }
 
     #[test]
+    fn a_fourteen_node_graph_completes_and_its_derivation_audit_is_reproduced() {
+        // Fourteen observed variables, past the old ceiling of twelve: the search completes,
+        // the derivation verifies against the graph and the query, and replaying the search
+        // reproduces it. The treatment sits mid-graph so the recursion has to descend.
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let (diagram, query) = chain_fixture(14, 6);
+        let limits = super::super::SidLimits::default();
+        let identify = || match identify_z_transport(&diagram, &query, limits, &ctx).unwrap() {
+            ZTransportResult::Identified(proof) => proof,
+            other @ ZTransportResult::NotCertified { .. } => {
+                panic!("an unconfounded chain of fourteen variables is identified: {other:?}")
+            }
+        };
+        let proof = identify();
+        assert_eq!(proof.kind, ZFormulaKind::Recursive);
+        assert!(!proof.rules.is_empty());
+        verify_z_transport_derivation(&diagram, &query, &proof, limits, &ctx).unwrap();
+        let replay = identify();
+        assert_eq!(replay.rules, proof.rules);
+        assert_eq!(replay.graph_signature, proof.graph_signature);
+        // The audit is of this graph: a derivation checked against another query is refused.
+        let (_, other_query) = chain_fixture(14, 7);
+        assert!(
+            verify_z_transport_derivation(&diagram, &other_query, &proof, limits, &ctx).is_err()
+        );
+    }
+
+    #[test]
+    fn an_exhausted_search_budget_is_refused_naming_the_budget_and_its_limits() {
+        let (diagram, query) = chain_fixture(14, 6);
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let limits = super::super::SidLimits { steps: 1, depth: 14 };
+        let mut receipt = None;
+        let error = identify_z_transport_reporting(&diagram, &query, limits, &ctx, &mut receipt)
+            .unwrap_err();
+        assert!(error.is_budget_or_cancel());
+        // The refusal names the z-transport search budget, never a verdict about the effect;
+        // the receipt says which of its limits stopped it.
+        assert_eq!(error, IdentificationError::budget(IdentificationBudget::ZTransport));
+        assert_eq!(error.to_string(), "z_transport.exhausted_computation");
+        let receipt = receipt.expect("a stopped search records what it consumed");
+        assert_eq!(receipt.budget, ZTransportBudgetKind::Steps);
+        assert_eq!((receipt.steps_limit, receipt.depth_limit), (1, 14));
+        // The depth budget is named as its own.
+        let shallow = super::super::SidLimits { steps: 10_000, depth: 1 };
+        let mut receipt = None;
+        let error = identify_z_transport_reporting(&diagram, &query, shallow, &ctx, &mut receipt)
+            .unwrap_err();
+        assert!(error.is_budget_or_cancel(), "{error:?}");
+        assert_eq!(receipt.expect("a stopped search records its limits").depth_limit, 1);
+    }
+
+    #[test]
     fn a_direct_source_exchange_is_identified_on_a_wide_graph() {
         // The treatment is the controllable variable with a concrete level, on 20 variables.
         let (diagram, mut query) = chain_fixture(20, 3);

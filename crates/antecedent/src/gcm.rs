@@ -24,7 +24,9 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::Dag;
-use antecedent_model::ValueBatch;
+use antecedent_model::{
+    InterventionOverlay, ModelView, NoiseFix, NoiseReplayer, NoiseSource, ValueBatch,
+};
 
 use crate::error::CausalError;
 
@@ -52,9 +54,10 @@ pub use antecedent_model::{
     GraphUninformativeReason, InvertibleStructuralCausalModel, KdeDoSampler, MarkovImplicationTest,
     McmcDoSampler, MechanismAssignment, MechanismFamily, MechanismRegistry, MechanismSlot,
     MechanismTyping, MechanismWorkspace, ModelCollection, ModelError, ModelEvaluator,
-    NodeFamilyConstraint, ProbabilisticCausalModel, SelectionOptions, SelectionPolicy,
-    SelectionProvenance, SelectionRule, StructuralCausalModel, TemporalNoise, TemporalPath,
-    TemporalPlan, ValidationSplits, WeightingDoSampler, interventional_mean, sample_interventional,
+    NodeFamilyConstraint, NoiseTable, PolicyRoute, PolicySupport, ProbabilisticCausalModel,
+    RouteDecision, SelectionOptions, SelectionPolicy, SelectionProvenance, SelectionRule,
+    StructuralCausalModel, TemporalNoise, TemporalPath, TemporalPlan, ValidationSplits,
+    WeightingDoSampler, interventional_mean, policy_support, sample_interventional,
     sample_observational,
 };
 
@@ -717,6 +720,313 @@ pub fn counterfactual_policy(
     let mut ws = MechanismWorkspace::default();
     let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from(interventions) };
     Ok(engine.predict(&exo, &[world], outcomes, false, &mut ws, ctx)?)
+}
+
+/// Abduction at every step of a factual panel, then the retained per-step noise replayed through
+/// the model under the plan's scheduled interventions. `steps[t]` holds the factual units at
+/// step `t` (every unit present at every step, in the same order); `plan.n_steps` must equal
+/// `steps.len()` and `plan.n_rows` each table's row count.
+///
+/// The noise goes through the executor [`counterfactual_policy`] and [`sample_temporal_policy`]
+/// use, so a policy (including a lagged read of earlier realised steps) means the same thing on
+/// all three routes.
+///
+/// # Errors
+///
+/// Abduction failures at any step, noise that does not match the model, rows or steps, a policy
+/// reading history that does not exist yet, or a refused program.
+pub fn counterfactual_temporal_policy(
+    model: CompiledCausalModel,
+    steps: &[TabularData],
+    plan: &TemporalPlan<'_>,
+    ctx: &ExecutionContext,
+) -> Result<TemporalPath, CausalError> {
+    let engine = CounterfactualEngine::new(model);
+    let exo = steps
+        .iter()
+        .map(|data| engine.abduct(data, AbductionMissingPolicy::Error, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut ws = MechanismWorkspace::default();
+    Ok(engine.predict_temporal(&exo, plan, &mut ws, ctx)?)
+}
+
+/// Draw `n` rows under `interventions` together with the exogenous noise that produced them.
+/// Replaying the returned table with [`replay_noise`] under the same interventions and salt `0`
+/// reproduces the draws bit for bit.
+///
+/// # Errors
+///
+/// An invalid intervention set, an unfitted mechanism that is not hard-set, a table over the
+/// context's memory limit, or cancellation.
+pub fn sample_with_noise(
+    model: &CompiledCausalModel,
+    interventions: &[Intervention],
+    n: usize,
+    ctx: &ExecutionContext,
+) -> Result<(ValueBatch, NoiseTable), CausalError> {
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    Ok(NoiseReplayer::new().sample(&ModelView::with_overlay(model, overlay), n, ctx)?)
+}
+
+/// A noise table of `n_rows` rows holding the caller's own noise: one column per model node in
+/// dense node order (`values[node * n_rows + row]`). Noise must be finite, and strictly inside
+/// `(0, 1)` for a categorical node.
+///
+/// # Errors
+///
+/// A shape mismatch, an invalid noise value, or a table over the context's memory limit.
+pub fn noise_table_from_columns(
+    model: &CompiledCausalModel,
+    n_rows: usize,
+    values: &[f64],
+    ctx: &ExecutionContext,
+) -> Result<NoiseTable, CausalError> {
+    let n_nodes = model.n_nodes();
+    if n_rows.checked_mul(n_nodes) != Some(values.len()) {
+        return Err(CausalError::from(ModelError::Shape {
+            message: "noise must hold n_rows values for each of the model's nodes".into(),
+        }));
+    }
+    let mut table = NoiseTable::sample(&ModelView::observational(model), n_rows, ctx)?;
+    let nodes: Vec<_> = (0..n_nodes)
+        .map(|node| {
+            u32::try_from(node).map(antecedent_graph::DenseNodeId::from_raw).map_err(|_| {
+                CausalError::from(ModelError::Shape { message: "node index exceeds u32".into() })
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    table.fix(model, &nodes, NoiseFix::Columns(values))?;
+    Ok(table)
+}
+
+/// Replay retained noise through the model under `interventions`, with the per-node precedence
+/// of forward sampling (a stochastic policy draws from the stream keyed by `policy_salt`).
+///
+/// # Errors
+///
+/// An invalid intervention set, a table of another model's width, a mechanism that refuses its
+/// noise, a table over the context's memory limit, or cancellation.
+pub fn replay_noise(
+    model: &CompiledCausalModel,
+    interventions: &[Intervention],
+    noise: &NoiseTable,
+    policy_salt: u64,
+    ctx: &ExecutionContext,
+) -> Result<ValueBatch, CausalError> {
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    Ok(NoiseReplayer::new().replay(
+        &ModelView::with_overlay(model, overlay),
+        NoiseSource::Table(noise),
+        policy_salt,
+        ctx,
+    )?)
+}
+
+/// Model-based value of a policy on one outcome, with the unintervened outcome on the same
+/// noise, and the per-route licence the policy was run under.
+///
+/// The means are properties of the fitted model, not of the population: they are as good as the
+/// structure and the mechanisms are. Only the simulation error is quantified here
+/// ([`Self::policy_simulation_stderr`], [`Self::difference_simulation_stderr`]); the model-fit
+/// uncertainty is not, and no interval is claimed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PolicyValue {
+    /// The outcome variable.
+    pub outcome: VariableId,
+    /// Draws of the policy run and of the baseline replayed on its noise.
+    pub n_draws: usize,
+    /// Mean outcome under the policy.
+    pub policy_mean: f64,
+    /// Mean outcome with no intervention, on the same noise.
+    pub baseline_mean: f64,
+    /// `policy_mean - baseline_mean`, from the paired draws.
+    pub mean_difference: f64,
+    /// Monte Carlo standard error of `policy_mean`.
+    pub policy_simulation_stderr: f64,
+    /// Monte Carlo standard error of `mean_difference` (paired, so common noise cancels).
+    pub difference_simulation_stderr: f64,
+    /// The licence of each route for this policy.
+    pub support: PolicySupport,
+}
+
+/// Value of `interventions` on `outcome` under the fitted model: draw `n` rows with their noise
+/// under the policy, replay the same noise with no intervention, and report both means and their
+/// paired difference with the simulation error.
+///
+/// This is [`sample_with_noise`] and [`replay_noise`], the executor every policy route shares;
+/// a policy the simulation route refuses is refused here with the same registered reason code.
+///
+/// # Errors
+///
+/// A refused policy, an outcome absent from the model, fewer than two draws, a table over the
+/// context's memory limit, or cancellation.
+pub fn policy_value(
+    model: &CompiledCausalModel,
+    interventions: &[Intervention],
+    outcome: VariableId,
+    n: usize,
+    ctx: &ExecutionContext,
+) -> Result<PolicyValue, CausalError> {
+    let node = policy_value_request(model, outcome, n)?;
+    let support = policy_support(model, interventions);
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    policy_value_on(model, &overlay, support, (outcome, node), n, ctx)
+}
+
+/// The outcome's dense node, after checking the request can report a simulation error.
+fn policy_value_request(
+    model: &CompiledCausalModel,
+    outcome: VariableId,
+    n: usize,
+) -> Result<antecedent_graph::DenseNodeId, CausalError> {
+    if n < 2 {
+        return Err(CausalError::Compile {
+            message: "a policy value needs at least two draws to report its simulation error"
+                .into(),
+        });
+    }
+    model.dense_of(outcome).ok_or_else(|| CausalError::Compile {
+        message: format!("outcome {outcome} is absent from the fitted model"),
+    })
+}
+
+/// The executor of [`policy_value`] on an already compiled overlay and resolved licence, shared
+/// by the one-shot call and [`PreparedPolicy`].
+fn policy_value_on(
+    model: &CompiledCausalModel,
+    overlay: &InterventionOverlay,
+    support: PolicySupport,
+    (outcome, node): (VariableId, antecedent_graph::DenseNodeId),
+    n: usize,
+    ctx: &ExecutionContext,
+) -> Result<PolicyValue, CausalError> {
+    let (policy, noise) =
+        NoiseReplayer::new().sample(&ModelView::with_overlay(model, overlay.clone()), n, ctx)?;
+    let baseline = replay_noise(model, &[], &noise, 0, ctx)?;
+    let treated = policy.column(node.as_usize()).map_err(CausalError::from)?;
+    let untreated = baseline.column(node.as_usize()).map_err(CausalError::from)?;
+    let count = n as f64;
+    let mean = |column: &[f64]| column.iter().sum::<f64>() / count;
+    let stderr = |values: &mut dyn Iterator<Item = f64>, centre: f64| {
+        let ss: f64 = values.map(|v| (v - centre) * (v - centre)).sum();
+        (ss / (count - 1.0) / count).sqrt()
+    };
+    let (policy_mean, baseline_mean) = (mean(treated), mean(untreated));
+    let mean_difference = policy_mean - baseline_mean;
+    Ok(PolicyValue {
+        outcome,
+        n_draws: n,
+        policy_mean,
+        baseline_mean,
+        mean_difference,
+        policy_simulation_stderr: stderr(&mut treated.iter().copied(), policy_mean),
+        difference_simulation_stderr: stderr(
+            &mut treated.iter().zip(untreated).map(|(t, u)| t - u),
+            mean_difference,
+        ),
+        support,
+    })
+}
+
+/// A policy program compiled and licensed once against one fitted model, rerun without being
+/// compiled again: the retained form of [`policy_value`].
+///
+/// [`Self::prepare`] validates the program against the model (a refused program is refused
+/// there, with the registered reason code), compiles its overlay and resolves the licence of
+/// every route. [`Self::value`] then runs the executor [`policy_value`] runs, on the retained
+/// overlay, so it equals the one-shot value bit for bit at the same context.
+/// [`Self::rebind`] carries the program to a refitted model: the overlay and licence are
+/// resolved against that model, and the program itself is not compiled again.
+#[derive(Clone, Debug)]
+pub struct PreparedPolicy {
+    interventions: Arc<[Intervention]>,
+    overlay: InterventionOverlay,
+    support: PolicySupport,
+    program_compilations: u64,
+    model_bindings: u64,
+}
+
+impl PreparedPolicy {
+    /// Compile `interventions` against `model` and resolve the licence of each route.
+    ///
+    /// # Errors
+    ///
+    /// A program the model refuses (an unknown variable, a mistyped or circular expression, a
+    /// node both set and shifted), with its registered reason code.
+    pub fn prepare(
+        model: &CompiledCausalModel,
+        interventions: Vec<Intervention>,
+    ) -> Result<Self, CausalError> {
+        let overlay = InterventionOverlay::from_interventions(model, &interventions)?;
+        let support = policy_support(model, &interventions);
+        Ok(Self {
+            interventions: Arc::from(interventions),
+            overlay,
+            support,
+            program_compilations: 1,
+            model_bindings: 1,
+        })
+    }
+
+    /// The same program bound to `model` (for example the model refitted on refreshed data):
+    /// the overlay and licence are resolved against it; [`Self::program_compilations`] is
+    /// unchanged and [`Self::model_bindings`] grows by one.
+    ///
+    /// # Errors
+    ///
+    /// A model that refuses the program.
+    pub fn rebind(&self, model: &CompiledCausalModel) -> Result<Self, CausalError> {
+        let overlay = InterventionOverlay::from_interventions(model, &self.interventions)?;
+        Ok(Self {
+            interventions: Arc::clone(&self.interventions),
+            overlay,
+            support: policy_support(model, &self.interventions),
+            program_compilations: self.program_compilations,
+            model_bindings: self.model_bindings.saturating_add(1),
+        })
+    }
+
+    /// The program.
+    #[must_use]
+    pub fn interventions(&self) -> &[Intervention] {
+        &self.interventions
+    }
+
+    /// The licence of each route, fixed at preparation.
+    #[must_use]
+    pub fn support(&self) -> &PolicySupport {
+        &self.support
+    }
+
+    /// How many times the program was compiled: one, however often it is rerun or rebound.
+    #[must_use]
+    pub fn program_compilations(&self) -> u64 {
+        self.program_compilations
+    }
+
+    /// How many models the program's overlay and licence were resolved against.
+    #[must_use]
+    pub fn model_bindings(&self) -> u64 {
+        self.model_bindings
+    }
+
+    /// Value of the retained program on `outcome`; equals [`policy_value`] on the same model,
+    /// program and context. `model` must be the model the policy was prepared or rebound on.
+    ///
+    /// # Errors
+    ///
+    /// An outcome absent from the model, fewer than two draws, a table over the context's
+    /// memory limit, or cancellation.
+    pub fn value(
+        &self,
+        model: &CompiledCausalModel,
+        outcome: VariableId,
+        n: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<PolicyValue, CausalError> {
+        let node = policy_value_request(model, outcome, n)?;
+        policy_value_on(model, &self.overlay, self.support.clone(), (outcome, node), n, ctx)
+    }
 }
 
 /// Roll the model out over time under a scheduled intervention sequence, drawing fresh noise.

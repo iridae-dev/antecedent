@@ -5,7 +5,7 @@
 //! sources in `S`, so `v(∅) = 0` and `v(all) = Var(Y)`, and the Shapley values split the
 //! target's variance among the sources (Janzing, Blöbaum, Mastakouri, Faller, Minorics &
 //! Budhathoki 2024, "Quantifying intrinsic causal contributions via structure preserving
-//! interventions", AISTATS; the same quantity as `gcm.intrinsic_causal_influence` in `DoWhy`).
+//! interventions", AISTATS).
 //!
 //! # Estimating `v(S)`
 //!
@@ -180,6 +180,18 @@ impl SourceInfluence {
     #[must_use]
     pub fn status(&self, component: UncertaintyComponent) -> Option<&ComponentStatus> {
         self.uncertainty.iter().find(|u| u.component == component).map(|u| &u.status)
+    }
+
+    /// Standard error of `component`: the quantified value, exactly zero when the component
+    /// does not arise (no permutation is sampled when every coalition is enumerated), and
+    /// `None` when it arises but was not measured.
+    #[must_use]
+    pub fn component_stderr(&self, component: UncertaintyComponent) -> Option<f64> {
+        match self.status(component)? {
+            ComponentStatus::Quantified { stderr, .. } => Some(*stderr),
+            ComponentStatus::NotApplicable { .. } => Some(0.0),
+            ComponentStatus::Unquantified { .. } => None,
+        }
     }
 
     /// Quantified components added in quadrature, with the components left out named.

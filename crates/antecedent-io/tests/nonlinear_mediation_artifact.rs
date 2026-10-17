@@ -345,7 +345,16 @@ fn exercise_budgets(copies: usize) {
     let rows = u64::try_from(40 * copies).unwrap();
     let artifact = NonlinearMediationArtifact::seal(&request).unwrap();
     assert_closed_form(&artifact, rows);
+    exercise_export_and_replay(&request, &artifact, &|artifact| assert_closed_form(artifact, rows));
+}
 
+/// Export `artifact` under a budget, bind it to `request`'s dataset by digest and replay it;
+/// `recovered` states what the estimate must still hold after each step.
+fn exercise_export_and_replay(
+    request: &NonlinearMediationRequestWire,
+    artifact: &NonlinearMediationArtifact,
+    recovered: &dyn Fn(&NonlinearMediationArtifact),
+) {
     // Export: the dataset is embedded only inside the budget, and a refusal names the bytes.
     let embedded = artifact.to_bytes("scaled").unwrap();
     assert_eq!(artifact.to_bytes_within("scaled", embedded.len()).unwrap(), embedded);
@@ -359,7 +368,7 @@ fn exercise_budgets(copies: usize) {
     let error = artifact.to_bytes_within("scaled", 1_000).unwrap_err();
     assert_eq!(refusal_detail(&error), "nonlinear_mediation.export_budget_exceeded");
     // The refusal costs the caller nothing: the estimate is still complete in memory.
-    assert_closed_form(&artifact, rows);
+    recovered(artifact);
 
     // Replay: the digest-bound record carries no rows and needs the dataset it is bound to.
     let bound = artifact.to_bytes_digest_bound("bound").unwrap();
@@ -393,6 +402,104 @@ fn exercise_budgets(copies: usize) {
     assert_eq!(replay.meta(), artifact.meta());
 }
 
+/// Deterministic draws: a `SplitMix64` stream with Box-Muller normals.
+struct Population(u64);
+
+impl Population {
+    fn uniform(&mut self) -> f64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        ((z ^ (z >> 31)) >> 11) as f64 / (1_u64 << 53) as f64
+    }
+
+    fn normal(&mut self) -> f64 {
+        let (u, v) = (1.0 - self.uniform(), self.uniform());
+        (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
+    }
+}
+
+/// `rows` units of the SCM above with random draws: `A` a fair coin, `X` uniform on
+/// `{-1, 0, 1, 2, 3}`, `M = alpha A + gamma X + e_M` with `e_M` normal of variance `sigma2`, and
+/// the noiseless outcome.
+fn population_request(rows: usize, seed: u64) -> NonlinearMediationRequestWire {
+    let mut draws = Population(seed);
+    let mut d = MediationDataWire {
+        treatment: Vec::with_capacity(rows),
+        mediator: Vec::with_capacity(rows),
+        outcome: Vec::with_capacity(rows),
+        covariate_names: vec!["x".into()],
+        covariates: vec![Vec::with_capacity(rows)],
+    };
+    for _ in 0..rows {
+        let a = f64::from(u8::from(draws.uniform() < 0.5));
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a uniform draw in [0, 1) scaled by the level count indexes a level"
+        )]
+        let x = XS[((draws.uniform() * 5.0) as usize).min(4)];
+        let m = ALPHA * a + GAMMA * x + SIGMA2.sqrt() * draws.normal();
+        d.treatment.push(a);
+        d.mediator.push(m);
+        d.outcome.push(B0 + B1 * a + C1 * m + C2 * m * m + DELTA * a * m + BX * x);
+        d.covariates[0].push(x);
+    }
+    NonlinearMediationRequestWire { premises: ignorable(), config: config(0), data: d }
+}
+
+/// The closed-form effects, within the sampling error of the estimated mediator model.
+fn assert_population_closed_form(artifact: &NonlinearMediationArtifact, rows: usize) {
+    let (nde, nie, te) = truth();
+    let result = &artifact.meta().result;
+    assert_eq!(result.n_rows, u64::try_from(rows).unwrap());
+    common::close(result.natural_direct, nde, 0.05, "NDE");
+    common::close(result.natural_indirect, nie, 0.05, "NIE");
+    common::close(result.total, te, 0.08, "TE");
+}
+
+/// The estimate completes on `rows` rows with its inferential standing exactly that of the
+/// 40-row exact-grid fit, inside its runtime target, and exports and replays under explicit
+/// budgets.
+fn exercise_population(rows: usize, seed: u64, runtime_seconds: u64) {
+    let request = population_request(rows, seed);
+    let started = std::time::Instant::now();
+    let artifact = NonlinearMediationArtifact::seal(&request).unwrap();
+    assert_population_closed_form(&artifact, rows);
+    assert!(started.elapsed().as_secs() < runtime_seconds, "{:?}", started.elapsed());
+
+    let standing = artifact.meta();
+    let reference = seal(0).0;
+    let reference = reference.meta();
+    assert_eq!(standing.calibration, "unmeasured");
+    assert_eq!(
+        (
+            &standing.calibration,
+            &standing.interval_status,
+            &standing.inference_claim,
+            &standing.estimand
+        ),
+        (
+            &reference.calibration,
+            &reference.interval_status,
+            &reference.inference_claim,
+            &reference.estimand
+        ),
+        "the declared inferential standing does not move with the number of rows"
+    );
+    assert!(standing.result.natural_direct_se.is_none(), "no standard error without replicates");
+
+    // The computation budget refuses before any work and the export and replay budgets are
+    // separate bounds on the same estimate.
+    let error =
+        NonlinearMediationArtifact::seal_with(&request, &context_with_memory(1_000)).unwrap_err();
+    assert_eq!(refusal_detail(&error), "nonlinear_mediation.memory_budget_exceeded");
+    exercise_export_and_replay(&request, &artifact, &|artifact| {
+        assert_population_closed_form(artifact, rows);
+    });
+}
+
 #[test]
 fn mediation_has_no_row_ceiling_and_export_and_replay_are_budgeted() {
     // 30,000 rows: more than the former embedded-row ceiling.
@@ -403,6 +510,17 @@ fn mediation_has_no_row_ceiling_and_export_and_replay_are_budgeted() {
 #[ignore = "estimates on 100,000 rows; run with --ignored"]
 fn mediation_runs_at_one_hundred_thousand_rows() {
     exercise_budgets(2_500);
+}
+
+#[test]
+fn nonlinear_mediation_fit_beyond_old_row_ceiling_50000() {
+    exercise_population(50_000, 6_777_711, 900);
+}
+
+#[test]
+#[ignore = "estimates on 100,000 rows; run with --ignored"]
+fn nonlinear_mediation_fit_beyond_old_row_ceiling_100000() {
+    exercise_population(100_000, 5_293_885, 900);
 }
 
 #[test]

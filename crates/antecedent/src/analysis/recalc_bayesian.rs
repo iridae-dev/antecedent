@@ -414,7 +414,7 @@ impl BayesianRequest {
         // the artifact bytes themselves are also a separate part.
         let adaptive = ctx.adaptive_draws;
         let config = Fields::new()
-            .wire(&super::contract_identity::bayesian_binding(&self.inference))
+            .wire(&super::contract_identity::bayesian_binding(&self.inference, None))
             .flag(self.inference.n_draws_explicit)
             .real(self.inference.prior_scale)
             .flag(self.inference.prior_artifact.is_some())

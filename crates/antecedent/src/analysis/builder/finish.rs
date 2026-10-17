@@ -29,8 +29,9 @@ use super::{
     DataInput, InterferenceSpec, RdConfig, RefuteSuite, TransportTrialSpec,
     custom_validators_apply, data_schema, estimator_setting_conflict, omitted_bootstrap_resamples,
     population_estimable, refuse_estimator_inference_mismatch, refuse_unlicensed_interference,
-    refuse_unlicensed_panel_route, refuse_unlicensed_transport, refuse_unsupported_likelihood,
-    stub_accepted_graph_for, tiered_graph_conflict, validate_schema_binding,
+    refuse_unlicensed_panel_route, refuse_unlicensed_transport, refuse_unsupported_draw_controls,
+    refuse_unsupported_likelihood, stub_accepted_graph_for, tiered_graph_conflict,
+    validate_schema_binding,
 };
 
 /// Builder fields moved into the pipeline, plus the `inspect_only` flag.
@@ -57,6 +58,7 @@ pub(super) struct FinishInput {
     pub(super) estimator_spec: Option<EstimatorSpec>,
     pub(super) response_options: Option<ContinuousResponseOptions>,
     pub(super) observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    pub(super) draw_controls: Option<crate::PosteriorDrawControls>,
     pub(super) observation_delayed_entry: Option<VariableId>,
     pub(super) rd: Option<RdConfig>,
     pub(super) inference: InferenceMode,
@@ -100,6 +102,7 @@ struct Carry {
     estimator_spec: Option<EstimatorSpec>,
     response_options: Option<ContinuousResponseOptions>,
     observation_options: antecedent_estimate::ObservationEstimatorOptions,
+    draw_controls: Option<crate::PosteriorDrawControls>,
     observation_delayed_entry: Option<VariableId>,
     rd: Option<RdConfig>,
     inference: InferenceMode,
@@ -210,6 +213,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         estimator_spec,
         response_options,
         observation_options,
+        draw_controls,
         observation_delayed_entry,
         rd,
         inference,
@@ -250,6 +254,7 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
             estimator_spec,
             response_options,
             observation_options,
+            draw_controls,
             observation_delayed_entry,
             rd,
             inference,
@@ -588,6 +593,15 @@ fn admit_executable_route(estimand: RetargetedEstimand) -> Result<ExecutableRout
         &carry.data,
         graph.class(),
         graph_posterior.is_none() && carry.tiered.is_none(),
+        &carry.inference,
+    )?;
+    refuse_unsupported_draw_controls(
+        &query,
+        &carry.data,
+        graph.class(),
+        graph_posterior.is_none() && carry.tiered.is_none(),
+        carry.estimator,
+        carry.draw_controls,
         &carry.inference,
     )?;
     if !population_estimable(&query) {
@@ -1235,6 +1249,7 @@ fn into_study(exposure: BoundExposure) -> Study {
                 .map(super::super::contract_identity::estimator_spec_identity),
             response_options: carry.response_options,
             observation_options: carry.observation_options,
+            draw_controls: carry.draw_controls,
             observation_delayed_entry: carry.observation_delayed_entry,
             rd: carry.rd,
             stage_sink: carry.stage_sink,

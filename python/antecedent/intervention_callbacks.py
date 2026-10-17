@@ -17,6 +17,13 @@ leaves the process carries those and never the code. A consumer supplies the sou
 :func:`recover_callback` re-verifies the digest, the entry point, the declared signature and
 every pinned version before replay (``policy_callback_unrecoverable`` on any difference).
 
+A program that applies recoverable callbacks has a portable encoding: :func:`encode_programs`
+writes each callback as its record under an encoding version only such programs use (a program
+without callbacks keeps the bytes and identity it always had), :func:`required_callbacks` lists
+the records a consumer must supply implementations for, and :func:`decode_programs` binds the
+implementations :func:`recover_callback` rebuilt, verifying each against its record once more
+before anything is returned for replay.
+
 The restrictions on source are an identity guarantee, not a security sandbox: it may not import
 (declared dependencies are bound by name, and ``numpy`` is always bound as ``np``), reach dunder
 attributes or use ``eval`` / ``exec`` / ``open`` / ``globals``, and it runs with a fixed set of
@@ -39,16 +46,28 @@ from typing import Any, Final, Literal
 
 import numpy as np
 
-from ._native import BatchCallbackHandle, callback_export_refusal, verify_callback_recovery
+from ._native import (
+    BatchCallbackHandle,
+    callback_export_refusal,
+    decode_callback_policy_program,
+    encode_callback_policy_program,
+    policy_program_callback_records,
+    verify_callback_recovery,
+)
 from .errors import CausalUnsupportedError, CausalValueError
+from .intervention_programs import Program, _programs
+from .intervention_programs import _text as _program_text
 
 __all__ = [
     "GENERATED",
     "CallbackProgram",
     "CallbackRecord",
     "InterventionCallback",
+    "decode_programs",
+    "encode_programs",
     "export_records",
     "recover_callback",
+    "required_callbacks",
     "sample_do",
 ]
 
@@ -157,32 +176,50 @@ def _output_declaration(
     return "range", [low, high]
 
 
-def _pins(dependencies: Mapping[str, str] | None, *, numpy_pinned: bool) -> list[tuple[str, str]]:
-    pins = dict(dependencies or {})
-    for name, version in pins.items():
+def _pins(
+    dependencies: Mapping[str, str | None] | None, *, numpy_pinned: bool
+) -> tuple[list[tuple[str, str]], tuple[str, ...]]:
+    """Pinned ``(name, version)`` pairs, and the names declared without a version."""
+    pins: dict[str, str] = {}
+    unpinned: list[str] = []
+    for name, version in dict(dependencies or {}).items():
         _text(name, "a dependency name")
-        _text(version, f"the pinned version of {name}")
+        if version is None:
+            unpinned.append(name)
+        else:
+            pins[name] = _text(version, f"the pinned version of {name}")
     if numpy_pinned:
         pins.setdefault("numpy", np.__version__)
-    return sorted(pins.items())
+    return sorted(pins.items()), tuple(sorted(unpinned))
 
 
-def _verify_installed(pins: Sequence[tuple[str, str]]) -> None:
+def _verify_installed(
+    pins: Sequence[tuple[str, str]], unpinned: Sequence[str], callback: str
+) -> None:
     for name, version in pins:
         try:
             installed = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
             raise CausalUnsupportedError(
-                f"dependency {name}=={version} is not installed",
+                f"callback {callback} depends on {name}=={version}, which is not installed",
                 reason_code=UNRECOVERABLE,
                 remedy="install the pinned dependency version",
             ) from None
         if installed != version:
             raise CausalUnsupportedError(
-                f"dependency {name} is pinned to {version} but {installed} is installed",
+                f"callback {callback} is pinned to {name}=={version} but {installed} is installed",
                 reason_code=UNRECOVERABLE,
                 remedy="install the pinned dependency version, or re-declare the callback",
             )
+    for name in unpinned:
+        try:
+            importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            raise CausalUnsupportedError(
+                f"callback {callback} depends on {name}, which is not installed",
+                reason_code=UNRECOVERABLE,
+                remedy="install the dependency",
+            ) from None
 
 
 def _check_source(tree: ast.AST) -> None:
@@ -199,16 +236,14 @@ def _check_source(tree: ast.AST) -> None:
             raise CausalValueError("callback source may not rebind outer names")
 
 
-def _compile_source(
-    source: str, entry_point: str, pins: Sequence[tuple[str, str]]
-) -> Callable[..., Any]:
+def _compile_source(source: str, entry_point: str, modules: Sequence[str]) -> Callable[..., Any]:
     tree = ast.parse(source)
     _check_source(tree)
     defined = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
     if entry_point not in defined:
         raise CausalValueError(f"source defines no top-level function {entry_point!r}")
     namespace: dict[str, Any] = {"__builtins__": dict(_BUILTINS), "np": np}
-    for name, _ in pins:
+    for name in modules:
         namespace[name.replace("-", "_")] = importlib.import_module(name.replace("-", "_"))
     exec(compile(tree, "<callback source>", "exec"), namespace)  # noqa: S102 - see module docstring
     return namespace[entry_point]  # type: ignore[no-any-return]
@@ -225,6 +260,11 @@ class CallbackRecord:
     source_sha256: str
     entry_point: str
     dependencies: tuple[tuple[str, str], ...]
+
+    @property
+    def provenance_id(self) -> str:
+        """The provenance record (``provenance/<id>.toml``) the callback executor is defined in."""
+        return "model.intervention_programs"
 
     def to_dict(self) -> dict[str, Any]:
         """Plain-data form, for embedding in an artifact."""
@@ -259,13 +299,15 @@ class InterventionCallback:
     length) and returns a one-dimensional real array of that length. ``lower`` / ``upper`` declare
     a range and ``levels`` a finite set the output must lie in; with neither the output is any
     finite real. ``dependencies`` maps distribution names to the exact versions the function was
-    written against; each must be installed at that version.
+    written against; each must be installed at that version. A version of ``None`` declares a
+    dependency that is installed but not pinned: the callback may use it, but its behaviour
+    cannot be verified by a consumer, so the callback is refused for export.
 
     This constructor makes a runtime binding. Use :meth:`from_source` for a callback that can be
     recorded and replayed.
     """
 
-    __slots__ = ("_handle",)
+    __slots__ = ("_handle", "_unpinned")
 
     def __init__(
         self,
@@ -276,13 +318,14 @@ class InterventionCallback:
         lower: float | None = None,
         upper: float | None = None,
         levels: Iterable[float] | None = None,
-        dependencies: Mapping[str, str] | None = None,
+        dependencies: Mapping[str, str | None] | None = None,
     ) -> None:
         if not callable(function):
             raise CausalValueError("function must be callable")
         label = name if name is not None else getattr(function, "__name__", "")
+        pins, self._unpinned = _pins(dependencies, numpy_pinned=False)
         self._handle = self._build(
-            function, label, inputs, lower, upper, levels, _pins(dependencies, numpy_pinned=False)
+            function, label, inputs, lower, upper, levels, pins, self._unpinned
         )
 
     @staticmethod
@@ -294,6 +337,7 @@ class InterventionCallback:
         upper: float | None,
         levels: Iterable[float] | None,
         pins: Sequence[tuple[str, str]],
+        unpinned: Sequence[str],
         source: tuple[str, str] | None = None,
     ) -> BatchCallbackHandle:
         _text(name, "name")
@@ -303,7 +347,7 @@ class InterventionCallback:
         if len(set(labels)) != len(labels):
             raise CausalValueError("input names must be distinct")
         kind, params = _output_declaration(lower, upper, levels)
-        _verify_installed(pins)
+        _verify_installed(pins, unpinned, name)
         digest, entry = source if source is not None else (None, None)
         return BatchCallbackHandle(function, name, labels, kind, params, list(pins), digest, entry)
 
@@ -318,29 +362,35 @@ class InterventionCallback:
         lower: float | None = None,
         upper: float | None = None,
         levels: Iterable[float] | None = None,
-        dependencies: Mapping[str, str] | None = None,
+        dependencies: Mapping[str, str | None] | None = None,
     ) -> InterventionCallback:
         """Declare a callback from self-contained source, so it has a verifiable record.
 
         ``source`` defines ``entry_point`` as a top-level function and may use only ``np`` and the
         declared ``dependencies`` (see the module docstring for the restrictions). Its identity is
-        the SHA-256 of ``source`` exactly as given.
+        the SHA-256 of ``source`` exactly as given. A dependency declared with version ``None`` is
+        usable but unpinned, which makes the callback unexportable.
         """
         if not isinstance(source, str):
             raise CausalValueError("source must be a string")
-        pins = _pins(dependencies, numpy_pinned=True)
-        _verify_installed(pins)
-        function = _compile_source(source, _text(entry_point, "entry_point"), pins)
+        pins, unpinned = _pins(dependencies, numpy_pinned=True)
+        entry_point = _text(entry_point, "entry_point")
+        label = name if name is not None else entry_point
+        _verify_installed(pins, unpinned, label)
+        modules = [dependency for dependency, _ in pins] + list(unpinned)
+        function = _compile_source(source, entry_point, modules)
         digest = hashlib.sha256(source.encode("utf-8")).hexdigest()
         self = cls.__new__(cls)
+        self._unpinned = unpinned
         self._handle = cls._build(
             function,
-            name if name is not None else entry_point,
+            label,
             inputs,
             lower,
             upper,
             levels,
             pins,
+            unpinned,
             (digest, entry_point),
         )
         return self
@@ -384,6 +434,15 @@ class InterventionCallback:
 
 
 def _refuse_unless_portable(callbacks: Sequence[InterventionCallback]) -> None:
+    for callback in callbacks:
+        if callback._unpinned:
+            raise CausalUnsupportedError(
+                f"callback {callback.name} depends on {', '.join(callback._unpinned)} with no "
+                "pinned version, so a consumer cannot verify the dependency it replays against",
+                reason_code=NOT_PORTABLE,
+                remedy="declare an exact version for every dependency, or keep the program in "
+                "this process",
+            )
     refusal = callback_export_refusal([c._handle for c in callbacks])
     if refusal is not None:
         code, message = refusal
@@ -402,7 +461,9 @@ class CallbackProgram:
     ``mode="assign"`` discards the node's mechanism: its value is the callback of the ``reads``.
     ``mode="transform"`` keeps the mechanism and replaces its generated value; a transform may pass
     ``GENERATED`` among its ``reads``. ``reads`` names the model variables passed to the callback,
-    in order, and defaults to the callback's own input names.
+    in order, and defaults to the callback's own input names. A callback may read only what it
+    declared: any other variable is refused (``policy_dependency_unavailable``, naming it) before
+    anything runs.
     """
 
     variable: str
@@ -432,6 +493,15 @@ class CallbackProgram:
         object.__setattr__(self, "resolved", reads)
 
     def _native(self) -> tuple[str, str, BatchCallbackHandle, list[str | None]]:
+        declared = self.callback.inputs
+        for read in self.resolved:
+            if read is not GENERATED and read not in declared:
+                raise CausalUnsupportedError(
+                    f"callback {self.callback.name} reads {read!r}, which it did not declare; "
+                    f"its declared inputs are {list(declared)}",
+                    reason_code="policy_dependency_unavailable",
+                    remedy="declare the column in the callback's inputs, or read a declared one",
+                )
         reads = [None if read is GENERATED else read for read in self.resolved]
         return (self.mode, self.variable, self.callback._handle, reads)  # type: ignore[return-value]
 
@@ -512,3 +582,70 @@ def recover_callback(source: str, record: CallbackRecord) -> InterventionCallbac
         callback._handle,
     )
     return callback
+
+
+def encode_programs(names: Sequence[str], programs: Sequence[Program | CallbackProgram]) -> bytes:
+    """Portable encoding of closed-form and callback programs, in order.
+
+    Every callback must have been declared with :meth:`InterventionCallback.from_source`; the
+    artifact carries its recovery record (source digest, entry point, declared signature and
+    pinned dependency versions) and never its code. The result is the encoding
+    :func:`antecedent.intervention_programs.encode_policy_program` writes.
+
+    Raises:
+        CausalUnsupportedError: ``policy_callback_not_portable`` for a runtime binding, naming it.
+    """
+    items: list[tuple[Any, Any]] = []
+    for program in programs:
+        if isinstance(program, CallbackProgram):
+            items.append((None, program._native()))
+        elif isinstance(program, Program):
+            items.append((_program_text([program]), None))
+        else:
+            raise CausalValueError("programs must be Program or CallbackProgram instances")
+    if not items:
+        raise CausalValueError("pass one or more programs")
+    _refuse_unless_portable([p.callback for p in programs if isinstance(p, CallbackProgram)])
+    return bytes(encode_callback_policy_program(list(names), items))
+
+
+def required_callbacks(data: bytes) -> tuple[CallbackRecord, ...]:
+    """The recovery records an encoded program carries, in the order its callbacks run.
+
+    A consumer rebuilds one callback per record with :func:`recover_callback` and passes them to
+    :func:`decode_programs`. The artifact's version, identity and validity are checked first.
+    """
+    return tuple(CallbackRecord.from_dict(r) for r in policy_program_callback_records(bytes(data)))
+
+
+def decode_programs(
+    names: Sequence[str],
+    data: bytes,
+    callbacks: Mapping[str, InterventionCallback] | Iterable[InterventionCallback],
+) -> tuple[Program | CallbackProgram, ...]:
+    """Decode an encoded program, binding ``callbacks`` to the records it carries.
+
+    ``callbacks`` are the implementations (by name, or as an iterable); each is verified against
+    its record again, so a callback built from other source, an other entry point, another
+    signature or other dependency pins is refused, as is a record with no implementation
+    (``policy_callback_unrecoverable``). Programs come back in their encoded order.
+    """
+    supplied = list(callbacks.values() if isinstance(callbacks, Mapping) else callbacks)
+    if any(not isinstance(c, InterventionCallback) for c in supplied):
+        raise CausalValueError("callbacks must be InterventionCallback instances")
+    rows = decode_callback_policy_program(list(names), bytes(data), [c._handle for c in supplied])
+    by_name = {c.name: c for c in supplied}
+    decoded: list[Program | CallbackProgram] = []
+    for kind, first, variable, callback_name, reads in rows:
+        if kind == "closed":
+            decoded.extend(_programs(first))
+        else:
+            decoded.append(
+                CallbackProgram(
+                    variable,
+                    by_name[callback_name],
+                    reads=[GENERATED if read is None else read for read in reads],
+                    mode=first,
+                )
+            )
+    return tuple(decoded)

@@ -7,6 +7,11 @@ cloning the model.
 
 Rust surface: `antecedent_model::{NoiseTable, NoiseReplayer, NoiseSource, NoiseFix,
 NoiseOrigin}`. Provenance record: `model.noise_replay`.
+Rust facade: `antecedent::gcm::{sample_with_noise, noise_table_from_columns, replay_noise}`.
+Python: `FittedGcm.sample_noise(interventions, n, ...)` returns the draws with the noise that
+produced them, a `(n_variables, n)` array in the model's variable order, and
+`FittedGcm.replay_noise(noise, interventions=None, ...)` evaluates caller-held (or edited) noise
+under interventions, shifts or programs.
 
 ## The noise table
 
@@ -55,3 +60,10 @@ table and its values are both kept) runs before allocating and refuses with
 when the mask is set and from `resampled` otherwise. Nothing is copied: replaying 512
 coalitions costs 512 passes of the kernel on one replayer and one output buffer.
 `NoiseReplayer::scratch_footprint` exposes the buffer growth so reuse can be asserted.
+
+## Examples
+
+`examples/rust/noise_replay.rs` and `examples/python/noise_replay.py` draw the noise of a linear
+Gaussian chain once, reproduce its values bit for bit, fix or redraw coordinates and compare the
+resulting variances with their closed forms (Rust adds a coalition of two tables), and replay the
+noise under `do(a = 2)` (Python). Both assert their results and run in the example suites.

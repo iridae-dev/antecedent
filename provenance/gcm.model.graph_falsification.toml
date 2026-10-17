@@ -33,4 +33,5 @@ upstream_implementations_observed = [
 test_sources = [
  "crates/antecedent-model/src/falsify.rs unit tests",
  "python/tests/test_graph_falsification.py",
+ "python/tests/test_dowhy_comparison.py (rejected and not-rejected outcomes on correct, relabelled and one-edge-short graphs against gcm.falsify.falsify_graph; DoWhy values computed at test time by the pinned version, skipped when it is absent)",
 ]

@@ -12,7 +12,9 @@ return types; the per-algorithm knowledge itself lives on the config classes.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Sequence
+import re
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
@@ -30,6 +32,9 @@ from ._native import (
 )
 from ._native import (
     discover_dbn_posterior as _discover_dbn_posterior,
+)
+from ._native import (
+    discover_exact_dag_marginals as _discover_exact_dag_marginals,
 )
 from ._native import (
     discover_exact_dag_posterior as _discover_exact_dag_posterior,
@@ -228,6 +233,29 @@ def _knowledge_kwargs(
     return {"background_knowledge": json.dumps(knowledge.to_wire(names), sort_keys=True)}
 
 
+@contextmanager
+def _named_positions(names: Sequence[str]) -> Iterator[None]:
+    """Name the variables of a knowledge refusal that the native layer reports by position.
+
+    The native search sees columns, not names, so a contradiction reads "variable 0 -> variable
+    1"; the caller wrote ``Link("age", "dose")``.
+    """
+    try:
+        yield
+    except CausalUnsupportedError as error:
+        text = str(error.args[0]) if error.args else ""
+        code = getattr(error, "reason_code", None)
+        if code not in ("invalid_argument", "option_not_applicable") or "variable " not in text:
+            raise
+        message = text.removeprefix(f"reason={code}: ")
+        named = re.sub(
+            r"variable (\d+)",
+            lambda m: f"variable {names[int(m[1])]!r}" if int(m[1]) < len(names) else m[0],
+            message,
+        )
+        raise CausalUnsupportedError(named, reason_code=code) from error
+
+
 def _wire_knowledge(wire: dict[str, Any], knowledge: BackgroundKnowledge | None) -> dict[str, Any]:
     """``wire`` with the by-name statements of non-empty ``knowledge`` added."""
     if knowledge is not None and not knowledge.is_empty:
@@ -260,17 +288,18 @@ class PC:
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_pc(
-            names,
-            cols,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            threads=threads,
-            ci=self.ci,
-            max_cond_size=self.max_cond_size,
-            **_knowledge_kwargs(self.knowledge, names),
-        )
+        with _named_positions(names):
+            return _discover_pc(
+                names,
+                cols,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                threads=threads,
+                ci=self.ci,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -326,20 +355,21 @@ class PCMCI:
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols, unit_lengths = coerce_temporal_data(data)
-        return _discover_pcmci(
-            names,
-            cols,
-            unit_lengths=unit_lengths,
-            max_lag=self.max_lag,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            ci=self.ci,
-            weights=weights,
-            threads=threads,
-            max_cond_size=self.max_cond_size,
-            **_knowledge_kwargs(self.knowledge, names),
-        )
+        with _named_positions(names):
+            return _discover_pcmci(
+                names,
+                cols,
+                unit_lengths=unit_lengths,
+                max_lag=self.max_lag,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                ci=self.ci,
+                weights=weights,
+                threads=threads,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -399,20 +429,21 @@ class PCMCIPlus:
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols, unit_lengths = coerce_temporal_data(data)
-        return _discover_pcmci_plus(
-            names,
-            cols,
-            unit_lengths=unit_lengths,
-            max_lag=self.max_lag,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            ci=self.ci,
-            weights=weights,
-            threads=threads,
-            max_cond_size=self.max_cond_size,
-            **_knowledge_kwargs(self.knowledge, names),
-        )
+        with _named_positions(names):
+            return _discover_pcmci_plus(
+                names,
+                cols,
+                unit_lengths=unit_lengths,
+                max_lag=self.max_lag,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                ci=self.ci,
+                weights=weights,
+                threads=threads,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -695,19 +726,20 @@ class GES:
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_ges(
-            names,
-            cols,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            threads=threads,
-            ci=self.ci,
-            max_cond_size=self.max_cond_size,
-            screen_pc=self.screen_pc,
-            max_subset=self.max_subset,
-            **_knowledge_kwargs(self.knowledge, names),
-        )
+        with _named_positions(names):
+            return _discover_ges(
+                names,
+                cols,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                threads=threads,
+                ci=self.ci,
+                max_cond_size=self.max_cond_size,
+                screen_pc=self.screen_pc,
+                max_subset=self.max_subset,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -883,17 +915,18 @@ class FCI:
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_fci(
-            names,
-            cols,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            threads=threads,
-            ci=self.ci,
-            max_cond_size=self.max_cond_size,
-            **_knowledge_kwargs(self.knowledge, names),
-        )
+        with _named_positions(names):
+            return _discover_fci(
+                names,
+                cols,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                threads=threads,
+                ci=self.ci,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -940,17 +973,18 @@ class RFCI:
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
-        return _discover_rfci(
-            names,
-            cols,
-            alpha=self.alpha,
-            fdr=self.fdr,
-            seed=seed,
-            threads=threads,
-            ci=self.ci,
-            max_cond_size=self.max_cond_size,
-            **_knowledge_kwargs(self.knowledge, names),
-        )
+        with _named_positions(names):
+            return _discover_rfci(
+                names,
+                cols,
+                alpha=self.alpha,
+                fdr=self.fdr,
+                seed=seed,
+                threads=threads,
+                ci=self.ci,
+                max_cond_size=self.max_cond_size,
+                **_knowledge_kwargs(self.knowledge, names),
+            )
 
     def accept(
         self,
@@ -972,15 +1006,59 @@ class RFCI:
         )
 
 
+#: Most variables the exact route lists graphs for; above it only edge marginals are exact.
+EXACT_ENUMERATION_MAX_VARIABLES = 6
+#: Most variables the exact route computes edge marginals for.
+EXACT_MARGINALS_MAX_VARIABLES = 12
+
+_ATOM_ONLY = frozenset(
+    {"adjacency", "weights", "graph_keys", "n_graphs", "to_weighted_samples", "ess", "atoms"}
+)
+
+
+@dataclass(frozen=True)
+class ExactDagMarginals:
+    """Exact edge marginals of the Gaussian-BIC DAG posterior of 7 to 12 variables.
+
+    ``edge_marginal_matrix()[i][j]`` is ``P(i -> j)``, exact for the BIC pseudo-posterior with the
+    uniform edge prior (no sampling error). ``log_evidence`` is the log normalizing constant
+    ``log sum_G exp(BIC(G))``. Above six variables the graphs themselves cannot be listed, so
+    the graph-level outputs of :class:`GraphPosterior` (atoms, weights, the MAP graph, the
+    mixture over graphs that ``analyze`` uses) do not exist; asking for one is refused rather than
+    approximated. Use ``OrderMcmc`` or ``StructureMcmc`` for atoms.
+    """
+
+    names: list[str]
+    n_vars: int
+    log_evidence: float
+    _matrix: tuple[tuple[float, ...], ...]
+
+    def edge_marginal_matrix(self) -> list[list[float]]:
+        return [list(row) for row in self._matrix]
+
+    def __getattr__(self, name: str) -> Any:
+        if name in _ATOM_ONLY:
+            raise CausalUnsupportedError(
+                f"{name!r} needs the list of graphs, which the exact route does not produce above "
+                f"{EXACT_ENUMERATION_MAX_VARIABLES} variables (it publishes exact edge marginals "
+                "only); use OrderMcmc or StructureMcmc for graph atoms",
+                reason_code="option_not_applicable",
+            )
+        raise AttributeError(name)
+
+
 @dataclass(frozen=True)
 class ExactDagPosterior:
-    """Exact DAG posterior enumeration (hard limit: n ≤ 6, Gaussian BIC).
+    """Exact DAG posterior (Gaussian BIC).
 
-    For more variables use ``OrderMcmc``, ``StructureMcmc``, or ``CiScreenedPosterior``.
+    Up to 6 variables every DAG is enumerated and ``run`` returns a ``GraphPosterior`` (atoms,
+    weights, marginals). From 7 to 12 variables ``run`` returns :class:`ExactDagMarginals`: the
+    exact ``P(i -> j)`` and the log normalizing constant by dynamic programming over node subsets,
+    with no graph atoms (and so no composition with ``analyze``). More than 12 variables are
+    refused naming that size; use ``OrderMcmc``, ``StructureMcmc`` or ``CiScreenedPosterior``.
 
-    Standalone: ``ExactDagPosterior().run(...)`` returns a ``GraphPosterior``.
     Composed: pass ``discovery=ExactDagPosterior()`` with ``inference=Bayesian(...)``
-    to ``analyze`` to mix effect draws over the graph posterior (P1-D).
+    to ``analyze`` to mix effect draws over the graph posterior (at most 6 variables).
     """
 
     kind: Literal["exact_dag_posterior"] = "exact_dag_posterior"
@@ -990,9 +1068,16 @@ class ExactDagPosterior:
     def _wire(self) -> dict[str, Any]:
         return {"algorithm": "exact_dag_posterior"}
 
-    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
+    def run(
+        self, data: Any, *, seed: int = 1, threads: int | None = None
+    ) -> GraphPosterior | ExactDagMarginals:
         names, cols = coerce_data(data)
-        return _discover_exact_dag_posterior(names, cols, seed=seed, threads=threads)
+        if len(names) <= EXACT_ENUMERATION_MAX_VARIABLES:
+            return _discover_exact_dag_posterior(names, cols, seed=seed, threads=threads)
+        flat, log_evidence = _discover_exact_dag_marginals(names, cols, seed=seed, threads=threads)
+        n = len(names)
+        matrix = tuple(tuple(flat[i * n : (i + 1) * n]) for i in range(n))
+        return ExactDagMarginals(list(names), n, log_evidence, matrix)
 
 
 @dataclass(frozen=True)
@@ -1310,6 +1395,7 @@ __all__ = [
     "DbnPosterior",
     "DiscoveredLink",
     "DiscoveryResult",
+    "ExactDagMarginals",
     "ExactDagPosterior",
     "FCI",
     "GES",

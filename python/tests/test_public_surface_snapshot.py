@@ -440,6 +440,7 @@ SNAPSHOT: dict[str, set[str]] = {
     },
     "AnalysisResult": {
         "artifact",
+        "estimand_text",
         "fitted_model",
         # The five-line API (`ResultAPI`)
         "answer",
@@ -586,6 +587,7 @@ SNAPSHOT: dict[str, set[str]] = {
     # the propensity overlap policy are reviewed surface, like the verbs.
     "Bayesian": {
         "backend",
+        "draw_controls",
         "kind",
         "likelihood",
         "mapping",

@@ -187,10 +187,12 @@ pub use ar_kernel::kernel_bias_factor;
 pub(crate) use bayesian::require_bayesian_n_draws;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
-    CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping, HydrateSource,
-    HydrateTarget, LAPLACE_RANK_INTERVAL_BELOW_DRAWS, PosteriorFunctionalEvaluator,
-    PreparedBayesianProblem, coefficient_covariance_from_draws, hmc_draw_floor_from_notes,
-    hydrate_prior, hydrate_prior_from_coefficient_moments, nonidentified_with_prior,
+    CausalPosterior, CompiledGCompAte, DRAW_CONTROL_NOTE_PREFIX, EndpointMonteCarloError,
+    GCompAteEvaluator, HydrateMapping, HydrateSource, HydrateTarget,
+    LAPLACE_RANK_INTERVAL_BELOW_DRAWS, MIN_CONTROLLED_DRAWS, PosteriorFunctionalEvaluator,
+    PreparedBayesianProblem, coefficient_covariance_from_draws, endpoint_mcse_from_notes,
+    endpoint_monte_carlo_error, hmc_draw_floor_from_notes, hydrate_prior,
+    hydrate_prior_from_coefficient_moments, nonidentified_with_prior, supported_min_draws,
 };
 pub use causal_forest::CausalForest;
 pub use cell_aipw::{
@@ -289,13 +291,14 @@ pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, Prop
 pub use prediction::TemporalLinearPredictor;
 pub use propensity::{
     CaliperScale, DEFAULT_RIDGE_GRID, DeclaredTreatmentLevels, DistanceMatching, FailedFit,
-    FallbackRecord, FoldSupport, GENERALIZED_PROPENSITY_PROVENANCE, LevelMean, LevelRows,
-    MultiLevelAipw, MultiLevelEstimate, MultiLevelPopulation, MultiLevelTarget, NuisanceFallback,
-    OtherLevels, PROPENSITY_FIT_STAGE, PenalizedReport, PenalizedVarianceReport,
-    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
-    PropensityNuisance, PropensityPenalty, PropensityStratification, PropensityWeighting,
-    REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, RidgeTuning, crossfit_influence_se,
-    default_propensity_overlap, provenance_marks_penalized, provenance_withholds_interval,
+    FallbackRecord, FoldSupport, GENERALIZED_PROPENSITY_PROVENANCE,
+    KNN_DISTANCE_MATCHING_CONSTRUCTION, KnnDistanceMatching, LevelMean, LevelRows, MultiLevelAipw,
+    MultiLevelEstimate, MultiLevelPopulation, MultiLevelTarget, NuisanceFallback, OtherLevels,
+    PROPENSITY_FIT_STAGE, PenalizedReport, PenalizedVarianceReport, PreparedPropensityProblem,
+    PropensityEstimationWorkspace, PropensityMatching, PropensityNuisance, PropensityPenalty,
+    PropensityStratification, PropensityWeighting, REFIT_BOOTSTRAP_UNCERTAINTY_KIND,
+    ReplicatePenalties, RidgeTuning, crossfit_influence_se, default_propensity_overlap,
+    provenance_marks_penalized, provenance_withholds_interval,
 };
 pub use quantile::empirical_threshold_grid;
 pub use rd::{

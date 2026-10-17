@@ -154,7 +154,8 @@ pub use adaptive_inference::{
     consume_adaptive_monitoring_contract_artifact,
 };
 pub use adaptive_participant_procedure::{
-    ParticipantHistoryReport, ParticipantProcedure, ParticipantSimulationReport,
+    ParticipantHistoryReport, ParticipantProcedure, ParticipantRunReport,
+    ParticipantSimulationReport,
 };
 pub use adaptive_procedure_declaration::{AdaptiveProcedure, ProcedureElements, Retention};
 pub use adaptive_procedure_report::{

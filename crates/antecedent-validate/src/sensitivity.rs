@@ -2326,3 +2326,293 @@ mod tipping_closed_form {
         assert!(matches!(err, crate::ValidationError::NotApplicable { .. }), "{err:?}");
     }
 }
+
+/// The nonparametric sensitivity constructions at the sizes where each applies: the exact
+/// smoother is unchanged below its row cap, and the neighbourhood construction beyond it
+/// reproduces the exact result on a checkable subsample and brackets the tipping value the
+/// known data-generating process implies.
+#[cfg(test)]
+mod scalable_cases {
+    use antecedent_core::ExecutionContext;
+
+    use super::{
+        MAX_NONPARAMETRIC_ROWS, NeighborhoodSensitivity, NonparametricSensitivity, PerturbMoments,
+        covariate_matrix, default_grid, fill_gaussian, grid_robustness_value, nw_loo_predict_pair,
+        orthogonalize_confounder, residual_ols_ate,
+    };
+    use crate::common::{RefutationProblem, RefutationReport, sample_sd};
+    use crate::test_support::{ate_query, backdoor, linear_original, tabular};
+
+    /// Columns `[t, y, z1, z2]` and the true residuals of `t` and `y` given `(z1, z2)`.
+    ///
+    /// `p(z) = logistic(1.2 sin(1.5 z1) + 0.6 z2)`, `t ~ Bernoulli(p)` and
+    /// `y = 0.5 t + 1.5 tanh(1.5 z1) - 0.6 z2 + 1.4 e`, so `E[t | z] = p(z)` and the true
+    /// residuals are `t - p(z)` and `0.5 (t - p(z)) + 1.4 e`.
+    struct Testbed {
+        columns: Vec<Vec<f64>>,
+        true_t_residual: Vec<f64>,
+        true_y_residual: Vec<f64>,
+    }
+
+    fn testbed(n: usize, seed: u64) -> Testbed {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x30_000);
+        let mut gaussian = || antecedent_kernels::standard_normal(&mut rng);
+        let z1: Vec<f64> = (0..n).map(|_| gaussian()).collect();
+        let z2: Vec<f64> = (0..n).map(|_| gaussian()).collect();
+        let noise: Vec<f64> = (0..n).map(|_| gaussian()).collect();
+        let p: Vec<f64> = (0..n)
+            .map(|i| 1.0 / (1.0 + (-(1.2 * (1.5 * z1[i]).sin() + 0.6 * z2[i])).exp()))
+            .collect();
+        let mut uniform = ExecutionContext::for_tests(seed ^ 0x5EED).rng.stream(0x30_001);
+        let t: Vec<f64> =
+            p.iter().map(|&p| if uniform.next_f64() < p { 1.0 } else { 0.0 }).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 0.5 * t[i] + 1.5 * (1.5 * z1[i]).tanh() - 0.6 * z2[i] + 1.4 * noise[i])
+            .collect();
+        let true_t_residual: Vec<f64> = (0..n).map(|i| t[i] - p[i]).collect();
+        let true_y_residual: Vec<f64> =
+            (0..n).map(|i| 0.5 * true_t_residual[i] + 1.4 * noise[i]).collect();
+        Testbed { columns: vec![t, y, z1, z2], true_t_residual, true_y_residual }
+    }
+
+    impl Testbed {
+        fn first_rows(&self, rows: usize) -> Vec<Vec<f64>> {
+            self.columns.iter().map(|c| c[..rows].to_vec()).collect()
+        }
+
+        /// Simulated tipping partial R² of the true residuals, `|rho| / (1 + |rho|)` with `rho`
+        /// their correlation (module docs of `sensitivity`).
+        fn true_tipping(&self) -> f64 {
+            let m = self.true_t_residual.len() as f64;
+            let (mt, my) = (
+                self.true_t_residual.iter().sum::<f64>() / m,
+                self.true_y_residual.iter().sum::<f64>() / m,
+            );
+            let (mut stt, mut syy, mut sty) = (0.0, 0.0, 0.0);
+            for (a, b) in self.true_t_residual.iter().zip(&self.true_y_residual) {
+                stt += (a - mt) * (a - mt);
+                syy += (b - my) * (b - my);
+                sty += (a - mt) * (b - my);
+            }
+            let rho = (sty / (stt * syy).sqrt()).abs();
+            rho / (1.0 + rho)
+        }
+    }
+
+    /// Run `refute` for the table built from `columns` (adjusting for the two covariates).
+    fn report_on(
+        columns: &[Vec<f64>],
+        refute: impl FnOnce(
+            &RefutationProblem<'_>,
+            &mut antecedent_estimate::EstimationWorkspace,
+        ) -> Result<RefutationReport, crate::ValidationError>,
+    ) -> Result<RefutationReport, crate::ValidationError> {
+        let data = tabular(columns);
+        let estimand = backdoor(2);
+        let query = ate_query();
+        let (original, mut ws, _) = linear_original(&data, &estimand, &query);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        refute(&problem, &mut ws)
+    }
+
+    /// The pre-change exact refuter, verbatim: leave-one-out Nadaraya-Watson residuals from
+    /// [`nw_loo_predict_pair`], the orthogonalised confounder and the partial-R² walk. Returns
+    /// `(refuted effect, tipping value)`.
+    fn frozen_exact_reference(
+        problem: &RefutationProblem<'_>,
+        ctx: &ExecutionContext,
+    ) -> (f64, f64) {
+        let ids = problem.estimation_ids(true);
+        let mask = problem.data.complete_case_mask(&ids).unwrap();
+        let (cov, n, dim) = covariate_matrix(problem, &mask).unwrap();
+        let t = problem.data.float64_masked(problem.treatment(), &mask).unwrap();
+        let y = problem.data.float64_masked(problem.outcome(), &mask).unwrap();
+        let h = antecedent_stats::silverman_normal_reference_factor(n, dim).unwrap();
+        let (t_hat, y_hat) = nw_loo_predict_pair(&t, &y, &cov, dim, h, ctx).unwrap();
+        let t_res: Vec<f64> = t.iter().zip(&t_hat).map(|(&a, &b)| a - b).collect();
+        let y_res: Vec<f64> = y.iter().zip(&y_hat).map(|(&a, &b)| a - b).collect();
+        let residual_ate = residual_ols_ate(&t_res, &y_res);
+        let (sd_t, sd_y) = (sample_sd(&t_res), sample_sd(&y_res));
+        let mut u = vec![0.0; n];
+        fill_gaussian(&mut u, ctx, crate::streams::NONPARAMETRIC_SENSITIVITY);
+        orthogonalize_confounder(&mut u, &vec![true; n], &[t_res.clone(), y_res.clone()]);
+        let mut grid = default_grid();
+        grid.sort_by(f64::total_cmp);
+        let original_sign = residual_ate.signum();
+        let dir = if residual_ate >= 0.0 { -1.0 } else { 1.0 };
+        let moments = PerturbMoments::new(&t_res, &y_res, &u);
+        let mut last_ate = residual_ate;
+        let mut explained_away_at = None;
+        for &r in &grid {
+            let scale = (r / (1.0 - r)).sqrt();
+            last_ate = moments.slope(scale * sd_t, dir * scale * sd_y);
+            if last_ate.abs() < 1e-9 || last_ate.signum() != original_sign {
+                explained_away_at = Some(r);
+                break;
+            }
+        }
+        (last_ate, grid_robustness_value(explained_away_at))
+    }
+
+    /// The exact refuter at 10000 rows (below its cap) returns, bit for bit, what the
+    /// pre-change algorithm computes on the same table.
+    #[test]
+    fn exact_sensitivity_retained_at_small_sizes() {
+        let n = 10_000usize;
+        assert!(n <= MAX_NONPARAMETRIC_ROWS);
+        let columns = testbed(n, 4_539_636).columns;
+        let ctx = ExecutionContext::production(71, 4);
+        let report = report_on(&columns, |problem, ws| {
+            NonparametricSensitivity::new().refute(problem, ws, &ctx)
+        })
+        .unwrap();
+        assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric");
+        let data = tabular(&columns);
+        let estimand = backdoor(2);
+        let query = ate_query();
+        let (original, _, _) = linear_original(&data, &estimand, &query);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let (frozen_effect, frozen_tipping) = frozen_exact_reference(&problem, &ctx);
+        assert_eq!(report.comparison.to_bits(), frozen_tipping.to_bits());
+        assert_eq!(report.refuted_ate.to_bits(), frozen_effect.to_bits());
+        assert_eq!(report.replicates as usize, default_grid().len());
+        // The exact path is not routed through the neighbourhood construction.
+        let neighborhood = report_on(&columns, |problem, ws| {
+            NeighborhoodSensitivity::new().refute(problem, ws, &ctx)
+        })
+        .unwrap();
+        assert_eq!(neighborhood.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
+    }
+
+    /// Beyond the exact cap: the exact refuter refuses and names the neighbourhood construction;
+    /// that construction (a) equals the exact refuter on a checkable subsample when its
+    /// neighbourhood covers every row, and (b) reports a tipping value whose grid interval
+    /// contains the tipping value implied by the known residuals.
+    fn assert_scalable_sensitivity(n: usize, seed: u64) {
+        assert!(n > MAX_NONPARAMETRIC_ROWS);
+        let bed = testbed(n, seed);
+        let ctx = ExecutionContext::production(72, 4);
+
+        let refused = report_on(&bed.columns, |problem, ws| {
+            NonparametricSensitivity::new().refute(problem, ws, &ctx)
+        })
+        .unwrap_err();
+        assert!(refused.to_string().contains("NeighborhoodSensitivity"), "{refused}");
+
+        let report = report_on(&bed.columns, |problem, ws| {
+            NeighborhoodSensitivity::new().refute(problem, ws, &ctx)
+        })
+        .unwrap();
+        assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
+        let tipping = bed.true_tipping();
+        let grid = default_grid();
+        assert!(grid.iter().all(|g| (g - tipping).abs() > 0.01), "tipping {tipping} on the grid");
+        let upper = grid.iter().copied().find(|&g| g > tipping).unwrap_or(f64::INFINITY);
+        let lower = grid.iter().copied().filter(|&g| g < tipping).fold(0.0, f64::max);
+        assert!(
+            (report.comparison - upper).abs() < 1e-12,
+            "reported tipping {} vs the grid value {upper} above the true tipping {tipping}",
+            report.comparison
+        );
+        assert!(lower < tipping && tipping < report.comparison, "{lower} < {tipping}");
+
+        // A subsample small enough for the exact smoother, with a neighbourhood that covers it.
+        let rows = 4_000usize;
+        let subsample = bed.first_rows(rows);
+        let exact = report_on(&subsample, |problem, ws| {
+            NonparametricSensitivity::new().refute(problem, ws, &ctx)
+        })
+        .unwrap();
+        let covering = report_on(&subsample, |problem, ws| {
+            NeighborhoodSensitivity { neighbors: rows, ..NeighborhoodSensitivity::new() }
+                .refute(problem, ws, &ctx)
+        })
+        .unwrap();
+        assert_eq!(covering.comparison.to_bits(), exact.comparison.to_bits());
+        assert_eq!(covering.passed, exact.passed);
+        assert_eq!(covering.replicates, exact.replicates);
+        assert!(
+            (covering.refuted_ate - exact.refuted_ate).abs()
+                < 1e-8 * (1.0 + exact.refuted_ate.abs()),
+            "{} vs {}",
+            covering.refuted_ate,
+            exact.refuted_ate
+        );
+    }
+
+    #[test]
+    fn nonparametric_sensitivity_beyond_20k_50000_rows() {
+        assert_scalable_sensitivity(50_000, 4_965_697);
+    }
+
+    #[test]
+    #[ignore = "acceptance workload: 100k rows; run with --ignored in a release build"]
+    fn nonparametric_sensitivity_beyond_20k_100000_rows() {
+        assert_scalable_sensitivity(100_000, 3_409_095);
+    }
+
+    /// The neighbourhood construction is a separate identity with its own provenance record, and
+    /// over 2000 independent 50000-row samples its tipping interval (the grid values around the
+    /// reported tipping value) contains the tipping value of the known residuals at least 93% of
+    /// the time, is reported for at least 90% of samples, and is at most 1.5 times the
+    /// treatment effect (0.5) wide at the median.
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn scalable_sensitivity_replacement_validated_separately() {
+        let record = |id: &str| {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../provenance")
+                .join(format!("{id}.toml"));
+            std::fs::read_to_string(path).unwrap_or_default()
+        };
+        assert!(
+            record("validate.nonparametric_sensitivity_neighborhood")
+                .contains("feature_id = \"validate.nonparametric_sensitivity_neighborhood\"")
+        );
+        assert!(
+            record("validate.confounding_sensitivity")
+                .contains("feature_id = \"validate.confounding_sensitivity\"")
+        );
+
+        let (replicates, n, effect) = (2_000u64, 50_000usize, 0.5);
+        let grid = default_grid();
+        let ctx = ExecutionContext::production(73, 4);
+        let (mut reported, mut covered) = (0u32, 0u32);
+        let mut widths: Vec<f64> = Vec::new();
+        for r in 0..replicates {
+            let bed = testbed(n, 5_211_204 + r);
+            let Ok(report) = report_on(&bed.columns, |problem, ws| {
+                NeighborhoodSensitivity::new().refute(problem, ws, &ctx)
+            }) else {
+                continue;
+            };
+            assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric_neighborhood");
+            let tipping = bed.true_tipping();
+            let lower = grid.iter().copied().filter(|&g| g < report.comparison).fold(0.0, f64::max);
+            reported += 1;
+            covered += u32::from(lower < tipping && tipping <= report.comparison);
+            widths.push(report.comparison - lower);
+        }
+        let reporting_rate = f64::from(reported) / replicates as f64;
+        assert!(reporting_rate >= 0.9, "reporting rate {reporting_rate}");
+        let coverage = f64::from(covered) / f64::from(reported);
+        assert!(coverage >= 0.93, "coverage {coverage} ({covered}/{reported}) below 0.93");
+        widths.sort_by(f64::total_cmp);
+        let median_width = widths[widths.len() / 2];
+        assert!(median_width <= 1.5 * effect, "median interval width {median_width}");
+    }
+}

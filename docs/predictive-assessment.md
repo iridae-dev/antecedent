@@ -92,15 +92,23 @@ the smallest, and a count outside it refuses with `cell_not_licensed`. The
 coverage records form contiguous grids of three case counts each (half the
 base, the base and twice the base):
 
-| Declared dependence | Measured generator | Cases in the measurement design |
-| --- | --- | --- |
-| `iid` | independent standard normal outcomes | 400 to 1,600; 1,600 to 6,400; 6,400 to 25,600; 25,600 to 102,400 (so 10,000, 30,000 and 100,000 cases lie inside) |
-| `cluster` | clusters of five cases with a shared cluster effect | 800 to 3,200 (160 to 640 clusters) |
-| `serial` | stationary AR(1) outcomes, `phi = 0.5`, lag `floor(n^(1/3))` | 1,600 to 6,400 |
+| Declared dependence | Measured generator | Cases in the measurement design | Cases in the shipped records |
+| --- | --- | --- | --- |
+| `iid` | independent standard normal outcomes | 400 to 1,600; 1,600 to 6,400; 6,400 to 25,600; 25,600 to 102,400 (so 10,000, 30,000 and 100,000 cases lie inside) | 400 to 1,600 |
+| `cluster` | clusters of five cases with a shared cluster effect | 800 to 3,200 (160 to 640 clusters) | 800 to 3,200 |
+| `serial` | stationary AR(1) outcomes, `phi = 0.5`, lag `floor(n^(1/3))` | 1,600 to 6,400 | 1,600 to 6,400 |
+
+A case count is licensed only inside the last column: the range the gated records
+in the shipped coverage table measured. The measurement design column is the
+range the calibration designs cover; a range of it that no shipped record has
+measured yet is not licensed, and a count there refuses like any other count
+outside the shipped records. `scripts/check_predictive_score_scope.py` fails
+when this table, the designs, the records, the Python documentation and the
+release notes disagree.
 
 The iid interval is a Student-t interval of a mean of independent case scores,
-whose validity grows with the case count, and 102,400 cases is the stated upper
-limit of what was measured: more cases refuse. Computing it is linear in the
+whose validity grows with the case count, and 102,400 cases is the upper limit
+of the measurement design: more cases refuse. Computing it is linear in the
 cases up to the sort of the observation identities (scoring, the variance and
 the interval are single passes).
 

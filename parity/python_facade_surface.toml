@@ -917,6 +917,20 @@ status = "bound"
 python = "native:python/src/msm_sensitivity_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::multi_level_treatment::multi_level_interval_basis"
+kind = "fn"
+status = "bound"
+python = "antecedent.multi_level_treatment.multi_level_effect"
+reason = "the calibration basis behind the interval; tested in python/tests/test_multi_level_treatment.py"
+
+[[entry]]
+rust = "antecedent::analysis::multi_level_treatment::multi_level_normal_interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.multi_level_treatment.multi_level_effect"
+reason = "the candidate normal interval the report publishes once a record covers it; tested in python/tests/test_multi_level_treatment.py"
+
+[[entry]]
 rust = "antecedent::analysis::native_claims::native_response_coordinates"
 kind = "fn"
 status = "internal"
@@ -1590,6 +1604,12 @@ status = "bound"
 python = "native:python/src/bayesian.rs"
 
 [[entry]]
+rust = "antecedent::discovery::discover_exact_dag_marginals"
+kind = "fn"
+status = "bound"
+python = "antecedent._native.discover_exact_dag_marginals"
+
+[[entry]]
 rust = "antecedent::discovery::discover_exact_dag_posterior"
 kind = "fn"
 status = "bound"
@@ -1908,6 +1928,12 @@ status = "bound"
 python = "antecedent.intervention_programs.counterfactual_policy"
 
 [[entry]]
+rust = "antecedent::gcm::counterfactual_temporal_policy"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_programs.counterfactual_temporal_policy"
+
+[[entry]]
 rust = "antecedent::gcm::evaluate_graph"
 kind = "fn"
 status = "bound"
@@ -1938,6 +1964,12 @@ status = "bound"
 python = "antecedent._native.mechanism_change_detection"
 
 [[entry]]
+rust = "antecedent::gcm::noise_table_from_columns"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_api.rs"
+
+[[entry]]
 rust = "antecedent::gcm::rank_root_causes"
 kind = "fn"
 status = "bound"
@@ -1950,6 +1982,12 @@ status = "bound"
 python = "antecedent._native.fit_gcm"
 
 [[entry]]
+rust = "antecedent::gcm::replay_noise"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_api.rs"
+
+[[entry]]
 rust = "antecedent::gcm::sample_do"
 kind = "fn"
 status = "bound"
@@ -1960,6 +1998,12 @@ rust = "antecedent::gcm::sample_temporal_policy"
 kind = "fn"
 status = "bound"
 python = "antecedent.intervention_programs.sample_temporal_policy"
+
+[[entry]]
+rust = "antecedent::gcm::sample_with_noise"
+kind = "fn"
+status = "bound"
+python = "native:python/src/gcm_api.rs"
 
 [[entry]]
 rust = "antecedent::gcm::sample_interventional_distribution"
@@ -2250,6 +2294,12 @@ rust = "antecedent::EvidenceLedgerSession"
 kind = "type"
 status = "bound"
 python = "antecedent.evidence_ledger.EvidenceLedger"
+
+[[entry]]
+rust = "antecedent::gcm::PreparedPolicy"
+kind = "type"
+status = "bound"
+python = "antecedent.intervention_programs.PreparedPolicy"
 
 [[entry]]
 rust = "antecedent::PreparedAdmgConditionalTransport"

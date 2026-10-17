@@ -3,3 +3,45 @@ project = "dowhy"
 version = "0.14"
 commit = "178ecc9c690a02f2801c1f70da2695f5744186cc"
 notes = "Pinned per ADR 0009. Used only to interpret conformance/**/expected.json reference blocks."
+
+# Executed comparison (python/tests/test_dowhy_comparison.py). Unlike the frozen reference blocks in
+# conformance/**/expected.json, these values are computed by the pinned version at test time, so no
+# number is copied; the module skips when dowhy is absent or is not `version` above. Install with
+# `pip install dowhy==0.14 pandas networkx scipy scikit-learn statsmodels`.
+comparison_test = "python/tests/test_dowhy_comparison.py"
+
+[[comparison]]
+id = "interventional_mean"
+function = "dowhy.gcm.interventional_samples"
+checked_by = "test_interventional_mean_under_a_hard_set_matches_dowhy"
+tolerance = "mean difference within 6 combined Monte Carlo standard errors; each within 0.1 of the closed form"
+
+[[comparison]]
+id = "functional_intervention"
+function = "dowhy.gcm.interventional_samples"
+checked_by = "test_a_functional_intervention_matches_a_transform_program"
+tolerance = "per-variable means within 6 combined Monte Carlo standard errors"
+
+[[comparison]]
+id = "unit_counterfactual"
+function = "dowhy.gcm.counterfactual_samples"
+checked_by = "test_unit_counterfactuals_match_dowhy_for_additive_noise"
+tolerance = "every unit within 1e-6 absolute (least-squares residual noise in both libraries)"
+
+[[comparison]]
+id = "intrinsic_influence"
+function = "dowhy.gcm.intrinsic_causal_influence"
+checked_by = "test_intrinsic_influence_matches_dowhy_on_a_linear_gaussian_chain"
+tolerance = "each share within 15% of the closed form plus 0.05; the two libraries within twice that"
+
+[[comparison]]
+id = "graph_falsification"
+function = "dowhy.gcm.falsify.falsify_graph"
+checked_by = "test_graph_falsification_on_the_case_dataset_agrees_with_dowhy_and_states_why_neither_rejects"
+tolerance = "same non-rejection with the stated reason on three nodes, and equal violation counts; the six-node extension (test_graph_falsification_agrees_with_dowhy_on_a_six_node_extension_of_the_case) gives identical rejected or not-rejected outcomes"
+
+[[comparison]]
+id = "mechanism_selection"
+function = "dowhy.gcm.auto.assign_causal_mechanisms"
+checked_by = "test_mechanism_selection_recovers_the_same_conditional_means_as_dowhy"
+tolerance = "chosen mechanisms predict conditional means within 0.15 of the structural function and within 0.2 of each other"

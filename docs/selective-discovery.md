@@ -212,8 +212,9 @@ receipt records the exclusions, the identity of the source mask and of the sourc
 discovery and analysis weights, and the content identity of the source and both parts. The identity version is unchanged: exclusions, mask and weights enter the receipt identity only when present, so a split of a complete, unmasked, unweighted table keeps the identity it always had.
 
 *Weights.* Weights are gathered with their rows, bit for bit and unnormalized, so a part's
-weights sum to whatever its rows held. Zero weights are legitimate and stay in their part; a
-part without positive weight is refused (`split_part_weight_invalid`).
+weights sum to whatever its rows held. Zero weights are legitimate and stay in their part (they contribute nothing to a weighted
+statistic and the downstream estimate counts them as excluded); a part without positive weight
+is refused (`split_part_weight_invalid`).
 
 * **Estimand.** The weights define the population the rows represent. Weighted discovery
   (`ci_test="weighted_parcorr"`, read from the discovery part's own weights; weights under any
@@ -227,9 +228,18 @@ part without positive weight is refused (`split_part_weight_invalid`).
   altered.
 * **Effective sample size.** A weighted interval uses the Kish size `(sum w)^2 / sum w^2`
   of the analysis weights (`antecedent_kernels::kish_ess`), not the row count; both parts'
-  sizes are recorded in the receipt (`SplitWeights`). Downstream weighted estimation on the
-  analysis part is not wired here: the split exposes the weights, the original row ids and
-  the effective size for it.
+  sizes are recorded in the receipt (`SplitWeights`).
+* **Downstream estimation.** `SplitDiscovery::estimate_analysis_effect` (Rust) estimates the
+  linear effect of a treatment given a declared adjustment set on the analysis part under that
+  part's own weights: the effect in the weighted population the weights represent, conditional
+  on the selected graph. Weights are normalized to mean one over the rows used, so rescaling
+  them moves neither the estimate nor its sampling-weighted HC1 standard error. Rows of weight
+  zero are excluded from the estimate and counted (`SamplingWeightRecord::zero_weight_rows`),
+  and the effective sample size of the rows used is reported beside the row count.
+  `SplitAnalysisEffect::interval` is the Student interval at the effective sample size less
+  the regression's coefficients; its whole-method coverage is `unmeasured` until
+  `tests/sample_split_weighted_effect_calibration.rs` (10 variables, 3,000 participants,
+  weights of coefficient of variation 0.8) has been measured.
 
 *What verification checks.* `SampleSplitReceipt::verify` re-derives the partition from the
 rule and the recorded exclusions and checks every stored identity (rows, exclusions, mask,

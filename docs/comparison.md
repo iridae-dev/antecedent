@@ -314,6 +314,17 @@ runtime contract. It also carries accepted partial graphs and selected graph
 posteriors into licensed downstream analyses. That does not imply broad feature
 parity with DoWhy.
 
+Where the two share a semantic, the comparison is executed rather than asserted: against
+the version pinned in `parity/baselines/dowhy.toml`, the suite computes DoWhy's interventional
+means (constant and functional interventions), unit counterfactuals, intrinsic causal influence,
+graph permutation falsification and automatic mechanism assignment at test time and checks
+agreement within stated tolerances (`python/tests/test_dowhy_comparison.py`; skipped when DoWhy is
+not installed). The overlap and the differences are stated on the
+[intervention programs](guides/intervention-programs.md#differences-from-dowhy),
+[mechanism selection](guides/mechanism-selection.md#differences-from-dowhy),
+[intrinsic influence](guides/intrinsic-influence.md#differences-from-dowhy) and
+[graph falsification](guides/graph-falsification.md#differences-from-dowhy) guides.
+
 ### EconML
 
 EconML focuses on machine-learning estimators for heterogeneous treatment

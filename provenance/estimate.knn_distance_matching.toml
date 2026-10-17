@@ -1,0 +1,27 @@
+feature_id = "estimate.knn_distance_matching"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Large Sample Properties of Matching Estimators for Average Treatment Effects", doi = "10.1111/j.1468-0262.2006.00655.x", sections = ["Covariate-space matching with M matches", "matching with replacement and donor-reuse counts"] },
+ { title = "On the Failure of the Bootstrap for Matching Estimators", doi = "10.3982/ECTA6474", sections = ["bootstrap invalidity for fixed-number-of-matches NN estimators"] },
+]
+
+implementation_deviations = [
+ "Averages the M nearest donors of each unit on the z-scored adjustment covariates (Euclidean, with replacement, ties to the lowest donor position) and applies the linear within-arm bias correction of estimate.distance_matching to the mean of the M donors. This is a separate numerical construction from one-nearest-neighbour matching: the point estimate, its bias and its variance change with M, so no coverage measured for estimate.distance_matching applies to it and its interval is measured by its own calibration design.",
+ "The standard error is the Abadie-Imbens donor-reuse form for M matches, sigma^2 (n + sum_j (K_j / M)^2) / n^2 for the ATT and ATC and sigma^2 sum_j (1 + K_j / M)^2 / n^2 for the ATE, with sigma^2 estimated from the matched differences as Var(tau_i) / (1 + 1/M), the constant-effect homoskedastic pooled estimator. It is not the conditional-residual variance estimator of the paper: a heterogeneous effect inflates Var(tau_i), so the interval is conservative there, and the estimation of the bias-correction regression is not propagated. At M = 1 it equals the standard error of estimate.distance_matching bit for bit.",
+ "With a caliper a unit is matched only when its M-th nearest donor is within it, so every matched unit averages exactly M donors; a donor arm with fewer than M rows is refused. The nonparametric bootstrap is not offered (inconsistent for fixed-M matching), and clustered, multiway and HAC standard errors are refused for the reasons recorded for estimate.distance_matching.",
+ "The k-d tree search is exact: the M smallest (distance, donor position) pairs of an exhaustive scan, so the match set does not depend on the thread count or on the tree layout.",
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "none" },
+]
+
+test_sources = [
+ "crates/antecedent-estimate/src/propensity/knn.rs (independent exhaustive-search oracle for the three-neighbour estimate, bias correction, caliper rule and donor-reuse standard error; one neighbour equals estimate.distance_matching bit for bit)",
+ "crates/antecedent-estimate/tests/knn_matching_calibration.rs (knn_matching_interval_ci_coverage, a 95 percent coverage design at 10,000, 25,000 and 100,000 rows with eight covariates)",
+]

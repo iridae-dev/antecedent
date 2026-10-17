@@ -58,6 +58,38 @@ impl DeclaredTreatmentLevels {
     }
 }
 
+/// Most distinct levels a refusal lists before it says there are more.
+const LISTED_LEVELS: usize = 16;
+
+/// The distinct treatment values of a column with their row counts, for a refusal that must
+/// name what was observed: `observed treatment levels: 0 (700 rows), 1 (650 rows), 2 (650 rows)`.
+///
+/// Level comparison is exact, as in the classification itself. A column with more than
+/// [`LISTED_LEVELS`] distinct values (a continuous treatment) lists the smallest ones and
+/// says the list is incomplete.
+#[allow(
+    clippy::float_cmp,
+    reason = "treatment levels are exact category labels, not computed values"
+)]
+pub(crate) fn describe_observed_levels(treatment: &[f64]) -> String {
+    let mut seen: Vec<(f64, u64)> = Vec::new();
+    let mut more = false;
+    for &value in treatment {
+        if let Some(entry) = seen.iter_mut().find(|(level, _)| *level == value) {
+            entry.1 += 1;
+        } else if seen.len() < LISTED_LEVELS {
+            seen.push((value, 1));
+        } else {
+            more = true;
+        }
+    }
+    seen.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let listed: Vec<String> =
+        seen.iter().map(|(level, rows)| format!("{level} ({rows} rows)")).collect();
+    let tail = if more { ", and further levels" } else { "" };
+    format!("observed treatment levels: {}{tail}", listed.join(", "))
+}
+
 /// Classify the complete-case treatment values against the declared levels.
 ///
 /// Returns, per input row, whether it is retained (at a declared level), and the record of
@@ -104,10 +136,11 @@ pub(crate) fn classify_treatment_levels(
             "treatment_levels.undeclared_level",
             &format!(
                 "{excluded_rows} complete-case rows have a treatment value at neither declared \
-                 level (active {active}, control {control}); first found {value}. Excluding \
+                 level (active {active}, control {control}); first found {value}; {}. Excluding \
                  them would restrict the target population to the rows at the two declared \
                  levels: declare that with OtherLevels::ExcludeUndeclared, or use the \
-                 full-population generalized-propensity estimator"
+                 full-population generalized-propensity estimator",
+                describe_observed_levels(treatment)
             ),
         ));
     }
