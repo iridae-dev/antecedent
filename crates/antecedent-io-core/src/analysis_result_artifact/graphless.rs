@@ -13,6 +13,12 @@ use crate::graphless_support::{GraphlessAssignmentSupport, GraphlessSupportKey, 
 /// Expected rows in each arm of an independent Bernoulli intention-to-treat interval (the support
 /// row's `min_expected_arm_units`, restated for this self-contained recompute).
 const MIN_EXPECTED_ARM_UNITS: f64 = 40.0;
+/// Fewest observed rows in each arm of a small-arm Student interval.
+const MIN_SMALL_ARM_UNITS: usize = 2;
+/// Fewest rows in all of a trial that publishes a small-arm Student interval.
+const MIN_SMALL_ARM_ROWS: usize = 100;
+/// Most ANCOVA covariates of a small-arm Student interval.
+const MAX_SMALL_ARM_COVARIATES: usize = 2;
 
 /// Whether a stored graphless support status matches the independently
 /// recomputed license for a row. This is only the status comparison shared
@@ -263,6 +269,24 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         }
     };
     let has_interval = randomized.interval_95.is_some();
+    // The small-arm Student interval of an ANCOVA or a complete randomization is a construction
+    // of its own: it stands where the normal interval is unsupported and no licence row names it.
+    let small_arm_uncertainty = match &query.design {
+        crate::RandomizationDesignWire::Bernoulli
+            if query.estimand == crate::RandomizedEstimandWire::Itt
+                && query.fixed_cuped.is_none()
+                && !query.ancova_covariates.is_empty() =>
+        {
+            Some("bernoulli_ancova_hc2_bell_mccaffrey_student_interval")
+        }
+        crate::RandomizationDesignWire::Complete { .. } => {
+            Some("complete_difference_in_means_hc2_bell_mccaffrey_student_interval")
+        }
+        _ => None,
+    };
+    let small_arm_interval =
+        has_interval && small_arm_uncertainty == Some(randomized.uncertainty.as_str());
+    let normal_interval = has_interval && !small_arm_interval;
     let graphless_method = match query.design {
         crate::RandomizationDesignWire::Bernoulli
             if query.estimand == crate::RandomizedEstimandWire::TreatmentOnTreated =>
@@ -399,7 +423,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
     let reported_intervals = if matches!(query.design, crate::RandomizationDesignWire::MultiArm) {
         randomized.multi_arm_intervals_95.iter().filter(|interval| interval.is_some()).count()
     } else {
-        usize::from(has_interval)
+        usize::from(normal_interval)
             + usize::from(randomized.second_factor_interval_95.is_some())
             + usize::from(randomized.factorial_interaction_interval_95.is_some())
     };
@@ -409,7 +433,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             randomized.multi_arm_intervals_95.len() == query.multi_arm_labels.len()
                 && reported_intervals + 1 == query.multi_arm_labels.len()
         }
-        _ => has_interval,
+        _ => normal_interval,
     };
     let graphless_licensed =
         graphless_method.is_some_and(|(family, design_key, method, assignment_unit, claim)| {
@@ -419,7 +443,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                     assignment_unit,
                     treated,
                     control,
-                    interval_95_published: has_interval,
+                    interval_95_published: normal_interval,
                     rows: query.realized_assignment.len(),
                     blocks: block_counts.len(),
                     min_block_arm,
@@ -435,7 +459,9 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
                 },
             )
         });
-    let expected_uncertainty = if has_interval {
+    let expected_uncertainty = if small_arm_interval {
+        small_arm_uncertainty.unwrap_or(point_uncertainty)
+    } else if has_interval {
         interval_uncertainty.unwrap_or(point_uncertainty)
     } else {
         point_uncertainty
@@ -448,15 +474,32 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
     let primary_interval_valid = match (randomized.standard_error, randomized.interval_95) {
         (None, None) => result.standard_error.is_none(),
         (Some(se), Some([lower, upper])) => {
-            interval_supported
-                && interval_uncertainty.is_some()
+            // The Student critical value depends on degrees of freedom the artifact does not
+            // carry, so the small-arm interval is checked for the shape it must have: centred on
+            // the effect with a critical value between the normal's and a single degree of
+            // freedom's.
+            let interval_matches = if small_arm_interval {
+                let critical = (upper - lower) / (2.0 * se);
+                !interval_supported
+                    && query.realized_assignment.len() >= MIN_SMALL_ARM_ROWS
+                    && control >= MIN_SMALL_ARM_UNITS
+                    && treated >= MIN_SMALL_ARM_UNITS
+                    && query.ancova_covariates.len() <= MAX_SMALL_ARM_COVARIATES
+                    && ((lower + upper) / 2.0 - randomized.effect).abs() <= 1e-8
+                    && critical >= z95 - 1e-8
+                    && critical <= antecedent_stats::student_t_ppf(0.975, 1.0) + 1e-8
+            } else {
+                interval_supported
+                    && interval_uncertainty.is_some()
+                    && (lower - (randomized.effect - z95 * se)).abs() <= 1e-8
+                    && (upper - (randomized.effect + z95 * se)).abs() <= 1e-8
+            };
+            interval_matches
                 && se.is_finite()
                 && se > 0.0
                 && result.standard_error.is_some_and(|top| (top - se).abs() <= 1e-10)
                 && lower.is_finite()
                 && upper.is_finite()
-                && (lower - (randomized.effect - z95 * se)).abs() <= 1e-8
-                && (upper - (randomized.effect + z95 * se)).abs() <= 1e-8
                 && (matches!(
                     query.design,
                     crate::RandomizationDesignWire::Bernoulli

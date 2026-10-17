@@ -414,6 +414,10 @@ name = "multilevel_interval_calibration"
 path = "tests/multilevel_interval_calibration.rs"
 
 [[test]]
+name = "randomized_interval_calibration"
+path = "tests/randomized_interval_calibration.rs"
+
+[[test]]
 name = "mz_transport_calibration"
 path = "tests/mz_transport_calibration.rs"
 

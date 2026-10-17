@@ -34,6 +34,38 @@ RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
 # Replicate count of a first run: the harness default (DEFAULT_N_SIM) unless
 # overridden. The recheck extends the first run from this index.
 FIRST_NSIM="${ANTECEDENT_CALIBRATION_NSIM:-400}"
+# Replicate count of a design bound to a calibrated-interval acceptance case. Such a case
+# requires at least this many replicates at every measured point (its `min_replicates`), so
+# the design runs them in its first pass: from PRECISION_N_SIM replicates the harness holds the
+# coverage to level ± 2·MCSE itself and no recheck follows. ACCEPTANCE_TESTS lists the bound
+# tests (space separated, from parity/acceptance_manifest.toml); a group whose label is
+# `<file>: <test>` with a listed test runs at this count. Smoke runs keep the smoke count.
+ACCEPTANCE_NSIM="${ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM:-2000}"
+ACCEPTANCE_TESTS=" $(python3 - <<'PY'
+import tomllib
+with open("parity/acceptance_manifest.toml", "rb") as handle:
+    cases = tomllib.load(handle)["case"]
+print(" ".join(sorted({
+    case["evidence"]["test"].rsplit("::", 1)[1]
+    for case in cases
+    if case["expected"]["kind"] == "calibrated_interval" and case["evidence"]["status"] == "bound"
+})))
+PY
+) "
+
+# First-pass replicate count of the group `shown` (its label, with any grid-point suffix).
+first_pass_nsim() {
+  local test="${1%% \[grid point*}"
+  test="${test#*: }"
+  if [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] && [ "$test" != "$1" ] \
+    && [ "$ACCEPTANCE_NSIM" -gt "$FIRST_NSIM" ]; then
+    case "$ACCEPTANCE_TESTS" in
+      *" $test "*) echo "$ACCEPTANCE_NSIM"; return ;;
+    esac
+  fi
+  echo "$FIRST_NSIM"
+}
+
 if [ "$RECHECK_NSIM" -le "$FIRST_NSIM" ]; then
   echo "ANTECEDENT_CALIBRATION_RECHECK_NSIM=$RECHECK_NSIM must exceed the first run's $FIRST_NSIM replicates" >&2; exit 2
 fi
@@ -124,6 +156,8 @@ grid_group() {
     weighted_interval_calibration:*) return 0 ;;
     # Multi-level observational contrast: the full-population normal interval (wired, unmeasured).
     multilevel_interval_calibration:*) return 0 ;;
+    # Randomized-trial intervals at 300 participants, including the small-arm Student intervals.
+    randomized_interval_calibration:*) return 0 ;;
     # Practitioner-scale intervals: 1,000 to 100,000 rows and 320 to 4,160 steps, each record
     # measured at the three points of its own grid and limited to that span.
     practitioner_scale_calibration:*) return 0 ;;
@@ -204,28 +238,30 @@ per_test_recheck() {
 run_point() {
   local stem="$1" shown="$2"
   shift 2
-  local log="${stem}.log" tallies="${stem}.tallies.jsonl" status tests test
+  local log="${stem}.log" tallies="${stem}.tallies.jsonl" status tests test first
+  first="$(first_pass_nsim "$shown")"
   rm -f "$tallies" "${stem}.recheck.tallies.jsonl"
-  ANTECEDENT_CALIBRATION_TALLY_OUT="$tallies" "$@" 2>&1 | tee "$log"
+  ANTECEDENT_CALIBRATION_NSIM="$first" ANTECEDENT_CALIBRATION_TALLY_OUT="$tallies" "$@" 2>&1 | tee "$log"
   status="${PIPESTATUS[0]}"
   require_ran "$status" "$log" || status=1
   stamp_log "$log"
-  if [ "$status" -eq 0 ] && [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] && grep -q '^calibration-recheck ' "$log"; then
+  if [ "$status" -eq 0 ] && [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] \
+    && [ "$first" -lt "$RECHECK_NSIM" ] && grep -q '^calibration-recheck ' "$log"; then
     tests=""
     if per_test_recheck "$@"; then
       tests="$(grep '^calibration-recheck-test ' "$log" | awk '{ print $2 }' | sort -u | tr '\n' ' ')"
     fi
     if [ -n "$tests" ]; then
-      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${FIRST_NSIM}): ${shown}: ${tests}=="
+      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${first}): ${shown}: ${tests}=="
     else
-      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${FIRST_NSIM}): ${shown} =="
+      echo "== recheck at ${RECHECK_NSIM} replicates (extending ${first}): ${shown} =="
     fi
     RECHECKED="${RECHECKED}  ${shown}"$'\n'
     # The recheck's verdict stands, so its `calibration-record` lines are the
     # ones scripts/collect_coverage_records.py keeps for the rechecked tests.
     # shellcheck disable=SC2086 # $tests is a space-separated list of test names.
     ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
-      ANTECEDENT_CALIBRATION_REPLICATE_START="$FIRST_NSIM" \
+      ANTECEDENT_CALIBRATION_REPLICATE_START="$first" \
       ANTECEDENT_CALIBRATION_PRIOR_TALLIES="$tallies" \
       ANTECEDENT_CALIBRATION_TALLY_OUT="${stem}.recheck.tallies.jsonl" \
       "$@" ${tests:+--exact $tests} 2>&1 | tee "${stem}.recheck.log"
@@ -569,6 +605,8 @@ run_decision_reliability_interval confidence_set_sixteen_equal_candidates_l95
 run_decision_reliability_interval confidence_set_sixteen_near_tie_candidates_l95
 run_decision_reliability_interval selection_corrected_sixteen_equal_candidates_l95
 run_decision_reliability_interval selection_corrected_sixteen_near_tie_candidates_l95
+run_decision_reliability_interval selection_corrected_sixteen_candidates_large_offset_l95
+run_decision_reliability_interval selection_corrected_counts_outside_the_first_designs_l95
 run_decision_reliability_interval selection_corrected_all_equal_sixty_four_candidates_boundary_l95
 
 run_quadratic_dose() {
@@ -1459,6 +1497,24 @@ run_mo() {
 }
 run_mo responder_weighted_mar_interval
 run_mo responder_complete_case_mcar_interval
+
+echo "== randomized-trial intervals at 300 participants and the small-arm intervals (antecedent) =="
+# Score and ANCOVA intervals under balanced and 2:1 independent assignment, the complete
+# randomization Neyman interval, and the small-arm Student intervals (20 of 300 treated).
+run_ri() {
+  local filter="$1"
+  echo "== antecedent: randomized_interval_calibration ${filter} =="
+  check "randomized_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --test randomized_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_ri randomized_score_balanced_interval
+run_ri randomized_score_two_to_one_interval
+run_ri randomized_ancova_balanced_interval
+run_ri randomized_ancova_two_to_one_interval
+run_ri complete_randomization_neyman_interval
+run_ri weak_arm_difference_in_means_hc2_student_interval
+run_ri weak_arm_ancova_hc2_student_interval
 
 echo "== practitioner-scale intervals: 1,000 to 100,000 rows, 320 to 4,160 steps (antecedent) =="
 # Each design draws its row count or series length from its own three-point grid

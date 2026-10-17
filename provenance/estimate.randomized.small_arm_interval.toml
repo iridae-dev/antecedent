@@ -1,0 +1,27 @@
+feature_id = "estimate.randomized.small_arm_interval"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Robust Standard Errors in Small Samples: Some Practical Advice", doi = "10.1162/REST_a_00552", sections = ["the HC2 variance with the Bell-McCaffrey degrees of freedom as the recommended small-sample reference", "the two-group case, where the degrees of freedom reduce to the Welch-Satterthwaite form under equal variances"] },
+ { title = "Bias Reduction in Standard Errors for Linear Regression with Multi-Stage Samples. Survey Methodology 28(2), 169-181", sections = ["the leverage-adjusted (HC2) variance estimator", "the Satterthwaite approximation to the distribution of the adjusted variance estimator"] },
+]
+
+implementation_deviations = [
+ "The degrees of freedom are the Satterthwaite value for the HC2 quadratic form under homoskedastic errors, computed as (tr A)^2 / tr(A^2) with tr(A^2) expanded over the p-by-p moment matrix so no n-by-n matrix is formed. They are not recomputed from the fitted residuals, so the reference does not depend on the realized outcomes.",
+ "The estimator is the coefficient on realized assignment in a regression on an intercept, the assignment and up to two pre-assignment covariates, with no treatment-covariate interactions. With no covariate it is the difference in means and the variance is the per-arm sample-variance sum of Neyman. The interval is conditional on the realized arm sizes, so for a Bernoulli trial it is the interval of a complete randomization with those sizes.",
+ "The interval is published in place of the normal HC0 or Neyman interval only where that interval is unsupported: fewer than 30 observed or 40 expected rows in an arm for the ANCOVA, fewer than 30 observed rows in an arm for the complete randomization. It needs at least 2 rows in each arm, at least 100 rows in all, positive variance, and no row of leverage 1. Its coverage is the repository's calibration evidence at 20 treated rows of 150 to 600, not a theorem of the cited papers, which justify the Student reference by a Satterthwaite approximation under homoskedastic errors and by simulation.",
+ "The construction is an uncalibrated candidate until a coverage record covers it: its calibration key carries the HC2 standard-error kind, which no normal interval shares.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/covariance.rs",
+ "crates/antecedent-estimate/src/ancova.rs",
+ "crates/antecedent/tests/randomized_interval_calibration.rs",
+ "crates/antecedent/tests/randomized_precision_intervals.rs",
+]

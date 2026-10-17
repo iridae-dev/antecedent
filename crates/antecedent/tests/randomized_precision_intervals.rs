@@ -205,8 +205,18 @@ fn weak_arm_support_withholds_the_interval_and_names_the_arm_rule() {
             let result =
                 Study::tabular(data.clone()).query(query).build().unwrap().run(&ctx).unwrap();
             let fit = result.randomized_effect().unwrap();
-            assert!(fit.interval_95.is_none(), "{name} {label}");
             assert!(result.support_status.is_none(), "{name} {label}");
+            if label == "ancova" {
+                // The ANCOVA has a small-arm construction of its own, never licensed.
+                assert!(fit.interval_95.is_some(), "{name} {label}");
+                assert_eq!(
+                    fit.uncertainty.as_ref(),
+                    "bernoulli_ancova_hc2_bell_mccaffrey_student_interval",
+                    "{name} {label}"
+                );
+                continue;
+            }
+            assert!(fit.interval_95.is_none(), "{name} {label}");
             assert!(
                 result
                     .diagnostics

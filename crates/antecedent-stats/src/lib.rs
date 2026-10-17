@@ -60,7 +60,8 @@ pub use cluster::{
     newey_west_meat_scalar, panel_hac_meat_scalar,
 };
 pub use covariance::{
-    SandwichKind, coefficient_covariance, score_coefficient_covariance, symmetric_eigen,
+    Hc2Coefficient, SandwichKind, coefficient_covariance, hc2_coefficient_bell_mccaffrey,
+    score_coefficient_covariance, symmetric_eigen,
 };
 pub use dcor::distance_correlation;
 pub use describe::{iid_se, mean_and_se};

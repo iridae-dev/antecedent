@@ -960,6 +960,16 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   separate graphless licenses, backed by 2,000-allocation known-truth coverage
   from 150 to 600 rows (ANCOVA) and 200 to 400 rows (CUPED) at the probability
   boundaries, a 2:1 allocation and 300 balanced rows, and by artifact checks.
+  Where the normal interval is unsupported, a complete randomization's
+  difference in means and the Bernoulli ANCOVA (one or two covariates) report a
+  small-arm interval instead: the HC2 variance (for the difference in means, the
+  per-arm sample-variance sum of Neyman) with a Student reference on the
+  Bell-McCaffrey degrees of freedom (Bell and McCaffrey 2002; Imbens and Kolesár
+  2016), conditional on the realized arm sizes. It needs 100 rows, at least two
+  in each arm and positive variance, carries its own uncertainty label and
+  standard-error kind (`hc2`), is never graphless-licensed, and states no
+  calibration until a coverage record of a 20-of-300 smaller arm covers the
+  execution. The Bernoulli score and fixed CUPED intervals keep the arm rule.
   Complete-randomization Neyman keeps its own construction and 30-unit-per-arm
   rule; contrasts among three or more actions and the receipt-adjusted contrasts
   keep their 400-row rule. Three or more ANCOVA covariates, sparse allocations, and

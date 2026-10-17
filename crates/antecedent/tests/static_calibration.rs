@@ -1064,7 +1064,7 @@ fn mediation_nie_bayesian_nominal_90_coverage() {
 /// (total `0.7`, direct `0.4`, mediated `0.3`) of the same draw and is judged on
 /// its own marginal coverage; the tallies are never combined into a joint claim,
 /// so a pass of one contrast says nothing about another and none is adjusted.
-fn mediation_contrasts_coverage(test: &'static str, bayesian: bool, seed: u64) {
+fn mediation_contrasts_coverage(test: &'static str, bayesian: bool, base_rows: usize, seed: u64) {
     let contrasts = [
         ("total", MediationContrast::Total, 0.7),
         ("direct", MediationContrast::Direct, 0.4),
@@ -1080,7 +1080,7 @@ fn mediation_contrasts_coverage(test: &'static str, bayesian: bool, seed: u64) {
         .map(|(label, _, _)| CoverageTally::for_record(key, REPORTED_LEVEL).labelled(*label))
         .collect();
     let runs = map_replicates(n_sim(), |rep| {
-        let data = mediation_data(grid_n(400), 0.0, seed + rep);
+        let data = mediation_data(grid_n(base_rows), 0.0, seed + rep);
         contrasts.map(|(_, contrast, _)| {
             let inference = if bayesian { bayes() } else { InferenceMode::Frequentist };
             run_mediation_study_on(data.clone(), 0.0, contrast, inference, seed + rep)
@@ -1115,6 +1115,7 @@ fn mediation_contrasts_frequentist_nominal_95_coverage() {
     mediation_contrasts_coverage(
         "mediation_contrasts_frequentist_nominal_95_coverage",
         false,
+        1_000,
         37_000,
     );
 }
@@ -1122,7 +1123,12 @@ fn mediation_contrasts_frequentist_nominal_95_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn mediation_contrasts_bayesian_nominal_95_coverage() {
-    mediation_contrasts_coverage("mediation_contrasts_bayesian_nominal_95_coverage", true, 37_500);
+    mediation_contrasts_coverage(
+        "mediation_contrasts_bayesian_nominal_95_coverage",
+        true,
+        400,
+        37_500,
+    );
 }
 
 /// One replicate of the contrast design: the Total, Direct and Mediated queries

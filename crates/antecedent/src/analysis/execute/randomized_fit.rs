@@ -148,10 +148,25 @@ impl RandomizedMethod {
         }
     }
 
+    /// Uncertainty label and diagnostic of the small-arm interval, for the methods that have one.
+    pub(super) fn small_arm(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Self::Ancova => Some((
+                "bernoulli_ancova_hc2_bell_mccaffrey_student_interval",
+                "Bernoulli ANCOVA with pre-assignment covariates in arms below the normal-interval support (30 observed and 40 expected rows): independent-unit HC2 variance with a Bell-McCaffrey Student pointwise 95% interval conditional on the realized arm sizes, an uncalibrated construction until a coverage record covers it",
+            )),
+            Self::Complete => Some((
+                "complete_difference_in_means_hc2_bell_mccaffrey_student_interval",
+                "Complete-randomization difference in means in arms below the normal-interval support (30 observed rows): per-arm Neyman variance (the HC2 variance of the two-group regression) with a Bell-McCaffrey Student pointwise 95% interval, an uncalibrated construction until a coverage record covers it",
+            )),
+            _ => None,
+        }
+    }
+
     pub(super) fn diagnostic(self, interval_published: bool) -> &'static str {
         match (self, interval_published) {
             (Self::Ancova, false) => {
-                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no confidence interval: the HC0 interval needs 30 observed and 40 expected rows in each arm, a common assignment probability from 0.2 through 0.8 and at most two covariates"
+                "OLS ANCOVA with pre-assignment covariates and independent-row HC0 sandwich variance; no confidence interval: the HC0 interval needs 30 observed and 40 expected rows in each arm, a common assignment probability from 0.2 through 0.8 and at most two covariates, and the small-arm Student interval needs at least 2 observed rows in each arm, 100 rows in all, positive HC2 variance and at most two covariates"
             }
             (Self::TreatmentOnTreated, false) => {
                 "Treatment-on-treated among recipients under one-sided noncompliance, exclusion, and independent assignment; Wald point and independent-unit influence variance, no interval"
@@ -166,7 +181,7 @@ impl RandomizedMethod {
                 "Horvitz-Thompson ITT with Bernoulli design variance; no confidence interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
             }
             (Self::Complete, false) => {
-                "Complete-randomization difference in means with Neyman conservative variance estimate; no confidence interval is reported"
+                "Complete-randomization difference in means with Neyman conservative variance estimate; no confidence interval: the normal interval needs 30 observed rows in each arm and the small-arm Student interval at least 2 observed rows in each arm, 100 rows in all and positive variance"
             }
             (Self::Cluster, false) => {
                 "Complete cluster-randomization HT ITT over cluster outcome totals, with Neyman conservative variance; no confidence interval is reported"
@@ -248,6 +263,8 @@ pub(super) struct TrialFit {
     pub(super) multi_arm_intervals_95: Arc<[Interval]>,
     /// What the table's sampling weights did to the fit; `None` for an unweighted fit.
     pub(super) sampling: Option<antecedent_estimate::SamplingWeightRecord>,
+    /// Bell-McCaffrey degrees of freedom when the interval is the small-arm Student interval.
+    pub(super) small_arm_df: Option<f64>,
 }
 
 impl TrialFit {
@@ -268,6 +285,7 @@ impl TrialFit {
             multi_arm_values: Arc::from([]),
             multi_arm_intervals_95: Arc::from([]),
             sampling: None,
+            small_arm_df: None,
         }
     }
 
@@ -278,6 +296,18 @@ impl TrialFit {
         self.second_factor_interval_95 = None;
         self.factorial_interaction_interval_95 = None;
         self.multi_arm_intervals_95 = self.multi_arm_values.iter().map(|_| None).collect();
+        self.small_arm_df = None;
+        self
+    }
+
+    /// Publishes the small-arm Student interval with the standard error it was built from.
+    fn with_small_arm_interval(
+        mut self,
+        fit: antecedent_estimate::ancova::SmallArmInterval,
+    ) -> Self {
+        self.interval_95 = Some(fit.interval_95);
+        self.interval_standard_error = Some(fit.variance.sqrt());
+        self.small_arm_df = Some(fit.degrees_of_freedom);
         self
     }
 
@@ -459,6 +489,24 @@ fn fit_design_with_missing_outcomes(
     fit_randomized(query, data, &pseudo)
 }
 
+/// The small-arm Student interval of a trial whose arms are below the normal interval's support,
+/// for a trial large enough to publish one.
+fn small_arm_interval(
+    query: &RandomizedEffectQuery,
+    outcomes: &[f64],
+    covariates: &[&[f64]],
+) -> Option<antecedent_estimate::ancova::SmallArmInterval> {
+    (outcomes.len() >= antecedent_estimate::ancova::MIN_ROWS_FOR_SMALL_ARM_INTERVAL)
+        .then(|| {
+            antecedent_estimate::ancova::small_arm_interval_95(
+                outcomes,
+                &query.realized_assignment,
+                covariates,
+            )
+        })
+        .flatten()
+}
+
 fn fit_ancova(
     query: &RandomizedEffectQuery,
     data: &TabularData,
@@ -481,8 +529,13 @@ fn fit_ancova(
         &fit,
         query.assignment_probabilities[0],
     );
-    Ok(TrialFit::point(fit.effect, fit.hc0_variance, fit.control, fit.treated)
-        .with_interval(interval, fit.hc0_variance.sqrt()))
+    let out = TrialFit::point(fit.effect, fit.hc0_variance, fit.control, fit.treated);
+    // Arms below the normal interval's support get the small-arm construction.
+    let small = interval.is_none().then(|| small_arm_interval(query, outcomes, &refs)).flatten();
+    if let Some(small) = small {
+        return Ok(out.with_small_arm_interval(small));
+    }
+    Ok(out.with_interval(interval, fit.hc0_variance.sqrt()))
 }
 
 fn fit_complier(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<TrialFit, CausalError> {
@@ -633,13 +686,19 @@ fn fit_complete(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<Trial
             message: "complete-randomized ITT requires finite outcomes and estimable variance",
         },
     )?;
-    Ok(TrialFit::point(
+    let out = TrialFit::point(
         fit.effect,
         fit.variance_upper_bound,
         outcomes.len() - treated_units,
         *treated_units,
-    )
-    .with_interval(fit.interval_95, fit.variance_upper_bound.sqrt()))
+    );
+    // Arms below the normal interval's support get the small-arm construction.
+    let small =
+        fit.interval_95.is_none().then(|| small_arm_interval(query, outcomes, &[])).flatten();
+    if let Some(small) = small {
+        return Ok(out.with_small_arm_interval(small));
+    }
+    Ok(out.with_interval(fit.interval_95, fit.variance_upper_bound.sqrt()))
 }
 
 fn fit_cluster(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<TrialFit, CausalError> {

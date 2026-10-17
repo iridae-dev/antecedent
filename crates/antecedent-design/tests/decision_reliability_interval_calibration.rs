@@ -239,10 +239,28 @@ fn run_gated(
     base_budget: usize,
     couplings: &[(&'static str, NoiseCoupling)],
 ) {
+    run_gated_at_offset(route, test, dgp, k, lead, base_budget, couplings, 0.0);
+}
+
+/// [`run_gated`] with every candidate's true utility shifted by `offset`: coverage is scored
+/// against the shifted truths, so an offset far above the noise measures the interval where a
+/// one-pass sum of squares would lose every digit of the standard error.
+#[allow(clippy::too_many_arguments, reason = "one design is the whole of its coordinates")]
+fn run_gated_at_offset(
+    route: PublishedRoute,
+    test: &'static str,
+    dgp: &'static str,
+    k: usize,
+    lead: f64,
+    base_budget: usize,
+    couplings: &[(&'static str, NoiseCoupling)],
+    offset: f64,
+) {
     let budget = grid_n(base_budget);
     let (_, interval_method) = route.record_construction();
     for (cell, &(label, coupling)) in couplings.iter().enumerate() {
-        let design = leader_design(k, lead, budget, coupling);
+        let mut design = leader_design(k, lead, budget, coupling);
+        design.true_means.iter_mut().for_each(|mean| *mean += offset);
         // The base-1000 designs keep the seeds they were first measured with.
         let base_salt = if base_budget == BASE_BUDGET { 0 } else { (base_budget as u64) << 20 };
         let run_seed = grid_seed(0x4d00_0000 + base_salt + (k as u64) * 64 + cell as u64);
@@ -1018,6 +1036,46 @@ fn selection_corrected_one_hundred_candidates_budget_32768_l95() {
         32768,
         &ALL,
     );
+}
+
+// Numerical precision: sixteen candidates whose utilities sit a billion noise units from zero,
+// where the interval is exact only if its standard error is computed without cancellation.
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_sixteen_candidates_large_offset_l95() {
+    run_gated_at_offset(
+        PublishedRoute::SelectionCorrectedInterval,
+        "selection_corrected_sixteen_candidates_large_offset_l95",
+        "leader_plus_fifteen_equal_candidates_gaussian_utilities_offset_one_billion",
+        16,
+        2.0,
+        2000,
+        &ALL,
+        1.0e9,
+    );
+}
+
+// Candidate counts that no first design visited (4, 7, 10 and 50), one record per band they
+// fall in, on the 500, 1000 and 2000 draw grid.
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn selection_corrected_counts_outside_the_first_designs_l95() {
+    for (k, dgp) in [
+        (4, "leader_plus_three_equal_candidates_gaussian_utilities"),
+        (7, "leader_plus_six_equal_candidates_gaussian_utilities"),
+        (10, "leader_plus_nine_equal_candidates_gaussian_utilities"),
+        (50, "leader_plus_forty_nine_equal_candidates_gaussian_utilities"),
+    ] {
+        run_gated(
+            PublishedRoute::SelectionCorrectedInterval,
+            "selection_corrected_counts_outside_the_first_designs_l95",
+            dgp,
+            k,
+            2.0,
+            BASE_BUDGET,
+            &ALL,
+        );
+    }
 }
 
 // Exact ties (equal true means) and near ties (the leader a tenth of a noise unit above).

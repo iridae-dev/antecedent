@@ -293,15 +293,34 @@ fn ratio(numerator: u32, denominator: u32) -> f64 {
     f64::from(numerator) / f64::from(denominator.max(1))
 }
 
-/// Print the reporting denominator and share, every refusal reason, the median width, the
-/// parent recovery and the graph recovery of `runs`; return `(reported share, median width,
-/// coverage)`.
-fn print_summary(test: &str, runs: &[Replicate]) -> (f64, f64, f64) {
+/// What a design publishes about its replicates: the reporting denominator, every refusal
+/// reason with its count, the median width, and the parent and graph recovery.
+struct Summary {
+    replicates: u32,
+    reported: u32,
+    refusals: BTreeMap<String, u32>,
+    median_width: f64,
+    coverage: f64,
+    parents_recovered: f64,
+    /// `(precision, recall)` of the discovered skeleton against the true graph.
+    skeleton: (f64, f64),
+    /// `(precision, recall)` of the discovered orientations against the true edges.
+    orientation: (f64, f64),
+}
+
+impl Summary {
+    fn reported_share(&self) -> f64 {
+        ratio(self.reported, self.replicates)
+    }
+}
+
+/// Tally `runs` into the [`Summary`] a design publishes, and persist its tallies.
+fn summarize(test: &str, runs: &[Replicate]) -> Summary {
     let mut reported = CoverageTally::new(format!("{test} reported"), LEVEL);
     let mut coverage = CoverageTally::new(format!("{test} covered"), LEVEL);
     let mut recovery = CoverageTally::new(format!("{test} parents"), LEVEL);
     let mut widths = Vec::new();
-    let mut refusals: BTreeMap<&str, u32> = BTreeMap::new();
+    let mut refusals: BTreeMap<String, u32> = BTreeMap::new();
     let (mut skeleton, mut orientation) = ((0, 0, 0), (0, 0, 0));
     for run in runs {
         match run {
@@ -324,7 +343,7 @@ fn print_summary(test: &str, runs: &[Replicate]) -> (f64, f64, f64) {
             Err(detail) => {
                 reported.record(None, 0.5);
                 recovery.record(None, 0.5);
-                *refusals.entry(detail.as_str()).or_default() += 1;
+                *refusals.entry(detail.clone()).or_default() += 1;
             }
         }
     }
@@ -332,23 +351,39 @@ fn print_summary(test: &str, runs: &[Replicate]) -> (f64, f64, f64) {
     coverage.persist();
     recovery.persist();
     widths.sort_by(f64::total_cmp);
-    let median = widths.get(widths.len() / 2).copied().unwrap_or(f64::NAN);
-    let share = ratio(reported.covered(), reported.attempts());
-    let covered = ratio(coverage.covered(), coverage.attempts());
+    Summary {
+        replicates: reported.attempts(),
+        reported: reported.covered(),
+        refusals,
+        median_width: widths.get(widths.len() / 2).copied().unwrap_or(f64::NAN),
+        coverage: ratio(coverage.covered(), coverage.attempts()),
+        parents_recovered: ratio(recovery.covered(), recovery.attempts()),
+        skeleton: (ratio(skeleton.0, skeleton.1), ratio(skeleton.0, skeleton.2)),
+        orientation: (ratio(orientation.0, orientation.1), ratio(orientation.0, orientation.2)),
+    }
+}
+
+/// Print the [`Summary`] of `runs`; return `(reported share, median width, coverage)`.
+fn print_summary(test: &str, runs: &[Replicate]) -> (f64, f64, f64) {
+    let summary = summarize(test, runs);
     eprintln!(
-        "info summary {test}: replicates={} reported={} reported_share={share:.3} \
-         refusals={refusals:?} coverage={covered:.3} median_width={median:.3} \
+        "info summary {test}: replicates={} reported={} reported_share={:.3} \
+         refusals={:?} coverage={:.3} median_width={:.3} \
          parents_recovered={:.3} skeleton_precision={:.3} skeleton_recall={:.3} \
          orientation_precision={:.3} orientation_recall={:.3}",
-        reported.attempts(),
-        reported.covered(),
-        ratio(recovery.covered(), recovery.attempts()),
-        ratio(skeleton.0, skeleton.1),
-        ratio(skeleton.0, skeleton.2),
-        ratio(orientation.0, orientation.1),
-        ratio(orientation.0, orientation.2),
+        summary.replicates,
+        summary.reported,
+        summary.reported_share(),
+        summary.refusals,
+        summary.coverage,
+        summary.median_width,
+        summary.parents_recovered,
+        summary.skeleton.0,
+        summary.skeleton.1,
+        summary.orientation.0,
+        summary.orientation.1,
     );
-    (share, median, covered)
+    (summary.reported_share(), summary.median_width, summary.coverage)
 }
 
 fn gated(test: &'static str, design: Design) {
@@ -418,6 +453,46 @@ const fn design(
     regime: Regime,
 ) -> Design {
     Design { transformation, variables, topology, regime }
+}
+
+/// A design publishes, for every cell it runs, the denominator of its replicates, the reason of
+/// every refusal, the median width of the reported intervals and the parent and graph recovery.
+/// A few replicates of one linear and one log-linear cell show each is accounted for and well
+/// formed: reported plus refused equals the replicates, every refusal names a registered detail,
+/// and the widths and recovery shares are finite and in range.
+#[test]
+fn discovery_validation_publishes_denominators_refusals_widths_and_recovery() {
+    const REPLICATES: u32 = 4;
+    for transformation in [Transformation::Linear, Transformation::LogLinear] {
+        let cell = design(transformation, 10, Topology::HubConfoundedMultiPath, Regime::None);
+        let runs: Vec<Replicate> = (0..u64::from(REPLICATES))
+            .map(|rep| replicate(cell, Variant::Licensed, false, rep))
+            .collect();
+        let summary = summarize("discovery_validation_publication_check", &runs);
+        assert_eq!(summary.replicates, REPLICATES, "the denominator is every replicate");
+        assert_eq!(
+            summary.reported + summary.refusals.values().sum::<u32>(),
+            REPLICATES,
+            "every replicate is either reported or refused with a stated reason: {:?}",
+            summary.refusals
+        );
+        assert!(summary.refusals.keys().all(|detail| !detail.is_empty()));
+        for share in [
+            summary.parents_recovered,
+            summary.skeleton.0,
+            summary.skeleton.1,
+            summary.orientation.0,
+            summary.orientation.1,
+        ] {
+            assert!((0.0..=1.0).contains(&share), "recovery share {share} is a proportion");
+        }
+        if summary.reported > 0 {
+            assert!(summary.median_width.is_finite() && summary.median_width > 0.0);
+            assert!((0.0..=1.0).contains(&summary.coverage));
+        } else {
+            assert!(summary.median_width.is_nan(), "no reported interval has no width");
+        }
+    }
 }
 
 #[test]

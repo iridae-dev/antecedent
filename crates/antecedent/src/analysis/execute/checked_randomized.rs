@@ -212,15 +212,18 @@ impl CheckedRandomizedOperation {
         let weighted = self.extra.as_ref().filter(|_| !complete);
         let interval_published = fit.interval_95.is_some();
         let sampled = fit.sampling.is_some();
+        let small_arm = fit.small_arm_df.and_then(|df| method.small_arm().map(|text| (df, text)));
         let uncertainty = Arc::<str>::from(match weighted {
             Some(declaration) => responder_uncertainty(declaration.policy, method),
             None if sampled => SAMPLING_WEIGHTED_UNCERTAINTY,
-            None => method.uncertainty(interval_published),
+            None => small_arm
+                .map_or_else(|| method.uncertainty(interval_published), |(_, (label, _))| label),
         });
         let diagnostic = match weighted {
             Some(declaration) => responder_diagnostic(declaration.policy, method),
             None if sampled => SAMPLING_WEIGHTED_DIAGNOSTIC,
-            None => method.diagnostic(interval_published),
+            None => small_arm
+                .map_or_else(|| method.diagnostic(interval_published), |(_, (_, text))| text),
         };
         let exact_test = self
             .query
@@ -234,6 +237,11 @@ impl CheckedRandomizedOperation {
         );
         if interval_published && method.clustered_standard_error() {
             estimate = estimate.with_se_kind(antecedent_estimate::AnalyticSeKind::Cluster);
+        }
+        if let Some((df, _)) = small_arm {
+            // The interval is HC2 with a Student reference, a construction of its own.
+            estimate = estimate.with_se_kind(antecedent_estimate::AnalyticSeKind::Hc2);
+            estimate.uncertainty.analytic.reference_df = Some(df);
         }
         estimate = estimate.with_sampling_weights(fit.sampling);
         let started = Instant::now();
@@ -285,7 +293,7 @@ impl CheckedRandomizedOperation {
             exact_test,
             uncertainty,
         ));
-        if self.graphless_license(&result, method).is_some() {
+        if self.graphless_license(&result, method, small_arm.is_some()).is_some() {
             result.support_status = Some(crate::support::CellStatus::Licensed);
         }
         result.rebind_interval(false);
@@ -465,6 +473,7 @@ impl CheckedRandomizedOperation {
         &self,
         result: &StudyResult,
         method: RandomizedMethod,
+        small_arm: bool,
     ) -> Option<crate::support::CellStatus> {
         let fit = result.randomized_effect().expect("randomized result was just set");
         let (family, design, method_id, assignment_unit, claim) =
@@ -539,7 +548,8 @@ impl CheckedRandomizedOperation {
                 assignment_unit,
                 treated: fit.treatment_units,
                 control: fit.control_units,
-                interval_95_published: fit.interval_95.is_some(),
+                // The small-arm interval is a separate construction that no licence row names.
+                interval_95_published: fit.interval_95.is_some() && !small_arm,
                 rows: self.rows,
                 blocks: block_counts.len(),
                 min_block_arm,
