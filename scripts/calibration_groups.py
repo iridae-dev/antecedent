@@ -541,6 +541,36 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     return 0
 
 
+def last_durations() -> dict[str, float]:
+    """The most recent recorded wall time of each task label (target/calibration-timings.tsv)."""
+    out: dict[str, float] = {}
+    if not TIMINGS.is_file():
+        return out
+    for line in TIMINGS.read_text(encoding="utf-8").splitlines():
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        try:
+            out[parts[0]] = float(parts[1])
+        except ValueError:
+            continue
+    return out
+
+
+def longest_first(tasks: list[tuple[Group, int | None]]) -> list[tuple[Group, int | None]]:
+    """Order tasks by their last recorded duration, longest first (longest-processing-time
+    scheduling), so a long task does not start late and set the wall time; tasks with no
+    record keep their gate order after the timed ones."""
+    durations = last_durations()
+
+    def key(item: tuple[int, tuple[Group, int | None]]) -> tuple[int, float, int]:
+        position, (group, point) = item
+        seconds = durations.get(task_label(group, point))
+        return (0, -seconds, position) if seconds is not None else (1, 0.0, position)
+
+    return [task for _, task in sorted(enumerate(tasks), key=key)]
+
+
 def run(selection: Selection, total: int, jobs: int) -> int:
     groups = selection.groups
     if not groups:
@@ -587,7 +617,7 @@ def run(selection: Selection, total: int, jobs: int) -> int:
     done: list[int] = []
     failed: list[Group] = []
 
-    tasks = [(group, point) for group in groups for point in group.points]
+    tasks = longest_first([(group, point) for group in groups for point in group.points])
 
     def one(task: tuple[Group, int | None]) -> None:
         group, point = task

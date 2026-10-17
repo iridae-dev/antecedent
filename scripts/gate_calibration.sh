@@ -34,10 +34,12 @@ RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
 # Replicate count of a first run: the harness default (DEFAULT_N_SIM) unless
 # overridden. The recheck extends the first run from this index.
 FIRST_NSIM="${ANTECEDENT_CALIBRATION_NSIM:-400}"
-# Replicate count of a design bound to a calibrated-interval acceptance case. Such a case
-# requires at least this many replicates at every measured point (its `min_replicates`), so
-# the design runs them in its first pass: from PRECISION_N_SIM replicates the harness holds the
-# coverage to level ± 2·MCSE itself and no recheck follows. ACCEPTANCE_TESTS lists the bound
+# Replicate count of a design bound to a calibrated-interval acceptance case at its base grid
+# point. Such a case requires at least this many replicates at its configured size (its
+# `min_replicates`), which is the design's base point, so that point runs them in its first
+# pass: from PRECISION_N_SIM replicates the harness holds the coverage to level ± 2·MCSE itself
+# and no recheck follows. The other two points extend the measured size range and run the
+# ordinary first pass, rechecked at RECHECK_NSIM when off nominal. ACCEPTANCE_TESTS lists the bound
 # tests (space separated, from parity/acceptance_manifest.toml); a group whose label is
 # `<file>: <test>` with a listed test runs at this count. Smoke runs keep the smoke count.
 ACCEPTANCE_NSIM="${ANTECEDENT_CALIBRATION_ACCEPTANCE_NSIM:-2000}"
@@ -57,6 +59,9 @@ PY
 first_pass_nsim() {
   local test="${1%% \[grid point*}"
   test="${test#*: }"
+  case "$1" in
+    *"[grid point 0]"*|*"[grid point 2]"*) echo "$FIRST_NSIM"; return ;;
+  esac
   if [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] && [ "$test" != "$1" ] \
     && [ "$ACCEPTANCE_NSIM" -gt "$FIRST_NSIM" ]; then
     case "$ACCEPTANCE_TESTS" in

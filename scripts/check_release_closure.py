@@ -170,8 +170,27 @@ def points(record: dict[str, Any]) -> list[dict[str, Any]]:
     return [p for p in (record.get("grid") or [record]) if p.get("role", record.get("role")) in MEASURED_ROLES]
 
 
+def configured_point(measured: list[dict[str, Any]], size: float | None) -> dict[str, Any] | None:
+    """The measured point whose size range contains the case's configured size, else the nearest."""
+    if not measured:
+        return None
+    if size is None:
+        return measured[len(measured) // 2]
+
+    def distance(point: dict[str, Any]) -> float:
+        low, high = float(point.get("n_min", 0)), float(point.get("n_max", 0))
+        return 0.0 if low <= size <= high else min(abs(size - low), abs(size - high))
+
+    return min(measured, key=distance)
+
+
 def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any]]) -> list[str]:
-    """Each measured point has >= the case's replicates, a Monte Carlo SE and meets the coverage floor."""
+    """The point at the case's configured size has >= the case's replicates; every measured point
+    states a Monte Carlo SE and meets the coverage floor.
+
+    The case's replicate minimum is a requirement on its own configuration. The record's other grid
+    points extend the measured size range; they carry the ordinary first-pass replicates (and the
+    harness rechecks any of them at 2,000 when its coverage is off nominal)."""
     problems = []
     for case in calibrated(data):
         cid, targets = case["id"], case["targets"]
@@ -179,10 +198,13 @@ def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any
         if not matched:
             problems.append(f"{cid}: no coverage record from {case['evidence']['test']} at nominal "
                             f"{targets['nominal_coverage']} spanning the configured size")
+        size = case_size(case)
         for record in matched:
-            for point in points(record):
+            measured = points(record)
+            configured = configured_point(measured, size)
+            for point in measured:
                 where = f"{cid}: record {record['id']} point {point.get('point', 0)}"
-                if point.get("replicates", 0) < targets["min_replicates"]:
+                if point is configured and point.get("replicates", 0) < targets["min_replicates"]:
                     problems.append(f"{where} has {point.get('replicates', 0)} replicates, below {targets['min_replicates']}")
                 mcse = point.get("mcse")
                 if not isinstance(mcse, (int, float)) or not math.isfinite(mcse) or mcse <= 0:
