@@ -31,6 +31,8 @@ _REASON_PROSE = {
     "support_axes.toml",
     # Facade-surface `reason` explains how Python reaches an entry or why it has none.
     "python_facade_surface.toml",
+    # An interval-level exception's `reason` explains why the runtime publishes no interval.
+    "interval_level_exceptions.toml",
 }
 for path in sorted(root.glob("parity/*.toml")):
     if path.name in _REASON_PROSE:
