@@ -55,7 +55,7 @@ fn survival_spec() -> ObservationalSurvivalSpecWire {
 fn survival_report_states_its_estimands_assumptions_and_standing() {
     let request = survival_request(1500, survival_spec());
     let report = ObservationalSurvivalEffect::evaluate(&request).unwrap();
-    assert_eq!(report.horizon, 2.0);
+    assert!((report.horizon - 2.0).abs() < f64::EPSILON);
     assert_eq!(report.censoring, "at_random_given_covariates");
     assert_eq!(report.calibration, "unmeasured");
     assert_eq!(report.estimands.len(), 2);
@@ -164,7 +164,8 @@ fn policy_value_reports_the_declared_support_evaluation_and_standing() {
 
 #[test]
 fn every_undeclared_policy_input_is_refused_with_its_own_detail() {
-    let cases: [(&str, Box<dyn Fn(&mut ObservationalPolicySpecWire)>); 6] = [
+    type Mutate = Box<dyn Fn(&mut ObservationalPolicySpecWire)>;
+    let cases: [(&str, Mutate); 6] = [
         ("policy_value.support_missing", Box::new(|s| s.support = None)),
         ("policy_value.objective_missing", Box::new(|s| s.objective = None)),
         ("policy_value.evaluation_missing", Box::new(|s| s.evaluation = None)),

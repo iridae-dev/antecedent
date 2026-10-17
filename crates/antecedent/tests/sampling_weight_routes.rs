@@ -197,7 +197,7 @@ fn weights_rescale_and_zero_weight_rows_are_counted_for_a_trial() {
     for k in 0..6 {
         padded.assigned.push(k % 2 == 0);
         padded.probability.push(0.5);
-        padded.outcome.push(1.0e7 * (k as f64 + 1.0));
+        padded.outcome.push(1.0e7 * (f64::from(k) + 1.0));
         padded.weight.push(0.0);
     }
     let zero = run_trial(bernoulli_query(&padded), &padded.outcome, &padded.weight);

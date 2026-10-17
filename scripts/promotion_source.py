@@ -520,6 +520,7 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         "count_fitted_interval",
         "sampled_counterfactual_transport",
         "split_effect",
+        "split_parent_set_effect",
     }
     _, native_items = rust_items(root / "python/src/measured_inference_api.rs")
     _, io_items = rust_items(root / "crates/antecedent-io/src/measured_inference.rs")

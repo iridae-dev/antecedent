@@ -122,7 +122,7 @@ fn no_clip() -> OverlapPolicy {
 fn interval(effect: &EffectEstimate) -> Option<(f64, f64)> {
     let se = effect.se_analytic();
     (effect.ate.is_finite() && se.is_finite() && se > 0.0)
-        .then(|| (effect.ate - Z95 * se, effect.ate + Z95 * se))
+        .then_some((effect.ate - Z95 * se, effect.ate + Z95 * se))
 }
 
 fn linear(sample: &Sample, cluster: bool) -> Option<EffectEstimate> {
@@ -666,7 +666,7 @@ fn weighted_panel_did_interval() {
         "cluster_panel_informative_sampling",
         60,
         &construction("randomized_ht", "cluster", "cluster", "PanelDid"),
-        |clusters_per_arm, seed| panel(clusters_per_arm, seed),
+        panel,
     );
 }
 

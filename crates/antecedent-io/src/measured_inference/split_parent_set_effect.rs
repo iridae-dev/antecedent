@@ -829,7 +829,7 @@ pub fn measure(source_bytes: &[u8], ctx: &ExecutionContext) -> Result<MeasuredIn
         )?;
     }
     authorize(
-        PARENT_SET_EFFECT_ROUTE,
+        "split_parent_set_effect",
         source_bytes.to_vec(),
         &premises,
         &data,

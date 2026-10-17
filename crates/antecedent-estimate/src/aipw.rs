@@ -493,7 +493,7 @@ impl AipwAte {
             )?;
         }
         if self.sampling_weights.is_some() {
-            self.require_weighted_scope(query)?;
+            Self::require_weighted_scope(query)?;
         }
         if let Some(source) = self.source_cluster_ids.as_deref() {
             crate::se::require_source_labels(
@@ -557,7 +557,7 @@ impl AipwAte {
     /// custom target, penalized propensities with a weighted penalty-selection criterion, the
     /// in-sample ATT, ATC and trimmed ATE, and the cluster-DML sandwich). Non-mean functionals
     /// have no sampling-weighted score here and refuse rather than ignore them.
-    fn require_weighted_scope(&self, query: &AverageEffectQuery) -> Result<(), EstimationError> {
+    fn require_weighted_scope(query: &AverageEffectQuery) -> Result<(), EstimationError> {
         if query.outcome_functional != antecedent_core::OutcomeFunctional::Mean {
             return Err(crate::sampling_weights::unsupported_route(
                 "AIPW reads sampling weights on the mean functional; a non-mean outcome \

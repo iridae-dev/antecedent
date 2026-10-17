@@ -922,11 +922,11 @@ fn a_64_draw_laplace_request_publishes_the_exchangeable_rank_interval() {
     assert_eq!(posterior.draws.n_draws, 64);
     let column = posterior.effect_column().unwrap();
     let (lower, upper) = rank_interval(posterior.draws.column(column).unwrap(), 0.95);
-    assert_eq!(posterior.summaries.q025[column], lower);
-    assert_eq!(posterior.summaries.q975[column], upper);
+    assert_eq!(posterior.summaries.q025[column].to_bits(), lower.to_bits());
+    assert_eq!(posterior.summaries.q975[column].to_bits(), upper.to_bits());
     let own = posterior.draws.summarize();
-    assert_eq!(posterior.summaries.mean[column], own.mean[column]);
-    assert_ne!(posterior.summaries.q025[column], own.q025[column]);
+    assert_eq!(posterior.summaries.mean[column].to_bits(), own.mean[column].to_bits());
+    assert_ne!(posterior.summaries.q025[column].to_bits(), own.q025[column].to_bits());
     let full = run(1_000);
     let posterior = full.posterior.as_ref().unwrap();
     assert_eq!(posterior.summaries, posterior.draws.summarize());

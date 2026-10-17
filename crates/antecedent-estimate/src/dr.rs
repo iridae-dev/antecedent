@@ -469,6 +469,10 @@ impl DrLearner {
     clippy::float_cmp,
     reason = "exact-support profile match: a retained row qualifies only when its covariate tuple equals the profile values exactly"
 )]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the fitted scores, propensities, retained rows and sampling weights are distinct inputs of one profile pass"
+)]
 fn pointwise_profile_results(
     spec: LearnerSpec,
     problem: &PreparedPropensityProblem,

@@ -291,14 +291,13 @@ impl GlmAdjustmentAte {
             data.row_count(),
             self.population_registry.as_ref(),
         )?;
-        if self.sampling_weights.is_some() {
-            if matches!(self.se_kind, AnalyticSeKind::Homoskedastic) {
-                return Err(crate::sampling_weights::unsupported_route(
-                    "the Fisher delta-method standard error treats weights as precision and is \
-                     invalid for sampling weights; request a heteroskedasticity-robust kind \
-                     (hc0..hc3) or the cluster sandwich",
-                ));
-            }
+        if self.sampling_weights.is_some() && matches!(self.se_kind, AnalyticSeKind::Homoskedastic)
+        {
+            return Err(crate::sampling_weights::unsupported_route(
+                "the Fisher delta-method standard error treats weights as precision and is \
+                 invalid for sampling weights; request a heteroskedasticity-robust kind \
+                 (hc0..hc3) or the cluster sandwich",
+            ));
         }
         let sampling = self
             .sampling_weights

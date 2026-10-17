@@ -583,6 +583,15 @@ fn discovered_temporal_transport_estimate_run(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<EstimateReply> {
+    type Ran = Result<
+        (
+            antecedent_discovery::selective::DiscoveryOutcome,
+            antecedent_discovery::selective::SelectiveRunReport,
+            Result<DiscoveredTemporalTransportReport, DiscoveredTransportError>,
+            Option<Result<(DiscoveredTransportEstimate, Vec<u8>), DiscoveredTransportError>>,
+        ),
+        SelectiveDiscoveryError,
+    >;
     let parsed = sd::parse_json(contract_json)?;
     let map = sd::contract_map(&parsed, "temporal")?;
     let seed = sd::get_u64(map, "seed")?;
@@ -594,15 +603,6 @@ fn discovered_temporal_transport_estimate_run(
     let target_batch = crate::columns_to_batch(&names, &target_columns)?;
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-    type Ran = Result<
-        (
-            antecedent_discovery::selective::DiscoveryOutcome,
-            antecedent_discovery::selective::SelectiveRunReport,
-            Result<DiscoveredTemporalTransportReport, DiscoveredTransportError>,
-            Option<Result<(DiscoveredTransportEstimate, Vec<u8>), DiscoveredTransportError>>,
-        ),
-        SelectiveDiscoveryError,
-    >;
     let ran: Ran = crate::detach_catch(py, move || {
         let (series, _): (antecedent_data::TimeSeriesData, _) =
             crate::discovery_api::series_from_batch(&source_batch)?;

@@ -877,7 +877,7 @@ impl DeclaredUnits {
     /// Missing labels or score table, or a refusal of [`ClusterDml::receipt`].
     pub(crate) fn publish(
         &self,
-        mut estimate: crate::adjustment::EffectEstimate,
+        estimate: crate::adjustment::EffectEstimate,
         problem: &crate::propensity::PreparedPropensityProblem,
     ) -> Result<crate::adjustment::EffectEstimate, EstimationError> {
         let Some(spec) = self.spec else {
